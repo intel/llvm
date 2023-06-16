@@ -14,6 +14,7 @@
 
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTraits.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -79,9 +80,8 @@ void ConvertSYCLToMathPass::runOnOperation() {
   ConversionTarget target(context);
 
   target.addLegalDialect<math::MathDialect>();
-  target.addDynamicallyLegalDialect<sycl::SYCLDialect>([](Operation *op) {
-    return !op->getName().getStringRef().starts_with("sycl.math.");
-  });
+  target.addDynamicallyLegalDialect<sycl::SYCLDialect>(
+      [](Operation *op) { return !op->hasTrait<sycl::SYCLMathFunc>(); });
 
   populateSYCLToMathConversionPatterns(patterns);
 

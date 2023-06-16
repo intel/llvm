@@ -24,12 +24,16 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 // TODO: Add vectors and marrays.
 def SYCLGenfloat : AnyTypeOf<[F32, F64]>;
 
-// Base class for SYCL-specific math operations (§4.17.5), which have no side
-// effects and can be applied to scalars, vectors and marrarys.
+// Trait to mark ops representing a SYCL math function (§4.17.5).
+def SYCLMathFunc : SYCLOpTrait<"SYCLMathFunc">;
+
+// Base class for SYCL-specific math operations, which have no side effects and
+// can be applied to scalars.
+// TODO: Support vectors and marrarys.
 // TODO: Consider VectorUnrollOpInterface, ElementwiseMappable.
 // TODO: Consider arith::FastMathFlags.
 class SYCL_MathOp<string mnemonic, list<Trait> traits = []> :
-    SYCL_Op<"math." # mnemonic, traits # [Pure]>;
+    SYCL_Op<"math." # mnemonic, traits # [SYCLMathFunc, Pure]>;
 
 class SYCL_FloatUnaryOp<string mnemonic, string synopsis = "",
                         list<Trait> traits = []> :
