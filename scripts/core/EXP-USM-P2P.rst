@@ -45,9 +45,9 @@ Enums
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ${x}EnablePeerAccessExp
-* ${x}DisablePeerAccessExp
-* ${x}PeerAccessGetInfoExp
+* ${x}UsmP2PEnablePeerAccessExp
+* ${x}UsmP2PDisablePeerAccessExp
+* ${x}UsmP2PPeerAccessGetInfoExp
 
 Changelog
 --------------------------------------------------------------------------------

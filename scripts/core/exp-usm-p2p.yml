@@ -111,4 +111,3 @@ returns:
     - $X_RESULT_SUCCESS
     - $X_RESULT_ERROR_ADAPTER_SPECIFIC:
       - "Returned if a native error code is returned by the adapter driver function querying the property. Consult the UR documentation for details on retrieving the corresponding native error code."
---- #--------------------------------------------------------------------------
