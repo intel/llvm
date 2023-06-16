@@ -530,7 +530,7 @@ associated with a buffer that was created using a host data pointer will
 outlive any executable graphs created from a modifiable graph which uses
 that buffer.
 
-==== No-Cycle Check
+===== No-Cycle-Check Property
 
 The `property::graph::no_cycle_check` property disables any checks if a newly
 added dependency will lead to a cycle in a specific `command_graph` and can be
