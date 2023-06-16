@@ -14,4 +14,11 @@ target_link_libraries(disjoint_pool PRIVATE
     unified_memory_allocation
     ${PROJECT_NAME}::headers)
 
+if (UNIX)
+    set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+    set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+    find_package(Threads REQUIRED)
+    target_link_libraries(disjoint_pool PRIVATE Threads::Threads)
+endif()
+
 target_include_directories(disjoint_pool PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
