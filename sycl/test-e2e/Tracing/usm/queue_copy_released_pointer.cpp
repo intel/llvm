@@ -14,7 +14,7 @@ int main() {
 
   try {
     // CHECK: [USM] Function uses unknown USM pointer (could be already released or not allocated as USM) as destination memory block
-    // CHECK: | memcpy location: function main at {{.*}}/queue_copy_nullptr.cpp:18
+    // CHECK: | memcpy location: function main at {{.*}}/queue_copy_released_pointer.cpp:[[# @LINE + 1 ]]
     Q.copy(AllocDst, AllocSrc, 1);
   } catch (...) {
   }
