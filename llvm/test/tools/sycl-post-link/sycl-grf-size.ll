@@ -4,11 +4,13 @@
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-LargeGRF-IR --implicit-check-not='__ESIMD_kernel()'
 ; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-LargeGRF-PROP
-; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-LargeGRF-IR
+; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-LargeGRF-IR --implicit-check-not='__SYCL_kernel()'
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-SYCL-LargeGRF-PROP
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYCL-LargeGRF-SYM
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-SYCL-IR --implicit-check-not='__SYCL_kernel_large_grf()'
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes CHECK-SYCL-PROP
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYCL-SYM
+; RUN: FileCheck %s -input-file=%t_esimd_1.ll --check-prefixes CHECK-ESIMD-IR --implicit-check-not='__ESIMD_large_grf_kernel()'
 ; RUN: FileCheck %s -input-file=%t_esimd_1.prop --check-prefixes CHECK-ESIMD-PROP
 ; RUN: FileCheck %s -input-file=%t_esimd_0.sym --check-prefixes CHECK-ESIMD-LargeGRF-SYM
 
@@ -22,10 +24,16 @@
 
 ; CHECK-SYCL-LargeGRF-PROP: sycl-grf-size=1|256
 
+; CHECK-SYCL-LargeGRF-IR: define {{.*}} spir_kernel void @__SYCL_kernel_large_grf() #[[SYCLAttr:]]
+; CHECK-SYCL-LargeGRF-IR: attributes #[[SYCLAttr]]
+
 ; CHECK-SYCL-PROP-NOT: sycl-grf-size
 
 ; CHECK-SYCL-SYM: __SYCL_kernel
 ; CHECK-SYCL-SYM-EMPTY:
+
+; CHECK-SYCL-IR: __SYCL_kernel() #[[SYCLAttr:]]
+; CHECK-SYCL-IR: attributes #[[SYCLAttr]]
 
 ; CHECK-SYCL-LargeGRF-SYM: __SYCL_kernel_large_grf
 ; CHECK-SYCL-LargeGRF-SYM-EMPTY:
@@ -33,10 +41,16 @@
 ; CHECK-ESIMD-SYM: __ESIMD_kernel
 ; CHECK-ESIMD-SYM-EMPTY:
 
+; CHECK-ESIMD-IR: __ESIMD_kernel() #[[ESIMDAttr:]]
+; CHECK-ESIMD-IR: attributes #[[ESIMDAttr]]
+
 ; CHECK-ESIMD-PROP-NOT: sycl-grf-size
 
 ; CHECK-ESIMD-LargeGRF-SYM: __ESIMD_large_grf_kernel
 ; CHECK-ESIMD-LargeGRF-SYM-EMPTY:
+
+; CHECK-ESIMD-LargeGRF-IR: @__ESIMD_large_grf_kernel() #[[ESIMDLargeAttr:]]
+; CHECK-ESIMD-LargeGRF-IR: attributes #[[ESIMDLargeAttr]]
 
 ; ModuleID = 'large_grf.bc'
 source_filename = "llvm-link"
@@ -49,7 +63,6 @@ entry:
 }
 
 define weak_odr dso_local spir_kernel void @__SYCL_kernel_large_grf() #1 {
-; CHECK-SYCL-LargeGRF-IR: define {{.*}} spir_kernel void @__SYCL_kernel_large_grf() #[[#Attr:]]
 entry:
   ret void
 }
@@ -60,7 +73,6 @@ entry:
 }
 
 define weak_odr dso_local spir_kernel void @__ESIMD_large_grf_kernel() #1 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
-; CHECK-ESIMD-LargeGRF-IR: @__ESIMD_large_grf_kernel()
 entry:
   ret void
 }
