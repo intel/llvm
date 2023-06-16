@@ -1,4 +1,4 @@
-//===- DynamicTableEmitter.cpp - Generate efficiently dynamic tables -==//
+//===========- DynamicTableEmitter.cpp - Generate dynamic tables -============//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This tablegen backend emits a generic array initialized by specified fields,
-// together with companion index tables and lookup functions (binary search,
-// currently).
+// This tablegen backend emits a key-value map that can be dynamically extended
+// at runtime.
 //
 //===----------------------------------------------------------------------===//
 
