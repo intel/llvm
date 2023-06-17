@@ -553,7 +553,8 @@ WorkGroupSize::WorkGroupSize(unsigned numDims,
   }
 
   SmallVector<Value> wgSizeVals;
-  sycl::populateWorkGroupSize(wgSizeVals, numDims, builder);
+  sycl::populateWorkGroupSize(wgSizeVals, numDims, builder,
+                              builder.getUnknownLoc());
   for (Value wgSize : wgSizeVals)
     wgSizes.push_back(wgSize);
 }
@@ -1101,18 +1102,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
   // Create SYCL local ids corresponding to the grid dimensionality (per
   // kernel).
   SmallVector<Value> localIDs;
-  Location loc = func.getLoc();
-  const auto arrayType = builder.getType<sycl::ArrayType>(
-      numDims, MemRefType::get(numDims, builder.getIndexType()));
-  const auto idTy = builder.getType<sycl::IDType>(numDims, arrayType);
-  auto localID = builder.create<sycl::SYCLLocalIDOp>(loc, idTy);
-  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
-  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
-  builder.create<memref::StoreOp>(loc, localID, id, zeroIndex);
-  for (unsigned dim = 0; dim < numDims; ++dim) {
-    Value idGetOp = sycl::createSYCLIDGetOp(id, dim, builder, loc);
-    localIDs.push_back(builder.create<memref::LoadOp>(loc, idGetOp, zeroIndex));
-  }
+  sycl::populateLocalID(localIDs, numDims, builder, func.getLoc());
 
   // Now that we have a list of memref to promote to shared memory in each
   // loop nest's innermost loop, perform the transformation.
