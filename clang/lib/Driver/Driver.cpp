@@ -7134,6 +7134,40 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     OffloadBuilder->unbundleStaticArchives(C, Args);
   }
 
+  // mtoguchi
+  // Use of -ftarget-device-link triggers the ability to create a device
+  // image during the compilation step.
+  if (const Arg *A = Args.getLastArg(options::OPT_ftarget_device_link)) {
+#if 0
+    if (!UseNewOffloadingDriver)
+      OffloadBuilder->makeHostLinkAction(LinkerInputs);
+    types::ID LinkType(types::TY_Image);
+    if (Args.hasArg(options::OPT_fsycl_link_EQ))
+      LinkType = types::TY_Archive;
+    Action *LA;
+    // Check if this Linker Job should emit a static library.
+    if (ShouldEmitStaticLibrary(Args)) {
+      LA = C.MakeAction<StaticLibJobAction>(LinkerInputs, LinkType);
+    } else if (UseNewOffloadingDriver ||
+               Args.hasArg(options::OPT_offload_link)) {
+      LA = C.MakeAction<LinkerWrapperJobAction>(LinkerInputs, types::TY_Image);
+      LA->propagateHostOffloadInfo(C.getActiveOffloadKinds(),
+                                   /*BoundArch=*/nullptr);
+    } else {
+      LA = C.MakeAction<LinkJobAction>(LinkerInputs, LinkType);
+    }
+    if (!UseNewOffloadingDriver)
+      LA = OffloadBuilder->processHostLinkAction(LA);
+#else
+    Action *LA;
+    llvm::errs() << "LinkerInputs Size = " << LinkerInputs.size() << '\n';
+    LA = C.MakeAction<LinkJobAction>(LinkerInputs, types::TY_Image);
+    if (!UseNewOffloadingDriver)
+      LA = OffloadBuilder->processHostLinkAction(LA);
+#endif
+    Actions.push_back(LA);
+  }
+
   // For an FPGA archive, we add the unbundling step above to take care of
   // the device side, but also unbundle here to extract the host side
   bool EarlyLink = false;
