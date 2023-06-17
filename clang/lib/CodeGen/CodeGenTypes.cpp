@@ -756,15 +756,19 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     const ReferenceType *RTy = cast<ReferenceType>(Ty);
     QualType ETy = RTy->getPointeeType();
     unsigned AS = getTargetAddressSpace(ETy);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     ResultType = llvm::PointerType::get(getLLVMContext(), AS);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *PointeeType = ConvertTypeForMem(ETy);
+    ResultType = llvm::PointerType::get(PointeeType, AS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+
     break;
   }
   case Type::Pointer: {
     const PointerType *PTy = cast<PointerType>(Ty);
     QualType ETy = PTy->getPointeeType();
-    llvm::Type *PointeeType = ConvertTypeForMem(ETy);
-    if (PointeeType->isVoidTy())
-      PointeeType = llvm::Type::getInt8Ty(getLLVMContext());
+
     if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
       const Type *ClangETy = ETy.getTypePtrOrNull();
       if (ClangETy && ClangETy->isStructureOrClassType()) {
@@ -778,7 +782,16 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     }
 
     unsigned AS = getTargetAddressSpace(ETy);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     ResultType = llvm::PointerType::get(getLLVMContext(), AS);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *PointeeType = ConvertTypeForMem(ETy);
+    if (PointeeType->isVoidTy())
+      PointeeType = llvm::Type::getInt8Ty(getLLVMContext());
+
+    ResultType = llvm::PointerType::get(PointeeType, AS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+
     break;
   }
 
@@ -855,9 +868,19 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     break;
   }
 
-  case Type::ObjCObjectPointer:
+  case Type::ObjCObjectPointer: {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     ResultType = llvm::PointerType::getUnqual(getLLVMContext());
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    // Protocol qualifications do not influence the LLVM type, we just return a
+    // pointer to the underlying interface type. We don't need to worry about
+    // recursive conversion.
+    llvm::Type *T =
+        ConvertTypeForMem(cast<ObjCObjectPointerType>(Ty)->getPointeeType());
+    ResultType = T->getPointerTo();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     break;
+  }
 
   case Type::Enum: {
     const EnumDecl *ED = cast<EnumType>(Ty)->getDecl();
@@ -871,15 +894,25 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   }
 
   case Type::BlockPointer: {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+    const QualType FTy = cast<BlockPointerType>(Ty)->getPointeeType();
+    llvm::Type *PointeeType = CGM.getLangOpts().OpenCL
+                                  ? CGM.getGenericBlockLiteralType()
+                                  : ConvertTypeForMem(FTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     // Block pointers lower to function type. For function type,
     // getTargetAddressSpace() returns default address space for
     // function pointer i.e. program address space. Therefore, for block
     // pointers, it is important to pass the pointee AST address space when
     // calling getTargetAddressSpace(), to ensure that we get the LLVM IR
     // address space for data pointers and not function pointers.
-    const QualType FTy = cast<BlockPointerType>(Ty)->getPointeeType();
     unsigned AS = Context.getTargetAddressSpace(FTy.getAddressSpace());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    const QualType FTy = cast<BlockPointerType>(Ty)->getPointeeType();
     ResultType = llvm::PointerType::get(getLLVMContext(), AS);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    ResultType = llvm::PointerType::get(PointeeType, AS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     break;
   }
 
