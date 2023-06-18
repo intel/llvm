@@ -548,17 +548,88 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
         BINOP __ESIMD_NS::simd<T2, SimdT::length>(RHS);                        \
   }
 
+#define __ESIMD_DEF_SIMD_MASK_MULT_OP(COND)                                    \
+  /* simd * simd_mask */                                                       \
+  template <class SimdT1, class SimdT2,                                        \
+            class T1 = typename SimdT1::element_type,                          \
+            class T2 = typename SimdT2::element_type,                          \
+            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
+            class SimdTx = __ESIMD_NS::simd<Tx, SimdT1::length>>               \
+  inline std::enable_if_t<__ESIMD_DNS::is_simd_type_v<SimdT1> &&               \
+                              __ESIMD_DNS::is_simd_mask_type_v<SimdT2> &&      \
+                              (SimdT1::length == SimdT2::length) && COND,      \
+                          SimdTx>                                              \
+  operator*(const SimdT1 &LHS, const SimdT2 &RHS) {                            \
+    SimdTx res(0);                                                             \
+    res.merge(LHS, RHS);                                                       \
+    return res;                                                                \
+  }                                                                            \
+                                                                               \
+  /* simd_mask * simd */                                                       \
+  template <class SimdT1, class SimdT2,                                        \
+            class T1 = typename SimdT1::element_type,                          \
+            class T2 = typename SimdT2::element_type,                          \
+            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
+            class SimdTx = __ESIMD_NS::simd<Tx, SimdT1::length>>               \
+  inline std::enable_if_t<__ESIMD_DNS::is_simd_type_v<SimdT2> &&               \
+                              __ESIMD_DNS::is_simd_mask_type_v<SimdT1> &&      \
+                              (SimdT2::length == SimdT1::length) && COND,      \
+                          SimdTx>                                              \
+  operator*(const SimdT1 &LHS, const SimdT2 &RHS) {                            \
+    SimdTx res(0);                                                             \
+    res.merge(RHS, LHS);                                                       \
+    return res;                                                                \
+  }                                                                            \
+                                                                               \
+  /* SCALAR * simd_mask  */                                                    \
+  template <class T1, class SimdT2, class T2 = typename SimdT2::element_type,  \
+            class SimdT1 = typename __ESIMD_NS::simd<T1, SimdT2::length>,      \
+            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
+            class SimdTx = __ESIMD_NS::simd<Tx, SimdT2::length>>               \
+  inline std::enable_if_t<__ESIMD_DNS::is_simd_mask_type_v<SimdT2> && COND,    \
+                          SimdTx>                                              \
+  operator*(T1 LHS, const SimdT2 &RHS) {                                       \
+    SimdTx res(0);                                                             \
+    res.merge(LHS, RHS);                                                       \
+    return res;                                                                \
+  }                                                                            \
+                                                                               \
+  /* simd_mask * SCALAR */                                                     \
+  template <class SimdT1, class T2, class T1 = typename SimdT1::element_type,  \
+            class SimdT2 = typename __ESIMD_NS::simd<T2, SimdT1::length>,      \
+            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
+            class SimdTx = __ESIMD_NS::simd<Tx, SimdT1::length>>               \
+  inline std::enable_if_t<__ESIMD_DNS::is_simd_mask_type_v<SimdT1> && COND,    \
+                          SimdTx>                                              \
+  operator*(const SimdT1 &LHS, T2 RHS) {                                       \
+    SimdTx res(0);                                                             \
+    res.merge(RHS, LHS);                                                       \
+    return res;                                                                \
+  }                                                                            \
+  /* simd_mask * simd_mask  */                                                 \
+  template <class SimdT, class T1 = typename SimdT::element_type,              \
+            class T2 = typename SimdT::element_type>                           \
+  inline std::enable_if_t<__ESIMD_DNS::is_simd_mask_type_v<SimdT> && COND,     \
+                          __ESIMD_NS::simd<T2, SimdT::length>>                 \
+  operator*(const SimdT &LHS, const SimdT &RHS) {                              \
+    __ESIMD_NS::simd<T1, SimdT::length> res(0);                                \
+    res.merge(RHS, LHS);                                                       \
+    return res;                                                                \
+  }
+
 #define __ESIMD_ARITH_OP_FILTER                                                \
   __ESIMD_DNS::is_valid_simd_elem_type_v<T1>                                   \
       &&__ESIMD_DNS::is_valid_simd_elem_type_v<T2>
 
 __ESIMD_DEF_SIMD_MASK_BIN_OP(+, __ESIMD_ARITH_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_BIN_OP(-, __ESIMD_ARITH_OP_FILTER)
-__ESIMD_DEF_SIMD_MASK_BIN_OP(*, __ESIMD_ARITH_OP_FILTER)
+__ESIMD_DEF_SIMD_MASK_BIN_OP(/, __ESIMD_ARITH_OP_FILTER)
+__ESIMD_DEF_SIMD_MASK_MULT_OP(__ESIMD_ARITH_OP_FILTER)
 #undef __ESIMD_ARITH_OP_FILTER
 
 #define __ESIMD_INT_ARITH_OP_FILTER                                            \
   std::is_integral_v<T1> &&std::is_integral_v<T2>
+__ESIMD_DEF_SIMD_MASK_BIN_OP(%, __ESIMD_INT_ARITH_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_BIN_OP(<<, __ESIMD_INT_ARITH_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_BIN_OP(>>, __ESIMD_INT_ARITH_OP_FILTER)
 #undef __ESIMD_SHIFT_OP_FILTER
