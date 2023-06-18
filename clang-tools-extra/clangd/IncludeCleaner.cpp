@@ -13,7 +13,6 @@
 #include "Preamble.h"
 #include "Protocol.h"
 #include "SourceCode.h"
-#include "URI.h"
 #include "clang-include-cleaner/Analysis.h"
 #include "clang-include-cleaner/IncludeSpeller.h"
 #include "clang-include-cleaner/Record.h"
@@ -22,11 +21,6 @@
 #include "support/Path.h"
 #include "support/Trace.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/DeclCXX.h"
-#include "clang/AST/Expr.h"
-#include "clang/AST/ExprCXX.h"
-#include "clang/AST/TemplateName.h"
-#include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
@@ -47,7 +41,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -144,17 +137,6 @@ llvm::StringRef getResolvedPath(const include_cleaner::Header &SymProvider) {
   llvm_unreachable("Unknown header kind");
 }
 
-std::string getSymbolName(const include_cleaner::Symbol &Sym) {
-  switch (Sym.kind()) {
-  case include_cleaner::Symbol::Macro:
-    return Sym.macro().Name->getName().str();
-  case include_cleaner::Symbol::Declaration:
-    return llvm::dyn_cast<NamedDecl>(&Sym.declaration())
-        ->getQualifiedNameAsString();
-  }
-  llvm_unreachable("Unknown symbol kind");
-}
-
 std::vector<Diag> generateMissingIncludeDiagnostics(
     ParsedAST &AST, llvm::ArrayRef<MissingIncludeDiagInfo> MissingIncludes,
     llvm::StringRef Code, HeaderFilter IgnoreHeaders) {
@@ -200,7 +182,7 @@ std::vector<Diag> generateMissingIncludeDiagnostics(
     Diag &D = Result.emplace_back();
     D.Message =
         llvm::formatv("No header providing \"{0}\" is directly included",
-                      getSymbolName(SymbolWithMissingInclude.Symbol));
+                      SymbolWithMissingInclude.Symbol.name());
     D.Name = "missing-includes";
     D.Source = Diag::DiagSource::Clangd;
     D.File = AST.tuPath();
@@ -381,10 +363,9 @@ collectMacroReferences(ParsedAST &AST) {
       continue;
     if (auto DefLoc = Macro->Info->getDefinitionLoc(); DefLoc.isValid())
       Macros.push_back(
-          {Tok.location(),
-           include_cleaner::Macro{/*Name=*/PP.getIdentifierInfo(Tok.text(SM)),
+          {include_cleaner::Macro{/*Name=*/PP.getIdentifierInfo(Tok.text(SM)),
                                   DefLoc},
-           include_cleaner::RefType::Explicit});
+           Tok.location(), include_cleaner::RefType::Explicit});
   }
   return Macros;
 }

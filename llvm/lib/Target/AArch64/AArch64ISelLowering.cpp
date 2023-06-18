@@ -14094,6 +14094,8 @@ bool AArch64TargetLowering::isExtFreeImpl(const Instruction *Ext) const {
       // 8-bit sized types have a scaling factor of 1, thus a shift amount of 0.
       // Get the shift amount based on the scaling factor:
       // log2(sizeof(IdxTy)) - log2(8).
+      if (IdxTy->isScalableTy())
+        return false;
       uint64_t ShiftAmt =
           llvm::countr_zero(DL.getTypeStoreSizeInBits(IdxTy).getFixedValue()) -
           3;
@@ -14653,7 +14655,6 @@ bool AArch64TargetLowering::optimizeExtendOrTruncateConversion(
         return false;
 
       DstTy = TruncDstType;
-      DstWidth = TruncDstType->getElementType()->getScalarSizeInBits();
     }
 
     return createTblShuffleForZExt(ZExt, DstTy, Subtarget->isLittleEndian());
@@ -15478,6 +15479,11 @@ bool AArch64TargetLowering::shouldFoldConstantShiftPairToMask(
   }
 
   return true;
+}
+
+bool AArch64TargetLowering::shouldFoldSelectWithIdentityConstant(
+    unsigned BinOpcode, EVT VT) const {
+  return VT.isScalableVector() && isTypeLegal(VT);
 }
 
 bool AArch64TargetLowering::shouldConvertConstantLoadToIntImm(const APInt &Imm,

@@ -346,6 +346,12 @@ Improvements to Clang's diagnostics
 - When diagnosing a constant expression where an enum without a fixed underlying
   type is set to a value outside the range of the enum's values, clang will now
   print the name of the enum in question.
+- Clang no longer diagnoses a read of an empty structure as use of an
+  uninitialized variable.
+  (`#26842: <https://github.com/llvm/llvm-project/issues/26842>`_)
+- The Fix-It emitted for unused labels used to expand to the next line, which caused
+  visual oddities now that Clang shows more than one line of code snippet. This has
+  been fixed and the Fix-It now only spans to the end of the ``:``.
 
 Bug Fixes in This Version
 -------------------------
@@ -504,6 +510,13 @@ Bug Fixes in This Version
 - CallExpr built for C error-recovery now is always type-dependent. Fixes a
   crash when we encounter a unresolved TypoExpr during diagnostic emission.
   (`#50244 <https://github.com/llvm/llvm-project/issues/50244>_`).
+- Apply ``-fmacro-prefix-map`` to anonymous tags in template arguments
+  (`#63219 <https://github.com/llvm/llvm-project/issues/63219>`_).
+- Clang now properly diagnoses format string mismatches involving scoped
+  enumeration types. A scoped enumeration type is not promoted to an integer
+  type by the default argument promotions, and thus this is UB. Clang's
+  behavior now matches GCC's behavior in C++.
+  (`#38717 <https://github.com/llvm/llvm-project/issues/38717>_`).
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -1199,38 +1199,43 @@ vectorizeOneOp(RewriterBase &rewriter, VectorizationState &state,
   //   a. Get the first max ranked shape.
   VectorType firstMaxRankedType;
   for (Value operand : op->getOperands()) {
-    auto vecType = dyn_cast<VectorType>(bvm.lookup(operand).getType());
+    auto vecOperand = bvm.lookup(operand);
+    assert(vecOperand && "Vector operand couldn't be found");
+
+    auto vecType = dyn_cast<VectorType>(vecOperand.getType());
     if (vecType && (!firstMaxRankedType ||
                     firstMaxRankedType.getRank() < vecType.getRank()))
       firstMaxRankedType = vecType;
   }
   //   b. Broadcast each op if needed.
-  SmallVector<Value> vectorizedOperands;
+  SmallVector<Value> vecOperands;
   for (Value scalarOperand : op->getOperands()) {
-    Value vectorizedOperand = bvm.lookup(scalarOperand);
-    auto vecType =
-        VectorType::get(firstMaxRankedType.getShape(),
-                        getElementTypeOrSelf(vectorizedOperand.getType()),
-                        firstMaxRankedType.getNumScalableDims());
-    vectorizedOperands.push_back(
-        !firstMaxRankedType
-            ? vectorizedOperand
-            : broadcastIfNeeded(rewriter, vectorizedOperand, vecType));
+    Value vecOperand = bvm.lookup(scalarOperand);
+    assert(vecOperand && "Vector operand couldn't be found");
+
+    if (firstMaxRankedType) {
+      auto vecType = VectorType::get(firstMaxRankedType.getShape(),
+                                     getElementTypeOrSelf(vecOperand.getType()),
+                                     firstMaxRankedType.getNumScalableDims());
+      vecOperands.push_back(broadcastIfNeeded(rewriter, vecOperand, vecType));
+    } else {
+      vecOperands.push_back(vecOperand);
+    }
   }
   //   c. for elementwise, the result is the vector with the firstMaxRankedShape
   SmallVector<Type> resultTypes;
   for (Type resultType : op->getResultTypes()) {
     resultTypes.push_back(
-        !firstMaxRankedType
-            ? resultType
-            : VectorType::get(firstMaxRankedType.getShape(), resultType,
-                              firstMaxRankedType.getNumScalableDims()));
+        firstMaxRankedType
+            ? VectorType::get(firstMaxRankedType.getShape(), resultType,
+                              firstMaxRankedType.getNumScalableDims())
+            : resultType);
   }
   //   d. Build and return the new op.
   return VectorizationResult{
       VectorizationStatus::NewOp,
-      rewriter.create(op->getLoc(), op->getName().getIdentifier(),
-                      vectorizedOperands, resultTypes, op->getAttrs())};
+      rewriter.create(op->getLoc(), op->getName().getIdentifier(), vecOperands,
+                      resultTypes, op->getAttrs())};
 }
 
 /// Generic vectorization function that rewrites the body of a `linalgOp` into
@@ -2750,10 +2755,16 @@ struct Conv1DGenerator
     const Type dstType =
         cast<ShapedType>(val.getType()).cloneWith(std::nullopt, dstElementType);
 
-    if (isa<FloatType>(dstElementType) && srcWidth < dstWidth)
+    if (isa<IntegerType>(srcElementType) && isa<FloatType>(dstElementType)) {
+      return rewriter.create<arith::SIToFPOp>(loc, dstType, val);
+    }
+
+    if (isa<FloatType>(srcElementType) && isa<FloatType>(dstElementType) &&
+        srcWidth < dstWidth)
       return rewriter.create<arith::ExtFOp>(loc, dstType, val);
 
-    if (isa<IntegerType>(dstElementType) && srcWidth < dstWidth)
+    if (isa<IntegerType>(srcElementType) && isa<IntegerType>(dstElementType) &&
+        srcWidth < dstWidth)
       return rewriter.create<arith::ExtSIOp>(loc, dstType, val);
 
     assert(false && "unhandled promotion case");
