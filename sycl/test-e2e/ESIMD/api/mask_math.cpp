@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks basic arithmetic operations between simd and simd_mask
 //===----------------------------------------------------------------------===//
+// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
