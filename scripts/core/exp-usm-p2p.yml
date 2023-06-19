@@ -32,7 +32,7 @@ analogue:
     - "**cuCtxEnablePeerAccess**"
 details:
   - "Enables the command device to access and write device memory allocations located on the peer device, provided that a P2P link between the two devices is available."
-  - "When Peer Access is successfully enabled, P2P memory accesses are guaranteed to be allowed on the peer device until `DisablePeerAccessExp` is called."
+  - "When Peer Access is successfully enabled, P2P memory accesses are guaranteed to be allowed on the peer device until `${x}UsmP2PDisablePeerAccessExp` is called."
   - "Note that the function operands may, but aren't guaranteed to, commute for a given adapter: the peer device is not guaranteed to have access to device memory allocations located on the command device."
   - "It is not guaranteed that the commutation relations of the function arguments are identical for peer access and peer copies: For example, for any given adapter the peer device may be able to copy data from the command device, but not access and write the same data on the command device."
   - "Consult the appropriate adapter driver documentation for details of adapter specific behavior and native error codes that may be returned."
