@@ -13,7 +13,6 @@
 
 #include "pi_arguments_handler.hpp"
 #include "pi_structs.hpp"
-#include "usm_analyzer.hpp"
 
 #include <detail/plugin_printers.hpp>
 #include <sycl/detail/spinlock.hpp>
@@ -23,8 +22,6 @@
 #include <string>
 #include <string_view>
 #include <thread>
-
-bool VerificationEnabled = false;
 
 extern sycl::detail::SpinLock GlobalLock;
 
@@ -122,12 +119,6 @@ void piPrintersInit() {
   } else if (PrinterType == "compact") {
     setupPrettyPrinter(/*verbose*/ false);
   }
-
-  if (std::getenv("SYCL_TRACE_VERIFICATION_ENABLE")) {
-    VerificationEnabled = true;
-    auto &GS = USMAnalyzer::getInstance();
-    GS.setupUSMHandlers();
-  }
 }
 
 void piPrintersFinish() {
@@ -144,25 +135,14 @@ XPTI_CALLBACK_API void piCallback(uint16_t TraceType,
   if (!HeaderPrinter || !ResultPrinter)
     return;
 
-  auto &GS = USMAnalyzer::getInstance();
-  GS.fillLastTracepointData(ObjectEvent);
-
   // Lock while we print information
   std::lock_guard<sycl::detail::SpinLock> _{GlobalLock};
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);
   if (TraceType == xpti::trace_function_with_args_begin) {
     (*HeaderPrinter)(*Plugin, Data);
-    if (VerificationEnabled) {
-      GS.ArgHandlerPreCall.handle(Data->function_id, *Plugin, std::nullopt,
-                                  Data->args_data);
-    }
   } else if (TraceType == xpti::trace_function_with_args_end) {
     const pi_result Result = *static_cast<pi_result *>(Data->ret_data);
-    if (VerificationEnabled) {
-      GS.ArgHandlerPostCall.handle(Data->function_id, *Plugin, Result,
-                                   Data->args_data);
-    }
     (*ResultPrinter)(Result);
   }
 }
