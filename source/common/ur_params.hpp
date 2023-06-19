@@ -8253,14 +8253,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_ENQUEUE_USM_ADVISE";
         break;
 
-    case UR_FUNCTION_ENQUEUE_USM_FILL2_D:
-        os << "UR_FUNCTION_ENQUEUE_USM_FILL2_D";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_USM_MEMCPY2_D:
-        os << "UR_FUNCTION_ENQUEUE_USM_MEMCPY2_D";
-        break;
-
     case UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE:
         os << "UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE";
         break;
@@ -8696,6 +8688,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
 
     case UR_FUNCTION_PLATFORM_GET_LAST_ERROR:
         os << "UR_FUNCTION_PLATFORM_GET_LAST_ERROR";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_USM_FILL_2D:
+        os << "UR_FUNCTION_ENQUEUE_USM_FILL_2D";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D:
+        os << "UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D";
         break;
     default:
         os << "unknown enumerator";
@@ -11005,7 +11005,7 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_enqueue_usm_fill2_d_params_t *params) {
+           const struct ur_enqueue_usm_fill_2d_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -11069,7 +11069,7 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_enqueue_usm_memcpy2_d_params_t *params) {
+           const struct ur_enqueue_usm_memcpy_2d_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -13609,11 +13609,11 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_ENQUEUE_USM_ADVISE: {
         os << (const struct ur_enqueue_usm_advise_params_t *)params;
     } break;
-    case UR_FUNCTION_ENQUEUE_USM_FILL2_D: {
-        os << (const struct ur_enqueue_usm_fill2_d_params_t *)params;
+    case UR_FUNCTION_ENQUEUE_USM_FILL_2D: {
+        os << (const struct ur_enqueue_usm_fill_2d_params_t *)params;
     } break;
-    case UR_FUNCTION_ENQUEUE_USM_MEMCPY2_D: {
-        os << (const struct ur_enqueue_usm_memcpy2_d_params_t *)params;
+    case UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D: {
+        os << (const struct ur_enqueue_usm_memcpy_2d_params_t *)params;
     } break;
     case UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE: {
         os << (const struct ur_enqueue_device_global_variable_write_params_t *)

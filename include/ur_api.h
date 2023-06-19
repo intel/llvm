@@ -4761,8 +4761,6 @@ typedef enum ur_function_t {
     UR_FUNCTION_ENQUEUE_USM_MEMCPY = 33,                                       ///< Enumerator for ::urEnqueueUSMMemcpy
     UR_FUNCTION_ENQUEUE_USM_PREFETCH = 34,                                     ///< Enumerator for ::urEnqueueUSMPrefetch
     UR_FUNCTION_ENQUEUE_USM_ADVISE = 35,                                       ///< Enumerator for ::urEnqueueUSMAdvise
-    UR_FUNCTION_ENQUEUE_USM_FILL2_D = 36,                                      ///< Enumerator for ::urEnqueueUSMFill2D
-    UR_FUNCTION_ENQUEUE_USM_MEMCPY2_D = 37,                                    ///< Enumerator for ::urEnqueueUSMMemcpy2D
     UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38,                     ///< Enumerator for ::urEnqueueDeviceGlobalVariableWrite
     UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39,                      ///< Enumerator for ::urEnqueueDeviceGlobalVariableRead
     UR_FUNCTION_EVENT_GET_INFO = 40,                                           ///< Enumerator for ::urEventGetInfo
@@ -4872,6 +4870,8 @@ typedef enum ur_function_t {
     UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148,             ///< Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
     UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149,           ///< Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
     UR_FUNCTION_PLATFORM_GET_LAST_ERROR = 150,                                 ///< Enumerator for ::urPlatformGetLastError
+    UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,                                     ///< Enumerator for ::urEnqueueUSMFill2D
+    UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D = 152,                                   ///< Enumerator for ::urEnqueueUSMMemcpy2D
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7933,7 +7933,7 @@ typedef struct ur_enqueue_usm_advise_params_t {
 /// @brief Function parameters for urEnqueueUSMFill2D
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_enqueue_usm_fill2_d_params_t {
+typedef struct ur_enqueue_usm_fill_2d_params_t {
     ur_queue_handle_t *phQueue;
     void **ppMem;
     size_t *ppitch;
@@ -7944,13 +7944,13 @@ typedef struct ur_enqueue_usm_fill2_d_params_t {
     uint32_t *pnumEventsInWaitList;
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
-} ur_enqueue_usm_fill2_d_params_t;
+} ur_enqueue_usm_fill_2d_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueUSMMemcpy2D
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_enqueue_usm_memcpy2_d_params_t {
+typedef struct ur_enqueue_usm_memcpy_2d_params_t {
     ur_queue_handle_t *phQueue;
     bool *pblocking;
     void **ppDst;
@@ -7962,7 +7962,7 @@ typedef struct ur_enqueue_usm_memcpy2_d_params_t {
     uint32_t *pnumEventsInWaitList;
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
-} ur_enqueue_usm_memcpy2_d_params_t;
+} ur_enqueue_usm_memcpy_2d_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueDeviceGlobalVariableWrite
