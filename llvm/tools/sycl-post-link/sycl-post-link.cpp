@@ -764,7 +764,7 @@ static bool removeDeviceGlobalFromCompilerUsed(Module &M) {
     return false;
 
   // Erase the old llvm.compiler.used. A new one will be created at the end if
-  // there are other values in it than device_global.
+  // there are other values in it (other than device_global).
   assert(GV->user_empty() && "Unexpected llvm.compiler.used users");
   Constant *Initializer = GV->getInitializer();
   const auto *VAT = cast<ArrayType>(GV->getValueType());
