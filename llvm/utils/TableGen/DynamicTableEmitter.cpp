@@ -88,17 +88,18 @@ private:
       if (auto LI = dyn_cast<ListInit>(I)) {
         std::stringstream res;
         auto values = LI->getValues();
-        bool NeedQuotes = (Field.Name == "aspects");
+        bool IsAspect = (Field.Name == "aspects");
         for (const auto &[idx, val] : enumerate(values)) {
           if (idx > 0)
             res << ", ";
 
-          if (NeedQuotes)
-            res << "\"" << val->getAsString() << "\"";
-          else
+          if (IsAspect) {
+            auto rec = LI->getElementAsRecord(idx);
+            res << "\"" << rec->getValueAsString("Name").str() << "\"";
+          } else
             res << val->getAsString();
-        }
-        return res.str();
+          }
+          return res.str();
       }
       PrintFatalError(Loc,
                       Twine("Entry for field '") + Field.Name + "' is null");
