@@ -51,9 +51,6 @@ Functions
 
 Changelog
 --------------------------------------------------------------------------------
-.. comment:
-    When making a change to an experimental feature, increment the version and 
-    provide a brief description of the change in the table below.
 
 +-----------+------------------------+
 | Revision  | Changes                |
@@ -63,8 +60,5 @@ Changelog
 
 Contributors
 --------------------------------------------------------------------------------
-.. comment:
-    Please list all people who wish to be credited for contribution to this 
-    experimental feature.
 
 * JackAKirk `jack.kirk@codeplay.com <jack.kirk@codeplay.com>`_
