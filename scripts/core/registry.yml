@@ -112,12 +112,6 @@ etors:
 - name: ENQUEUE_USM_ADVISE
   desc: Enumerator for $xEnqueueUSMAdvise
   value: '35'
-- name: ENQUEUE_USM_FILL2_D
-  desc: Enumerator for $xEnqueueUSMFill2D
-  value: '36'
-- name: ENQUEUE_USM_MEMCPY2_D
-  desc: Enumerator for $xEnqueueUSMMemcpy2D
-  value: '37'
 - name: ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE
   desc: Enumerator for $xEnqueueDeviceGlobalVariableWrite
   value: '38'
@@ -445,3 +439,9 @@ etors:
 - name: PLATFORM_GET_LAST_ERROR
   desc: Enumerator for $xPlatformGetLastError
   value: '150'
+- name: ENQUEUE_USM_FILL_2D
+  desc: Enumerator for $xEnqueueUSMFill2D
+  value: '151'
+- name: ENQUEUE_USM_MEMCPY_2D
+  desc: Enumerator for $xEnqueueUSMMemcpy2D
+  value: '152'
