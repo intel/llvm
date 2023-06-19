@@ -43,6 +43,13 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+
+// forward declaration
+
+namespace ext::oneapi::experimental::detail {
+class graph_impl;
+}
+
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;

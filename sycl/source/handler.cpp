@@ -116,10 +116,8 @@ event handler::finalize() {
   // they have already been added, and return the event associated with the
   // subgraph node.
   if (MQueue && MQueue->getCommandGraph() && MSubgraphNode) {
-    {
-      return detail::createSyclObjFromImpl<event>(
-          MQueue->getCommandGraph()->get_event_for_node(MSubgraphNode));
-    }
+    return detail::createSyclObjFromImpl<event>(
+        MQueue->getCommandGraph()->getEventForNode(MSubgraphNode));
   }
 
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
@@ -205,9 +203,9 @@ event handler::finalize() {
       // this faster path is used to submit kernel bypassing scheduler and
       // avoiding CommandGroup, Command objects creation.
 
-      std::vector<RT::PiEvent> RawEvents;
+      std::vector<sycl::detail::pi::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
-      RT::PiEvent *OutEvent = nullptr;
+      sycl::detail::pi::PiEvent *OutEvent = nullptr;
 
       auto EnqueueKernel = [&]() {
         // 'Result' for single point of return
@@ -364,8 +362,8 @@ event handler::finalize() {
   case detail::CG::ReadWriteHostPipe: {
     CommandGroup.reset(new detail::CGReadWriteHostPipe(
         MImpl->HostPipeName, MImpl->HostPipeBlocking, MImpl->HostPipePtr,
-        MImpl->HostPipeTypeSize, MImpl->HostPipeRead,
-        std::move(CGData), MCodeLoc));
+        MImpl->HostPipeTypeSize, MImpl->HostPipeRead, std::move(CGData),
+        MCodeLoc));
     break;
   }
   case detail::CG::ExecCommandBuffer:
@@ -398,7 +396,7 @@ event handler::finalize() {
           GraphImpl->add(CGData.MEvents);
 
       // Associate an event with this new node and return the event.
-      GraphImpl->add_event_for_node(EventImpl, NodeImpl);
+      GraphImpl->addEventForNode(EventImpl, NodeImpl);
 
       return detail::createSyclObjFromImpl<event>(EventImpl);
     }
@@ -434,7 +432,7 @@ event handler::finalize() {
       // In-order queues create implicit linear dependencies between nodes.
       // Find the last node added to the graph from this queue, so our new
       // node can set it as a predecessor.
-      auto DependentNode = GraphImpl->get_last_inorder_node(MQueue);
+      auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
 
       NodeImpl = DependentNode
                      ? GraphImpl->add(MCGType, std::move(CommandGroup),
@@ -444,13 +442,13 @@ event handler::finalize() {
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
       // queue.
-      GraphImpl->set_last_inorder_node(MQueue, NodeImpl);
+      GraphImpl->setLastInorderNode(MQueue, NodeImpl);
     } else {
       NodeImpl = GraphImpl->add(MCGType, std::move(CommandGroup));
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->add_event_for_node(EventImpl, NodeImpl);
+    GraphImpl->addEventForNode(EventImpl, NodeImpl);
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -1067,16 +1065,16 @@ void handler::ext_oneapi_graph(
   if (ParentGraph) {
     // Store the node representing the subgraph in the handler so that we can
     // return it to the user later.
-    MSubgraphNode = ParentGraph->add_subgraph_nodes(GraphImpl->get_schedule());
+    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl->getSchedule());
 
     // If we are recording an in-order queue remember the subgraph node, so it
     // can be used as a dependency for any more nodes recorded from this queue.
     if (MQueue && MQueue->isInOrder()) {
-      ParentGraph->set_last_inorder_node(MQueue, MSubgraphNode);
+      ParentGraph->setLastInorderNode(MQueue, MSubgraphNode);
     }
     // Associate an event with the subgraph node.
     auto SubgraphEvent = std::make_shared<event_impl>();
-    ParentGraph->add_event_for_node(SubgraphEvent, MSubgraphNode);
+    ParentGraph->addEventForNode(SubgraphEvent, MSubgraphNode);
   } else {
     // Set the exec graph for execution during finalize.
     MExecGraph = GraphImpl;

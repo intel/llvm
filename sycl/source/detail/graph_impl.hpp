@@ -50,17 +50,17 @@ public:
   /// @param Node Node to add as a successor.
   /// @param Prev Predecessor to \p node being added as successor.
   ///
-  /// /p Prev should be a shared_ptr to an instance of this object, but can't
+  /// \p Prev should be a shared_ptr to an instance of this object, but can't
   /// use a raw \p this pointer, so the extra \Prev parameter is passed.
-  void register_successor(const std::shared_ptr<node_impl> &Node,
-                          const std::shared_ptr<node_impl> &Prev) {
+  void registerSuccessor(const std::shared_ptr<node_impl> &Node,
+                         const std::shared_ptr<node_impl> &Prev) {
     MSuccessors.push_back(Node);
-    Node->register_predecessor(Prev);
+    Node->registerPredecessor(Prev);
   }
 
   /// Add predecessor to the node.
   /// @param Node Node to add as a predecessor.
-  void register_predecessor(const std::shared_ptr<node_impl> &Node) {
+  void registerPredecessor(const std::shared_ptr<node_impl> &Node) {
     MPredecessors.push_back(Node);
   }
 
@@ -78,23 +78,23 @@ public:
   /// Recursively add nodes to execution stack.
   /// @param NodeImpl Node to schedule.
   /// @param Schedule Execution ordering to add node to.
-  void topology_sort(std::shared_ptr<node_impl> NodeImpl,
-                     std::list<std::shared_ptr<node_impl>> &Schedule) {
+  void sortTopological(std::shared_ptr<node_impl> NodeImpl,
+                       std::list<std::shared_ptr<node_impl>> &Schedule) {
     for (auto Next : MSuccessors) {
       // Check if we've already scheduled this node
       if (std::find(Schedule.begin(), Schedule.end(), Next) == Schedule.end())
-        Next->topology_sort(Next, Schedule);
+        Next->sortTopological(Next, Schedule);
     }
     // We don't need to schedule empty nodes as they are only used when
     // calculating dependencies
-    if (!NodeImpl->is_empty())
+    if (!NodeImpl->isEmpty())
       Schedule.push_front(NodeImpl);
   }
 
   /// Checks if this node has a given requirement.
   /// @param Requirement Requirement to lookup.
   /// @return True if \p Requirement is present in node, false otherwise.
-  bool has_requirement(sycl::detail::AccessorImplHost *IncomingReq) {
+  bool hasRequirement(sycl::detail::AccessorImplHost *IncomingReq) {
     for (sycl::detail::AccessorImplHost *CurrentReq :
          MCommandGroup->getRequirements()) {
       if (IncomingReq->MSYCLMemObj == CurrentReq->MSYCLMemObj) {
@@ -106,7 +106,7 @@ public:
 
   /// Query if this is an empty node.
   /// @return True if this is an empty node, false otherwise.
-  bool is_empty() const { return MIsEmpty; }
+  bool isEmpty() const { return MIsEmpty; }
 
   /// Get a deep copy of this node's command group
   /// @return A unique ptr to the new command group object.
@@ -117,6 +117,7 @@ public:
       return createCGCopy<sycl::detail::CGExecKernel>();
     case sycl::detail::CG::CodeplayInteropTask:
       assert(false);
+      break;
     // TODO: Uncomment this once we implement support for interop task so we can
     // test required changes to the CG class.
 
@@ -145,6 +146,7 @@ public:
       return createCGCopy<sycl::detail::CGMemset2DUSM>();
     case sycl::detail::CG::CodeplayHostTask:
       assert(false);
+      break;
       // TODO: Uncomment this once we implement support for host task so we can
       // test required changes to the CG class.
 
@@ -180,7 +182,7 @@ private:
   }
 };
 
-/// Class representing implementation details of command_graph<modifiable>.
+/// Implementation details of command_graph<modifiable>.
 class graph_impl {
 public:
   /// Constructor.
@@ -192,11 +194,11 @@ public:
 
   /// Insert node into list of root nodes.
   /// @param Root Node to add to list of root nodes.
-  void add_root(const std::shared_ptr<node_impl> &Root);
+  void addRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Remove node from list of root nodes.
   /// @param Root Node to remove from list of root nodes.
-  void remove_root(const std::shared_ptr<node_impl> &Root);
+  void removeRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Create a kernel node in the graph.
   /// @param CGType Type of the command-group.
@@ -236,15 +238,15 @@ public:
   /// graph.
   /// @param RecordingQueue Queue to add to set.
   void
-  add_queue(const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
+  addQueue(const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
     MRecordingQueues.insert(RecordingQueue);
   }
 
   /// Remove a queue from the set of queues which are currently recording to
   /// this graph.
   /// @param RecordingQueue Queue to remove from set.
-  void remove_queue(
-      const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
+  void
+  removeQueue(const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
     MRecordingQueues.erase(RecordingQueue);
   }
 
@@ -252,13 +254,13 @@ public:
   /// cleared back to the executing state.
   ///
   /// @return True if any queues were removed.
-  bool clear_queues();
+  bool clearQueues();
 
   /// Associate a sycl event with a node in the graph.
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
-  void add_event_for_node(std::shared_ptr<sycl::detail::event_impl> EventImpl,
-                          std::shared_ptr<node_impl> NodeImpl) {
+  void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
+                       std::shared_ptr<node_impl> NodeImpl) {
     MEventsMap[EventImpl] = NodeImpl;
   }
 
@@ -266,7 +268,7 @@ public:
   /// @param NodeImpl Node to find event for.
   /// @return Event associated with node.
   std::shared_ptr<sycl::detail::event_impl>
-  get_event_for_node(std::shared_ptr<node_impl> NodeImpl) const {
+  getEventForNode(std::shared_ptr<node_impl> NodeImpl) const {
     if (auto EventImpl = std::find_if(
             MEventsMap.begin(), MEventsMap.end(),
             [NodeImpl](auto &it) { return it.second == NodeImpl; });
@@ -275,7 +277,7 @@ public:
     }
 
     throw sycl::exception(
-        sycl::errc::invalid,
+        sycl::make_error_code(errc::invalid),
         "No event has been recorded for the specified graph node");
   }
 
@@ -283,11 +285,11 @@ public:
   /// @param NodeList List of nodes from sub-graph in schedule order.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
-  add_subgraph_nodes(const std::list<std::shared_ptr<node_impl>> &NodeList);
+  addSubgraphNodes(const std::list<std::shared_ptr<node_impl>> &NodeList);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
-  sycl::context get_context() const { return MContext; }
+  sycl::context getContext() const { return MContext; }
 
   /// List of root nodes.
   std::set<std::shared_ptr<node_impl>> MRoots;
@@ -297,7 +299,7 @@ public:
   /// @return Last node in this graph added from \p Queue recording, or empty
   /// shared pointer if none.
   std::shared_ptr<node_impl>
-  get_last_inorder_node(std::shared_ptr<sycl::detail::queue_impl> Queue) {
+  getLastInorderNode(std::shared_ptr<sycl::detail::queue_impl> Queue) {
     std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
     if (0 == MInorderQueueMap.count(QueueWeakPtr)) {
       return {};
@@ -308,7 +310,7 @@ public:
   /// Track the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to register \p Node for.
   /// @param Node Last node that was added to this graph from \p Queue.
-  void set_last_inorder_node(std::shared_ptr<sycl::detail::queue_impl> Queue,
+  void setLastInorderNode(std::shared_ptr<sycl::detail::queue_impl> Queue,
                              std::shared_ptr<node_impl> Node) {
     std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
     MInorderQueueMap[QueueWeakPtr] = Node;
@@ -331,7 +333,6 @@ private:
   /// node if any more nodes are added to the graph from the queue.
   std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
-
       MInorderQueueMap;
 };
 
@@ -344,7 +345,8 @@ public:
   exec_graph_impl(sycl::context Context,
                   const std::shared_ptr<graph_impl> &GraphImpl)
       : MSchedule(), MGraphImpl(GraphImpl), MPiCommandBuffers(),
-        MPiSyncPoints(), MContext(Context) {}
+        MPiSyncPoints(), MContext(Context), MRequirements(),
+        MExecutionEvents() {}
 
   /// Destructor.
   ///
@@ -362,18 +364,18 @@ public:
   sycl::event enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
                       sycl::detail::CG::StorageInitHelper CGData);
 
-  /// Turns our internal graph representation into PI command-buffers for a
+  /// Turns the internal graph representation into UR command-buffers for a
   /// device.
   /// @param D Device to create backend command-buffers for.
-  void create_pi_command_buffers(sycl::device D);
+  void createURCommandBuffers(sycl::device Device);                    
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
-  sycl::context get_context() const { return MContext; }
+  sycl::context getContext() const { return MContext; }
 
   /// Query the scheduling of node execution.
   /// @return List of nodes in execution order.
-  const std::list<std::shared_ptr<node_impl>> &get_schedule() const {
+  const std::list<std::shared_ptr<node_impl>> &getSchedule() const {
     return MSchedule;
   }
 
@@ -385,10 +387,10 @@ private:
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
   /// @return PI sync point created for this node in the command-buffer.
-  RT::PiExtSyncPoint enqueue_node(sycl::context Ctx,
-                                  sycl::detail::DeviceImplPtr DeviceImpl,
-                                  RT::PiExtCommandBuffer CommandBuffer,
-                                  std::shared_ptr<node_impl> Node);
+  sycl::detail::pi::PiExtSyncPoint
+  enqueueNode(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
+              sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+              std::shared_ptr<node_impl> Node);
 
   /// Enqueue a node directly to the command-buffer without going through the
   /// scheduler.
@@ -397,16 +399,16 @@ private:
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
   /// @return PI sync point created for this node in the command-buffer.
-  RT::PiExtSyncPoint enqueue_node_direct(sycl::context Ctx,
-                                         sycl::detail::DeviceImplPtr DeviceImpl,
-                                         RT::PiExtCommandBuffer CommandBuffer,
-                                         std::shared_ptr<node_impl> Node);
+  sycl::detail::pi::PiExtSyncPoint
+  enqueueNodeDirect(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
+                    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+                    std::shared_ptr<node_impl> Node);
 
   /// Iterates back through predecessors to find the real dependency.
   /// @param[out] Deps Found dependencies.
   /// @param[in] CurrentNode Node to find dependencies for.
-  void find_real_deps(std::vector<RT::PiExtSyncPoint> &Deps,
-                      std::shared_ptr<node_impl> CurrentNode);
+  void findRealDeps(std::vector<sycl::detail::pi::PiExtSyncPoint> &Deps,
+                    std::shared_ptr<node_impl> CurrentNode);
 
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
@@ -414,10 +416,12 @@ private:
   /// graph.
   std::shared_ptr<graph_impl> MGraphImpl;
   /// Map of devices to command buffers.
-  std::unordered_map<sycl::device, RT::PiExtCommandBuffer> MPiCommandBuffers;
+  std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
+      MPiCommandBuffers;
   /// Map of nodes in the exec graph to the sync point representing their
   /// execution in the command graph.
-  std::unordered_map<std::shared_ptr<node_impl>, RT::PiExtSyncPoint>
+  std::unordered_map<std::shared_ptr<node_impl>,
+                     sycl::detail::pi::PiExtSyncPoint>
       MPiSyncPoints;
   /// Context associated with this executable graph.
   sycl::context MContext;

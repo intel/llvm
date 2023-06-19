@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/device_binary_image.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -290,12 +291,59 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
-  std::set<detail::RTDeviceBinaryImage *> BinImages =
-      detail::ProgramManager::getInstance().getRawDeviceImages(KernelIDs);
-  return std::all_of(BinImages.begin(), BinImages.end(),
-                     [&Dev](const detail::RTDeviceBinaryImage *Img) {
-                       return doesDevSupportDeviceRequirements(Dev, *Img);
-                     });
+  if (KernelIDs.empty())
+    return true;
+  // TODO: also need to check that the architecture specified by the
+  // "-fsycl-targets" flag matches the device when we are able to get the
+  // device's arch.
+  auto doesImageTargetMatchDevice = [](const device &Dev,
+                                       const detail::RTDeviceBinaryImage &Img) {
+    const char *Target = Img.getRawData().DeviceTargetSpec;
+    auto BE = Dev.get_backend();
+    // ESIMD emulator backend is only compatible with esimd kernels.
+    if (BE == sycl::backend::ext_intel_esimd_emulator) {
+      pi_device_binary_property Prop = Img.getProperty("isEsimdImage");
+      return (Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0));
+    }
+    if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
+      return (BE == sycl::backend::opencl ||
+              BE == sycl::backend::ext_oneapi_level_zero);
+    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
+               0) {
+      return Dev.is_cpu();
+    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
+               0) {
+      return Dev.is_gpu() && (BE == sycl::backend::opencl ||
+                              BE == sycl::backend::ext_oneapi_level_zero);
+    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) ==
+               0) {
+      return Dev.is_accelerator();
+    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
+      return BE == sycl::backend::ext_oneapi_cuda;
+    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
+      return BE == sycl::backend::ext_oneapi_hip;
+    }
+
+    return false;
+  };
+
+  // One kernel may be contained in several binary images depending on the
+  // number of targets. This kernel is compatible with the device if there is
+  // at least one image (containing this kernel) whose aspects are supported by
+  // the device and whose target matches the device.
+  for (const auto &KernelID : KernelIDs) {
+    std::set<detail::RTDeviceBinaryImage *> BinImages =
+        detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
+
+    if (std::none_of(BinImages.begin(), BinImages.end(),
+                     [&](const detail::RTDeviceBinaryImage *Img) {
+                       return doesDevSupportDeviceRequirements(Dev, *Img) &&
+                              doesImageTargetMatchDevice(Dev, *Img);
+                     }))
+      return false;
+  }
+
+  return true;
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

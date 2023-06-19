@@ -73,7 +73,7 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
   std::unique_ptr<detail::CG> CG{new detail::CGExecKernel(
       /*NDRDesc*/ NDRDesc,
       /*HKernel*/
-      std::make_unique<detail::HostKernel<decltype(Kernel), void, 1>>(HKernel),
+      std::make_shared<detail::HostKernel<decltype(Kernel), void, 1>>(HKernel),
       /*SyclKernel*/ nullptr,
       /*KernelBundle*/ nullptr, std::move(CGData),
       /*Args*/ {},

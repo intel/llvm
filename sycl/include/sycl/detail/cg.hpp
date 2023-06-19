@@ -125,13 +125,19 @@ public:
 
   CGTYPE getType() { return MType; }
 
-  std::vector<std::vector<char>> &getArgsStorage() { return MData.MArgsStorage; }
-  std::vector<detail::AccessorImplPtr> &getAccStorage() { return MData.MAccStorage; }
+  std::vector<std::vector<char>> &getArgsStorage() {
+    return MData.MArgsStorage;
+  }
+  std::vector<detail::AccessorImplPtr> &getAccStorage() {
+    return MData.MAccStorage;
+  }
   std::vector<std::shared_ptr<const void>> &getSharedPtrStorage() {
     return MData.MSharedPtrStorage;
   }
 
-  std::vector<AccessorImplHost *> &getRequirements() { return MData.MRequirements; }
+  std::vector<AccessorImplHost *> &getRequirements() {
+    return MData.MRequirements;
+  }
   std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
 
   virtual ~CG() = default;
@@ -163,7 +169,7 @@ public:
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   RT::PiKernelCacheConfig MKernelCacheConfig;
 
-  CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
+  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,

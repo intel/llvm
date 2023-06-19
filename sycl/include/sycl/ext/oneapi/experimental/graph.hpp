@@ -87,7 +87,7 @@ private:
 } // namespace node
 } // namespace property
 
-/// Class representing a graph in the modifiable state.
+/// Graph in the modifiable state.
 template <graph_state State = graph_state::modifiable>
 class __SYCL_EXPORT command_graph {
 public:
@@ -104,9 +104,9 @@ public:
   node add(const property_list &PropList = {}) {
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
-      return add_impl(Deps.get_dependencies());
+      return addImpl(Deps.get_dependencies());
     }
-    return add_impl({});
+    return addImpl({});
   }
 
   /// Add a command-group node to the graph.
@@ -116,9 +116,9 @@ public:
   template <typename T> node add(T CGF, const property_list &PropList = {}) {
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
-      return add_impl(CGF, Deps.get_dependencies());
+      return addImpl(CGF, Deps.get_dependencies());
     }
-    return add_impl(CGF, {});
+    return addImpl(CGF, {});
   }
 
   /// Add a dependency between two nodes.
@@ -153,7 +153,7 @@ public:
   /// executing.
   bool end_recording();
 
-  /// Set a queues currently recording to this graph to the executing state.
+  /// Set a queue currently recording to this graph to the executing state.
   /// @param RecordingQueue The queue to change state on.
   /// @return True if the queue had its state changed from recording to
   /// executing.
@@ -175,13 +175,13 @@ private:
   /// @param CGF Command-group function to add.
   /// @param Dep List of predecessor nodes.
   /// @return Node added to the graph.
-  node add_impl(std::function<void(handler &)> CGF,
-                const std::vector<node> &Dep);
+  node addImpl(std::function<void(handler &)> CGF,
+               const std::vector<node> &Dep);
 
   /// Template-less implementation of add() for empty nodes.
   /// @param Dep List of predecessor nodes.
   /// @return Node added to the graph.
-  node add_impl(const std::vector<node> &Dep);
+  node addImpl(const std::vector<node> &Dep);
 
   template <class Obj>
   friend decltype(Obj::impl)
@@ -197,26 +197,28 @@ public:
   /// An executable command-graph is not user constructable.
   command_graph() = delete;
 
+  /// Update the inputs & output of the graph.
+  /// @param Graph Graph to use the inputs and outputs of.
+  void update(const command_graph<graph_state::modifiable> &Graph);
+
+private:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
   /// @param Ctx Context to use for graph.
   command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
                 const sycl::context &Ctx);
 
-  /// Update the inputs & output of the graph.
-  /// @param Graph Graph to use the inputs and outputs of.
-  void update(const command_graph<graph_state::modifiable> &Graph);
-
-private:
   template <class Obj>
   friend decltype(Obj::impl)
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// Creates a backend representation of the graph in \p impl member variable.
-  void finalize_impl();
+  void finalizeImpl();
 
   int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
+
+  friend class command_graph<graph_state::modifiable>;
 };
 
 /// Additional CTAD deduction guide.
