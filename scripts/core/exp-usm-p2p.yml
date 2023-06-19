@@ -9,7 +9,7 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Unified Runtime Experimental APIs for Usm P2P"
+desc: "Intel $OneApi Unified Runtime Experimental APIs for USM P2P"
 ordinal: "99"
 --- #--------------------------------------------------------------------------
 type: enum
