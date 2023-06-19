@@ -1569,9 +1569,24 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPitchedAllocExp_t)(
     size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMImportExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMImportExp_t)(
+    ur_context_handle_t,
+    void *,
+    size_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMReleaseExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMReleaseExp_t)(
+    ur_context_handle_t,
+    void *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of USMExp functions pointers
 typedef struct ur_usm_exp_dditable_t {
     ur_pfnUSMPitchedAllocExp_t pfnPitchedAllocExp;
+    ur_pfnUSMImportExp_t pfnImportExp;
+    ur_pfnUSMReleaseExp_t pfnReleaseExp;
 } ur_usm_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

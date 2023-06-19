@@ -1971,6 +1971,8 @@ class ur_function_v(IntEnum):
     PHYSICAL_MEM_CREATE = 160                       ## Enumerator for ::urPhysicalMemCreate
     PHYSICAL_MEM_RETAIN = 161                       ## Enumerator for ::urPhysicalMemRetain
     PHYSICAL_MEM_RELEASE = 162                      ## Enumerator for ::urPhysicalMemRelease
+    USM_IMPORT_EXP = 163                            ## Enumerator for ::urUSMImportExp
+    USM_RELEASE_EXP = 164                           ## Enumerator for ::urUSMReleaseExp
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -3193,12 +3195,28 @@ if __use_win_types:
 else:
     _urUSMPitchedAllocExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_size_t, c_size_t, POINTER(c_void_p), POINTER(c_size_t) )
 
+###############################################################################
+## @brief Function-pointer for urUSMImportExp
+if __use_win_types:
+    _urUSMImportExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t )
+else:
+    _urUSMImportExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t )
+
+###############################################################################
+## @brief Function-pointer for urUSMReleaseExp
+if __use_win_types:
+    _urUSMReleaseExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
+else:
+    _urUSMReleaseExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
+
 
 ###############################################################################
 ## @brief Table of USMExp functions pointers
 class ur_usm_exp_dditable_t(Structure):
     _fields_ = [
-        ("pfnPitchedAllocExp", c_void_p)                                ## _urUSMPitchedAllocExp_t
+        ("pfnPitchedAllocExp", c_void_p),                               ## _urUSMPitchedAllocExp_t
+        ("pfnImportExp", c_void_p),                                     ## _urUSMImportExp_t
+        ("pfnReleaseExp", c_void_p)                                     ## _urUSMReleaseExp_t
     ]
 
 ###############################################################################
@@ -3728,6 +3746,8 @@ class UR_DDI:
 
         # attach function interface to function address
         self.urUSMPitchedAllocExp = _urUSMPitchedAllocExp_t(self.__dditable.USMExp.pfnPitchedAllocExp)
+        self.urUSMImportExp = _urUSMImportExp_t(self.__dditable.USMExp.pfnImportExp)
+        self.urUSMReleaseExp = _urUSMReleaseExp_t(self.__dditable.USMExp.pfnReleaseExp)
 
         # call driver to get function pointers
         CommandBufferExp = ur_command_buffer_exp_dditable_t()

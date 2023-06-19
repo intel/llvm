@@ -9001,6 +9001,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_PHYSICAL_MEM_RELEASE:
         os << "UR_FUNCTION_PHYSICAL_MEM_RELEASE";
         break;
+
+    case UR_FUNCTION_USM_IMPORT_EXP:
+        os << "UR_FUNCTION_USM_IMPORT_EXP";
+        break;
+
+    case UR_FUNCTION_USM_RELEASE_EXP:
+        os << "UR_FUNCTION_USM_RELEASE_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -13535,6 +13543,41 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
+operator<<(std::ostream &os, const struct ur_usm_import_exp_params_t *params) {
+
+    os << ".hContext = ";
+
+    ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".pMem = ";
+
+    ur_params::serializePtr(os, *(params->ppMem));
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_usm_release_exp_params_t *params) {
+
+    os << ".hContext = ";
+
+    ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".pMem = ";
+
+    ur_params::serializePtr(os, *(params->ppMem));
+
+    return os;
+}
+
+inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_virtual_mem_granularity_get_info_params_t *params) {
 
@@ -14443,6 +14486,12 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     } break;
     case UR_FUNCTION_USM_PITCHED_ALLOC_EXP: {
         os << (const struct ur_usm_pitched_alloc_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_USM_IMPORT_EXP: {
+        os << (const struct ur_usm_import_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_USM_RELEASE_EXP: {
+        os << (const struct ur_usm_release_exp_params_t *)params;
     } break;
     case UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO: {
         os << (const struct ur_virtual_mem_granularity_get_info_params_t *)
