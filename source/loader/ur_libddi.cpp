@@ -60,6 +60,11 @@ __urdlllocal ur_result_t context_t::urInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
+        result = urGetPhysicalMemProcAddrTable(UR_API_VERSION_CURRENT,
+                                               &urDdiTable.PhysicalMem);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
         result = urGetPlatformProcAddrTable(UR_API_VERSION_CURRENT,
                                             &urDdiTable.Platform);
     }
@@ -91,6 +96,11 @@ __urdlllocal ur_result_t context_t::urInit() {
     if (UR_RESULT_SUCCESS == result) {
         result = urGetUsmP2PExpProcAddrTable(UR_API_VERSION_CURRENT,
                                              &urDdiTable.UsmP2PExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = urGetVirtualMemProcAddrTable(UR_API_VERSION_CURRENT,
+                                              &urDdiTable.VirtualMem);
     }
 
     if (UR_RESULT_SUCCESS == result) {

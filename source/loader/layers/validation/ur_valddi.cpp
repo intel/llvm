@@ -1848,6 +1848,361 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemGranularityGetInfo
+__urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    ur_device_handle_t
+        hDevice, ///< [in][optional] is the device to get the granularity from, if the
+    ///< device is null then the granularity is suitable for all devices in context.
+    ur_virtual_mem_granularity_info_t
+        propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+) {
+    auto pfnGranularityGetInfo =
+        context.urDdiTable.VirtualMem.pfnGranularityGetInfo;
+
+    if (nullptr == pfnGranularityGetInfo) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+    }
+
+    ur_result_t result = pfnGranularityGetInfo(
+        hContext, hDevice, propName, propSize, pPropValue, pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemReserve
+__urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    const void *
+        pStart, ///< [in][optional] pointer to the start of the virtual memory region to
+    ///< reserve, specifying a null value causes the implementation to select a
+    ///< start address.
+    size_t
+        size, ///< [in] size in bytes of the virtual address range to reserve.
+    void **
+        ppStart ///< [out] pointer to the returned address at the start of reserved virtual
+                ///< memory range.
+) {
+    auto pfnReserve = context.urDdiTable.VirtualMem.pfnReserve;
+
+    if (nullptr == pfnReserve) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == ppStart) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnReserve(hContext, pStart, size, ppStart);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemFree
+__urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    const void *
+        pStart, ///< [in] pointer to the start of the virtual memory range to free.
+    size_t size ///< [in] size in bytes of the virtual memory range to free.
+) {
+    auto pfnFree = context.urDdiTable.VirtualMem.pfnFree;
+
+    if (nullptr == pfnFree) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pStart) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnFree(hContext, pStart, size);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemMap
+__urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void
+        *pStart, ///< [in] pointer to the start of the virtual memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range to map.
+    ur_physical_mem_handle_t
+        hPhysicalMem, ///< [in] handle of the physical memory to map pStart to.
+    size_t
+        offset, ///< [in] offset in bytes into the physical memory to map pStart to.
+    ur_virtual_mem_access_flags_t
+        flags ///< [in] access flags for the physical memory mapping.
+) {
+    auto pfnMap = context.urDdiTable.VirtualMem.pfnMap;
+
+    if (nullptr == pfnMap) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hPhysicalMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pStart) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK & flags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+    }
+
+    ur_result_t result =
+        pfnMap(hContext, pStart, size, hPhysicalMem, offset, flags);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemUnmap
+__urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void *
+        pStart, ///< [in] pointer to the start of the mapped virtual memory range
+    size_t size ///< [in] size in bytes of the virtual memory range.
+) {
+    auto pfnUnmap = context.urDdiTable.VirtualMem.pfnUnmap;
+
+    if (nullptr == pfnUnmap) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pStart) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnUnmap(hContext, pStart, size);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemSetAccess
+__urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void
+        *pStart, ///< [in] pointer to the start of the virtual memory range.
+    size_t size, ///< [in] size in bytes of the virutal memory range.
+    ur_virtual_mem_access_flags_t
+        flags ///< [in] access flags to set for the mapped virtual memory range.
+) {
+    auto pfnSetAccess = context.urDdiTable.VirtualMem.pfnSetAccess;
+
+    if (nullptr == pfnSetAccess) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pStart) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK & flags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+    }
+
+    ur_result_t result = pfnSetAccess(hContext, pStart, size, flags);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemGetInfo
+__urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void
+        *pStart, ///< [in] pointer to the start of the virtual memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range.
+    ur_virtual_mem_info_t propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+) {
+    auto pfnGetInfo = context.urDdiTable.VirtualMem.pfnGetInfo;
+
+    if (nullptr == pfnGetInfo) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pStart) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_VIRTUAL_MEM_INFO_ACCESS_MODE < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+    }
+
+    ur_result_t result = pfnGetInfo(hContext, pStart, size, propName, propSize,
+                                    pPropValue, pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemCreate
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object.
+    size_t
+        size, ///< [in] size in bytes of phyisical memory to allocate, must be a multiple
+              ///< of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
+    const ur_physical_mem_properties_t *
+        pProperties, ///< [in][optional] pointer to physical memory creation properties.
+    ur_physical_mem_handle_t *
+        phPhysicalMem ///< [out] pointer to handle of physical memory object created.
+) {
+    auto pfnCreate = context.urDdiTable.PhysicalMem.pfnCreate;
+
+    if (nullptr == pfnCreate) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phPhysicalMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result =
+        pfnCreate(hContext, hDevice, size, pProperties, phPhysicalMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phPhysicalMem);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemRetain
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
+    ur_physical_mem_handle_t
+        hPhysicalMem ///< [in] handle of the physical memory object to retain.
+) {
+    auto pfnRetain = context.urDdiTable.PhysicalMem.pfnRetain;
+
+    if (nullptr == pfnRetain) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hPhysicalMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnRetain(hPhysicalMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hPhysicalMem);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemRelease
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
+    ur_physical_mem_handle_t
+        hPhysicalMem ///< [in] handle of the physical memory object to release.
+) {
+    auto pfnRelease = context.urDdiTable.PhysicalMem.pfnRelease;
+
+    if (nullptr == pfnRelease) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hPhysicalMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnRelease(hPhysicalMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hPhysicalMem);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCreateWithIL
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
@@ -6155,6 +6510,65 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMImportExp
+__urdlllocal ur_result_t UR_APICALL urUSMImportExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pMem,                   ///< [in] pointer to host memory object
+    size_t size ///< [in] size in bytes of the host memory object to be imported
+) {
+    auto pfnImportExp = context.urDdiTable.USMExp.pfnImportExp;
+
+    if (nullptr == pfnImportExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnImportExp(hContext, pMem, size);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMReleaseExp
+__urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pMem                    ///< [in] pointer to host memory object
+) {
+    auto pfnReleaseExp = context.urDdiTable.USMExp.pfnReleaseExp;
+
+    if (nullptr == pfnReleaseExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnReleaseExp(hContext, pMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(pMem);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUsmP2PEnablePeerAccessExp
 __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
     ur_device_handle_t
@@ -6246,8 +6660,20 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_EXP_PEER_INFO_PI_PEER_ATOMICS_SUPPORTED < propName) {
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -6836,6 +7262,46 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's PhysicalMem table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_physical_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_validation_layer::context.urDdiTable.PhysicalMem;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnCreate = pDdiTable->pfnCreate;
+    pDdiTable->pfnCreate = ur_validation_layer::urPhysicalMemCreate;
+
+    dditable.pfnRetain = pDdiTable->pfnRetain;
+    pDdiTable->pfnRetain = ur_validation_layer::urPhysicalMemRetain;
+
+    dditable.pfnRelease = pDdiTable->pfnRelease;
+    pDdiTable->pfnRelease = ur_validation_layer::urPhysicalMemRelease;
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Platform table
 ///        with current process' addresses
 ///
@@ -7162,6 +7628,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     dditable.pfnPitchedAllocExp = pDdiTable->pfnPitchedAllocExp;
     pDdiTable->pfnPitchedAllocExp = ur_validation_layer::urUSMPitchedAllocExp;
 
+    dditable.pfnImportExp = pDdiTable->pfnImportExp;
+    pDdiTable->pfnImportExp = ur_validation_layer::urUSMImportExp;
+
+    dditable.pfnReleaseExp = pDdiTable->pfnReleaseExp;
+    pDdiTable->pfnReleaseExp = ur_validation_layer::urUSMReleaseExp;
+
     return result;
 }
 
@@ -7175,7 +7647,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
-    ur_usm_p2_p_exp_dditable_t
+    ur_usm_p2p_exp_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
     auto &dditable = ur_validation_layer::context.urDdiTable.UsmP2PExp;
@@ -7204,6 +7676,59 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
     dditable.pfnPeerAccessGetInfoExp = pDdiTable->pfnPeerAccessGetInfoExp;
     pDdiTable->pfnPeerAccessGetInfoExp =
         ur_validation_layer::urUsmP2PPeerAccessGetInfoExp;
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's VirtualMem table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_virtual_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_validation_layer::context.urDdiTable.VirtualMem;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnGranularityGetInfo = pDdiTable->pfnGranularityGetInfo;
+    pDdiTable->pfnGranularityGetInfo =
+        ur_validation_layer::urVirtualMemGranularityGetInfo;
+
+    dditable.pfnReserve = pDdiTable->pfnReserve;
+    pDdiTable->pfnReserve = ur_validation_layer::urVirtualMemReserve;
+
+    dditable.pfnFree = pDdiTable->pfnFree;
+    pDdiTable->pfnFree = ur_validation_layer::urVirtualMemFree;
+
+    dditable.pfnMap = pDdiTable->pfnMap;
+    pDdiTable->pfnMap = ur_validation_layer::urVirtualMemMap;
+
+    dditable.pfnUnmap = pDdiTable->pfnUnmap;
+    pDdiTable->pfnUnmap = ur_validation_layer::urVirtualMemUnmap;
+
+    dditable.pfnSetAccess = pDdiTable->pfnSetAccess;
+    pDdiTable->pfnSetAccess = ur_validation_layer::urVirtualMemSetAccess;
+
+    dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urVirtualMemGetInfo;
 
     return result;
 }
@@ -7313,6 +7838,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable) {
     }
 
     if (UR_RESULT_SUCCESS == result) {
+        result = ur_validation_layer::urGetPhysicalMemProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->PhysicalMem);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
         result = ur_validation_layer::urGetPlatformProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Platform);
     }
@@ -7345,6 +7875,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable) {
     if (UR_RESULT_SUCCESS == result) {
         result = ur_validation_layer::urGetUsmP2PExpProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->UsmP2PExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_validation_layer::urGetVirtualMemProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->VirtualMem);
     }
 
     if (UR_RESULT_SUCCESS == result) {

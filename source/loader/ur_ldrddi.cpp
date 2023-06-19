@@ -24,6 +24,7 @@ ur_queue_factory_t ur_queue_factory;
 ur_native_factory_t ur_native_factory;
 ur_sampler_factory_t ur_sampler_factory;
 ur_mem_factory_t ur_mem_factory;
+ur_physical_mem_factory_t ur_physical_mem_factory;
 ur_usm_pool_factory_t ur_usm_pool_factory;
 ur_exp_image_factory_t ur_exp_image_factory;
 ur_exp_image_mem_factory_t ur_exp_image_mem_factory;
@@ -1765,6 +1766,332 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     // forward to device-platform
     result =
         pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemGranularityGetInfo
+__urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    ur_device_handle_t
+        hDevice, ///< [in][optional] is the device to get the granularity from, if the
+    ///< device is null then the granularity is suitable for all devices in context.
+    ur_virtual_mem_granularity_info_t
+        propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnGranularityGetInfo = dditable->ur.VirtualMem.pfnGranularityGetInfo;
+    if (nullptr == pfnGranularityGetInfo) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // convert loader handle to platform handle
+    hDevice = (hDevice)
+                  ? reinterpret_cast<ur_device_object_t *>(hDevice)->handle
+                  : nullptr;
+
+    // forward to device-platform
+    result = pfnGranularityGetInfo(hContext, hDevice, propName, propSize,
+                                   pPropValue, pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemReserve
+__urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    const void *
+        pStart, ///< [in][optional] pointer to the start of the virtual memory region to
+    ///< reserve, specifying a null value causes the implementation to select a
+    ///< start address.
+    size_t
+        size, ///< [in] size in bytes of the virtual address range to reserve.
+    void **
+        ppStart ///< [out] pointer to the returned address at the start of reserved virtual
+                ///< memory range.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnReserve = dditable->ur.VirtualMem.pfnReserve;
+    if (nullptr == pfnReserve) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // forward to device-platform
+    result = pfnReserve(hContext, pStart, size, ppStart);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemFree
+__urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    const void *
+        pStart, ///< [in] pointer to the start of the virtual memory range to free.
+    size_t size ///< [in] size in bytes of the virtual memory range to free.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnFree = dditable->ur.VirtualMem.pfnFree;
+    if (nullptr == pfnFree) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // forward to device-platform
+    result = pfnFree(hContext, pStart, size);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemMap
+__urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void
+        *pStart, ///< [in] pointer to the start of the virtual memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range to map.
+    ur_physical_mem_handle_t
+        hPhysicalMem, ///< [in] handle of the physical memory to map pStart to.
+    size_t
+        offset, ///< [in] offset in bytes into the physical memory to map pStart to.
+    ur_virtual_mem_access_flags_t
+        flags ///< [in] access flags for the physical memory mapping.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnMap = dditable->ur.VirtualMem.pfnMap;
+    if (nullptr == pfnMap) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // convert loader handle to platform handle
+    hPhysicalMem =
+        reinterpret_cast<ur_physical_mem_object_t *>(hPhysicalMem)->handle;
+
+    // forward to device-platform
+    result = pfnMap(hContext, pStart, size, hPhysicalMem, offset, flags);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemUnmap
+__urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void *
+        pStart, ///< [in] pointer to the start of the mapped virtual memory range
+    size_t size ///< [in] size in bytes of the virtual memory range.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnUnmap = dditable->ur.VirtualMem.pfnUnmap;
+    if (nullptr == pfnUnmap) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // forward to device-platform
+    result = pfnUnmap(hContext, pStart, size);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemSetAccess
+__urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void
+        *pStart, ///< [in] pointer to the start of the virtual memory range.
+    size_t size, ///< [in] size in bytes of the virutal memory range.
+    ur_virtual_mem_access_flags_t
+        flags ///< [in] access flags to set for the mapped virtual memory range.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnSetAccess = dditable->ur.VirtualMem.pfnSetAccess;
+    if (nullptr == pfnSetAccess) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // forward to device-platform
+    result = pfnSetAccess(hContext, pStart, size, flags);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemGetInfo
+__urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void
+        *pStart, ///< [in] pointer to the start of the virtual memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range.
+    ur_virtual_mem_info_t propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnGetInfo = dditable->ur.VirtualMem.pfnGetInfo;
+    if (nullptr == pfnGetInfo) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // forward to device-platform
+    result = pfnGetInfo(hContext, pStart, size, propName, propSize, pPropValue,
+                        pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemCreate
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object.
+    size_t
+        size, ///< [in] size in bytes of phyisical memory to allocate, must be a multiple
+              ///< of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
+    const ur_physical_mem_properties_t *
+        pProperties, ///< [in][optional] pointer to physical memory creation properties.
+    ur_physical_mem_handle_t *
+        phPhysicalMem ///< [out] pointer to handle of physical memory object created.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnCreate = dditable->ur.PhysicalMem.pfnCreate;
+    if (nullptr == pfnCreate) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // convert loader handle to platform handle
+    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
+    // forward to device-platform
+    result = pfnCreate(hContext, hDevice, size, pProperties, phPhysicalMem);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        *phPhysicalMem = reinterpret_cast<ur_physical_mem_handle_t>(
+            ur_physical_mem_factory.getInstance(*phPhysicalMem, dditable));
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemRetain
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
+    ur_physical_mem_handle_t
+        hPhysicalMem ///< [in] handle of the physical memory object to retain.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_physical_mem_object_t *>(hPhysicalMem)->dditable;
+    auto pfnRetain = dditable->ur.PhysicalMem.pfnRetain;
+    if (nullptr == pfnRetain) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hPhysicalMem =
+        reinterpret_cast<ur_physical_mem_object_t *>(hPhysicalMem)->handle;
+
+    // forward to device-platform
+    result = pfnRetain(hPhysicalMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemRelease
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
+    ur_physical_mem_handle_t
+        hPhysicalMem ///< [in] handle of the physical memory object to release.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_physical_mem_object_t *>(hPhysicalMem)->dditable;
+    auto pfnRelease = dditable->ur.PhysicalMem.pfnRelease;
+    if (nullptr == pfnRelease) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hPhysicalMem =
+        reinterpret_cast<ur_physical_mem_object_t *>(hPhysicalMem)->handle;
+
+    // forward to device-platform
+    result = pfnRelease(hPhysicalMem);
 
     return result;
 }
@@ -6044,6 +6371,55 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMImportExp
+__urdlllocal ur_result_t UR_APICALL urUSMImportExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pMem,                   ///< [in] pointer to host memory object
+    size_t size ///< [in] size in bytes of the host memory object to be imported
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnImportExp = dditable->ur.USMExp.pfnImportExp;
+    if (nullptr == pfnImportExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // forward to device-platform
+    result = pfnImportExp(hContext, pMem, size);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMReleaseExp
+__urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pMem                    ///< [in] pointer to host memory object
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnReleaseExp = dditable->ur.USMExp.pfnReleaseExp;
+    if (nullptr == pfnReleaseExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // forward to device-platform
+    result = pfnReleaseExp(hContext, pMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUsmP2PEnablePeerAccessExp
 __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
     ur_device_handle_t
@@ -6702,6 +7078,62 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's PhysicalMem table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_physical_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (ur_loader::context->version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // Load the device-platform DDI tables
+    for (auto &platform : ur_loader::context->platforms) {
+        if (platform.initStatus != UR_RESULT_SUCCESS) {
+            continue;
+        }
+        auto getTable = reinterpret_cast<ur_pfnGetPhysicalMemProcAddrTable_t>(
+            ur_loader::LibLoader::getFunctionPtr(
+                platform.handle.get(), "urGetPhysicalMemProcAddrTable"));
+        if (!getTable) {
+            continue;
+        }
+        platform.initStatus =
+            getTable(version, &platform.dditable.ur.PhysicalMem);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        if (ur_loader::context->platforms.size() != 1 ||
+            ur_loader::context->forceIntercept) {
+            // return pointers to loader's DDIs
+            pDdiTable->pfnCreate = ur_loader::urPhysicalMemCreate;
+            pDdiTable->pfnRetain = ur_loader::urPhysicalMemRetain;
+            pDdiTable->pfnRelease = ur_loader::urPhysicalMemRelease;
+        } else {
+            // return pointers directly to platform's DDIs
+            *pDdiTable =
+                ur_loader::context->platforms.front().dditable.ur.PhysicalMem;
+        }
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Platform table
 ///        with current process' addresses
 ///
@@ -7055,6 +7487,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnPitchedAllocExp = ur_loader::urUSMPitchedAllocExp;
+            pDdiTable->pfnImportExp = ur_loader::urUSMImportExp;
+            pDdiTable->pfnReleaseExp = ur_loader::urUSMReleaseExp;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable =
@@ -7076,7 +7510,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
-    ur_usm_p2_p_exp_dditable_t
+    ur_usm_p2p_exp_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
     if (nullptr == pDdiTable) {
@@ -7118,6 +7552,67 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
             // return pointers directly to platform's DDIs
             *pDdiTable =
                 ur_loader::context->platforms.front().dditable.ur.UsmP2PExp;
+        }
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's VirtualMem table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_virtual_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (ur_loader::context->version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // Load the device-platform DDI tables
+    for (auto &platform : ur_loader::context->platforms) {
+        if (platform.initStatus != UR_RESULT_SUCCESS) {
+            continue;
+        }
+        auto getTable = reinterpret_cast<ur_pfnGetVirtualMemProcAddrTable_t>(
+            ur_loader::LibLoader::getFunctionPtr(
+                platform.handle.get(), "urGetVirtualMemProcAddrTable"));
+        if (!getTable) {
+            continue;
+        }
+        platform.initStatus =
+            getTable(version, &platform.dditable.ur.VirtualMem);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        if (ur_loader::context->platforms.size() != 1 ||
+            ur_loader::context->forceIntercept) {
+            // return pointers to loader's DDIs
+            pDdiTable->pfnGranularityGetInfo =
+                ur_loader::urVirtualMemGranularityGetInfo;
+            pDdiTable->pfnReserve = ur_loader::urVirtualMemReserve;
+            pDdiTable->pfnFree = ur_loader::urVirtualMemFree;
+            pDdiTable->pfnMap = ur_loader::urVirtualMemMap;
+            pDdiTable->pfnUnmap = ur_loader::urVirtualMemUnmap;
+            pDdiTable->pfnSetAccess = ur_loader::urVirtualMemSetAccess;
+            pDdiTable->pfnGetInfo = ur_loader::urVirtualMemGetInfo;
+        } else {
+            // return pointers directly to platform's DDIs
+            *pDdiTable =
+                ur_loader::context->platforms.front().dditable.ur.VirtualMem;
         }
     }
 
