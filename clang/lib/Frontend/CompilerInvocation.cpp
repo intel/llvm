@@ -682,6 +682,7 @@ static bool RoundTrip(ParseFn Parse, GenerateFn Generate,
   bool DoRoundTripDefault = false;
 #endif
 
+  printf("DoRoundTrip: %d\n", DoRoundTripDefault);
   bool DoRoundTrip = DoRoundTripDefault;
   if (ForceRoundTrip) {
     DoRoundTrip = true;
@@ -3620,22 +3621,12 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
             if (FuncName.back() == ']')
               FuncName = FuncName.drop_back(1);
             auto FuncMap = Opts.FPAccuracyFuncMap.find(FuncName.str());
-            if (FuncMap != Opts.FPAccuracyFuncMap.end()) {
-              if (!FuncMap->second.empty()) {
-                Diags.Report(diag::warn_function_fp_accuracy_already_set)
-                    << FuncMap->second << FuncName.str();
-              }
-            } else {
-              checkFPAccuracyIsValid(ValElement[0], Diags);
-              if (!Opts.FPAccuracyVal.empty())
-                Diags.Report(diag::warn_function_fp_accuracy_already_set)
-                    << Opts.FPAccuracyVal << FuncName.str();
-              // No need to fill the map if the FPaccuracy is 'default'.
-              // The default builtin will be generated.
-              if (!ValElement[0].equals("default"))
-                Opts.FPAccuracyFuncMap.insert(
-                    {FuncName.str(), ValElement[0].str()});
-            }
+            checkFPAccuracyIsValid(ValElement[0], Diags);
+            // No need to fill the map if the FPaccuracy is 'default'.
+            // The default builtin will be generated.
+            if (!ValElement[0].equals("default"))
+              Opts.FPAccuracyFuncMap.insert(
+                  {FuncName.str(), ValElement[0].str()});
           }
         }
       }
@@ -4689,7 +4680,7 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Invocation,
                                         const char *Argv0) {
   CompilerInvocation DummyInvocation;
 
-  return RoundTrip(
+  bool Res = RoundTrip(
       [](CompilerInvocation &Invocation, ArrayRef<const char *> CommandLineArgs,
          DiagnosticsEngine &Diags, const char *Argv0) {
         return CreateFromArgsImpl(Invocation, CommandLineArgs, Diags, Argv0);
@@ -4700,6 +4691,20 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Invocation,
         Invocation.generateCC1CommandLine(Args, SA);
       },
       Invocation, DummyInvocation, CommandLineArgs, Diags, Argv0);
+
+  // Diagnose FPAccuracy option validity.
+  LangOptions &LangOpts = *Invocation.getLangOpts();
+  #if 0
+  if ((!LangOpts.FPAccuracyVal.empty() ||
+       !LangOpts.FPAccuracyFuncMap.empty()) &&
+      LangOpts.MathErrno)
+    Diags.Report(diag::err_drv_incompatible_fp_accuracy_options);
+  #endif
+  if (!LangOpts.FPAccuracyVal.empty())
+    for (const auto &F : LangOpts.FPAccuracyFuncMap)
+      Diags.Report(diag::warn_function_fp_accuracy_already_set)
+          << F.second << F.first;
+  return Res;
 }
 
 std::string CompilerInvocation::getModuleHash() const {
