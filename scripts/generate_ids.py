@@ -26,12 +26,12 @@ def generate_registry(path, specs):
         functions = [obj['class'][len('$x'):] + obj['name'] for s in specs for obj in s['objects'] if obj['type'] == 'function']
         registry = list()
         for fname in functions:
-            etor_name = util.to_snake_case(fname)
+            etor_name = util.to_snake_case(fname).upper()
             id = existing_etors.get(etor_name)
             if id is None:
                 max_etor += 1
                 id = max_etor
-            registry.append({'name': util.to_snake_case(fname), 'desc': 'Enumerator for $x'+fname, 'value': str(id)})    
+            registry.append({'name': util.to_snake_case(fname).upper(), 'desc': 'Enumerator for $x'+fname, 'value': str(id)})
         registry = sorted(registry, key=lambda x: int(x['value']))
         wrapper = { 'name': ENUM_NAME, 'type': 'enum', 'desc': 'Defines unique stable identifiers for all functions' , 'etors': registry}
         header = {'type': 'header', 'desc': quoted('Intel $OneApi Unified Runtime function registry'), 'ordinal': quoted(9)}

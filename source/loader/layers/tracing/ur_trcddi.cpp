@@ -3698,18 +3698,18 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_enqueue_usm_fill2_d_params_t params = {
+    ur_enqueue_usm_fill_2d_params_t params = {
         &hQueue,          &pMem,   &pitch,  &patternSize,
         &pPattern,        &width,  &height, &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_FILL2_D,
+    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_FILL_2D,
                                              "urEnqueueUSMFill2D", &params);
 
     ur_result_t result =
         pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width, height,
                      numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_USM_FILL2_D, "urEnqueueUSMFill2D",
+    context.notify_end(UR_FUNCTION_ENQUEUE_USM_FILL_2D, "urEnqueueUSMFill2D",
                        &params, &result, instance);
 
     return result;
@@ -3744,19 +3744,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_enqueue_usm_memcpy2_d_params_t params = {
+    ur_enqueue_usm_memcpy_2d_params_t params = {
         &hQueue,          &blocking, &pDst,
         &dstPitch,        &pSrc,     &srcPitch,
         &width,           &height,   &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_MEMCPY2_D,
+    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D,
                                              "urEnqueueUSMMemcpy2D", &params);
 
     ur_result_t result =
         pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch, width,
                        height, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_USM_MEMCPY2_D,
+    context.notify_end(UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D,
                        "urEnqueueUSMMemcpy2D", &params, &result, instance);
 
     return result;
