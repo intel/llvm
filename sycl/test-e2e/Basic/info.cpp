@@ -167,7 +167,7 @@ template <> std::string info_to_string(device info) {
   return "SYCL OpenCL device";
 }
 
-template <int Dim> std::string info_to_string(id<Dim> info) {
+template <int Dim> std::string info_to_string(range<Dim> info) {
   std::string str;
   for (size_t i = 0; i < Dim; ++i) {
     str += info_to_string(info[i]) + " ";
