@@ -130,7 +130,7 @@ void piPrintersFinish() {
 
 XPTI_CALLBACK_API void piCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t * /*Parent*/,
-                                  xpti::trace_event_data_t *ObjectEvent,
+                                  xpti::trace_event_data_t * /*Event*/,
                                   uint64_t /*Instance*/, const void *UserData) {
   if (!HeaderPrinter || !ResultPrinter)
     return;
@@ -138,11 +138,10 @@ XPTI_CALLBACK_API void piCallback(uint16_t TraceType,
   // Lock while we print information
   std::lock_guard<sycl::detail::SpinLock> _{GlobalLock};
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
-  const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);
   if (TraceType == xpti::trace_function_with_args_begin) {
+    const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);
     (*HeaderPrinter)(*Plugin, Data);
   } else if (TraceType == xpti::trace_function_with_args_end) {
-    const pi_result Result = *static_cast<pi_result *>(Data->ret_data);
-    (*ResultPrinter)(Result);
+    (*ResultPrinter)(*static_cast<pi_result *>(Data->ret_data));
   }
 }

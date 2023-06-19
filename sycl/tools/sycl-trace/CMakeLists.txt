@@ -38,10 +38,6 @@ add_library(sycl_pi_trace_collector SHARED
   verification_collector.cpp
 )
 
-target_include_directories(sycl_pi_trace_collector PRIVATE
-  "${CMAKE_CURRENT_SOURCE_DIR}/../xpti_helpers/"
-)
-
 find_package(Python3 REQUIRED)
 
 add_custom_target(pi-pretty-printers
