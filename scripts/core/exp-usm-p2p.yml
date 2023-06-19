@@ -81,7 +81,6 @@ analogue:
     - "**cuDeviceGetP2PAttribute**"
 details:
   - "Queries the peer access capabilities from the command device to the peer device according to the query `propName`."
-
 params:
     - type: $x_device_handle_t
       name: commandDevice
