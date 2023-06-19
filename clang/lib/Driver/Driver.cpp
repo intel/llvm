@@ -115,6 +115,11 @@ using namespace clang::driver;
 using namespace clang;
 using namespace llvm::opt;
 
+// clang-offload-bundler is currently generating a 'standardized' target triple.
+// Triple's format - Architecture-Vendor-OS-Environment.
+// Bundle sections created by clang-offload-bundler contain the 'standardized'
+// triple. This routine transforms the triple specified by user as input to this
+// 'standardized' format to facilitate checks.
 static std::string standardizedTriple(std::string OrigTriple) {
   if (OrigTriple.back() == '-') // Already standardized
     return OrigTriple;
