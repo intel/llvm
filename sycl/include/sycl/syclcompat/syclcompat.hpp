@@ -12,12 +12,12 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  SYCL compatibility extension
+ *  SYCLcompat
  *
  *  syclcompat.hpp
  *
  *  Description:
- *    Main include internal header for the SYCL compatibility extension
+ *    Main include internal header for SYCLcompat
  **************************************************************************/
 
 #pragma once

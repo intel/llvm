@@ -11,7 +11,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 #
-# SYCLcompat API
+# SYCLcompat
 #
 
 set(SYCL_EXTRA_FLAGS "-fsycl-unnamed-lambda;-fsycl-device-code-split=per_kernel")

@@ -5,7 +5,8 @@
 #                   "-fsycl-unnamed-lambdas;-fsycl-device-code-split"
 #
 # Will compile the list of files together using clang.
-# Produces a binary names `basename(test_suite_name)`.
+# Produces a single binary using all the .cpp files
+# named 'test_suite_name' at ${CMAKE_CURRENT_BINARY_DIR}.
 macro(add_sycl_library_unittest test_suite_name sycl_extra_flags)
 
   add_custom_target(check-sycl-${test_suite_name}

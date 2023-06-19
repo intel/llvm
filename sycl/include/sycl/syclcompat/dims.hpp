@@ -12,12 +12,12 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  SYCL compatibility extension
+ *  SYCLcompat
  *
  *  dims.hpp
  *
  *  Description:
- *    dim3 functionality for the SYCL compatibility extension
+ *    dim3 functionality for SYCLcompat
  **************************************************************************/
 
 #pragma once
