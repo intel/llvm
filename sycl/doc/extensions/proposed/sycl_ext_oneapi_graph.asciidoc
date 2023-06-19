@@ -1107,17 +1107,8 @@ required by the graph (such as after being replaced through executable graph upd
 
 If a buffer created with a host data pointer is recorded as part of a submission to
 a command graph, the lifetime of that host data will also be extended by taking a
-copy of that data inside the buffer. This copy will occur during the call to
-`queue::submit()`. Users can opt-out of this behavior by passing the property
-`graph::no_host_copy` to `command_graph::begin_recording()` or the constructor
-of the `command_graph` the commands will be recorded to. Passing the property to
-`begin_recording()` will prevent host copies only for commands recorded before
-`end_recording()` is called for a given queue. Passing the property to the
-`command_graph` constructor will prevent host copies for all commands recorded to
-the graph.
+copy of that data inside the buffer. To illustrate, consider the following example:
 
-This behavior was introduced to address the case where host data used to create
-a buffer is destroyed before the copy to device has happened. For example:
 [source,c++]
 ----
 void foo(queue q /* queue in recording mode */ ) {
@@ -1133,9 +1124,26 @@ void foo(queue q /* queue in recording mode */ ) {
 }
 ----
 
-The copy will not occur if the buffer is accessed inside the submitted command
-group function with an accessor with `access_mode::write` or the `no_init`
-property.
+In this example, the implementation extends the lifetime of the buffer because
+it is used in the recorded graph. Because the buffer uses the host memory data,
+the implementation also makes an internal copy of that host data. As illustrated
+above, that host memory might go out of scope before the recorded graph goes out
+of scope, or before the data has been copied to the device.
+
+The default behavior is to always copy the host data in a case like this, but
+this is not necessary if the user knows that the lifetime of the host data
+outlives the lifetime of the recorded graph. If the user knows this is the
+case, they may use the `graph::no_host_copy` property to avoid the internal
+copy. Passing the property to `begin_recording()` will prevent host copies only
+for commands recorded before `end_recording()` is called for a given queue.
+Passing the property to the `command_graph` constructor will prevent host copies
+for all commands recorded to the graph.
+
+The implementation guarantees that the host memory will not be copied internally
+if all the commands accessing this buffer use `access_mode::write` or the
+`no_init` property because the host memory is not needed in these cases.
+Note, however, that these cases require the application to disable copy-back
+as described in <<buffer-limitations, Buffer Limitations>>.
 
 === Host Tasks
 
