@@ -25,9 +25,9 @@
 ??$get_info@U?$max_work_groups@$01@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$01@23@XZ
 ??$get_info@U?$max_work_groups@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$02@12@XZ
 ??$get_info@U?$max_work_groups@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$02@23@XZ
-??$get_info@U?$max_work_item_sizes@$00@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$00@12@XZ
-??$get_info@U?$max_work_item_sizes@$01@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$01@12@XZ
-??$get_info@U?$max_work_item_sizes@$02@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$02@12@XZ
+??$get_info@U?$max_work_item_sizes@$02@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$range@$02@12@XZ
+??$get_info@U?$max_work_item_sizes@$00@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$range@$00@12@XZ
+??$get_info@U?$max_work_item_sizes@$01@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$range@$01@12@XZ
 ??$get_info@Uaddress_bits@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Uaspects@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uatomic64@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
