@@ -2435,7 +2435,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
       return false;
     // Creating std::variant to call max_work_item_sizes one time to avoid
     // performance drop
-    std::variant<range<1>, range<2>, range<3>> MaxWorkItemSizesVariant;
+    std::variant<id<1>, id<2>, id<3>> MaxWorkItemSizesVariant;
     if (Dims == 1)
       MaxWorkItemSizesVariant =
           Dev.get_info<info::device::max_work_item_sizes<1>>();
@@ -2451,15 +2451,15 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
       if (Dims == 1) {
         // ReqdWGSizeVec is in reverse order compared to MaxWorkItemSizes
         if (static_cast<size_t>(ReqdWGSizeVec[i]) >
-            std::get<range<1>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+            std::get<id<1>>(MaxWorkItemSizesVariant)[Dims - i - 1])
           return false;
       } else if (Dims == 2) {
         if (static_cast<size_t>(ReqdWGSizeVec[i]) >
-            std::get<range<2>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+            std::get<id<2>>(MaxWorkItemSizesVariant)[Dims - i - 1])
           return false;
       } else // (Dims == 3)
         if (static_cast<size_t>(ReqdWGSizeVec[i]) >
-            std::get<range<3>>(MaxWorkItemSizesVariant)[Dims - i - 1])
+            std::get<id<3>>(MaxWorkItemSizesVariant)[Dims - i - 1])
           return false;
     }
   }
