@@ -1791,8 +1791,6 @@ class ur_function_v(IntEnum):
     ENQUEUE_USM_MEMCPY = 33                         ## Enumerator for ::urEnqueueUSMMemcpy
     ENQUEUE_USM_PREFETCH = 34                       ## Enumerator for ::urEnqueueUSMPrefetch
     ENQUEUE_USM_ADVISE = 35                         ## Enumerator for ::urEnqueueUSMAdvise
-    ENQUEUE_USM_FILL2_D = 36                        ## Enumerator for ::urEnqueueUSMFill2D
-    ENQUEUE_USM_MEMCPY2_D = 37                      ## Enumerator for ::urEnqueueUSMMemcpy2D
     ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38       ## Enumerator for ::urEnqueueDeviceGlobalVariableWrite
     ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39        ## Enumerator for ::urEnqueueDeviceGlobalVariableRead
     EVENT_GET_INFO = 40                             ## Enumerator for ::urEventGetInfo
@@ -1902,6 +1900,8 @@ class ur_function_v(IntEnum):
     BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148   ## Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
     BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149 ## Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
     PLATFORM_GET_LAST_ERROR = 150                   ## Enumerator for ::urPlatformGetLastError
+    ENQUEUE_USM_FILL_2D = 151                       ## Enumerator for ::urEnqueueUSMFill2D
+    ENQUEUE_USM_MEMCPY_2D = 152                     ## Enumerator for ::urEnqueueUSMMemcpy2D
 
 class ur_function_t(c_int):
     def __str__(self):

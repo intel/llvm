@@ -190,6 +190,6 @@ def writelines(fout, lines):
 
 def to_snake_case(str):
     f = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', str)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', f).upper()
+    return re.sub('([a-z])([A-Z0-9])', r'\1_\2', f)
 
 # END OF FILE
