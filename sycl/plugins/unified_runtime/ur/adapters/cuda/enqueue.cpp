@@ -434,8 +434,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     // Set local mem max size if env var is present
-    static const char *LocalMemSizePtr =
+    static const char *LocalMemSizePtrUR =
+        std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSizePtrPI =
         std::getenv("SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSizePtr =
+        LocalMemSizePtrUR ? LocalMemSizePtrUR
+                          : (LocalMemSizePtrPI ? LocalMemSizePtrPI : nullptr);
 
     if (LocalMemSizePtr) {
       int DeviceMaxLocalMem = 0;
@@ -446,8 +451,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
       static const int EnvVal = std::atoi(LocalMemSizePtr);
       if (EnvVal <= 0 || EnvVal > DeviceMaxLocalMem) {
-        setErrorMessage("Invalid value specified for "
-                        "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
+        setErrorMessage(LocalMemSizePtrUR ? "Invalid value specified for "
+                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
+                                          : "Invalid value specified for "
+                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
