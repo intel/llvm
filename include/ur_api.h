@@ -129,6 +129,10 @@ typedef struct ur_sampler_handle_t_ *ur_sampler_handle_t;
 typedef struct ur_mem_handle_t_ *ur_mem_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of physical memory object
+typedef struct ur_physical_mem_handle_t_ *ur_physical_mem_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_BIT
 /// @brief Generic macro for enumerator bit masks
 #define UR_BIT(_i) (1 << _i)
@@ -258,6 +262,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 27,         ///< ::ur_exp_command_buffer_desc_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 28,      ///< ::ur_exp_sampler_mip_properties_t
     UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 29,   ///< ::ur_kernel_arg_mem_obj_properties_t
+    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 30,         ///< ::ur_physical_mem_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2965,6 +2970,282 @@ urUSMPoolGetInfo(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime APIs
+#if !defined(__GNUC__)
+#pragma region virtual memory
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Virtual memory granularity info
+typedef enum ur_virtual_mem_granularity_info_t {
+    UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM = 0x30100,     ///< [size_t] size in bytes of the minimum virtual memory granularity.
+    UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED = 0x30101, ///< [size_t] size in bytes of the recommended virtual memory granularity.
+    /// @cond
+    UR_VIRTUAL_MEM_GRANULARITY_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_virtual_mem_granularity_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get information about the minimum and recommended granularity of
+///        physical and virtual memory.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED < propName`
+UR_APIEXPORT ur_result_t UR_APICALL
+urVirtualMemGranularityGetInfo(
+    ur_context_handle_t hContext,               ///< [in] handle of the context object.
+    ur_device_handle_t hDevice,                 ///< [in][optional] is the device to get the granularity from, if the
+                                                ///< device is null then the granularity is suitable for all devices in context.
+    ur_virtual_mem_granularity_info_t propName, ///< [in] type of the info to query.
+    size_t propSize,                            ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *pPropValue,                           ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                                ///< the info. If propSize is less than the real number of bytes needed to
+                                                ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+                                                ///< returned and pPropValue is not used.
+    size_t *pPropSizeRet                        ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Reserve a virtual memory range.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppStart`
+UR_APIEXPORT ur_result_t UR_APICALL
+urVirtualMemReserve(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    const void *pStart,           ///< [in][optional] pointer to the start of the virtual memory region to
+                                  ///< reserve, specifying a null value causes the implementation to select a
+                                  ///< start address.
+    size_t size,                  ///< [in] size in bytes of the virtual address range to reserve.
+    void **ppStart                ///< [out] pointer to the returned address at the start of reserved virtual
+                                  ///< memory range.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Free a virtual memory range.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pStart`
+UR_APIEXPORT ur_result_t UR_APICALL
+urVirtualMemFree(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    const void *pStart,           ///< [in] pointer to the start of the virtual memory range to free.
+    size_t size                   ///< [in] size in bytes of the virtual memory range to free.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Virtual memory access mode flags.
+typedef uint32_t ur_virtual_mem_access_flags_t;
+typedef enum ur_virtual_mem_access_flag_t {
+    UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE = UR_BIT(0), ///< Virtual memory both read and write accessible
+    UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY = UR_BIT(1),  ///<
+    /// @cond
+    UR_VIRTUAL_MEM_ACCESS_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_virtual_mem_access_flag_t;
+/// @brief Bit Mask for validating ur_virtual_mem_access_flags_t
+#define UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK 0xfffffffc
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Map a virtual memory range to a physical memory handle.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hPhysicalMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pStart`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK & flags`
+UR_APIEXPORT ur_result_t UR_APICALL
+urVirtualMemMap(
+    ur_context_handle_t hContext,          ///< [in] handle to the context object.
+    const void *pStart,                    ///< [in] pointer to the start of the virtual memory range.
+    size_t size,                           ///< [in] size in bytes of the virtual memory range to map.
+    ur_physical_mem_handle_t hPhysicalMem, ///< [in] handle of the physical memory to map pStart to.
+    size_t offset,                         ///< [in] offset in bytes into the physical memory to map pStart to.
+    ur_virtual_mem_access_flags_t flags    ///< [in] access flags for the physical memory mapping.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Unmap a virtual memory range previously mapped in a context.
+///
+/// @details
+///     - After a call to this function, the virtual memory range is left in a
+///       state ready to be remapped.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pStart`
+UR_APIEXPORT ur_result_t UR_APICALL
+urVirtualMemUnmap(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void *pStart,           ///< [in] pointer to the start of the mapped virtual memory range
+    size_t size                   ///< [in] size in bytes of the virtual memory range.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the access mode of a mapped virtual memory range.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pStart`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK & flags`
+UR_APIEXPORT ur_result_t UR_APICALL
+urVirtualMemSetAccess(
+    ur_context_handle_t hContext,       ///< [in] handle to the context object.
+    const void *pStart,                 ///< [in] pointer to the start of the virtual memory range.
+    size_t size,                        ///< [in] size in bytes of the virutal memory range.
+    ur_virtual_mem_access_flags_t flags ///< [in] access flags to set for the mapped virtual memory range.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Virtual memory range info queries.
+typedef enum ur_virtual_mem_info_t {
+    UR_VIRTUAL_MEM_INFO_ACCESS_MODE = 0, ///< [::ur_virtual_mem_access_flags_t] access flags of a mapped virtual
+                                         ///< memory range.
+    /// @cond
+    UR_VIRTUAL_MEM_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_virtual_mem_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get information about a mapped virtual memory range.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pStart`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_VIRTUAL_MEM_INFO_ACCESS_MODE < propName`
+UR_APIEXPORT ur_result_t UR_APICALL
+urVirtualMemGetInfo(
+    ur_context_handle_t hContext,   ///< [in] handle to the context object.
+    const void *pStart,             ///< [in] pointer to the start of the virtual memory range.
+    size_t size,                    ///< [in] size in bytes of the virtual memory range.
+    ur_virtual_mem_info_t propName, ///< [in] type of the info to query.
+    size_t propSize,                ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *pPropValue,               ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                    ///< the info. If propSize is less than the real number of bytes needed to
+                                    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+                                    ///< returned and pPropValue is not used.
+    size_t *pPropSizeRet            ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Physical memory creation properties.
+typedef uint32_t ur_physical_mem_flags_t;
+typedef enum ur_physical_mem_flag_t {
+    UR_PHYSICAL_MEM_FLAG_TBD = UR_BIT(0), ///< reserved for future use.
+    /// @cond
+    UR_PHYSICAL_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_physical_mem_flag_t;
+/// @brief Bit Mask for validating ur_physical_mem_flags_t
+#define UR_PHYSICAL_MEM_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Physical memory creation properties.
+typedef struct ur_physical_mem_properties_t {
+    ur_structure_type_t stype;     ///< [in] type of this structure, must be
+                                   ///< ::UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES
+    void *pNext;                   ///< [in,out][optional] pointer to extension-specific structure
+    ur_physical_mem_flags_t flags; ///< [in] physical memory creation flags
+
+} ur_physical_mem_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a physical memory handle that virtual memory can be mapped to.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phPhysicalMem`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPhysicalMemCreate(
+    ur_context_handle_t hContext,                    ///< [in] handle of the context object.
+    ur_device_handle_t hDevice,                      ///< [in] handle of the device object.
+    size_t size,                                     ///< [in] size in bytes of phyisical memory to allocate, must be a multiple
+                                                     ///< of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
+    const ur_physical_mem_properties_t *pProperties, ///< [in][optional] pointer to physical memory creation properties.
+    ur_physical_mem_handle_t *phPhysicalMem          ///< [out] pointer to handle of physical memory object created.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retain a physical memory handle, increment its reference count.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPhysicalMem`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPhysicalMemRetain(
+    ur_physical_mem_handle_t hPhysicalMem ///< [in] handle of the physical memory object to retain.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Release a physical memory handle, decrement its reference count.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPhysicalMem`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPhysicalMemRelease(
+    ur_physical_mem_handle_t hPhysicalMem ///< [in] handle of the physical memory object to release.
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime Runtime APIs for Program
 #if !defined(__GNUC__)
 #pragma region program
@@ -4872,6 +5153,16 @@ typedef enum ur_function_t {
     UR_FUNCTION_PLATFORM_GET_LAST_ERROR = 150,                                 ///< Enumerator for ::urPlatformGetLastError
     UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,                                     ///< Enumerator for ::urEnqueueUSMFill2D
     UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D = 152,                                   ///< Enumerator for ::urEnqueueUSMMemcpy2D
+    UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 153,                        ///< Enumerator for ::urVirtualMemGranularityGetInfo
+    UR_FUNCTION_VIRTUAL_MEM_RESERVE = 154,                                     ///< Enumerator for ::urVirtualMemReserve
+    UR_FUNCTION_VIRTUAL_MEM_FREE = 155,                                        ///< Enumerator for ::urVirtualMemFree
+    UR_FUNCTION_VIRTUAL_MEM_MAP = 156,                                         ///< Enumerator for ::urVirtualMemMap
+    UR_FUNCTION_VIRTUAL_MEM_UNMAP = 157,                                       ///< Enumerator for ::urVirtualMemUnmap
+    UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 158,                                  ///< Enumerator for ::urVirtualMemSetAccess
+    UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 159,                                    ///< Enumerator for ::urVirtualMemGetInfo
+    UR_FUNCTION_PHYSICAL_MEM_CREATE = 160,                                     ///< Enumerator for ::urPhysicalMemCreate
+    UR_FUNCTION_PHYSICAL_MEM_RETAIN = 161,                                     ///< Enumerator for ::urPhysicalMemRetain
+    UR_FUNCTION_PHYSICAL_MEM_RELEASE = 162,                                    ///< Enumerator for ::urPhysicalMemRelease
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7628,6 +7919,34 @@ typedef struct ur_mem_image_get_info_params_t {
 } ur_mem_image_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urPhysicalMemCreate
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_physical_mem_create_params_t {
+    ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
+    size_t *psize;
+    const ur_physical_mem_properties_t **ppProperties;
+    ur_physical_mem_handle_t **pphPhysicalMem;
+} ur_physical_mem_create_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urPhysicalMemRetain
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_physical_mem_retain_params_t {
+    ur_physical_mem_handle_t *phPhysicalMem;
+} ur_physical_mem_retain_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urPhysicalMemRelease
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_physical_mem_release_params_t {
+    ur_physical_mem_handle_t *phPhysicalMem;
+} ur_physical_mem_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueKernelLaunch
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -8536,6 +8855,88 @@ typedef struct ur_init_params_t {
 typedef struct ur_tear_down_params_t {
     void **ppParams;
 } ur_tear_down_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urVirtualMemGranularityGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_virtual_mem_granularity_get_info_params_t {
+    ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
+    ur_virtual_mem_granularity_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_virtual_mem_granularity_get_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urVirtualMemReserve
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_virtual_mem_reserve_params_t {
+    ur_context_handle_t *phContext;
+    const void **ppStart;
+    size_t *psize;
+    void ***pppStart;
+} ur_virtual_mem_reserve_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urVirtualMemFree
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_virtual_mem_free_params_t {
+    ur_context_handle_t *phContext;
+    const void **ppStart;
+    size_t *psize;
+} ur_virtual_mem_free_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urVirtualMemMap
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_virtual_mem_map_params_t {
+    ur_context_handle_t *phContext;
+    const void **ppStart;
+    size_t *psize;
+    ur_physical_mem_handle_t *phPhysicalMem;
+    size_t *poffset;
+    ur_virtual_mem_access_flags_t *pflags;
+} ur_virtual_mem_map_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urVirtualMemUnmap
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_virtual_mem_unmap_params_t {
+    ur_context_handle_t *phContext;
+    const void **ppStart;
+    size_t *psize;
+} ur_virtual_mem_unmap_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urVirtualMemSetAccess
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_virtual_mem_set_access_params_t {
+    ur_context_handle_t *phContext;
+    const void **ppStart;
+    size_t *psize;
+    ur_virtual_mem_access_flags_t *pflags;
+} ur_virtual_mem_set_access_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urVirtualMemGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_virtual_mem_get_info_params_t {
+    ur_context_handle_t *phContext;
+    const void **ppStart;
+    size_t *psize;
+    ur_virtual_mem_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_virtual_mem_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urDeviceGet
