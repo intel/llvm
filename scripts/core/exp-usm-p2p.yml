@@ -88,7 +88,6 @@ params:
     - type: $x_device_handle_t
       name: peerDevice
       desc: "[in] handle of the peer device object"
-
     - type: $x_exp_peer_info_t
       name: propName
       desc: "[in] type of the info to retrieve"
