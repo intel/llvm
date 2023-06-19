@@ -22,5 +22,5 @@
 
 #pragma once
 
-#include <sycl/syclcompat/dpct.hpp>
+#include <sycl/syclcompat/defs.hpp>
 #include <sycl/syclcompat/dims.hpp>
