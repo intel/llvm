@@ -1,7 +1,7 @@
 // REQUIRES: native_cpu_be
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <array>
 #include <iostream>
@@ -10,8 +10,8 @@ int main() {
   const size_t N = 4;
   std::array<int, N> A = {{1, 2, 3, 4}}, B = {{2, 3, 4, 5}},
                      C{{-1, -1, -1, -1}};
-  cl::sycl::queue deviceQueue;
-  cl::sycl::range<1> numOfItems{N};
+  sycl::queue deviceQueue;
+  sycl::range<1> numOfItems{N};
   auto a_ptr = sycl::malloc_device<int>(N, deviceQueue);
   auto b_ptr = sycl::malloc_device<int>(N, deviceQueue);
   auto c_ptr = sycl::malloc_device<int>(N, deviceQueue);
@@ -29,8 +29,8 @@ int main() {
   }
 
   deviceQueue
-      .submit([&](cl::sycl::handler &cgh) {
-        auto kern = [=](cl::sycl::id<1> wiID) {
+      .submit([&](sycl::handler &cgh) {
+        auto kern = [=](sycl::id<1> wiID) {
           c_ptr[wiID] = a_ptr[wiID] + b_ptr[wiID];
         };
         cgh.parallel_for(numOfItems, kern);
