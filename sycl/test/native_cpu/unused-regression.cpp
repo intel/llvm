@@ -40,8 +40,7 @@ int main() {
   myfun TheFun(a_ptr, b_ptr, used1, used2, unused, used3);
 
   deviceQueue
-      .submit(
-          [&](sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
+      .submit([&](sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
       .wait();
   deviceQueue.memcpy(A.data(), a_ptr, N * sizeof(int)).wait();
 

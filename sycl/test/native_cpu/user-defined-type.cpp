@@ -1,8 +1,8 @@
 // REQUIRES: native_cpu_be
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t
-#include <sycl/sycl.hpp>
 #include <functional>
+#include <sycl/sycl.hpp>
 
 #include <array>
 #include <iostream>
@@ -33,8 +33,7 @@ int main() {
   myfun TheFun(a_ptr, b_ptr, param);
 
   deviceQueue
-      .submit(
-          [&](sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
+      .submit([&](sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
       .wait();
   deviceQueue.memcpy(A.data(), a_ptr, N * sizeof(int)).wait();
 

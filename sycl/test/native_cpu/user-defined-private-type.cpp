@@ -6,8 +6,8 @@
 // header so currently compilation fails if the type name is not publicly
 // visible.
 // XFAIL: *
-#include <sycl/sycl.hpp>
 #include <functional>
+#include <sycl/sycl.hpp>
 
 #include <array>
 #include <iostream>
@@ -41,8 +41,7 @@ int main() {
   myfun TheFun(a_ptr, b_ptr, param);
 
   deviceQueue
-      .submit(
-          [&](sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
+      .submit([&](sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
       .wait();
   deviceQueue.memcpy(A.data(), a_ptr, N * sizeof(int)).wait();
 
