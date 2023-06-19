@@ -1,14 +1,14 @@
-
 <%
     OneApi=tags['$OneApi']
     x=tags['$x']
     X=x.upper()
 %>
+
 .. _experimental-command-buffer:
 
-==============
+================================================================================
 Command-Buffer
-==============
+================================================================================
 
 .. warning::
 
@@ -20,6 +20,8 @@ Command-Buffer
     *   Do not require conformance testing of their own additions.
 
 
+Motivation
+--------------------------------------------------------------------------------
 A command-buffer represents a series of commands for execution on a command
 queue. Many adapters support this kind of construct either natively or through
 extensions, but they are not available to use directly. Typically their use is
@@ -35,7 +37,7 @@ directly, allowing applications explicit control over the enqueue and execution
 of commands to batch commands as required for optimal performance.
 
 Querying Command-Buffer Support
-===============================
+--------------------------------------------------------------------------------
 
 Support for command-buffers can be queried for a given device/adapter by using
 the device info query with ${X}_DEVICE_INFO_EXTENSIONS. Adapters supporting this
@@ -65,7 +67,7 @@ returned list of supported extensions.
             != std::string::npos;
 
 Command-Buffer Creation
-=======================
+--------------------------------------------------------------------------------
 
 Command-Buffers are tied to a specific ${x}_context_handle_t and
 ${x}_device_handle_t. ${x}CommandBufferCreateExp optionally takes a descriptor
@@ -77,7 +79,7 @@ Command-buffers are reference counted and can be retained and released by
 calling ${x}CommandBufferRetainExp and ${x}CommandBufferReleaseExp respectively.
 
 Appending Commands
-==================
+--------------------------------------------------------------------------------
 
 Commands can be appended to a command-buffer by calling any of the
 command-buffer append functions. Typically these closely mimic the existing
@@ -97,7 +99,7 @@ It is planned to eventually support any command type from the Core API which can
 actually be appended to the equiavalent adapter native constructs.
 
 Sync-Points
-===========
+--------------------------------------------------------------------------------
 
 A sync-point is a value which represents a command inside of a command-buffer
 which is returned from command-buffer append function calls. These can be
@@ -118,7 +120,7 @@ were obtained from.
     ${x}CommandBufferAppendKernelLaunchExp(hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 1, &syncPoint, nullptr);
 
 Enqueueing Command-Buffers
-==========================
+--------------------------------------------------------------------------------
 
 Command-buffers are submitted for execution on a ${x}_queue_handle_t with an
 optional list of dependent events. An event is returned which tracks the
@@ -131,3 +133,66 @@ enqueued or executed simultaneously, and submissions may be serialized.
 
     ${x}CommandBufferEnqueueExp(hCommandBuffer, hQueue, 0, nullptr,
                               &executionEvent);
+
+API
+--------------------------------------------------------------------------------
+
+Macros
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* ${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP
+
+Enums
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* ${x}_result_t
+    * ${X}_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    * ${X}_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    * ${X}_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+* ${x}_structure_type_t
+    * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
+* ${x}_command_t
+    * ${X}_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP
+* ${x}_function_t
+    * ${X}_FUNCTION_COMMAND_BUFFER_CREATE_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_RETAIN_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_RELEASE_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP
+
+
+Types
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* ${x}_exp_command_buffer_desc_t
+* ${x}_exp_command_buffer_sync_point_t
+* ${x}_exp_command_buffer_handle_t
+
+
+Functions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* ${x}CommandBufferCreateExp
+* ${x}CommandBufferRetainExp
+* ${x}CommandBufferReleaseExp
+* ${x}CommandBufferFinalizeExp
+* ${x}CommandBufferAppendKernelLaunchExp
+* ${x}CommandBufferAppendMemcpyUSMExp
+* ${x}CommandBufferAppendMembufferCopyExp
+* ${x}CommandBufferAppendMembufferCopyRectExp
+* ${x}CommandBufferEnqueueExp
+
+Changelog
+--------------------------------------------------------------------------------
+
++-----------+------------------------+
+| Revision  | Changes                |
++===========+========================+
+| 1.0       | Initial Draft           |
++-----------+------------------------+
+
+Contributors
+--------------------------------------------------------------------------------
+
+* Ben Tracy `ben.tracy@codeplay.com <ben.tracy@codeplay.com>`_
+* Ewan Crawford `ewan@codeplay.com <ewan@codeplay.com>`_
