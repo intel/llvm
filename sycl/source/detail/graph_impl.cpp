@@ -131,6 +131,7 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
                 std::function<void(handler &)> CGF,
                 const std::vector<sycl::detail::ArgDesc> &Args,
                 const std::vector<std::shared_ptr<node_impl>> &Dep) {
+  (void)Args;
   sycl::handler Handler{Impl};
   CGF(Handler);
   Handler.finalize();
@@ -258,8 +259,8 @@ sycl::event exec_graph_impl::enqueue(
       } else {
 
         sycl::detail::EventImplPtr EventImpl =
-            sycl::detail::Scheduler::getInstance().addCG(
-                std::move(NodeImpl->getCGCopy()), Queue);
+            sycl::detail::Scheduler::getInstance().addCG(NodeImpl->getCGCopy(),
+                                                         Queue);
 
         ScheduledEvents.push_back(EventImpl);
       }
