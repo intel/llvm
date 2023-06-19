@@ -98,7 +98,6 @@ uint64_t ur_event_handle_t_::getQueuedTime() const {
 
 uint64_t ur_event_handle_t_::getStartTime() const {
   assert(isStarted());
-  UR_CHECK_ERROR(cuEventSynchronize(EvStart));
   return Queue->get_device()->getElapsedTime(EvStart);
 }
 
