@@ -682,7 +682,6 @@ static bool RoundTrip(ParseFn Parse, GenerateFn Generate,
   bool DoRoundTripDefault = false;
 #endif
 
-  printf("DoRoundTrip: %d\n", DoRoundTripDefault);
   bool DoRoundTrip = DoRoundTripDefault;
   if (ForceRoundTrip) {
     DoRoundTrip = true;
@@ -4694,12 +4693,6 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Invocation,
 
   // Diagnose FPAccuracy option validity.
   LangOptions &LangOpts = *Invocation.getLangOpts();
-  #if 0
-  if ((!LangOpts.FPAccuracyVal.empty() ||
-       !LangOpts.FPAccuracyFuncMap.empty()) &&
-      LangOpts.MathErrno)
-    Diags.Report(diag::err_drv_incompatible_fp_accuracy_options);
-  #endif
   if (!LangOpts.FPAccuracyVal.empty())
     for (const auto &F : LangOpts.FPAccuracyFuncMap)
       Diags.Report(diag::warn_function_fp_accuracy_already_set)
