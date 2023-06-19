@@ -56,3 +56,9 @@ if (NOT WIN32)
   add_subdirectory(xpti_trace)
 endif()
 
+# Library unit testing
+include(AddSYCLLibraryUnitTest)
+add_custom_target(check-sycl-unittests-libs)
+add_dependencies(check-sycl-unittests check-sycl-unittests-libs)
+
+add_subdirectory(syclcompat)
