@@ -372,7 +372,8 @@ event handler::finalize() {
     // If we have a subgraph node we don't want to actually execute this command
     // graph submission.
     if (!MSubgraphNode) {
-      event GraphCompletionEvent = MExecGraph->enqueue(MQueue);
+      event GraphCompletionEvent =
+          MExecGraph->enqueue(MQueue, std::move(CGData));
       MLastEvent = GraphCompletionEvent;
       return MLastEvent;
     }

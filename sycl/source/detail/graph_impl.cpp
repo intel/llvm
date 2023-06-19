@@ -367,9 +367,9 @@ exec_graph_impl::~exec_graph_impl() {
   }
 }
 
-sycl::event exec_graph_impl::enqueue(
-    const std::shared_ptr<sycl::detail::queue_impl> &Queue) {
-  std::vector<RT::PiEvent> RawEvents;
+sycl::event
+exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+                         sycl::detail::CG::StorageInitHelper CGData) {
   auto CreateNewEvent([&]() {
     auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
     NewEvent->setContextImpl(Queue->getContextImplPtr());
@@ -383,16 +383,18 @@ sycl::event exec_graph_impl::enqueue(
   if (CommandBuffer) {
     NewEvent = CreateNewEvent();
     RT::PiEvent *OutEvent = &NewEvent->getHandleRef();
-
-    // If we have no requirements for accessors for the command buffer, enqueue
-    // it directly
-    if (MRequirements.empty()) {
+    // Merge requirements from the nodes into requirements (if any) from the
+    // handler.
+    CGData.MRequirements.insert(CGData.MRequirements.end(),
+                                MRequirements.begin(), MRequirements.end());
+    // If we have no requirements or dependent events for the command buffer,
+    // enqueue it directly
+    if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
       pi_result Res =
           Queue->getPlugin()
               ->call_nocheck<
                   sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
-                  CommandBuffer, Queue->getHandleRef(), RawEvents.size(),
-                  RawEvents.empty() ? nullptr : &RawEvents[0], OutEvent);
+                  CommandBuffer, Queue->getHandleRef(), 0, nullptr, OutEvent);
       if (Res != pi_result::PI_SUCCESS) {
         throw sycl::exception(
             errc::event,
@@ -401,8 +403,7 @@ sycl::event exec_graph_impl::enqueue(
     } else {
       std::unique_ptr<sycl::detail::CG> CommandGroup =
           std::make_unique<sycl::detail::CGExecCommandBuffer>(
-              CommandBuffer, sycl::detail::CG::StorageInitHelper{
-                                 {}, {}, {}, MRequirements, {}});
+              CommandBuffer, std::move(CGData));
 
       NewEvent = sycl::detail::Scheduler::getInstance().addCG(
           std::move(CommandGroup), Queue);
