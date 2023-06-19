@@ -190,7 +190,7 @@ class ur_result_v(IntEnum):
     ERROR_INVALID_USM_SIZE = 65                     ## Invalid USM size
     ERROR_OBJECT_ALLOCATION_FAILURE = 66            ## Objection allocation failure
     ERROR_ADAPTER_SPECIFIC = 67                     ## An adapter specific warning/error has been reported and can be
-                                                    ## retrieved via the urGetLastResult entry point.
+                                                    ## retrieved via the urPlatformGetLastError entry point.
     ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000       ## Invalid Command-Buffer
     ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001## Sync point is not valid for the command-buffer
     ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002  ## Sync point wait list is invalid
