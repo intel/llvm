@@ -348,10 +348,16 @@ exec_graph_impl::~exec_graph_impl() {
   // clear all recording queue if not done before (no call to end_recording)
   MGraphImpl->clear_queues();
 
+  const sycl::detail::PluginPtr &Plugin =
+      sycl::detail::getSyclObjImpl(MContext)->getPlugin();
   MSchedule.clear();
+  // We need to wait on all command buffer executions before we can release
+  // them.
+  for (auto &Event : MExecutionEvents) {
+    Event->wait(Event);
+  }
+
   for (auto Iter : MPiCommandBuffers) {
-    const sycl::detail::PluginPtr &Plugin =
-        sycl::detail::getSyclObjImpl(MContext)->getPlugin();
     if (auto CmdBuf = Iter.second; CmdBuf) {
       pi_result Res = Plugin->call_nocheck<
           sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
@@ -448,6 +454,9 @@ sycl::event exec_graph_impl::enqueue(
     NewEvent->getPreparedDepsEvents() = ScheduledEvents;
   }
 
+  // Keep track of this execution event so we can make sure it's completed in
+  // the destructor.
+  MExecutionEvents.push_back(NewEvent);
   sycl::event QueueEvent =
       sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   return QueueEvent;

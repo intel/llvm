@@ -422,6 +422,8 @@ private:
   /// List of requirements for enqueueing this command graph, accumulated from
   /// all nodes enqueued to the graph.
   std::vector<sycl::detail::AccessorImplHost *> MRequirements;
+  /// List of all execution events returned from command buffer enqueue calls.
+  std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
 };
 
 } // namespace detail

@@ -77,7 +77,8 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     : Context(hContext), Device(hDevice), ZeCommandList(CommandList),
       ZeCommandListDesc(ZeDesc), QueueProperties(), SyncPoints(),
       NextSyncPoint(0), CommandListMap() {
-  hContext->RefCount.increment();
+  urContextRetain(hContext);
+  urDeviceRetain(hDevice);
   // TODO: Do we actually need the queue properties? Removed from the UR feature
   // for now.
 }
@@ -87,6 +88,9 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   // Release the memory allocated to the Context stored in the command_buffer
   urContextRelease(Context);
+
+  // Release the device
+  urDeviceRelease(Device);
 
   // Release the memory allocated to the CommandList stored in the
   // command_buffer
