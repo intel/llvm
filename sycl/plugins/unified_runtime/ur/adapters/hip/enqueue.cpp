@@ -307,24 +307,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     // Set local mem max size if env var is present
-    static const char *local_mem_sz_ptr =
+    static const char *LocalMemSzPtrUR =
+        std::getenv("UR_HIP_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSzPtrPI =
         std::getenv("SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSzPtr =
+        LocalMemSzPtrUR ? LocalMemSzPtrUR
+                        : (LocalMemSzPtrPI ? LocalMemSzPtrPI : nullptr);
 
-    if (local_mem_sz_ptr) {
-      int device_max_local_mem = 0;
+    if (LocalMemSzPtr) {
+      int DeviceMaxLocalMem = 0;
       Result = UR_CHECK_ERROR(hipDeviceGetAttribute(
-          &device_max_local_mem, hipDeviceAttributeMaxSharedMemoryPerBlock,
+          &DeviceMaxLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
           hQueue->getDevice()->get()));
 
-      static const int env_val = std::atoi(local_mem_sz_ptr);
-      if (env_val <= 0 || env_val > device_max_local_mem) {
-        setErrorMessage("Invalid value specified for "
-                        "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE",
+      static const int EnvVal = std::atoi(LocalMemSzPtr);
+      if (EnvVal <= 0 || EnvVal > DeviceMaxLocalMem) {
+        setErrorMessage(LocalMemSzPtrUR ? "Invalid value specified for "
+                                          "UR_HIP_MAX_LOCAL_MEM_SIZE"
+                                        : "Invalid value specified for "
+                                          "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE",
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
       Result = UR_CHECK_ERROR(hipFuncSetAttribute(
-          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, env_val));
+          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, EnvVal));
     }
 
     Result = UR_CHECK_ERROR(hipModuleLaunchKernel(

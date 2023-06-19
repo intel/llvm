@@ -34,7 +34,8 @@ ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
     return UR_RESULT_SUCCESS;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||
+      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
     const char *ErrorString = nullptr;
     const char *ErrorName = nullptr;
     ErrorName = hipGetErrorName(Result);
@@ -50,7 +51,8 @@ ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
     std::cerr << SS.str();
   }
 
-  if (std::getenv("PI_HIP_ABORT") != nullptr) {
+  if (std::getenv("PI_HIP_ABORT") != nullptr ||
+      std::getenv("UR_HIP_ABORT") != nullptr) {
     std::abort();
   }
 
