@@ -61,7 +61,7 @@ The purpose of this document is to clearly describe and specify `fpga_datapath` 
 related concepts, types, and mechanisms, and to give examples and context for their usage.
 
 === Motivation
-`fpga_datapath` is a wrapper around user variables that asserts the variable should be implemented in the datapath of the kernel and not use FPGA memory resources.
+`fpga_datapath` is a wrapper around user variables that asserts the variable should be implemented in the datapath of the kernel.
 
 === Example
 [source,c++]
@@ -90,11 +90,13 @@ dot operator may be applied.
 
 == Specification
 
+`fpga_datapath` is a
+
 === Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
 specification. An implementation supporting this extension must predefine the
-macro `sycl_ext_intel_fpga_datapath` to one of the values defined in the table
+macro `SYCL_EXT_INTEL_FPGA_DATAPATH` to one of the values defined in the table
 below. Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -184,7 +186,7 @@ a|
 [source,c++]
 ----
 template<typename ... S>
-constexpr fpga_datapath_base(S ... args);
+constexpr fpga_datapath(S ... args);
 ----
 |
 Constructs a `fpga_datapath` object, and implicit storage for `T`.
