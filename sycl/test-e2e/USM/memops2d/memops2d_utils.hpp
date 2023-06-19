@@ -12,11 +12,7 @@
 
 using namespace sycl;
 
-enum OperationPath {
-  Expanded,
-  ExpandedDependsOn,
-  ShortcutEventList
-};
+enum OperationPath { Expanded, ExpandedDependsOn, ShortcutEventList };
 
 enum Alloc {
   Device = (int)usm::alloc::device,

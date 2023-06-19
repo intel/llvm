@@ -1,5 +1,48 @@
 # Explicit SIMD Programming Extension for DPC++
 
+## Table of content
+- [Introduction](#introduction)
+- [Explicit SIMD execution model](#explicit-simd-execution-model)
+- [Explicit SIMD extension APIs](#explicit-simd-extension-apis)
+- [Core Explicit SIMD programming APIs](#core-explicit-simd-programming-apis)
+  - [SIMD vector class](#simd-vector-class)
+  - [simd_view class](#simd_view-class)
+  - [Reduction functions](#reduction-functions)
+  - [Memory access APIs](#memory-access-apis)
+    - [APIs overview](#apis-overview)
+    - [SLM - Shared local memory access](#shared-local-memory-access)
+      - [Static allocation of SLM using slm_init function](#static-allocation-of-slm-using-slm_init-function)
+      - [Semi-dynamic allocation of SLM](#semi-dynamic-allocation-of-slm)
+      - [Local accessors](#local-accessors)
+    - [Atomics](#atomics)
+  - [Math operations](#math-operations)
+    - [Extended math](#extended-math)
+    - [Other standard math](#other-standard-math)
+    - [Other non-standard math functions](#other-non-standard-math-functions)
+  - [Dot Product Accumulate Systolic - `DPAS` API](#dot-product-accumulate-systolic---dpas-api)
+    - [DPAS API definition](#dpas-api-definition)
+    - [Example of DPAS usage](#example-of-dpas-usage)
+    - [Possible type combinations for `xmx::dpas()`](#possible-type-combinations-for-xmxdpas)
+    - [Input and output matrices representation as simd vectors](#input-and-output-matrices-representation-as-simd-vectors)
+    - [Horizontal packing](#horizontal-packing-for-a-c-and-result)
+    - [Vertical packing](#vertical-packing)
+  - [Other APIs](#other-apis)
+  - [Private Global Variables](#private-global-variables)
+  - [__regcall Calling convention](#__regcall-calling-convention)
+  - [Inline assembly](#inline-assembly)
+- [Implementation restrictions](#implementation-restrictions)
+  - [Features not supported with the ESIMD extension](#features-not-supported-with-the-esimd-extension)
+  - [Unsupported standard SYCL APIs](#unsupported-standard-sycl-apis)
+  - [Other restrictions](#other-restrictions)
+
+## Other content:
+* [ESIMD API/doxygen reference](https://intel.github.io/llvm-docs/doxygen/group__sycl__esimd.html)
+* [ESIMD Emulator](./sycl_ext_intel_esimd_emulator.md)
+* [Examples](./examples/README.md)
+* [ESIMD LIT tests - working code examples](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/)
+
+---
+
 ## Introduction
 
 The main motivation for introducing the "Explicit SIMD" SYCL extension 
@@ -12,8 +55,15 @@ Explicit SIMD provides the following key features complementary to SYCL:
   general register file. This allows to write efficient code not relying on
   further widening by the compiler, as with traditional SPMD programming.
 - Low-level APIs efficiently mapped to the Intel GPU architecture, such as block loads/stores/gathers/scatters, explicit cache hints, GPU inline assembly, etc.
+- Regular SYCL and ESIMD kernels can co-exist in the same translation unit and in
+the same application. For more details, see [SYCL and ESIMD interoperability](./README.md#sycl-and-esimd-interoperability)
 
-Explicit SIMD though have some [restrictions](./README.md#restrictions) as well.
+Explicit SIMD has some [restrictions](#implementation-restrictions) as well.
+
+**IMPORTANT NOTE: _Some parts of this extension are under active development. The APIs in the
+`sycl::ext::intel::experimental::esimd` namespace are subject to change or removal._**
+
+---
 
 ## Explicit SIMD execution model
 
@@ -35,7 +85,7 @@ other devices will result in error.
 All the ESIMD APIs are defined in the `sycl::ext::intel::esimd`
 namespace.
 
-Kernels and `SYCL_EXTERNAL` functions using ESP must be explicitly marked with
+Kernels and `SYCL_EXTERNAL` functions using ESIMD must be explicitly marked with
 the `[[intel::sycl_explicit_simd]]` attribute. Subgroup size query within such
 functions will always return `1`.
 
@@ -93,25 +143,6 @@ int main(void) {
   }).wait();
 }
 ```
-
-## Implementation restrictions
-
-Current ESIMD implementation does not support using certain standard SYCL features
-inside explicit SIMD kernels and functions. Most of them will be eventually
-dropped. What's not supported today:
-- Explicit SIMD kernels can co-exist with regular SYCL kernels in the same
-  translation unit and in the same program.
-- Interoperability between regular SYCL and ESIMD kernels is only supported one way.
-  Regular SYCL kernels can call ESIMD functions, but not vice-versa. Invocation of SYCL code from ESIMD is not supported yet.
-- Local accessors are not supported yet. Local memory is allocated and accessed
-  via explicit device-side API.
-- 2D and 3D accessors;
-- Constant accessors;
-- `sycl::accessor::get_pointer()`. All memory accesses through an accessor are
-done via explicit APIs; e.g. `sycl::ext::intel::esimd::block_store(acc, offset)`
-- Accessors with offsets and/or access range specified
-- `sycl::image`, `sycl::sampler` and `sycl::stream` classes.
-
 
 ## Core Explicit SIMD programming APIs
 
@@ -392,7 +423,7 @@ This memory is shared between work items in a workgroup - basically
 it is ESIMD variant of the SYCL `local` memory.
 
 SLM variants of APIs have 'slm_' prefix in their names,
-e.g. slm_block_load(), or lsc_slm_gather().
+e.g. ext::intel::esimd::slm_block_load() or ext::intel::experimental::esimd::lsc_slm_gather().
 
 SLM memory must be explicitly allocated before it is read or written.
 
@@ -1036,16 +1067,13 @@ int main(void) {
     for (unsigned i = 0; i != Size; i++) {
       A[i] = B[i] = i;
     }
-    q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Test>(
-        Size / VL, [=](id<1> i)[[intel::sycl_explicit_simd]]{
-        auto offset = i * VL;
-        // pointer arithmetic, so offset is in elements:
-        simd<float, VL> va(A + offset);
-        simd<float, VL> vb(B + offset);
-        simd<float, VL> vc = va + vb;
-        vc.copy_to(C + offset);
-      });
+    q.parallel_for(Size / VL, [=](id<1> i) [[intel::sycl_explicit_simd]] {
+      auto offset = i * VL;
+      // pointer arithmetic, so offset is in elements:
+      simd<float, VL> va(A + offset);
+      simd<float, VL> vb(B + offset);
+      simd<float, VL> vc = va + vb;
+      vc.copy_to(C + offset);
     }).wait_and_throw();
 
     for (unsigned i = 0; i < Size; ++i) {
@@ -1072,3 +1100,33 @@ int main(void) {
 ```
 more examples can be found in the
 [ESIMD test suite](https://github.com/intel/llvm/tree/sycl/sycl/test-e2e/ESIMD) on github.
+
+## Implementation restrictions
+
+This section contains a list of the main restrictions that apply when using the ESIMD
+extension.
+> **Note**: Some restrictions are not enforced by the compiler, which may lead to
+> undefined program behavior if violated.
+
+### Features not supported with the ESIMD extension:
+- The [C and C++ Standard libraries support](../C-CXX-StandardLibrary.rst)
+- The [Device library extensions](../../../design/DeviceLibExtensions.rst)
+
+### Unsupported standard SYCL APIs:
+
+The current ESIMD implementation does not support certain standard SYCL features
+inside ESIMD kernels and functions. Most of missing SYCL features listed below
+must be supported eventually:
+- 2D and 3D target::device accessor and local_accessor;
+- Constant accessors;
+- `sycl::accessor::get_pointer()` and `sycl::accessor::operator[]` are supported only with `-fsycl-esimd-force-stateless-mem`. Otherwise, All memory accesses through an accessor are
+done via explicit APIs; e.g. `sycl::ext::intel::esimd::block_store(acc, offset)`
+- Accessors with non-zero offsets to accessed buffer;
+- Accessors with access/memory range specified;
+- `sycl::image`, `sycl::sampler` and `sycl::stream` classes.
+
+### Other restrictions:
+
+- Only Intel GPU devices are supported.
+- Interoperability between regular SYCL and ESIMD kernels is only supported one way.
+  Regular SYCL kernels can call ESIMD functions, but not vice-versa. Invocation of SYCL code from ESIMD is not supported yet.

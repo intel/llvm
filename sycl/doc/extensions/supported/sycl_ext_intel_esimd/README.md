@@ -4,18 +4,27 @@ OneAPI provides the "Explicit SIMD" SYCL extension (or simply "ESIMD") for
 lower-level Intel GPU programming. It provides APIs closely matching Intel GPU ISA
 yet allows to write explicitly vectorized device code. This helps programmer to
 have more control over the generated code and depend less on compiler
-optimizations. The [specification](sycl_ext_intel_esimd.md),
-[API reference](https://intel.github.io/llvm-docs/doxygen/group__sycl__esimd.html), and
-[working code examples](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/) are available on the Intel DPC++ project's github.
-
-**_NOTE:_** _Some parts of this extension is under active development and APIs in the
-`sycl::ext::intel::experimental::esimd` package are subject to change. There are
-currently a number of [restrictions](#restrictions) specified below._
+optimizations.
 
 ESIMD kernels and functions always require the subgroup size of one, which means
 compiler never does vectorization across work-items in a subgroup. Instead,
-vectorization is expressed explicitly in the code by the programmer. Here is a
-trivial example which adds elements of two arrays and writes the results to the
+vectorization is expressed explicitly in the code by the programmer.
+
+**IMPORTANT NOTE: _Some parts of this extension are under active development. The APIs in the
+`sycl::ext::intel::experimental::esimd` namespace are subject to change or removal._**
+
+Please see the additional resources on the Intel DPC++ project's github:
+
+1) [ESIMD Extension Specification](./sycl_ext_intel_esimd.md)
+1) [ESIMD API/doxygen reference](https://intel.github.io/llvm-docs/doxygen/group__sycl__esimd.html)
+1) [ESIMD Emulator](./sycl_ext_intel_esimd_emulator.md)
+1) [Examples](./examples/README.md)
+1) [ESIMD end-to-end LIT tests](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/)
+1) [Implementation and API Restrictions](./sycl_ext_intel_esimd.md#implementation-restrictions)
+
+---
+
+Here is a trivial example which adds elements of two arrays and writes the results to the
 third:
 
 ```cpp
@@ -23,20 +32,16 @@ third:
     float *B = malloc_shared<float>(Size, q);
     float *C = malloc_shared<float>(Size, q);
 
-    for (unsigned i = 0; i != Size; i++) {
+    for (unsigned i = 0; i != Size; i++)
       A[i] = B[i] = i;
-    }
 
-    q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Test>(
-        Size / VL, [=](id<1> i)[[intel::sycl_explicit_simd]] {
-        auto offset = i * VL;
-        // pointer arithmetic, so offset is in elements:
-        simd<float, VL> va(A + offset);
-        simd<float, VL> vb(B + offset);
-        simd<float, VL> vc = va + vb;
-        vc.copy_to(C + offset);
-      });
+    q.parallel_for(Size / VL, [=](id<1> i)[[intel::sycl_explicit_simd]] {
+      auto offset = i * VL;
+      // pointer arithmetic, so offset is in elements:
+      simd<float, VL> va(A + offset);
+      simd<float, VL> vb(B + offset);
+      simd<float, VL> vc = va + vb;
+      vc.copy_to(C + offset);
     }).wait_and_throw();
 ```
 
@@ -79,7 +84,7 @@ the same application.
 ### SYCL and ESIMD interoperability
 
 SYCL kernels can call ESIMD functions using the special `invoke_simd` API.
-More details are available in [invoke_simd spec](../sycl_ext_oneapi_invoke_simd.asciidoc)
+More details are available in [invoke_simd spec](../../experimental/sycl_ext_oneapi_invoke_simd.asciidoc)
 Test cases are available [here](../../../../test-e2e/InvokeSimd/)
 
 ```cpp
@@ -120,37 +125,5 @@ Currently, compilation of programs with `invoke_simd` calls requires a few addit
 # and callee in the same module.
 clang++ -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o invoke_simd
 # run the program:
-IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 invoke_simd
+IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 ./invoke_simd
 ```
-
-### ESIMD_EMULATOR backend
-
-Under Linux environment, the same resulting executable file can be run
-on CPU under emulation mode without Intel GPU. For details, check
-[ESIMD_EMULATOR back-end] (esimd_emulator.md)
-
-### Restrictions
-
-This section contains lists of the main restrictions that apply when using the ESIMD
-extension.
-> **Note**: Some restrictions are not enforced by the compiler, which may lead to
-> undefined program behavior if violated.
-
-#### Features not supported with the ESIMD extension:
-- The [C and C++ Standard libraries support](../supported/C-CXX-StandardLibrary.rst)
-- The [Device library extensions](../../../design/DeviceLibExtensions.rst)
-
-#### Unsupported standard SYCL APIs:
-- Local accessors are not implemented yet. Local memory can be allocated and accessed via the explicit device-side API;
-- 2D and 3D accessors;
-- Constant accessors;
-- `sycl::accessor::get_pointer()`. All memory accesses through an accessor are
-done via explicit APIs; e.g. `sycl::ext::intel::experimental::esimd::block_store(acc, offset)`;
-- Accessors with offsets and/or access range specified;
-- `sycl::image`, `sycl::sampler`, `sycl::stream` classes;
-
-#### Other restrictions:
-
-- Only Intel GPU device is supported.
-- Interoperability between regular SYCL and ESIMD kernels is only supported one way.
-  Regular SYCL kernels can call ESIMD functions, but not vice-versa. Invocation of SYCL code from ESIMD is not supported yet.

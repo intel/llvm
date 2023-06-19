@@ -367,6 +367,12 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
       return mlir::DenseElementsAttr();
     }
 
+    if (auto *AIL = dyn_cast<ArrayInitLoopExpr>(Expr)) {
+      // Build array in place
+      VisitArrayInitLoop(AIL, {ToInit, /*IsReference=*/true, ElementTy});
+      return mlir::DenseElementsAttr();
+    }
+
     bool IsArray = false;
     Glob.getTypes().getMLIRType(Expr->getType(), &IsArray);
     ValueCategory Sub = Visit(Expr);
