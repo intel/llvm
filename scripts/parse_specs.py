@@ -221,6 +221,9 @@ def _validate_doc(f, d, tags, line_num):
             if ('desc' not in item) or ('name' not in item):
                 raise Exception(prefix+"requires the following scalar fields: {`desc`, `name`}")
 
+            if 'extend' in d and d.get('extend') == True and 'value' not in item:
+                raise Exception(prefix+"must include a value for experimental features: {`value`: `0xabcd`}")
+
             if typed:
                 type = extract_type(item['desc'])
                 if type is None:
