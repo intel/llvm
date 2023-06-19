@@ -1,6 +1,6 @@
 // UNSUPPORTED: windows
 // RUN: %{build} -o %t.out
-// RUN: %{run} sycl-trace --plugin --verify %t.out | FileCheck %s
+// RUN: %{run} sycl-trace --verify %t.out | FileCheck %s
 
 // Test parameter analysis of USM function
 

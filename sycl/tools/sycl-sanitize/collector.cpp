@@ -43,6 +43,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          tpCallback);
     auto &GS = USMAnalyzer::getInstance();
     GS.changeTerminationOnErrorState(true);
+    GS.printToErrorStream(true);
     GS.setupUSMHandlers();
   }
 }

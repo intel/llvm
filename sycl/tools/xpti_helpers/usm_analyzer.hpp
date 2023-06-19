@@ -35,7 +35,6 @@ struct AllocationInfo {
 
 class USMAnalyzer {
 private:
-  static std::ostream &OutStream;
   USMAnalyzer(){};
   // TO DO: mem allocations could be effectively validated with
   // piextUSMGetMemAllocInfo - could be more robust
@@ -44,6 +43,7 @@ private:
     void *PtrToValidate = *(void **)(const_cast<void *>(Ptr));
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();
+    auto &OutStream = GS.getOutStream();
     if (PtrToValidate == nullptr) {
       OutStream << std::endl;
       OutStream << PrintPrefix << "Function uses nullptr as " << ParameterDesc
@@ -107,7 +107,7 @@ private:
     void *PtrToValidate = *(void **)(const_cast<void *>(Ptr));
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();
-
+    auto &OutStream = GS.getOutStream();
     if (width > length) {
       OutStream << std::endl;
       OutStream << PrintPrefix << "Requested " << FunctionName
@@ -177,8 +177,11 @@ private:
     }
   }
 
-  static const std::string PrintPrefix;
-  static const std::string PrintIndentation;
+  static constexpr char PrintPrefix[] = "[USM] ";
+  static constexpr char PrintIndentation[] = "      | ";
+  bool PrintToError = false;
+
+  std::ostream &getOutStream() { return PrintToError ? std::cerr : std::cout; }
 
 public:
   // TO DO: allocations must be tracked with device
@@ -198,6 +201,8 @@ public:
   void changeTerminationOnErrorState(bool EnableTermination) {
     TerminateOnError = EnableTermination;
   }
+
+  void printToErrorStream(bool Mode) { PrintToError = true; }
 
   void setupUSMHandlers() {
     ArgHandlerPostCall.set_piextUSMHostAlloc(USMAnalyzer::handleUSMHostAlloc);
@@ -285,6 +290,7 @@ public:
   static void handleUSMFree(const pi_plugin &, std::optional<pi_result>,
                             pi_context, void *Ptr) {
     auto &GS = USMAnalyzer::getInstance();
+    auto &OutStream = GS.getOutStream();
     if (GS.ActivePointers.count(Ptr) == 0) {
       OutStream << std::endl;
       OutStream << PrintPrefix << "Attempt to free pointer " << std::hex << Ptr;
@@ -304,6 +310,7 @@ public:
                                     void *HostPtr, pi_mem *,
                                     const pi_mem_properties *) {
     auto &GS = USMAnalyzer::getInstance();
+    auto &OutStream = GS.getOutStream();
     for (const auto &Alloc : GS.ActivePointers) {
       const void *Begin = Alloc.first;
       const void *End =
@@ -416,7 +423,3 @@ public:
           arg_value, 0 /*no data how it will be used in kernel*/, "kernel");
   }
 };
-
-const std::string USMAnalyzer::PrintPrefix = "[USM] ";
-const std::string USMAnalyzer::PrintIndentation = "      | ";
-std::ostream &USMAnalyzer::OutStream = std::cout;
