@@ -26,14 +26,15 @@ inline AccessorType getAccessorType(SYCLAccessorSubscriptOp op) {
   return AccessorPtrValue(op.getAcc()).getAccessorType();
 }
 
-/// Create sycl.id.get with id \p id and index \p index.
-SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
-                              bool memrefTy, OpBuilder builder, Location loc);
+/// Create sycl.id.get with result type \resTy, id \p id and index \p index.
+SYCLIDGetOp createSYCLIDGetOp(Type resTy, TypedValue<MemRefType> id,
+                              unsigned index, OpBuilder builder, Location loc);
 
-/// Create sycl.range.get with id \p range and index \p index.
-SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
-                                    unsigned index, bool memrefTy,
-                                    OpBuilder builder, Location loc);
+/// Create sycl.range.get with result type \p resTy, range \p range and index \p
+/// index.
+SYCLRangeGetOp createSYCLRangeGetOp(Type resTy, TypedValue<MemRefType> range,
+                                    unsigned index, OpBuilder builder,
+                                    Location loc);
 
 /// Construct sycl.id with id type \p idTy and indexes \p indexes.
 TypedValue<MemRefType> constructSYCLID(IDType idTy, ArrayRef<Value> indexes,

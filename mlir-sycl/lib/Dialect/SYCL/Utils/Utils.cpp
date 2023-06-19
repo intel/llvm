@@ -15,23 +15,18 @@
 using namespace mlir;
 using namespace mlir::sycl;
 
-SYCLIDGetOp sycl::createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
-                                    bool memrefTy, OpBuilder builder,
+SYCLIDGetOp sycl::createSYCLIDGetOp(Type resTy, TypedValue<MemRefType> id,
+                                    unsigned index, OpBuilder builder,
                                     Location loc) {
   const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-  Type resTy = builder.getIndexType();
-  if (memrefTy)
-    resTy = MemRefType::get(ShapedType::kDynamic, resTy);
   return builder.create<SYCLIDGetOp>(loc, resTy, id, indexOp);
 }
 
-SYCLRangeGetOp sycl::createSYCLRangeGetOp(TypedValue<MemRefType> range,
-                                          unsigned index, bool memrefTy,
-                                          OpBuilder builder, Location loc) {
+SYCLRangeGetOp sycl::createSYCLRangeGetOp(Type resTy,
+                                          TypedValue<MemRefType> range,
+                                          unsigned index, OpBuilder builder,
+                                          Location loc) {
   const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-  Type resTy = builder.getIndexType();
-  if (memrefTy)
-    resTy = MemRefType::get(ShapedType::kDynamic, resTy);
   return builder.create<SYCLRangeGetOp>(loc, resTy, range, indexOp);
 }
 
@@ -44,7 +39,8 @@ TypedValue<MemRefType> sycl::constructSYCLID(IDType idTy,
   auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   for (unsigned dim = 0; dim < idTy.getDimension(); ++dim) {
-    Value idGetOp = createSYCLIDGetOp(id, dim, true /*memrefTy*/, builder, loc);
+    Type resTy = MemRefType::get(ShapedType::kDynamic, builder.getIndexType());
+    Value idGetOp = createSYCLIDGetOp(resTy, id, dim, builder, loc);
     builder.create<memref::StoreOp>(loc, indexes[dim], idGetOp, zeroIndex);
   }
   return id;
@@ -81,9 +77,10 @@ void sycl::populateWorkGroupSize(SmallVectorImpl<Value> &wgSizes,
       builder.create<memref::AllocaOp>(loc, MemRefType::get(1, rangeTy));
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   builder.create<memref::StoreOp>(loc, wgSize, range, zeroIndex);
+  Type resTy = builder.getIndexType();
   for (unsigned dim = 0; dim < numDims; ++dim)
-    wgSizes.push_back(sycl::createSYCLRangeGetOp(range, dim, false /*memrefTy*/,
-                                                 builder, loc));
+    wgSizes.push_back(
+        sycl::createSYCLRangeGetOp(resTy, range, dim, builder, loc));
 }
 
 void sycl::populateLocalID(SmallVectorImpl<Value> &localIDs, unsigned numDims,
@@ -95,7 +92,7 @@ void sycl::populateLocalID(SmallVectorImpl<Value> &localIDs, unsigned numDims,
   auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   builder.create<memref::StoreOp>(loc, localID, id, zeroIndex);
+  Type resTy = builder.getIndexType();
   for (unsigned dim = 0; dim < numDims; ++dim)
-    localIDs.push_back(
-        sycl::createSYCLIDGetOp(id, dim, false /*memrefTy*/, builder, loc));
+    localIDs.push_back(sycl::createSYCLIDGetOp(resTy, id, dim, builder, loc));
 }
