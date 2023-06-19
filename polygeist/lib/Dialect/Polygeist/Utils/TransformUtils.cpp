@@ -719,15 +719,6 @@ bool LoopTools::arePerfectlyNested(LoopLikeOpInterface outer,
 // VersionConditionBuilder
 //===----------------------------------------------------------------------===//
 
-static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
-                                                 unsigned index,
-                                                 OpBuilder builder,
-                                                 Location loc) {
-  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-  const auto resTy = builder.getIndexType();
-  return builder.create<sycl::SYCLRangeGetOp>(loc, resTy, range, indexOp);
-}
-
 static sycl::SYCLAccessorGetRangeOp
 createSYCLAccessorGetRangeOp(sycl::AccessorPtrValue accessor, OpBuilder builder,
                              Location loc) {
@@ -781,8 +772,10 @@ static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
   const Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
   SmallVector<Value> indexes;
   unsigned dim = accTy.getDimension();
+  Type resTy = builder.getIndexType();
   for (unsigned i = 0; i < dim; ++i) {
-    Value rangeGetOp = createSYCLRangeGetOp(range, i, builder, loc);
+    Value rangeGetOp =
+        sycl::createSYCLRangeGetOp(resTy, range, i, builder, loc);
     indexes.push_back(
         (i == dim - 1) ? rangeGetOp
                        : builder.create<arith::SubIOp>(loc, rangeGetOp, one));
