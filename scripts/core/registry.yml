@@ -475,3 +475,9 @@ etors:
 - name: PHYSICAL_MEM_RELEASE
   desc: Enumerator for $xPhysicalMemRelease
   value: '162'
+- name: USM_IMPORT_EXP
+  desc: Enumerator for $xUSMImportExp
+  value: '163'
+- name: USM_RELEASE_EXP
+  desc: Enumerator for $xUSMReleaseExp
+  value: '164'
