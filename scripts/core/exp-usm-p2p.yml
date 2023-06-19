@@ -18,9 +18,9 @@ class: $xUsmP2P
 name: $x_exp_peer_info_t
 typed_etors: True
 etors:
-  - name: PI_PEER_ACCESS_SUPPORTED
+  - name: UR_PEER_ACCESS_SUPPORTED
     desc: "[uint32_t] 1 if P2P access is supported otherwise P2P access is not supported."
-  - name: PI_PEER_ATOMICS_SUPPORTED
+  - name: UR_PEER_ATOMICS_SUPPORTED
     desc: "[uint32_t] 1 if atomic operations are supported over the P2P link, otherwise such operations are not supported."
 --- #--------------------------------------------------------------------------
 type: function
@@ -106,6 +106,14 @@ params:
       desc: |
             [out][optional] pointer to the actual size in bytes of the queried propName.
 returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
     - $X_RESULT_SUCCESS
     - $X_RESULT_ERROR_ADAPTER_SPECIFIC:
       - "Returned if a native error code is returned by the adapter driver function querying the property. Consult the UR documentation for details on retrieving the corresponding native error code."
