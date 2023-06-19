@@ -275,6 +275,7 @@ getReqdSharedMemory(sycl::AccessorType accTy,
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
   std::variant<Value, unsigned> reqdSharedMemory =
       ValueOrUnsigned::get(elemSize, builder, !workGroupSize.isKnown());
+
   const unsigned numDims = accTy.getDimension();
   for (unsigned dim = 0; dim < numDims; ++dim)
     reqdSharedMemory =
@@ -283,15 +284,16 @@ getReqdSharedMemory(sycl::AccessorType accTy,
   return reqdSharedMemory;
 }
 
-/// Get the require memory for memrefs in \p loopToSharedMemref, i.e, for
-/// each kernel. If there are multiple loops in the kernel that require shared
-/// memory, it returns the maximum amount required by any of them.
+/// Get the required shared local memory for memRefs in \p loopToSharedMemref
+/// (i.e, for each kernel). If there are multiple loops in the kernel that
+/// require shared memory, return the maximum amount required by any of them.
 std::variant<Value, unsigned>
 getReqdSharedMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
                         &loopToSharedMemref,
                     const WorkGroupSize &workGroupSize, OpBuilder builder) {
   std::variant<Value, unsigned> reqdSharedMemory =
       ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
+
   for (auto &entry : loopToSharedMemref) {
     std::variant<Value, unsigned> loopReqdSharedMemory =
         ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
@@ -310,9 +312,9 @@ getReqdSharedMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
   return reqdSharedMemory;
 }
 
-/// Create a GlobalOp for workgroup shared memory.
-memref::GlobalOp getWorkGroupSharedMemory(gpu::GPUModuleOp module,
-                                          unsigned size) {
+/// Create a GlobalOp for workgroup shared local memory.
+memref::GlobalOp getWorkGroupSharedLocalMemory(gpu::GPUModuleOp module,
+                                               unsigned size) {
   assert(size != 0 && "Expecting non-zero size");
   std::string name("WGLocalMem");
   polygeist::getUniqueSymbolName(name, module);
@@ -827,10 +829,20 @@ private:
   std::set<unsigned> getDimsThatUseLoopIV(LoopLikeOpInterface loop,
                                           DataFlowSolver &solver) const;
 
+  // If the memory accesses do not use the loop induction variable
+  // 'consistently' (that is on the same dimension), create a versioning
+  // condition:
+  ///   (wgSize[dim1] == wgSize[dim2]) && (wgSize[dim1] == wgSize[dim3]) ...
+  Value checkForConsistentUseOfLoopIV(LoopLikeOpInterface loop,
+                                      const WorkGroupSize &workGroupSize,
+                                      DataFlowSolver &solver) const;
+
   /// Generate the versioning condition if the loop should be versioned. Return
   /// nullptr if the loop doesn't need to be versioned.
   Value getVersionCondition(LoopLikeOpInterface loop,
                             const WorkGroupSize &workGroupSize,
+                            std::variant<Value, unsigned> reqdSharedMemory,
+                            const unsigned sharedMemoryRemaining,
                             DataFlowSolver &solver) const;
 
   /// Return false if it can be determined at compile time that \p loop cannot
@@ -852,9 +864,10 @@ private:
 
   /// Transform a candidate loop.
   template <typename T>
-  void transform(T loop, memref::GlobalOp workGroupSharedMemory,
+  void transform(T loop, memref::GlobalOp wgSharedLocalMemory,
                  ArrayRef<Value> localIDs, const WorkGroupSize &workGroupSize,
-                 DataFlowSolver &solver);
+                 std::variant<Value, unsigned> reqdSharedMemory,
+                 const unsigned sharedMemoryRemaining, DataFlowSolver &solver);
 
   // Promote memory accesses identified by \p memref to shared memory, by
   // using a the 'view' operation \p viewOp.
@@ -997,7 +1010,7 @@ LoopInternalization::getDimsThatUseLoopIV(LoopLikeOpInterface loop,
   return dimsThatUseLoopIV;
 }
 
-Value LoopInternalization::getVersionCondition(
+Value LoopInternalization::checkForConsistentUseOfLoopIV(
     LoopLikeOpInterface loop, const WorkGroupSize &workGroupSize,
     DataFlowSolver &solver) const {
   // Find out which dimensions use the loop IV in the memory accesses that
@@ -1012,23 +1025,47 @@ Value LoopInternalization::getVersionCondition(
   // 'consistently' (that is on the same dimension) we need to version the
   // loop. Build the versioning condition as:
   //   (wgSize[dim1] == wgSize[dim2]) && wgSize[dim1] == wgSize[dim3] && ...)
+  auto it = dimsThatUseLoopIV.begin();
+  unsigned firstDim = *it++, secondDim = *it++;
   OpBuilder builder(loop);
-  Value versionCond, first;
-  for (unsigned dim : dimsThatUseLoopIV) {
-    Value wgSize = ValueOrUnsigned::getValue(workGroupSize[dim], builder);
+  Value first = ValueOrUnsigned::getValue(workGroupSize[firstDim], builder);
+  Value second = ValueOrUnsigned::getValue(workGroupSize[secondDim], builder);
+  Value versionCond = builder.create<arith::CmpIOp>(
+      loop.getLoc(), arith::CmpIPredicate::eq, first, second);
 
-    if (!versionCond)
-      versionCond = first = wgSize;
-    else if (isa<arith::CmpIOp, arith::AndIOp>(versionCond.getDefiningOp()))
-      versionCond = builder.create<arith::AndIOp>(
-          loop.getLoc(), versionCond,
-          builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::eq,
-                                        first, wgSize));
-    else
-      versionCond = builder.create<arith::CmpIOp>(
-          loop.getLoc(), arith::CmpIPredicate::eq, first, wgSize);
+  for (; it != dimsThatUseLoopIV.end(); ++it) {
+    Value wgSize = ValueOrUnsigned::getValue(workGroupSize[*it], builder);
+    versionCond = builder.create<arith::AndIOp>(
+        loop.getLoc(), versionCond,
+        builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::eq,
+                                      first, wgSize));
   }
-  LLVM_DEBUG(llvm::dbgs() << "versionCond: " << versionCond << "\n");
+
+  return versionCond;
+}
+
+Value LoopInternalization::getVersionCondition(
+    LoopLikeOpInterface loop, const WorkGroupSize &workGroupSize,
+    std::variant<Value, unsigned> reqdSharedMemory,
+    const unsigned sharedMemoryRemaining, DataFlowSolver &solver) const {
+  // Check that there is enough shared memory available.
+  OpBuilder builder(loop);
+  Value versionCond;
+  if (std::holds_alternative<Value>(reqdSharedMemory)) {
+    Value val = builder.create<arith::ConstantIndexOp>(loop.getLoc(),
+                                                       sharedMemoryRemaining);
+    versionCond =
+        builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::ule,
+                                      std::get<Value>(reqdSharedMemory), val);
+  }
+
+  // If promotable memory accesses do not reference the loop IV on the same
+  // dimension, check that the work group sizes corresponding to the dimensions
+  // that reference the loop IV are the same.
+  if (Value cond = checkForConsistentUseOfLoopIV(loop, workGroupSize, solver))
+    return versionCond
+               ? builder.create<arith::AndIOp>(loop.getLoc(), versionCond, cond)
+               : cond;
 
   return versionCond;
 }
@@ -1079,23 +1116,14 @@ void LoopInternalization::transform(FunctionOpInterface func,
 
   std::variant<Value, unsigned> reqdSharedMemory =
       getReqdSharedMemory(loopToSharedMemref, workGroupSize, builder);
+
   if (std::holds_alternative<unsigned>(reqdSharedMemory) &&
       std::get<unsigned>(reqdSharedMemory) > sharedMemoryRemaining) {
     // This is a conservative check because 'reqdSharedMemory' is the max shared
     // memory required to transform any loop in the function, so there might be
     // a loop that require considerably less than the max.
-    LLVM_DEBUG(llvm::dbgs() << "Not enough local memory\n");
+    LLVM_DEBUG(llvm::dbgs() << "Not enough shared local memory\n");
     return;
-  }
-
-  memref::GlobalOp workGroupSharedMemory = getWorkGroupSharedMemory(
-      getOperation(), std::holds_alternative<unsigned>(reqdSharedMemory)
-                          ? std::get<unsigned>(reqdSharedMemory)
-                          : sharedMemoryRemaining);
-
-  // Get or create work group size.
-  if (std::holds_alternative<Value>(reqdSharedMemory)) {
-    // TODO: Version with reqdSharedMemory <= localMemoryRemaining.
   }
 
   // Create SYCL local ids corresponding to the grid dimensionality (per
@@ -1114,6 +1142,12 @@ void LoopInternalization::transform(FunctionOpInterface func,
     localIDs.push_back(builder.create<memref::LoadOp>(loc, idGetOp, zeroIndex));
   }
 
+  // Reserve static shared local memory for this function.
+  memref::GlobalOp wgSharedLocalMemory = getWorkGroupSharedLocalMemory(
+      getOperation(), std::holds_alternative<unsigned>(reqdSharedMemory)
+                          ? std::get<unsigned>(reqdSharedMemory)
+                          : sharedMemoryRemaining);
+
   // Now that we have a list of memref to promote to shared memory in each
   // loop nest's innermost loop, perform the transformation.
   for (auto &entry : loopToSharedMemref) {
@@ -1121,8 +1155,8 @@ void LoopInternalization::transform(FunctionOpInterface func,
     TypeSwitch<Operation *>(loop).Case<affine::AffineForOp, scf::ForOp>(
         [&](auto loop) {
           if (canBeTransformed(loop, workGroupSize, solver))
-            transform(loop, workGroupSharedMemory, localIDs, workGroupSize,
-                      solver);
+            transform(loop, wgSharedLocalMemory, localIDs, workGroupSize,
+                      reqdSharedMemory, sharedMemoryRemaining, solver);
         });
   }
 
@@ -1131,11 +1165,11 @@ void LoopInternalization::transform(FunctionOpInterface func,
 }
 
 template <typename T>
-void LoopInternalization::transform(T loop,
-                                    memref::GlobalOp workGroupSharedMemory,
-                                    ArrayRef<Value> localIDs,
-                                    const WorkGroupSize &workGroupSize,
-                                    DataFlowSolver &solver) {
+void LoopInternalization::transform(
+    T loop, memref::GlobalOp wgSharedLocalMemory, ArrayRef<Value> localIDs,
+    const WorkGroupSize &workGroupSize,
+    std::variant<Value, unsigned> reqdSharedMemory,
+    const unsigned sharedMemoryRemaining, DataFlowSolver &solver) {
   static_assert(llvm::is_one_of<T, affine::AffineForOp, scf::ForOp>::value);
   assert(LoopTools::isInnermostLoop(loop) && "Expecting an innermost loop");
   assert(localIDs.size() >= 1 && localIDs.size() <= 3 &&
@@ -1144,8 +1178,9 @@ void LoopInternalization::transform(T loop,
          "Loop should be in the map");
 
   // Version the loop if necessary.
-  Value versionCond = getVersionCondition(loop, workGroupSize, solver);
-  if (versionCond) {
+  if (Value versionCond =
+          getVersionCondition(loop, workGroupSize, reqdSharedMemory,
+                              sharedMemoryRemaining, solver)) {
     LLVM_DEBUG(llvm::dbgs() << "Versioning loop: " << loop << "\n");
     LoopTools::versionLoop(loop, versionCond);
   }
@@ -1153,9 +1188,9 @@ void LoopInternalization::transform(T loop,
   // Statically allocate shared memory.
   OpBuilder builder(loop);
   auto getGlobalOp = builder.create<memref::GetGlobalOp>(
-      loop.getLoc(), workGroupSharedMemory.getType(),
-      workGroupSharedMemory.getName());
-  const SetVector<Operation *> &memrefs = loopToSharedMemref.at(loop);
+      loop.getLoc(), wgSharedLocalMemory.getType(),
+      wgSharedLocalMemory.getName());
+  const SetVector<Operation *> &memRefs = loopToSharedMemref.at(loop);
 
   // Tile the loop.
   SmallVector<T> tiledNest;
@@ -1169,7 +1204,7 @@ void LoopInternalization::transform(T loop,
   builder.setInsertionPointToStart(loop->getBlock());
   std::variant<Value, unsigned> offset =
       ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
-  for (Operation *memref : memrefs) {
+  for (Operation *memref : memRefs) {
     Location loc = memref->getLoc();
     sycl::AccessorType accTy =
         getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
@@ -1182,7 +1217,7 @@ void LoopInternalization::transform(T loop,
     promote(memref, viewOp, loopInfo, localIDs, builder, solver);
 
     // Only increment offset when the current memref is not the last one.
-    if (memref != *memrefs.rbegin()) {
+    if (memref != *memRefs.rbegin()) {
       std::variant<Value, unsigned> reqdSharedMemory =
           getReqdSharedMemory(accTy, workGroupSize, builder);
       offset = ValueOrUnsigned::add(offset, reqdSharedMemory, builder);

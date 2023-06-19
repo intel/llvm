@@ -172,7 +172,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:    %[[VAL_18:.*]] = arith.muli %[[VAL_17]], %[[WGSIZE1]] : index
 // CHECK-NEXT:    %[[VAL_19:.*]] = arith.muli %[[VAL_18]], %[[WGSIZE2]] : index
 // CHECK-NEXT:    %[[VAL_20:.*]] = arith.addi %[[VAL_15]], %[[VAL_19]] : index
-// CHECK-NEXT:    %[[VAL_21:.*]] = arith.maxsi %[[VAL_14]], %[[VAL_20]] : index
+// CHECK-NEXT:    %[[REQD_SHARED_MEM:.*]] = arith.maxsi %[[VAL_14]], %[[VAL_20]] : index
 
 // COM: Get local ids:
 // CHECK-NEXT:    %[[VAL_22:.*]] = sycl.local_id : !sycl_id_3_1
@@ -200,6 +200,11 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:    %[[VAL_41:.*]] = sycl.nd_item.get_global_id(%[[VAL_1]], %[[VAL_37]]) : (memref<?x!sycl_nd_item_3_>, i32) -> i64
 // CHECK-NEXT:    %[[VAL_42:.*]] = sycl.nd_item.get_global_id(%[[VAL_1]], %[[VAL_38]]) : (memref<?x!sycl_nd_item_3_>, i32) -> i64
 // CHECK-NEXT:    affine.for %[[VAL_43:.*]] = 0 to 256 {
+
+// COM: Ensure there is a sufficient amount of shared local memory available:
+// CHECK-NEXT:    %[[SHARED_MEM_AMOUNT:.*]] = arith.constant 32000 : index
+// CHECK-NEXT:    %[[VER_COND:.*]] = arith.cmpi ule, %[[REQD_SHARED_MEM]], %[[SHARED_MEM_AMOUNT]] : index
+// CHECK-NEXT:    scf.if %[[VER_COND]] {
 
 // COM: Get pointer to shared local memory:
 // CHECK-NEXT:      %[[VAL_44:.*]] = memref.get_global @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
@@ -247,9 +252,20 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        }
 // CHECK-NEXT:        spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:      }
+// CHECK-NEXT:    } else {
+// CHECK-NEXT:      affine.for %[[VAL_72:.*]] = 1 to 512 {
+// CHECK-NEXT:        %[[VAL_73:.*]] = arith.index_cast %[[VAL_43]] : index to i64
+// CHECK-NEXT:        %[[VAL_74:.*]] = arith.index_cast %[[VAL_72]] : index to i64
+// CHECK-NEXT:        sycl.constructor @id(%[[VAL_35]], %[[VAL_39]], %[[VAL_73]], %[[VAL_74]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3_>, i64, i64, i64)
+// CHECK-NEXT:        %[[VAL_75:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3_>) -> memref<?xf32>
+// CHECK-NEXT:        %[[VAL_76:.*]] = affine.load %[[VAL_75]][0] : memref<?xf32>
+// CHECK-NEXT:        sycl.constructor @id(%[[VAL_35]], %[[VAL_39]], %[[VAL_41]], %[[VAL_42]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3_>, i64, i64, i64)
+// CHECK-NEXT:        %[[VAL_77:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3_>) -> memref<?xf32>
+// CHECK-NEXT:        %[[VAL_78:.*]] = affine.load %[[VAL_77]][0] : memref<?xf32>
+// CHECK-NEXT:      }
 // CHECK-NEXT:    }
-// CHECK-NEXT:    return
 // CHECK-NEXT:  }
+// CHECK-NEXT:  return
 gpu.module @device_func {
 func.func private @affine_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_3>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_3>
@@ -323,7 +339,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        %[[VAL_18:.*]] = arith.muli %[[VAL_17]], %[[WGSIZE0]] : index
 // CHECK-NEXT:        %[[VAL_19:.*]] = arith.muli %[[VAL_18]], %[[WGSIZE1]] : index
 // CHECK-NEXT:        %[[VAL_20:.*]] = arith.addi %[[VAL_16]], %[[VAL_19]] : index
-// CHECK-NEXT:        %[[VAL_21:.*]] = arith.maxsi %[[VAL_11]], %[[VAL_20]] : index
+// CHECK-NEXT:        %[[REQD_SHARED_MEM:.*]] = arith.maxsi %[[VAL_11]], %[[VAL_20]] : index
 
 // COM: Get local ids:
 // CHECK-NEXT:        %[[VAL_22:.*]] = sycl.local_id : !sycl_id_2_1
@@ -348,7 +364,12 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        %[[VAL_38:.*]] = sycl.nd_item.get_global_id(%[[VAL_1]], %[[VAL_36]]) : (memref<?x!sycl_nd_item_2_>, i32) -> i64
 // CHECK-NEXT:        %[[VAL_39:.*]] = arith.index_cast %[[VAL_38]] : i64 to index
 
-// CHECK-NEXT:        %[[VER_COND:.*]] = arith.cmpi eq, %[[WGSIZE0]], %[[WGSIZE1]] : index
+// COM: Ensure there is a sufficient amount of shared local memory available and memory accesses reference the loop IV 'consistently':
+// CHECK-NEXT:        %[[SHARED_MEM_AMOUNT:.*]] = arith.constant 32000 : index
+// CHECK-NEXT:        %[[VER_COND1:.*]] = arith.cmpi ule, %[[REQD_SHARED_MEM]], %[[SHARED_MEM_AMOUNT]] : index
+// CHECK-NEXT:        %[[VER_COND2:.*]] = arith.cmpi eq, %[[WGSIZE0]], %[[WGSIZE1]] : index
+// CHECK-NEXT:        %[[VER_COND:.*]] = arith.andi %[[VER_COND1]], %[[VER_COND2]] : i1
+
 // CHECK-NEXT:        scf.if %[[VER_COND]] {
 
 // COM: Get pointer to shared local memory:
@@ -503,7 +524,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        %[[VAL_18:.*]] = arith.muli %[[VAL_17]], %[[WGSIZE1]] : index
 // CHECK-NEXT:        %[[VAL_19:.*]] = arith.muli %[[VAL_18]], %[[WGSIZE2]] : index
 // CHECK-NEXT:        %[[VAL_20:.*]] = arith.addi %[[VAL_15]], %[[VAL_19]] : index
-// CHECK-NEXT:        %[[VAL_21:.*]] = arith.maxsi %[[VAL_14]], %[[VAL_20]] : index
+// CHECK-NEXT:        %[[REQD_SHARED_MEM:.*]] = arith.maxsi %[[VAL_14]], %[[VAL_20]] : index
 
 // COM: Get local ids:
 // CHECK-NEXT:        %[[VAL_22:.*]] = sycl.local_id : !sycl_id_3_1
@@ -534,7 +555,12 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        %[[VAL_44:.*]] = arith.index_cast %[[VAL_43]] : i64 to index
 // CHECK-NEXT:        scf.for %[[VAL_45:.*]] = %[[VAL_36]] to %[[VAL_38]] step %[[VAL_37]] {
 
-// COM: Get pointer to shared local memory:
+// COM: Ensure there is a sufficient amount of shared local memory available:
+// CHECK-NEXT:          %[[SHARED_MEM_AMOUNT:.*]] = arith.constant 32000 : index
+// CHECK-NEXT:          %[[VER_COND:.*]] = arith.cmpi ule, %[[REQD_SHARED_MEM]], %[[SHARED_MEM_AMOUNT]] : index
+// CHECK-NEXT:          scf.if %[[VER_COND]] {
+
+// COM: Get pointer to sahred local memory:
 // CHECK-NEXT:          %[[VAL_46:.*]] = memref.get_global @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 
 // COM: Use work group size of dimension 2 as tile size:
@@ -582,9 +608,17 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:            }
 // CHECK-NEXT:            spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:          }
+// CHECK-NEXT:        } else {
+// CHECK-NEXT:          scf.for %[[VAL_75:.*]] = %[[VAL_37]] to %[[VAL_39]] step %[[VAL_37]] {
+// CHECK-NEXT:            %[[VAL_76:.*]] = arith.index_cast %[[VAL_45]] : index to i64
+// CHECK-NEXT:            %[[VAL_77:.*]] = arith.index_cast %[[VAL_75]] : index to i64
+// CHECK-NEXT:            sycl.constructor @id(%[[VAL_35]], %[[VAL_43]], %[[VAL_76]], %[[VAL_77]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3_>, i64, i64, i64)
+// CHECK-NEXT:            %[[VAL_78:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3_>) -> memref<?xf32>
+// CHECK-NEXT:            %[[VAL_79:.*]] = affine.load %[[VAL_78]][0] : memref<?xf32>
+// CHECK-NEXT:          }
 // CHECK-NEXT:        }
-// CHECK-NEXT:        return
 // CHECK-NEXT:      }
+// CHECK-NEXT:      return
 gpu.module @device_func {
 func.func private @scf_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_3>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_3>
