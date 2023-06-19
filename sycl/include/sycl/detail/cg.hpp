@@ -75,6 +75,7 @@ public:
     CopyToDeviceGlobal = 19,
     CopyFromDeviceGlobal = 20,
     ReadWriteHostPipe = 21,
+    ExecCommandBuffer = 22,
   };
 
   struct StorageInitHelper {
@@ -89,6 +90,7 @@ public:
           MSharedPtrStorage(std::move(SharedPtrStorage)),
           MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
     StorageInitHelper(StorageInitHelper &&) = default;
+    StorageInitHelper(const StorageInitHelper &) = default;
     // The following storages are needed to ensure that arguments won't die
     // while we are using them.
     /// Storage for standard layout arguments.
@@ -119,16 +121,23 @@ public:
   }
 
   CG(CG &&CommandGroup) = default;
+  CG(const CG &CommandGroup) = default;
 
   CGTYPE getType() { return MType; }
 
-  std::vector<std::vector<char>> &getArgsStorage() { return MData.MArgsStorage; }
-  std::vector<detail::AccessorImplPtr> &getAccStorage() { return MData.MAccStorage; }
+  std::vector<std::vector<char>> &getArgsStorage() {
+    return MData.MArgsStorage;
+  }
+  std::vector<detail::AccessorImplPtr> &getAccStorage() {
+    return MData.MAccStorage;
+  }
   std::vector<std::shared_ptr<const void>> &getSharedPtrStorage() {
     return MData.MSharedPtrStorage;
   }
 
-  std::vector<AccessorImplHost *> &getRequirements() { return MData.MRequirements; }
+  std::vector<AccessorImplHost *> &getRequirements() {
+    return MData.MRequirements;
+  }
   std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
 
   virtual ~CG() = default;
@@ -151,7 +160,7 @@ class CGExecKernel : public CG {
 public:
   /// Stores ND-range description.
   NDRDescT MNDRDesc;
-  std::unique_ptr<HostKernelBase> MHostKernel;
+  std::shared_ptr<HostKernelBase> MHostKernel;
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
@@ -160,7 +169,7 @@ public:
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   RT::PiKernelCacheConfig MKernelCacheConfig;
 
-  CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
+  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
@@ -179,6 +188,8 @@ public:
     assert((getType() == RunOnHostIntel || getType() == Kernel) &&
            "Wrong type of exec kernel CG.");
   }
+
+  CGExecKernel(const CGExecKernel &CGExec) = default;
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
   std::string getKernelName() const { return MKernelName; }

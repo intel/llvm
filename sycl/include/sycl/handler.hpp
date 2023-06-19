@@ -40,6 +40,8 @@
 #include <sycl/detail/native_cpu.hpp>
 #endif
 
+#include <sycl/ext/oneapi/experimental/graph.hpp>
+
 #include <functional>
 #include <limits>
 #include <memory>
@@ -105,6 +107,9 @@ template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
 class pipe;
 }
 
+namespace ext::oneapi::experimental::detail {
+class graph_impl;
+}
 namespace detail {
 
 class handler_impl;
@@ -345,6 +350,14 @@ private:
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
+
+  /// Constructs SYCL handler from Graph.
+  ///
+  /// The hander will add the command-group as a node to the graph rather than
+  /// enqueueing it straight away.
+  ///
+  /// \param Graph is a SYCL command_graph
+  handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
 
   /// Stores copy of Arg passed to the CGData.MArgsStorage.
   template <typename T, typename F = typename std::remove_const_t<
@@ -2895,10 +2908,17 @@ public:
     this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                  StartIndex * sizeof(std::remove_all_extents_t<T>));
   }
+  /// Executes a command_graph.
+  ///
+  /// \param Graph Executable command_graph to run
+  void ext_oneapi_graph(ext::oneapi::experimental::command_graph<
+                        ext::oneapi::experimental::graph_state::executable>
+                            Graph);
 
 private:
   std::shared_ptr<detail::handler_impl> MImpl;
   std::shared_ptr<detail::queue_impl> MQueue;
+
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
@@ -2938,6 +2958,17 @@ private:
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
+
+  /// The graph that is associated with this handler.
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
+  /// If we are submitting a graph using ext_oneapi_graph this will be the graph
+  /// to be executed.
+  std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+      MExecGraph;
+  /// Storage for a node created from a subgraph submission.
+  std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
+  /// Storage for the CG created when handling graph nodes added explicitly.
+  std::unique_ptr<detail::CG> MGraphNodeCG;
 
   bool MIsHost = false;
 
@@ -3018,6 +3049,7 @@ private:
   /// if write opeartion is blocking, default to false.
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false);
+  friend class ext::oneapi::experimental::detail::graph_impl;
 
   bool DisableRangeRounding();
 

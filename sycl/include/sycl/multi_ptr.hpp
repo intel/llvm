@@ -136,7 +136,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space || generic_space
   template <int Dimensions, access::mode Mode,
@@ -186,8 +188,9 @@ public:
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
                      Mode, access::target::device, isPlaceholder, PropertyListT>
                 Accessor)
-      : m_Pointer(Accessor.template get_multi_ptr<DecorateAddress>()
-                      .get_decorated()) {}
+      : m_Pointer(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space || generic_space and element type is const
   template <int Dimensions, access::mode Mode,
@@ -450,7 +453,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space
   template <
@@ -575,7 +580,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space
   template <

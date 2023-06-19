@@ -10,6 +10,7 @@
 
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -51,6 +52,10 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
                                                    std::move(SecondaryQueue))),
       MQueue(std::move(Queue)), MIsHost(IsHost) {}
+
+handler::handler(
+    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
+    : MImpl(std::make_shared<detail::handler_impl>()), MGraph(Graph) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -105,6 +110,15 @@ event handler::finalize() {
   if (MIsFinalized)
     return MLastEvent;
   MIsFinalized = true;
+
+  // If we have a subgraph node that means that a subgraph was recorded as
+  // part of this queue submission, so we skip adding a new node here since
+  // they have already been added, and return the event associated with the
+  // subgraph node.
+  if (MQueue && MQueue->getCommandGraph() && MSubgraphNode) {
+    return detail::createSyclObjFromImpl<event>(
+        MQueue->getCommandGraph()->getEventForNode(MSubgraphNode));
+  }
 
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
   // to a command without being bound to a command group, an exception should
@@ -179,10 +193,11 @@ event handler::finalize() {
       }
     }
 
-    if (!MQueue->is_in_fusion_mode() && CGData.MRequirements.size() +
-                                                CGData.MEvents.size() +
-                                                MStreamStorage.size() ==
-                                            0) {
+    if (MQueue && !MQueue->getCommandGraph() && !MGraph && !MSubgraphNode &&
+        !MQueue->is_in_fusion_mode() &&
+        CGData.MRequirements.size() + CGData.MEvents.size() +
+                MStreamStorage.size() ==
+            0) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, and the queue is not in fusion mode, then
       // this faster path is used to submit kernel bypassing scheduler and
@@ -347,10 +362,19 @@ event handler::finalize() {
   case detail::CG::ReadWriteHostPipe: {
     CommandGroup.reset(new detail::CGReadWriteHostPipe(
         MImpl->HostPipeName, MImpl->HostPipeBlocking, MImpl->HostPipePtr,
-        MImpl->HostPipeTypeSize, MImpl->HostPipeRead,
-        std::move(CGData), MCodeLoc));
+        MImpl->HostPipeTypeSize, MImpl->HostPipeRead, std::move(CGData),
+        MCodeLoc));
     break;
   }
+  case detail::CG::ExecCommandBuffer:
+    // If we have a subgraph node we don't want to actually execute this command
+    // graph submission.
+    if (!MSubgraphNode) {
+      event GraphCompletionEvent = MExecGraph->enqueue(MQueue);
+      MLastEvent = GraphCompletionEvent;
+      return MLastEvent;
+    }
+    break;
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
@@ -360,10 +384,35 @@ event handler::finalize() {
     return MLastEvent;
   }
 
-  if (!CommandGroup)
+  if (!MSubgraphNode && !CommandGroup)
     throw sycl::runtime_error(
         "Internal Error. Command group cannot be constructed.",
         PI_ERROR_INVALID_OPERATION);
+
+  // If there is a graph associated with the handler we are in the explicit
+  // graph mode, so we store the CG instead of submitting it to the scheduler,
+  // so it can be retrieved by the graph later.
+  if (MGraph) {
+    MGraphNodeCG = std::move(CommandGroup);
+    return detail::createSyclObjFromImpl<event>(
+        std::make_shared<detail::event_impl>());
+  }
+
+  // If the queue has an associated graph then we need to take the CG and pass
+  // it to the graph to create a node, rather than submit it to the scheduler.
+  if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
+    auto EventImpl = std::make_shared<detail::event_impl>();
+
+    // Extract relevant data from the handler and pass to graph to create a
+    // new node representing this command group.
+    std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
+        GraphImpl->add(MCGType, std::move(CommandGroup));
+
+    // Associate an event with this new node and return the event.
+    GraphImpl->addEventForNode(EventImpl, NodeImpl);
+
+    return detail::createSyclObjFromImpl<event>(EventImpl);
+  }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
@@ -958,6 +1007,33 @@ handler::getContextImplPtr() const {
 
 void handler::setKernelCacheConfig(detail::RT::PiKernelCacheConfig Config) {
   MImpl->MKernelCacheConfig = Config;
+}
+
+void handler::ext_oneapi_graph(
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable>
+        Graph) {
+  MCGType = detail::CG::ExecCommandBuffer;
+  auto GraphImpl = detail::getSyclObjImpl(Graph);
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph;
+  if (MQueue) {
+    ParentGraph = MQueue->getCommandGraph();
+  } else {
+    ParentGraph = MGraph;
+  }
+
+  // If a parent graph is set that means we are adding or recording a subgraph
+  if (ParentGraph) {
+    // Store the node representing the subgraph in the handler so that we can
+    // return it to the user later.
+    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl->getSchedule());
+    // Associate an event with the subgraph node.
+    auto SubgraphEvent = std::make_shared<event_impl>();
+    ParentGraph->addEventForNode(SubgraphEvent, MSubgraphNode);
+  } else {
+    // Set the exec graph for execution during finalize.
+    MExecGraph = GraphImpl;
+  }
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

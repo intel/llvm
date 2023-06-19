@@ -37,26 +37,13 @@ jobs:
       # actions/checkout fails without "--privileged".
       options: -u 1001:1001 --privileged
     steps:
-    - name: Fake actions/checkout task
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v3
       with:
-        # cached_checkout below uses actions/checkout internally. However, when
-        # actions/checkout is run from within another action step (not from
-        # workflow), github seems to try to download from within the container
-        # and doesn't have requried filesystem permissions. Make sure it's
-        # already downloaded by the time it's needed by checking out some small
-        # repository.
-        repository: actions/checkout
-        path: fake-checkout
-    - name: 'PR commits + 1'
-      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
-    - name: Setup action
-      # We can switch to `cp -r /actions .` once changes in cached_checkout are
-      # propagated into the nightly container image.
-      run: |
-        mkdir -p actions/cached_checkout
-        wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/cached_checkout/action.yml   -P ./actions/cached_checkout
-    - uses: ./actions/cached_checkout
+        sparse-checkout: |
+          devops/actions/cached_checkout
+    - name: 'PR commits + 2'
+      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 2 ))" >> "${GITHUB_ENV}"
+    - uses: ./devops/actions/cached_checkout
       with:
         path: src
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
