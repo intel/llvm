@@ -14,6 +14,7 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/ASTLambda.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
@@ -319,6 +320,7 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
     case tok::annot_module_begin:
     case tok::annot_module_end:
     case tok::annot_module_include:
+    case tok::annot_repl_input_end:
       // Stop before we change submodules. They generally indicate a "good"
       // place to pick up parsing again (except in the special case where
       // we're trying to skip to EOF).
@@ -522,7 +524,8 @@ void Parser::Initialize() {
   Ident_strict = nullptr;
   Ident_replacement = nullptr;
 
-  Ident_language = Ident_defined_in = Ident_generated_declaration = nullptr;
+  Ident_language = Ident_defined_in = Ident_generated_declaration = Ident_USR =
+      nullptr;
 
   Ident__except = nullptr;
 
@@ -612,11 +615,6 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
                                Sema::ModuleImportState &ImportState) {
   DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(*this);
 
-  // Skip over the EOF token, flagging end of previous input for incremental
-  // processing
-  if (PP.isIncrementalProcessingEnabled() && Tok.is(tok::eof))
-    ConsumeToken();
-
   Result = nullptr;
   switch (Tok.getKind()) {
   case tok::annot_pragma_unused:
@@ -629,8 +627,8 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
       goto module_decl;
 
     // Note: no need to handle kw_import here. We only form kw_import under
-    // the Modules TS, and in that case 'export import' is parsed as an
-    // export-declaration containing an import-declaration.
+    // the Standard C++ Modules, and in that case 'export import' is parsed as
+    // an export-declaration containing an import-declaration.
 
     // Recognize context-sensitive C++20 'export module' and 'export import'
     // declarations.
@@ -695,6 +693,7 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
     return false;
 
   case tok::eof:
+  case tok::annot_repl_input_end:
     // Check whether -fmax-tokens= was reached.
     if (PP.getMaxTokens() != 0 && PP.getTokenCount() > PP.getMaxTokens()) {
       PP.Diag(Tok.getLocation(), diag::warn_max_tokens_total)
@@ -750,6 +749,10 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
     else if (ImportState == Sema::ModuleImportState::ImportAllowed)
       // Non-imports disallow further imports.
       ImportState = Sema::ModuleImportState::ImportFinished;
+    else if (ImportState ==
+             Sema::ModuleImportState::PrivateFragmentImportAllowed)
+      // Non-imports disallow further imports.
+      ImportState = Sema::ModuleImportState::PrivateFragmentImportFinished;
   }
   return false;
 }
@@ -781,7 +784,7 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
 ///
 /// [C++0x/GNU] 'extern' 'template' declaration
 ///
-/// [Modules-TS] module-import-declaration
+/// [C++20] module-import-declaration
 ///
 Parser::DeclGroupPtrTy
 Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
@@ -933,7 +936,7 @@ Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     SingleDecl = ParseModuleImport(SourceLocation(), IS);
   } break;
   case tok::kw_export:
-    if (getLangOpts().CPlusPlusModules || getLangOpts().ModulesTS) {
+    if (getLangOpts().CPlusPlusModules) {
       ProhibitAttributes(Attrs);
       SingleDecl = ParseExportDeclaration();
       break;
@@ -1400,6 +1403,17 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
     if (BodyKind == Sema::FnBodyKind::Other)
       SkipFunctionBody();
 
+    // ExpressionEvaluationContext is pushed in ActOnStartOfFunctionDef
+    // and it would be popped in ActOnFinishFunctionBody.
+    // We pop it explcitly here since ActOnFinishFunctionBody won't get called.
+    //
+    // Do not call PopExpressionEvaluationContext() if it is a lambda because
+    // one is already popped when finishing the lambda in BuildLambdaExpr().
+    //
+    // FIXME: It looks not easy to balance PushExpressionEvaluationContext()
+    // and PopExpressionEvaluationContext().
+    if (!isLambdaCallOperator(dyn_cast_if_present<FunctionDecl>(Res)))
+      Actions.PopExpressionEvaluationContext();
     return Res;
   }
 
@@ -1866,31 +1880,25 @@ Parser::TryAnnotateName(CorrectionCandidateCallback *CCC,
       return ANK_TemplateName;
     }
     [[fallthrough]];
+  case Sema::NC_Concept:
   case Sema::NC_VarTemplate:
   case Sema::NC_FunctionTemplate:
   case Sema::NC_UndeclaredTemplate: {
-    // We have a type, variable or function template followed by '<'.
-    ConsumeToken();
-    UnqualifiedId Id;
-    Id.setIdentifier(Name, NameLoc);
-    if (AnnotateTemplateIdToken(
-            TemplateTy::make(Classification.getTemplateName()),
-            Classification.getTemplateNameKind(), SS, SourceLocation(), Id))
-      return ANK_Error;
-    return ANK_Success;
-  }
-  case Sema::NC_Concept: {
-    UnqualifiedId Id;
-    Id.setIdentifier(Name, NameLoc);
+    bool IsConceptName = Classification.getKind() == Sema::NC_Concept;
+    // We have a template name followed by '<'. Consume the identifier token so
+    // we reach the '<' and annotate it.
     if (Next.is(tok::less))
-      // We have a concept name followed by '<'. Consume the identifier token so
-      // we reach the '<' and annotate it.
       ConsumeToken();
+    UnqualifiedId Id;
+    Id.setIdentifier(Name, NameLoc);
     if (AnnotateTemplateIdToken(
             TemplateTy::make(Classification.getTemplateName()),
             Classification.getTemplateNameKind(), SS, SourceLocation(), Id,
-            /*AllowTypeAnnotation=*/false, /*TypeConstraint=*/true))
+            /*AllowTypeAnnotation=*/!IsConceptName,
+            /*TypeConstraint=*/IsConceptName))
       return ANK_Error;
+    if (SS.isNotEmpty())
+      AnnotateScopeToken(SS, !WasScopeAnnotation);
     return ANK_Success;
   }
   }
@@ -1939,7 +1947,7 @@ bool Parser::TryAnnotateTypeOrScopeToken(
   assert((Tok.is(tok::identifier) || Tok.is(tok::coloncolon) ||
           Tok.is(tok::kw_typename) || Tok.is(tok::annot_cxxscope) ||
           Tok.is(tok::kw_decltype) || Tok.is(tok::annot_template_id) ||
-          Tok.is(tok::kw___super)) &&
+          Tok.is(tok::kw___super) || Tok.is(tok::kw_auto)) &&
          "Cannot be a type or scope token!");
 
   if (Tok.is(tok::kw_typename)) {
@@ -2372,7 +2380,7 @@ void Parser::ParseMicrosoftIfExistsExternalDeclaration() {
 /// Parse a declaration beginning with the 'module' keyword or C++20
 /// context-sensitive keyword (optionally preceded by 'export').
 ///
-///   module-declaration:   [Modules TS + P0629R0]
+///   module-declaration:   [C++20]
 ///     'export'[opt] 'module' module-name attribute-specifier-seq[opt] ';'
 ///
 ///   global-module-fragment:  [C++2a]
@@ -2427,7 +2435,9 @@ Parser::ParseModuleDecl(Sema::ModuleImportState &ImportState) {
     SourceLocation PrivateLoc = ConsumeToken();
     DiagnoseAndSkipCXX11Attributes();
     ExpectAndConsumeSemi(diag::err_private_module_fragment_expected_semi);
-    ImportState = Sema::ModuleImportState::PrivateFragment;
+    ImportState = ImportState == Sema::ModuleImportState::ImportAllowed
+                      ? Sema::ModuleImportState::PrivateFragmentImportAllowed
+                      : Sema::ModuleImportState::PrivateFragmentImportFinished;
     return Actions.ActOnPrivateModuleFragmentDecl(ModuleLoc, PrivateLoc);
   }
 
@@ -2451,6 +2461,7 @@ Parser::ParseModuleDecl(Sema::ModuleImportState &ImportState) {
   ParsedAttributes Attrs(AttrFactory);
   MaybeParseCXX11Attributes(Attrs);
   ProhibitCXX11Attributes(Attrs, diag::err_attribute_not_module_attr,
+                          diag::err_keyword_not_module_attr,
                           /*DiagnoseEmptyAttrs=*/false,
                           /*WarnOnUnknownAttrs=*/true);
 
@@ -2520,6 +2531,7 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc,
   MaybeParseCXX11Attributes(Attrs);
   // We don't support any module import attributes yet.
   ProhibitCXX11Attributes(Attrs, diag::err_attribute_not_import_attr,
+                          diag::err_keyword_not_import_attr,
                           /*DiagnoseEmptyAttrs=*/false,
                           /*WarnOnUnknownAttrs=*/true);
 
@@ -2544,22 +2556,27 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc,
       SeenError = false;
     break;
   case Sema::ModuleImportState::GlobalFragment:
-    // We can only have pre-processor directives in the global module
-    // fragment.  We cannot import a named modules here, however we have a
-    // header unit import.
-    if (!HeaderUnit || HeaderUnit->Kind != Module::ModuleKind::ModuleHeaderUnit)
-      Diag(ImportLoc, diag::err_import_in_wrong_fragment) << IsPartition << 0;
+  case Sema::ModuleImportState::PrivateFragmentImportAllowed:
+    // We can only have pre-processor directives in the global module fragment
+    // which allows pp-import, but not of a partition (since the global module
+    // does not have partitions).
+    // We cannot import a partition into a private module fragment, since
+    // [module.private.frag]/1 disallows private module fragments in a multi-
+    // TU module.
+    if (IsPartition || (HeaderUnit && HeaderUnit->Kind !=
+                                          Module::ModuleKind::ModuleHeaderUnit))
+      Diag(ImportLoc, diag::err_import_in_wrong_fragment)
+          << IsPartition
+          << (ImportState == Sema::ModuleImportState::GlobalFragment ? 0 : 1);
     else
       SeenError = false;
     break;
   case Sema::ModuleImportState::ImportFinished:
+  case Sema::ModuleImportState::PrivateFragmentImportFinished:
     if (getLangOpts().CPlusPlusModules)
       Diag(ImportLoc, diag::err_import_not_allowed_here);
     else
       SeenError = false;
-    break;
-  case Sema::ModuleImportState::PrivateFragment:
-    Diag(ImportLoc, diag::err_import_in_wrong_fragment) << IsPartition << 1;
     break;
   }
   if (SeenError) {
@@ -2591,7 +2608,7 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc,
   return Import.get();
 }
 
-/// Parse a C++ Modules TS / Objective-C module name (both forms use the same
+/// Parse a C++ / Objective-C module name (both forms use the same
 /// grammar).
 ///
 ///         module-name:

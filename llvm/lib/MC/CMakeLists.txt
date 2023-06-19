@@ -1,5 +1,6 @@
 add_llvm_component_library(LLVMMC
   ConstantPools.cpp
+  DXContainerPSVInfo.cpp
   ELFObjectWriter.cpp
   MCAsmBackend.cpp
   MCAsmInfo.cpp
@@ -78,6 +79,9 @@ add_llvm_component_library(LLVMMC
   TargetParser
   BinaryFormat
   DebugInfoCodeView
+
+  DEPENDS
+  intrinsics_gen
   )
 
 add_subdirectory(MCParser)

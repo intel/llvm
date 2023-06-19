@@ -9,6 +9,7 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_HASHING_H
 #define SYCL_FUSION_JIT_COMPILER_HASHING_H
 
+#include "Kernel.h"
 #include "Parameter.h"
 
 #include "llvm/ADT/Hashing.h"
@@ -32,11 +33,21 @@ inline llvm::hash_code hash_value(const JITConstant &C) {
 inline llvm::hash_code hash_value(const ParameterIdentity &IP) {
   return llvm::hash_combine(IP.LHS, IP.RHS);
 }
+
+inline llvm::hash_code hash_value(const NDRange &ND) {
+  return llvm::hash_combine(ND.getDimensions(), ND.getGlobalSize(),
+                            ND.getLocalSize(), ND.getOffset());
+}
 } // namespace jit_compiler
 
 namespace std {
 template <typename T> inline llvm::hash_code hash_value(const vector<T> &V) {
   return llvm::hash_combine_range(V.begin(), V.end());
+}
+
+template <typename T, std::size_t N>
+inline llvm::hash_code hash_value(const array<T, N> &A) {
+  return llvm::hash_combine_range(A.begin(), A.end());
 }
 
 template <typename... T> struct hash<tuple<T...>> {

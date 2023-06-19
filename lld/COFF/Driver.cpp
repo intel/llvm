@@ -25,7 +25,6 @@
 #include "lld/Common/Version.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LTO/LTO.h"
@@ -48,11 +47,13 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/ToolDrivers/llvm-lib/LibDriver.h"
 #include <algorithm>
 #include <future>
 #include <memory>
 #include <optional>
+#include <tuple>
 
 using namespace llvm;
 using namespace llvm::object;
@@ -90,6 +91,14 @@ static std::pair<StringRef, StringRef> getOldNewOptions(opt::InputArgList &args,
   return ret;
 }
 
+// Parse options of the form "old;new[;extra]".
+static std::tuple<StringRef, StringRef, StringRef>
+getOldNewOptionsExtra(opt::InputArgList &args, unsigned id) {
+  auto [oldDir, second] = getOldNewOptions(args, id);
+  auto [newDir, extraDir] = second.split(';');
+  return {oldDir, newDir, extraDir};
+}
+
 // Drop directory components and replace extension with
 // ".exe", ".dll" or ".sys".
 static std::string getOutputPath(StringRef path, bool isDll, bool isDriver) {
@@ -104,12 +113,12 @@ static std::string getOutputPath(StringRef path, bool isDll, bool isDriver) {
 
 // Returns true if S matches /crtend.?\.o$/.
 static bool isCrtend(StringRef s) {
-  if (!s.endswith(".o"))
+  if (!s.ends_with(".o"))
     return false;
   s = s.drop_back(2);
-  if (s.endswith("crtend"))
+  if (s.ends_with("crtend"))
     return true;
-  return !s.empty() && s.drop_back().endswith("crtend");
+  return !s.empty() && s.drop_back().ends_with("crtend");
 }
 
 // ErrorOr is not default constructible, so it cannot be used as the type
@@ -221,7 +230,7 @@ void LinkerDriver::addBuffer(std::unique_ptr<MemoryBuffer> mb,
       ctx.symtab.addFile(make<DLLFile>(ctx, mbref));
       break;
     }
-    if (filename.endswith_insensitive(".dll")) {
+    if (filename.ends_with_insensitive(".dll")) {
       error(filename + ": bad file type. Did you specify a DLL instead of an "
                        "import library?");
       break;
@@ -238,10 +247,28 @@ void LinkerDriver::enqueuePath(StringRef path, bool wholeArchive, bool lazy) {
       createFutureForFile(std::string(path)));
   std::string pathStr = std::string(path);
   enqueueTask([=]() {
-    auto mbOrErr = future->get();
-    if (mbOrErr.second) {
-      std::string msg =
-          "could not open '" + pathStr + "': " + mbOrErr.second.message();
+    auto [mb, ec] = future->get();
+    if (ec) {
+      // Retry reading the file (synchronously) now that we may have added
+      // winsysroot search paths from SymbolTable::addFile().
+      // Retrying synchronously is important for keeping the order of inputs
+      // consistent.
+      // This makes it so that if the user passes something in the winsysroot
+      // before something we can find with an architecture, we won't find the
+      // winsysroot file.
+      if (std::optional<StringRef> retryPath = findFile(pathStr)) {
+        auto retryMb = MemoryBuffer::getFile(*retryPath, /*IsText=*/false,
+                                             /*RequiresNullTerminator=*/false);
+        ec = retryMb.getError();
+        if (!ec)
+          mb = std::move(*retryMb);
+      } else {
+        // We've already handled this file.
+        return;
+      }
+    }
+    if (ec) {
+      std::string msg = "could not open '" + pathStr + "': " + ec.message();
       // Check if the filename is a typo for an option flag. OptTable thinks
       // that all args that are not known options and that start with / are
       // filenames, but e.g. `/nodefaultlibs` is more likely a typo for
@@ -253,7 +280,7 @@ void LinkerDriver::enqueuePath(StringRef path, bool wholeArchive, bool lazy) {
       else
         error(msg + "; did you mean '" + nearest + "'");
     } else
-      ctx.driver.addBuffer(std::move(mbOrErr.first), wholeArchive, lazy);
+      ctx.driver.addBuffer(std::move(mb), wholeArchive, lazy);
   });
 }
 
@@ -330,7 +357,7 @@ void LinkerDriver::enqueueArchiveMember(const Archive::Child &c,
 }
 
 bool LinkerDriver::isDecorated(StringRef sym) {
-  return sym.startswith("@") || sym.contains("@@") || sym.startswith("?") ||
+  return sym.starts_with("@") || sym.contains("@@") || sym.starts_with("?") ||
          (!ctx.config.mingw && sym.contains('@'));
 }
 
@@ -436,9 +463,12 @@ void LinkerDriver::parseDirectives(InputFile *file) {
     case OPT_editandcontinue:
     case OPT_guardsym:
     case OPT_throwingnew:
+    case OPT_inferasanlibs:
+    case OPT_inferasanlibs_no:
       break;
     default:
-      error(arg->getSpelling() + " is not allowed in .drectve");
+      error(arg->getSpelling() + " is not allowed in .drectve (" +
+            toString(file) + ")");
     }
   }
 }
@@ -491,7 +521,7 @@ std::optional<StringRef> LinkerDriver::findFile(StringRef filename) {
       return std::nullopt;
   }
 
-  if (path.endswith_insensitive(".lib"))
+  if (path.ends_with_insensitive(".lib"))
     visitedLibs.insert(std::string(sys::path::filename(path).lower()));
   return path;
 }
@@ -559,7 +589,7 @@ void LinkerDriver::detectWinSysRoot(const opt::InputArgList &Args) {
                                      WinSysRoot, vcToolChainPath, vsLayout) &&
       (Args.hasArg(OPT_lldignoreenv) ||
        !findVCToolChainViaEnvironment(*VFS, vcToolChainPath, vsLayout)) &&
-      !findVCToolChainViaSetupConfig(*VFS, vcToolChainPath, vsLayout) &&
+      !findVCToolChainViaSetupConfig(*VFS, {}, vcToolChainPath, vsLayout) &&
       !findVCToolChainViaRegistry(vcToolChainPath, vsLayout))
     return;
 
@@ -1058,7 +1088,7 @@ bool LinkerDriver::run() {
 void LinkerDriver::parseOrderFile(StringRef arg) {
   // For some reason, the MSVC linker requires a filename to be
   // preceded by "@".
-  if (!arg.startswith("@")) {
+  if (!arg.starts_with("@")) {
     error("malformed /order option: '@' missing");
     return;
   }
@@ -1506,7 +1536,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   }
 
   // Construct search path list.
-  searchPaths.push_back("");
+  searchPaths.emplace_back("");
   for (auto *arg : args.filtered(OPT_libpath))
     searchPaths.push_back(arg->getValue());
   detectWinSysRoot(args);
@@ -1751,7 +1781,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
         doGC = true;
       } else if (s == "noref") {
         doGC = false;
-      } else if (s == "icf" || s.startswith("icf=")) {
+      } else if (s == "icf" || s.starts_with("icf=")) {
         icfLevel = ICFLevel::All;
       } else if (s == "safeicf") {
         icfLevel = ICFLevel::Safe;
@@ -1761,26 +1791,25 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
         tailMerge = 2;
       } else if (s == "nolldtailmerge") {
         tailMerge = 0;
-      } else if (s == "ltonewpassmanager") {
-        /* We always use the new PM. */
       } else if (s == "ltodebugpassmanager") {
         ltoDebugPM = true;
       } else if (s == "noltodebugpassmanager") {
         ltoDebugPM = false;
-      } else if (s.startswith("lldlto=")) {
-        StringRef optLevel = s.substr(7);
-        if (optLevel.getAsInteger(10, config->ltoo) || config->ltoo > 3)
-          error("/opt:lldlto: invalid optimization level: " + optLevel);
-      } else if (s.startswith("lldltojobs=")) {
-        StringRef jobs = s.substr(11);
-        if (!get_threadpool_strategy(jobs))
-          error("/opt:lldltojobs: invalid job count: " + jobs);
-        config->thinLTOJobs = jobs.str();
-      } else if (s.startswith("lldltopartitions=")) {
-        StringRef n = s.substr(17);
-        if (n.getAsInteger(10, config->ltoPartitions) ||
+      } else if (s.consume_front("lldlto=")) {
+        if (s.getAsInteger(10, config->ltoo) || config->ltoo > 3)
+          error("/opt:lldlto: invalid optimization level: " + s);
+      } else if (s.consume_front("lldltocgo=")) {
+        config->ltoCgo.emplace();
+        if (s.getAsInteger(10, *config->ltoCgo) || *config->ltoCgo > 3)
+          error("/opt:lldltocgo: invalid codegen optimization level: " + s);
+      } else if (s.consume_front("lldltojobs=")) {
+        if (!get_threadpool_strategy(s))
+          error("/opt:lldltojobs: invalid job count: " + s);
+        config->thinLTOJobs = s.str();
+      } else if (s.consume_front("lldltopartitions=")) {
+        if (s.getAsInteger(10, config->ltoPartitions) ||
             config->ltoPartitions == 0)
-          error("/opt:lldltopartitions: invalid partition count: " + n);
+          error("/opt:lldltopartitions: invalid partition count: " + s);
       } else if (s != "lbr" && s != "nolbr")
         error("/opt: unknown option: " + s);
     }
@@ -1885,8 +1914,9 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
                              args.hasArg(OPT_thinlto_index_only_arg);
   config->thinLTOIndexOnlyArg =
       args.getLastArgValue(OPT_thinlto_index_only_arg);
-  config->thinLTOPrefixReplace =
-      getOldNewOptions(args, OPT_thinlto_prefix_replace);
+  std::tie(config->thinLTOPrefixReplaceOld, config->thinLTOPrefixReplaceNew,
+           config->thinLTOPrefixReplaceNativeObject) =
+      getOldNewOptionsExtra(args, OPT_thinlto_prefix_replace);
   config->thinLTOObjectSuffixReplace =
       getOldNewOptions(args, OPT_thinlto_object_suffix_replace);
   config->ltoObjPath = args.getLastArgValue(OPT_lto_obj_path);
@@ -1922,6 +1952,9 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   config->stdcallFixup =
       args.hasFlag(OPT_stdcall_fixup, OPT_stdcall_fixup_no, config->mingw);
   config->warnStdcallFixup = !args.hasArg(OPT_stdcall_fixup);
+
+  if (args.hasFlag(OPT_inferasanlibs, OPT_inferasanlibs_no, false))
+    warn("ignoring '/inferasanlibs', this flag is not supported");
 
   // Don't warn about long section names, such as .debug_info, for mingw or
   // when -debug:dwarf is requested.

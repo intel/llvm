@@ -235,8 +235,6 @@ bool TypePromotionImpl::isSource(Value *V) {
     return true;
   else if (isa<LoadInst>(V))
     return true;
-  else if (isa<BitCastInst>(V))
-    return true;
   else if (auto *Call = dyn_cast<CallInst>(V))
     return Call->hasRetAttr(Attribute::AttrKind::ZExt);
   else if (auto *Trunc = dyn_cast<TruncInst>(V))
@@ -960,8 +958,8 @@ bool TypePromotionImpl::run(Function &F, const TargetMachine *TM,
 
       if (isa<ZExtInst>(&I) && isa<PHINode>(I.getOperand(0)) &&
           isa<IntegerType>(I.getType()) && BBIsInLoop(&BB)) {
-        LLVM_DEBUG(dbgs() << "IR Promotion: Searching from: " << I.getOperand(0)
-                          << "\n");
+        LLVM_DEBUG(dbgs() << "IR Promotion: Searching from: "
+                          << *I.getOperand(0) << "\n");
         EVT ZExtVT = TLI->getValueType(DL, I.getType());
         Instruction *Phi = static_cast<Instruction *>(I.getOperand(0));
         auto PromoteWidth = ZExtVT.getFixedSizeInBits();

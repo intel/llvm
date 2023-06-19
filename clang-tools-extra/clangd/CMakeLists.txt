@@ -59,6 +59,7 @@ if(MSVC AND NOT CLANG_CL)
 endif()
 
 include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}/../clang-tidy")
+include_directories(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/../include-cleaner/include")
 
 add_clang_library(clangDaemon
   AST.cpp
@@ -147,6 +148,7 @@ add_clang_library(clangDaemon
 
   DEPENDS
   omp_gen
+  ClangDriverOptions
   )
 
 # Include generated CompletionModel headers.
@@ -177,11 +179,11 @@ target_link_libraries(clangDaemon
   PRIVATE
   ${LLVM_PTHREAD_LIB}
 
+  clangIncludeCleaner
+  clangPseudo
   clangTidy
 
   clangdSupport
-
-  clangPseudo
   )
 if(CLANGD_TIDY_CHECKS)
   target_link_libraries(clangDaemon PRIVATE ${ALL_CLANG_TIDY_CHECKS})

@@ -1,30 +1,42 @@
 // DEFINE: %{option} = enable-runtime-library=true
-// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
-// DEFINE: TENSOR0="%mlir_src_dir/test/Integration/data/test.tns" \
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/test.tns" \
 // DEFINE: mlir-cpu-runner \
 // DEFINE:  -e entry -entry-point-result=void  \
-// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext,%mlir_lib_dir/libmlir_runner_utils%shlibext | \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils,%mlir_runner_utils | \
 // DEFINE: FileCheck %s
 //
-// RUN: %{command}
+// RUN: %{compile} | %{run}
 //
 // Do the same run, but now with direct IR generation.
 // REDEFINE: %{option} = enable-runtime-library=false
-// RUN: %{command}
+// RUN: %{compile} | %{run}
 //
 // Do the same run, but now with direct IR generation and vectorization.
 // REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
-// RUN: %{command}
+// RUN: %{compile} | %{run}
+
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/test.tns" \
+// REDEFINE: %lli_host_or_aarch64_cmd \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext --dlopen=%mlir_runner_utils | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
 !Filename = !llvm.ptr<i8>
 
 #SparseTensor = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed", "compressed", "compressed",
+  lvlTypes = [ "compressed", "compressed", "compressed", "compressed",
                    "compressed", "compressed", "compressed", "compressed" ],
-  // Note that any dimOrdering permutation should give the same results
+  // Note that any dimToLvl permutation should give the same results
   // since, even though it impacts the sparse storage scheme layout,
   // it should not change the semantics.
-  dimOrdering = affine_map<(i,j,k,l,m,n,o,p) -> (p,o,j,k,i,l,m,n)>
+  dimToLvl = affine_map<(i,j,k,l,m,n,o,p) -> (p,o,j,k,i,l,m,n)>
 }>
 
 #trait_flatten = {

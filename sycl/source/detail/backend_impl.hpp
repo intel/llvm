@@ -16,7 +16,7 @@ namespace detail {
 
 template <class T> backend getImplBackend(const T &Impl) {
   assert(!Impl->is_host() && "Cannot get the backend for host.");
-  return Impl->getPlugin().getBackend();
+  return Impl->getContextImplPtr()->getBackend();
 }
 
 } // namespace detail

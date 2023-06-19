@@ -1,12 +1,13 @@
 ;; The test serves a purpose to check if barrier instruction is being annotated
 ;; by SPIRITTAnnotations pass
 ;;
-;; Compiled from https://github.com/intel/llvm-test-suite/blob/intel/SYCL/KernelAndProgram/kernel-and-program.cpp
+;; Compiled from the SYCL End-to-End test KernelAndProgram/kernel-and-program.cpp last available in
+;; https://github.com/intel/llvm-test-suite/blob/3be0c4dae326f187664cdaa1b9730b446ec4ae29/SYCL/KernelAndProgram/kernel-and-program.cpp
 ;; with following commands:
 ;; clang++ -fsycl -fsycl-device-only kernel-and-program.cpp -o kernel_and_program_optimized.bc
 
 ; RUN: opt < %s -passes=SPIRITTAnnotations -S | FileCheck %s
-; RUN: opt < %s -passes=SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
+; RUN: opt < %s -passes=SPIRITTAnnotations -S | FileCheck %s
 
 ; ModuleID = 'kernel_and_program_optimized.bc'
 source_filename = "llvm-link"

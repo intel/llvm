@@ -136,7 +136,7 @@ func.func @copy_deallocated() -> tensor<10xf32> {
 
 // CHECK-LABEL: func @select_different_tensors(
 //  CHECK-SAME:     %[[t:.*]]: tensor<?xf32>
-func.func @select_different_tensors(%t: tensor<?xf32>, %sz: index, %c: i1) -> tensor<?xf32> {
+func.func @select_different_tensors(%t: tensor<?xf32>, %sz: index, %pos: index, %c: i1) -> f32 {
   // CHECK-DAG: %[[m:.*]] = bufferization.to_memref %[[t]] : memref<?xf32, strided{{.*}}>
   // CHECK-DAG: %[[alloc:.*]] = memref.alloc(%{{.*}}) {{.*}} : memref<?xf32>
   %0 = bufferization.alloc_tensor(%sz) : tensor<?xf32>
@@ -145,7 +145,8 @@ func.func @select_different_tensors(%t: tensor<?xf32>, %sz: index, %c: i1) -> te
   // CHECK: %[[casted:.*]] = memref.cast %[[alloc]] : memref<?xf32> to memref<?xf32, strided{{.*}}>
   // CHECK: arith.select %{{.*}}, %[[casted]], %[[m]]
   %1 = arith.select %c, %0, %t : tensor<?xf32>
-  return %1 : tensor<?xf32>
+  %2 = tensor.extract %1[%pos] : tensor<?xf32>
+  return %2 : f32
 }
 
 // -----
@@ -197,4 +198,13 @@ func.func @read_of_alias(%t: tensor<100xf32>, %pos1: index, %pos2: index,
   %2 = tensor.extract %1[%pos3] : tensor<?xf32>
   %3 = tensor.extract %0[%pos3] : tensor<100xf32>
   return %2, %3 : f32, f32
+}
+
+// -----
+
+// CHECK-LABEL: func @from_unranked_to_unranked
+func.func @from_unranked_to_unranked(%arg0: tensor<*xi32>) -> tensor<*xi32> {
+  // CHECK: return %arg{{.*}} : tensor<*xi32>
+  %0 = tensor.cast %arg0 : tensor<*xi32> to tensor<*xi32>
+  return %0 : tensor<*xi32>
 }

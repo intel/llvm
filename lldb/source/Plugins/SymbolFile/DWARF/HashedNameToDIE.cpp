@@ -9,6 +9,8 @@
 #include "HashedNameToDIE.h"
 #include "llvm/ADT/StringRef.h"
 
+#include "lldb/Core/Mangled.h"
+
 using namespace lldb_private::dwarf;
 
 bool DWARFMappedHash::ExtractDIEArray(
@@ -158,6 +160,7 @@ void DWARFMappedHash::Prologue::AppendAtom(AtomType type, dw_form_t form) {
   atoms.push_back({type, form});
   atom_mask |= 1u << type;
   switch (form) {
+  default:
   case DW_FORM_indirect:
   case DW_FORM_exprloc:
   case DW_FORM_flag_present:
@@ -227,7 +230,7 @@ DWARFMappedHash::Prologue::Read(const lldb_private::DataExtractor &data,
   } else {
     for (uint32_t i = 0; i < atom_count; ++i) {
       AtomType type = (AtomType)data.GetU16(&offset);
-      dw_form_t form = (dw_form_t)data.GetU16(&offset);
+      auto form = static_cast<dw_form_t>(data.GetU16(&offset));
       AppendAtom(type, form);
     }
   }
@@ -422,7 +425,11 @@ DWARFMappedHash::MemoryTable::AppendHashDataForRegularExpression(
       count * m_header.header_data.GetMinimumHashDataByteSize();
   if (count > 0 && m_data.ValidOffsetForDataOfSize(*hash_data_offset_ptr,
                                                    min_total_hash_data_size)) {
-    const bool match = regex.Execute(llvm::StringRef(strp_cstr));
+    // The name in the name table may be a mangled name, in which case we
+    // should also compare against the demangled version.  The simplest way to
+    // do that is to use the Mangled class:
+    lldb_private::Mangled mangled_name((llvm::StringRef(strp_cstr)));
+    const bool match = mangled_name.NameMatches(regex);
 
     if (!match && m_header.header_data.HashDataHasFixedByteSize()) {
       // If the regex doesn't match and we have fixed size data, we can just

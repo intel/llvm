@@ -8,6 +8,7 @@
 
 #include "ByteCodeEmitter.h"
 #include "Context.h"
+#include "Floating.h"
 #include "Opcode.h"
 #include "Program.h"
 #include "clang/AST/DeclCXX.h"
@@ -21,59 +22,55 @@ using Error = llvm::Error;
 
 Expected<Function *>
 ByteCodeEmitter::compileFunc(const FunctionDecl *FuncDecl) {
-  // Function is not defined at all or not yet. We will
-  // create a Function instance but not compile the body. That
-  // will (maybe) happen later.
-  bool HasBody = FuncDecl->hasBody(FuncDecl);
+  // Set up argument indices.
+  unsigned ParamOffset = 0;
+  SmallVector<PrimType, 8> ParamTypes;
+  llvm::DenseMap<unsigned, Function::ParamDescriptor> ParamDescriptors;
+
+  // If the return is not a primitive, a pointer to the storage where the
+  // value is initialized in is passed as the first argument. See 'RVO'
+  // elsewhere in the code.
+  QualType Ty = FuncDecl->getReturnType();
+  bool HasRVO = false;
+  if (!Ty->isVoidType() && !Ctx.classify(Ty)) {
+    HasRVO = true;
+    ParamTypes.push_back(PT_Ptr);
+    ParamOffset += align(primSize(PT_Ptr));
+  }
+
+  // If the function decl is a member decl, the next parameter is
+  // the 'this' pointer. This parameter is pop()ed from the
+  // InterpStack when calling the function.
+  bool HasThisPointer = false;
+  if (const auto *MD = dyn_cast<CXXMethodDecl>(FuncDecl);
+      MD && MD->isInstance()) {
+    HasThisPointer = true;
+    ParamTypes.push_back(PT_Ptr);
+    ParamOffset += align(primSize(PT_Ptr));
+  }
+
+  // Assign descriptors to all parameters.
+  // Composite objects are lowered to pointers.
+  for (const ParmVarDecl *PD : FuncDecl->parameters()) {
+    PrimType Ty = Ctx.classify(PD->getType()).value_or(PT_Ptr);
+    Descriptor *Desc = P.createDescriptor(PD, Ty);
+    ParamDescriptors.insert({ParamOffset, {Ty, Desc}});
+    Params.insert({PD, ParamOffset});
+    ParamOffset += align(primSize(Ty));
+    ParamTypes.push_back(Ty);
+  }
 
   // Create a handle over the emitted code.
   Function *Func = P.getFunction(FuncDecl);
-  if (!Func) {
-    // Set up argument indices.
-    unsigned ParamOffset = 0;
-    SmallVector<PrimType, 8> ParamTypes;
-    llvm::DenseMap<unsigned, Function::ParamDescriptor> ParamDescriptors;
-
-    // If the return is not a primitive, a pointer to the storage where the
-    // value is initialized in is passed as the first argument. See 'RVO'
-    // elsewhere in the code.
-    QualType Ty = FuncDecl->getReturnType();
-    bool HasRVO = false;
-    if (!Ty->isVoidType() && !Ctx.classify(Ty)) {
-      HasRVO = true;
-      ParamTypes.push_back(PT_Ptr);
-      ParamOffset += align(primSize(PT_Ptr));
-    }
-
-    // If the function decl is a member decl, the next parameter is
-    // the 'this' pointer. This parameter is pop()ed from the
-    // InterpStack when calling the function.
-    bool HasThisPointer = false;
-    if (const auto *MD = dyn_cast<CXXMethodDecl>(FuncDecl);
-        MD && MD->isInstance()) {
-      HasThisPointer = true;
-      ParamTypes.push_back(PT_Ptr);
-      ParamOffset += align(primSize(PT_Ptr));
-    }
-
-    // Assign descriptors to all parameters.
-    // Composite objects are lowered to pointers.
-    for (const ParmVarDecl *PD : FuncDecl->parameters()) {
-      PrimType Ty = Ctx.classify(PD->getType()).value_or(PT_Ptr);
-      Descriptor *Desc = P.createDescriptor(PD, Ty);
-      ParamDescriptors.insert({ParamOffset, {Ty, Desc}});
-      Params.insert({PD, ParamOffset});
-      ParamOffset += align(primSize(Ty));
-      ParamTypes.push_back(Ty);
-    }
-
+  if (!Func)
     Func =
         P.createFunction(FuncDecl, ParamOffset, std::move(ParamTypes),
                          std::move(ParamDescriptors), HasThisPointer, HasRVO);
-  }
 
   assert(Func);
-  if (!HasBody)
+  // For not-yet-defined functions, we only create a Function instance and
+  // compile their body later.
+  if (!FuncDecl->isDefined())
     return Func;
 
   // Compile the function body.
@@ -94,7 +91,7 @@ ByteCodeEmitter::compileFunc(const FunctionDecl *FuncDecl) {
 
     // Set the function's code.
     Func->setCode(NextLocalOffset, std::move(Code), std::move(SrcMap),
-                  std::move(Scopes));
+                  std::move(Scopes), FuncDecl->hasBody());
     Func->setIsFullyCompiled(true);
     return Func;
   }
@@ -116,7 +113,8 @@ void ByteCodeEmitter::emitLabel(LabelTy Label) {
       using namespace llvm::support;
 
       /// Rewrite the operand of all jumps to this label.
-      void *Location = Code.data() + Reloc - sizeof(int32_t);
+      void *Location = Code.data() + Reloc - align(sizeof(int32_t));
+      assert(aligned(Location));
       const int32_t Offset = Target - static_cast<int64_t>(Reloc);
       endian::write<int32_t, endianness::native, 1>(Location, Offset);
     }
@@ -126,7 +124,9 @@ void ByteCodeEmitter::emitLabel(LabelTy Label) {
 
 int32_t ByteCodeEmitter::getOffset(LabelTy Label) {
   // Compute the PC offset which the jump is relative to.
-  const int64_t Position = Code.size() + sizeof(Opcode) + sizeof(int32_t);
+  const int64_t Position =
+      Code.size() + align(sizeof(Opcode)) + align(sizeof(int32_t));
+  assert(aligned(Position));
 
   // If target is known, compute jump offset.
   auto It = LabelOffsets.find(Label);
@@ -162,13 +162,17 @@ static void emit(Program &P, std::vector<char> &Code, const T &Val,
     return;
   }
 
+  // Access must be aligned!
+  size_t ValPos = align(Code.size());
+  Size = align(Size);
+  assert(aligned(ValPos + Size));
+  Code.resize(ValPos + Size);
+
   if constexpr (!std::is_pointer_v<T>) {
-    const char *Data = reinterpret_cast<const char *>(&Val);
-    Code.insert(Code.end(), Data, Data + Size);
+    new (Code.data() + ValPos) T(Val);
   } else {
     uint32_t ID = P.getOrCreateNativePointer(Val);
-    const char *Data = reinterpret_cast<const char *>(&ID);
-    Code.insert(Code.end(), Data, Data + Size);
+    new (Code.data() + ValPos) uint32_t(ID);
   }
 }
 

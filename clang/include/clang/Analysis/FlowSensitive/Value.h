@@ -19,6 +19,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <utility>
 
@@ -70,6 +71,11 @@ public:
   /// `Name`.
   void setProperty(llvm::StringRef Name, Value &Val) {
     Properties.insert_or_assign(Name, &Val);
+  }
+
+  llvm::iterator_range<llvm::StringMap<Value *>::const_iterator>
+  properties() const {
+    return {Properties.begin(), Properties.end()};
   }
 
 private:
@@ -306,9 +312,17 @@ public:
   /// Assigns `Val` as the child value for `D`.
   void setChild(const ValueDecl &D, Value &Val) { Children[&D] = &Val; }
 
+  llvm::iterator_range<
+      llvm::DenseMap<const ValueDecl *, Value *>::const_iterator>
+  children() const {
+    return {Children.begin(), Children.end()};
+  }
+
 private:
   llvm::DenseMap<const ValueDecl *, Value *> Children;
 };
+
+raw_ostream &operator<<(raw_ostream &OS, const Value &Val);
 
 } // namespace dataflow
 } // namespace clang

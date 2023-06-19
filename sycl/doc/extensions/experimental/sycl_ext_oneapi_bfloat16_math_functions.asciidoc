@@ -22,7 +22,7 @@
 
 == Notice
 
-Copyright © 2022-2022 Intel Corporation. All rights reserved.
+Copyright © 2022-2023 Intel Corporation. All rights reserved.
 
 Khronos® is a registered trademark and SYCL™ and SPIR™ are trademarks of
 The Khronos Group Inc. OpenCL™ is a trademark of Apple Inc. used by permission
@@ -55,13 +55,16 @@ specification.
 
 == Overview
 
-This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax`, `fabs`
-and `isnan` SYCL floating point math functions. These functions can be used as
-element wise operations on matrices, supplementing the `bfloat16` support
-in the sycl_ext_oneapi_matrix extension.
+This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax`, `fabs`,
+`isnan`, `ceil`, `floor`, `cos`, `sin`, `exp`, `exp2`, `exp10`, `log`, `log2`,
+`log10`, `rint`, `sqrt`, `rsqrt` and `trunc` SYCL floating point math functions.
+These functions can be used as element wise operations on matrices, supplementing
+the `bfloat16` support in the sycl_ext_oneapi_matrix extension.
 
-The descriptions of the `fma`, `fmin`, `fmax`, `fabs` and `isnan` SYCL floating
-point math functions can be found in the SYCL specification:
+The descriptions of the `fma`, `fmin`, `fmax`, `fabs`, `isnan`, `ceil`, `floor`,
+`cos`, `sin`, `exp`, `exp2`, `exp10`, `log`, `log2`, `log10`, `rint`, `sqrt`,
+`rsqrt` and `trunc` SYCL floating point math functions can be found in the SYCL
+specification:
 https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions.
 
 == Specification
@@ -80,7 +83,7 @@ supports.
 [%header,cols="1,5"]
 |===
 |Value |Description
-|1     |Initial extension version. Base features are supported.
+|1     |The APIs of this experimental extension are not versioned, so the feature-test macro always has this value.
 |===   
 
 === Extension to `enum class aspect`
@@ -184,7 +187,194 @@ T fabs(T x);
 
 ===== Description
 
-Compute absolute value of a `bfloat16`.
+Compute absolute value of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== ceil
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T ceil(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Returns `x` rounded to an integral value using the round to positive infinity rounding mode
+
+==== floor
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T floor(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Returns `x` rounded to an integral value using the round to negative infinity rounding mode
+for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== cos
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T cos(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute cosine of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== sin
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T sin(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute sine of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+
+==== exp
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T exp(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute the base-e exponential of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== exp2
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T exp2(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute the base-2 exponential of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== exp10
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T exp10(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute the base-10 exponential of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== log
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T log(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute natural logarithm of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== log2
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T log2(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute base-2 logarithm of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== log10
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T log10(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute base-10 logarithm of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+
+==== rint
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T rint(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Returns `x` rounded to an integral value using the round to nearest even rounding mode
+for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== sqrt
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T sqrt(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute square root of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== rsqrt
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T rsqrt(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute inverse square root of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== trunc
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T trunc(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Returns `x` rounded to an integral value using the round to zero rounding mode
+for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
 
 == Issues
 

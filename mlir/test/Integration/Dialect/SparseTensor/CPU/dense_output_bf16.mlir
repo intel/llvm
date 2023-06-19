@@ -2,7 +2,7 @@
 // DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
 // DEFINE: mlir-cpu-runner \
 // DEFINE:  -e entry -entry-point-result=void  \
-// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils | \
 // DEFINE: FileCheck %s
 //
 // RUN: %{command}
@@ -17,8 +17,8 @@
 
 // UNSUPPORTED: target=aarch64{{.*}}
 
-#SparseVector = #sparse_tensor.encoding<{dimLevelType = ["compressed"]}>
-#DenseVector = #sparse_tensor.encoding<{dimLevelType = ["dense"]}>
+#SparseVector = #sparse_tensor.encoding<{lvlTypes = ["compressed"]}>
+#DenseVector = #sparse_tensor.encoding<{lvlTypes = ["dense"]}>
 
 #trait_vec_op = {
   indexing_maps = [

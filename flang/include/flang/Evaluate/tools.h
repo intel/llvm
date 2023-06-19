@@ -970,6 +970,7 @@ bool IsAllocatableDesignator(const Expr<SomeType> &);
 // Procedure and pointer detection predicates
 bool IsProcedure(const Expr<SomeType> &);
 bool IsFunction(const Expr<SomeType> &);
+bool IsProcedurePointer(const Expr<SomeType> &);
 bool IsProcedurePointerTarget(const Expr<SomeType> &);
 bool IsBareNullPointer(const Expr<SomeType> *); // NULL() w/o MOLD= or type
 bool IsNullObjectPointer(const Expr<SomeType> &);
@@ -1200,6 +1201,8 @@ bool IsLenTypeParameter(const Symbol &);
 bool IsExtensibleType(const DerivedTypeSpec *);
 bool IsBuiltinDerivedType(const DerivedTypeSpec *derived, const char *name);
 bool IsBuiltinCPtr(const Symbol &);
+bool IsEventType(const DerivedTypeSpec *);
+bool IsLockType(const DerivedTypeSpec *);
 // Is this derived type TEAM_TYPE from module ISO_FORTRAN_ENV?
 bool IsTeamType(const DerivedTypeSpec *);
 // Is this derived type TEAM_TYPE, C_PTR, or C_FUNPTR?
@@ -1217,17 +1220,14 @@ bool IsEventTypeOrLockType(const DerivedTypeSpec *);
 // of the construct entity.
 // (E.g., for ASSOCIATE(x => y%z), ResolveAssociations(x) returns x,
 // while GetAssociationRoot(x) returns y.)
+// ResolveAssociationsExceptSelectRank() stops at a RANK case symbol.
 const Symbol &ResolveAssociations(const Symbol &);
 const Symbol &GetAssociationRoot(const Symbol &);
+const Symbol &ResolveAssociationsExceptSelectRank(const Symbol &);
 
 const Symbol *FindCommonBlockContaining(const Symbol &);
 int CountLenParameters(const DerivedTypeSpec &);
 int CountNonConstantLenParameters(const DerivedTypeSpec &);
-
-// 15.5.2.4(4), type compatibility for dummy and actual arguments.
-// Also used for assignment compatibility checking
-bool AreTypeParamCompatible(
-    const semantics::DerivedTypeSpec &, const semantics::DerivedTypeSpec &);
 
 const Symbol &GetUsedModule(const UseDetails &);
 const Symbol *FindFunctionResult(const Symbol &);
@@ -1236,6 +1236,8 @@ const Symbol *FindFunctionResult(const Symbol &);
 // Uses DynamicType::IsTkCompatible(), which handles the case of distinct
 // but identical derived types.
 bool AreTkCompatibleTypes(const DeclTypeSpec *x, const DeclTypeSpec *y);
+
+common::IgnoreTKRSet GetIgnoreTKR(const Symbol &);
 
 } // namespace Fortran::semantics
 

@@ -423,15 +423,6 @@ Case 1 can be identified in the device binary generation stage (step 1) by
 scanning the known kernels. Case 2 must be verified by the driver by checking
 for newly introduced kernels in the final link stage (step 3).
 
-The llvm-no-spir-kernel tool was introduced to facilitate checking for case 2 in
-the driver. It detects if a module includes kernels and is invoked as follows:
-
-```bash
-llvm-no-spir-kernel host.bc
-```
-
-It returns 0 if no kernels are present and 1 otherwise.
-
 #### Device code post-link step
 
 At link time all the device code is linked into
@@ -757,6 +748,29 @@ entry:
 ```
 
 Note: Kernel naming is not fully stable for now.
+
+##### Kernel Fusion Support
+
+The [experimental kernel fusion
+extension](../extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc)
+also supports the CUDA backend. However, as neither CUBIN nor PTX are a suitable
+input format for the [kernel fusion JIT compiler](KernelFusionJIT.md), a
+suitable IR has to be added as an additional device binary.
+
+Therefore, in case kernel fusion should be performed for the CUDA backend, the
+user needs to specify the additional flag `-fsycl-embed-ir` during compilation,
+to add LLVM IR as an additional device binary. When the flag `-fsycl-embed-ir`
+is specified, the LLVM IR produced by Clang for the CUDA backend device
+compilation is added to the fat binary file. To this end, the resulting
+file-table from `sycl-post-link` is additionally passed to the
+`clang-offload-wrapper`, creating a wrapper object with target `llvm_nvptx64`.
+
+This device binary in LLVM IR format can be retrieved by the SYCL runtime and
+used by the kernel fusion JIT compiler. The resulting fused kernel is compiled
+to PTX assembly by the kernel fusion JIT compiler at runtime.
+
+Note that the device binary in LLVM IR does not replace the device binary in
+CUBIN/PTX format, but is embed in addition to it.
 
 ### Integration with SPIR-V format
 

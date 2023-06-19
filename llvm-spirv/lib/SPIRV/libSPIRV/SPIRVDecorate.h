@@ -60,6 +60,11 @@ public:
   // Complete constructor for decorations with two word literals
   SPIRVDecorateGeneric(Op OC, SPIRVWord WC, Decoration TheDec,
                        SPIRVEntry *TheTarget, SPIRVWord V1, SPIRVWord V2);
+  // Complete constructor for decorations with three word literals
+  SPIRVDecorateGeneric(Op OC, SPIRVWord WC, Decoration TheDec,
+                       SPIRVEntry *TheTarget, SPIRVWord V1, SPIRVWord V2,
+                       SPIRVWord V3);
+
   // Incomplete constructor
   SPIRVDecorateGeneric(Op OC);
 
@@ -94,6 +99,8 @@ public:
 
     case DecorationMaxByteOffset:
       return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+    case DecorationUserSemantic:
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4);
 
     default:
       return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
@@ -122,14 +129,16 @@ public:
   SPIRVDecorate(Decoration TheDec, SPIRVEntry *TheTarget, SPIRVWord V1,
                 SPIRVWord V2)
       : SPIRVDecorateGeneric(OC, 5, TheDec, TheTarget, V1, V2) {}
+  // Complete constructor for decorations with three word literals
+  SPIRVDecorate(Decoration TheDec, SPIRVEntry *TheTarget, SPIRVWord V1,
+                SPIRVWord V2, SPIRVWord V3)
+      : SPIRVDecorateGeneric(OC, 6, TheDec, TheTarget, V1, V2, V3) {}
+
   // Incomplete constructor
   SPIRVDecorate() : SPIRVDecorateGeneric(OC) {}
 
   std::optional<ExtensionID> getRequiredExtension() const override {
     switch (static_cast<size_t>(Dec)) {
-    case DecorationNoSignedWrap:
-    case DecorationNoUnsignedWrap:
-      return ExtensionID::SPV_KHR_no_integer_wrap_decoration;
     case DecorationRegisterINTEL:
     case DecorationMemoryINTEL:
     case DecorationNumbanksINTEL:
@@ -189,6 +198,9 @@ public:
     case DecorationMMHostInterfaceMaxBurstINTEL:
     case DecorationMMHostInterfaceWaitRequestINTEL:
       return ExtensionID::SPV_INTEL_fpga_argument_interfaces;
+    case DecorationLatencyControlLabelINTEL:
+    case DecorationLatencyControlConstraintINTEL:
+      return ExtensionID::SPV_INTEL_fpga_latency_control;
     default:
       return {};
     }

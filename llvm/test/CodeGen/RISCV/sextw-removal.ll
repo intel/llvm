@@ -198,7 +198,7 @@ define void @test5(i32 signext %arg, i32 signext %arg1) nounwind {
 ; RV64I-NEXT:    srli a2, a0, 4
 ; RV64I-NEXT:    add a0, a0, a2
 ; RV64I-NEXT:    and a0, a0, s2
-; RV64I-NEXT:    mulw a0, a0, s3
+; RV64I-NEXT:    mul a0, a0, s3
 ; RV64I-NEXT:    srliw a0, a0, 24
 ; RV64I-NEXT:    bnez a1, .LBB4_1
 ; RV64I-NEXT:  # %bb.2: # %bb7
@@ -322,15 +322,23 @@ define void @test7(i32 signext %arg, i32 signext %arg1) nounwind {
 ; RV64I-NEXT:    sd s1, 24(sp) # 8-byte Folded Spill
 ; RV64I-NEXT:    sd s2, 16(sp) # 8-byte Folded Spill
 ; RV64I-NEXT:    sd s3, 8(sp) # 8-byte Folded Spill
-; RV64I-NEXT:    lui a2, %hi(.LCPI6_0)
-; RV64I-NEXT:    ld s0, %lo(.LCPI6_0)(a2)
-; RV64I-NEXT:    lui a2, %hi(.LCPI6_1)
-; RV64I-NEXT:    ld s1, %lo(.LCPI6_1)(a2)
-; RV64I-NEXT:    lui a2, %hi(.LCPI6_2)
-; RV64I-NEXT:    ld s2, %lo(.LCPI6_2)(a2)
-; RV64I-NEXT:    lui a2, %hi(.LCPI6_3)
-; RV64I-NEXT:    ld s3, %lo(.LCPI6_3)(a2)
 ; RV64I-NEXT:    sraw a0, a0, a1
+; RV64I-NEXT:    lui a1, 349525
+; RV64I-NEXT:    addiw s0, a1, 1365
+; RV64I-NEXT:    slli a1, s0, 32
+; RV64I-NEXT:    add s0, s0, a1
+; RV64I-NEXT:    lui a1, 209715
+; RV64I-NEXT:    addiw s1, a1, 819
+; RV64I-NEXT:    slli a1, s1, 32
+; RV64I-NEXT:    add s1, s1, a1
+; RV64I-NEXT:    lui a1, 61681
+; RV64I-NEXT:    addiw s2, a1, -241
+; RV64I-NEXT:    slli a1, s2, 32
+; RV64I-NEXT:    add s2, s2, a1
+; RV64I-NEXT:    lui a1, 4112
+; RV64I-NEXT:    addiw s3, a1, 257
+; RV64I-NEXT:    slli a1, s3, 32
+; RV64I-NEXT:    add s3, s3, a1
 ; RV64I-NEXT:  .LBB6_1: # %bb2
 ; RV64I-NEXT:    # =>This Inner Loop Header: Depth=1
 ; RV64I-NEXT:    call foo@plt
@@ -1374,3 +1382,71 @@ define signext i32 @sextw_sh2add(i1 zeroext %0, ptr %1, i32 signext %2, i32 sign
   %10 = add i32 %7, %4
   ret i32 %10
 }
+
+; Negative test - an explicit sext.w *is* required
+define signext i32 @test19(i64 %arg, i1 zeroext %c1, i1 zeroext %c2, ptr %p) nounwind {
+; CHECK-LABEL: test19:
+; CHECK:       # %bb.0: # %bb
+; CHECK-NEXT:    addi sp, sp, -16
+; CHECK-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 0(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    neg a0, a1
+; CHECK-NEXT:    li a1, 1
+; CHECK-NEXT:    slli a1, a1, 32
+; CHECK-NEXT:    addi s0, a1, 35
+; CHECK-NEXT:    and s0, a0, s0
+; CHECK-NEXT:    sd s0, 0(a3)
+; CHECK-NEXT:    beqz a2, .LBB23_2
+; CHECK-NEXT:  # %bb.1: # %bb2
+; CHECK-NEXT:    li a0, 0
+; CHECK-NEXT:    call bar@plt
+; CHECK-NEXT:    mv s0, a0
+; CHECK-NEXT:  .LBB23_2: # %bb7
+; CHECK-NEXT:    call side_effect@plt
+; CHECK-NEXT:    sext.w a0, s0
+; CHECK-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 0(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 16
+; CHECK-NEXT:    ret
+;
+; NOREMOVAL-LABEL: test19:
+; NOREMOVAL:       # %bb.0: # %bb
+; NOREMOVAL-NEXT:    addi sp, sp, -16
+; NOREMOVAL-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; NOREMOVAL-NEXT:    sd s0, 0(sp) # 8-byte Folded Spill
+; NOREMOVAL-NEXT:    neg a0, a1
+; NOREMOVAL-NEXT:    li a1, 1
+; NOREMOVAL-NEXT:    slli a1, a1, 32
+; NOREMOVAL-NEXT:    addi s0, a1, 35
+; NOREMOVAL-NEXT:    and s0, a0, s0
+; NOREMOVAL-NEXT:    sd s0, 0(a3)
+; NOREMOVAL-NEXT:    beqz a2, .LBB23_2
+; NOREMOVAL-NEXT:  # %bb.1: # %bb2
+; NOREMOVAL-NEXT:    li a0, 0
+; NOREMOVAL-NEXT:    call bar@plt
+; NOREMOVAL-NEXT:    mv s0, a0
+; NOREMOVAL-NEXT:  .LBB23_2: # %bb7
+; NOREMOVAL-NEXT:    call side_effect@plt
+; NOREMOVAL-NEXT:    sext.w a0, s0
+; NOREMOVAL-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; NOREMOVAL-NEXT:    ld s0, 0(sp) # 8-byte Folded Reload
+; NOREMOVAL-NEXT:    addi sp, sp, 16
+; NOREMOVAL-NEXT:    ret
+bb:
+  %sel = select i1 %c1, i64 4294967331, i64 0
+  store i64 %sel, ptr %p, align 8
+  br i1 %c2, label %bb2, label %bb7
+
+bb2:                                              ; preds = %bb2, %bb
+  %i4 = call signext i32 @bar(i32 0)
+  %i4.sext = sext i32 %i4 to i64
+  br label %bb7
+
+bb7:                                              ; preds = %bb2
+  %phi = phi i64 [ %sel, %bb ], [ %i4.sext, %bb2 ]
+  %trunc = trunc i64 %phi to i32
+  call void @side_effect()
+  ret i32 %trunc
+}
+
+ declare void @side_effect(i64)

@@ -83,6 +83,12 @@ bool YAMLProfileReader::parseFunctionProfile(
 
   BF.setExecutionCount(YamlBF.ExecCount);
 
+  uint64_t FuncRawBranchCount = 0;
+  for (const yaml::bolt::BinaryBasicBlockProfile &YamlBB : YamlBF.Blocks)
+    for (const yaml::bolt::SuccessorInfo &YamlSI : YamlBB.Successors)
+      FuncRawBranchCount += YamlSI.Count;
+  BF.setRawBranchCount(FuncRawBranchCount);
+
   if (!opts::IgnoreHash && YamlBF.Hash != BF.computeHash(/*UseDFS=*/true)) {
     if (opts::Verbosity >= 1)
       errs() << "BOLT-WARNING: function hash mismatch\n";
@@ -285,10 +291,10 @@ Error YAMLProfileReader::preprocessProfile(BinaryContext &BC) {
 
 bool YAMLProfileReader::mayHaveProfileData(const BinaryFunction &BF) {
   for (StringRef Name : BF.getNames()) {
-    if (ProfileNameToProfile.find(Name) != ProfileNameToProfile.end())
+    if (ProfileNameToProfile.contains(Name))
       return true;
     if (const std::optional<StringRef> CommonName = getLTOCommonName(Name)) {
-      if (LTOCommonNameMap.find(*CommonName) != LTOCommonNameMap.end())
+      if (LTOCommonNameMap.contains(*CommonName))
         return true;
     }
   }

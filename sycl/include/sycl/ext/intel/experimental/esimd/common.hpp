@@ -109,6 +109,18 @@ template <typename T, lsc_data_size DS> constexpr void check_lsc_data_size() {
   static_assert(DS != lsc_data_size::default_size || sizeof(T) == 1 ||
                     sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
                 "Unsupported data type");
+  static_assert(
+      DS == lsc_data_size::default_size ||
+          (sizeof(T) == 1 &&
+           (DS == lsc_data_size::u8 || DS == lsc_data_size::u8u32)) ||
+          (sizeof(T) == 2 &&
+           (DS == lsc_data_size::u16 || DS == lsc_data_size::u16u32 ||
+            DS == lsc_data_size::u16u32h)) ||
+          (sizeof(T) == 4 &&
+           (DS == lsc_data_size::u32 || DS == lsc_data_size::u8u32 ||
+            DS == lsc_data_size::u16u32 || DS == lsc_data_size::u16u32h)) ||
+          (sizeof(T) == 8 && DS == lsc_data_size::u64),
+      "Data type does not match data size");
 }
 
 template <lsc_vector_size VS> constexpr uint8_t to_int() {
@@ -187,8 +199,8 @@ constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
 template <typename T> struct lsc_expand_type {
   using type = std::conditional_t<
       sizeof(T) <= 4,
-      std::conditional_t<std::is_signed<T>::value, int32_t, uint32_t>,
-      std::conditional_t<std::is_signed<T>::value, int64_t, uint64_t>>;
+      std::conditional_t<std::is_signed_v<T>, int32_t, uint32_t>,
+      std::conditional_t<std::is_signed_v<T>, int64_t, uint64_t>>;
 };
 
 template <typename T> struct lsc_bitcast_type {
@@ -220,12 +232,11 @@ template <cache_hint Hint> class cache_hint_wrap {
   template <cache_hint...> struct is_one_of_t;
   template <cache_hint Last>
   struct is_one_of_t<Last>
-      : std::conditional<Last == Hint, std::true_type, std::false_type>::type {
-  };
+      : std::conditional_t<Last == Hint, std::true_type, std::false_type> {};
   template <cache_hint Head, cache_hint... Tail>
   struct is_one_of_t<Head, Tail...>
-      : std::conditional<Head == Hint, std::true_type,
-                         is_one_of_t<Tail...>>::type {};
+      : std::conditional_t<Head == Hint, std::true_type, is_one_of_t<Tail...>> {
+  };
 
 public:
   constexpr operator cache_hint() const { return Hint; }

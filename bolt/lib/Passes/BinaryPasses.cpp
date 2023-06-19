@@ -26,9 +26,7 @@
 using namespace llvm;
 using namespace bolt;
 
-namespace {
-
-const char *dynoStatsOptName(const bolt::DynoStats::Category C) {
+static const char *dynoStatsOptName(const bolt::DynoStats::Category C) {
   assert(C > bolt::DynoStats::FIRST_DYNO_STAT &&
          C < DynoStats::LAST_DYNO_STAT && "Unexpected dyno stat category.");
 
@@ -39,7 +37,6 @@ const char *dynoStatsOptName(const bolt::DynoStats::Category C) {
   std::replace(OptNames[C].begin(), OptNames[C].end(), ' ', '-');
 
   return OptNames[C].c_str();
-}
 }
 
 namespace opts {
@@ -629,7 +626,29 @@ void LowerAnnotations::runOnFunctions(BinaryContext &BC) {
     BC.MIB->setOffset(*Item.first, Item.second);
 }
 
-namespace {
+// Check for dirty state in MCSymbol objects that might be a consequence
+// of running calculateEmittedSize() in parallel, during split functions
+// pass. If an inconsistent state is found (symbol already registered or
+// already defined), clean it.
+void CleanMCState::runOnFunctions(BinaryContext &BC) {
+  MCContext &Ctx = *BC.Ctx;
+  for (const auto &SymMapEntry : Ctx.getSymbols()) {
+    const MCSymbol *S = SymMapEntry.second;
+    if (S->isDefined()) {
+      LLVM_DEBUG(dbgs() << "BOLT-DEBUG: Symbol \"" << S->getName()
+                        << "\" is already defined\n");
+      const_cast<MCSymbol *>(S)->setUndefined();
+    }
+    if (S->isRegistered()) {
+      LLVM_DEBUG(dbgs() << "BOLT-DEBUG: Symbol \"" << S->getName()
+                        << "\" is already registered\n");
+      const_cast<MCSymbol *>(S)->setIsRegistered(false);
+    }
+    LLVM_DEBUG(if (S->isVariable()) {
+      dbgs() << "BOLT-DEBUG: Symbol \"" << S->getName() << "\" is variable\n";
+    });
+  }
+}
 
 // This peephole fixes jump instructions that jump to another basic
 // block with a single jump instruction, e.g.
@@ -644,7 +663,7 @@ namespace {
 // B0: ...
 //     jmp  B2   (or jcc B2)
 //
-uint64_t fixDoubleJumps(BinaryFunction &Function, bool MarkInvalid) {
+static uint64_t fixDoubleJumps(BinaryFunction &Function, bool MarkInvalid) {
   uint64_t NumDoubleJumps = 0;
 
   MCContext *Ctx = Function.getBinaryContext().Ctx.get();
@@ -742,7 +761,6 @@ uint64_t fixDoubleJumps(BinaryFunction &Function, bool MarkInvalid) {
 
   return NumDoubleJumps;
 }
-} // namespace
 
 bool SimplifyConditionalTailCalls::shouldRewriteBranch(
     const BinaryBasicBlock *PredBB, const MCInst &CondBranch,

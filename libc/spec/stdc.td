@@ -408,10 +408,13 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"log10", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"log10f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
+          FunctionSpec<"log1p", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"log1pf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
+          FunctionSpec<"log2", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"log2f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
+          FunctionSpec<"log", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"logf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
           FunctionSpec<"logb", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
@@ -492,7 +495,13 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"asin", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"atanf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
+          FunctionSpec<"acoshf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+          FunctionSpec<"asinhf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
           FunctionSpec<"atanhf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"scalbn", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<IntType>]>,
+          FunctionSpec<"scalbnf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<IntType>]>,
+          FunctionSpec<"scalbnl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<IntType>]>,
       ]
   >;
 
@@ -573,6 +582,11 @@ def StdC : StandardSpec<"stdc"> {
               "getc",
               RetValSpec<IntType>,
               [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "getchar",
+              RetValSpec<IntType>,
+              [ArgSpec<VoidType>]
           >,
           FunctionSpec<
               "putc",
@@ -1063,6 +1077,27 @@ def StdC : StandardSpec<"stdc"> {
       ]
   >;
 
+  HeaderSpec WChar = HeaderSpec<
+      "wchar.h",
+      [ // Macros
+        Macro<"WEOF">,
+      ], 
+      [ //Types
+        SizeTType,
+        WIntType,
+        WCharType,
+      ],
+      [], // Enumerations
+      [
+          FunctionSpec<
+              "wctob",
+              RetValSpec<IntType>,
+              [ArgSpec<WIntType>]
+          >,
+      ]
+  >;
+
+
   let Headers = [
     Assert,
     CType,
@@ -1077,5 +1112,6 @@ def StdC : StandardSpec<"stdc"> {
     Signal,
     Threads,
     Time,
+    WChar,
   ];
 }

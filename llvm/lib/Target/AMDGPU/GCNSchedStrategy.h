@@ -75,18 +75,28 @@ public:
   // track register pressure for actual scheduling heuristics.
   bool HasHighPressure;
 
+  // Schedule known to have excess register pressure. Be more conservative in
+  // increasing ILP and preserving VGPRs.
+  bool KnownExcessRP = false;
+
   // An error margin is necessary because of poor performance of the generic RP
   // tracker and can be adjusted up for tuning heuristics to try and more
   // aggressively reduce register pressure.
-  const unsigned DefaultErrorMargin = 3;
+  unsigned ErrorMargin = 3;
 
-  const unsigned HighRPErrorMargin = 10;
+  // Bias for SGPR limits under a high register pressure.
+  const unsigned HighRPSGPRBias = 7;
 
-  unsigned ErrorMargin = DefaultErrorMargin;
+  // Bias for VGPR limits under a high register pressure.
+  const unsigned HighRPVGPRBias = 7;
 
   unsigned SGPRCriticalLimit;
 
   unsigned VGPRCriticalLimit;
+
+  unsigned SGPRLimitBias = 0;
+
+  unsigned VGPRLimitBias = 0;
 
   GCNSchedStrategy(const MachineSchedContext *C);
 
@@ -295,6 +305,11 @@ public:
 
   // Returns true if scheduling should be reverted.
   virtual bool shouldRevertScheduling(unsigned WavesAfter);
+
+  // Returns true if current region has known excess pressure.
+  bool isRegionWithExcessRP() const {
+    return DAG.RegionsWithExcessRP[RegionIdx];
+  }
 
   // Returns true if the new schedule may result in more spilling.
   bool mayCauseSpilling(unsigned WavesAfter);

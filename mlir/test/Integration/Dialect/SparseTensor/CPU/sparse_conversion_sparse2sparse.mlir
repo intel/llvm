@@ -1,48 +1,59 @@
 // Force this file to use the kDirect method for sparse2sparse.
 // DEFINE: %{option} = "enable-runtime-library=true s2s-strategy=2"
-// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
-// DEFINE: mlir-cpu-runner \
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = mlir-cpu-runner \
 // DEFINE:  -e entry -entry-point-result=void  \
-// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils | \
 // DEFINE: FileCheck %s
 //
-// RUN: %{command}
+// RUN: %{compile} | %{run}
 //
 // Do the same run, but now with direct IR generation.
 // REDEFINE: %{option} = "enable-runtime-library=false s2s-strategy=2"
-// RUN: %{command}
+// RUN: %{compile} | %{run}
 //
 // Do the same run, but now with direct IR generation and vectorization.
 // REDEFINE: %{option} = "enable-runtime-library=false s2s-strategy=2 vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
-// RUN: %{command}
+// RUN: %{compile} | %{run}
+
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = %lli_host_or_aarch64_cmd \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
 #Tensor1 = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "dense", "compressed" ]
+  lvlTypes = [ "dense", "dense", "compressed" ]
 }>
 
 // NOTE: dense after compressed is not currently supported for the target
 // of direct-sparse2sparse conversion.  (It's fine for the source though.)
 #Tensor2 = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed", "dense" ]
+  lvlTypes = [ "dense", "compressed", "dense" ]
 }>
 
 #Tensor3 = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "dense", "compressed" ],
-  dimOrdering = affine_map<(i,j,k) -> (i,k,j)>
+  lvlTypes = [ "dense", "dense", "compressed" ],
+  dimToLvl = affine_map<(i,j,k) -> (i,k,j)>
 }>
 
 #SingletonTensor1 = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed", "singleton" ]
+  lvlTypes = [ "dense", "compressed", "singleton" ]
 }>
 
 // This also checks the compressed->dense conversion (when there are zeros).
 #SingletonTensor2 = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "dense", "singleton" ]
+  lvlTypes = [ "dense", "dense", "singleton" ]
 }>
 
 // This also checks the singleton->compressed conversion.
 #SingletonTensor3 = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "dense", "compressed" ]
+  lvlTypes = [ "dense", "dense", "compressed" ]
 }>
 
 module {

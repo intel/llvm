@@ -2,21 +2,28 @@
 add_llvm_library(sycl-fusion
    lib/KernelFusion.cpp
    lib/JITContext.cpp
+   lib/translation/KernelTranslation.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
    lib/fusion/FusionPipeline.cpp
    lib/fusion/FusionHelper.cpp
    lib/fusion/ModuleHelper.cpp
    lib/helper/ConfigHelper.cpp
 
-  LINK_COMPONENTS
+   LINK_COMPONENTS
+   BitReader
    Core
    Support
    Analysis
+   IPO
    TransformUtils
    Passes
    Linker
    ScalarOpts
    InstCombine
+   Target
+   TargetParser
+   MC
+   ${LLVM_TARGETS_TO_BUILD}
 )
 
 target_include_directories(sycl-fusion
@@ -33,10 +40,15 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-fusion
   PRIVATE
+  sycl-fusion-common
   LLVMSPIRVLib
   SYCLKernelFusionPasses
   ${CMAKE_THREAD_LIBS_INIT}
 )
+
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(sycl-fusion PRIVATE FUSION_JIT_SUPPORT_PTX)
+endif()
 
 if (BUILD_SHARED_LIBS)
   if(NOT MSVC AND NOT APPLE)

@@ -116,23 +116,9 @@ Instruction *InstCombinerImpl::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
     return &RMWI;
   }
 
-  AtomicOrdering Ordering = RMWI.getOrdering();
-  assert(Ordering != AtomicOrdering::NotAtomic &&
-         Ordering != AtomicOrdering::Unordered &&
+  assert(RMWI.getOrdering() != AtomicOrdering::NotAtomic &&
+         RMWI.getOrdering() != AtomicOrdering::Unordered &&
          "AtomicRMWs don't make sense with Unordered or NotAtomic");
-
-  // Any atomicrmw xchg with no uses can be converted to a atomic store if the
-  // ordering is compatible.
-  if (RMWI.getOperation() == AtomicRMWInst::Xchg &&
-      RMWI.use_empty()) {
-    if (Ordering != AtomicOrdering::Release &&
-        Ordering != AtomicOrdering::Monotonic)
-      return nullptr;
-    new StoreInst(RMWI.getValOperand(), RMWI.getPointerOperand(),
-                  /*isVolatile*/ false, RMWI.getAlign(), Ordering,
-                  RMWI.getSyncScopeID(), &RMWI);
-    return eraseInstFromFunction(RMWI);
-  }
 
   if (!isIdempotentRMW(RMWI))
     return nullptr;
@@ -151,13 +137,5 @@ Instruction *InstCombinerImpl::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
     return replaceOperand(RMWI, 1, ConstantFP::getNegativeZero(RMWI.getType()));
   }
 
-  // Check if the required ordering is compatible with an atomic load.
-  if (Ordering != AtomicOrdering::Acquire &&
-      Ordering != AtomicOrdering::Monotonic)
-    return nullptr;
-
-  LoadInst *Load = new LoadInst(RMWI.getType(), RMWI.getPointerOperand(), "",
-                                false, DL.getABITypeAlign(RMWI.getType()),
-                                Ordering, RMWI.getSyncScopeID());
-  return Load;
+  return nullptr;
 }

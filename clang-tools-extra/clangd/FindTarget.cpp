@@ -288,7 +288,7 @@ public:
         for (const DesignatedInitExpr::Designator &D :
              llvm::reverse(DIE->designators()))
           if (D.isFieldDesignator()) {
-            Outer.add(D.getField(), Flags);
+            Outer.add(D.getFieldDecl(), Flags);
             // We don't know which designator was intended, we assume the outer.
             break;
           }
@@ -808,7 +808,7 @@ llvm::SmallVector<ReferenceLoc> refInStmt(const Stmt *S,
         Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
                                     D.getFieldLoc(),
                                     /*IsDecl=*/false,
-                                    {D.getField()}});
+                                    {D.getFieldDecl()}});
       }
     }
 
@@ -1042,6 +1042,17 @@ public:
   bool TraverseConstructorInitializer(CXXCtorInitializer *Init) {
     visitNode(DynTypedNode::create(*Init));
     return RecursiveASTVisitor::TraverseConstructorInitializer(Init);
+  }
+
+  bool TraverseTypeConstraint(const TypeConstraint *TC) {
+    // We want to handle all ConceptReferences but RAV is missing a
+    // polymorphic Visit or Traverse method for it, so we handle
+    // TypeConstraints specially here.
+    Out(ReferenceLoc{TC->getNestedNameSpecifierLoc(),
+                     TC->getConceptNameLoc(),
+                     /*IsDecl=*/false,
+                     {TC->getNamedConcept()}});
+    return RecursiveASTVisitor::TraverseTypeConstraint(TC);
   }
 
 private:

@@ -57,18 +57,15 @@ struct SemaRecord {
   // Suffix of overloaded intrinsic name.
   SmallVector<PrototypeDescriptor> OverloadedSuffix;
 
-  // BitMask for supported policies.
-  uint16_t PolicyBitMask;
-
   // Number of field, large than 1 if it's segment load/store.
   unsigned NF;
 
   bool HasMasked :1;
   bool HasVL :1;
   bool HasMaskedOffOperand :1;
-  bool IsPrototypeDefaultTU : 1;
   bool HasTailPolicy : 1;
   bool HasMaskPolicy : 1;
+  bool IsTuple : 1;
   uint8_t UnMaskedPolicyScheme : 2;
   uint8_t MaskedPolicyScheme : 2;
 };
@@ -164,18 +161,11 @@ void emitCodeGenSwitchBody(const RVVIntrinsic *RVVI, raw_ostream &OS) {
     OS << "  ID = Intrinsic::riscv_" + RVVI->getIRName() + ";\n";
   if (RVVI->getNF() >= 2)
     OS << "  NF = " + utostr(RVVI->getNF()) + ";\n";
-  // We had initialized PolicyAttrs as TU/TUMU in CodeGen function.
-  if (!RVVI->getPolicyAttrs().isTUPolicy() &&
-      !RVVI->getPolicyAttrs().isTUMUPolicy() && !RVVI->hasPassthruOperand() &&
-      !RVVI->hasManualCodegen() && RVVI->hasVL())
-    OS << "  PolicyAttrs = " << RVVI->getPolicyAttrsBits() << ";\n";
+
+  OS << "  PolicyAttrs = " << RVVI->getPolicyAttrsBits() << ";\n";
 
   if (RVVI->hasManualCodegen()) {
-    OS << "  PolicyAttrs = " << RVVI->getPolicyAttrsBits() << ";\n";
-    if (RVVI->isMasked())
-      OS << "IsMasked = true;\n";
-    else
-      OS << "IsMasked = false;\n";
+    OS << "IsMasked = " << (RVVI->isMasked() ? "true" : "false") << ";\n";
     OS << RVVI->getManualCodegen();
     OS << "break;\n";
     return;
@@ -374,34 +364,27 @@ void RVVEmitter::createHeader(raw_ostream &OS) {
                                 TypeModifier::UnsignedInteger));
         printType(*UT);
       }
+      // FIXME: Expand more type declaration
+      if (I == 'i' && Log2LMUL == 0) { // vint32m1x2_t
+        auto TupleT = TypeCache.computeType(
+            BT, Log2LMUL,
+            PrototypeDescriptor(BaseTypeModifier::Vector,
+                                VectorTypeModifier::Tuple2,
+                                TypeModifier::SignedInteger));
+        if (TupleT)
+          printType(*TupleT);
+      }
     }
   }
-  OS << "#if defined(__riscv_zvfh)\n";
-  for (int Log2LMUL : Log2LMULs) {
-    auto T = TypeCache.computeType(BasicType::Float16, Log2LMUL,
-                                   PrototypeDescriptor::Vector);
-    if (T)
-      printType(*T);
-  }
-  OS << "#endif\n";
 
-  OS << "#if (__riscv_v_elen_fp >= 32)\n";
-  for (int Log2LMUL : Log2LMULs) {
-    auto T = TypeCache.computeType(BasicType::Float32, Log2LMUL,
-                                   PrototypeDescriptor::Vector);
-    if (T)
-      printType(*T);
+  for (BasicType BT :
+       {BasicType::Float16, BasicType::Float32, BasicType::Float64}) {
+    for (int Log2LMUL : Log2LMULs) {
+      auto T = TypeCache.computeType(BT, Log2LMUL, PrototypeDescriptor::Vector);
+      if (T)
+        printType(*T);
+    }
   }
-  OS << "#endif\n";
-
-  OS << "#if (__riscv_v_elen_fp >= 64)\n";
-  for (int Log2LMUL : Log2LMULs) {
-    auto T = TypeCache.computeType(BasicType::Float64, Log2LMUL,
-                                   PrototypeDescriptor::Vector);
-    if (T)
-      printType(*T);
-  }
-  OS << "#endif\n\n";
 
   OS << "#define __riscv_v_intrinsic_overloading 1\n";
 
@@ -518,7 +501,6 @@ void RVVEmitter::createRVVIntrinsics(
     std::vector<int64_t> Log2LMULList = R->getValueAsListOfInts("Log2LMUL");
     bool HasTailPolicy = R->getValueAsBit("HasTailPolicy");
     bool HasMaskPolicy = R->getValueAsBit("HasMaskPolicy");
-    bool IsPrototypeDefaultTU = R->getValueAsBit("IsPrototypeDefaultTU");
     bool SupportOverloading = R->getValueAsBit("SupportOverloading");
     bool HasBuiltinAlias = R->getValueAsBit("HasBuiltinAlias");
     StringRef ManualCodegen = R->getValueAsString("ManualCodegen");
@@ -529,13 +511,11 @@ void RVVEmitter::createRVVIntrinsics(
     StringRef IRName = R->getValueAsString("IRName");
     StringRef MaskedIRName = R->getValueAsString("MaskedIRName");
     unsigned NF = R->getValueAsInt("NF");
+    bool IsTuple = R->getValueAsBit("IsTuple");
 
-    // If unmasked builtin supports policy, they should be TU or TA.
-    llvm::SmallVector<Policy> SupportedUnMaskedPolicies;
-    SupportedUnMaskedPolicies.emplace_back(Policy(
-        Policy::PolicyType::Undisturbed, Policy::PolicyType::Omit)); // TU
-    SupportedUnMaskedPolicies.emplace_back(
-        Policy(Policy::PolicyType::Agnostic, Policy::PolicyType::Omit)); // TA
+    const Policy DefaultPolicy;
+    SmallVector<Policy> SupportedUnMaskedPolicies =
+        RVVIntrinsic::getSupportedUnMaskedPolicies();
     SmallVector<Policy> SupportedMaskedPolicies =
         RVVIntrinsic::getSupportedMaskedPolicies(HasTailPolicy, HasMaskPolicy);
 
@@ -551,11 +531,13 @@ void RVVEmitter::createRVVIntrinsics(
     // Compute Builtin types
     auto Prototype = RVVIntrinsic::computeBuiltinTypes(
         BasicPrototype, /*IsMasked=*/false,
-        /*HasMaskedOffOperand=*/false, HasVL, NF, IsPrototypeDefaultTU,
-        UnMaskedPolicyScheme, Policy());
-    auto MaskedPrototype = RVVIntrinsic::computeBuiltinTypes(
-        BasicPrototype, /*IsMasked=*/true, HasMaskedOffOperand, HasVL, NF,
-        IsPrototypeDefaultTU, MaskedPolicyScheme, Policy());
+        /*HasMaskedOffOperand=*/false, HasVL, NF, UnMaskedPolicyScheme,
+        DefaultPolicy, IsTuple);
+    llvm::SmallVector<PrototypeDescriptor> MaskedPrototype;
+    if (HasMasked)
+      MaskedPrototype = RVVIntrinsic::computeBuiltinTypes(
+          BasicPrototype, /*IsMasked=*/true, HasMaskedOffOperand, HasVL, NF,
+          MaskedPolicyScheme, DefaultPolicy, IsTuple);
 
     // Create Intrinsics for each type and LMUL.
     for (char I : TypeRange) {
@@ -577,49 +559,48 @@ void RVVEmitter::createRVVIntrinsics(
             /*IsMasked=*/false, /*HasMaskedOffOperand=*/false, HasVL,
             UnMaskedPolicyScheme, SupportOverloading, HasBuiltinAlias,
             ManualCodegen, *Types, IntrinsicTypes, RequiredFeatures, NF,
-            Policy(), IsPrototypeDefaultTU));
+            DefaultPolicy));
         if (UnMaskedPolicyScheme != PolicyScheme::SchemeNone)
           for (auto P : SupportedUnMaskedPolicies) {
             SmallVector<PrototypeDescriptor> PolicyPrototype =
                 RVVIntrinsic::computeBuiltinTypes(
                     BasicPrototype, /*IsMasked=*/false,
                     /*HasMaskedOffOperand=*/false, HasVL, NF,
-                    IsPrototypeDefaultTU, UnMaskedPolicyScheme, P);
+                    UnMaskedPolicyScheme, P, IsTuple);
             std::optional<RVVTypes> PolicyTypes =
                 TypeCache.computeTypes(BT, Log2LMUL, NF, PolicyPrototype);
             Out.push_back(std::make_unique<RVVIntrinsic>(
                 Name, SuffixStr, OverloadedName, OverloadedSuffixStr, IRName,
                 /*IsMask=*/false, /*HasMaskedOffOperand=*/false, HasVL,
                 UnMaskedPolicyScheme, SupportOverloading, HasBuiltinAlias,
-                ManualCodegen, *PolicyTypes, IntrinsicTypes,
-                RequiredFeatures, NF, P, IsPrototypeDefaultTU));
+                ManualCodegen, *PolicyTypes, IntrinsicTypes, RequiredFeatures,
+                NF, P));
           }
         if (!HasMasked)
           continue;
         // Create a masked intrinsic
         std::optional<RVVTypes> MaskTypes =
-            TypeCache.computeTypes(BT, Log2LMUL, NF, Prototype);
+            TypeCache.computeTypes(BT, Log2LMUL, NF, MaskedPrototype);
         Out.push_back(std::make_unique<RVVIntrinsic>(
             Name, SuffixStr, OverloadedName, OverloadedSuffixStr, MaskedIRName,
             /*IsMasked=*/true, HasMaskedOffOperand, HasVL, MaskedPolicyScheme,
-            SupportOverloading, HasBuiltinAlias, ManualCodegen,
-            *MaskTypes, IntrinsicTypes, RequiredFeatures, NF,
-            Policy(), IsPrototypeDefaultTU));
+            SupportOverloading, HasBuiltinAlias, ManualCodegen, *MaskTypes,
+            IntrinsicTypes, RequiredFeatures, NF, DefaultPolicy));
         if (MaskedPolicyScheme == PolicyScheme::SchemeNone)
           continue;
         for (auto P : SupportedMaskedPolicies) {
           SmallVector<PrototypeDescriptor> PolicyPrototype =
               RVVIntrinsic::computeBuiltinTypes(
                   BasicPrototype, /*IsMasked=*/true, HasMaskedOffOperand, HasVL,
-                  NF, IsPrototypeDefaultTU, MaskedPolicyScheme, P);
+                  NF, MaskedPolicyScheme, P, IsTuple);
           std::optional<RVVTypes> PolicyTypes =
               TypeCache.computeTypes(BT, Log2LMUL, NF, PolicyPrototype);
           Out.push_back(std::make_unique<RVVIntrinsic>(
               Name, SuffixStr, OverloadedName, OverloadedSuffixStr,
               MaskedIRName, /*IsMasked=*/true, HasMaskedOffOperand, HasVL,
               MaskedPolicyScheme, SupportOverloading, HasBuiltinAlias,
-              ManualCodegen, *PolicyTypes, IntrinsicTypes,
-              RequiredFeatures, NF, P, IsPrototypeDefaultTU));
+              ManualCodegen, *PolicyTypes, IntrinsicTypes, RequiredFeatures, NF,
+              P));
         }
       } // End for Log2LMULList
     }   // End for TypeRange
@@ -654,6 +635,7 @@ void RVVEmitter::createRVVIntrinsics(
       RVVRequire RequireExt = StringSwitch<RVVRequire>(RequiredFeature)
                                   .Case("RV64", RVV_REQ_RV64)
                                   .Case("FullMultiply", RVV_REQ_FullMultiply)
+                                  .Case("Xsfvcp", RVV_REQ_Xsfvcp)
                                   .Default(RVV_REQ_None);
       assert(RequireExt != RVV_REQ_None && "Unrecognized required feature?");
       SR.RequiredExtensions |= RequireExt;
@@ -663,7 +645,6 @@ void RVVEmitter::createRVVIntrinsics(
     SR.HasMasked = HasMasked;
     SR.HasVL = HasVL;
     SR.HasMaskedOffOperand = HasMaskedOffOperand;
-    SR.IsPrototypeDefaultTU = IsPrototypeDefaultTU;
     SR.HasTailPolicy = HasTailPolicy;
     SR.HasMaskPolicy = HasMaskPolicy;
     SR.UnMaskedPolicyScheme = static_cast<uint8_t>(UnMaskedPolicyScheme);
@@ -671,6 +652,7 @@ void RVVEmitter::createRVVIntrinsics(
     SR.Prototype = std::move(BasicPrototype);
     SR.Suffix = parsePrototypes(SuffixProto);
     SR.OverloadedSuffix = parsePrototypes(OverloadedSuffixProto);
+    SR.IsTuple = IsTuple;
 
     SemaRecords->push_back(SR);
   }
@@ -708,11 +690,11 @@ void RVVEmitter::createRVVIntrinsicRecords(std::vector<RVVIntrinsicRecord> &Out,
     R.HasMasked = SR.HasMasked;
     R.HasVL = SR.HasVL;
     R.HasMaskedOffOperand = SR.HasMaskedOffOperand;
-    R.IsPrototypeDefaultTU = SR.IsPrototypeDefaultTU;
     R.HasTailPolicy = SR.HasTailPolicy;
     R.HasMaskPolicy = SR.HasMaskPolicy;
     R.UnMaskedPolicyScheme = SR.UnMaskedPolicyScheme;
     R.MaskedPolicyScheme = SR.MaskedPolicyScheme;
+    R.IsTuple = SR.IsTuple;
 
     assert(R.PrototypeIndex !=
            static_cast<uint16_t>(SemaSignatureTable::INVALID_INDEX));

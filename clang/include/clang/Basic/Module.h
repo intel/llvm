@@ -103,16 +103,22 @@ public:
   /// The location of the module definition.
   SourceLocation DefinitionLoc;
 
+  // FIXME: Consider if reducing the size of this enum (having Partition and
+  // Named modules only) then representing interface/implementation separately
+  // is more efficient.
   enum ModuleKind {
     /// This is a module that was defined by a module map and built out
     /// of header files.
     ModuleMapModule,
 
+    /// This is a C++ 20 header unit.
+    ModuleHeaderUnit,
+
     /// This is a C++20 module interface unit.
     ModuleInterfaceUnit,
 
-    /// This is a C++ 20 header unit.
-    ModuleHeaderUnit,
+    /// This is a C++20 module implementation unit.
+    ModuleImplementationUnit,
 
     /// This is a C++ 20 module partition interface.
     ModulePartitionInterface,
@@ -120,11 +126,17 @@ public:
     /// This is a C++ 20 module partition implementation.
     ModulePartitionImplementation,
 
-    /// This is a fragment of the global module within some C++ module.
-    GlobalModuleFragment,
+    /// This is the explicit Global Module Fragment of a modular TU.
+    /// As per C++ [module.global.frag].
+    ExplicitGlobalModuleFragment,
 
     /// This is the private module fragment within some C++ module.
     PrivateModuleFragment,
+
+    /// This is an implicit fragment of the global module which contains
+    /// only language linkage declarations (made in the purview of the
+    /// named module).
+    ImplicitGlobalModuleFragment,
   };
 
   /// The kind of this module.
@@ -137,14 +149,16 @@ public:
   /// The build directory of this module. This is the directory in
   /// which the module is notionally built, and relative to which its headers
   /// are found.
-  const DirectoryEntry *Directory = nullptr;
+  OptionalDirectoryEntryRefDegradesToDirectoryEntryPtr Directory;
 
   /// The presumed file name for the module map defining this module.
   /// Only non-empty when building from preprocessed source.
   std::string PresumedModuleMapFile;
 
   /// The umbrella header or directory.
-  llvm::PointerUnion<const FileEntry *, const DirectoryEntry *> Umbrella;
+  llvm::PointerUnion<const FileEntryRef::MapEntry *,
+                     const DirectoryEntryRef::MapEntry *>
+      Umbrella;
 
   /// The module signature.
   ASTFileSignature Signature;
@@ -162,14 +176,29 @@ public:
   /// Does this Module scope describe part of the purview of a standard named
   /// C++ module?
   bool isModulePurview() const {
-    return Kind == ModuleInterfaceUnit || Kind == ModulePartitionInterface ||
-           Kind == ModulePartitionImplementation ||
-           Kind == PrivateModuleFragment;
+    switch (Kind) {
+    case ModuleInterfaceUnit:
+    case ModuleImplementationUnit:
+    case ModulePartitionInterface:
+    case ModulePartitionImplementation:
+    case PrivateModuleFragment:
+      return true;
+    default:
+      return false;
+    }
   }
 
   /// Does this Module scope describe a fragment of the global module within
   /// some C++ module.
-  bool isGlobalModule() const { return Kind == GlobalModuleFragment; }
+  bool isGlobalModule() const {
+    return isExplicitGlobalModule() || isImplicitGlobalModule();
+  }
+  bool isExplicitGlobalModule() const {
+    return Kind == ExplicitGlobalModuleFragment;
+  }
+  bool isImplicitGlobalModule() const {
+    return Kind == ImplicitGlobalModuleFragment;
+  }
 
   bool isPrivateModule() const { return Kind == PrivateModuleFragment; }
 
@@ -214,9 +243,7 @@ public:
   struct Header {
     std::string NameAsWritten;
     std::string PathRelativeToRootModuleDirectory;
-    const FileEntry *Entry;
-
-    explicit operator bool() { return Entry; }
+    FileEntryRef Entry;
   };
 
   /// Information about a directory name as found in the module map
@@ -224,9 +251,7 @@ public:
   struct DirectoryName {
     std::string NameAsWritten;
     std::string PathRelativeToRootModuleDirectory;
-    const DirectoryEntry *Entry;
-
-    explicit operator bool() { return Entry; }
+    DirectoryEntryRef Entry;
   };
 
   /// The headers that are part of this module.
@@ -468,6 +493,9 @@ public:
   bool isUnimportable(const LangOptions &LangOpts, const TargetInfo &Target,
                       Requirement &Req, Module *&ShadowingModule) const;
 
+  /// Determine whether this module can be built in this compilation.
+  bool isForBuilding(const LangOptions &LangOpts) const;
+
   /// Determine whether this module is available for use within the
   /// current translation unit.
   bool isAvailable() const { return IsAvailable; }
@@ -543,6 +571,11 @@ public:
            Kind == ModulePartitionImplementation;
   }
 
+  /// Is this a module implementation.
+  bool isModuleImplementation() const {
+    return Kind == ModuleImplementationUnit;
+  }
+
   /// Is this module a header unit.
   bool isHeaderUnit() const { return Kind == ModuleHeaderUnit; }
   // Is this a C++20 module interface or a partition.
@@ -615,24 +648,28 @@ public:
     getTopLevelModule()->ASTFile = File;
   }
 
-  /// Retrieve the directory for which this module serves as the
-  /// umbrella.
-  DirectoryName getUmbrellaDir() const;
+  /// Retrieve the umbrella directory as written.
+  std::optional<DirectoryName> getUmbrellaDirAsWritten() const {
+    if (const auto *ME =
+            Umbrella.dyn_cast<const DirectoryEntryRef::MapEntry *>())
+      return DirectoryName{UmbrellaAsWritten,
+                           UmbrellaRelativeToRootModuleDirectory,
+                           DirectoryEntryRef(*ME)};
+    return std::nullopt;
+  }
 
-  /// Retrieve the header that serves as the umbrella header for this
-  /// module.
-  Header getUmbrellaHeader() const {
-    if (auto *FE = Umbrella.dyn_cast<const FileEntry *>())
+  /// Retrieve the umbrella header as written.
+  std::optional<Header> getUmbrellaHeaderAsWritten() const {
+    if (const auto *ME = Umbrella.dyn_cast<const FileEntryRef::MapEntry *>())
       return Header{UmbrellaAsWritten, UmbrellaRelativeToRootModuleDirectory,
-                    FE};
-    return Header{};
+                    FileEntryRef(*ME)};
+    return std::nullopt;
   }
 
-  /// Determine whether this module has an umbrella directory that is
-  /// not based on an umbrella header.
-  bool hasUmbrellaDir() const {
-    return Umbrella && Umbrella.is<const DirectoryEntry *>();
-  }
+  /// Get the effective umbrella directory for this module: either the one
+  /// explicitly written in the module map file, or the parent of the umbrella
+  /// header.
+  OptionalDirectoryEntryRef getEffectiveUmbrellaDir() const;
 
   /// Add a top-level header associated with this module.
   void addTopHeader(const FileEntry *File);
@@ -705,16 +742,11 @@ public:
   using submodule_iterator = std::vector<Module *>::iterator;
   using submodule_const_iterator = std::vector<Module *>::const_iterator;
 
-  submodule_iterator submodule_begin() { return SubModules.begin(); }
-  submodule_const_iterator submodule_begin() const {return SubModules.begin();}
-  submodule_iterator submodule_end()   { return SubModules.end(); }
-  submodule_const_iterator submodule_end() const { return SubModules.end(); }
-
   llvm::iterator_range<submodule_iterator> submodules() {
-    return llvm::make_range(submodule_begin(), submodule_end());
+    return llvm::make_range(SubModules.begin(), SubModules.end());
   }
   llvm::iterator_range<submodule_const_iterator> submodules() const {
-    return llvm::make_range(submodule_begin(), submodule_end());
+    return llvm::make_range(SubModules.begin(), SubModules.end());
   }
 
   /// Appends this module's list of exported modules to \p Exported.

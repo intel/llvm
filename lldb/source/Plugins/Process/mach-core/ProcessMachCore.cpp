@@ -136,13 +136,13 @@ bool ProcessMachCore::CheckAddressForDyldOrKernel(lldb::addr_t addr,
     return false;
   if (header.magic == llvm::MachO::MH_CIGAM ||
       header.magic == llvm::MachO::MH_CIGAM_64) {
-    header.magic = llvm::ByteSwap_32(header.magic);
-    header.cputype = llvm::ByteSwap_32(header.cputype);
-    header.cpusubtype = llvm::ByteSwap_32(header.cpusubtype);
-    header.filetype = llvm::ByteSwap_32(header.filetype);
-    header.ncmds = llvm::ByteSwap_32(header.ncmds);
-    header.sizeofcmds = llvm::ByteSwap_32(header.sizeofcmds);
-    header.flags = llvm::ByteSwap_32(header.flags);
+    header.magic = llvm::byteswap<uint32_t>(header.magic);
+    header.cputype = llvm::byteswap<uint32_t>(header.cputype);
+    header.cpusubtype = llvm::byteswap<uint32_t>(header.cpusubtype);
+    header.filetype = llvm::byteswap<uint32_t>(header.filetype);
+    header.ncmds = llvm::byteswap<uint32_t>(header.ncmds);
+    header.sizeofcmds = llvm::byteswap<uint32_t>(header.sizeofcmds);
+    header.flags = llvm::byteswap<uint32_t>(header.flags);
   }
 
   if (header.magic == llvm::MachO::MH_MAGIC ||
@@ -252,19 +252,19 @@ void ProcessMachCore::LoadBinariesViaMetadata() {
       m_mach_kernel_addr = objfile_binary_value;
       m_dyld_plugin_name = DynamicLoaderDarwinKernel::GetPluginNameStatic();
       found_main_binary_definitively = true;
+    } else if (type == ObjectFile::eBinaryTypeUser) {
+      m_dyld_addr = objfile_binary_value;
+      m_dyld_plugin_name = DynamicLoaderMacOSXDYLD::GetPluginNameStatic();
     } else {
       const bool force_symbol_search = true;
       const bool notify = true;
+      const bool set_address_in_target = true;
       if (DynamicLoader::LoadBinaryWithUUIDAndAddress(
               this, llvm::StringRef(), objfile_binary_uuid,
               objfile_binary_value, objfile_binary_value_is_offset,
-              force_symbol_search, notify)) {
+              force_symbol_search, notify, set_address_in_target)) {
         found_main_binary_definitively = true;
         m_dyld_plugin_name = DynamicLoaderStatic::GetPluginNameStatic();
-      }
-      if (type == ObjectFile::eBinaryTypeUser) {
-        m_dyld_addr = objfile_binary_value;
-        m_dyld_plugin_name = DynamicLoaderMacOSXDYLD::GetPluginNameStatic();
       }
     }
   }
@@ -314,9 +314,11 @@ void ProcessMachCore::LoadBinariesViaMetadata() {
       const bool value_is_offset = false;
       const bool force_symbol_search = true;
       const bool notify = true;
+      const bool set_address_in_target = true;
       if (DynamicLoader::LoadBinaryWithUUIDAndAddress(
               this, llvm::StringRef(), ident_uuid, ident_binary_addr,
-              value_is_offset, force_symbol_search, notify)) {
+              value_is_offset, force_symbol_search, notify,
+              set_address_in_target)) {
         found_main_binary_definitively = true;
         m_dyld_plugin_name = DynamicLoaderStatic::GetPluginNameStatic();
       }
@@ -325,7 +327,10 @@ void ProcessMachCore::LoadBinariesViaMetadata() {
 
   // Finally, load any binaries noted by "load binary" LC_NOTEs in the
   // corefile
-  core_objfile->LoadCoreFileImages(*this);
+  if (core_objfile->LoadCoreFileImages(*this)) {
+    found_main_binary_definitively = true;
+    m_dyld_plugin_name = DynamicLoaderStatic::GetPluginNameStatic();
+  }
 
   // LoadCoreFileImges may have set the dynamic loader, e.g. in
   // PlatformDarwinKernel::LoadPlatformBinaryAndSetup().
@@ -480,13 +485,6 @@ Status ProcessMachCore::DoLoadCore() {
   ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
   if (core_objfile == nullptr) {
     error.SetErrorString("invalid core object file");
-    return error;
-  }
-
-  if (core_objfile->GetNumThreadContexts() == 0) {
-    error.SetErrorString("core file doesn't contain any LC_THREAD load "
-                         "commands, or the LC_THREAD architecture is not "
-                         "supported in this lldb");
     return error;
   }
 

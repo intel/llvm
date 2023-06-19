@@ -27,6 +27,7 @@ set(TSAN_SOURCES
   tsan_fd.cpp
   tsan_flags.cpp
   tsan_ignoreset.cpp
+  tsan_interceptors_memintrinsics.cpp
   tsan_interceptors_posix.cpp
   tsan_interface.cpp
   tsan_interface_ann.cpp
@@ -271,6 +272,7 @@ else()
               $<TARGET_OBJECTS:RTUbsan.${arch}>
       ADDITIONAL_HEADERS ${TSAN_HEADERS}
       CFLAGS ${TSAN_RTL_DYNAMIC_CFLAGS}
+      DEFS SANITIZER_SHARED
       LINK_LIBS ${TSAN_DYNAMIC_LINK_LIBS}
       LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS}
       PARENT_TARGET tsan)

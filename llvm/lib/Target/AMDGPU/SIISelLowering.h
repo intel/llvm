@@ -87,8 +87,6 @@ private:
   SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
 
-  SDValue makeV_ILLEGAL(SDValue Op, SelectionDAG &DAG) const;
-
   // The raw.tbuffer and struct.tbuffer intrinsics have two offset args: offset
   // (the offset that is included in bounds checking and swizzling, to be split
   // between the instruction's voffset and immoffset fields) and soffset (the
@@ -167,6 +165,8 @@ private:
 
   SDValue performUCharToFloatCombine(SDNode *N,
                                      DAGCombinerInfo &DCI) const;
+  SDValue performFCopySignCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+
   SDValue performSHLPtrCombine(SDNode *N,
                                unsigned AS,
                                EVT MemVT,
@@ -191,12 +191,14 @@ private:
   SDValue performFPMed3ImmCombine(SelectionDAG &DAG, const SDLoc &SL,
                                   SDValue Op0, SDValue Op1) const;
   SDValue performIntMed3ImmCombine(SelectionDAG &DAG, const SDLoc &SL,
-                                   SDValue Op0, SDValue Op1, bool Signed) const;
+                                   SDValue Src, SDValue MinVal, SDValue MaxVal,
+                                   bool Signed) const;
   SDValue performMinMaxCombine(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue performFMed3Combine(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue performCvtPkRTZCombine(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue performExtractVectorEltCombine(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue performInsertVectorEltCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performFPRoundCombine(SDNode *N, DAGCombinerInfo &DCI) const;
 
   SDValue reassociateScalarOps(SDNode *N, SelectionDAG &DAG) const;
   unsigned getFusedOpcode(const SelectionDAG &DAG,
@@ -250,6 +252,17 @@ private:
   void setBufferOffsets(SDValue CombinedOffset, SelectionDAG &DAG,
                         SDValue *Offsets, Align Alignment = Align(4)) const;
 
+  // Convert the i128 that an addrspace(8) pointer is natively represented as
+  // into the v4i32 that all the buffer intrinsics expect to receive. We can't
+  // add register classes for i128 on pain of the promotion logic going haywire,
+  // so this slightly ugly hack is what we've got. If passed a non-pointer
+  // argument (as would be seen in older buffer intrinsics), does nothing.
+  SDValue bufferRsrcPtrToVector(SDValue MaybePointer, SelectionDAG &DAG) const;
+
+  // Wrap a 64-bit pointer into a v4i32 (which is how all SelectionDAG code
+  // represents ptr addrspace(8)) using the flags specified in the intrinsic.
+  SDValue lowerPointerAsRsrcIntrin(SDNode *Op, SelectionDAG &DAG) const;
+
   // Handle 8 bit and 16 bit buffer loads
   SDValue handleByteShortBufferLoads(SelectionDAG &DAG, EVT LoadVT, SDLoc DL,
                                      ArrayRef<SDValue> Ops, MemSDNode *M) const;
@@ -271,6 +284,12 @@ public:
                        LLT SrcTy) const override;
 
   bool isShuffleMaskLegal(ArrayRef<int> /*Mask*/, EVT /*VT*/) const override;
+
+  // While address space 7 should never make it to codegen, it still needs to
+  // have a MVT to prevent some analyses that query this function from breaking,
+  // so, to work around the lack of i160, map it to v5i32.
+  MVT getPointerTy(const DataLayout &DL, unsigned AS) const override;
+  MVT getPointerMemTy(const DataLayout &DL, unsigned AS) const override;
 
   bool getTgtMemIntrinsic(IntrinsicInfo &, const CallInst &,
                           MachineFunction &MF,
@@ -361,7 +380,7 @@ public:
     SmallVectorImpl<SDValue> &MemOpChains,
     SDValue Chain) const;
 
-  SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
+  SDValue LowerCallResult(SDValue Chain, SDValue InGlue,
                           CallingConv::ID CallConv, bool isVarArg,
                           const SmallVectorImpl<ISD::InputArg> &Ins,
                           const SDLoc &DL, SelectionDAG &DAG,
@@ -396,7 +415,6 @@ public:
   EmitInstrWithCustomInserter(MachineInstr &MI,
                               MachineBasicBlock *BB) const override;
 
-  bool hasBitPreservingFPLogic(EVT VT) const override;
   bool hasAtomicFaddRtnForTy(SDValue &Op) const;
   bool enableAggressiveFMAFusion(EVT VT) const override;
   bool enableAggressiveFMAFusion(LLT Ty) const override;
@@ -452,6 +470,10 @@ public:
 
   void finalizeLowering(MachineFunction &MF) const override;
 
+  void computeKnownBitsForTargetNode(const SDValue Op, KnownBits &Known,
+                                     const APInt &DemandedElts,
+                                     const SelectionDAG &DAG,
+                                     unsigned Depth = 0) const override;
   void computeKnownBitsForFrameIndex(int FrameIdx,
                                      KnownBits &Known,
                                      const MachineFunction &MF) const override;
@@ -464,8 +486,8 @@ public:
   Align computeKnownAlignForTargetInstr(GISelKnownBits &Analysis, Register R,
                                         const MachineRegisterInfo &MRI,
                                         unsigned Depth = 0) const override;
-  bool isSDNodeSourceOfDivergence(const SDNode *N,
-    FunctionLoweringInfo *FLI, LegacyDivergenceAnalysis *DA) const override;
+  bool isSDNodeSourceOfDivergence(const SDNode *N, FunctionLoweringInfo *FLI,
+                                  UniformityInfo *UA) const override;
 
   bool hasMemSDNodeUser(SDNode *N) const;
 
@@ -494,6 +516,9 @@ public:
   AtomicExpansionKind
   shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *AI) const override;
   void emitExpandAtomicRMW(AtomicRMWInst *AI) const override;
+
+  LoadInst *
+  lowerIdempotentRMWIntoFencedLoad(AtomicRMWInst *AI) const override;
 
   const TargetRegisterClass *getRegClassFor(MVT VT,
                                             bool isDivergent) const override;

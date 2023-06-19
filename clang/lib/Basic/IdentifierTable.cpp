@@ -191,7 +191,7 @@ static KeywordStatus getKeywordStatusHelper(const LangOptions &LangOpts,
   case KEYCOROUTINES:
     return LangOpts.Coroutines ? KS_Enabled : KS_Unknown;
   case KEYMODULES:
-    return LangOpts.ModulesTS ? KS_Enabled : KS_Unknown;
+    return KS_Unknown;
   case KEYOPENCLCXX:
     return LangOpts.OpenCLCPlusPlus ? KS_Enabled : KS_Unknown;
   case KEYMSCOMPAT:
@@ -845,6 +845,20 @@ StringRef clang::getNullabilitySpelling(NullabilityKind kind,
 
   case NullabilityKind::Unspecified:
     return isContextSensitive ? "null_unspecified" : "_Null_unspecified";
+  }
+  llvm_unreachable("Unknown nullability kind.");
+}
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, NullabilityKind NK) {
+  switch (NK) {
+  case NullabilityKind::NonNull:
+    return OS << "NonNull";
+  case NullabilityKind::Nullable:
+    return OS << "Nullable";
+  case NullabilityKind::NullableResult:
+    return OS << "NullableResult";
+  case NullabilityKind::Unspecified:
+    return OS << "Unspecified";
   }
   llvm_unreachable("Unknown nullability kind.");
 }

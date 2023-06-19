@@ -34,7 +34,7 @@ entry:
   ret void
 }
 
-declare !sycl.kernel.fused !13 void @fused_kernel()
+declare !sycl.kernel.fused !13 !sycl.kernel.nd-ranges !15 !sycl.kernel.nd-range !16 void @fused_kernel()
 
 attributes #2 = { nounwind }
 attributes #3 = { alwaysinline nounwind }
@@ -48,6 +48,10 @@ attributes #3 = { alwaysinline nounwind }
 !12 = !{!"_arg_y"}
 !13 = !{!"fused_0", !14}
 !14 = !{!"KernelOne", !"KernelTwo"}
+!15 = !{!16, !16}
+!16 = !{i32 1, !17, !17, !18}
+!17 = !{i64 1, i64 1, i64 1}
+!18 = !{i64 0, i64 0, i64 0}
 
 ; Test scenario: Fusion of two kernels where one of the kernels 
 ; specifies a "reqd_work_group_size".

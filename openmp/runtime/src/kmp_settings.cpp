@@ -282,6 +282,25 @@ static int __kmp_stg_check_rivals( // 0 -- Ok, 1 -- errors found.
     kmp_setting_t **rivals // List of rival settings (must include current one).
 );
 
+// Helper struct that trims heading/trailing white spaces
+struct kmp_trimmed_str_t {
+  kmp_str_buf_t buf;
+  kmp_trimmed_str_t(const char *str) {
+    __kmp_str_buf_init(&buf);
+    size_t len = KMP_STRLEN(str);
+    if (len == 0)
+      return;
+    const char *begin = str;
+    const char *end = str + KMP_STRLEN(str) - 1;
+    SKIP_WS(begin);
+    while (begin < end && *end == ' ')
+      end--;
+    __kmp_str_buf_cat(&buf, begin, end - begin + 1);
+  }
+  ~kmp_trimmed_str_t() { __kmp_str_buf_free(&buf); }
+  const char *get() { return buf.str; }
+};
+
 // -----------------------------------------------------------------------------
 // Helper parse functions.
 
@@ -1238,6 +1257,18 @@ static void __kmp_stg_parse_num_threads(char const *name, char const *value,
   K_DIAG(1, ("__kmp_dflt_team_nth == %d\n", __kmp_dflt_team_nth));
 } // __kmp_stg_parse_num_threads
 
+#if OMPX_TASKGRAPH
+static void __kmp_stg_parse_max_tdgs(char const *name, char const *value,
+                                     void *data) {
+  __kmp_stg_parse_int(name, value, 0, INT_MAX, &__kmp_max_tdgs);
+} // __kmp_stg_parse_max_tdgs
+
+static void __kmp_std_print_max_tdgs(kmp_str_buf_t *buffer, char const *name,
+                                     void *data) {
+  __kmp_stg_print_int(buffer, name, __kmp_max_tdgs);
+} // __kmp_std_print_max_tdgs
+#endif
+
 static void __kmp_stg_parse_num_hidden_helper_threads(char const *name,
                                                       char const *value,
                                                       void *data) {
@@ -1373,14 +1404,13 @@ static void __kmp_stg_print_default_device(kmp_str_buf_t *buffer,
 // OpenMP 5.0: OMP_TARGET_OFFLOAD
 static void __kmp_stg_parse_target_offload(char const *name, char const *value,
                                            void *data) {
-  const char *next = value;
-  const char *scan = next;
-
+  kmp_trimmed_str_t value_str(value);
+  const char *scan = value_str.get();
   __kmp_target_offload = tgt_default;
-  SKIP_WS(next);
-  if (*next == '\0')
+
+  if (*scan == '\0')
     return;
-  scan = next;
+
   if (!__kmp_strcasecmp_with_sentinel("mandatory", scan, 0)) {
     __kmp_target_offload = tgt_mandatory;
   } else if (!__kmp_strcasecmp_with_sentinel("disabled", scan, 0)) {
@@ -1390,7 +1420,6 @@ static void __kmp_stg_parse_target_offload(char const *name, char const *value,
   } else {
     KMP_WARNING(SyntaxErrorUsing, name, "DEFAULT");
   }
-
 } // __kmp_stg_parse_target_offload
 
 static void __kmp_stg_print_target_offload(kmp_str_buf_t *buffer,
@@ -5592,6 +5621,10 @@ static kmp_setting_t __kmp_stg_table[] = {
     {"LIBOMP_NUM_HIDDEN_HELPER_THREADS",
      __kmp_stg_parse_num_hidden_helper_threads,
      __kmp_stg_print_num_hidden_helper_threads, NULL, 0, 0},
+#if OMPX_TASKGRAPH
+    {"KMP_MAX_TDGS", __kmp_stg_parse_max_tdgs, __kmp_std_print_max_tdgs, NULL,
+     0, 0},
+#endif
 
 #if OMPT_SUPPORT
     {"OMP_TOOL", __kmp_stg_parse_omp_tool, __kmp_stg_print_omp_tool, NULL, 0,

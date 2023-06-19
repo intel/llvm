@@ -108,10 +108,7 @@ static Error getRelocationValueString(const ELFObjectFile<ELFT> *Obj,
       Expected<StringRef> SymName = SI->getName();
       if (!SymName)
         return SymName.takeError();
-      if (Demangle)
-        Fmt << demangle(std::string(*SymName));
-      else
-        Fmt << *SymName;
+      Fmt << (Demangle ? demangle(*SymName) : *SymName);
     }
   } else {
     Fmt << "*ABS*";
@@ -274,8 +271,7 @@ static void printProgramHeaders(const ELFFile<ELFT> &Obj, StringRef FileName) {
     outs() << "off    " << format(Fmt, (uint64_t)Phdr.p_offset) << "vaddr "
            << format(Fmt, (uint64_t)Phdr.p_vaddr) << "paddr "
            << format(Fmt, (uint64_t)Phdr.p_paddr)
-           << format("align 2**%u\n",
-                     countTrailingZeros<uint64_t>(Phdr.p_align))
+           << format("align 2**%u\n", llvm::countr_zero<uint64_t>(Phdr.p_align))
            << "         filesz " << format(Fmt, (uint64_t)Phdr.p_filesz)
            << "memsz " << format(Fmt, (uint64_t)Phdr.p_memsz) << "flags "
            << ((Phdr.p_flags & ELF::PF_R) ? "r" : "-")

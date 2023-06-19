@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "utils.hpp"
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
@@ -68,6 +69,24 @@ public:
   get_wi_data() {
     return wi_data<T, NumRows, NumCols, Layout, Group>(*this);
   }
+
+#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SPIR__)
+  // Generate a non-trivial assignment operator and copy c'tor that prevents
+  // memcpy from being generated.
+  // TODO: to remove, when either IGC can handle alloca JointMatrix or
+  // combination of InstCombine + SROA + mem2reg can remove it
+  joint_matrix(const joint_matrix &other) {
+    spvm = other.spvm;
+    return *this;
+  }
+
+  joint_matrix &operator=(const joint_matrix &rhs) {
+    spvm = rhs.spvm;
+    return *this;
+  }
+#endif // defined(__SPIR__)
+#endif
 };
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -77,34 +96,37 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     Group sg, joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
-  T *Ptr = src.get();
+  static_assert(Space != access::address_space::private_space,
+                "Joint Matrix doesn't support load from private memory!");
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
   switch (MemL) {
   default:
     assert(false && "Invalid Memory Layout!");
   case matrix_layout::row_major:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<DecorT, T, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::RowMajor,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::col_major:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<DecorT, T, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::ColumnMajor,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_a:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<DecorT, T, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::PackedA,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_b:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<DecorT, T, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::PackedB,
             spv_scope_traits<Group>::value);
@@ -128,30 +150,33 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     Group sg, joint_matrix<T, NumRows, NumCols, MatL, Group> &src,
     multi_ptr<T, Space, IsDecorated> res, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
-  T *Ptr = res.get();
+  static_assert(Space != access::address_space::private_space,
+                "Joint Matrix doesn't support store to private memory!");
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *Ptr = sycl::detail::getDecorated<DecorT>(res);
   switch (MemL) {
   default:
     assert(false && "Invalid Memory Layout!");
   case matrix_layout::row_major:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<DecorT, T, NumRows, NumCols,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::RowMajor,
         spv_scope_traits<Group>::value);
     break;
   case matrix_layout::col_major:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<DecorT, T, NumRows, NumCols,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_a:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<DecorT, T, NumRows, NumCols,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::PackedA,
         spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_b:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<DecorT, T, NumRows, NumCols,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::PackedB,
         spv_scope_traits<Group>::value);

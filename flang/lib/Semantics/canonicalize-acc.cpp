@@ -65,7 +65,7 @@ private:
 
         const auto &outer{std::get<std::optional<parser::DoConstruct>>(x.t)};
         if (outer->IsDoConcurrent()) {
-          return; // Tile is not allowed on DO CONURRENT
+          return; // Tile is not allowed on DO CONCURRENT
         }
         for (const parser::DoConstruct *loop{&*outer}; loop && tileArgNb > 0;
              --tileArgNb) {
@@ -127,16 +127,16 @@ private:
     nextIt = it;
     if (++nextIt != block.end()) {
       if (auto *doCons{parser::Unwrap<parser::DoConstruct>(*nextIt)}) {
-        if (doCons->GetLoopControl()) {
-          // move DoConstruct
-          std::get<std::optional<parser::DoConstruct>>(x.t) =
-              std::move(*doCons);
-          nextIt = block.erase(nextIt);
-        } else {
+        if (!doCons->GetLoopControl()) {
           messages_.Say(dir.source,
               "DO loop after the %s directive must have loop control"_err_en_US,
               parser::ToUpperCaseLetters(dir.source.ToString()));
+          return;
         }
+
+        // move DoConstruct
+        std::get<std::optional<parser::DoConstruct>>(x.t) = std::move(*doCons);
+        nextIt = block.erase(nextIt);
 
         CheckDoConcurrentClauseRestriction<parser::OpenACCLoopConstruct,
             parser::AccBeginLoopDirective>(x);
@@ -173,24 +173,23 @@ private:
     nextIt = it;
     if (++nextIt != block.end()) {
       if (auto *doCons{parser::Unwrap<parser::DoConstruct>(*nextIt)}) {
-        if (doCons->GetLoopControl()) {
-          // move DoConstruct
-          std::get<std::optional<parser::DoConstruct>>(x.t) =
-              std::move(*doCons);
-          nextIt = block.erase(nextIt);
-          // try to match AccEndCombinedDirective
-          if (nextIt != block.end()) {
-            if (auto *endDir{
-                    parser::Unwrap<parser::AccEndCombinedDirective>(*nextIt)}) {
-              std::get<std::optional<parser::AccEndCombinedDirective>>(x.t) =
-                  std::move(*endDir);
-              block.erase(nextIt);
-            }
-          }
-        } else {
+        if (!doCons->GetLoopControl()) {
           messages_.Say(dir.source,
               "DO loop after the %s directive must have loop control"_err_en_US,
               parser::ToUpperCaseLetters(dir.source.ToString()));
+          return;
+        }
+        // move DoConstruct
+        std::get<std::optional<parser::DoConstruct>>(x.t) = std::move(*doCons);
+        nextIt = block.erase(nextIt);
+        // try to match AccEndCombinedDirective
+        if (nextIt != block.end()) {
+          if (auto *endDir{
+                  parser::Unwrap<parser::AccEndCombinedDirective>(*nextIt)}) {
+            std::get<std::optional<parser::AccEndCombinedDirective>>(x.t) =
+                std::move(*endDir);
+            block.erase(nextIt);
+          }
         }
 
         CheckDoConcurrentClauseRestriction<parser::OpenACCCombinedConstruct,

@@ -135,6 +135,18 @@ llvm::raw_ostream &ProcedureRef::AsFortran(llvm::raw_ostream &o) const {
     }
   }
   proc_.AsFortran(o);
+  if (!chevrons_.empty()) {
+    bool first{true};
+    for (const auto &expr : chevrons_) {
+      if (first) {
+        expr.AsFortran(o << "<<<");
+        first = false;
+      } else {
+        expr.AsFortran(o << ",");
+      }
+    }
+    o << ">>>";
+  }
   char separator{'('};
   for (const auto &arg : arguments_) {
     if (arg && !arg->isPassedObject()) {
@@ -479,7 +491,11 @@ llvm::raw_ostream &StructureConstructor::AsFortran(llvm::raw_ostream &o) const {
 std::string DynamicType::AsFortran() const {
   if (derived_) {
     CHECK(category_ == TypeCategory::Derived);
-    return DerivedTypeSpecAsFortran(*derived_);
+    std::string result{DerivedTypeSpecAsFortran(*derived_)};
+    if (IsPolymorphic()) {
+      result = "CLASS("s + result + ')';
+    }
+    return result;
   } else if (charLengthParamValue_ || knownLength()) {
     std::string result{"CHARACTER(KIND="s + std::to_string(kind_) + ",LEN="};
     if (knownLength()) {

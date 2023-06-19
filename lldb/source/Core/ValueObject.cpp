@@ -427,16 +427,13 @@ lldb::ValueObjectSP ValueObject::GetChildAtIndexPath(
 }
 
 lldb::ValueObjectSP
-ValueObject::GetChildAtNamePath(llvm::ArrayRef<ConstString> names,
-                                ConstString *name_of_error) {
+ValueObject::GetChildAtNamePath(llvm::ArrayRef<llvm::StringRef> names) {
   if (names.size() == 0)
     return GetSP();
   ValueObjectSP root(GetSP());
-  for (ConstString name : names) {
+  for (llvm::StringRef name : names) {
     root = root->GetChildMemberWithName(name, true);
     if (!root) {
-      if (name_of_error)
-        *name_of_error = name;
       return root;
     }
   }
@@ -460,13 +457,13 @@ lldb::ValueObjectSP ValueObject::GetChildAtNamePath(
   return root;
 }
 
-size_t ValueObject::GetIndexOfChildWithName(ConstString name) {
+size_t ValueObject::GetIndexOfChildWithName(llvm::StringRef name) {
   bool omit_empty_base_classes = true;
-  return GetCompilerType().GetIndexOfChildWithName(name.GetCString(),
+  return GetCompilerType().GetIndexOfChildWithName(name,
                                                    omit_empty_base_classes);
 }
 
-ValueObjectSP ValueObject::GetChildMemberWithName(ConstString name,
+ValueObjectSP ValueObject::GetChildMemberWithName(llvm::StringRef name,
                                                   bool can_create) {
   // We may need to update our value if we are dynamic.
   if (IsPossibleDynamicType())
@@ -483,7 +480,7 @@ ValueObjectSP ValueObject::GetChildMemberWithName(ConstString name,
 
   const size_t num_child_indexes =
       GetCompilerType().GetIndexOfChildMemberWithName(
-          name.GetCString(), omit_empty_base_classes, child_indexes);
+          name, omit_empty_base_classes, child_indexes);
   if (num_child_indexes == 0)
     return nullptr;
 
@@ -1173,6 +1170,15 @@ bool ValueObject::DumpPrintableRepresentation(
     Stream &s, ValueObjectRepresentationStyle val_obj_display,
     Format custom_format, PrintableRepresentationSpecialCases special,
     bool do_dump_error) {
+    
+  // If the ValueObject has an error, we might end up dumping the type, which
+  // is useful, but if we don't even have a type, then don't examine the object
+  // further as that's not meaningful, only the error is.
+  if (m_error.Fail() && !GetCompilerType().IsValid()) {
+    if (do_dump_error)
+      s.Printf("<%s>", m_error.AsCString());
+    return false;
+  }
 
   Flags flags(GetTypeInfo());
 
@@ -1374,6 +1380,8 @@ bool ValueObject::DumpPrintableRepresentation(
     if (!str.empty())
       s << str;
     else {
+      // We checked for errors at the start, but do it again here in case
+      // realizing the value for dumping produced an error.
       if (m_error.Fail()) {
         if (do_dump_error)
           s.Printf("<%s>", m_error.AsCString());
@@ -1848,7 +1856,7 @@ ValueObjectSP ValueObject::GetDynamicValue(DynamicValueType use_dynamic) {
   if (!IsDynamic() && m_dynamic_value == nullptr) {
     CalculateDynamicValue(use_dynamic);
   }
-  if (m_dynamic_value)
+  if (m_dynamic_value && m_dynamic_value->GetError().Success())
     return m_dynamic_value->GetSP();
   else
     return ValueObjectSP();
@@ -2703,13 +2711,11 @@ ValueObjectSP ValueObject::Dereference(Status &error) {
     }
 
   } else if (HasSyntheticValue()) {
-    m_deref_valobj =
-        GetSyntheticValue()
-            ->GetChildMemberWithName(ConstString("$$dereference$$"), true)
-            .get();
+    m_deref_valobj = GetSyntheticValue()
+                         ->GetChildMemberWithName("$$dereference$$", true)
+                         .get();
   } else if (IsSynthetic()) {
-    m_deref_valobj =
-        GetChildMemberWithName(ConstString("$$dereference$$"), true).get();
+    m_deref_valobj = GetChildMemberWithName("$$dereference$$", true).get();
   }
 
   if (m_deref_valobj) {
@@ -2841,7 +2847,7 @@ ValueObject::EvaluationPoint::EvaluationPoint(ExecutionContextScope *exe_scope,
         StackFrameSP frame_sp(exe_ctx.GetFrameSP());
         if (!frame_sp) {
           if (use_selected)
-            frame_sp = thread_sp->GetSelectedFrame();
+            frame_sp = thread_sp->GetSelectedFrame(DoNoSelectMostRelevantFrame);
         }
         if (frame_sp)
           m_exe_ctx_ref.SetFrameSP(frame_sp);

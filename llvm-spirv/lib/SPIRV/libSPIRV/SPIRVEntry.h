@@ -270,6 +270,7 @@ public:
 
   bool exist(SPIRVId) const;
   template <class T> T *get(SPIRVId TheId) const {
+    // NOLINTNEXTLINE
     return static_cast<T *>(getEntry(TheId));
   }
   SPIRVEntry *getEntry(SPIRVId) const;
@@ -845,12 +846,6 @@ public:
 
   std::optional<ExtensionID> getRequiredExtension() const override {
     switch (static_cast<unsigned>(Kind)) {
-    case CapabilityDenormPreserve:
-    case CapabilityDenormFlushToZero:
-    case CapabilitySignedZeroInfNanPreserve:
-    case CapabilityRoundingModeRTE:
-    case CapabilityRoundingModeRTZ:
-      return ExtensionID::SPV_KHR_float_controls;
     case CapabilityRoundToInfinityINTEL:
     case CapabilityFloatingPointModeINTEL:
     case CapabilityFunctionFloatControlINTEL:

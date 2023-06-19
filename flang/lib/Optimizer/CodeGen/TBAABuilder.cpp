@@ -10,9 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TBAABuilder.h"
+#include "flang/Optimizer/CodeGen/TBAABuilder.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "flang-tbaa-builder"
 
 using namespace mlir;
 using namespace mlir::LLVM;
@@ -22,6 +26,15 @@ static llvm::cl::opt<bool> disableTBAA(
     llvm::cl::desc("disable attaching TBAA tags to memory accessing operations "
                    "to override default Flang behavior"),
     llvm::cl::init(false));
+
+// tagAttachmentLimit is a debugging option that allows limiting
+// the number of TBAA access tag attributes attached to operations.
+// It is set to kTagAttachmentUnlimited by default denoting "no limit".
+static constexpr unsigned kTagAttachmentUnlimited =
+    std::numeric_limits<unsigned>::max();
+static llvm::cl::opt<unsigned>
+    tagAttachmentLimit("tbaa-attach-tag-max", llvm::cl::desc(""),
+                       llvm::cl::init(kTagAttachmentUnlimited));
 
 namespace fir {
 std::string TBAABuilder::getNewTBAANodeName(llvm::StringRef basename) {
@@ -49,6 +62,9 @@ TBAABuilder::TBAABuilder(mlir::ModuleOp module, bool applyTBAA)
     enableTBAA = false;
     return;
   }
+
+  LLVM_DEBUG(llvm::dbgs() << "Creating TBAA MetadataOp for module '"
+                          << module.getName().value_or("<unknown>") << "'\n");
 
   // Create TBAA MetadataOp with the root and basic type descriptors.
   Location loc = module.getLoc();
@@ -125,10 +141,18 @@ SymbolRefAttr TBAABuilder::getDataAccessTag(Type baseFIRType,
   return getAnyDataAccessTag();
 }
 
-void TBAABuilder::attachTBAATag(Operation *op, Type baseFIRType,
+void TBAABuilder::attachTBAATag(AliasAnalysisOpInterface op, Type baseFIRType,
                                 Type accessFIRType, GEPOp gep) {
   if (!enableTBAA)
     return;
+
+  ++tagAttachmentCounter;
+  if (tagAttachmentLimit != kTagAttachmentUnlimited &&
+      tagAttachmentCounter > tagAttachmentLimit)
+    return;
+
+  LLVM_DEBUG(llvm::dbgs() << "Attaching TBAA tag #" << tagAttachmentCounter
+                          << "\n");
 
   SymbolRefAttr tbaaTagSym;
   if (baseFIRType.isa<fir::BaseBoxType>())
@@ -136,9 +160,10 @@ void TBAABuilder::attachTBAATag(Operation *op, Type baseFIRType,
   else
     tbaaTagSym = getDataAccessTag(baseFIRType, accessFIRType, gep);
 
-  if (tbaaTagSym)
-    op->setAttr(LLVMDialect::getTBAAAttrName(),
-                ArrayAttr::get(op->getContext(), tbaaTagSym));
+  if (!tbaaTagSym)
+    return;
+
+  op.setTBAATags(ArrayAttr::get(op->getContext(), tbaaTagSym));
 }
 
 } // namespace fir

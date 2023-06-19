@@ -43,28 +43,12 @@ using namespace clang;
 
 const StreamingDiagnostic &clang::operator<<(const StreamingDiagnostic &DB,
                                              DiagNullabilityKind nullability) {
-  StringRef string;
-  switch (nullability.first) {
-  case NullabilityKind::NonNull:
-    string = nullability.second ? "'nonnull'" : "'_Nonnull'";
-    break;
-
-  case NullabilityKind::Nullable:
-    string = nullability.second ? "'nullable'" : "'_Nullable'";
-    break;
-
-  case NullabilityKind::Unspecified:
-    string = nullability.second ? "'null_unspecified'" : "'_Null_unspecified'";
-    break;
-
-  case NullabilityKind::NullableResult:
-    assert(!nullability.second &&
-           "_Nullable_result isn't supported as context-sensitive keyword");
-    string = "_Nullable_result";
-    break;
-  }
-
-  DB.AddString(string);
+  DB.AddString(
+      ("'" +
+       getNullabilitySpelling(nullability.first,
+                              /*isContextSensitive=*/nullability.second) +
+       "'")
+          .str());
   return DB;
 }
 
@@ -793,8 +777,8 @@ static const char *getTokenDescForDiagnostic(tok::TokenKind Kind) {
 /// array.
 void Diagnostic::
 FormatDiagnostic(SmallVectorImpl<char> &OutStr) const {
-  if (!StoredDiagMessage.empty()) {
-    OutStr.append(StoredDiagMessage.begin(), StoredDiagMessage.end());
+  if (StoredDiagMessage.has_value()) {
+    OutStr.append(StoredDiagMessage->begin(), StoredDiagMessage->end());
     return;
   }
 

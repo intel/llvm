@@ -11,6 +11,7 @@
 #include "compute-offsets.h"
 #include "flang/Evaluate/fold.h"
 #include "flang/Evaluate/tools.h"
+#include "flang/Evaluate/type.h"
 #include "flang/Parser/characters.h"
 #include "flang/Parser/parse-tree-visitor.h"
 #include "flang/Semantics/scope.h"
@@ -178,16 +179,18 @@ bool DerivedTypeSpec::IsForwardReferenced() const {
   return typeSymbol_.get<DerivedTypeDetails>().isForwardReferenced();
 }
 
-bool DerivedTypeSpec::HasDefaultInitialization(bool ignoreAllocatable) const {
+bool DerivedTypeSpec::HasDefaultInitialization(
+    bool ignoreAllocatable, bool ignorePointer) const {
   DirectComponentIterator components{*this};
   return bool{std::find_if(
       components.begin(), components.end(), [&](const Symbol &component) {
-        return IsInitialized(component, true, ignoreAllocatable);
+        return IsInitialized(component, /*ignoreDataStatements=*/true,
+            ignoreAllocatable, ignorePointer);
       })};
 }
 
 bool DerivedTypeSpec::HasDestruction() const {
-  if (!typeSymbol().get<DerivedTypeDetails>().finals().empty()) {
+  if (!FinalsForDerivedTypeInstantiation(*this).empty()) {
     return true;
   }
   DirectComponentIterator components{*this};
@@ -325,28 +328,33 @@ void DerivedTypeSpec::Instantiate(Scope &containingScope) {
     const SourceName &name{symbol.name()};
     if (typeScope.find(symbol.name()) != typeScope.end()) {
       // This type parameter belongs to the derived type itself, not to
-      // one of its ancestors.  Put the type parameter expression value
-      // into the new scope as the initialization value for the parameter.
+      // one of its ancestors.  Put the type parameter expression value,
+      // when there is one, into the new scope as the initialization value
+      // for the parameter.  And when there is no explicit value, add an
+      // uninitialized type parameter to forestall use of any default.
       if (ParamValue * paramValue{FindParameter(name)}) {
         const TypeParamDetails &details{symbol.get<TypeParamDetails>()};
         paramValue->set_attr(details.attr());
+        TypeParamDetails instanceDetails{details.attr()};
+        if (const DeclTypeSpec * type{details.type()}) {
+          instanceDetails.set_type(*type);
+        }
+        desc += sep;
+        desc += name.ToString();
+        desc += '=';
+        sep = ',';
         if (MaybeIntExpr expr{paramValue->GetExplicit()}) {
           if (auto folded{evaluate::NonPointerInitializationExpr(symbol,
                   SomeExpr{std::move(*expr)}, foldingContext, &newScope)}) {
-            desc += sep;
-            desc += name.ToString();
-            desc += '=';
             desc += folded->AsFortran();
-            sep = ',';
-            TypeParamDetails instanceDetails{details.attr()};
-            if (const DeclTypeSpec * type{details.type()}) {
-              instanceDetails.set_type(*type);
-            }
             instanceDetails.set_init(
                 std::move(DEREF(evaluate::UnwrapExpr<SomeIntExpr>(*folded))));
-            newScope.try_emplace(name, std::move(instanceDetails));
           }
         }
+        if (!instanceDetails.init()) {
+          desc += '*';
+        }
+        newScope.try_emplace(name, std::move(instanceDetails));
       }
     }
   }
@@ -360,9 +368,8 @@ void DerivedTypeSpec::Instantiate(Scope &containingScope) {
     }
     newScope.set_instantiationContext(contextMessage);
   }
-  // Instantiate every non-parameter symbol from the original derived
+  // Instantiate nearly every non-parameter symbol from the original derived
   // type's scope into the new instance.
-  newScope.AddSourceRange(typeScope.sourceRange());
   auto restorer2{foldingContext.messages().SetContext(contextMessage)};
   if (PlumbPDTInstantiationDepth(&containingScope) > 100) {
     foldingContext.messages().Say(
@@ -558,6 +565,60 @@ DerivedTypeSpec InstantiateHelper::CreateDerivedTypeSpec(
     }
   }
   return result;
+}
+
+std::string DerivedTypeSpec::VectorTypeAsFortran() const {
+  std::string buf;
+  llvm::raw_string_ostream ss{buf};
+
+  switch (category()) {
+    SWITCH_COVERS_ALL_CASES
+  case (Fortran::semantics::DerivedTypeSpec::Category::IntrinsicVector): {
+    int64_t vecElemKind;
+    int64_t vecElemCategory;
+
+    for (const auto &pair : parameters()) {
+      if (pair.first == "element_category") {
+        vecElemCategory =
+            Fortran::evaluate::ToInt64(pair.second.GetExplicit()).value_or(-1);
+      } else if (pair.first == "element_kind") {
+        vecElemKind =
+            Fortran::evaluate::ToInt64(pair.second.GetExplicit()).value_or(0);
+      }
+    }
+
+    assert((vecElemCategory >= 0 &&
+               static_cast<size_t>(vecElemCategory) <
+                   Fortran::common::VectorElementCategory_enumSize) &&
+        "Vector element type is not specified");
+    assert(vecElemKind && "Vector element kind is not specified");
+
+    ss << "vector(";
+    switch (static_cast<common::VectorElementCategory>(vecElemCategory)) {
+      SWITCH_COVERS_ALL_CASES
+    case common::VectorElementCategory::Integer:
+      ss << "integer(" << vecElemKind << ")";
+      break;
+    case common::VectorElementCategory::Unsigned:
+      ss << "unsigned(" << vecElemKind << ")";
+      break;
+    case common::VectorElementCategory::Real:
+      ss << "real(" << vecElemKind << ")";
+      break;
+    }
+    ss << ")";
+    break;
+  }
+  case (Fortran::semantics::DerivedTypeSpec::Category::PairVector):
+    ss << "__vector_pair";
+    break;
+  case (Fortran::semantics::DerivedTypeSpec::Category::QuadVector):
+    ss << "__vector_quad";
+    break;
+  case (Fortran::semantics::DerivedTypeSpec::Category::DerivedType):
+    Fortran::common::die("Vector element type not implemented");
+  }
+  return ss.str();
 }
 
 std::string DerivedTypeSpec::AsFortran() const {
@@ -774,6 +835,8 @@ std::string DeclTypeSpec::AsFortran() const {
             .get<DerivedTypeDetails>()
             .isDECStructure()) {
       return "RECORD" + derivedTypeSpec().typeSymbol().name().ToString();
+    } else if (derivedTypeSpec().IsVectorType()) {
+      return derivedTypeSpec().VectorTypeAsFortran();
     } else {
       return "TYPE(" + derivedTypeSpec().AsFortran() + ')';
     }
@@ -788,6 +851,12 @@ std::string DeclTypeSpec::AsFortran() const {
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const DeclTypeSpec &x) {
   return o << x.AsFortran();
+}
+
+bool IsInteroperableIntrinsicType(
+    const DeclTypeSpec &type, const common::LanguageFeatureControl &features) {
+  auto dyType{evaluate::DynamicType::From(type)};
+  return dyType && IsInteroperableIntrinsicType(*dyType, &features);
 }
 
 } // namespace Fortran::semantics

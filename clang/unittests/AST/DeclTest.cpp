@@ -88,10 +88,8 @@ TEST(Decl, AsmLabelAttr) {
   NamedDecl *DeclG = *(++DeclS->method_begin());
 
   // Attach asm labels to the decls: one literal, and one not.
-  DeclF->addAttr(::new (Ctx) AsmLabelAttr(Ctx, SourceLocation(), "foo",
-                                          /*LiteralLabel=*/true));
-  DeclG->addAttr(::new (Ctx) AsmLabelAttr(Ctx, SourceLocation(), "goo",
-                                          /*LiteralLabel=*/false));
+  DeclF->addAttr(AsmLabelAttr::Create(Ctx, "foo", /*LiteralLabel=*/true));
+  DeclG->addAttr(AsmLabelAttr::Create(Ctx, "goo", /*LiteralLabel=*/false));
 
   // Mangle the decl names.
   std::string MangleF, MangleG;
@@ -232,33 +230,33 @@ TEST(Decl, ModuleAndInternalLinkage) {
   const auto *f = selectFirst<FunctionDecl>(
       "f", match(functionDecl(hasName("f")).bind("f"), Ctx));
 
-  EXPECT_EQ(a->getLinkageInternal(), InternalLinkage);
-  EXPECT_EQ(f->getLinkageInternal(), InternalLinkage);
+  EXPECT_EQ(a->getFormalLinkage(), InternalLinkage);
+  EXPECT_EQ(f->getFormalLinkage(), InternalLinkage);
 
   const auto *b =
       selectFirst<VarDecl>("b", match(varDecl(hasName("b")).bind("b"), Ctx));
   const auto *g = selectFirst<FunctionDecl>(
       "g", match(functionDecl(hasName("g")).bind("g"), Ctx));
 
-  EXPECT_EQ(b->getLinkageInternal(), ModuleLinkage);
-  EXPECT_EQ(g->getLinkageInternal(), ModuleLinkage);
+  EXPECT_EQ(b->getFormalLinkage(), ModuleLinkage);
+  EXPECT_EQ(g->getFormalLinkage(), ModuleLinkage);
 
   AST = tooling::buildASTFromCodeWithArgs(
-      Code.code(), /*Args=*/{"-std=c++20", "-fmodules-ts"});
+      Code.code(), /*Args=*/{"-std=c++20"});
   ASTContext &CtxTS = AST->getASTContext();
   a = selectFirst<VarDecl>("a", match(varDecl(hasName("a")).bind("a"), CtxTS));
   f = selectFirst<FunctionDecl>(
       "f", match(functionDecl(hasName("f")).bind("f"), CtxTS));
 
-  EXPECT_EQ(a->getLinkageInternal(), ModuleInternalLinkage);
-  EXPECT_EQ(f->getLinkageInternal(), ModuleInternalLinkage);
+  EXPECT_EQ(a->getFormalLinkage(), InternalLinkage);
+  EXPECT_EQ(f->getFormalLinkage(), InternalLinkage);
 
   b = selectFirst<VarDecl>("b", match(varDecl(hasName("b")).bind("b"), CtxTS));
   g = selectFirst<FunctionDecl>(
       "g", match(functionDecl(hasName("g")).bind("g"), CtxTS));
 
-  EXPECT_EQ(b->getLinkageInternal(), ModuleLinkage);
-  EXPECT_EQ(g->getLinkageInternal(), ModuleLinkage);
+  EXPECT_EQ(b->getFormalLinkage(), ModuleLinkage);
+  EXPECT_EQ(g->getFormalLinkage(), ModuleLinkage);
 }
 
 TEST(Decl, GetNonTransparentDeclContext) {
@@ -489,4 +487,35 @@ TEST(Decl, ImplicitlyDeclaredAllocationFunctionsInModules) {
             Ctx));
   ASSERT_TRUE(AlignedArrayDelete->getOwningModule());
   EXPECT_TRUE(AlignedArrayDelete->getOwningModule()->isGlobalModule());
+}
+
+TEST(Decl, TemplateArgumentDefaulted) {
+  llvm::Annotations Code(R"cpp(
+    template<typename T1, typename T2>
+    struct Alloc {};
+
+    template <typename T1,
+              typename T2 = double,
+              int      T3 = 42,
+              typename T4 = Alloc<T1, T2>>
+    struct Foo {
+    };
+
+    Foo<char, int, 42, Alloc<char, int>> X;
+  )cpp");
+
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code.code(), /*Args=*/{"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto const *CTSD = selectFirst<ClassTemplateSpecializationDecl>(
+      "id",
+      match(classTemplateSpecializationDecl(hasName("Foo")).bind("id"), Ctx));
+  ASSERT_NE(CTSD, nullptr);
+  auto const &ArgList = CTSD->getTemplateArgs();
+
+  EXPECT_FALSE(ArgList.get(0).getIsDefaulted());
+  EXPECT_FALSE(ArgList.get(1).getIsDefaulted());
+  EXPECT_TRUE(ArgList.get(2).getIsDefaulted());
+  EXPECT_TRUE(ArgList.get(3).getIsDefaulted());
 }

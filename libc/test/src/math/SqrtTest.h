@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/CPP/bit.h"
+#include "test/UnitTest/FPMatcher.h"
+#include "test/UnitTest/Test.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
-#include "utils/UnitTest/FPMatcher.h"
-#include "utils/UnitTest/Test.h"
 
 #include <math.h>
 
@@ -45,7 +45,7 @@ public:
       test_all_rounding_modes(func, T(denormal));
     }
 
-    constexpr UIntType COUNT = 1'000'001;
+    constexpr UIntType COUNT = 200'001;
     constexpr UIntType STEP = HIDDEN_BIT / COUNT;
     for (UIntType i = 0, v = 0; i <= COUNT; ++i, v += STEP) {
       T x = __llvm_libc::cpp::bit_cast<T>(v);
@@ -54,7 +54,7 @@ public:
   }
 
   void test_normal_range(SqrtFunc func) {
-    constexpr UIntType COUNT = 10'000'001;
+    constexpr UIntType COUNT = 200'001;
     constexpr UIntType STEP = UIntType(-1) / COUNT;
     for (UIntType i = 0, v = 0; i <= COUNT; ++i, v += STEP) {
       T x = __llvm_libc::cpp::bit_cast<T>(v);

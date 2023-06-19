@@ -328,7 +328,8 @@ public:
   }
 
   uint32_t getSize() const override {
-    return alignTo(sizeof(dylib_command) + path.size() + 1, 8);
+    return alignToPowerOf2(sizeof(dylib_command) + path.size() + 1,
+                           target->wordSize);
   }
 
   void writeTo(uint8_t *buf) const override {
@@ -362,7 +363,8 @@ uint32_t LCDylib::instanceCount = 0;
 class LCLoadDylinker final : public LoadCommand {
 public:
   uint32_t getSize() const override {
-    return alignTo(sizeof(dylinker_command) + path.size() + 1, 8);
+    return alignToPowerOf2(sizeof(dylinker_command) + path.size() + 1,
+                           target->wordSize);
   }
 
   void writeTo(uint8_t *buf) const override {
@@ -463,7 +465,7 @@ public:
       break;
     }
     c->cmdsize = getSize();
-    c->version = encodeVersion(platformInfo.minimum);
+    c->version = encodeVersion(platformInfo.target.MinDeployment);
     c->sdk = encodeVersion(platformInfo.sdk);
   }
 
@@ -488,7 +490,7 @@ public:
     c->cmdsize = getSize();
 
     c->platform = static_cast<uint32_t>(platformInfo.target.Platform);
-    c->minos = encodeVersion(platformInfo.minimum);
+    c->minos = encodeVersion(platformInfo.target.MinDeployment);
     c->sdk = encodeVersion(platformInfo.sdk);
 
     c->ntools = ntools;
@@ -672,11 +674,21 @@ void Writer::scanRelocations() {
 
     for (auto it = isec->relocs.begin(); it != isec->relocs.end(); ++it) {
       lld::macho::Reloc &r = *it;
+
+      // Canonicalize the referent so that later accesses in Writer won't
+      // have to worry about it.
+      if (auto *referentIsec = r.referent.dyn_cast<InputSection *>())
+        r.referent = referentIsec->canonical();
+
       if (target->hasAttr(r.type, RelocAttrBits::SUBTRAHEND)) {
         // Skip over the following UNSIGNED relocation -- it's just there as the
         // minuend, and doesn't have the usual UNSIGNED semantics. We don't want
         // to emit rebase opcodes for it.
-        it++;
+        ++it;
+        // Canonicalize the referent so that later accesses in Writer won't
+        // have to worry about it.
+        if (auto *referentIsec = it->referent.dyn_cast<InputSection *>())
+          it->referent = referentIsec->canonical();
         continue;
       }
       if (auto *sym = r.referent.dyn_cast<Symbol *>()) {
@@ -686,11 +698,6 @@ void Writer::scanRelocations() {
         if (!isa<Undefined>(sym) && validateSymbolRelocation(sym, isec, r))
           prepareSymbolRelocation(sym, isec, r);
       } else {
-        // Canonicalize the referent so that later accesses in Writer won't
-        // have to worry about it. Perhaps we should do this for Defined::isec
-        // too...
-        auto *referentIsec = r.referent.get<InputSection *>();
-        r.referent = referentIsec->canonical();
         if (!r.pcrel) {
           if (config->emitChainedFixups)
             in.chainedFixups->addRebase(isec, r.offset);
@@ -729,7 +736,7 @@ void Writer::scanSymbols() {
       dysym->getFile()->refState =
           std::max(dysym->getFile()->refState, dysym->getRefState());
     } else if (isa<Undefined>(sym)) {
-      if (sym->getName().startswith(ObjCStubsSection::symbolPrefix))
+      if (sym->getName().starts_with(ObjCStubsSection::symbolPrefix))
         in.objcStubs->addEntry(sym);
     }
   }
@@ -762,7 +769,9 @@ static bool useLCBuildVersion(const PlatformInfo &platformInfo) {
   auto it = llvm::find_if(minVersion, [&](const auto &p) {
     return p.first == platformInfo.target.Platform;
   });
-  return it == minVersion.end() ? true : platformInfo.minimum >= it->second;
+  return it == minVersion.end()
+             ? true
+             : platformInfo.target.MinDeployment >= it->second;
 }
 
 template <class LP> void Writer::createLoadCommands() {
@@ -974,8 +983,6 @@ template <class LP> void Writer::createOutputSections() {
     dataInCodeSection = make<DataInCodeSection>();
   if (config->emitFunctionStarts)
     functionStartsSection = make<FunctionStartsSection>();
-  if (config->emitBitcodeBundle)
-    make<BitcodeBundleSection>();
 
   switch (config->outputType) {
   case MH_EXECUTE:
@@ -1056,7 +1063,7 @@ void Writer::finalizeAddresses() {
       if (!osec->isNeeded())
         continue;
       // Other kinds of OutputSections have already been finalized.
-      if (auto concatOsec = dyn_cast<ConcatOutputSection>(osec))
+      if (auto *concatOsec = dyn_cast<ConcatOutputSection>(osec))
         concatOsec->finalizeContents();
     }
   }
@@ -1073,9 +1080,10 @@ void Writer::finalizeAddresses() {
     seg->addr = addr;
     assignAddresses(seg);
     // codesign / libstuff checks for segment ordering by verifying that
-    // `fileOff + fileSize == next segment fileOff`. So we call alignTo() before
-    // (instead of after) computing fileSize to ensure that the segments are
-    // contiguous. We handle addr / vmSize similarly for the same reason.
+    // `fileOff + fileSize == next segment fileOff`. So we call
+    // alignToPowerOf2() before (instead of after) computing fileSize to ensure
+    // that the segments are contiguous. We handle addr / vmSize similarly for
+    // the same reason.
     fileOff = alignToPowerOf2(fileOff, pageSize);
     addr = alignToPowerOf2(addr, pageSize);
     seg->vmSize = addr - seg->addr;
@@ -1118,8 +1126,8 @@ void Writer::assignAddresses(OutputSegment *seg) {
   for (OutputSection *osec : seg->getSections()) {
     if (!osec->isNeeded())
       continue;
-    addr = alignTo(addr, osec->align);
-    fileOff = alignTo(fileOff, osec->align);
+    addr = alignToPowerOf2(addr, osec->align);
+    fileOff = alignToPowerOf2(fileOff, osec->align);
     osec->addr = addr;
     osec->fileOff = isZeroFill(osec->flags) ? 0 : fileOff;
     osec->finalize();

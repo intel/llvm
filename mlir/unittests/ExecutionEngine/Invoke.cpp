@@ -23,6 +23,7 @@
 #include "mlir/InitAllDialects.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
 #include "llvm/Support/TargetSelect.h"
@@ -52,8 +53,8 @@ static struct LLVMInitializer {
 /// Simple conversion pipeline for the purpose of testing sources written in
 /// dialects lowering to LLVM Dialect.
 static LogicalResult lowerToLLVMDialect(ModuleOp module) {
-  PassManager pm(module.getContext());
-  pm.addPass(mlir::createMemRefToLLVMConversionPass());
+  PassManager pm(module->getName());
+  pm.addPass(mlir::createFinalizeMemRefToLLVMConversionPass());
   pm.addNestedPass<func::FuncOp>(mlir::createArithToLLVMConversionPass());
   pm.addPass(mlir::createConvertFuncToLLVMPass());
   pm.addPass(mlir::createReconcileUnrealizedCastsPass());
@@ -69,6 +70,7 @@ TEST(MLIRExecutionEngine, SKIP_WITHOUT_JIT(AddInteger)) {
   )mlir";
   DialectRegistry registry;
   registerAllDialects(registry);
+  registerBuiltinDialectTranslation(registry);
   registerLLVMDialectTranslation(registry);
   MLIRContext context(registry);
   OwningOpRef<ModuleOp> module =
@@ -95,6 +97,7 @@ TEST(MLIRExecutionEngine, SKIP_WITHOUT_JIT(SubtractFloat)) {
   )mlir";
   DialectRegistry registry;
   registerAllDialects(registry);
+  registerBuiltinDialectTranslation(registry);
   registerLLVMDialectTranslation(registry);
   MLIRContext context(registry);
   OwningOpRef<ModuleOp> module =
@@ -126,6 +129,7 @@ TEST(NativeMemRefJit, SKIP_WITHOUT_JIT(ZeroRankMemref)) {
   )mlir";
   DialectRegistry registry;
   registerAllDialects(registry);
+  registerBuiltinDialectTranslation(registry);
   registerLLVMDialectTranslation(registry);
   MLIRContext context(registry);
   auto module = parseSourceString<ModuleOp>(moduleStr, &context);
@@ -161,6 +165,7 @@ TEST(NativeMemRefJit, SKIP_WITHOUT_JIT(RankOneMemref)) {
   )mlir";
   DialectRegistry registry;
   registerAllDialects(registry);
+  registerBuiltinDialectTranslation(registry);
   registerLLVMDialectTranslation(registry);
   MLIRContext context(registry);
   auto module = parseSourceString<ModuleOp>(moduleStr, &context);
@@ -215,6 +220,7 @@ TEST(NativeMemRefJit, SKIP_WITHOUT_JIT(BasicMemref)) {
   )mlir";
   DialectRegistry registry;
   registerAllDialects(registry);
+  registerBuiltinDialectTranslation(registry);
   registerLLVMDialectTranslation(registry);
   MLIRContext context(registry);
   OwningOpRef<ModuleOp> module =
@@ -264,6 +270,7 @@ TEST(NativeMemRefJit, MAYBE_JITCallback) {
   )mlir";
   DialectRegistry registry;
   registerAllDialects(registry);
+  registerBuiltinDialectTranslation(registry);
   registerLLVMDialectTranslation(registry);
   MLIRContext context(registry);
   auto module = parseSourceString<ModuleOp>(moduleStr, &context);
@@ -276,7 +283,8 @@ TEST(NativeMemRefJit, MAYBE_JITCallback) {
   jit->registerSymbols([&](llvm::orc::MangleAndInterner interner) {
     llvm::orc::SymbolMap symbolMap;
     symbolMap[interner("_mlir_ciface_callback")] =
-        llvm::JITEvaluatedSymbol::fromPointer(memrefMultiply);
+        { llvm::orc::ExecutorAddr::fromPtr(memrefMultiply),
+          llvm::JITSymbolFlags::Exported };
     return symbolMap;
   });
 

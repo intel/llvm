@@ -22,7 +22,7 @@ inline sub_group this_sub_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sub_group();
 #else
-  throw runtime_error("Sub-groups are not supported on host device.",
+  throw runtime_error("Sub-groups are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
 }

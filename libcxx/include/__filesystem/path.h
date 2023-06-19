@@ -14,12 +14,17 @@
 #include <__algorithm/replace_copy.h>
 #include <__availability>
 #include <__config>
+#include <__functional/unary_function.h>
+#include <__fwd/hash.h>
 #include <__iterator/back_insert_iterator.h>
 #include <__iterator/iterator_traits.h>
+#include <__type_traits/decay.h>
+#include <__type_traits/is_pointer.h>
+#include <__type_traits/remove_const.h>
+#include <__type_traits/remove_pointer.h>
 #include <cstddef>
 #include <string>
 #include <string_view>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
 # include <iomanip> // for quoted
@@ -139,7 +144,7 @@ struct __is_pathable_string<
   }
 };
 
-template <class _Source, class _DS = typename decay<_Source>::type,
+template <class _Source, class _DS = __decay_t<_Source>,
           class _UnqualPtrType =
               __remove_const_t<__remove_pointer_t<_DS> >,
           bool _IsCharPtr = is_pointer<_DS>::value&&
@@ -168,7 +173,7 @@ struct __is_pathable_char_array<_Source, _ECharT*, _UPtr, true>
   static _ECharT __first_or_null(const _ECharT* __b) { return *__b; }
 };
 
-template <class _Iter, bool _IsIt = __is_cpp17_input_iterator<_Iter>::value,
+template <class _Iter, bool _IsIt = __has_input_iterator_category<_Iter>::value,
           class = void>
 struct __is_pathable_iter : false_type {};
 
@@ -303,7 +308,7 @@ struct _PathCVT<__path_value> {
 
   template <class _Iter>
   _LIBCPP_HIDE_FROM_ABI
-  static typename enable_if<__is_exactly_cpp17_input_iterator<_Iter>::value>::type
+  static typename enable_if<__has_exactly_input_iterator_category<_Iter>::value>::type
   __append_range(__path_string& __dest, _Iter __b, _Iter __e) {
     for (; __b != __e; ++__b)
       __dest.push_back(*__b);
@@ -311,7 +316,7 @@ struct _PathCVT<__path_value> {
 
   template <class _Iter>
   _LIBCPP_HIDE_FROM_ABI
-  static typename enable_if<__is_cpp17_forward_iterator<_Iter>::value>::type
+  static typename enable_if<__has_forward_iterator_category<_Iter>::value>::type
   __append_range(__path_string& __dest, _Iter __b, _Iter __e) {
     __dest.append(__b, __e);
   }
@@ -348,7 +353,7 @@ struct _PathCVT<char> {
 
   template <class _Iter>
   _LIBCPP_HIDE_FROM_ABI
-  static typename enable_if<__is_exactly_cpp17_input_iterator<_Iter>::value>::type
+  static typename enable_if<__has_exactly_input_iterator_category<_Iter>::value>::type
   __append_range(__path_string& __dest, _Iter __b, _Iter __e) {
     basic_string<char> __tmp(__b, __e);
     __append_string(__dest, __tmp);
@@ -356,7 +361,7 @@ struct _PathCVT<char> {
 
   template <class _Iter>
   _LIBCPP_HIDE_FROM_ABI
-  static typename enable_if<__is_cpp17_forward_iterator<_Iter>::value>::type
+  static typename enable_if<__has_forward_iterator_category<_Iter>::value>::type
   __append_range(__path_string& __dest, _Iter __b, _Iter __e) {
     basic_string<char> __tmp(__b, __e);
     __append_string(__dest, __tmp);
@@ -1085,6 +1090,17 @@ size_t hash_value(const path& __p) noexcept;
 _LIBCPP_AVAILABILITY_FILESYSTEM_POP
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
+
+_LIBCPP_BEGIN_NAMESPACE_STD
+
+template <>
+struct _LIBCPP_AVAILABILITY_FILESYSTEM hash<_VSTD_FS::path> : __unary_function<_VSTD_FS::path, size_t> {
+  _LIBCPP_HIDE_FROM_ABI size_t operator()(_VSTD_FS::path const& __p) const noexcept {
+    return _VSTD_FS::hash_value(__p);
+  }
+};
+
+_LIBCPP_END_NAMESPACE_STD
 
 #endif // _LIBCPP_CXX03_LANG
 

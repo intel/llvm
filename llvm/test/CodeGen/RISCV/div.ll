@@ -195,11 +195,11 @@ define i64 @udiv64_constant(i64 %a) nounwind {
 ; RV32IM-NEXT:    addi a3, a3, -820
 ; RV32IM-NEXT:    mul a3, a5, a3
 ; RV32IM-NEXT:    mulhu a6, a5, a4
+; RV32IM-NEXT:    add a3, a6, a3
 ; RV32IM-NEXT:    sltu a0, a0, a2
 ; RV32IM-NEXT:    sub a1, a1, a0
-; RV32IM-NEXT:    mul a0, a1, a4
-; RV32IM-NEXT:    add a0, a3, a0
-; RV32IM-NEXT:    add a1, a6, a0
+; RV32IM-NEXT:    mul a1, a1, a4
+; RV32IM-NEXT:    add a1, a3, a1
 ; RV32IM-NEXT:    mul a0, a5, a4
 ; RV32IM-NEXT:    ret
 ;
@@ -210,8 +210,10 @@ define i64 @udiv64_constant(i64 %a) nounwind {
 ;
 ; RV64IM-LABEL: udiv64_constant:
 ; RV64IM:       # %bb.0:
-; RV64IM-NEXT:    lui a1, %hi(.LCPI5_0)
-; RV64IM-NEXT:    ld a1, %lo(.LCPI5_0)(a1)
+; RV64IM-NEXT:    lui a1, 838861
+; RV64IM-NEXT:    addiw a1, a1, -819
+; RV64IM-NEXT:    slli a2, a1, 32
+; RV64IM-NEXT:    add a1, a1, a2
 ; RV64IM-NEXT:    mulhu a0, a0, a1
 ; RV64IM-NEXT:    srli a0, a0, 2
 ; RV64IM-NEXT:    ret

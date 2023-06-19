@@ -16,6 +16,7 @@
 #include "llvm/TextAPI/InterfaceFile.h"
 #include "llvm/TextAPI/Symbol.h"
 #include "llvm/TextAPI/Target.h"
+#include <iterator>
 
 using namespace llvm;
 using namespace MachO;
@@ -74,43 +75,49 @@ StringLiteral SymScalar::getSymbolNamePrefix(MachO::SymbolKind Kind) {
   llvm_unreachable("Unknown llvm::MachO::SymbolKind enum");
 }
 
-std::string SymScalar::stringifySymbolFlag(MachO::SymbolFlags Flag) {
-  switch (Flag) {
-  case MachO::SymbolFlags::None:
-    return "";
-  case MachO::SymbolFlags::ThreadLocalValue:
-    return "Thread-Local";
-  case MachO::SymbolFlags::WeakDefined:
-    return "Weak-Defined";
-  case MachO::SymbolFlags::WeakReferenced:
-    return "Weak-Referenced";
-  case MachO::SymbolFlags::Undefined:
-    return "Undefined";
-  case MachO::SymbolFlags::Rexported:
-    return "Reexported";
-  }
-  llvm_unreachable("Unknown llvm::MachO::SymbolFlags enum");
+std::string SymScalar::getFlagString(const MachO::Symbol *Sym) {
+  if (Sym->getFlags() == SymbolFlags::None)
+    return {};
+  SmallString<64> Flags(" - ");
+  if (Sym->isThreadLocalValue())
+    Flags.append("Thread-Local ");
+  if (Sym->isWeakDefined())
+    Flags.append("Weak-Defined ");
+  if (Sym->isWeakReferenced())
+    Flags.append("Weak-Referenced ");
+  if (Sym->isUndefined())
+    Flags.append("Undefined ");
+  if (Sym->isReexported())
+    Flags.append("Reexported ");
+  if (Sym->isData())
+    Flags.append("Data ");
+  if (Sym->isText())
+    Flags.append("Text ");
+
+  return std::string(Flags);
 }
 
 void SymScalar::print(raw_ostream &OS, std::string Indent, MachO::Target Targ) {
   if (Val->getKind() == MachO::SymbolKind::ObjectiveCClass) {
     if (Targ.Arch == MachO::AK_i386 && Targ.Platform == MachO::PLATFORM_MACOS) {
       OS << Indent << "\t\t" << ((Order == lhs) ? "< " : "> ")
-         << ObjC1ClassNamePrefix << Val->getName()
-         << getFlagString(Val->getFlags()) << "\n";
+         << ObjC1ClassNamePrefix << Val->getName() << getFlagString(Val)
+         << "\n";
       return;
     }
     OS << Indent << "\t\t" << ((Order == lhs) ? "< " : "> ")
-       << ObjC2ClassNamePrefix << Val->getName()
-       << getFlagString(Val->getFlags()) << "\n";
+       << ObjC2ClassNamePrefix << Val->getName() << getFlagString(Val) << "\n";
   }
   OS << Indent << "\t\t" << ((Order == lhs) ? "< " : "> ")
      << getSymbolNamePrefix(Val->getKind()) << Val->getName()
-     << getFlagString(Val->getFlags()) << "\n";
+     << getFlagString(Val) << "\n";
 }
 
 bool checkSymbolEquality(llvm::MachO::InterfaceFile::const_symbol_range LHS,
                          llvm::MachO::InterfaceFile::const_symbol_range RHS) {
+  if (std::distance(LHS.begin(), LHS.end()) !=
+      std::distance(RHS.begin(), RHS.end()))
+    return false;
   return std::equal(LHS.begin(), LHS.end(), RHS.begin(),
                     [&](auto LHS, auto RHS) { return *LHS == *RHS; });
 }

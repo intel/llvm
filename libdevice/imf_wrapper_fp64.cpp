@@ -369,4 +369,12 @@ DEVICE_EXTERN_C_INLINE
 _iml_half_internal __imf_double2half(double x) {
   return __devicelib_imf_double2half(x);
 }
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_double2bfloat16(double);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_double2bfloat16(double x) {
+  return __devicelib_imf_double2bfloat16(x);
+}
 #endif // __LIBDEVICE_IMF_ENABLED__

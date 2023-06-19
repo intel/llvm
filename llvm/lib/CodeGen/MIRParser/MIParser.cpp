@@ -24,6 +24,7 @@
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/AsmParser/SlotMapping.h"
+#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MIRFormatter.h"
 #include "llvm/CodeGen/MIRPrinter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -62,7 +63,6 @@
 #include "llvm/Support/BranchProbability.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/LowLevelTypeImpl.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
@@ -470,7 +470,7 @@ public:
   bool parseJumpTableIndexOperand(MachineOperand &Dest);
   bool parseExternalSymbolOperand(MachineOperand &Dest);
   bool parseMCSymbolOperand(MachineOperand &Dest);
-  bool parseMDNode(MDNode *&Node);
+  [[nodiscard]] bool parseMDNode(MDNode *&Node);
   bool parseDIExpression(MDNode *&Expr);
   bool parseDILocation(MDNode *&Expr);
   bool parseMetadataOperand(MachineOperand &Dest);
@@ -1419,14 +1419,10 @@ bool MIParser::verifyImplicitOperands(ArrayRef<ParsedMachineOperand> Operands,
 
   // Gather all the expected implicit operands.
   SmallVector<MachineOperand, 4> ImplicitOperands;
-  if (MCID.getImplicitDefs())
-    for (const MCPhysReg *ImpDefs = MCID.getImplicitDefs(); *ImpDefs; ++ImpDefs)
-      ImplicitOperands.push_back(
-          MachineOperand::CreateReg(*ImpDefs, true, true));
-  if (MCID.getImplicitUses())
-    for (const MCPhysReg *ImpUses = MCID.getImplicitUses(); *ImpUses; ++ImpUses)
-      ImplicitOperands.push_back(
-          MachineOperand::CreateReg(*ImpUses, false, true));
+  for (MCPhysReg ImpDef : MCID.implicit_defs())
+    ImplicitOperands.push_back(MachineOperand::CreateReg(ImpDef, true, true));
+  for (MCPhysReg ImpUse : MCID.implicit_uses())
+    ImplicitOperands.push_back(MachineOperand::CreateReg(ImpUse, false, true));
 
   const auto *TRI = MF.getSubtarget().getRegisterInfo();
   assert(TRI && "Expected target register info");
@@ -1455,7 +1451,8 @@ bool MIParser::parseInstruction(unsigned &OpCode, unsigned &Flags) {
          Token.is(MIToken::kw_nuw) ||
          Token.is(MIToken::kw_nsw) ||
          Token.is(MIToken::kw_exact) ||
-         Token.is(MIToken::kw_nofpexcept)) {
+         Token.is(MIToken::kw_nofpexcept) ||
+         Token.is(MIToken::kw_unpredictable)) {
     // Mine frame and fast math flags
     if (Token.is(MIToken::kw_frame_setup))
       Flags |= MachineInstr::FrameSetup;
@@ -1483,6 +1480,8 @@ bool MIParser::parseInstruction(unsigned &OpCode, unsigned &Flags) {
       Flags |= MachineInstr::IsExact;
     if (Token.is(MIToken::kw_nofpexcept))
       Flags |= MachineInstr::NoFPExcept;
+    if (Token.is(MIToken::kw_unpredictable))
+      Flags |= MachineInstr::Unpredictable;
 
     lex();
   }
@@ -1804,9 +1803,12 @@ bool MIParser::parseRegisterOperand(MachineOperand &Dest,
 bool MIParser::parseImmediateOperand(MachineOperand &Dest) {
   assert(Token.is(MIToken::IntegerLiteral));
   const APSInt &Int = Token.integerValue();
-  if (Int.getMinSignedBits() > 64)
+  if (auto SImm = Int.trySExtValue(); Int.isSigned() && SImm.has_value())
+    Dest = MachineOperand::CreateImm(*SImm);
+  else if (auto UImm = Int.tryZExtValue(); !Int.isSigned() && UImm.has_value())
+    Dest = MachineOperand::CreateImm(*UImm);
+  else
     return error("integer literal is too large to be an immediate operand");
-  Dest = MachineOperand::CreateImm(Int.getExtValue());
   lex();
   return false;
 }
@@ -2415,7 +2417,7 @@ bool MIParser::parseMetadataOperand(MachineOperand &Dest) {
 bool MIParser::parseCFIOffset(int &Offset) {
   if (Token.isNot(MIToken::IntegerLiteral))
     return error("expected a cfi offset");
-  if (Token.integerValue().getMinSignedBits() > 32)
+  if (Token.integerValue().getSignificantBits() > 32)
     return error("expected a 32 bit integer (the cfi offset is too large)");
   Offset = (int)Token.integerValue().getExtValue();
   lex();
@@ -3002,7 +3004,7 @@ bool MIParser::parseOffset(int64_t &Offset) {
   lex();
   if (Token.isNot(MIToken::IntegerLiteral))
     return error("expected an integer literal after '" + Sign + "'");
-  if (Token.integerValue().getMinSignedBits() > 64)
+  if (Token.integerValue().getSignificantBits() > 64)
     return error("expected 64-bit integer (too large)");
   Offset = Token.integerValue().getExtValue();
   if (IsNegative)
@@ -3472,7 +3474,8 @@ bool MIParser::parseHeapAllocMarker(MDNode *&Node) {
   assert(Token.is(MIToken::kw_heap_alloc_marker) &&
          "Invalid token for a heap alloc marker!");
   lex();
-  parseMDNode(Node);
+  if (parseMDNode(Node))
+    return true;
   if (!Node)
     return error("expected a MDNode after 'heap-alloc-marker'");
   if (Token.isNewlineOrEOF() || Token.is(MIToken::coloncolon) ||
@@ -3488,7 +3491,8 @@ bool MIParser::parsePCSections(MDNode *&Node) {
   assert(Token.is(MIToken::kw_pcsections) &&
          "Invalid token for a PC sections!");
   lex();
-  parseMDNode(Node);
+  if (parseMDNode(Node))
+    return true;
   if (!Node)
     return error("expected a MDNode after 'pcsections'");
   if (Token.isNewlineOrEOF() || Token.is(MIToken::coloncolon) ||

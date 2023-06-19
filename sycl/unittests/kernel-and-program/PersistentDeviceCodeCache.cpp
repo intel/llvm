@@ -217,7 +217,6 @@ public:
   }
 
 protected:
-  detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
   unittest::PiMock Mock;
   platform Plt;
   device Dev;
@@ -236,8 +235,8 @@ protected:
                                     /*PropertySetsBegin*/ nullptr,
                                     /*PropertySetsEnd*/ nullptr};
   pi_device_binary Bin = &BinStruct;
-  detail::RTDeviceBinaryImage Img{Bin, ModuleHandle};
-  RT::PiProgram NativeProg;
+  detail::RTDeviceBinaryImage Img{Bin};
+  sycl::detail::pi::PiProgram NativeProg;
 };
 
 /* Checks that key values with \0 symbols are processed correctly

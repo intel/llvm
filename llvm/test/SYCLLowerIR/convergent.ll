@@ -1,5 +1,5 @@
-; RUN: opt < %s -LowerWGScope -S -enable-new-pm=0 | FileCheck %s
-; RUN: opt < %s -LowerWGScope --mtriple=nvptx -S -enable-new-pm=0 | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-PTX
+; RUN: opt < %s -LowerWGScope -S -bugpoint-enable-legacy-pm | FileCheck %s
+; RUN: opt < %s -LowerWGScope --mtriple=nvptx -S -bugpoint-enable-legacy-pm | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-PTX
 
 ; RUN: opt < %s -passes=LowerWGScope -S | FileCheck %s
 ; RUN: opt < %s -passes=LowerWGScope --mtriple=nvptx -S | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-PTX

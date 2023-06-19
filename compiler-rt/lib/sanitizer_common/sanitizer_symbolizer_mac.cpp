@@ -14,16 +14,16 @@
 #include "sanitizer_platform.h"
 #if SANITIZER_APPLE
 
-#include "sanitizer_allocator_internal.h"
-#include "sanitizer_mac.h"
-#include "sanitizer_symbolizer_mac.h"
+#  include <dlfcn.h>
+#  include <errno.h>
+#  include <stdlib.h>
+#  include <sys/wait.h>
+#  include <unistd.h>
+#  include <util.h>
 
-#include <dlfcn.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <util.h>
+#  include "sanitizer_allocator_internal.h"
+#  include "sanitizer_mac.h"
+#  include "sanitizer_symbolizer_mac.h"
 
 namespace __sanitizer {
 
@@ -39,6 +39,12 @@ bool DlAddrSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
   uptr sym_addr = reinterpret_cast<uptr>(info.dli_saddr);
   if (addr >= sym_addr) {
     stack->info.function_offset = addr - sym_addr;
+  }
+
+  if (info.dli_fname) {
+    if (auto *last_occurence = internal_strrchr(info.dli_fname, '/')) {
+      stack->info.module = internal_strdup(last_occurence + 1);
+    }
   }
 
   const char *demangled = DemangleSwiftAndCXX(info.dli_sname);
@@ -163,7 +169,7 @@ bool AtosSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
   uptr start_address = AddressInfo::kUnknown;
   if (!ParseCommandOutput(buf, addr, &stack->info.function, &stack->info.module,
                           &stack->info.file, &line, &start_address)) {
-    process_ = nullptr;
+    Report("WARNING: atos failed to symbolize address \"0x%zx\"\n", addr);
     return false;
   }
   stack->info.line = (int)line;

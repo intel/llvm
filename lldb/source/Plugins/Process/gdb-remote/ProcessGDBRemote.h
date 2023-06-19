@@ -38,6 +38,7 @@
 #include "GDBRemoteRegisterContext.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringMap.h"
 
 namespace lldb_private {
 namespace repro {
@@ -159,7 +160,7 @@ public:
 
   Status DisableWatchpoint(Watchpoint *wp, bool notify = true) override;
 
-  Status GetWatchpointSupportInfo(uint32_t &num) override;
+  std::optional<uint32_t> GetWatchpointSlotCount() override;
 
   llvm::Expected<TraceSupportedResponse> TraceSupported() override;
 
@@ -172,7 +173,7 @@ public:
   llvm::Expected<std::vector<uint8_t>>
   TraceGetBinaryData(const TraceGetBinaryDataRequest &request) override;
 
-  Status GetWatchpointSupportInfo(uint32_t &num, bool &after) override;
+  std::optional<bool> DoGetWatchpointReportedAfter() override;
 
   bool StartNoticingNewThreads() override;
 
@@ -466,6 +467,15 @@ private:
   // fork helpers
   void DidForkSwitchSoftwareBreakpoints(bool enable);
   void DidForkSwitchHardwareTraps(bool enable);
+
+  // Lists of register fields generated from the remote's target XML.
+  // Pointers to these RegisterFlags will be set in the register info passed
+  // back to the upper levels of lldb. Doing so is safe because this class will
+  // live at least as long as the debug session. We therefore do not store the
+  // data directly in the map because the map may reallocate it's storage as new
+  // entries are added. Which would invalidate any pointers set in the register
+  // info up to that point.
+  llvm::StringMap<std::unique_ptr<RegisterFlags>> m_registers_flags_types;
 };
 
 } // namespace process_gdb_remote

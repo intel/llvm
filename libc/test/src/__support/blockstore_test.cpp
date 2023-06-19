@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/blockstore.h"
-#include "utils/UnitTest/Test.h"
+#include "test/UnitTest/Test.h"
 
 struct Element {
   int a;
@@ -90,10 +90,11 @@ TEST_F(LlvmLibcBlockStoreTest, PopulateAndIterateReverse10) {
   populate_and_iterate<4, 10, true>();
 }
 
-TEST_F(LlvmLibcBlockStoreTest, Back) {
-  back_test<false>();
-  back_test<true>();
-}
+TEST_F(LlvmLibcBlockStoreTest, Back) { back_test<false>(); }
+
+// FIXME: Combing this test with the above test makes the AMDGPU backend
+// generate code which hangs. This should be fixed in the clang compiler.
+TEST_F(LlvmLibcBlockStoreTest, BackReverse) { back_test<true>(); }
 
 TEST_F(LlvmLibcBlockStoreTest, Empty) {
   empty_test<false>();

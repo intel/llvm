@@ -19,7 +19,7 @@ endif()
 
 # This must be in sync with llvm/sycl/CMakeLists.txt.
 SET_SOURCE_FILES_PROPERTIES( ToolChains/MSVC.cpp ToolChains/Clang.cpp
-  PROPERTIES COMPILE_DEFINITIONS SYCL_MAJOR_VERSION="6" )
+  PROPERTIES COMPILE_DEFINITIONS SYCL_MAJOR_VERSION="7" )
 
 add_clang_library(clangDriver
   Action.cpp
@@ -29,6 +29,7 @@ add_clang_library(clangDriver
   DriverOptions.cpp
   Job.cpp
   Multilib.cpp
+  MultilibBuilder.cpp
   OffloadBundler.cpp
   OptionUtils.cpp
   Phases.cpp
@@ -82,6 +83,7 @@ add_clang_library(clangDriver
   ToolChains/Myriad.cpp
   ToolChains/NaCl.cpp
   ToolChains/NetBSD.cpp
+  ToolChains/OHOS.cpp
   ToolChains/OpenBSD.cpp
   ToolChains/PS4CPU.cpp
   ToolChains/RISCVToolchain.cpp
@@ -101,7 +103,6 @@ add_clang_library(clangDriver
 
   DEPENDS
   ClangDriverOptions
-  RISCVTargetParserTableGen
 
   LINK_LIBS
   clangBasic

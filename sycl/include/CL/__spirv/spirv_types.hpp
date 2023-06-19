@@ -8,9 +8,12 @@
 
 #pragma once
 
+#include "sycl/half_type.hpp"
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/defines_elementary.hpp>
+#include <sycl/half_type.hpp>
 
+#include <complex>
 #include <cstddef>
 #include <cstdint>
 
@@ -106,7 +109,8 @@ struct MemorySemanticsMask {
 enum class GroupOperation : uint32_t {
   Reduce = 0,
   InclusiveScan = 1,
-  ExclusiveScan = 2
+  ExclusiveScan = 2,
+  ClusteredReduce = 3,
 };
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
@@ -127,6 +131,27 @@ enum class MatrixLayout : uint32_t {
 #endif
 
 enum class MatrixUse : uint32_t { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
+
+struct complex_float {
+  complex_float() = default;
+  complex_float(std::complex<float> x) : real(x.real()), imag(x.imag()) {}
+  operator std::complex<float>() { return {real, imag}; }
+  float real, imag;
+};
+
+struct complex_double {
+  complex_double() = default;
+  complex_double(std::complex<double> x) : real(x.real()), imag(x.imag()) {}
+  operator std::complex<double>() { return {real, imag}; }
+  double real, imag;
+};
+
+struct complex_half {
+  complex_half() = default;
+  complex_half(std::complex<sycl::half> x) : real(x.real()), imag(x.imag()) {}
+  operator std::complex<sycl::half>() { return {real, imag}; }
+  sycl::half real, imag;
+};
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,

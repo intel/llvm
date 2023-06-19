@@ -34,6 +34,7 @@ namespace llvm {
 
 class AAResults;
 class AssumptionCache;
+class OptimizationRemarkEmitter;
 class ProfileSummaryInfo;
 class TargetLibraryInfo;
 class TargetTransformInfo;
@@ -529,6 +530,8 @@ public:
   SimplifyDemandedVectorElts(Value *V, APInt DemandedElts, APInt &UndefElts,
                              unsigned Depth = 0,
                              bool AllowMultipleUsers = false) = 0;
+
+  bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const;
 };
 
 } // namespace llvm

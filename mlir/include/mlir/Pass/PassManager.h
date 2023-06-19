@@ -21,10 +21,6 @@
 #include <vector>
 #include <optional>
 
-namespace llvm {
-class Any;
-} // namespace llvm
-
 namespace mlir {
 class AnalysisManager;
 class MLIRContext;
@@ -213,13 +209,19 @@ public:
   /// Create a new pass manager under the given context with a specific nesting
   /// style. The created pass manager can schedule operations that match
   /// `operationName`.
-  /// FIXME: We should make the specification of `builtin.module` explicit here,
-  /// so that we can have top-level op-agnostic pass managers.
-  PassManager(MLIRContext *ctx, Nesting nesting = Nesting::Explicit,
-              StringRef operationName = "builtin.module");
-  PassManager(MLIRContext *ctx, StringRef operationName)
-      : PassManager(ctx, Nesting::Explicit, operationName) {}
+  PassManager(MLIRContext *ctx,
+              StringRef operationName = PassManager::getAnyOpAnchorName(),
+              Nesting nesting = Nesting::Explicit);
+  PassManager(OperationName operationName, Nesting nesting = Nesting::Explicit);
   ~PassManager();
+
+  /// Create a new pass manager under the given context with a specific nesting
+  /// style. The created pass manager can schedule operations that match
+  /// `OperationTy`.
+  template <typename OperationTy>
+  static PassManager on(MLIRContext *ctx, Nesting nesting = Nesting::Explicit) {
+    return PassManager(ctx, OperationTy::getOperationName(), nesting);
+  }
 
   /// Run the passes within this manager on the provided operation. The
   /// specified operation must have the same name as the one provided the pass
@@ -438,7 +440,8 @@ private:
   std::unique_ptr<detail::PassCrashReproducerGenerator> crashReproGenerator;
 
   /// A hash key used to detect when reinitialization is necessary.
-  llvm::hash_code initializationKey;
+  llvm::hash_code initializationKey =
+      DenseMapInfo<llvm::hash_code>::getTombstoneKey();
 
   /// Flag that specifies if pass timing is enabled.
   bool passTiming : 1;
@@ -454,7 +457,7 @@ void registerPassManagerCLOptions();
 
 /// Apply any values provided to the pass manager options that were registered
 /// with 'registerPassManagerOptions'.
-void applyPassManagerCLOptions(PassManager &pm);
+LogicalResult applyPassManagerCLOptions(PassManager &pm);
 
 /// Apply any values provided to the timing manager options that were registered
 /// with `registerDefaultTimingManagerOptions`. This is a handy helper function

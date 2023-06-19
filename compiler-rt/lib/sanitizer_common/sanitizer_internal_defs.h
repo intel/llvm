@@ -13,6 +13,7 @@
 #define SANITIZER_DEFS_H
 
 #include "sanitizer_platform.h"
+#include "sanitizer_redefine_builtins.h"
 
 #ifndef SANITIZER_DEBUG
 # define SANITIZER_DEBUG 0
@@ -35,15 +36,6 @@
 #else
 # define SANITIZER_INTERFACE_ATTRIBUTE __attribute__((visibility("default")))
 # define SANITIZER_WEAK_ATTRIBUTE  __attribute__((weak))
-#endif
-
-// TLS is handled differently on different platforms
-#if SANITIZER_LINUX || SANITIZER_NETBSD || \
-  SANITIZER_FREEBSD
-# define SANITIZER_TLS_INITIAL_EXEC_ATTRIBUTE \
-    __attribute__((tls_model("initial-exec"))) thread_local
-#else
-# define SANITIZER_TLS_INITIAL_EXEC_ATTRIBUTE
 #endif
 
 //--------------------------- WEAK FUNCTIONS ---------------------------------//
@@ -224,9 +216,10 @@ typedef u64 tid_t;
 # define UNLIKELY(x) (x)
 # define PREFETCH(x) /* _mm_prefetch(x, _MM_HINT_NTA) */ (void)0
 # define WARN_UNUSED_RESULT
+# define UNINITIALIZED
 #else  // _MSC_VER
 # define ALWAYS_INLINE inline __attribute__((always_inline))
-# define ALIAS(x) __attribute__((alias(x)))
+# define ALIAS(x) __attribute__((alias(SANITIZER_STRINGIFY(x))))
 // Please only use the ALIGNED macro before the type.
 // Using ALIGNED after the variable declaration is not portable!
 # define ALIGNED(x) __attribute__((aligned(x)))
@@ -243,6 +236,11 @@ typedef u64 tid_t;
 #  define PREFETCH(x) __builtin_prefetch(x)
 # endif
 # define WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+# if __has_attribute(uninitialized)
+#  define UNINITIALIZED __attribute__((uninitialized))
+# else  // __has_attribute(uninitialized)
+#  define UNINITIALIZED
+# endif  // __has_attribute(uninitialized)
 #endif  // _MSC_VER
 
 #if !defined(_MSC_VER) || defined(__clang__)

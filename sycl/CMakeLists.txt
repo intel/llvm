@@ -32,11 +32,11 @@ include(SYCLUtils)
 #
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
-set(SYCL_MAJOR_VERSION 6)
-set(SYCL_MINOR_VERSION 2)
+set(SYCL_MAJOR_VERSION 7)
+set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
 
-set(SYCL_DEV_ABI_VERSION 0)
+set(SYCL_DEV_ABI_VERSION 4)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()
@@ -162,16 +162,25 @@ endif()
 if ("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_ESIMD_EMULATOR ON)
 endif()
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_PI_OPENCL ON)
+endif()
+if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_PI_LEVEL_ZERO ON)
+endif()
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
 set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
-set(version_header "${sycl_inc_dir}/sycl/version.hpp")
-configure_file("${version_header}.in" "${version_header}")
-set(feature_header "${sycl_inc_dir}/sycl/feature_test.hpp")
-configure_file("${feature_header}.in" "${feature_header}")
+configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
+configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
+install(FILES
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp"
+  DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
+  COMPONENT sycl-headers)
 
 include(AddBoostMp11Headers)
 
@@ -294,7 +303,6 @@ add_custom_target(sycl-compiler
           llc
           llvm-ar
           llvm-foreach
-          llvm-no-spir-kernel
           llvm-spirv
           llvm-link
           llvm-objcopy
@@ -314,6 +322,10 @@ add_custom_target( sycl-toolchain
           ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
+
+if (WIN32)
+  add_dependencies(sycl-toolchain pi_win_proxy_loader)
+endif()
 
 # Enable new IN_LIST operator.
 cmake_policy(SET CMP0057 NEW)
@@ -347,6 +359,10 @@ add_subdirectory( plugins )
 
 add_subdirectory(tools)
 
+if (WIN32)
+  add_subdirectory(pi_win_proxy_loader)
+endif()
+
 if(SYCL_INCLUDE_TESTS)
   if(NOT LLVM_INCLUDE_TESTS)
       message(FATAL_ERROR
@@ -374,7 +390,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      llc
      llvm-ar
      llvm-foreach
-     llvm-no-spir-kernel
      llvm-spirv
      llvm-link
      llvm-objcopy
@@ -392,6 +407,10 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
+
+if (WIN32)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_win_proxy_loader)
+endif()
 
 if (TARGET sycl-prof)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS sycl-prof)
@@ -486,3 +505,5 @@ add_custom_target(deploy-sycl-toolchain
 
 # SYCL Runtime documentation
 add_subdirectory(doc)
+# SYCL End-to-End tests
+add_subdirectory(test-e2e)

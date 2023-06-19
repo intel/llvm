@@ -28,7 +28,7 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
                      const AllowListParsedT &AllowListParsed);
 
 void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
-                    RT::PiPlatform PiPlatform, const plugin &Plugin);
+                    RT::PiPlatform PiPlatform, const PluginPtr &Plugin);
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

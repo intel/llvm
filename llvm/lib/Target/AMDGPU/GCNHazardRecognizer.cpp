@@ -16,7 +16,7 @@
 #include "SIMachineFunctionInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/ScheduleDAG.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
 
 using namespace llvm;
 
@@ -594,17 +594,15 @@ static void addRegUnits(const SIRegisterInfo &TRI, BitVector &BV,
 
 static void addRegsToSet(const SIRegisterInfo &TRI,
                          iterator_range<MachineInstr::const_mop_iterator> Ops,
-                         BitVector &Set) {
+                         BitVector &DefSet, BitVector &UseSet) {
   for (const MachineOperand &Op : Ops) {
     if (Op.isReg())
-      addRegUnits(TRI, Set, Op.getReg().asMCReg());
+      addRegUnits(TRI, Op.isDef() ? DefSet : UseSet, Op.getReg().asMCReg());
   }
 }
 
 void GCNHazardRecognizer::addClauseInst(const MachineInstr &MI) {
-  // XXX: Do we need to worry about implicit operands
-  addRegsToSet(TRI, MI.defs(), ClauseDefs);
-  addRegsToSet(TRI, MI.uses(), ClauseUses);
+  addRegsToSet(TRI, MI.operands(), ClauseDefs, ClauseUses);
 }
 
 static bool breaksSMEMSoftClause(MachineInstr *MI) {
@@ -817,7 +815,7 @@ int GCNHazardRecognizer::createsVALUHazard(const MachineInstr &MI) {
   int VDataIdx = AMDGPU::getNamedOperandIdx(Opcode, AMDGPU::OpName::vdata);
   int VDataRCID = -1;
   if (VDataIdx != -1)
-    VDataRCID = Desc.OpInfo[VDataIdx].RegClass;
+    VDataRCID = Desc.operands()[VDataIdx].RegClass;
 
   if (TII->isMUBUF(MI) || TII->isMTBUF(MI)) {
     // There is no hazard if the instruction does not use vector regs
@@ -842,13 +840,13 @@ int GCNHazardRecognizer::createsVALUHazard(const MachineInstr &MI) {
   if (TII->isMIMG(MI)) {
     int SRsrcIdx = AMDGPU::getNamedOperandIdx(Opcode, AMDGPU::OpName::srsrc);
     assert(SRsrcIdx != -1 &&
-           AMDGPU::getRegBitWidth(Desc.OpInfo[SRsrcIdx].RegClass) == 256);
+           AMDGPU::getRegBitWidth(Desc.operands()[SRsrcIdx].RegClass) == 256);
     (void)SRsrcIdx;
   }
 
   if (TII->isFLAT(MI)) {
     int DataIdx = AMDGPU::getNamedOperandIdx(Opcode, AMDGPU::OpName::vdata);
-    if (AMDGPU::getRegBitWidth(Desc.OpInfo[DataIdx].RegClass) > 64)
+    if (AMDGPU::getRegBitWidth(Desc.operands()[DataIdx].RegClass) > 64)
       return DataIdx;
   }
 
@@ -1033,11 +1031,11 @@ int GCNHazardRecognizer::checkInlineAsmHazards(MachineInstr *IA) {
   const MachineRegisterInfo &MRI = MF.getRegInfo();
   int WaitStatesNeeded = 0;
 
-  for (unsigned I = InlineAsm::MIOp_FirstOperand, E = IA->getNumOperands();
-       I != E; ++I) {
-    const MachineOperand &Op = IA->getOperand(I);
+  for (const MachineOperand &Op :
+       llvm::drop_begin(IA->operands(), InlineAsm::MIOp_FirstOperand)) {
     if (Op.isReg() && Op.isDef()) {
-      WaitStatesNeeded = std::max(WaitStatesNeeded, checkVALUHazardsHelper(Op, MRI));
+      WaitStatesNeeded =
+          std::max(WaitStatesNeeded, checkVALUHazardsHelper(Op, MRI));
     }
   }
 
@@ -2026,7 +2024,7 @@ int GCNHazardRecognizer::checkMAIHazards908(MachineInstr *MI) {
                                                    MaxWaitStates);
     int NeedWaitStates = MFMAWritesAGPROverlappedSrcABWaitStates;
     int SrcCIdx = AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::src2);
-    int OpNo = MI->getOperandNo(&Op);
+    int OpNo = Op.getOperandNo();
     if (OpNo == SrcCIdx) {
       NeedWaitStates = MFMAWritesAGPROverlappedSrcCWaitStates;
     } else if (Opc == AMDGPU::V_ACCVGPR_READ_B32_e64) {
@@ -2205,7 +2203,7 @@ int GCNHazardRecognizer::checkMAIHazards90A(MachineInstr *MI) {
     if (NumWaitStates == std::numeric_limits<int>::max())
       continue;
 
-    int OpNo = MI->getOperandNo(&Use);
+    int OpNo = Use.getOperandNo();
     unsigned Opc1 = MI1->getOpcode();
     int NeedWaitStates = 0;
     if (OpNo == SrcCIdx) {
@@ -2813,7 +2811,7 @@ bool GCNHazardRecognizer::fixVALUMaskWriteHazard(MachineInstr *MI) {
           return true;
       } else {
         const MCInstrDesc &InstDesc = I.getDesc();
-        const MCOperandInfo &OpInfo = InstDesc.OpInfo[OpNo];
+        const MCOperandInfo &OpInfo = InstDesc.operands()[OpNo];
         if (!TII.isInlineConstant(Op, OpInfo))
           return true;
       }

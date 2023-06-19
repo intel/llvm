@@ -1,5 +1,5 @@
 // This is a basic acceptance test for inline ASM feature. More tests can be
-// found in https://github.com/intel/llvm-test-suite/tree/intel/SYCL/InlineAsm
+// found in https://github.com/intel/llvm/tree/sycl/sycl/test-e2e/InlineAsm
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <cmath>

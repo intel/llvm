@@ -29,20 +29,28 @@ namespace jit_compiler {
 
 using CacheKeyT =
     std::tuple<std::vector<std::string>, ParamIdentList, int,
-               std::vector<ParameterInternalization>, std::vector<JITConstant>>;
+               std::vector<ParameterInternalization>, std::vector<JITConstant>,
+               // This field of the cache is optional because, if all of the
+               // ranges are equal, we will perform no remapping, so that fused
+               // kernels can be reused with different lists of equal nd-ranges.
+               std::optional<std::vector<NDRange>>>;
 
 ///
-/// Wrapper around a SPIR-V binary.
-class SPIRVBinary {
+/// Wrapper around a kernel binary.
+class KernelBinary {
 public:
-  explicit SPIRVBinary(std::string Binary);
+  explicit KernelBinary(std::string &&Binary, BinaryFormat Format);
 
   jit_compiler::BinaryAddress address() const;
 
   size_t size() const;
 
+  BinaryFormat format() const;
+
 private:
   std::string Blob;
+
+  BinaryFormat Format;
 };
 
 ///
@@ -57,7 +65,10 @@ public:
 
   llvm::LLVMContext *getLLVMContext();
 
-  SPIRVBinary &emplaceSPIRVBinary(std::string Binary);
+  template <typename... Ts> KernelBinary &emplaceKernelBinary(Ts &&...Args) {
+    WriteLockT WriteLock{BinariesMutex};
+    return Binaries.emplace_back(std::forward<Ts>(Args)...);
+  }
 
   std::optional<SYCLKernelInfo> getCacheEntry(CacheKeyT &Identifier) const;
 
@@ -75,7 +86,7 @@ private:
 
   MutexT BinariesMutex;
 
-  std::vector<SPIRVBinary> Binaries;
+  std::vector<KernelBinary> Binaries;
 
   mutable MutexT CacheMutex;
 

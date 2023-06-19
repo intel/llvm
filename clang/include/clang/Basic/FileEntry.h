@@ -70,7 +70,7 @@ public:
   const FileEntry &getFileEntry() const {
     return *getBaseMapEntry().second->V.get<FileEntry *>();
   }
-  DirectoryEntryRef getDir() const { return *getBaseMapEntry().second->Dir; }
+  DirectoryEntryRef getDir() const { return ME->second->Dir; }
 
   inline off_t getSize() const;
   inline unsigned getUID() const;
@@ -118,17 +118,14 @@ public:
     /// VFSs that use external names. In that case, the \c FileEntryRef
     /// returned by the \c FileManager will have the external name, and not the
     /// name that was used to lookup the file.
-    ///
-    /// The second type is really a `const MapEntry *`, but that confuses
-    /// gcc5.3.  Once that's no longer supported, change this back.
-    llvm::PointerUnion<FileEntry *, const void *> V;
+    llvm::PointerUnion<FileEntry *, const MapEntry *> V;
 
-    /// Directory the file was found in. Set if and only if V is a FileEntry.
-    OptionalDirectoryEntryRef Dir;
+    /// Directory the file was found in.
+    DirectoryEntryRef Dir;
 
     MapValue() = delete;
     MapValue(FileEntry &FE, DirectoryEntryRef Dir) : V(&FE), Dir(Dir) {}
-    MapValue(MapEntry &ME) : V(&ME) {}
+    MapValue(MapEntry &ME, DirectoryEntryRef Dir) : V(&ME), Dir(Dir) {}
   };
 
   /// Check if RHS referenced the file in exactly the same way.
@@ -165,10 +162,10 @@ public:
 
   /// Retrieve the base MapEntry after redirects.
   const MapEntry &getBaseMapEntry() const {
-    const MapEntry *ME = this->ME;
-    while (const void *Next = ME->second->V.dyn_cast<const void *>())
-      ME = static_cast<const MapEntry *>(Next);
-    return *ME;
+    const MapEntry *Base = ME;
+    while (const auto *Next = Base->second->V.dyn_cast<const MapEntry *>())
+      Base = Next;
+    return *Base;
   }
 
 private:

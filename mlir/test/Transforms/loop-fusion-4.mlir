@@ -144,6 +144,22 @@ func.func @reduce_add_non_maximal_f32_f32(%arg0: memref<64x64xf32, 1>, %arg1 : m
 
 // -----
 
+// SIBLING-MAXIMAL-LABEL: func @sibling_load_only
+func.func @sibling_load_only(%arg0: memref<10xf32>) {
+  affine.for %arg1 = 0 to 10 {
+    %0 = affine.load %arg0[%arg1] : memref<10xf32>
+  }
+  affine.for %arg1 = 0 to 10 {
+    %0 = affine.load %arg0[%arg1] : memref<10xf32>
+  }
+  // SIBLING-MAXIMAL-NEXT: affine.for
+  // SIBLING-MAXIMAL-NEXT:   affine.load
+  // SIBLING-MAXIMAL-NEXT:   affine.load
+  return
+}
+
+// -----
+
 // PRODUCER-CONSUMER-LABEL: func @fusion_for_multiple_blocks() {
 func.func @fusion_for_multiple_blocks() {
 ^bb0:
@@ -172,5 +188,41 @@ func.func @fusion_for_multiple_blocks() {
   // PRODUCER-CONSUMER-NEXT:   affine.store %{{.*}}, %{{.*}}[0] : memref<1xf32>
   // PRODUCER-CONSUMER-NEXT:   affine.load %{{.*}}[0] : memref<1xf32>
   // PRODUCER-CONSUMER-NEXT: }
+  return
+}
+
+// -----
+
+// PRODUCER-CONSUMER-LABEL: @fuse_higher_dim_nest_into_lower_dim_nest
+func.func @fuse_higher_dim_nest_into_lower_dim_nest() {
+  %A = memref.alloc() : memref<8x12x128x64xf32>
+  %B = memref.alloc() : memref<8x128x12x64xf32>
+  affine.for %arg205 = 0 to 8 {
+    affine.for %arg206 = 0 to 128 {
+      affine.for %arg207 = 0 to 12 {
+        affine.for %arg208 = 0 to 64 {
+          %a = affine.load %A[%arg205, %arg207, %arg206, %arg208] : memref<8x12x128x64xf32>
+          affine.store %a, %B[%arg205, %arg206, %arg207, %arg208] : memref<8x128x12x64xf32>
+        }
+      }
+    }
+  }
+  %C = memref.alloc() : memref<8x128x768xf16>
+  affine.for %arg205 = 0 to 8 {
+    affine.for %arg206 = 0 to 128 {
+      affine.for %arg207 = 0 to 768 {
+        %b = affine.load %B[%arg205, %arg206, %arg207 floordiv 64, %arg207 mod 64] : memref<8x128x12x64xf32>
+        %c = arith.truncf %b : f32 to f16
+        affine.store %c, %C[%arg205, %arg206, %arg207] : memref<8x128x768xf16>
+      }
+    }
+  }
+
+  // Check that fusion happens into the innermost loop of the consumer.
+  // PRODUCER-CONSUMER:      affine.for
+  // PRODUCER-CONSUMER-NEXT:   affine.for %{{.*}} = 0 to 128
+  // PRODUCER-CONSUMER-NEXT:     affine.for %{{.*}} = 0 to 768
+  // PRODUCER-CONSUMER-NOT:  affine.for
+  // PRODUCER-CONSUMER:      return
   return
 }

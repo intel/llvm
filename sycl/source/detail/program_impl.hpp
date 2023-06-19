@@ -154,8 +154,7 @@ public:
   /// \param CompileOptions is a string of valid OpenCL compile options.
   /// \param Module is an OS handle to user code module.
   void compile_with_kernel_name(std::string KernelName,
-                                std::string CompileOptions,
-                                OSModuleHandle Module);
+                                std::string CompileOptions);
 
   /// Compiles the OpenCL C kernel function defined by source string.
   ///
@@ -188,8 +187,7 @@ public:
   /// \param KernelName is a string containing SYCL kernel name.
   /// \param BuildOptions is a string containing OpenCL compile options.
   /// \param M is an OS handle to user code module.
-  void build_with_kernel_name(std::string KernelName, std::string BuildOptions,
-                              OSModuleHandle M);
+  void build_with_kernel_name(std::string KernelName, std::string BuildOptions);
 
   /// Builds the OpenCL C kernel function defined by source code.
   ///
@@ -257,10 +255,12 @@ public:
   }
 
   /// \return the Plugin associated with the context of this program.
-  const plugin &getPlugin() const {
+  const PluginPtr &getPlugin() const {
     assert(!is_host() && "Plugin is not available for Host.");
     return MContext->getPlugin();
   }
+
+  ContextImplPtr getContextImplPtr() const { return MContext; }
 
   /// \return a vector of devices that are associated with this program.
   std::vector<device> get_devices() const { return MDevices; }
@@ -320,13 +320,6 @@ public:
   void flush_spec_constants(const RTDeviceBinaryImage &Img,
                             RT::PiProgram NativePrg = nullptr) const;
 
-  /// Returns the OS module handle this program belongs to. A program belongs to
-  /// an OS module if it was built from device image(s) belonging to that
-  /// module.
-  /// TODO Some programs can be linked from images belonging to different
-  ///      modules. May need a special fake handle for the resulting program.
-  OSModuleHandle getOSModuleHandle() const { return MProgramModuleHandle; }
-
   void stableSerializeSpecConstRegistry(SerializedObj &Dst) const {
     detail::stableSerializeSpecConstRegistry(SpecConstRegistry, Dst);
   }
@@ -370,8 +363,7 @@ private:
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
   void
-  create_pi_program_with_kernel_name(OSModuleHandle Module,
-                                     const std::string &KernelName,
+  create_pi_program_with_kernel_name(const std::string &KernelName,
                                      bool JITCompilationIsRequired = false);
 
   /// Creates an OpenCL program from OpenCL C source code.
@@ -405,7 +397,8 @@ private:
   /// \param KernelName is a string containing PI kernel name.
   /// \return an instance of PI kernel with specific name. If kernel is
   /// unavailable, an invalid_object_error exception is thrown.
-  RT::PiKernel get_pi_kernel(const std::string &KernelName) const;
+  std::pair<RT::PiKernel, const KernelArgMask *>
+  get_pi_kernel_arg_mask_pair(const std::string &KernelName) const;
 
   /// \return a vector of sorted in ascending order SYCL devices.
   std::vector<device> sort_devices_by_cl_device_id(std::vector<device> Devices);
@@ -432,7 +425,6 @@ private:
   std::string MCompileOptions;
   std::string MLinkOptions;
   std::string MBuildOptions;
-  OSModuleHandle MProgramModuleHandle = OSUtil::ExeModuleHandle;
 
   // Keeps specialization constant map for this program. Spec constant name
   // resolution to actual SPIR-V integer ID happens at build time, where the

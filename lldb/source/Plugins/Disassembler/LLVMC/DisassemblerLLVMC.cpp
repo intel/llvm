@@ -23,10 +23,10 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/AArch64TargetParser.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/TargetParser/AArch64TargetParser.h"
 
 #include "lldb/Core/Address.h"
 #include "lldb/Core/Module.h"
@@ -1384,7 +1384,7 @@ bool DisassemblerLLVMC::MCDisasmInstance::IsLoad(llvm::MCInst &mc_inst) const {
 
 bool DisassemblerLLVMC::MCDisasmInstance::IsAuthenticated(
     llvm::MCInst &mc_inst) const {
-  auto InstrDesc = m_instr_info_up->get(mc_inst.getOpcode());
+  const auto &InstrDesc = m_instr_info_up->get(mc_inst.getOpcode());
 
   // Treat software auth traps (brk 0xc470 + aut key, where 0x70 == 'p', 0xc4
   // == 'a' + 'c') as authenticated instructions for reporting purposes, in
@@ -1572,16 +1572,14 @@ DisassemblerLLVMC::DisassemblerLLVMC(const ArchSpec &arch,
 
 DisassemblerLLVMC::~DisassemblerLLVMC() = default;
 
-Disassembler *DisassemblerLLVMC::CreateInstance(const ArchSpec &arch,
-                                                const char *flavor) {
+lldb::DisassemblerSP DisassemblerLLVMC::CreateInstance(const ArchSpec &arch,
+                                                       const char *flavor) {
   if (arch.GetTriple().getArch() != llvm::Triple::UnknownArch) {
-    std::unique_ptr<DisassemblerLLVMC> disasm_up(
-        new DisassemblerLLVMC(arch, flavor));
-
-    if (disasm_up.get() && disasm_up->IsValid())
-      return disasm_up.release();
+    auto disasm_sp = std::make_shared<DisassemblerLLVMC>(arch, flavor);
+    if (disasm_sp && disasm_sp->IsValid())
+      return disasm_sp;
   }
-  return nullptr;
+  return lldb::DisassemblerSP();
 }
 
 size_t DisassemblerLLVMC::DecodeInstructions(const Address &base_addr,

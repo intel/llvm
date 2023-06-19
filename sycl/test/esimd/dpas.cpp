@@ -58,7 +58,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void old_func() {
   constexpr int N_pvc = 16;
   constexpr int N_dg2 = 8;
 
-  // CHECK: define dso_local spir_func void @_Z8old_funcv()
+  // CHECK-LABEL: define dso_local spir_func void @_Z8old_funcv()
 
   { // ======= DPAS BF16 =======================================================
     simd<bfloat16, M_one *N_pvc> R_bf = 0;
@@ -194,7 +194,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void old_func() {
   }
 
   old_func_end();
-  // CHECK: call spir_func void @_Z12old_func_endv()
+  // CHECK-LABEL: call spir_func void @_Z12old_func_endv()
 }
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
@@ -211,7 +211,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   constexpr int N_pvc = 16;
   constexpr int N_dg2 = 8;
 
-  // CHECK: define dso_local spir_func void @_Z8xmx_funcv()
+  // CHECK-LABEL: define dso_local spir_func void @_Z8xmx_funcv()
 
   { // ======= DPAS BF16 =======================================================
     simd<bfloat16, M_one *N_pvc> R_bf = 0;
@@ -325,8 +325,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
     simd<float, M_one *N_dg2> R_f = 0;
     simd<float, M_one *N_dg2> C_f = 0;
 
-    simd<bfloat16, K_half *N_dg2> B_hf = 0;
-    simd<bfloat16, M_one *K_half / 2> A_hf = 0;
+    simd<half, K_half * N_dg2> B_hf = 0;
+    simd<half, M_one * K_half / 2> A_hf = 0;
 
     // ------------ DPASW FP16: WITH THE ACCUMULATOR OPERAND -------------------
     R_f = xmx::dpasw<8, 1, float>(C_f, B_hf, A_hf);
@@ -360,5 +360,5 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   }
 
   xmx_func_end();
-  // CHECK: call spir_func void @_Z12xmx_func_endv()
+  // CHECK-LABEL: call spir_func void @_Z12xmx_func_endv()
 }

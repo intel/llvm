@@ -134,6 +134,33 @@ static std::optional<parser::Message> WhyNotDefinableBase(parser::CharBlock at,
           original, visible->name());
     }
   }
+  if (const Scope * deviceContext{FindCUDADeviceContext(&scope)}) {
+    bool isOwnedByDeviceCode{deviceContext->Contains(ultimate.owner())};
+    if (isPointerDefinition && !acceptAllocatable) {
+      return BlameSymbol(at,
+          "'%s' is a pointer and may not be associated in a device subprogram"_err_en_US,
+          original);
+    } else if (auto cudaDataAttr{GetCUDADataAttr(&ultimate)}) {
+      if (*cudaDataAttr == common::CUDADataAttr::Constant) {
+        return BlameSymbol(at,
+            "'%s' has ATTRIBUTES(CONSTANT) and is not definable in a device subprogram"_err_en_US,
+            original);
+      } else if (acceptAllocatable && !isOwnedByDeviceCode) {
+        return BlameSymbol(at,
+            "'%s' is a host-associated allocatable and is not definable in a device subprogram"_err_en_US,
+            original);
+      } else if (*cudaDataAttr != common::CUDADataAttr::Device &&
+          *cudaDataAttr != common::CUDADataAttr::Managed) {
+        return BlameSymbol(at,
+            "'%s' is not device or managed data and is not definable in a device subprogram"_err_en_US,
+            original);
+      }
+    } else if (!isOwnedByDeviceCode) {
+      return BlameSymbol(at,
+          "'%s' is a host variable and is not definable in a device subprogram"_err_en_US,
+          original);
+    }
+  }
   return std::nullopt;
 }
 
@@ -156,19 +183,27 @@ static std::optional<parser::Message> WhyNotDefinableLast(parser::CharBlock at,
         "'%s' is an entity with either an EVENT_TYPE or LOCK_TYPE"_en_US,
         original);
   }
-  if (!flags.test(DefinabilityFlag::PolymorphicOkInPure) &&
-      FindPureProcedureContaining(scope)) {
+  if (FindPureProcedureContaining(scope)) {
     if (auto dyType{evaluate::DynamicType::From(ultimate)}) {
-      if (dyType->IsPolymorphic()) { // C1596
+      if (!flags.test(DefinabilityFlag::PolymorphicOkInPure)) {
+        if (dyType->IsPolymorphic()) { // C1596
+          return BlameSymbol(at,
+              "'%s' is polymorphic in a pure subprogram"_because_en_US,
+              original);
+        }
+      }
+      if (const Symbol * impure{HasImpureFinal(ultimate)}) {
         return BlameSymbol(at,
-            "'%s' is polymorphic in a pure subprogram"_because_en_US, original);
+            "'%s' has an impure FINAL procedure '%s'"_because_en_US, original,
+            impure->name());
       }
       if (const DerivedTypeSpec * derived{GetDerivedTypeSpec(dyType)}) {
-        if (auto bad{FindPolymorphicAllocatableNonCoarrayUltimateComponent(
-                *derived)}) {
-          return BlameSymbol(at,
-              "'%s' has polymorphic non-coarray component '%s' in a pure subprogram"_because_en_US,
-              original, bad.BuildResultDesignatorName());
+        if (!flags.test(DefinabilityFlag::PolymorphicOkInPure)) {
+          if (auto bad{FindPolymorphicAllocatableUltimateComponent(*derived)}) {
+            return BlameSymbol(at,
+                "'%s' has polymorphic component '%s' in a pure subprogram"_because_en_US,
+                original, bad.BuildResultDesignatorName());
+          }
         }
       }
     }
@@ -228,8 +263,7 @@ std::optional<parser::Message> WhyNotDefinable(parser::CharBlock at,
             while (spec) {
               bool anyElemental{false};
               const Symbol *anyRankMatch{nullptr};
-              for (const auto &[_, ref] :
-                  spec->typeSymbol().get<DerivedTypeDetails>().finals()) {
+              for (auto ref : FinalsForDerivedTypeInstantiation(*spec)) {
                 const Symbol &ultimate{ref->GetUltimate()};
                 anyElemental |= ultimate.attrs().test(Attr::ELEMENTAL);
                 if (const auto *subp{ultimate.detailsIf<SubprogramDetails>()}) {
@@ -267,11 +301,10 @@ std::optional<parser::Message> WhyNotDefinable(parser::CharBlock at,
           expr.AsFortran());
     }
     return WhyNotDefinable(at, scope, flags, *dataRef);
-  }
-  if (evaluate::IsVariable(expr)) {
-    return std::nullopt; // result of function returning a pointer - ok
-  }
-  if (flags.test(DefinabilityFlag::PointerDefinition)) {
+  } else if (evaluate::IsNullPointer(expr)) {
+    return parser::Message{
+        at, "'%s' is a null pointer"_because_en_US, expr.AsFortran()};
+  } else if (flags.test(DefinabilityFlag::PointerDefinition)) {
     if (const auto *procDesignator{
             std::get_if<evaluate::ProcedureDesignator>(&expr.u)}) {
       // Defining a procedure pointer
@@ -288,9 +321,14 @@ std::optional<parser::Message> WhyNotDefinable(parser::CharBlock at,
         }
       }
     }
+    return parser::Message{
+        at, "'%s' is not a definable pointer"_because_en_US, expr.AsFortran()};
+  } else if (!evaluate::IsVariable(expr)) {
+    return parser::Message{at,
+        "'%s' is not a variable or pointer"_because_en_US, expr.AsFortran()};
+  } else {
+    return std::nullopt;
   }
-  return parser::Message{
-      at, "'%s' is not a variable or pointer"_because_en_US, expr.AsFortran()};
 }
 
 } // namespace Fortran::semantics

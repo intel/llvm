@@ -29,9 +29,9 @@
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/size.h>
 #include <__ranges/view_interface.h>
-#include <__tuple_dir/pair_like.h>
-#include <__tuple_dir/tuple_element.h>
-#include <__tuple_dir/tuple_size.h>
+#include <__tuple/pair_like.h>
+#include <__tuple/tuple_element.h>
+#include <__tuple/tuple_size.h>
 #include <__type_traits/conditional.h>
 #include <__type_traits/decay.h>
 #include <__type_traits/is_pointer.h>
@@ -48,7 +48,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace ranges {
   template<class _From, class _To>
@@ -82,7 +82,7 @@ namespace ranges {
 
   private:
     static constexpr bool _MustProvideSizeAtConstruction = !_StoreSize; // just to improve compiler diagnostics
-    struct _Empty { constexpr _Empty(auto) noexcept { } };
+    struct _Empty { _LIBCPP_HIDE_FROM_ABI constexpr _Empty(auto) noexcept { } };
     using _Size = conditional_t<_StoreSize, make_unsigned_t<iter_difference_t<_Iter>>, _Empty>;
     _LIBCPP_NO_UNIQUE_ADDRESS _Iter __begin_ = _Iter();
     _LIBCPP_NO_UNIQUE_ADDRESS _Sent __end_ = _Sent();
@@ -284,7 +284,7 @@ struct tuple_element<1, const ranges::subrange<_Ip, _Sp, _Kp>> {
   using type = _Sp;
 };
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

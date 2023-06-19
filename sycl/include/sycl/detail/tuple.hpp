@@ -96,7 +96,7 @@ template <typename T> struct TupleValueHolder {
 
 // Tuple needs to be trivially_copy_assignable. Define operator= if necessary.
 template <typename T,
-          bool = std::is_trivially_copy_assignable<TupleValueHolder<T>>::value>
+          bool = std::is_trivially_copy_assignable_v<TupleValueHolder<T>>>
 struct TupleCopyAssignableValueHolder : TupleValueHolder<T> {
   using TupleValueHolder<T>::TupleValueHolder;
 };

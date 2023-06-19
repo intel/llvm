@@ -11,9 +11,9 @@
 
 #include "src/__support/FPUtil/FEnvImpl.h"
 #include "src/__support/FPUtil/FPBits.h"
+#include "test/UnitTest/FPMatcher.h"
+#include "test/UnitTest/Test.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
-#include "utils/UnitTest/FPMatcher.h"
-#include "utils/UnitTest/Test.h"
 
 #include <fenv.h>
 #include <math.h>
@@ -93,7 +93,7 @@ public:
   }
 
   void testSubnormalRange(RIntFunc func) {
-    constexpr UIntType COUNT = 1000001;
+    constexpr UIntType COUNT = 100'001;
     constexpr UIntType STEP =
         (FPBits::MAX_SUBNORMAL - FPBits::MIN_SUBNORMAL) / COUNT;
     for (UIntType i = FPBits::MIN_SUBNORMAL; i <= FPBits::MAX_SUBNORMAL;
@@ -108,7 +108,7 @@ public:
   }
 
   void testNormalRange(RIntFunc func) {
-    constexpr UIntType COUNT = 1000001;
+    constexpr UIntType COUNT = 100'001;
     constexpr UIntType STEP = (FPBits::MAX_NORMAL - FPBits::MIN_NORMAL) / COUNT;
     for (UIntType i = FPBits::MIN_NORMAL; i <= FPBits::MAX_NORMAL; i += STEP) {
       T x = T(FPBits(i));

@@ -3,14 +3,14 @@ name: Cleanup
 on:
   workflow_run:
     workflows:
-    - SYCL
-    - SYCL Nightly Builds
+    - SYCL Pre Commit
+    - SYCL Nightly
     - SYCL Post Commit
     types: [completed]
 
 jobs:
   cleanup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/github-script@v6
       with:

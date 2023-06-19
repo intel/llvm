@@ -77,6 +77,7 @@ class TypeSystem : public PluginInterface,
                    public std::enable_shared_from_this<TypeSystem> {
 public:
   // Constructors and Destructors
+  TypeSystem();
   ~TypeSystem() override;
 
   // LLVM RTTI support
@@ -127,12 +128,12 @@ public:
   virtual ConstString
   DeclContextGetScopeQualifiedName(void *opaque_decl_ctx) = 0;
 
-  virtual bool DeclContextIsClassMethod(
-      void *opaque_decl_ctx, lldb::LanguageType *language_ptr,
-      bool *is_instance_method_ptr, ConstString *language_object_name_ptr) = 0;
+  virtual bool DeclContextIsClassMethod(void *opaque_decl_ctx) = 0;
 
   virtual bool DeclContextIsContainedInLookup(void *opaque_decl_ctx,
                                               void *other_opaque_decl_ctx) = 0;
+
+  virtual lldb::LanguageType DeclContextGetLanguage(void *opaque_decl_ctx) = 0;
 
   // Tests
 #ifndef NDEBUG
@@ -168,6 +169,9 @@ public:
                              const size_t index) = 0;
 
   virtual bool IsFunctionPointerType(lldb::opaque_compiler_type_t type) = 0;
+
+  virtual bool
+  IsMemberFunctionPointerType(lldb::opaque_compiler_type_t type) = 0;
 
   virtual bool IsBlockPointerType(lldb::opaque_compiler_type_t type,
                                   CompilerType *function_pointer_type_ptr) = 0;
@@ -344,7 +348,7 @@ public:
   // Lookup a child given a name. This function will match base class names and
   // member member names in "clang_type" only, not descendants.
   virtual uint32_t GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
-                                           const char *name,
+                                           llvm::StringRef name,
                                            bool omit_empty_base_classes) = 0;
 
   // Lookup a child member given a name. This function will match member names
@@ -353,10 +357,9 @@ public:
   // TODO: Return all matches for a given name by returning a
   // vector<vector<uint32_t>>
   // so we catch all names that match a given child name, not just the first.
-  virtual size_t
-  GetIndexOfChildMemberWithName(lldb::opaque_compiler_type_t type,
-                                const char *name, bool omit_empty_base_classes,
-                                std::vector<uint32_t> &child_indexes) = 0;
+  virtual size_t GetIndexOfChildMemberWithName(
+      lldb::opaque_compiler_type_t type, llvm::StringRef name,
+      bool omit_empty_base_classes, std::vector<uint32_t> &child_indexes) = 0;
 
   virtual bool IsTemplateType(lldb::opaque_compiler_type_t type);
 

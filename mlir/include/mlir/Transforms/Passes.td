@@ -85,6 +85,18 @@ def CSE : Pass<"cse"> {
   ];
 }
 
+def PrintIRPass : Pass<"print-ir"> {
+  let summary = "Print IR on the debug stream";
+  let description = [{
+    Print the entire IR on the debug stream. This is meant for debugging
+    purposes to inspect the IR at a specific point in the pipeline.
+  }];
+  let constructor = "mlir::createPrintIRPass()";
+  let options = [
+    Option<"label", "label", "std::string", /*default=*/"", "Label">,
+  ];
+}
+
 def GenerateRuntimeVerification : Pass<"generate-runtime-verification"> {
   let summary = "Generate additional runtime op verification checks";
   let description = [{
@@ -100,7 +112,7 @@ def Inliner : Pass<"inline"> {
   let constructor = "mlir::createInlinerPass()";
   let options = [
     Option<"defaultPipelineStr", "default-pipeline", "std::string",
-           /*default=*/"", "The default optimizer pipeline used for callables">,
+           /*default=*/"\"canonicalize\"", "The default optimizer pipeline used for callables">,
     ListOption<"opPipelineList", "op-pipelines", "OpPassManager",
                "Callable operation specific optimizer pipelines (in the form "
                "of `dialect.op(pipeline)`)">,
@@ -133,7 +145,7 @@ def LocationSnapshot : Pass<"snapshot-op-locations"> {
     ```
 
     * If set, the new location is fused with the original location in the form
-    of a [`Name Location`](Diagnostics.md#name-location) with the specified tag.
+    of a [`Name Location`](Dialects/Builtin.md/#nameloc) with the specified tag.
 
     Example:
 
@@ -160,6 +172,40 @@ def LoopInvariantCodeMotion : Pass<"loop-invariant-code-motion"> {
   let constructor = "mlir::createLoopInvariantCodeMotionPass()";
 }
 
+def Mem2Reg : Pass<"mem2reg"> {
+  let summary = "Promotes memory slots into values.";
+  let description = [{
+    This pass removes loads out of and stores into a memory slot, and turns
+    them into direct uses of SSA values. This is done generically using the
+    `PromoteAllocationOpInterface`, `PromoteOpInterface` and
+    `PromoteMemOpInterface` interfaces.
+
+    This pass will attempt to compute which definitions of the content of
+    the memory slot reach operations that use the memory slot pointer. It
+    will rewire or remove operations that use the slot pointer so they no
+    longer use it. If any of this is not possible, the IR will be left
+    without mutation.
+
+    This pass only supports unstructured control-flow. Promotion of operations
+    within subregions will not happen.
+  }];
+
+  let options = [
+    Option<"enableRegionSimplification", "region-simplify", "bool",
+       /*default=*/"true",
+       "Perform control flow optimizations to the region tree">,
+  ];
+
+  let statistics = [
+    Statistic<"promotedAmount",
+              "promoted slots",
+              "Total amount of memory slot promoted">,
+    Statistic<"newBlockArgumentAmount",
+              "new block args",
+              "Total amount of new block argument inserted in blocks">,
+  ];
+}
+
 def PrintOpStats : Pass<"print-op-stats"> {
   let summary = "Print statistics of operations";
   let constructor = "mlir::createPrintOpStatsPass()";
@@ -183,11 +229,47 @@ def SCCP : Pass<"sccp"> {
   let constructor = "mlir::createSCCPPass()";
 }
 
+def SROA : Pass<"sroa"> {
+  let summary = "Scalar Replacement of Aggregates";
+  let description = [{
+    Scalar Replacement of Aggregates. Replaces allocations of aggregates into
+    independant allocations of its elements.
+
+    Allocators must implement `DestructurableAllocationOpInterface` to provide
+    the list of memory slots for which destructuring should be attempted.
+
+    This pass will only be applied if all accessors of the aggregate implement
+    the `DestructurableAccessorOpInterface`. If the accessors provide a view
+    into the struct, users of the view must ensure it is used in a type-safe
+    manner and within bounds by implementing `TypeSafeOpInterface`.
+  }];
+
+  let statistics = [
+    Statistic<
+      "destructuredAmount",
+      "destructured slots",
+      "Total amount of memory slots destructured"
+    >,
+    Statistic<
+      "slotsWithMemoryBenefit",
+      "slots with memory benefit",
+      "Total amount of memory slots in which the destructured size was smaller "
+      "than the total size after eliminating unused fields"
+    >,
+    Statistic<
+      "maxSubelementAmount",
+      "max subelement number",
+      "Maximal number of sub-elements a successfully destructured slot "
+      "initially had"
+    >,
+  ];
+}
+
 def StripDebugInfo : Pass<"strip-debuginfo"> {
   let summary = "Strip debug info from all operations";
   let description = [{
     This pass strips the IR of any location information, by replacing all
-    operation locations with [`unknown`](Diagnostics.md#unknown-location).
+    operation locations with [`unknown`](Dialects/Builtin.md/#unknownloc).
   }];
   let constructor = "mlir::createStripDebugInfoPass()";
 }
@@ -199,7 +281,7 @@ def SymbolDCE : Pass<"symbol-dce"> {
     by computing the set of operations that are known to be live, propagating
     that liveness to other symbols, and then deleting all symbols that are not
     within this live set. Live symbols are those that have a
-    [visibility](SymbolsAndSymbolTables.md#symbol-visibility) that extends
+    [visibility](SymbolsAndSymbolTables.md/#symbol-visibility) that extends
     beyond the IR, e.g. `public`, or those that are referenced by live symbols
     or other non-Symbol operations.
 

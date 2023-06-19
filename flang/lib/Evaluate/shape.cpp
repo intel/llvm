@@ -462,7 +462,7 @@ MaybeExtentExpr GetAssociatedExtent(const NamedEntity &base,
 MaybeExtentExpr GetExtent(const NamedEntity &base, int dimension) {
   CHECK(dimension >= 0);
   const Symbol &last{base.GetLastSymbol()};
-  const Symbol &symbol{ResolveAssociations(last)};
+  const Symbol &symbol{ResolveAssociationsExceptSelectRank(last)};
   if (const auto *assoc{last.detailsIf<semantics::AssocEntityDetails>()}) {
     if (assoc->rank()) { // SELECT RANK case
       if (semantics::IsDescriptor(symbol) && dimension < *assoc->rank()) {
@@ -559,7 +559,8 @@ MaybeExtentExpr ComputeUpperBound(
 }
 
 MaybeExtentExpr GetRawUpperBound(const NamedEntity &base, int dimension) {
-  const Symbol &symbol{ResolveAssociations(base.GetLastSymbol())};
+  const Symbol &symbol{
+      ResolveAssociationsExceptSelectRank(base.GetLastSymbol())};
   if (const auto *details{symbol.detailsIf<semantics::ObjectEntityDetails>()}) {
     int rank{details->shape().Rank()};
     if (dimension < rank) {
@@ -608,7 +609,8 @@ static MaybeExtentExpr GetExplicitUBOUND(
 
 static MaybeExtentExpr GetUBOUND(
     FoldingContext *context, const NamedEntity &base, int dimension) {
-  const Symbol &symbol{ResolveAssociations(base.GetLastSymbol())};
+  const Symbol &symbol{
+      ResolveAssociationsExceptSelectRank(base.GetLastSymbol())};
   if (const auto *details{symbol.detailsIf<semantics::ObjectEntityDetails>()}) {
     int rank{details->shape().Rank()};
     if (dimension < rank) {
@@ -642,7 +644,8 @@ MaybeExtentExpr GetUBOUND(
 }
 
 static Shape GetUBOUNDs(FoldingContext *context, const NamedEntity &base) {
-  const Symbol &symbol{ResolveAssociations(base.GetLastSymbol())};
+  const Symbol &symbol{
+      ResolveAssociationsExceptSelectRank(base.GetLastSymbol())};
   if (const auto *details{symbol.detailsIf<semantics::ObjectEntityDetails>()}) {
     Shape result;
     int dim{0};
@@ -802,9 +805,19 @@ auto GetShapeHelper::operator()(const ProcedureRef &call) const -> Result {
   if (call.Rank() == 0) {
     return ScalarShape();
   } else if (call.IsElemental()) {
-    for (const auto &arg : call.arguments()) {
-      if (arg && arg->Rank() > 0) {
-        return (*this)(*arg);
+    // Use the shape of an actual array argument associated with a
+    // non-OPTIONAL dummy object argument.
+    if (context_) {
+      if (auto chars{characteristics::Procedure::FromActuals(
+              call.proc(), call.arguments(), *context_)}) {
+        std::size_t j{0};
+        for (const auto &arg : call.arguments()) {
+          if (arg && arg->Rank() > 0 && j < chars->dummyArguments.size() &&
+              !chars->dummyArguments[j].IsOptional()) {
+            return (*this)(*arg);
+          }
+          ++j;
+        }
       }
     }
     return ScalarShape();
@@ -889,18 +902,18 @@ auto GetShapeHelper::operator()(const ProcedureRef &call) const -> Result {
           if (maskShape->size() == 0) {
             // Scalar MASK= -> [MERGE(SIZE(ARRAY=), 0, mask)]
             if (auto arrayShape{(*this)(call.arguments().at(0))}) {
-              auto arraySize{GetSize(std::move(*arrayShape))};
-              CHECK(arraySize);
-              ActualArguments toMerge{
-                  ActualArgument{AsGenericExpr(std::move(*arraySize))},
-                  ActualArgument{AsGenericExpr(ExtentExpr{0})},
-                  common::Clone(call.arguments().at(1))};
-              auto specific{context_->intrinsics().Probe(
-                  CallCharacteristics{"merge"}, toMerge, *context_)};
-              CHECK(specific);
-              return Shape{ExtentExpr{FunctionRef<ExtentType>{
-                  ProcedureDesignator{std::move(specific->specificIntrinsic)},
-                  std::move(specific->arguments)}}};
+              if (auto arraySize{GetSize(std::move(*arrayShape))}) {
+                ActualArguments toMerge{
+                    ActualArgument{AsGenericExpr(std::move(*arraySize))},
+                    ActualArgument{AsGenericExpr(ExtentExpr{0})},
+                    common::Clone(call.arguments().at(1))};
+                auto specific{context_->intrinsics().Probe(
+                    CallCharacteristics{"merge"}, toMerge, *context_)};
+                CHECK(specific);
+                return Shape{ExtentExpr{FunctionRef<ExtentType>{
+                    ProcedureDesignator{std::move(specific->specificIntrinsic)},
+                    std::move(specific->arguments)}}};
+              }
             }
           } else {
             // Non-scalar MASK= -> [COUNT(mask)]

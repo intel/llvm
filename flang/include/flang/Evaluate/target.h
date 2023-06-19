@@ -25,7 +25,7 @@ struct Rounding {
   // (viz., fail to set the Underflow flag when an inexact product of a
   // multiplication is rounded up to a normal number from a subnormal
   // in some rounding modes)
-#if __x86_64__ || __riscv
+#if __x86_64__ || __riscv || __loongarch__
   bool x86CompatibleBehavior{true};
 #else
   bool x86CompatibleBehavior{false};
@@ -75,6 +75,22 @@ public:
 
   static Rounding defaultRounding;
 
+  const std::string &compilerOptionsString() const {
+    return compilerOptionsString_;
+  };
+  TargetCharacteristics &set_compilerOptionsString(std::string x) {
+    compilerOptionsString_ = x;
+    return *this;
+  }
+
+  const std::string &compilerVersionString() const {
+    return compilerVersionString_;
+  };
+  TargetCharacteristics &set_compilerVersionString(std::string x) {
+    compilerVersionString_ = x;
+    return *this;
+  }
+
 private:
   static constexpr int maxKind{32};
   std::uint8_t byteSize_[common::TypeCategory_enumSize][maxKind]{};
@@ -87,6 +103,8 @@ private:
   std::size_t descriptorAlignment_{8};
   std::size_t maxByteSize_{8 /*at least*/};
   std::size_t maxAlignment_{8 /*at least*/};
+  std::string compilerOptionsString_;
+  std::string compilerVersionString_;
 };
 
 } // namespace Fortran::evaluate

@@ -12,6 +12,7 @@
 
 #include <sycl/ext/intel/esimd/detail/simd_obj_impl.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
+#include <sycl/ext/oneapi/experimental/detail/invoke_simd_types.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -94,6 +95,11 @@ public:
 
   /// Implicit conversion from simd.
   simd_mask_impl(const simd<T, N> &Val) : base_type(Val.data()) {}
+
+  /// Implicit conversion from std::experimental::simd_mask
+  template <typename T1>
+  simd_mask_impl(const ext::oneapi::experimental::simd_mask<T1, N> &Val)
+      : base_type(convert_vector<T, T1, N>(Val.data())) {}
 
 private:
   /// @cond ESIMD_DETAIL

@@ -209,7 +209,7 @@ entry:
   ret void
 }
 
-declare !sycl.kernel.fused !18 !sycl.kernel.param !20 void @fused_kernel()
+declare !sycl.kernel.fused !18 !sycl.kernel.param !20 !sycl.kernel.nd-ranges !27 !sycl.kernel.nd-range !28 void @fused_kernel()
 
 attributes #0 = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
 attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite) }
@@ -239,6 +239,10 @@ attributes #5 = { nounwind }
 !24 = !{!25, !26}
 !25 = !{i64 0, i64 1}
 !26 = !{i64 1, i64 3}
+!27 = !{!28, !28}
+!28 = !{i32 1, !29, !29, !30}
+!29 = !{i64 1, i64 1, i64 1}
+!30 = !{i64 0, i64 0, i64 0}
 
 ; Test scenario: Fusion of two kernels with the output accessor 
 ; of the first kernel being identical to the input accessor of the second.

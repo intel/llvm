@@ -46,4 +46,16 @@ enum GroupOperation {
   ExclusiveScan = 2,
 };
 
+typedef struct {
+  float real, imag;
+} complex_float;
+
+typedef struct {
+  double real, imag;
+} complex_double;
+
+typedef struct {
+  half real, imag;
+} complex_half;
+
 #endif // CLC_SPIRV_TYPES

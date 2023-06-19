@@ -25,25 +25,25 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 
   RT::PiSampler Sampler = pi::cast<RT::PiSampler>(clSampler);
   MContextToSampler[syclContext] = Sampler;
-  const detail::plugin &Plugin = getSyclObjImpl(syclContext)->getPlugin();
-  Plugin.call<PiApiKind::piSamplerRetain>(Sampler);
-  Plugin.call<PiApiKind::piSamplerGetInfo>(
+  const PluginPtr &Plugin = getSyclObjImpl(syclContext)->getPlugin();
+  Plugin->call<PiApiKind::piSamplerRetain>(Sampler);
+  Plugin->call<PiApiKind::piSamplerGetInfo>(
       Sampler, PI_SAMPLER_INFO_NORMALIZED_COORDS, sizeof(pi_bool),
       &MCoordNormMode, nullptr);
-  Plugin.call<PiApiKind::piSamplerGetInfo>(
+  Plugin->call<PiApiKind::piSamplerGetInfo>(
       Sampler, PI_SAMPLER_INFO_ADDRESSING_MODE,
       sizeof(pi_sampler_addressing_mode), &MAddrMode, nullptr);
-  Plugin.call<PiApiKind::piSamplerGetInfo>(Sampler, PI_SAMPLER_INFO_FILTER_MODE,
-                                           sizeof(pi_sampler_filter_mode),
-                                           &MFiltMode, nullptr);
+  Plugin->call<PiApiKind::piSamplerGetInfo>(
+      Sampler, PI_SAMPLER_INFO_FILTER_MODE, sizeof(pi_sampler_filter_mode),
+      &MFiltMode, nullptr);
 }
 
 sampler_impl::~sampler_impl() {
   std::lock_guard<std::mutex> Lock(MMutex);
   for (auto &Iter : MContextToSampler) {
     // TODO catch an exception and add it to the list of asynchronous exceptions
-    const detail::plugin &Plugin = getSyclObjImpl(Iter.first)->getPlugin();
-    Plugin.call<PiApiKind::piSamplerRelease>(Iter.second);
+    const PluginPtr &Plugin = getSyclObjImpl(Iter.first)->getPlugin();
+    Plugin->call<PiApiKind::piSamplerRelease>(Iter.second);
   }
 }
 
@@ -66,16 +66,16 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
 
   RT::PiResult errcode_ret = PI_SUCCESS;
   RT::PiSampler resultSampler = nullptr;
-  const detail::plugin &Plugin = getSyclObjImpl(Context)->getPlugin();
+  const PluginPtr &Plugin = getSyclObjImpl(Context)->getPlugin();
 
-  errcode_ret = Plugin.call_nocheck<PiApiKind::piSamplerCreate>(
+  errcode_ret = Plugin->call_nocheck<PiApiKind::piSamplerCreate>(
       getSyclObjImpl(Context)->getHandleRef(), sprops, &resultSampler);
 
   if (errcode_ret == PI_ERROR_INVALID_OPERATION)
     throw feature_not_supported("Images are not supported by this device.",
                                 errcode_ret);
 
-  Plugin.checkPiResult(errcode_ret);
+  Plugin->checkPiResult(errcode_ret);
   std::lock_guard<std::mutex> Lock(MMutex);
   MContextToSampler[Context] = resultSampler;
 

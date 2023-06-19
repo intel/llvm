@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This file implements a target parser to recognise hardware features
-// FOR RISC-V CPUS.
+// for RISC-V CPUs.
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,31 +18,19 @@
 #include <vector>
 
 namespace llvm {
+
+class Triple;
+
 namespace RISCV {
 
 // We use 64 bits as the known part in the scalable vector types.
 static constexpr unsigned RVVBitsPerBlock = 64;
 
-enum CPUKind : unsigned {
-#define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH) CK_##ENUM,
-#define TUNE_PROC(ENUM, NAME) CK_##ENUM,
-#include "llvm/TargetParser/RISCVTargetParserDef.inc"
-};
-
-enum FeatureKind : unsigned {
-  FK_INVALID = 0,
-  FK_NONE = 1,
-  FK_64BIT = 1 << 2,
-};
-
-bool checkCPUKind(CPUKind Kind, bool IsRV64);
-bool checkTuneCPUKind(CPUKind Kind, bool IsRV64);
-CPUKind parseCPUKind(StringRef CPU);
-CPUKind parseTuneCPUKind(StringRef CPU, bool IsRV64);
+bool parseCPU(StringRef CPU, bool IsRV64);
+bool parseTuneCPU(StringRef CPU, bool IsRV64);
 StringRef getMArchFromMcpu(StringRef CPU);
 void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
 void fillValidTuneCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
-bool getCPUFeaturesExceptStdExt(CPUKind Kind, std::vector<StringRef> &Features);
 
 } // namespace RISCV
 } // namespace llvm

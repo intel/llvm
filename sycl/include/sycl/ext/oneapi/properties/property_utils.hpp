@@ -76,9 +76,9 @@ template <typename... Ts>
 struct AllPropertyValues<std::tuple<Ts...>> : std::true_type {};
 template <typename T, typename... Ts>
 struct AllPropertyValues<std::tuple<T, Ts...>>
-    : sycl::detail::conditional_t<IsPropertyValue<T>::value,
-                                  AllPropertyValues<std::tuple<Ts...>>,
-                                  std::false_type> {};
+    : std::conditional_t<IsPropertyValue<T>::value,
+                         AllPropertyValues<std::tuple<Ts...>>,
+                         std::false_type> {};
 
 //******************************************************************************
 // Property type sorting
@@ -130,9 +130,8 @@ struct IsSorted<std::tuple<Ts...>> : std::true_type {};
 template <typename T> struct IsSorted<std::tuple<T>> : std::true_type {};
 template <typename L, typename R, typename... Rest>
 struct IsSorted<std::tuple<L, R, Rest...>>
-    : sycl::detail::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
-                                  IsSorted<std::tuple<R, Rest...>>,
-                                  std::false_type> {};
+    : std::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
+                         IsSorted<std::tuple<R, Rest...>>, std::false_type> {};
 
 // Checks that all types in a sorted tuple have unique PropertyID.
 template <typename T> struct SortedAllUnique {};
@@ -141,9 +140,9 @@ struct SortedAllUnique<std::tuple<Ts...>> : std::true_type {};
 template <typename T> struct SortedAllUnique<std::tuple<T>> : std::true_type {};
 template <typename L, typename R, typename... Rest>
 struct SortedAllUnique<std::tuple<L, R, Rest...>>
-    : sycl::detail::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
-                                  SortedAllUnique<std::tuple<R, Rest...>>,
-                                  std::false_type> {};
+    : std::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
+                         SortedAllUnique<std::tuple<R, Rest...>>,
+                         std::false_type> {};
 
 //******************************************************************************
 // Property merging

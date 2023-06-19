@@ -50,8 +50,6 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-deps";
   case SPIRVTranslatorJobClass:
     return "llvm-spirv";
-  case SPIRCheckJobClass:
-    return "llvm-no-spir-kernel";
   case SYCLPostLinkJobClass:
     return "sycl-post-link";
   case BackendCompileJobClass:
@@ -68,6 +66,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "foreach";
   case SpirvToIrWrapperJobClass:
     return "spirv-to-ir-wrapper";
+  case BinaryAnalyzeJobClass:
+    return "binary-analyzer";
   }
 
   llvm_unreachable("invalid class");
@@ -476,11 +476,11 @@ void OffloadWrapperJobAction::anchor() {}
 
 OffloadWrapperJobAction::OffloadWrapperJobAction(ActionList &Inputs,
                                                  types::ID Type)
-  : JobAction(OffloadWrapperJobClass, Inputs, Type) {}
+    : JobAction(OffloadWrapperJobClass, Inputs, Type), EmbedIR(false) {}
 
-OffloadWrapperJobAction::OffloadWrapperJobAction(Action *Input,
-                                                 types::ID Type)
-    : JobAction(OffloadWrapperJobClass, Input, Type) {}
+OffloadWrapperJobAction::OffloadWrapperJobAction(Action *Input, types::ID Type,
+                                                 bool IsEmbeddedIR)
+    : JobAction(OffloadWrapperJobClass, Input, Type), EmbedIR(IsEmbeddedIR) {}
 
 void OffloadPackagerJobAction::anchor() {}
 
@@ -505,11 +505,6 @@ void SPIRVTranslatorJobAction::anchor() {}
 SPIRVTranslatorJobAction::SPIRVTranslatorJobAction(Action *Input,
                                                    types::ID Type)
     : JobAction(SPIRVTranslatorJobClass, Input, Type) {}
-
-void SPIRCheckJobAction::anchor() {}
-
-SPIRCheckJobAction::SPIRCheckJobAction(Action *Input, types::ID Type)
-    : JobAction(SPIRCheckJobClass, Input, Type) {}
 
 void SYCLPostLinkJobAction::anchor() {}
 
@@ -608,3 +603,7 @@ JobAction *ForEachWrappingAction::getTFormInput() const {
 JobAction *ForEachWrappingAction::getJobAction() const {
   return llvm::cast<JobAction>(getInputs()[1]);
 }
+void BinaryAnalyzeJobAction::anchor() {}
+
+BinaryAnalyzeJobAction::BinaryAnalyzeJobAction(Action *Input, types::ID Type)
+    : JobAction(BinaryAnalyzeJobClass, Input, Type) {}

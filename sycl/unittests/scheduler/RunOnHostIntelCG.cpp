@@ -23,11 +23,14 @@ public:
                    std::unique_ptr<detail::HostKernelBase> HostKernel)
       : CGExecKernel(NDRDesc, std::move(HostKernel), /*SyclKernel*/ nullptr,
                      /*Kernelbundle*/ nullptr,
-                     /*ArgsStorage*/ {}, /*AccStorage*/ {},
-                     /*SharedPtrStorage*/ {}, /*Requirements*/ {},
-                     /*Events*/ {}, /*Args*/ {}, /*KernelName*/ "",
-                     detail::OSUtil::ExeModuleHandle, /*Streams*/ {},
-                     /*AuxilaryResources*/ {}, detail::CG::RunOnHostIntel) {}
+                     detail::CG::StorageInitHelper(
+                         /*ArgsStorage*/ {}, /*AccStorage*/ {},
+                         /*SharedPtrStorage*/ {}, /*Requirements*/ {},
+                         /*Events*/ {}),
+                     /*Args*/ {}, /*KernelName*/ "",
+                     /*Streams*/ {},
+                     /*AuxilaryResources*/ {}, detail::CG::RunOnHostIntel,
+                     /*KernelCacheConfig*/ {}) {}
   ~MockCGExecKernel() override { CGDeleted = true; }
 };
 

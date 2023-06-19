@@ -176,7 +176,7 @@ DWARFUnitVector::getUnitForIndexEntry(const DWARFUnitIndex::Entry &E) {
 
   auto U = Parser(Offset, DW_SECT_INFO, nullptr, &E);
   if (!U)
-    U = nullptr;
+    return nullptr;
 
   auto *NewCU = U.get();
   this->insert(CU, std::move(U));
@@ -1049,7 +1049,7 @@ std::optional<object::SectionedAddress> DWARFUnit::getBaseAddress() {
   if (BaseAddr)
     return BaseAddr;
 
-  DWARFDie UnitDie = getUnitDIE();
+  DWARFDie UnitDie = (SU ? SU : this)->getUnitDIE();
   std::optional<DWARFFormValue> PC =
       UnitDie.find({DW_AT_low_pc, DW_AT_entry_pc});
   BaseAddr = toSectionedAddress(PC);

@@ -1,7 +1,7 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -verify-diagnostics
 
 func.func @loop_for_lb(%arg0: f32, %arg1: index) {
-  // expected-error@+1 {{operand #0 must be index}}
+  // expected-error@+1 {{operand #0 must be signless integer or index}}
   "scf.for"(%arg0, %arg1, %arg1) ({}) : (f32, index, index) -> ()
   return
 }
@@ -9,7 +9,7 @@ func.func @loop_for_lb(%arg0: f32, %arg1: index) {
 // -----
 
 func.func @loop_for_ub(%arg0: f32, %arg1: index) {
-  // expected-error@+1 {{operand #1 must be index}}
+  // expected-error@+1 {{operand #1 must be signless integer or index}}
   "scf.for"(%arg1, %arg0, %arg1) ({}) : (index, f32, index) -> ()
   return
 }
@@ -17,8 +17,16 @@ func.func @loop_for_ub(%arg0: f32, %arg1: index) {
 // -----
 
 func.func @loop_for_step(%arg0: f32, %arg1: index) {
-  // expected-error@+1 {{operand #2 must be index}}
+  // expected-error@+1 {{operand #2 must be signless integer or index}}
   "scf.for"(%arg1, %arg1, %arg0) ({}) : (index, index, f32) -> ()
+  return
+}
+
+// -----
+
+func.func @loop_for_mismatch(%arg0: i32, %arg1: index) {
+  // expected-error@+1 {{all of {lowerBound, upperBound, step} have same type}}
+  "scf.for"(%arg1, %arg0, %arg1) ({}) : (index, i32, index) -> ()
   return
 }
 
@@ -63,7 +71,7 @@ func.func @loop_for_single_block(%arg0: index) {
 // -----
 
 func.func @loop_for_single_index_argument(%arg0: index) {
-  // expected-error@+1 {{op expected body first argument to be an index argument for the induction variable}}
+  // expected-error@+1 {{expected induction variable to be same type as bounds}}
   "scf.for"(%arg0, %arg0, %arg0) (
     {
     ^bb0(%i0 : f32):
@@ -548,9 +556,9 @@ func.func @wrong_num_results(%in: tensor<100xf32>, %out: tensor<100xf32>) {
   %num_threads = arith.constant 100 : index
 
   // expected-error @+1 {{1 operands present, but expected 2}}
-  %result:2 = scf.foreach_thread (%thread_idx) in (%num_threads) shared_outs(%o = %out) -> (tensor<100xf32>, tensor<100xf32>) {
+  %result:2 = scf.forall (%thread_idx) in (%num_threads) shared_outs(%o = %out) -> (tensor<100xf32>, tensor<100xf32>) {
       %1 = tensor.extract_slice %in[%thread_idx][1][1] : tensor<100xf32> to tensor<1xf32>
-      scf.foreach_thread.perform_concurrently {
+      scf.forall.in_parallel {
         tensor.parallel_insert_slice %1 into %o[%thread_idx][1][1] :
           tensor<1xf32> into tensor<100xf32>
       }
@@ -564,9 +572,9 @@ func.func @invalid_insert_dest(%in: tensor<100xf32>, %out: tensor<100xf32>) {
   %c1 = arith.constant 1 : index
   %num_threads = arith.constant 100 : index
 
-  %result = scf.foreach_thread (%thread_idx) in (%num_threads) shared_outs(%o = %out) -> (tensor<100xf32>) {
+  %result = scf.forall (%thread_idx) in (%num_threads) shared_outs(%o = %out) -> (tensor<100xf32>) {
       %1 = tensor.extract_slice %in[%thread_idx][1][1] : tensor<100xf32> to tensor<1xf32>
-      scf.foreach_thread.perform_concurrently {
+      scf.forall.in_parallel {
         // expected-error @+1 {{may only insert into an output block argument}}
         tensor.parallel_insert_slice %1 into %out[%thread_idx][1][1] :
           tensor<1xf32> into tensor<100xf32>
@@ -581,10 +589,10 @@ func.func @wrong_terminator_op(%in: tensor<100xf32>, %out: tensor<100xf32>) {
   %c1 = arith.constant 1 : index
   %num_threads = arith.constant 100 : index
 
-  %result = scf.foreach_thread (%thread_idx) in (%num_threads) shared_outs(%o = %out) -> (tensor<100xf32>) {
+  %result = scf.forall (%thread_idx) in (%num_threads) shared_outs(%o = %out) -> (tensor<100xf32>) {
       %1 = tensor.extract_slice %in[%thread_idx][1][1] : tensor<100xf32> to tensor<1xf32>
       // expected-error @+1 {{expected only tensor.parallel_insert_slice ops}}
-      scf.foreach_thread.perform_concurrently {
+      scf.forall.in_parallel {
         tensor.parallel_insert_slice %1 into %o[%thread_idx][1][1] :
           tensor<1xf32> into tensor<100xf32>
         %0 = arith.constant 1: index
@@ -598,8 +606,8 @@ func.func @wrong_terminator_op(%in: tensor<100xf32>, %out: tensor<100xf32>) {
 func.func @mismatched_mapping(%x: memref<2 x 32 x f32>, %y: memref<2 x 32 x f32>, %t: memref<32 x f32>, %alpha : f32, %stream : !gpu.async.token) -> memref<2 x 32 x f32> {
   %one = arith.constant 1 : index
   %c65535 = arith.constant 65535 : index
-  // expected-error @below {{'scf.foreach_thread' op mapping attribute size must match op rank}}
-  scf.foreach_thread (%i, %j) in (%c65535, %c65535) {
+  // expected-error @below {{'scf.forall' op mapping attribute size must match op rank}}
+  scf.forall (%i, %j) in (%c65535, %c65535) {
       %4 = memref.load %x[%i, %j] : memref<2 x 32 x f32>
       %5 = memref.load %y[%i, %j] : memref<2 x 32 x f32>
       %6 = math.fma %alpha, %4, %5 : f32
