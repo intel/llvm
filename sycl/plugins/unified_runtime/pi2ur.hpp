@@ -1920,6 +1920,8 @@ inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   if (ArgValue)
     UrMemory = reinterpret_cast<ur_mem_handle_t>(*ArgValue);
 
+  ur_kernel_arg_mem_obj_properties_t Properties {};
+
   // We don't yet know the device where this kernel will next be run on.
   // Thus we can't know the actual memory allocation that needs to be used.
   // Remember the memory object being used as an argument for this kernel
@@ -1931,7 +1933,7 @@ inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   //
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, UrMemory));
+  HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, &Properties, UrMemory));
   return PI_SUCCESS;
 }
 
