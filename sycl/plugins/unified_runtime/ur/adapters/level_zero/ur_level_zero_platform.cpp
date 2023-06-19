@@ -341,13 +341,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGetLastError(
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetLastError(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance
-    const char **Message,         ///< [out] pointer to a C string where the adapter specific error message
-                                    ///< will be stored.
-    int32_t *Error                 ///< [out] pointer to an integer where the adapter specific error code will
-                                    ///< be stored.
+    const char **Message, ///< [out] pointer to a C string where the adapter
+                          ///< specific error message will be stored.
+    int32_t *Error ///< [out] pointer to an integer where the adapter specific
+                   ///< error code will be stored.
 ) {
   std::ignore = Platform;
   std::ignore = Message;

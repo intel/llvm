@@ -669,8 +669,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t ArgIndex,       ///< [in] argument index in range [0, num args - 1]
-    const ur_kernel_arg_mem_obj_properties_t *Properties, ///< [in][optional] pointer to Memory object properties.
+    uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_mem_obj_properties_t
+        *Properties, ///< [in][optional] pointer to Memory object properties.
     ur_mem_handle_t ArgValue ///< [in][optional] handle of Memory object.
 ) {
   std::ignore = Properties;
