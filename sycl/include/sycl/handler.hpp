@@ -2289,8 +2289,8 @@ public:
                   "Invalid accessor target for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode),
                   "Invalid accessor mode for the copy method.");
-    static_assert(is_device_copyable<T_Src>::value,
-                  "Pattern must be device copyable");
+    // TODO: Add static_assert with is_device_copyable when vec is
+    // device-copyable.
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     CGData.MSharedPtrStorage.push_back(Src);
@@ -2360,8 +2360,8 @@ public:
                   "Invalid accessor target for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode),
                   "Invalid accessor mode for the copy method.");
-    static_assert(is_device_copyable<T_Src>::value,
-                  "Pattern must be device copyable");
+    // TODO: Add static_assert with is_device_copyable when vec is
+    // device-copyable.
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
