@@ -109,6 +109,11 @@ desc: "Handle of memory object which can either be buffer or image"
 class: $xMem
 name: "$x_mem_handle_t"
 --- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of physical memory object"
+class: $xPhysicalMem
+name: "$x_physical_mem_handle_t"
+--- #--------------------------------------------------------------------------
 type: macro
 desc: "Generic macro for enumerator bit masks"
 name: "$X_BIT( _i )"
@@ -255,7 +260,7 @@ etors:
       desc: "Objection allocation failure"
     - name: ERROR_ADAPTER_SPECIFIC
       desc: "An adapter specific warning/error has been reported and can be retrieved
-             via the urGetLastResult entry point."
+             via the urPlatformGetLastError entry point."
     - name: ERROR_INVALID_COMMAND_BUFFER_EXP
       value: "0x1000"
       desc: "Invalid Command-Buffer"
@@ -333,6 +338,8 @@ etors:
       desc: $x_exp_sampler_mip_properties_t
     - name: KERNEL_ARG_MEM_OBJ_PROPERTIES
       desc: $x_kernel_arg_mem_obj_properties_t
+    - name: PHYSICAL_MEM_PROPERTIES
+      desc: $x_physical_mem_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"

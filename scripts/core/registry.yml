@@ -112,12 +112,6 @@ etors:
 - name: ENQUEUE_USM_ADVISE
   desc: Enumerator for $xEnqueueUSMAdvise
   value: '35'
-- name: ENQUEUE_USM_FILL2_D
-  desc: Enumerator for $xEnqueueUSMFill2D
-  value: '36'
-- name: ENQUEUE_USM_MEMCPY2_D
-  desc: Enumerator for $xEnqueueUSMMemcpy2D
-  value: '37'
 - name: ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE
   desc: Enumerator for $xEnqueueDeviceGlobalVariableWrite
   value: '38'
@@ -445,12 +439,54 @@ etors:
 - name: PLATFORM_GET_LAST_ERROR
   desc: Enumerator for $xPlatformGetLastError
   value: '150'
-- name: USM_P2_P_ENABLE_PEER_ACCESS_EXP
-  desc: Enumerator for $xUsmP2PEnablePeerAccessExp
+- name: ENQUEUE_USM_FILL_2D
+  desc: Enumerator for $xEnqueueUSMFill2D
   value: '151'
-- name: USM_P2_P_DISABLE_PEER_ACCESS_EXP
-  desc: Enumerator for $xUsmP2PDisablePeerAccessExp
+- name: ENQUEUE_USM_MEMCPY_2D
+  desc: Enumerator for $xEnqueueUSMMemcpy2D
   value: '152'
-- name: USM_P2_P_PEER_ACCESS_GET_INFO_EXP
-  desc: Enumerator for $xUsmP2PPeerAccessGetInfoExp
+- name: VIRTUAL_MEM_GRANULARITY_GET_INFO
+  desc: Enumerator for $xVirtualMemGranularityGetInfo
   value: '153'
+- name: VIRTUAL_MEM_RESERVE
+  desc: Enumerator for $xVirtualMemReserve
+  value: '154'
+- name: VIRTUAL_MEM_FREE
+  desc: Enumerator for $xVirtualMemFree
+  value: '155'
+- name: VIRTUAL_MEM_MAP
+  desc: Enumerator for $xVirtualMemMap
+  value: '156'
+- name: VIRTUAL_MEM_UNMAP
+  desc: Enumerator for $xVirtualMemUnmap
+  value: '157'
+- name: VIRTUAL_MEM_SET_ACCESS
+  desc: Enumerator for $xVirtualMemSetAccess
+  value: '158'
+- name: VIRTUAL_MEM_GET_INFO
+  desc: Enumerator for $xVirtualMemGetInfo
+  value: '159'
+- name: PHYSICAL_MEM_CREATE
+  desc: Enumerator for $xPhysicalMemCreate
+  value: '160'
+- name: PHYSICAL_MEM_RETAIN
+  desc: Enumerator for $xPhysicalMemRetain
+  value: '161'
+- name: PHYSICAL_MEM_RELEASE
+  desc: Enumerator for $xPhysicalMemRelease
+  value: '162'
+- name: USM_IMPORT_EXP
+  desc: Enumerator for $xUSMImportExp
+  value: '163'
+- name: USM_RELEASE_EXP
+  desc: Enumerator for $xUSMReleaseExp
+  value: '164'
+- name: USM_P2P_ENABLE_PEER_ACCESS_EXP
+  desc: Enumerator for $xUsmP2PEnablePeerAccessExp
+  value: '165'
+- name: USM_P2P_DISABLE_PEER_ACCESS_EXP
+  desc: Enumerator for $xUsmP2PDisablePeerAccessExp
+  value: '166'
+- name: USM_P2P_PEER_ACCESS_GET_INFO_EXP
+  desc: Enumerator for $xUsmP2PPeerAccessGetInfoExp
+  value: '167'

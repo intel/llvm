@@ -7,6 +7,11 @@
 
 """
 import re
+import sys
+import util
+
+# allow imports from top-level scripts directory
+sys.path.append("..")
 
 """
     Extracts traits from a spec object
@@ -490,9 +495,7 @@ Private:
     converts string from camelCase to snake_case
 """
 def _camel_to_snake(name):
-    str = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    str = re.sub('([a-z0-9])([A-Z])', r'\1_\2', str).lower()
-    return str
+    return util.to_snake_case(name).lower()
 
 """
 Public:
@@ -910,9 +913,7 @@ Public:
 def make_func_etor(namespace, tags, obj):
     etags = tags.copy()
     etags['$x'] += 'Function'
-    fname = re.sub('(.)([A-Z][a-z]+)', r'\1_\2',
-        make_func_name(namespace, etags, obj))
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', fname).upper()
+    return util.to_snake_case(make_func_name(namespace, etags, obj)).upper()
 
 """
 Public:
