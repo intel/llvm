@@ -49,6 +49,13 @@ def AspectExt_intel_device_id : Aspect<"ext_intel_device_id">;
 def AspectExt_intel_memory_clock_rate : Aspect<"ext_intel_memory_clock_rate">;
 def AspectExt_intel_memory_bus_width : Aspect<"ext_intel_memory_bus_width">;
 def AspectEmulated : Aspect<"emulated">;
+def AspectExt_intel_legacy_image : Aspect<"ext_intel_legacy_image">;
+// Deprecated aspects
+def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
+def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
+def AspectUsm_system_allocator : Aspect<"usm_system_allocator">;
+def AspectUsm_restricted_shared_allocations : Aspect<"usm_restricted_shared_allocations">;
+def AspectHost : Aspect<"host">;
 
 
 def TargetTable : DynamicTable {
@@ -67,6 +74,11 @@ class TargetInfo<string str, bit val1, list<Aspect> aspectList, list<int> subGro
   string aotToolchain = toolchain;
   string aotToolchainOptions = options;
 }
+
+// This definition serves the only purpose of testing wether the aspect list defined in here and in SYCL RT matches
+def : TargetInfo<"TestAspectList", 0, [AspectCpu, AspectGpu, AspectAccelerator, AspectCustom, AspectFp16, AspectFp64, AspectImage, AspectOnline_compiler, AspectOnline_linker, AspectQueue_profiling, AspectUsm_device_allocations, AspectUsm_host_allocations, AspectUsm_shared_allocations, AspectUsm_system_allocations, AspectExt_intel_pci_address, AspectExt_intel_gpu_eu_count, AspectExt_intel_gpu_eu_simd_width, AspectExt_intel_gpu_slices, AspectExt_intel_gpu_subslices_per_slice, AspectExt_intel_gpu_eu_count_per_subslice, AspectExt_intel_max_mem_bandwidth, AspectExt_intel_mem_channel, AspectUsm_atomic_host_allocations, AspectUsm_atomic_shared_allocations, AspectAtomic64, AspectExt_intel_device_info_uuid, AspectExt_oneapi_srgb, AspectExt_oneapi_native_assert, AspectHost_debuggable, AspectExt_intel_gpu_hw_threads_per_eu, AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_bfloat16_math_functions, AspectExt_intel_free_memory, AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectEmulated, AspectExt_intel_legacy_image], [], "", "">;
+// This definition serves the only purpose of testing wether the deprecated aspect list defined in here and in SYCL RT matches
+def : TargetInfo<"TestDeprecatedAspectList", 0, [AspectInt64_base_atomics, AspectInt64_extended_atomics, AspectUsm_system_allocator, AspectUsm_restricted_shared_allocations, AspectHost], [], "", "">;
 
 def : TargetInfo<"TargetA", 1, [AspectCpu, AspectAtomic64], [8, 16], "ocloc", "devA">;
 def : TargetInfo<"TargetB", 0, [AspectGpu, AspectFp16], [8, 16], "ocloc", "devB">;
