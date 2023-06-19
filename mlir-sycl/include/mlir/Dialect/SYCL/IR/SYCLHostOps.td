@@ -30,7 +30,7 @@ class SYCL_HostOp<string mnemonic, list<Trait> traits = []> :
 def SYCLHostConstructorOp : SYCL_HostOp<"constructor"> {
   let summary = [{
     Operation representing the construction of a SYCL object, i.e., allocation,
-    member initialization and possible casts to the required address space.
+    and member initialization.
   }];
   let arguments = (ins Variadic<AnyType>:$args);
   let results = (outs LLVM_AnyPointer:$res);
