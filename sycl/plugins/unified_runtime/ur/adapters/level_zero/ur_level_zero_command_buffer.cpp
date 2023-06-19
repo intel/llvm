@@ -75,23 +75,48 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ZeStruct<ze_command_list_desc_t> ZeDesc,
     const ur_exp_command_buffer_desc_t *Desc)
     : Context(hContext), Device(hDevice), ZeCommandList(CommandList),
-      ZeCommandListDesc(ZeDesc), QueueProperties() {
+      ZeCommandListDesc(ZeDesc), QueueProperties(), SyncPoints(),
+      NextSyncPoint(0), CommandListMap() {
   hContext->RefCount.increment();
   // TODO: Do we actually need the queue properties? Removed from the UR feature
   // for now.
 }
 
+// The ur_exp_command_buffer_handle_t_ destructor release all the memory objects
+// allocated for command_buffer managment
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
+  // Release the memory allocated to the Context stored in the command_buffer
+  urContextRelease(Context);
+
+  // Release the memory allocated to the CommandList stored in the
+  // command_buffer
   if (ZeCommandList) {
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
   }
+
+  // Release additional signal and wait events used by command_buffer
   if (SignalEvent) {
-    SignalEvent->RefCount.decrementAndTest();
+    CleanupCompletedEvent(SignalEvent, false);
+    urEventReleaseInternal(SignalEvent);
   }
   if (WaitEvent) {
-    WaitEvent->RefCount.decrementAndTest();
+    CleanupCompletedEvent(WaitEvent, false);
+    urEventReleaseInternal(WaitEvent);
   }
-  Context->RefCount.decrementAndTest();
+
+  // Release events added to the command_buffer
+  for (auto &Sync : SyncPoints) {
+    auto &Event = Sync.second;
+    CleanupCompletedEvent(Event, false);
+    urEventReleaseInternal(Event);
+  }
+
+  // Release Fences allocated to command_buffer
+  for (auto it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
+    if (it->second.ZeFence != nullptr) {
+      ZE_CALL_NOCHECK(zeFenceDestroy, (it->second.ZeFence));
+    }
+  }
 }
 
 /// Helper function for calculating work dimensions for kernels
@@ -237,6 +262,7 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
 
   ur_event_handle_t LaunchEvent;
   Res = EventCreate(hCommandBuffer->Context, nullptr, true, &LaunchEvent);
+  LaunchEvent->CommandType = UR_COMMAND_MEM_BUFFER_COPY;
   if (Res)
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -303,6 +329,8 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
 
   ur_event_handle_t LaunchEvent;
   Res = EventCreate(hCommandBuffer->Context, nullptr, true, &LaunchEvent);
+  LaunchEvent->CommandType = UR_COMMAND_MEM_BUFFER_COPY_RECT;
+
   if (Res)
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -455,6 +483,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   }
   ur_event_handle_t LaunchEvent;
   Res = EventCreate(hCommandBuffer->Context, nullptr, true, &LaunchEvent);
+  LaunchEvent->CommandType = UR_COMMAND_KERNEL_LAUNCH;
   if (Res)
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -576,7 +605,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // required for executeCommandList though.
   ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
   ZeQueueDesc.ordinal = QueueGroupOrdinal;
-  std::tie(CommandListPtr, std::ignore) = hCommandBuffer->CommandListMap.insert(
+  CommandListPtr = hCommandBuffer->CommandListMap.insert(
       std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
           hCommandBuffer->ZeCommandList,
           {ZeFence, false, false, ZeCommandQueue, ZeQueueDesc}));
@@ -599,9 +628,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
             hQueue, WaitCommandList, false, false))
       return Res;
 
+    // Update the WaitList of the Wait Event
+    // Events are appended to the WaitList if the WaitList is not empty
+    if (hCommandBuffer->WaitEvent->WaitList.isEmpty())
+      hCommandBuffer->WaitEvent->WaitList = TmpWaitList;
+    else
+      hCommandBuffer->WaitEvent->WaitList.insert(TmpWaitList);
+
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (WaitCommandList->first, hCommandBuffer->WaitEvent->ZeEvent,
-                numEventsInWaitList, TmpWaitList.ZeEventList));
+                hCommandBuffer->WaitEvent->WaitList.Length,
+                hCommandBuffer->WaitEvent->WaitList.ZeEventList));
   } else {
     if (auto Res = hQueue->Context->getAvailableCommandList(
             hQueue, WaitCommandList, false, false))

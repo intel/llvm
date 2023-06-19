@@ -1,12 +1,17 @@
 // REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out %GPU_CHECK_PLACEHOLDER 2>&1 | FileCheck %s %}
+//
+// CHECK-NOT: LEAK
 
 // Expected fail as sycl streams aren't implemented yet
 // XFAIL: *
 
 // This test checks that we can use a stream when explicitly adding a
 // command_graph node.
+// The second run is to check that there are no leaks reported with the embedded
+// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

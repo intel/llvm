@@ -345,6 +345,9 @@ void exec_graph_impl::create_pi_command_buffers(sycl::device D) {
 }
 
 exec_graph_impl::~exec_graph_impl() {
+  // clear all recording queue if not done before (no call to end_recording)
+  MGraphImpl->clear_queues();
+
   MSchedule.clear();
   for (auto Iter : MPiCommandBuffers) {
     const sycl::detail::PluginPtr &Plugin =

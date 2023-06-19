@@ -1,6 +1,10 @@
 // REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+//
+// CHECK-NOT: LEAK
+
 
 // Expected fail as executable graph update isn't implemented yet
 // XFAIL: *
@@ -8,6 +12,8 @@
 // Tests executable graph update by creating a double buffering scenario, where
 // a single graph is repeatedly executed then updated to swap between two sets
 // of buffers.
+// The second run is to check that there are no leaks reported with the embedded
+// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

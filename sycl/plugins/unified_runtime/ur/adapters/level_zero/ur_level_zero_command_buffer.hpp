@@ -54,9 +54,13 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Next sync_point value (may need to consider ways to reuse values if 32-bits
   // is not enough)
   ur_exp_command_buffer_sync_point_t NextSyncPoint;
-  // Command list map so we can use queue::executeCommandList, TODO: Remove in
-  // future if possible
-  ur_command_list_map_t CommandListMap;
+  // Command list map so we can use queue::executeCommandList.
+  // Command list map is also used to release all the Fences retained by the
+  // command_buffer std::unordered_multimap<ze_command_list_handle_t,
+  // pi_command_list_info_t> CommandListMap; CommandListMap is redefined as a
+  // multimap to enable mutiple commands enqueing into the same command_buffer
+  std::unordered_multimap<ze_command_list_handle_t, pi_command_list_info_t>
+      CommandListMap;
   // Event which will signals the most recent execution of the command-buffer
   // has finished
   ur_event_handle_t SignalEvent = nullptr;
