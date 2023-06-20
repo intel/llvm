@@ -156,15 +156,7 @@ namespace sycl::ext::intel::experimental {
   class fpga_datapath {
   public:
     template <typename... S> constexpr fpga_datapath(S... args);
-
-    template <access::decorated IsDecorated>
-    multi_ptr<T, access::address_space::private_space, IsDecorated>
-    get_multi_ptr() noexcept;
-
-    template <access::decorated IsDecorated>
-    multi_ptr<const T, access::address_space::private_space, IsDecorated>
-    get_multi_ptr() const noexcept;
-
+    
     // Access the underlying data
     operator T &() noexcept;
     operator const T &() const noexcept;
@@ -198,22 +190,6 @@ constexpr fpga_datapath(S ... args);
 ----
 |
 Constructs a `fpga_datapath` object, and implicit storage for `T`.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-template <access::decorated IsDecorated>
-multi_ptr<T, access::address_space::private_space, IsDecorated>
-  get_multi_ptr() noexcept;
-
-template <access::decorated IsDecorated>
-multi_ptr<T, access::address_space::private_space, IsDecorated>
-  get_multi_ptr() const noexcept;
-
-----
-|
-Returns a `multi_ptr` to the underlying `T` on the device.
 
 // --- ROW BREAK ---
 a|
