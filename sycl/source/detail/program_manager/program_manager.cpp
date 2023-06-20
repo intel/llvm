@@ -630,6 +630,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
           Device.get_info<info::device::sub_group_sizes>();
       while (!ReqdSubGroupSize.empty()) {
         int ReqdSubGroupSizeVal = ReqdSubGroupSize.consume<int>();
+        if (ReqdSubGroupSizeVal == 1 && getUint32PropAsBool(Img, "isEsimdImage"))
+          continue;
         if (std::find(SupportedSubGroupSizes.cbegin(),
                       SupportedSubGroupSizes.cend(),
                       ReqdSubGroupSizeVal) == SupportedSubGroupSizes.cend())
