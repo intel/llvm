@@ -1,3 +1,4 @@
+// local_accessors are not supported in esimd_emulator yet.
 // UNSUPPORTED: esimd_emulator
 //
 // RUN: %{build} -o %t.out

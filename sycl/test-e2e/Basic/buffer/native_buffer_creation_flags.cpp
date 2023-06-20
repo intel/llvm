@@ -14,7 +14,7 @@ int main() {
   {
     // This should trigger memory allocation on host since the pointer passed by
     // the user is read-only.
-    auto BufAcc = Buf.get_access<access::mode::write>();
+    host_accessor BufAcc(Buf, write_only);
   }
 
   Q.submit([&](handler &Cgh) {

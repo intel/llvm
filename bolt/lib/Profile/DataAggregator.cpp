@@ -838,11 +838,9 @@ bool DataAggregator::doTrace(const LBREntry &First, const LBREntry &Second,
 }
 
 bool DataAggregator::recordTrace(
-    BinaryFunction &BF,
-    const LBREntry &FirstLBR,
-    const LBREntry &SecondLBR,
+    BinaryFunction &BF, const LBREntry &FirstLBR, const LBREntry &SecondLBR,
     uint64_t Count,
-    SmallVector<std::pair<uint64_t, uint64_t>, 16> *Branches) const {
+    SmallVector<std::pair<uint64_t, uint64_t>, 16> &Branches) const {
   BinaryContext &BC = BF.getBinaryContext();
 
   if (!BF.isSimple())
@@ -902,22 +900,25 @@ bool DataAggregator::recordTrace(
       return false;
     }
 
-    // Record fall-through jumps
-    BinaryBasicBlock::BinaryBranchInfo &BI = BB->getBranchInfo(*NextBB);
-    BI.Count += Count;
+    const MCInst *Instr = BB->getLastNonPseudoInstr();
+    uint64_t Offset = 0;
+    if (Instr)
+      Offset = BC.MIB->getOffsetWithDefault(*Instr, 0);
+    else
+      Offset = BB->getOffset();
 
-    if (Branches) {
-      const MCInst *Instr = BB->getLastNonPseudoInstr();
-      uint64_t Offset = 0;
-      if (Instr)
-        Offset = BC.MIB->getOffsetWithDefault(*Instr, 0);
-      else
-        Offset = BB->getOffset();
-
-      Branches->emplace_back(Offset, NextBB->getOffset());
-    }
+    Branches.emplace_back(Offset, NextBB->getOffset());
 
     BB = NextBB;
+  }
+
+  // Record fall-through jumps
+  for (const auto &[FromOffset, ToOffset] : Branches) {
+    BinaryBasicBlock *FromBB = BF.getBasicBlockContainingOffset(FromOffset);
+    BinaryBasicBlock *ToBB = BF.getBasicBlockAtOffset(ToOffset);
+    assert(FromBB && ToBB);
+    BinaryBasicBlock::BinaryBranchInfo &BI = FromBB->getBranchInfo(*ToBB);
+    BI.Count += Count;
   }
 
   return true;
@@ -930,7 +931,7 @@ DataAggregator::getFallthroughsInTrace(BinaryFunction &BF,
                                        uint64_t Count) const {
   SmallVector<std::pair<uint64_t, uint64_t>, 16> Res;
 
-  if (!recordTrace(BF, FirstLBR, SecondLBR, Count, &Res))
+  if (!recordTrace(BF, FirstLBR, SecondLBR, Count, Res))
     return std::nullopt;
 
   return Res;
@@ -1374,6 +1375,74 @@ std::error_code DataAggregator::printLBRHeatMap() {
   return std::error_code();
 }
 
+uint64_t DataAggregator::parseLBRSample(const PerfBranchSample &Sample,
+                                        bool NeedsSkylakeFix) {
+  uint64_t NumTraces{0};
+  // LBRs are stored in reverse execution order. NextPC refers to the next
+  // recorded executed PC.
+  uint64_t NextPC = opts::UseEventPC ? Sample.PC : 0;
+  uint32_t NumEntry = 0;
+  for (const LBREntry &LBR : Sample.LBR) {
+    ++NumEntry;
+    // Hardware bug workaround: Intel Skylake (which has 32 LBR entries)
+    // sometimes record entry 32 as an exact copy of entry 31. This will cause
+    // us to likely record an invalid trace and generate a stale function for
+    // BAT mode (non BAT disassembles the function and is able to ignore this
+    // trace at aggregation time). Drop first 2 entries (last two, in
+    // chronological order)
+    if (NeedsSkylakeFix && NumEntry <= 2)
+      continue;
+    if (NextPC) {
+      // Record fall-through trace.
+      const uint64_t TraceFrom = LBR.To;
+      const uint64_t TraceTo = NextPC;
+      const BinaryFunction *TraceBF =
+          getBinaryFunctionContainingAddress(TraceFrom);
+      if (TraceBF && TraceBF->containsAddress(TraceTo)) {
+        FTInfo &Info = FallthroughLBRs[Trace(TraceFrom, TraceTo)];
+        if (TraceBF->containsAddress(LBR.From))
+          ++Info.InternCount;
+        else
+          ++Info.ExternCount;
+      } else {
+        const BinaryFunction *ToFunc =
+            getBinaryFunctionContainingAddress(TraceTo);
+        if (TraceBF && ToFunc) {
+          LLVM_DEBUG({
+            dbgs() << "Invalid trace starting in " << TraceBF->getPrintName()
+                   << formatv(" @ {0:x}", TraceFrom - TraceBF->getAddress())
+                   << formatv(" and ending @ {0:x}\n", TraceTo);
+          });
+          ++NumInvalidTraces;
+        } else {
+          LLVM_DEBUG({
+            dbgs() << "Out of range trace starting in "
+                   << (TraceBF ? TraceBF->getPrintName() : "None")
+                   << formatv(" @ {0:x}",
+                              TraceFrom - (TraceBF ? TraceBF->getAddress() : 0))
+                   << " and ending in "
+                   << (ToFunc ? ToFunc->getPrintName() : "None")
+                   << formatv(" @ {0:x}\n",
+                              TraceTo - (ToFunc ? ToFunc->getAddress() : 0));
+          });
+          ++NumLongRangeTraces;
+        }
+      }
+      ++NumTraces;
+    }
+    NextPC = LBR.From;
+
+    uint64_t From = getBinaryFunctionContainingAddress(LBR.From) ? LBR.From : 0;
+    uint64_t To = getBinaryFunctionContainingAddress(LBR.To) ? LBR.To : 0;
+    if (!From && !To)
+      continue;
+    BranchInfo &Info = BranchLBRs[Trace(From, To)];
+    ++Info.TakenCount;
+    Info.MispredCount += LBR.Mispred;
+  }
+  return NumTraces;
+}
+
 std::error_code DataAggregator::parseBranchEvents() {
   outs() << "PERF2BOLT: parse branch events...\n";
   NamedRegionTimer T("parseBranch", "Parsing branch events", TimerGroupName,
@@ -1412,79 +1481,7 @@ std::error_code DataAggregator::parseBranchEvents() {
       NeedsSkylakeFix = true;
     }
 
-    // LBRs are stored in reverse execution order. NextPC refers to the next
-    // recorded executed PC.
-    uint64_t NextPC = opts::UseEventPC ? Sample.PC : 0;
-    uint32_t NumEntry = 0;
-    for (const LBREntry &LBR : Sample.LBR) {
-      ++NumEntry;
-      // Hardware bug workaround: Intel Skylake (which has 32 LBR entries)
-      // sometimes record entry 32 as an exact copy of entry 31. This will cause
-      // us to likely record an invalid trace and generate a stale function for
-      // BAT mode (non BAT disassembles the function and is able to ignore this
-      // trace at aggregation time). Drop first 2 entries (last two, in
-      // chronological order)
-      if (NeedsSkylakeFix && NumEntry <= 2)
-        continue;
-      if (NextPC) {
-        // Record fall-through trace.
-        const uint64_t TraceFrom = LBR.To;
-        const uint64_t TraceTo = NextPC;
-        const BinaryFunction *TraceBF =
-            getBinaryFunctionContainingAddress(TraceFrom);
-        if (TraceBF && TraceBF->containsAddress(TraceTo)) {
-          FTInfo &Info = FallthroughLBRs[Trace(TraceFrom, TraceTo)];
-          if (TraceBF->containsAddress(LBR.From))
-            ++Info.InternCount;
-          else
-            ++Info.ExternCount;
-        } else {
-          if (TraceBF && getBinaryFunctionContainingAddress(TraceTo)) {
-            LLVM_DEBUG(dbgs()
-                       << "Invalid trace starting in "
-                       << TraceBF->getPrintName() << " @ "
-                       << Twine::utohexstr(TraceFrom - TraceBF->getAddress())
-                       << " and ending @ " << Twine::utohexstr(TraceTo)
-                       << '\n');
-            ++NumInvalidTraces;
-          } else {
-            LLVM_DEBUG(dbgs()
-                       << "Out of range trace starting in "
-                       << (TraceBF ? TraceBF->getPrintName() : "None") << " @ "
-                       << Twine::utohexstr(
-                              TraceFrom - (TraceBF ? TraceBF->getAddress() : 0))
-                       << " and ending in "
-                       << (getBinaryFunctionContainingAddress(TraceTo)
-                               ? getBinaryFunctionContainingAddress(TraceTo)
-                                     ->getPrintName()
-                               : "None")
-                       << " @ "
-                       << Twine::utohexstr(
-                              TraceTo -
-                              (getBinaryFunctionContainingAddress(TraceTo)
-                                   ? getBinaryFunctionContainingAddress(TraceTo)
-                                         ->getAddress()
-                                   : 0))
-                       << '\n');
-            ++NumLongRangeTraces;
-          }
-        }
-        ++NumTraces;
-      }
-      NextPC = LBR.From;
-
-      uint64_t From = LBR.From;
-      if (!getBinaryFunctionContainingAddress(From))
-        From = 0;
-      uint64_t To = LBR.To;
-      if (!getBinaryFunctionContainingAddress(To))
-        To = 0;
-      if (!From && !To)
-        continue;
-      BranchInfo &Info = BranchLBRs[Trace(From, To)];
-      ++Info.TakenCount;
-      Info.MispredCount += LBR.Mispred;
-    }
+    NumTraces += parseLBRSample(Sample, NeedsSkylakeFix);
   }
 
   for (const auto &LBR : BranchLBRs) {
@@ -1981,16 +1978,15 @@ std::error_code DataAggregator::parseMMapEvents() {
     std::pair<StringRef, MMapInfo> FileMMapInfo = FileMMapInfoRes.get();
     if (FileMMapInfo.second.PID == -1)
       continue;
+    if (FileMMapInfo.first.equals("(deleted)"))
+      continue;
 
     // Consider only the first mapping of the file for any given PID
-    bool PIDExists = false;
     auto Range = GlobalMMapInfo.equal_range(FileMMapInfo.first);
-    for (auto MI = Range.first; MI != Range.second; ++MI) {
-      if (MI->second.PID == FileMMapInfo.second.PID) {
-        PIDExists = true;
-        break;
-      }
-    }
+    bool PIDExists = llvm::any_of(make_range(Range), [&](const auto &MI) {
+      return MI.second.PID == FileMMapInfo.second.PID;
+    });
+
     if (PIDExists)
       continue;
 
@@ -2014,8 +2010,7 @@ std::error_code DataAggregator::parseMMapEvents() {
   }
 
   auto Range = GlobalMMapInfo.equal_range(NameToUse);
-  for (auto I = Range.first; I != Range.second; ++I) {
-    MMapInfo &MMapInfo = I->second;
+  for (MMapInfo &MMapInfo : llvm::make_second_range(make_range(Range))) {
     if (BC->HasFixedLoadAddress && MMapInfo.MMapAddress) {
       // Check that the binary mapping matches one of the segments.
       bool MatchFound = llvm::any_of(

@@ -124,7 +124,6 @@ static unsigned getVersionValue(unsigned MajorVersion, unsigned MinorVersion) {
 
 void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
-  Builder.defineMacro("__ELF__");
   Builder.defineMacro("__riscv");
   bool Is64Bit = getTriple().getArch() == llvm::Triple::riscv64;
   Builder.defineMacro("__riscv_xlen", Is64Bit ? "64" : "32");
@@ -320,7 +319,7 @@ bool RISCVTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   if (ABI.empty())
     ABI = ISAInfo->computeDefaultABI().str();
 
-  if (ISAInfo->hasExtension("zfh"))
+  if (ISAInfo->hasExtension("zfh") || ISAInfo->hasExtension("zhinx"))
     HasLegalHalfType = true;
 
   return true;

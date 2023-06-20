@@ -81,7 +81,7 @@ struct PFWGFunctor {
 
   void operator()(group<1> g) const {
     int v = addend; // to check constant initializer works too
-    size_t wg_offset = wg_chunk * g.get_id(0);
+    size_t wg_offset = wg_chunk * g.get_group_id(0);
     size_t wg_size = g.get_local_range(0);
 
     PFWIFunctor PFWI(wg_chunk, wg_size, wg_offset, range_length, v, dev_ptr);
@@ -139,7 +139,8 @@ int main() {
         PFWGFunctor PFWG(wg_chunk, range_length, addend, N_ITER, dev_ptr);
         cgh.parallel_for_work_group(range<1>(N_WG), PFWG);
       });
-      auto ptr1 = buf.get_access<access::mode::read>().get_pointer();
+      host_accessor hostacc(buf, read_only);
+      auto ptr1 = hostacc.get_pointer();
       passed &= verify(1, range_length, ptr1,
                        [&](int i) -> int { return N_ITER * addend; });
     }
@@ -166,7 +167,8 @@ int main() {
               }
             });
       });
-      auto ptr1 = buf.get_access<access::mode::read>().get_pointer();
+      host_accessor hostacc(buf, read_only);
+      auto ptr1 = hostacc.get_pointer();
       passed &= verify(2, range_length, ptr1, [&](int i) -> int {
         // consider increments by the first PFWI:
         int gold = (WG_SIZE_GREATER_THAN_PHYSICAL - 1) / WG_SIZE_PHYSICAL;
@@ -207,7 +209,8 @@ int main() {
               }
             });
       });
-      auto ptr1 = buf.get_access<access::mode::read>().get_pointer();
+      host_accessor hostacc(buf, read_only);
+      auto ptr1 = hostacc.get_pointer();
       passed &= verify(3, range_length, ptr1, [&](int i) -> int {
         int gold = 0;
         if (i % WG_SIZE_PHYSICAL <
@@ -256,7 +259,8 @@ int main() {
               }
             });
       });
-      auto ptr1 = buf.get_access<access::mode::read>().get_pointer();
+      host_accessor hostacc(buf, read_only);
+      auto ptr1 = hostacc.get_pointer();
       passed &= verify(3, range_length, ptr1,
                        [&](int i) -> int { return N_ITER * (1 + i + 5); });
     }
@@ -281,7 +285,7 @@ int main() {
                 g.parallel_for_work_item(
                     range<1>(WG_SIZE_GREATER_THAN_PHYSICAL), [&](h_item<1> i) {
                       size_t wg_offset = WG_SIZE_GREATER_THAN_PHYSICAL *
-                                         wi_chunk * g.get_id(0);
+                                         wi_chunk * g.get_group_id(0);
                       size_t wi_offset =
                           wg_offset +
                           i.get_logical_local_id().get(0) * wi_chunk;
@@ -291,7 +295,8 @@ int main() {
               }
             });
       });
-      auto ptr1 = buf.get_access<access::mode::read>().get_pointer();
+      host_accessor hostacc(buf, read_only);
+      auto ptr1 = hostacc.get_pointer();
       passed &= verify(5, range_length, ptr1, [&](int i) -> int {
         int gold =
             i % 2 == 0 ? WG_SIZE_GREATER_THAN_PHYSICAL : WG_SIZE_PHYSICAL;

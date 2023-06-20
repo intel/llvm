@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Target/TargetMachine.h"
@@ -136,6 +137,9 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::LOAD, MVT::v16f64, Promote);
   AddPromotedToType(ISD::LOAD, MVT::v16f64, MVT::v32i32);
+
+  setOperationAction(ISD::LOAD, MVT::i128, Promote);
+  AddPromotedToType(ISD::LOAD, MVT::i128, MVT::v4i32);
 
   // There are no 64-bit extloads. These should be done as a 32-bit extload and
   // an extension to 64-bit.
@@ -262,6 +266,9 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::STORE, MVT::v16f64, Promote);
   AddPromotedToType(ISD::STORE, MVT::v16f64, MVT::v32i32);
+
+  setOperationAction(ISD::STORE, MVT::i128, Promote);
+  AddPromotedToType(ISD::STORE, MVT::i128, MVT::v4i32);
 
   setTruncStoreAction(MVT::i64, MVT::i1, Expand);
   setTruncStoreAction(MVT::i64, MVT::i8, Expand);
@@ -869,7 +876,7 @@ bool AMDGPUTargetLowering::isFNegFree(EVT VT) const {
   return VT == MVT::f32 || VT == MVT::f64 || VT == MVT::f16;
 }
 
-bool AMDGPUTargetLowering:: storeOfVectorConstantIsCheap(EVT MemVT,
+bool AMDGPUTargetLowering:: storeOfVectorConstantIsCheap(bool IsZero, EVT MemVT,
                                                          unsigned NumElem,
                                                          unsigned AS) const {
   return true;
@@ -1433,11 +1440,6 @@ SDValue AMDGPUTargetLowering::LowerEXTRACT_SUBVECTOR(SDValue Op,
     unsigned NumElt = VT.getVectorNumElements();
     unsigned NumSrcElt = SrcVT.getVectorNumElements();
     assert(NumElt % 2 == 0 && NumSrcElt % 2 == 0 && "expect legal types");
-
-    // We have some TableGen patterns for when the extracted vector is exactly
-    // the low or high half of the operand.
-    if ((NumSrcElt == 2 * NumElt) && (Start == 0 || Start == NumElt))
-      return Op;
 
     // Extract 32-bit registers at a time.
     EVT NewSrcVT = EVT::getVectorVT(*DAG.getContext(), MVT::i32, NumSrcElt / 2);
@@ -5132,4 +5134,23 @@ bool AMDGPUTargetLowering::isConstantUnsignedBitfieldExtractLegal(
     unsigned Opc, LLT Ty1, LLT Ty2) const {
   return (Ty1 == LLT::scalar(32) || Ty1 == LLT::scalar(64)) &&
          Ty2 == LLT::scalar(32);
+}
+
+/// Whether it is profitable to sink the operands of an
+/// Instruction I to the basic block of I.
+/// This helps using several modifiers (like abs and neg) more often.
+bool AMDGPUTargetLowering::shouldSinkOperands(
+    Instruction *I, SmallVectorImpl<Use *> &Ops) const {
+  using namespace PatternMatch;
+
+  for (auto &Op : I->operands()) {
+    // Ensure we are not already sinking this operand.
+    if (any_of(Ops, [&](Use *U) { return U->get() == Op.get(); }))
+      continue;
+
+    if (match(&Op, m_FAbs(m_Value())) || match(&Op, m_FNeg(m_Value())))
+      Ops.push_back(&Op);
+  }
+
+  return !Ops.empty();
 }

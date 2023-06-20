@@ -1,8 +1,8 @@
 // REQUIRES: level_zero,gpu
 // RUN: %{build} -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR='level_zero:0' %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='level_zero:0' %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" %{run-unfiltered-devices} %t.out
 
 //  At this time, LevelZero only has one device (GPU). So this is easy to accept
 //  L0 and GPU and reject anything else. This test is just testing top level

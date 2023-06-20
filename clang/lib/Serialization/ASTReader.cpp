@@ -1973,10 +1973,11 @@ HeaderFileInfoTrait::ReadData(internal_key_ref key, const unsigned char *d,
     std::string Filename = std::string(key.Filename);
     if (key.Imported)
       Reader.ResolveImportedPath(M, Filename);
-    // FIXME: NameAsWritten
-    Module::Header H = {std::string(key.Filename), "",
-                        FileMgr.getOptionalFileRef(Filename)};
-    ModMap.addHeader(Mod, H, HeaderRole, /*Imported*/true);
+    if (auto FE = FileMgr.getOptionalFileRef(Filename)) {
+      // FIXME: NameAsWritten
+      Module::Header H = {std::string(key.Filename), "", *FE};
+      ModMap.addHeader(Mod, H, HeaderRole, /*Imported=*/true);
+    }
     HFI.isModuleHeader |= ModuleMap::isModular(HeaderRole);
   }
 
@@ -2874,6 +2875,8 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       while (Idx < N) {
         // Read information about the AST file.
         ModuleKind ImportedKind = (ModuleKind)Record[Idx++];
+        // Whether we're importing a standard c++ module.
+        bool IsImportingStdCXXModule = Record[Idx++];
         // The import location will be the local one for now; we will adjust
         // all import locations of module imports after the global source
         // location info are setup, in ReadAST.
@@ -2891,18 +2894,25 @@ ASTReader::ReadControlBlock(ModuleFile &F,
 
         // For prebuilt and explicit modules first consult the file map for
         // an override. Note that here we don't search prebuilt module
-        // directories, only the explicit name to file mappings. Also, we will
-        // still verify the size/signature making sure it is essentially the
-        // same file but perhaps in a different location.
+        // directories if we're not importing standard c++ module, only the
+        // explicit name to file mappings. Also, we will still verify the
+        // size/signature making sure it is essentially the same file but
+        // perhaps in a different location.
         if (ImportedKind == MK_PrebuiltModule || ImportedKind == MK_ExplicitModule)
           ImportedFile = PP.getHeaderSearchInfo().getPrebuiltModuleFileName(
-            ImportedName, /*FileMapOnly*/ true);
+              ImportedName, /*FileMapOnly*/ !IsImportingStdCXXModule);
 
-        if (ImportedFile.empty())
+        if (ImportedFile.empty()) {
+          // It is deprecated for C++20 Named modules to use the implicitly
+          // paths.
+          if (IsImportingStdCXXModule)
+            Diag(clang::diag::warn_reading_std_cxx_module_by_implicit_paths)
+                << ImportedName;
+
           // Use BaseDirectoryAsWritten to ensure we use the same path in the
           // ModuleCache as when writing.
           ImportedFile = ReadPath(BaseDirectoryAsWritten, Record, Idx);
-        else
+        } else
           SkipPath(Record, Idx);
 
         // If our client can't cope with us being out of date, we can't cope with
@@ -4507,18 +4517,16 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
     }
   }
 
-  if (PP.getHeaderSearchInfo()
-          .getHeaderSearchOpts()
-          .ModulesValidateOncePerBuildSession) {
+  HeaderSearchOptions &HSOpts = PP.getHeaderSearchInfo().getHeaderSearchOpts();
+  if (HSOpts.ModulesValidateOncePerBuildSession) {
     // Now we are certain that the module and all modules it depends on are
-    // up to date.  Create or update timestamp files for modules that are
-    // located in the module cache (not for PCH files that could be anywhere
-    // in the filesystem).
+    // up-to-date. For implicitly-built module files, ensure the corresponding
+    // timestamp files are up-to-date in this build session.
     for (unsigned I = 0, N = Loaded.size(); I != N; ++I) {
       ImportedModule &M = Loaded[I];
-      if (M.Mod->Kind == MK_ImplicitModule) {
+      if (M.Mod->Kind == MK_ImplicitModule &&
+          M.Mod->InputFilesValidationTimestamp < HSOpts.BuildSessionTimestamp)
         updateModuleTimestamp(*M.Mod);
-      }
     }
   }
 
@@ -5447,9 +5455,9 @@ bool ASTReader::readASTFileControlBlock(
       unsigned Idx = 0, N = Record.size();
       while (Idx < N) {
         // Read information about the AST file.
-        Idx +=
-            1 + 1 + 1 + 1 +
-            ASTFileSignature::size; // Kind, ImportLoc, Size, ModTime, Signature
+
+        // Kind, StandardCXXModule, ImportLoc, Size, ModTime, Signature
+        Idx += 1 + 1 + 1 + 1 + 1 + ASTFileSignature::size;
         std::string ModuleName = ReadString(Record, Idx);
         std::string Filename = ReadString(Record, Idx);
         ResolveImportedPath(Filename, ModuleDir);
@@ -5706,9 +5714,9 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
       std::string Filename = std::string(Blob);
       ResolveImportedPath(F, Filename);
       if (auto Umbrella = PP.getFileManager().getOptionalFileRef(Filename)) {
-        if (!CurrentModule->getUmbrellaHeader()) {
+        if (!CurrentModule->getUmbrellaHeaderAsWritten()) {
           // FIXME: NameAsWritten
-          ModMap.setUmbrellaHeader(CurrentModule, *Umbrella, Blob, "");
+          ModMap.setUmbrellaHeaderAsWritten(CurrentModule, *Umbrella, Blob, "");
         }
         // Note that it's too late at this point to return out of date if the
         // name from the PCM doesn't match up with the one in the module map,
@@ -5743,10 +5751,11 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
       // See comments in SUBMODULE_UMBRELLA_HEADER
       std::string Dirname = std::string(Blob);
       ResolveImportedPath(F, Dirname);
-      if (auto Umbrella = PP.getFileManager().getDirectory(Dirname)) {
-        if (!CurrentModule->getUmbrellaDir()) {
+      if (auto Umbrella =
+              PP.getFileManager().getOptionalDirectoryRef(Dirname)) {
+        if (!CurrentModule->getUmbrellaDirAsWritten()) {
           // FIXME: NameAsWritten
-          ModMap.setUmbrellaDir(CurrentModule, *Umbrella, Blob, "");
+          ModMap.setUmbrellaDirAsWritten(CurrentModule, *Umbrella, Blob, "");
         }
       }
       break;

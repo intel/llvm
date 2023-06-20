@@ -3,16 +3,16 @@
 // The test is repeated for per_kernel device code splitting.
 //
 // REQUIRES: CUDA || HIP
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple,spirv64 -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spirv64 -o %t.out %s
 // RUN: %{run} %t.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=spirv64,%sycl_triple -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=spirv64,%{sycl_triple} -o %t.out %s
 // RUN: %{run} %t.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple,spirv64 -fsycl-device-code-split=per_kernel -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spirv64 -fsycl-device-code-split=per_kernel -o %t.out %s
 // RUN: %{run} %t.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=spirv64,%sycl_triple -fsycl-device-code-split=per_kernel -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=spirv64,%{sycl_triple} -fsycl-device-code-split=per_kernel -o %t.out %s
 // RUN: %{run} %t.out
 //
 // XFAIL: hip_nvidia

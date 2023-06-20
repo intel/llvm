@@ -227,7 +227,7 @@ ExprDependence clang::computeDependence(VAArgExpr *E) {
   auto D = toExprDependenceAsWritten(
                E->getWrittenTypeInfo()->getType()->getDependence()) |
            (E->getSubExpr()->getDependence() & ~ExprDependence::Type);
-  return D & ~ExprDependence::Value;
+  return D;
 }
 
 ExprDependence clang::computeDependence(NoInitExpr *E) {
@@ -657,7 +657,12 @@ ExprDependence clang::computeDependence(GenericSelectionExpr *E,
                                   : ExprDependence::None;
   for (auto *AE : E->getAssocExprs())
     D |= AE->getDependence() & ExprDependence::Error;
-  D |= E->getControllingExpr()->getDependence() & ExprDependence::Error;
+
+  if (E->isExprPredicate())
+    D |= E->getControllingExpr()->getDependence() & ExprDependence::Error;
+  else
+    D |= toExprDependenceAsWritten(
+        E->getControllingType()->getType()->getDependence());
 
   if (E->isResultDependent())
     return D | ExprDependence::TypeValueInstantiation;

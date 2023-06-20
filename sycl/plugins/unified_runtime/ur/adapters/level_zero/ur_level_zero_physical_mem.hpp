@@ -9,6 +9,14 @@
 
 #include "ur_level_zero_common.hpp"
 
-struct _ur_physical_mem_handle_t : _ur_object {
-  _ur_physical_mem_handle_t() {}
+struct ur_physical_mem_handle_t_ : _ur_object {
+  ur_physical_mem_handle_t_(ze_physical_mem_handle_t ZePhysicalMem,
+                            ur_context_handle_t Context)
+      : ZePhysicalMem{ZePhysicalMem}, Context{Context} {}
+
+  // Level Zero physical memory handle.
+  ze_physical_mem_handle_t ZePhysicalMem;
+
+  // Keeps the PI context of this memory handle.
+  ur_context_handle_t Context;
 };

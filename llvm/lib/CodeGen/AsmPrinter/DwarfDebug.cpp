@@ -704,8 +704,8 @@ static void interpretValues(const MachineInstr *CurMI,
     if (MI.isDebugInstr())
       return;
 
-    for (const MachineOperand &MO : MI.operands()) {
-      if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical()) {
+    for (const MachineOperand &MO : MI.all_defs()) {
+      if (MO.getReg().isPhysical()) {
         for (auto &FwdReg : ForwardedRegWorklist)
           if (TRI.regsOverlap(FwdReg.first, MO.getReg()))
             Defs.insert(FwdReg.first);
@@ -1091,6 +1091,13 @@ DwarfDebug::getOrCreateDwarfCompileUnit(const DICompileUnit *DIUnit) {
   if (auto *CU = CUMap.lookup(DIUnit))
     return *CU;
 
+  if (useSplitDwarf() &&
+      !shareAcrossDWOCUs() &&
+      (!DIUnit->getSplitDebugInlining() ||
+       DIUnit->getEmissionKind() == DICompileUnit::FullDebug) &&
+      !CUMap.empty()) {
+    return *CUMap.begin()->second;
+  }
   CompilationDir = DIUnit->getDirectory();
 
   auto OwnedUnit = std::make_unique<DwarfCompileUnit>(
@@ -1294,6 +1301,8 @@ void DwarfDebug::finalizeModuleInfo() {
   if (CUMap.size() > 1)
     DWOName = Asm->TM.Options.MCOptions.SplitDwarfFile;
 
+  bool HasEmittedSplitCU = false;
+
   // Handle anything that needs to be done on a per-unit basis after
   // all other generation.
   for (const auto &P : CUMap) {
@@ -1312,6 +1321,10 @@ void DwarfDebug::finalizeModuleInfo() {
     bool HasSplitUnit = SkCU && !TheCU.getUnitDie().children().empty();
 
     if (HasSplitUnit) {
+      (void)HasEmittedSplitCU;
+      assert((shareAcrossDWOCUs() || !HasEmittedSplitCU) &&
+             "Multiple CUs emitted into a single dwo file");
+      HasEmittedSplitCU = true;
       dwarf::Attribute attrDWOName = getDwarfVersion() >= 5
                                          ? dwarf::DW_AT_dwo_name
                                          : dwarf::DW_AT_GNU_dwo_name;
@@ -1549,13 +1562,24 @@ void DwarfDebug::collectVariableInfoFromMFTable(
     ensureAbstractEntityIsCreatedIfScoped(TheCU, Var.first, Scope->getScopeNode());
     auto RegVar = std::make_unique<DbgVariable>(
                     cast<DILocalVariable>(Var.first), Var.second);
-    RegVar->initializeMMI(VI.Expr, VI.Slot);
+    if (VI.inStackSlot())
+      RegVar->initializeMMI(VI.Expr, VI.getStackSlot());
+    else {
+      MachineLocation MLoc(VI.getEntryValueRegister(), /*IsIndirect*/ true);
+      auto LocEntry = DbgValueLocEntry(MLoc);
+      RegVar->initializeDbgValue(DbgValueLoc(VI.Expr, LocEntry));
+    }
     LLVM_DEBUG(dbgs() << "Created DbgVariable for " << VI.Var->getName()
                       << "\n");
 
-    if (DbgVariable *DbgVar = MFVars.lookup(Var))
-      DbgVar->addMMIEntry(*RegVar);
-    else if (InfoHolder.addScopeVariable(Scope, RegVar.get())) {
+    if (DbgVariable *DbgVar = MFVars.lookup(Var)) {
+      if (DbgVar->getValueLoc())
+        LLVM_DEBUG(dbgs() << "Dropping repeated entry value debug info for "
+                             "variable "
+                          << VI.Var->getName() << "\n");
+      else
+        DbgVar->addMMIEntry(*RegVar);
+    } else if (InfoHolder.addScopeVariable(Scope, RegVar.get())) {
       MFVars.insert({Var, RegVar.get()});
       ConcreteEntities.push_back(std::move(RegVar));
     }
@@ -2039,7 +2063,10 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   unsigned LastAsmLine =
       Asm->OutStreamer->getContext().getCurrentDwarfLoc().getLine();
 
-  if (DL == PrevInstLoc) {
+  bool PrevInstInSameSection =
+      (!PrevInstBB ||
+       PrevInstBB->getSectionIDNum() == MI->getParent()->getSectionIDNum());
+  if (DL == PrevInstLoc && PrevInstInSameSection) {
     // If we have an ongoing unspecified location, nothing to do here.
     if (!DL)
       return;
@@ -2107,25 +2134,35 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     PrevInstLoc = DL;
 }
 
-static DebugLoc findPrologueEndLoc(const MachineFunction *MF) {
+static std::pair<DebugLoc, bool> findPrologueEndLoc(const MachineFunction *MF) {
   // First known non-DBG_VALUE and non-frame setup location marks
   // the beginning of the function body.
   DebugLoc LineZeroLoc;
+  const Function &F = MF->getFunction();
+
+  // Some instructions may be inserted into prologue after this function. Must
+  // keep prologue for these cases.
+  bool IsEmptyPrologue =
+      !(F.hasPrologueData() || F.getMetadata(LLVMContext::MD_func_sanitize));
   for (const auto &MBB : *MF) {
     for (const auto &MI : MBB) {
-      if (!MI.isMetaInstruction() && !MI.getFlag(MachineInstr::FrameSetup) &&
-          MI.getDebugLoc()) {
-        // Scan forward to try to find a non-zero line number. The prologue_end
-        // marks the first breakpoint in the function after the frame setup, and
-        // a compiler-generated line 0 location is not a meaningful breakpoint.
-        // If none is found, return the first location after the frame setup.
-        if (MI.getDebugLoc().getLine())
-          return MI.getDebugLoc();
-        LineZeroLoc = MI.getDebugLoc();
+      if (!MI.isMetaInstruction()) {
+        if (!MI.getFlag(MachineInstr::FrameSetup) && MI.getDebugLoc()) {
+          // Scan forward to try to find a non-zero line number. The
+          // prologue_end marks the first breakpoint in the function after the
+          // frame setup, and a compiler-generated line 0 location is not a
+          // meaningful breakpoint. If none is found, return the first
+          // location after the frame setup.
+          if (MI.getDebugLoc().getLine())
+            return std::make_pair(MI.getDebugLoc(), IsEmptyPrologue);
+
+          LineZeroLoc = MI.getDebugLoc();
+        }
+        IsEmptyPrologue = false;
       }
     }
   }
-  return LineZeroLoc;
+  return std::make_pair(LineZeroLoc, IsEmptyPrologue);
 }
 
 /// Register a source line with debug info. Returns the  unique label that was
@@ -2152,8 +2189,16 @@ static void recordSourceLine(AsmPrinter &Asm, unsigned Line, unsigned Col,
 
 DebugLoc DwarfDebug::emitInitialLocDirective(const MachineFunction &MF,
                                              unsigned CUID) {
+  std::pair<DebugLoc, bool> PrologEnd = findPrologueEndLoc(&MF);
+  DebugLoc PrologEndLoc = PrologEnd.first;
+  bool IsEmptyPrologue = PrologEnd.second;
+
   // Get beginning of function.
-  if (DebugLoc PrologEndLoc = findPrologueEndLoc(&MF)) {
+  if (PrologEndLoc) {
+    // If the prolog is empty, no need to generate scope line for the proc.
+    if (IsEmptyPrologue)
+      return PrologEndLoc;
+
     // Ensure the compile unit is created if the function is called before
     // beginFunction().
     (void)getOrCreateDwarfCompileUnit(
@@ -2232,7 +2277,7 @@ void DwarfDebug::endFunctionImpl(const MachineFunction *MF) {
 
   LexicalScope *FnScope = LScopes.getCurrentFunctionScope();
   assert(!FnScope || SP == FnScope->getScopeNode());
-  DwarfCompileUnit &TheCU = *CUMap.lookup(SP->getUnit());
+  DwarfCompileUnit &TheCU = getOrCreateDwarfCompileUnit(SP->getUnit());
   if (TheCU.getCUNode()->isDebugDirectivesOnly()) {
     PrevLabel = nullptr;
     CurFn = nullptr;

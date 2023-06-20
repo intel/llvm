@@ -229,12 +229,8 @@ PlatformDarwinKernel::PlatformDarwinKernel(
       m_name_to_kext_path_map_without_dsyms(), m_search_directories(),
       m_search_directories_no_recursing(), m_kernel_binaries_with_dsyms(),
       m_kernel_binaries_without_dsyms(), m_kernel_dsyms_no_binaries(),
-      m_kernel_dsyms_yaas(), m_ios_debug_session(is_ios_debug_session)
-
-{
-  CollectKextAndKernelDirectories();
-  SearchForKextsAndKernelsRecursively();
-}
+      m_kernel_dsyms_yaas(), m_ios_debug_session(is_ios_debug_session),
+      m_kext_scan_flag() {}
 
 /// Destructor.
 ///
@@ -243,6 +239,7 @@ PlatformDarwinKernel::PlatformDarwinKernel(
 PlatformDarwinKernel::~PlatformDarwinKernel() = default;
 
 void PlatformDarwinKernel::GetStatus(Stream &strm) {
+  UpdateKextandKernelsLocalScan();
   Platform::GetStatus(strm);
   strm.Printf(" Debug session type: ");
   if (m_ios_debug_session == eLazyBoolYes)
@@ -709,6 +706,13 @@ PlatformDarwinKernel::GetDWARFBinaryInDSYMBundle(const FileSpec &dsym_bundle) {
   return results;
 }
 
+void PlatformDarwinKernel::UpdateKextandKernelsLocalScan() {
+  std::call_once(m_kext_scan_flag, [this]() {
+    CollectKextAndKernelDirectories();
+    SearchForKextsAndKernelsRecursively();
+  });
+}
+
 Status PlatformDarwinKernel::GetSharedModule(
     const ModuleSpec &module_spec, Process *process, ModuleSP &module_sp,
     const FileSpecList *module_search_paths_ptr,
@@ -789,6 +793,7 @@ Status PlatformDarwinKernel::GetSharedModuleKernel(
     llvm::SmallVectorImpl<ModuleSP> *old_modules, bool *did_create_ptr) {
   Status error;
   module_sp.reset();
+  UpdateKextandKernelsLocalScan();
 
   // First try all kernel binaries that have a dSYM next to them
   for (auto possible_kernel : m_kernel_binaries_with_dsyms) {
@@ -947,13 +952,13 @@ bool PlatformDarwinKernel::LoadPlatformBinaryAndSetup(Process *process,
 
   addr_t actual_address = find_kernel_in_macho_fileset(process, input_addr);
 
+  if (actual_address == LLDB_INVALID_ADDRESS)
+    return false;
+
   LLDB_LOGF(log,
             "PlatformDarwinKernel::%s check address 0x%" PRIx64 " for "
             "a macho fileset, got back kernel address 0x%" PRIx64,
             __FUNCTION__, input_addr, actual_address);
-
-  if (actual_address == LLDB_INVALID_ADDRESS)
-    return false;
 
   // We have a xnu kernel binary, this is a kernel debug session.
   // Set the Target's Platform to be PlatformDarwinKernel, and the

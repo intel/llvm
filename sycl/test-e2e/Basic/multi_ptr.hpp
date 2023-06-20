@@ -31,7 +31,7 @@ template <typename T> struct point {
 };
 
 template <typename T, access::decorated IsDecorated>
-void innerFunc(id<1> wiID, global_ptr<T, IsDecorated> ptr_1,
+void innerFunc(id<1> wiID, global_ptr<const T, IsDecorated> ptr_1,
                global_ptr<T, IsDecorated> ptr_2,
                global_ptr<T, IsDecorated> ptr_3,
                global_ptr<T, IsDecorated> ptr_4,
@@ -110,9 +110,8 @@ template <typename T, access::decorated IsDecorated> void testMultPtr() {
           private_data[i] = 0;
         localAccessor[wiID.get_local_id()] = 0;
 
-        auto ptr_1 =
-            multi_ptr<T, access::address_space::global_space, IsDecorated>(
-                accessorData_1);
+        auto ptr_1 = multi_ptr<const T, access::address_space::global_space,
+                               IsDecorated>(accessorData_1);
         auto ptr_2 =
             multi_ptr<T, access::address_space::global_space, IsDecorated>(
                 accessorData_2);
@@ -136,11 +135,13 @@ template <typename T, access::decorated IsDecorated> void testMultPtr() {
 
         // Construct extension pointer from accessors.
         auto dev_ptr =
-            multi_ptr<T, access::address_space::ext_intel_global_device_space,
+            multi_ptr<const T,
+                      access::address_space::ext_intel_global_device_space,
                       IsDecorated>(accessorData_1);
-        static_assert(std::is_same_v<ext::intel::device_ptr<T, IsDecorated>,
-                                     decltype(dev_ptr)>,
-                      "Incorrect type for dev_ptr.");
+        static_assert(
+            std::is_same_v<ext::intel::device_ptr<const T, IsDecorated>,
+                           decltype(dev_ptr)>,
+            "Incorrect type for dev_ptr.");
 
         // General conversions in multi_ptr class
         T *RawPtr = nullptr;
@@ -148,7 +149,7 @@ template <typename T, access::decorated IsDecorated> void testMultPtr() {
             address_space_cast<access::address_space::global_space,
                                IsDecorated>(RawPtr);
 
-        global_ptr<T, IsDecorated> ptr_7(accessorData_1);
+        global_ptr<const T, IsDecorated> ptr_7(accessorData_1);
 
         global_ptr<void, IsDecorated> ptr_8 =
             address_space_cast<access::address_space::global_space,
@@ -206,12 +207,12 @@ void testMultPtrArrowOperator() {
             point<T> private_val = 0;
 
             auto ptr_1 =
-                multi_ptr<point<T>, access::address_space::global_space,
+                multi_ptr<const point<T>, access::address_space::global_space,
                           IsDecorated>(accessorData_1);
             auto ptr_2 = multi_ptr<point<T>, access::address_space::local_space,
                                    IsDecorated>(accessorData_2);
             auto ptr_3 =
-                multi_ptr<point<T>,
+                multi_ptr<const point<T>,
                           access::address_space::ext_intel_global_device_space,
                           IsDecorated>(accessorData_3);
             auto ptr_4 =

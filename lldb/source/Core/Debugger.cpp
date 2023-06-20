@@ -349,7 +349,7 @@ uint64_t Debugger::GetTerminalWidth() const {
       idx, g_debugger_properties[idx].default_uint_value);
 }
 
-bool Debugger::SetTerminalWidth(uint32_t term_width) {
+bool Debugger::SetTerminalWidth(uint64_t term_width) {
   if (auto handler_sp = m_io_handler_stack.Top())
     handler_sp->TerminalSizeChanged();
 
@@ -544,7 +544,7 @@ uint64_t Debugger::GetTabSize() const {
       idx, g_debugger_properties[idx].default_uint_value);
 }
 
-bool Debugger::SetTabSize(uint32_t tab_size) {
+bool Debugger::SetTabSize(uint64_t tab_size) {
   const uint32_t idx = ePropertyTabSize;
   return SetPropertyAtIndex(idx, tab_size);
 }
@@ -740,19 +740,20 @@ void Debugger::Destroy(DebuggerSP &debugger_sp) {
   }
 }
 
-DebuggerSP Debugger::FindDebuggerWithInstanceName(ConstString instance_name) {
-  DebuggerSP debugger_sp;
-  if (g_debugger_list_ptr && g_debugger_list_mutex_ptr) {
-    std::lock_guard<std::recursive_mutex> guard(*g_debugger_list_mutex_ptr);
-    DebuggerList::iterator pos, end = g_debugger_list_ptr->end();
-    for (pos = g_debugger_list_ptr->begin(); pos != end; ++pos) {
-      if ((*pos)->m_instance_name == instance_name) {
-        debugger_sp = *pos;
-        break;
-      }
-    }
+DebuggerSP
+Debugger::FindDebuggerWithInstanceName(llvm::StringRef instance_name) {
+  if (!g_debugger_list_ptr || !g_debugger_list_mutex_ptr)
+    return DebuggerSP();
+
+  std::lock_guard<std::recursive_mutex> guard(*g_debugger_list_mutex_ptr);
+  for (const DebuggerSP &debugger_sp : *g_debugger_list_ptr) {
+    if (!debugger_sp)
+      continue;
+
+    if (llvm::StringRef(debugger_sp->GetInstanceName()) == instance_name)
+      return debugger_sp;
   }
-  return debugger_sp;
+  return DebuggerSP();
 }
 
 TargetSP Debugger::FindTargetWithProcessID(lldb::pid_t pid) {
@@ -801,13 +802,13 @@ Debugger::Debugger(lldb::LogOutputCallback log_callback, void *baton)
       m_source_manager_up(), m_source_file_cache(),
       m_command_interpreter_up(
           std::make_unique<CommandInterpreter>(*this, false)),
-      m_io_handler_stack(), m_instance_name(), m_loaded_plugins(),
-      m_event_handler_thread(), m_io_handler_thread(),
+      m_io_handler_stack(),
+      m_instance_name(llvm::formatv("debugger_{0}", GetID()).str()),
+      m_loaded_plugins(), m_event_handler_thread(), m_io_handler_thread(),
       m_sync_broadcaster(nullptr, "lldb.debugger.sync"),
       m_broadcaster(m_broadcaster_manager_sp,
                     GetStaticBroadcasterClass().AsCString()),
       m_forward_listener_sp(), m_clear_once() {
-  m_instance_name.SetString(llvm::formatv("debugger_{0}", GetID()).str());
   // Initialize the debugger properties as early as possible as other parts of
   // LLDB will start querying them during construction.
   m_collection_sp->Initialize(g_debugger_properties);
@@ -1699,8 +1700,10 @@ void Debugger::HandleProcessEvent(const EventSP &event_sp) {
 
     // Display running state changes first before any STDIO
     if (got_state_changed && !state_is_stopped) {
+      // This is a public stop which we are going to announce to the user, so 
+      // we should force the most relevant frame selection here.
       Process::HandleProcessStateChangedEvent(event_sp, output_stream_sp.get(),
-                                              DoNoSelectMostRelevantFrame,
+                                              SelectMostRelevantFrame,
                                               pop_process_io_handler);
     }
 
@@ -1740,7 +1743,7 @@ void Debugger::HandleProcessEvent(const EventSP &event_sp) {
     // Now display any stopped state changes after any STDIO
     if (got_state_changed && state_is_stopped) {
       Process::HandleProcessStateChangedEvent(event_sp, output_stream_sp.get(),
-                                              DoNoSelectMostRelevantFrame,
+                                              SelectMostRelevantFrame,
                                               pop_process_io_handler);
     }
 

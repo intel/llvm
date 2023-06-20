@@ -108,8 +108,9 @@ void test(queue q, InputContainer input, OutputContainer output,
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name2>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
-        joint_inclusive_scan(g, in.get_pointer(), in.get_pointer() + N,
-                             out.get_pointer(), binary_op);
+        joint_inclusive_scan(
+            g, global_ptr<const InputT>(in), global_ptr<const InputT>(in) + N,
+            out.template get_multi_ptr<access::decorated::no>(), binary_op);
       });
     });
   }
@@ -133,8 +134,10 @@ void test(queue q, InputContainer input, OutputContainer output,
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name3>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
-        joint_inclusive_scan(g, in.get_pointer(), in.get_pointer() + N,
-                             out.get_pointer(), binary_op, init);
+        joint_inclusive_scan(
+            g, global_ptr<const InputT>(in), global_ptr<const InputT>(in) + N,
+            out.template get_multi_ptr<access::decorated::no>(), binary_op,
+            init);
       });
     });
   }
@@ -182,6 +185,20 @@ int main() {
   test<class KernelNameBitXorI>(q, input, output, sycl::bit_xor<int>(), 0);
   test<class KernelNameBitAndI>(q, input_small, output_small,
                                 sycl::bit_and<int>(), ~0);
+
+  test<class LogicalOrInt>(q, input, output, sycl::logical_or<int>(), 0);
+  test<class LogicalAndInt>(q, input, output, sycl::logical_and<int>(), 1);
+
+  std::array<bool, N> bool_input = {};
+  std::array<bool, N> bool_output = {};
+  test<class LogicalOrBool>(q, bool_input, bool_output,
+                            sycl::logical_or<bool>(), false);
+  test<class LogicalOrVoid>(q, bool_input, bool_output, sycl::logical_or<>(),
+                            false);
+  test<class LogicalAndBool>(q, bool_input, bool_output,
+                             sycl::logical_and<bool>(), true);
+  test<class LogicalAndVoid>(q, bool_input, bool_output, sycl::logical_and<>(),
+                             true);
 
   // as part of SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS (
   // https://github.com/intel/llvm/pull/5108/ ) joint_inclusive_scan and

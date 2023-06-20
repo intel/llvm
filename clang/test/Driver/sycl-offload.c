@@ -414,6 +414,16 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
 // CHK-TOOLS-IMPLIED-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=-g -cl-opt-disable -DFOO1 -DFOO2"
 
+/// Check for implied options (-O0)
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 -O0 %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O0 %s
+// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64-unknown-unknown -Od %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O0 %s
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 -O0 -O2 %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O2 %s
+// CHK-TOOLS-IMPLIED-OPTS-O0: clang-offload-wrapper{{.*}} "-compile-opts=-cl-opt-disable"
+// CHK-TOOLS-IMPLIED-OPTS-O2-NOT: clang-offload-wrapper{{.*}} "-compile-opts=-cl-opt-disable"
+
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
 // CHK-TOOLS-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=-DFOO1 -DFOO2"

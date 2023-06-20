@@ -917,34 +917,30 @@ static void addPltEntries(const ObjectFile &Obj,
   auto *ElfObj = dyn_cast<ELFObjectFileBase>(&Obj);
   if (!ElfObj)
     return;
-  std::optional<SectionRef> Plt;
-  for (const SectionRef &Section : Obj.sections()) {
+  DenseMap<StringRef, SectionRef> Sections;
+  for (SectionRef Section : Obj.sections()) {
     Expected<StringRef> SecNameOrErr = Section.getName();
     if (!SecNameOrErr) {
       consumeError(SecNameOrErr.takeError());
       continue;
     }
-    if (*SecNameOrErr == ".plt")
-      Plt = Section;
+    Sections[*SecNameOrErr] = Section;
   }
-  if (!Plt)
-    return;
-  for (auto PltEntry : ElfObj->getPltAddresses()) {
-    if (PltEntry.first) {
-      SymbolRef Symbol(*PltEntry.first, ElfObj);
+  for (auto Plt : ElfObj->getPltEntries()) {
+    if (Plt.Symbol) {
+      SymbolRef Symbol(*Plt.Symbol, ElfObj);
       uint8_t SymbolType = getElfSymbolType(Obj, Symbol);
       if (Expected<StringRef> NameOrErr = Symbol.getName()) {
         if (!NameOrErr->empty())
-          AllSymbols[*Plt].emplace_back(
-              PltEntry.second, Saver.save((*NameOrErr + "@plt").str()),
-              SymbolType);
+          AllSymbols[Sections[Plt.Section]].emplace_back(
+              Plt.Address, Saver.save((*NameOrErr + "@plt").str()), SymbolType);
         continue;
       } else {
         // The warning has been reported in disassembleObject().
         consumeError(NameOrErr.takeError());
       }
     }
-    reportWarning("PLT entry at 0x" + Twine::utohexstr(PltEntry.second) +
+    reportWarning("PLT entry at 0x" + Twine::utohexstr(Plt.Address) +
                       " references an invalid symbol",
                   Obj.getFileName());
   }
@@ -1549,7 +1545,7 @@ static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
       if (Demangle) {
         // Fetch the demangled names and store them locally.
         for (const SymbolInfoTy &Symbol : SymbolsHere)
-          DemangledSymNamesHere.push_back(demangle(Symbol.Name.str()));
+          DemangledSymNamesHere.push_back(demangle(Symbol.Name));
         // Now we've finished modifying that vector, it's safe to make
         // a vector of StringRefs pointing into it.
         SymNamesHere.insert(SymNamesHere.begin(), DemangledSymNamesHere.begin(),
@@ -1910,9 +1906,8 @@ static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
               if (TargetSym != nullptr) {
                 uint64_t TargetAddress = TargetSym->Addr;
                 uint64_t Disp = Target - TargetAddress;
-                std::string TargetName = TargetSym->Name.str();
-                if (Demangle)
-                  TargetName = demangle(TargetName);
+                std::string TargetName = Demangle ? demangle(TargetSym->Name)
+                                                  : TargetSym->Name.str();
 
                 *TargetOS << " <";
                 if (!Disp) {
@@ -2512,10 +2507,8 @@ void objdump::printSymbol(const ObjectFile &O, const SymbolRef &Symbol,
 
         if (NameOrErr) {
           outs() << " (csect:";
-          std::string SymName(NameOrErr.get());
-
-          if (Demangle)
-            SymName = demangle(SymName);
+          std::string SymName =
+              Demangle ? demangle(*NameOrErr) : NameOrErr->str();
 
           if (SymbolDescription)
             SymName = getXCOFFSymbolDescription(createSymbolInfo(O, *SymRef),
@@ -2569,10 +2562,7 @@ void objdump::printSymbol(const ObjectFile &O, const SymbolRef &Symbol,
     outs() << " .hidden";
   }
 
-  std::string SymName(Name);
-  if (Demangle)
-    SymName = demangle(SymName);
-
+  std::string SymName = Demangle ? demangle(Name) : Name.str();
   if (O.isXCOFF() && SymbolDescription)
     SymName = getXCOFFSymbolDescription(createSymbolInfo(O, Symbol), SymName);
 

@@ -27,6 +27,8 @@ class AffineMap;
 class FloatType;
 class IndexType;
 class IntegerType;
+class MemRefType;
+class RankedTensorType;
 class StringAttr;
 class TypeRange;
 
@@ -95,6 +97,17 @@ public:
   TensorType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                        Type elementType) const;
 
+  // Make sure that base class overloads are visible.
+  using ShapedType::Trait<TensorType>::clone;
+
+  /// Return a clone of this type with the given new shape and element type.
+  /// The returned type is ranked, even if this type is unranked.
+  RankedTensorType clone(ArrayRef<int64_t> shape, Type elementType) const;
+
+  /// Return a clone of this type with the given new shape. The returned type
+  /// is ranked, even if this type is unranked.
+  RankedTensorType clone(ArrayRef<int64_t> shape) const;
+
   /// Return true if the specified element type is ok in a tensor.
   static bool isValidElementType(Type type);
 
@@ -102,7 +115,7 @@ public:
   static bool classof(Type type);
 
   /// Allow implicit conversion to ShapedType.
-  operator ShapedType() const { return cast<ShapedType>(); }
+  operator ShapedType() const { return llvm::cast<ShapedType>(*this); }
 };
 
 //===----------------------------------------------------------------------===//
@@ -131,6 +144,17 @@ public:
   BaseMemRefType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                            Type elementType) const;
 
+  // Make sure that base class overloads are visible.
+  using ShapedType::Trait<BaseMemRefType>::clone;
+
+  /// Return a clone of this type with the given new shape and element type.
+  /// The returned type is ranked, even if this type is unranked.
+  MemRefType clone(ArrayRef<int64_t> shape, Type elementType) const;
+
+  /// Return a clone of this type with the given new shape. The returned type
+  /// is ranked, even if this type is unranked.
+  MemRefType clone(ArrayRef<int64_t> shape) const;
+
   /// Return true if the specified element type is ok in a memref.
   static bool isValidElementType(Type type);
 
@@ -145,7 +169,7 @@ public:
   unsigned getMemorySpaceAsInt() const;
 
   /// Allow implicit conversion to ShapedType.
-  operator ShapedType() const { return cast<ShapedType>(); }
+  operator ShapedType() const { return llvm::cast<ShapedType>(*this); }
 };
 
 } // namespace mlir
@@ -367,20 +391,21 @@ SliceVerificationResult isRankReducedType(ShapedType originalType,
 //===----------------------------------------------------------------------===//
 
 inline bool BaseMemRefType::classof(Type type) {
-  return type.isa<MemRefType, UnrankedMemRefType>();
+  return llvm::isa<MemRefType, UnrankedMemRefType>(type);
 }
 
 inline bool BaseMemRefType::isValidElementType(Type type) {
   return type.isIntOrIndexOrFloat() ||
-         type.isa<ComplexType, MemRefType, VectorType, UnrankedMemRefType>() ||
-         type.isa<MemRefElementTypeInterface>();
+         llvm::isa<ComplexType, MemRefType, VectorType, UnrankedMemRefType>(
+             type) ||
+         llvm::isa<MemRefElementTypeInterface>(type);
 }
 
 inline bool FloatType::classof(Type type) {
-  return type
-      .isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
-           Float8E4M3FNUZType, Float8E4M3B11FNUZType, BFloat16Type, Float16Type,
-           Float32Type, Float64Type, Float80Type, Float128Type>();
+  return llvm::isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
+                   Float8E4M3FNUZType, Float8E4M3B11FNUZType, BFloat16Type,
+                   Float16Type, Float32Type, Float64Type, Float80Type,
+                   Float128Type>(type);
 }
 
 inline FloatType FloatType::getFloat8E5M2(MLIRContext *ctx) {
@@ -428,7 +453,7 @@ inline FloatType FloatType::getF128(MLIRContext *ctx) {
 }
 
 inline bool TensorType::classof(Type type) {
-  return type.isa<RankedTensorType, UnrankedTensorType>();
+  return llvm::isa<RankedTensorType, UnrankedTensorType>(type);
 }
 
 //===----------------------------------------------------------------------===//

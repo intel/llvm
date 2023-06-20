@@ -2001,18 +2001,9 @@ __SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isordered)
 __SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isunordered)
 __SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(signbit)
 
-namespace detail {
-#if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
-using anyall_ret_t = bool;
-#else
-using anyall_ret_t = int;
-#endif
-} // namespace detail
-
-// int any (sigeninteger x)
+// bool any (sigeninteger x)
 template <typename T>
-std::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
-any(T x) __NOEXC {
+std::enable_if_t<detail::is_sigeninteger<T>::value, bool> any(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
 }
 
@@ -2024,10 +2015,9 @@ std::enable_if_t<detail::is_vigeninteger<T>::value, int> any(T x) __NOEXC {
           detail::rel_sign_bit_test_arg_t<T>(x)));
 }
 
-// int all (sigeninteger x)
+// bool all (sigeninteger x)
 template <typename T>
-std::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
-all(T x) __NOEXC {
+std::enable_if_t<detail::is_sigeninteger<T>::value, bool> all(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
 }
 
@@ -2709,6 +2699,7 @@ extern __DPCPP_SYCL_EXTERNAL long long int __imf_mul64hi(long long int x,
 extern __DPCPP_SYCL_EXTERNAL unsigned long long int
 __imf_umul64hi(unsigned long long int x, unsigned long long int y);
 extern __DPCPP_SYCL_EXTERNAL int __imf_abs(int x);
+extern __DPCPP_SYCL_EXTERNAL long long int __imf_llabs(long long int x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_saturatef(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf(float x, float y, float z);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fabsf(float x);

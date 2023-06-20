@@ -79,11 +79,9 @@ public:
   const LatPoint &lat(LatPointId l) const { return latticeMerger.lat(l); }
   ArrayRef<LatPointId> set(LatSetId s) const { return latticeMerger.set(s); }
   DimLevelType dlt(TensorId t, LoopId i) const {
-    return latticeMerger.getDimLevelType(t, i);
+    return latticeMerger.getLvlType(t, i);
   }
-  DimLevelType dlt(TensorLoopId b) const {
-    return latticeMerger.getDimLevelType(b);
-  }
+  DimLevelType dlt(TensorLoopId b) const { return latticeMerger.getLvlType(b); }
 
   //
   // LoopEmitter delegates.
@@ -91,9 +89,11 @@ public:
 
   TensorLevel makeTensorLevel(TensorId t, Level l) const {
     // Make sure LoopEmitter, GenericOp, and Merger agree on the number of
-    // tensors. Merger has one more synthetic tensor for loop invariants.
-    assert(loopEmitter.getNumTensors() == linalgOp->getNumOperands() &&
-           loopEmitter.getNumTensors() == latticeMerger.getNumTensors() - 1);
+    // tensors.
+    assert(loopEmitter.getNumManifestTensors() == linalgOp->getNumOperands() &&
+           loopEmitter.getNumTensors() == latticeMerger.getNumTensors() &&
+           loopEmitter.getOutTensorId() == latticeMerger.getOutTensorID() &&
+           loopEmitter.getSynTensorId() == latticeMerger.getSynTensorID());
     return loopEmitter.makeTensorLevel(t, l);
   }
   std::pair<TensorId, Level> unpackTensorLevel(TensorLevel tl) const {

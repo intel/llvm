@@ -261,6 +261,16 @@ static cl::opt<bool> SPIRVReplaceLLVMFmulAddWithOpenCLMad(
              "instruction from OpenCL extended instruction set"),
     cl::init(true));
 
+static cl::opt<SPIRV::BuiltinFormat> SPIRVBuiltinFormat(
+    "spirv-builtin-format",
+    cl::desc("Set LLVM-IR representation of SPIR-V builtin variables:"),
+    cl::init(SPIRV::BuiltinFormat::Function),
+    cl::values(
+        clEnumValN(SPIRV::BuiltinFormat::Function, "function",
+                   "Use functions to represent SPIR-V builtin variables"),
+        clEnumValN(SPIRV::BuiltinFormat::Global, "global",
+                   "Use globals to represent SPIR-V builtin variables")));
+
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
   if (Pos != std::string::npos)
@@ -714,6 +724,15 @@ int main(int Ac, char **Av) {
   }
 
   Opts.setFPContractMode(FPCMode);
+
+  if (SPIRVBuiltinFormat.getNumOccurrences() != 0) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-builtin-format option ignored as it only "
+                "affects translation from SPIR-V to LLVM IR";
+    } else {
+      Opts.setBuiltinFormat(SPIRVBuiltinFormat);
+    }
+  }
 
   if (SPIRVMemToReg)
     Opts.setMemToRegEnabled(SPIRVMemToReg);

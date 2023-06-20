@@ -87,7 +87,7 @@ __SYCL_EXPORT void free_virtual_mem(uintptr_t Ptr, size_t NumBytes,
 __SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,
                                    address_access_mode Mode,
                                    const context &SyclContext) {
-  sycl::detail::RT::PiVirtualAccessFlags AccessFlags =
+  sycl::detail::pi::PiVirtualAccessFlags AccessFlags =
       sycl::detail::AccessModeToVirtualAccessFlags(Mode);
   std::shared_ptr<sycl::detail::context_impl> ContextImpl =
       sycl::detail::getSyclObjImpl(SyclContext);
@@ -107,14 +107,14 @@ __SYCL_EXPORT address_access_mode get_access_mode(const void *Ptr,
   Plugin->call<sycl::detail::PiApiKind::piextVirtualMemGetInfo>(
       ContextImpl->getHandleRef(), Ptr, NumBytes,
       PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE, 0, nullptr, &InfoOutputSize);
-  assert(InfoOutputSize == sizeof(RT::PiVirtualAccessFlags) &&
+  assert(InfoOutputSize == sizeof(sycl::detail::pi::PiVirtualAccessFlags) &&
          "Unexpected output size of access mode info query.");
 #endif // NDEBUG
-  RT::PiVirtualAccessFlags AccessFlags;
+  sycl::detail::pi::PiVirtualAccessFlags AccessFlags;
   Plugin->call<sycl::detail::PiApiKind::piextVirtualMemGetInfo>(
       ContextImpl->getHandleRef(), Ptr, NumBytes,
       PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE,
-      sizeof(RT::PiVirtualAccessFlags), &AccessFlags, nullptr);
+      sizeof(sycl::detail::pi::PiVirtualAccessFlags), &AccessFlags, nullptr);
 
   if (AccessFlags & PI_VIRTUAL_ACCESS_FLAG_RW)
     return address_access_mode::read_write;

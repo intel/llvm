@@ -83,7 +83,7 @@ int main(int Argc, const char *Argv[]) {
     Q.wait();
 
     // Checks result
-    auto HostAcc = Buf.get_access<sycl::access::mode::read>();
+    sycl::host_accessor HostAcc(Buf, sycl::read_only);
     for (size_t i = 0; i < BUFFER_SIZE; ++i) {
       size_t expected = i + 20;
       assert(HostAcc[i] == expected);

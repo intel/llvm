@@ -815,13 +815,21 @@ public:
                             Value *(ScalarExprEmitter::*F)(const BinOpInfo &));
 
   QualType getPromotionType(QualType Ty) {
+    const auto &Ctx = CGF.getContext();
     if (auto *CT = Ty->getAs<ComplexType>()) {
       QualType ElementType = CT->getElementType();
-      if (ElementType.UseExcessPrecision(CGF.getContext()))
-        return CGF.getContext().getComplexType(CGF.getContext().FloatTy);
+      if (ElementType.UseExcessPrecision(Ctx))
+        return Ctx.getComplexType(Ctx.FloatTy);
     }
-    if (Ty.UseExcessPrecision(CGF.getContext()))
-      return CGF.getContext().FloatTy;
+
+    if (Ty.UseExcessPrecision(Ctx)) {
+      if (auto *VT = Ty->getAs<VectorType>()) {
+        unsigned NumElements = VT->getNumElements();
+        return Ctx.getVectorType(Ctx.FloatTy, NumElements, VT->getVectorKind());
+      }
+      return Ctx.FloatTy;
+    }
+
     return QualType();
   }
 
@@ -1642,7 +1650,7 @@ ScalarExprEmitter::VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E) {
 Value *
 ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
   ASTContext &Context = CGF.getContext();
-  llvm::Optional<LangAS> GlobalAS =
+  std::optional<LangAS> GlobalAS =
       Context.getTargetInfo().getConstantAddressSpace();
   llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
       E->ComputeName(Context), "__usid_str",
@@ -2126,7 +2134,8 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
 
     // Update heapallocsite metadata when there is an explicit pointer cast.
     if (auto *CI = dyn_cast<llvm::CallBase>(Src)) {
-      if (CI->getMetadata("heapallocsite") && isa<ExplicitCastExpr>(CE)) {
+      if (CI->getMetadata("heapallocsite") && isa<ExplicitCastExpr>(CE) &&
+          !isa<CastExpr>(E)) {
         QualType PointeeType = DestTy->getPointeeType();
         if (!PointeeType.isNull())
           CGF.getDebugInfo()->addHeapAllocSiteMetadata(CI, PointeeType,

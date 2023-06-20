@@ -3,7 +3,7 @@
 // RUN: %{build} -fsycl-instrument-device-code -o %t.out
 // RUN: %{run} %t.out
 
-#include "CL/sycl.hpp"
+#include "sycl/sycl.hpp"
 
 using namespace sycl;
 
@@ -25,10 +25,8 @@ int main() {
           target_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.single_task<class simple_atomic_kernel>([=]() {
         auto source_atomic =
-            ext::oneapi::atomic_ref<int, memory_order::relaxed,
-                                    memory_scope::device,
-                                    access::address_space::global_space>(
-                source_acc[0]);
+            atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                       access::address_space::global_space>(source_acc[0]);
         // Store source value into target
         target_acc[0] = source_atomic.load();
         // Nullify source

@@ -13,10 +13,11 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/TransformOps/LinalgMatchOps.h"
 #include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOps.h"
-#include "mlir/Dialect/PDL/IR/PDL.h"
+#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
+#include "mlir/Dialect/Transform/IR/TransformOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 
 using namespace mlir;
@@ -31,7 +32,6 @@ public:
   using Base::Base;
 
   void init() {
-    declareDependentDialect<pdl::PDLDialect>();
     declareDependentDialect<linalg::LinalgDialect>();
 
     declareGeneratedDialect<affine::AffineDialect>();

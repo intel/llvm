@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 74843ea0800e6fb7ce0f82e0ef991fc258f4b9bd)
+  set(UNIFIED_RUNTIME_TAG a24d9043ecab2e472549fc8a090d7e50e421c3db)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -37,7 +37,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   # Restore original flags
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
-  add_library(UnifiedRuntimeLoader ALIAS loader)
+  add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 
   set(UNIFIED_RUNTIME_SOURCE_DIR
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
@@ -71,6 +71,7 @@ add_sycl_plugin(unified_runtime
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    LevelZeroLoader-Headers # we need for #include <ze_api.h> in ur_level_zero_common.h
 )
 
 # Build level zero adapter
@@ -90,24 +91,27 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_device.hpp"
     "ur/adapters/level_zero/ur_level_zero_event.hpp"
     "ur/adapters/level_zero/ur_level_zero_mem.hpp"
-    "ur/adapters/level_zero/ur_level_zero_module.hpp"
+    "ur/adapters/level_zero/ur_level_zero_kernel.hpp"
     "ur/adapters/level_zero/ur_level_zero_platform.hpp"
     "ur/adapters/level_zero/ur_level_zero_program.hpp"
     "ur/adapters/level_zero/ur_level_zero_queue.hpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.hpp"
     "ur/adapters/level_zero/ur_level_zero_physical_mem.hpp"
+    "ur/adapters/level_zero/ur_level_zero_usm.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_level_zero_common.cpp"
     "ur/adapters/level_zero/ur_level_zero_context.cpp"
     "ur/adapters/level_zero/ur_level_zero_device.cpp"
     "ur/adapters/level_zero/ur_level_zero_event.cpp"
     "ur/adapters/level_zero/ur_level_zero_mem.cpp"
-    "ur/adapters/level_zero/ur_level_zero_module.cpp"
+    "ur/adapters/level_zero/ur_level_zero_kernel.cpp"
     "ur/adapters/level_zero/ur_level_zero_platform.cpp"
     "ur/adapters/level_zero/ur_level_zero_program.cpp"
     "ur/adapters/level_zero/ur_level_zero_queue.cpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
     "ur/adapters/level_zero/ur_level_zero_physical_mem.cpp"
+    "ur/adapters/level_zero/ur_level_zero_virtual_mem.cpp"
+    "ur/adapters/level_zero/ur_level_zero_usm.cpp"
   INCLUDE_DIRS
     ${sycl_inc_dir}
   LIBRARIES
@@ -122,6 +126,54 @@ set_target_properties("ur_adapter_level_zero" PROPERTIES
     SOVERSION "0"
 )
 
+if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+  # Build CUDA adapter
+  add_sycl_library("ur_adapter_cuda" SHARED
+    SOURCES
+      "ur/ur.hpp"
+      "ur/ur.cpp"
+      "ur/usm_allocator.cpp"
+      "ur/usm_allocator.hpp"
+      "ur/adapters/cuda/common.cpp"
+      "ur/adapters/cuda/common.hpp"
+      "ur/adapters/cuda/context.cpp"
+      "ur/adapters/cuda/context.hpp"
+      "ur/adapters/cuda/device.cpp"
+      "ur/adapters/cuda/device.hpp"
+      "ur/adapters/cuda/enqueue.cpp"
+      "ur/adapters/cuda/event.cpp"
+      "ur/adapters/cuda/event.hpp"
+      "ur/adapters/cuda/kernel.cpp"
+      "ur/adapters/cuda/kernel.hpp"
+      "ur/adapters/cuda/memory.cpp"
+      "ur/adapters/cuda/memory.hpp"
+      "ur/adapters/cuda/platform.cpp"
+      "ur/adapters/cuda/platform.hpp"
+      "ur/adapters/cuda/program.cpp"
+      "ur/adapters/cuda/program.hpp"
+      "ur/adapters/cuda/queue.cpp"
+      "ur/adapters/cuda/queue.hpp"
+      "ur/adapters/cuda/sampler.cpp"
+      "ur/adapters/cuda/sampler.hpp"
+      "ur/adapters/cuda/physical_mem.cpp"
+      "ur/adapters/cuda/physical_mem.hpp"
+      "ur/adapters/cuda/virtual_mem.cpp"
+      "ur/adapters/cuda/tracing.cpp"
+      "ur/adapters/cuda/ur_interface_loader.cpp"
+      "ur/adapters/cuda/usm.cpp"
+    INCLUDE_DIRS
+      ${sycl_inc_dir}
+    LIBRARIES
+      UnifiedRuntime-Headers
+      Threads::Threads
+      cudadrv
+  )
+
+  set_target_properties("ur_adapter_cuda" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+  )
+endif()
 
 if (TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
@@ -129,16 +181,16 @@ if (TARGET UnifiedRuntimeLoader)
   # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
   # When UR is moved to its separate repo perhaps we should introduce new component,
   # e.g. unified-runtime-sycl-dev.
-  install(TARGETS loader
-      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+  install(TARGETS ur_loader
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
   )
 endif()
 
 # Install the UR adapters too
 install(TARGETS ur_adapter_level_zero
-ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
-RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
-LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
 )

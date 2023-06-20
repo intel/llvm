@@ -38,7 +38,7 @@ void checkHostAccessor(sycl::queue &q) {
     sycl::buffer<int, 1> subbuf(buf, {size / 2}, {10});
 
     {
-      auto host_acc = subbuf.get_access<sycl::access::mode::write>();
+      sycl::host_accessor host_acc(subbuf, sycl::write_only);
       for (int i = 0; i < 10; ++i)
         host_acc[i] *= 10;
     }
@@ -50,7 +50,7 @@ void checkHostAccessor(sycl::queue &q) {
     });
 
     {
-      auto host_acc = subbuf.get_access<sycl::access::mode::read>();
+      sycl::host_accessor host_acc(subbuf, sycl::read_only);
       for (int i = 0; i < 10; ++i)
         assert(host_acc[i] == ((size / 2 + i) * -100) &&
                "Sub buffer host accessor test failed.");
@@ -234,8 +234,10 @@ void copyBlock() {
 
   auto CopyF = [](buffer &Buffer, buffer &Block, size_t Idx, size_t BlockSize) {
     auto Subbuf = buffer(Buffer, Idx * BlockSize, BlockSize);
-    auto *Src = Subbuf.get_access<mode::read>().get_pointer();
-    auto *Dst = Block.get_access<mode::write>().get_pointer();
+    sycl::host_accessor SrcAcc(Subbuf, sycl::read_only);
+    sycl::host_accessor DstAcc(Block, sycl::write_only);
+    auto *Src = SrcAcc.get_pointer();
+    auto *Dst = DstAcc.get_pointer();
     std::copy(Src, Src + BlockSize, Dst);
   };
 
@@ -248,7 +250,7 @@ void copyBlock() {
 
     // Init with data
     {
-      auto *Acc = Buffer.get_access<mode::write>().get_pointer();
+      sycl::host_accessor Acc(Buffer, sycl::write_only);
 
       for (size_t Idx = 0; Idx < N; Idx++) {
         Acc[Idx] = Idx;
@@ -268,7 +270,7 @@ void copyBlock() {
     for (size_t Idx = 0; Idx < BlockBuffers.size(); ++Idx) {
       buffer &BlockB = BlockBuffers[Idx];
 
-      auto *V = BlockB.get_access<mode::read>().get_pointer();
+      sycl::host_accessor V(BlockB, sycl::read_only);
 
       for (size_t Idx2 = 0; Idx2 < BlockSize; ++Idx2) {
         assert(V[Idx2] == Idx2 + BlockSize * Idx &&
@@ -314,7 +316,7 @@ void checkMultipleContexts() {
       cgh.parallel_for<class sub_buffer_3>(
           sycl::range<1>(N / 2), [=](sycl::id<1> idx) { bufacc[idx[0]] = -1; });
     });
-    auto host_acc = subbuf1.get_access<sycl::access::mode::read>();
+    sycl::host_accessor host_acc(subbuf1, sycl::read_only);
     assert(host_acc[0] == -1 && host_acc[N / 2 - 1] == -1 &&
            "Sub buffer data loss");
   }

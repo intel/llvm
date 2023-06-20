@@ -102,7 +102,9 @@ static char getRightDelimiter(AsmParser::Delimiter delimiter) {
 void mlir::printDynamicIndexList(OpAsmPrinter &printer, Operation *op,
                                  OperandRange values,
                                  ArrayRef<int64_t> integers,
-                                 AsmParser::Delimiter delimiter) {
+                                 TypeRange valueTypes,
+                                 AsmParser::Delimiter delimiter,
+                                 bool isTrailingIdxScalable) {
   char leftDelimiter = getLeftDelimiter(delimiter);
   char rightDelimiter = getRightDelimiter(delimiter);
   printer << leftDelimiter;
@@ -110,34 +112,73 @@ void mlir::printDynamicIndexList(OpAsmPrinter &printer, Operation *op,
     printer << rightDelimiter;
     return;
   }
+
+  int64_t trailingScalableInteger;
+  if (isTrailingIdxScalable) {
+    // ATM only the trailing idx can be scalable
+    trailingScalableInteger = integers.back();
+    integers = integers.drop_back();
+  }
+
   unsigned idx = 0;
   llvm::interleaveComma(integers, printer, [&](int64_t integer) {
-    if (ShapedType::isDynamic(integer))
-      printer << values[idx++];
-    else
+    if (ShapedType::isDynamic(integer)) {
+      printer << values[idx];
+      if (!valueTypes.empty())
+        printer << " : " << valueTypes[idx];
+      ++idx;
+    } else {
       printer << integer;
+    }
   });
+
+  // Print the trailing scalable index
+  if (isTrailingIdxScalable) {
+    printer << ", ";
+    printer << "[";
+    printer << trailingScalableInteger;
+    printer << "]";
+  }
+
   printer << rightDelimiter;
 }
 
 ParseResult mlir::parseDynamicIndexList(
     OpAsmParser &parser,
     SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
-    DenseI64ArrayAttr &integers, AsmParser::Delimiter delimiter) {
+    DenseI64ArrayAttr &integers, bool *isTrailingIdxScalable,
+    SmallVectorImpl<Type> *valueTypes, AsmParser::Delimiter delimiter) {
 
   SmallVector<int64_t, 4> integerVals;
+  bool foundScalable = false;
   auto parseIntegerOrValue = [&]() {
     OpAsmParser::UnresolvedOperand operand;
     auto res = parser.parseOptionalOperand(operand);
+
+    // If `foundScalable` has already been set to `true` then a non-trailing
+    // tile size was identified as scalable.
+    if (foundScalable) {
+      parser.emitError(parser.getNameLoc())
+          << "non-trailing tile size cannot be scalable";
+      return failure();
+    }
+
+    if (isTrailingIdxScalable && parser.parseOptionalLSquare().succeeded())
+      foundScalable = true;
+
     if (res.has_value() && succeeded(res.value())) {
       values.push_back(operand);
       integerVals.push_back(ShapedType::kDynamic);
+      if (valueTypes && parser.parseColonType(valueTypes->emplace_back()))
+        return failure();
     } else {
       int64_t integer;
       if (failed(parser.parseInteger(integer)))
         return failure();
       integerVals.push_back(integer);
     }
+    if (foundScalable && parser.parseOptionalRSquare().failed())
+      return failure();
     return success();
   };
   if (parser.parseCommaSeparatedList(delimiter, parseIntegerOrValue,
@@ -145,6 +186,8 @@ ParseResult mlir::parseDynamicIndexList(
     return parser.emitError(parser.getNameLoc())
            << "expected SSA value or integer";
   integers = parser.getBuilder().getDenseI64ArrayAttr(integerVals);
+  if (isTrailingIdxScalable)
+    *isTrailingIdxScalable = foundScalable;
   return success();
 }
 

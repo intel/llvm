@@ -330,6 +330,9 @@ public:
   }
   void Post(const parser::OpenMPRequiresConstruct &) { PopContext(); }
 
+  bool Pre(const parser::OpenMPDeclareTargetConstruct &);
+  void Post(const parser::OpenMPDeclareTargetConstruct &) { PopContext(); }
+
   bool Pre(const parser::OpenMPThreadprivate &);
   void Post(const parser::OpenMPThreadprivate &) { PopContext(); }
 
@@ -441,6 +444,11 @@ public:
     return false;
   }
 
+  bool Pre(const parser::OmpClause::UseDeviceAddr &x) {
+    ResolveOmpObjectList(x.v, Symbol::Flag::OmpUseDeviceAddr);
+    return false;
+  }
+
   void Post(const parser::Name &);
 
   // Keep track of labels in the statements that causes jumps to target labels
@@ -511,10 +519,11 @@ private:
       Symbol::Flag::OmpPrivate, Symbol::Flag::OmpLinear,
       Symbol::Flag::OmpFirstPrivate, Symbol::Flag::OmpLastPrivate,
       Symbol::Flag::OmpReduction, Symbol::Flag::OmpCriticalLock,
-      Symbol::Flag::OmpCopyIn, Symbol::Flag::OmpUseDevicePtr};
+      Symbol::Flag::OmpCopyIn, Symbol::Flag::OmpUseDevicePtr,
+      Symbol::Flag::OmpUseDeviceAddr};
 
   static constexpr Symbol::Flags ompFlagsRequireMark{
-      Symbol::Flag::OmpThreadprivate};
+      Symbol::Flag::OmpThreadprivate, Symbol::Flag::OmpDeclareTarget};
 
   static constexpr Symbol::Flags dataCopyingAttributeFlags{
       Symbol::Flag::OmpCopyIn, Symbol::Flag::OmpCopyPrivate};
@@ -591,7 +600,11 @@ const parser::Name *DirectiveAttributeVisitor<T>::GetLoopIndex(
     const parser::DoConstruct &x) {
   using Bounds = parser::LoopControl::Bounds;
   if (x.GetLoopControl()) {
-    return &std::get<Bounds>(x.GetLoopControl()->u).name.thing;
+    if (const Bounds * b{std::get_if<Bounds>(&x.GetLoopControl()->u)}) {
+      return &b->name.thing;
+    } else {
+      return nullptr;
+    }
   } else {
     context_
         .Say(std::get<parser::Statement<parser::NonLabelDoStmt>>(x.t).source,
@@ -1454,6 +1467,25 @@ bool OmpAttributeVisitor::Pre(const parser::OpenMPCriticalConstruct &x) {
   if (const auto &endCriticalName{
           std::get<std::optional<parser::Name>>(endCriticalDir.t)}) {
     ResolveOmpName(*endCriticalName, Symbol::Flag::OmpCriticalLock);
+  }
+  return true;
+}
+
+bool OmpAttributeVisitor::Pre(const parser::OpenMPDeclareTargetConstruct &x) {
+  PushContext(x.source, llvm::omp::Directive::OMPD_declare_target);
+  const auto &spec{std::get<parser::OmpDeclareTargetSpecifier>(x.t)};
+  if (const auto *objectList{parser::Unwrap<parser::OmpObjectList>(spec.u)}) {
+    ResolveOmpObjectList(*objectList, Symbol::Flag::OmpDeclareTarget);
+  } else if (const auto *clauseList{
+                 parser::Unwrap<parser::OmpClauseList>(spec.u)}) {
+    for (const auto &clause : clauseList->v) {
+      if (const auto *toClause{std::get_if<parser::OmpClause::To>(&clause.u)}) {
+        ResolveOmpObjectList(toClause->v, Symbol::Flag::OmpDeclareTarget);
+      } else if (const auto *linkClause{
+                     std::get_if<parser::OmpClause::Link>(&clause.u)}) {
+        ResolveOmpObjectList(linkClause->v, Symbol::Flag::OmpDeclareTarget);
+      }
+    }
   }
   return true;
 }

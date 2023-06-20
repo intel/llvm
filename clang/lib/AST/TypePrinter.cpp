@@ -1394,11 +1394,20 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
       if (PLoc.isValid()) {
         OS << " at ";
         StringRef File = PLoc.getFilename();
+        llvm::SmallString<1024> WrittenFile(File);
         if (auto *Callbacks = Policy.Callbacks)
-          OS << Callbacks->remapPath(File);
-        else
-          OS << File;
-        OS << ':' << PLoc.getLine() << ':' << PLoc.getColumn();
+          WrittenFile = Callbacks->remapPath(File);
+        // Fix inconsistent path separator created by
+        // clang::DirectoryLookup::LookupFile when the file path is relative
+        // path.
+        llvm::sys::path::Style Style =
+            llvm::sys::path::is_absolute(WrittenFile)
+                ? llvm::sys::path::Style::native
+                : (Policy.MSVCFormatting
+                       ? llvm::sys::path::Style::windows_backslash
+                       : llvm::sys::path::Style::posix);
+        llvm::sys::path::native(WrittenFile, Style);
+        OS << WrittenFile << ':' << PLoc.getLine() << ':' << PLoc.getColumn();
       }
     }
 
@@ -1576,6 +1585,11 @@ void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
     return;
   }
 
+  if (Policy.SuppressElaboration) {
+    printBefore(T->getNamedType(), OS);
+    return;
+  }
+
   // The tag definition will take care of these.
   if (!Policy.IncludeTagDefinition)
   {
@@ -1601,6 +1615,12 @@ void TypePrinter::printElaboratedAfter(const ElaboratedType *T,
                                         raw_ostream &OS) {
   if (Policy.IncludeTagDefinition && T->getOwnedTagDecl())
     return;
+
+  if (Policy.SuppressElaboration) {
+    printAfter(T->getNamedType(), OS);
+    return;
+  }
+
   ElaboratedTypePolicyRAII PolicyRAII(Policy);
   printAfter(T->getNamedType(), OS);
 }
@@ -1763,6 +1783,11 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     return;
   }
 
+  if (T->getAttrKind() == attr::ArmStreaming) {
+    OS << "__arm_streaming";
+    return;
+  }
+
   OS << " __attribute__((";
   switch (T->getAttrKind()) {
 #define TYPE_ATTR(NAME)
@@ -1807,6 +1832,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::CmseNSCall:
   case attr::AnnotateType:
   case attr::WebAssemblyFuncref:
+  case attr::ArmStreaming:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:

@@ -191,6 +191,11 @@ OptExecMaskPreRA("amdgpu-opt-exec-mask-pre-ra", cl::Hidden,
             cl::desc("Run pre-RA exec mask optimizations"),
             cl::init(true));
 
+static cl::opt<bool>
+    LowerCtorDtor("amdgpu-lower-global-ctor-dtor",
+                  cl::desc("Lower GPU ctor / dtors to globals on the device."),
+                  cl::init(true), cl::Hidden);
+
 // Option to disable vectorizer for tests.
 static cl::opt<bool> EnableLoadStoreVectorizer(
   "amdgpu-load-store-vectorizer",
@@ -338,6 +343,11 @@ static cl::opt<bool> EnableMaxIlpSchedStrategy(
     cl::desc("Enable scheduling strategy to maximize ILP for a single wave."),
     cl::Hidden, cl::init(false));
 
+static cl::opt<bool> EnableRewritePartialRegUses(
+    "amdgpu-enable-rewrite-partial-reg-uses",
+    cl::desc("Enable rewrite partial reg uses pass"), cl::init(true),
+    cl::Hidden);
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
   RegisterTargetMachine<R600TargetMachine> X(getTheAMDGPUTarget());
@@ -414,6 +424,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUResourceUsageAnalysisPass(*PR);
   initializeGCNNSAReassignPass(*PR);
   initializeGCNPreRAOptimizationsPass(*PR);
+  initializeGCNRewritePartialRegUsesPass(*PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
   initializeGlobalOffsetLegacyPass(*PR);
@@ -673,6 +684,10 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         }
         if (PassName == "amdgpu-atomic-optimizer") {
           PM.addPass(AMDGPUAtomicOptimizerPass(*this));
+          return true;
+        }
+        if (PassName == "amdgpu-codegenprepare") {
+          PM.addPass(AMDGPUCodeGenPreparePass(*this));
           return true;
         }
         return false;
@@ -985,7 +1000,8 @@ void AMDGPUPassConfig::addIRPasses() {
   disablePass(&PatchableFunctionID);
 
   addPass(createAMDGPUPrintfRuntimeBinding());
-  addPass(createAMDGPUCtorDtorLoweringLegacyPass());
+  if (LowerCtorDtor)
+    addPass(createAMDGPUCtorDtorLoweringLegacyPass());
 
   // A call to propagate attributes pass in the backend in case opt was not run.
   addPass(createAMDGPUPropagateAttributesEarlyPass(&TM));
@@ -1280,6 +1296,9 @@ void GCNPassConfig::addOptimizedRegAlloc() {
 
   if (OptExecMaskPreRA)
     insertPass(&MachineSchedulerID, &SIOptimizeExecMaskingPreRAID);
+
+  if (EnableRewritePartialRegUses)
+    insertPass(&RenameIndependentSubregsID, &GCNRewritePartialRegUsesID);
 
   if (isPassEnabled(EnablePreRAOptimizations))
     insertPass(&RenameIndependentSubregsID, &GCNPreRAOptimizationsID);

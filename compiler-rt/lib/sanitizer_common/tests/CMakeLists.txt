@@ -16,6 +16,7 @@ set(SANITIZER_UNITTESTS
   sanitizer_bitvector_test.cpp
   sanitizer_bvgraph_test.cpp
   sanitizer_chained_origin_depot_test.cpp
+  sanitizer_common_range_test.cpp
   sanitizer_common_test.cpp
   sanitizer_deadlock_detector_test.cpp
   sanitizer_dense_map_test.cpp
@@ -46,6 +47,7 @@ set(SANITIZER_UNITTESTS
   sanitizer_suppressions_test.cpp
   sanitizer_symbolizer_test.cpp
   sanitizer_test_main.cpp
+  sanitizer_thread_arg_retval_test.cpp
   sanitizer_thread_registry_test.cpp
   sanitizer_type_traits_test.cpp
   sanitizer_vector_test.cpp
@@ -68,6 +70,7 @@ set(SANITIZER_TEST_CFLAGS_COMMON
   -I${COMPILER_RT_SOURCE_DIR}/include
   -I${COMPILER_RT_SOURCE_DIR}/lib
   -I${COMPILER_RT_SOURCE_DIR}/lib/sanitizer_common
+  -DSANITIZER_COMMON_NO_REDEFINE_BUILTINS
   -fno-rtti
   -O2
   -Werror=sign-compare

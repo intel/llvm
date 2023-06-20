@@ -37,6 +37,7 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
+  bool prepareForAlwaysInliner(Module &M);
   size_t runOnFunction(Function &F, SmallPtrSetImpl<Type *> &);
 };
 

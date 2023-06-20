@@ -1,19 +1,19 @@
 // RUN: mlir-opt %s --sparse-tensor-codegen --cse |  FileCheck %s
 
 #CSR = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed" ]
+  lvlTypes = [ "dense", "compressed" ]
 }>
 
 #CSR_SLICE = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed" ],
-  slice = [ (0, 4, 1), (0, 8, 1) ]
+  lvlTypes = [ "dense", "compressed" ],
+  dimSlices = [ (0, 4, 1), (0, 8, 1) ]
 }>
 
 // CHECK-LABEL:   func.func @sparse_slice(
 // CHECK-SAME:                            %[[VAL_0:.*0]]: memref<?xindex>,
 // CHECK-SAME:                            %[[VAL_1:.*1]]: memref<?xindex>,
 // CHECK-SAME:                            %[[VAL_2:.*2]]: memref<?xf64>,
-// CHECK-SAME:                            %[[VAL_3:.*3]]: !sparse_tensor.storage_specifier<#sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ] }>>)
+// CHECK-SAME:                            %[[VAL_3:.*3]]: !sparse_tensor.storage_specifier<#sparse_tensor.encoding<{ lvlTypes = [ "dense", "compressed" ] }>>)
 // CHECK:           %[[VAL_4:.*]] = sparse_tensor.storage_specifier.init with %[[VAL_3]]
 // CHECK:           %[[VAL_5:.*]] = arith.constant 0 : index
 // CHECK:           %[[VAL_6:.*]] = arith.constant 4 : index

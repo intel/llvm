@@ -7,9 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "IRNumbering.h"
-#include "../Encoding.h"
 #include "mlir/Bytecode/BytecodeImplementation.h"
-#include "mlir/Bytecode/BytecodeWriter.h"
+#include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpDefinition.h"
@@ -26,6 +25,10 @@ struct IRNumberingState::NumberingDialectWriter : public DialectBytecodeWriter {
   NumberingDialectWriter(IRNumberingState &state) : state(state) {}
 
   void writeAttribute(Attribute attr) override { state.number(attr); }
+  void writeOptionalAttribute(Attribute attr) override {
+    if (attr)
+      state.number(attr);
+  }
   void writeType(Type type) override { state.number(type); }
   void writeResourceHandle(const AsmDialectResourceHandle &resource) override {
     state.number(resource.getDialect(), resource);
@@ -108,7 +111,15 @@ static void groupByDialectPerByte(T range) {
     value->number = idx;
 }
 
-IRNumberingState::IRNumberingState(Operation *op) {
+IRNumberingState::IRNumberingState(Operation *op,
+                                   const BytecodeWriterConfig &config)
+    : config(config) {
+  // Compute a global operation ID numbering according to the pre-order walk of
+  // the IR. This is used as reference to construct use-list orders.
+  unsigned operationID = 0;
+  op->walk<WalkOrder::PreOrder>(
+      [&](Operation *op) { operationIDs.try_emplace(op, operationID++); });
+
   // Number the root operation.
   number(*op);
 
@@ -180,7 +191,7 @@ void IRNumberingState::number(Attribute attr) {
   // have a registered dialect when it got created. We don't want to encode this
   // as the builtin OpaqueAttr, we want to encode it as if the dialect was
   // actually loaded.
-  if (OpaqueAttr opaqueAttr = attr.dyn_cast<OpaqueAttr>()) {
+  if (OpaqueAttr opaqueAttr = dyn_cast<OpaqueAttr>(attr)) {
     numbering->dialect = &numberDialect(opaqueAttr.getDialectNamespace());
     return;
   }
@@ -272,9 +283,29 @@ void IRNumberingState::number(Operation &op) {
   }
 
   // Only number the operation's dictionary if it isn't empty.
-  DictionaryAttr dictAttr = op.getAttrDictionary();
+  DictionaryAttr dictAttr = op.getDiscardableAttrDictionary();
+  // Prior to version 5 we need to number also the merged dictionnary
+  // containing both the inherent and discardable attribute.
+  if (config.getDesiredBytecodeVersion() < 5)
+    dictAttr = op.getAttrDictionary();
   if (!dictAttr.empty())
     number(dictAttr);
+
+  // Visit the operation properties (if any) to make sure referenced attributes
+  // are numbered.
+  if (config.getDesiredBytecodeVersion() >= 5 &&
+      op.getPropertiesStorageSize()) {
+    if (op.isRegistered()) {
+      // Operation that have properties *must* implement this interface.
+      auto iface = cast<BytecodeOpInterface>(op);
+      NumberingDialectWriter writer(*this);
+      iface.writeProperties(writer);
+    } else {
+      // Unregistered op are storing properties as an optional attribute.
+      if (Attribute prop = *op.getPropertiesStorage().as<Attribute *>())
+        number(prop);
+    }
+  }
 
   number(op.getLoc());
 }
@@ -310,7 +341,7 @@ void IRNumberingState::number(Type type) {
   // registered dialect when it got created. We don't want to encode this as the
   // builtin OpaqueType, we want to encode it as if the dialect was actually
   // loaded.
-  if (OpaqueType opaqueType = type.dyn_cast<OpaqueType>()) {
+  if (OpaqueType opaqueType = dyn_cast<OpaqueType>(type)) {
     numbering->dialect = &numberDialect(opaqueType.getDialectNamespace());
     return;
   }

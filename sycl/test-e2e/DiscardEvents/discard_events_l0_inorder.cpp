@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
   sycl::property_list Props{
       sycl::property::queue::in_order{},
       sycl::ext::oneapi::property::queue::discard_events{}};
-  sycl::queue queue(sycl::default_selector{}, Props);
+  sycl::queue queue(Props);
 
   RunCalculation(queue, sycl::usm::alloc::host);
   RunCalculation(queue, sycl::usm::alloc::shared);

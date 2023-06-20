@@ -1,4 +1,4 @@
-// RUN: %{build} -std=c++17 -o %t.run
+// RUN: %{build} -std=c++17 -o %t.run -Wno-deprecated-declarations
 // RUN: %{run} %t.run
 
 // Variant of group_asymc_copy.cpp using legacy multi_ptr and the corresponding
@@ -22,16 +22,16 @@ const size_t WorkGroupSize = 8;
 const size_t NWorkGroups = NElems / WorkGroupSize;
 
 template <typename T> void initInputBuffer(buffer<T, 1> &Buf, size_t Stride) {
-  auto Acc = Buf.template get_access<access::mode::write>();
-  for (size_t I = 0; I < Buf.get_count(); I += WorkGroupSize) {
+  host_accessor Acc(Buf, sycl::write_only);
+  for (size_t I = 0; I < Buf.size(); I += WorkGroupSize) {
     for (size_t J = 0; J < WorkGroupSize; J++)
       Acc[I + J] = static_cast<T>(I + J + ((J % Stride == 0) ? 100 : 0));
   }
 }
 
 template <typename T> void initOutputBuffer(buffer<T, 1> &Buf) {
-  auto Acc = Buf.template get_access<access::mode::write>();
-  for (size_t I = 0; I < Buf.get_count(); I++)
+  host_accessor Acc(Buf, sycl::write_only);
+  for (size_t I = 0; I < Buf.size(); I++)
     Acc[I] = static_cast<T>(0);
 }
 
@@ -81,10 +81,10 @@ toString(T A) {
 }
 
 template <typename T> int checkResults(buffer<T, 1> &OutBuf, size_t Stride) {
-  auto Out = OutBuf.template get_access<access::mode::read>();
+  host_accessor Out(OutBuf, sycl::read_only);
   int EarlyFailout = 20;
 
-  for (size_t I = 0; I < OutBuf.get_count(); I += WorkGroupSize) {
+  for (size_t I = 0; I < OutBuf.size(); I += WorkGroupSize) {
     for (size_t J = 0; J < WorkGroupSize; J++) {
       size_t ExpectedVal = (J % Stride == 0) ? (100 + I + J) : 0;
       if (!checkEqual(Out[I + J], ExpectedVal)) {

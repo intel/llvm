@@ -128,6 +128,22 @@ llvm::raw_ostream &operator<<(
   if (x.defaultIgnoreTKR_) {
     os << " defaultIgnoreTKR";
   }
+  if (x.cudaSubprogramAttrs_) {
+    os << " cudaSubprogramAttrs: "
+       << common::EnumToString(*x.cudaSubprogramAttrs_);
+  }
+  if (!x.cudaLaunchBounds_.empty()) {
+    os << " cudaLaunchBounds:";
+    for (auto x : x.cudaLaunchBounds_) {
+      os << ' ' << x;
+    }
+  }
+  if (!x.cudaClusterDims_.empty()) {
+    os << " cudaClusterDims:";
+    for (auto x : x.cudaClusterDims_) {
+      os << ' ' << x;
+    }
+  }
   return os;
 }
 
@@ -411,8 +427,10 @@ llvm::raw_ostream &operator<<(
     os << " (has unanalyzedPDTComponentInit)";
   }
   if (!x.ignoreTKR_.empty()) {
-    os << ' ';
-    x.ignoreTKR_.Dump(os, common::EnumToString);
+    x.ignoreTKR_.Dump(os << ' ', common::EnumToString);
+  }
+  if (x.cudaDataAttr()) {
+    os << " cudaDataAttr: " << common::EnumToString(*x.cudaDataAttr());
   }
   return os;
 }
@@ -442,6 +460,9 @@ llvm::raw_ostream &operator<<(
     } else {
       os << " => NULL()";
     }
+  }
+  if (x.isCUDAKernel()) {
+    os << " isCUDAKernel";
   }
   return os;
 }
@@ -494,6 +515,9 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Details &details) {
               }
               os << ")";
             }
+            if (x.isDefaultPrivate()) {
+              os << " isDefaultPrivate";
+            }
           },
           [&](const SubprogramNameDetails &x) {
             os << ' ' << EnumToString(x.kind());
@@ -515,6 +539,10 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Details &details) {
           [&](const ProcBindingDetails &x) {
             os << " => " << x.symbol().name();
             DumpOptional(os, "passName", x.passName());
+            if (x.numPrivatesNotOverridden() > 0) {
+              os << " numPrivatesNotOverridden: "
+                 << x.numPrivatesNotOverridden();
+            }
           },
           [&](const NamelistDetails &x) {
             os << ':';

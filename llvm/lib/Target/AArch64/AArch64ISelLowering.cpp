@@ -580,6 +580,8 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::MULHS, MVT::i32, Expand);
 
   // AArch64 doesn't have {U|S}MUL_LOHI.
+  setOperationAction(ISD::UMUL_LOHI, MVT::i32, Expand);
+  setOperationAction(ISD::SMUL_LOHI, MVT::i32, Expand);
   setOperationAction(ISD::UMUL_LOHI, MVT::i64, Expand);
   setOperationAction(ISD::SMUL_LOHI, MVT::i64, Expand);
 
@@ -714,7 +716,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::FROUND,      MVT::v4f16, Expand);
     setOperationAction(ISD::FROUNDEVEN,  MVT::v4f16, Expand);
     setOperationAction(ISD::FMA,         MVT::v4f16, Expand);
-    setOperationAction(ISD::SETCC,       MVT::v4f16, Expand);
+    setOperationAction(ISD::SETCC,       MVT::v4f16, Custom);
     setOperationAction(ISD::BR_CC,       MVT::v4f16, Expand);
     setOperationAction(ISD::SELECT,      MVT::v4f16, Expand);
     setOperationAction(ISD::SELECT_CC,   MVT::v4f16, Expand);
@@ -1051,7 +1053,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
     // FIXME: v1f64 shouldn't be legal if we can avoid it, because it leads to
     // silliness like this:
     for (auto Op :
-         {ISD::SELECT,         ISD::SELECT_CC,      ISD::SETCC,
+         {ISD::SELECT,         ISD::SELECT_CC,
           ISD::BR_CC,          ISD::FADD,           ISD::FSUB,
           ISD::FMUL,           ISD::FDIV,           ISD::FMA,
           ISD::FNEG,           ISD::FABS,           ISD::FCEIL,
@@ -1413,6 +1415,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::MLOAD, VT, Custom);
       setOperationAction(ISD::SPLAT_VECTOR, VT, Legal);
       setOperationAction(ISD::SELECT, VT, Custom);
+      setOperationAction(ISD::SETCC, VT, Custom);
       setOperationAction(ISD::FADD, VT, Custom);
       setOperationAction(ISD::FCOPYSIGN, VT, Custom);
       setOperationAction(ISD::FDIV, VT, Custom);
@@ -2061,7 +2064,7 @@ void AArch64TargetLowering::computeKnownBitsForTargetNode(
     KnownBits Known2;
     Known = DAG.computeKnownBits(Op->getOperand(0), Depth + 1);
     Known2 = DAG.computeKnownBits(Op->getOperand(1), Depth + 1);
-    Known = KnownBits::commonBits(Known, Known2);
+    Known = Known.intersectWith(Known2);
     break;
   }
   case AArch64ISD::BICi: {
@@ -5039,8 +5042,12 @@ SDValue AArch64TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   case Intrinsic::aarch64_sve_dupq_lane:
     return LowerDUPQLane(Op, DAG);
   case Intrinsic::aarch64_sve_convert_from_svbool:
+    if (Op.getValueType() == MVT::aarch64svcount)
+      return DAG.getNode(ISD::BITCAST, dl, Op.getValueType(), Op.getOperand(1));
     return getSVEPredicateBitCast(Op.getValueType(), Op.getOperand(1), DAG);
   case Intrinsic::aarch64_sve_convert_to_svbool:
+    if (Op.getOperand(1).getValueType() == MVT::aarch64svcount)
+      return DAG.getNode(ISD::BITCAST, dl, MVT::nxv16i1, Op.getOperand(1));
     return getSVEPredicateBitCast(MVT::nxv16i1, Op.getOperand(1), DAG);
   case Intrinsic::aarch64_sve_fneg:
     return DAG.getNode(AArch64ISD::FNEG_MERGE_PASSTHRU, dl, Op.getValueType(),
@@ -6557,11 +6564,12 @@ SDValue AArch64TargetLowering::LowerFormalArguments(
     }
 
     // This will point to the next argument passed via stack.
-    unsigned StackOffset = CCInfo.getNextStackOffset();
+    unsigned VarArgsOffset = CCInfo.getStackSize();
     // We currently pass all varargs at 8-byte alignment, or 4 for ILP32
-    StackOffset = alignTo(StackOffset, Subtarget->isTargetILP32() ? 4 : 8);
-    FuncInfo->setVarArgsStackOffset(StackOffset);
-    FuncInfo->setVarArgsStackIndex(MFI.CreateFixedObject(4, StackOffset, true));
+    VarArgsOffset = alignTo(VarArgsOffset, Subtarget->isTargetILP32() ? 4 : 8);
+    FuncInfo->setVarArgsStackOffset(VarArgsOffset);
+    FuncInfo->setVarArgsStackIndex(
+        MFI.CreateFixedObject(4, VarArgsOffset, true));
 
     if (MFI.hasMustTailInVarArgFunc()) {
       SmallVector<MVT, 2> RegParmTypes;
@@ -6601,7 +6609,7 @@ SDValue AArch64TargetLowering::LowerFormalArguments(
     }
   }
 
-  unsigned StackArgSize = CCInfo.getNextStackOffset();
+  unsigned StackArgSize = CCInfo.getStackSize();
   bool TailCallOpt = MF.getTarget().Options.GuaranteedTailCallOpt;
   if (DoesCalleeRestoreStack(CallConv, TailCallOpt)) {
     // This is a non-standard ABI so by fiat I say we're allowed to make full
@@ -6998,7 +7006,7 @@ bool AArch64TargetLowering::isEligibleForTailCallOptimization(
 
   // If the stack arguments for this call do not fit into our own save area then
   // the call cannot be made tail.
-  if (CCInfo.getNextStackOffset() > FuncInfo->getBytesInStackArgArea())
+  if (CCInfo.getStackSize() > FuncInfo->getBytesInStackArgArea())
     return false;
 
   const MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -7162,7 +7170,7 @@ AArch64TargetLowering::LowerCall(CallLoweringInfo &CLI,
                        "site marked musttail");
 
   // Get a count of how many bytes are to be pushed on the stack.
-  unsigned NumBytes = CCInfo.getNextStackOffset();
+  unsigned NumBytes = CCInfo.getStackSize();
 
   if (IsSibCall) {
     // Since we're not changing the ABI to make this a tail call, the memory
@@ -7599,6 +7607,7 @@ AArch64TargetLowering::LowerCall(CallLoweringInfo &CLI,
     if (IsCFICall)
       Ret.getNode()->setCFIType(CLI.CFIType->getZExtValue());
 
+    DAG.addNoMergeSiteInfo(Ret.getNode(), CLI.NoMerge);
     DAG.addCallSiteInfo(Ret.getNode(), std::move(CSInfo));
     return Ret;
   }
@@ -12653,13 +12662,13 @@ SDValue AArch64TargetLowering::LowerBUILD_VECTOR(SDValue Op,
       }
     }
 
-    // Let's try to generate two DUPs and VECTOR_SHUFFLE. For example,
+    // Let's try to generate VECTOR_SHUFFLE. For example,
     //
     //  t24: v8i8 = BUILD_VECTOR t25, t25, t25, t25, t26, t26, t26, t26
     //  ==>
-    //    t28: v8i8 = AArch64ISD::DUP t25
-    //    t30: v8i8 = AArch64ISD::DUP t26
-    //  t31: v8i8 = vector_shuffle<0,0,0,0,8,8,8,8> t28, t30
+    //    t27: v8i8 = BUILD_VECTOR t26, t26, t26, t26, t26, t26, t26, t26
+    //    t28: v8i8 = BUILD_VECTOR t25, t25, t25, t25, t25, t25, t25, t25
+    //  t29: v8i8 = vector_shuffle<0,1,2,3,12,13,14,15> t27, t28
     if (NumElts >= 8) {
       SmallVector<int, 16> MaskVec;
       // Build mask for VECTOR_SHUFLLE.
@@ -12667,17 +12676,17 @@ SDValue AArch64TargetLowering::LowerBUILD_VECTOR(SDValue Op,
       for (unsigned i = 0; i < NumElts; ++i) {
         SDValue Val = Op.getOperand(i);
         if (FirstLaneVal == Val)
-          MaskVec.push_back(0);
+          MaskVec.push_back(i);
         else
-          MaskVec.push_back(NumElts);
+          MaskVec.push_back(i + NumElts);
       }
 
       SmallVector<SDValue, 8> Ops1(NumElts, Vals[0]);
       SmallVector<SDValue, 8> Ops2(NumElts, Vals[1]);
-      SDValue DUP1 = LowerBUILD_VECTOR(DAG.getBuildVector(VT, dl, Ops1), DAG);
-      SDValue DUP2 = LowerBUILD_VECTOR(DAG.getBuildVector(VT, dl, Ops2), DAG);
+      SDValue VEC1 = DAG.getBuildVector(VT, dl, Ops1);
+      SDValue VEC2 = DAG.getBuildVector(VT, dl, Ops2);
       SDValue VECTOR_SHUFFLE =
-          DAG.getVectorShuffle(VT, dl, DUP1, DUP2, MaskVec);
+          DAG.getVectorShuffle(VT, dl, VEC1, VEC2, MaskVec);
       return VECTOR_SHUFFLE;
     }
   }
@@ -14332,6 +14341,43 @@ bool AArch64TargetLowering::shouldSinkOperands(
 
     return true;
   }
+  case Instruction::Or: {
+    // Pattern: Or(And(MaskValue, A), And(Not(MaskValue), B)) ->
+    // bitselect(MaskValue, A, B) where Not(MaskValue) = Xor(MaskValue, -1)
+    if (Subtarget->hasNEON()) {
+      Instruction *OtherAnd, *IA, *IB;
+      Value *MaskValue;
+      // MainAnd refers to And instruction that has 'Not' as one of its operands
+      if (match(I, m_c_Or(m_OneUse(m_Instruction(OtherAnd)),
+                          m_OneUse(m_c_And(m_OneUse(m_Not(m_Value(MaskValue))),
+                                           m_Instruction(IA)))))) {
+        if (match(OtherAnd,
+                  m_c_And(m_Specific(MaskValue), m_Instruction(IB)))) {
+          Instruction *MainAnd = I->getOperand(0) == OtherAnd
+                                     ? cast<Instruction>(I->getOperand(1))
+                                     : cast<Instruction>(I->getOperand(0));
+
+          // Both Ands should be in same basic block as Or
+          if (I->getParent() != MainAnd->getParent() ||
+              I->getParent() != OtherAnd->getParent())
+            return false;
+
+          // Non-mask operands of both Ands should also be in same basic block
+          if (I->getParent() != IA->getParent() ||
+              I->getParent() != IB->getParent())
+            return false;
+
+          Ops.push_back(&MainAnd->getOperandUse(MainAnd->getOperand(0) == IA ? 1 : 0));
+          Ops.push_back(&I->getOperandUse(0));
+          Ops.push_back(&I->getOperandUse(1));
+
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
   case Instruction::Mul: {
     int NumZExts = 0, NumSExts = 0;
     for (auto &Op : I->operands()) {
@@ -14410,12 +14456,15 @@ bool AArch64TargetLowering::shouldSinkOperands(
   return false;
 }
 
-static void createTblShuffleForZExt(ZExtInst *ZExt, bool IsLittleEndian) {
+static bool createTblShuffleForZExt(ZExtInst *ZExt, FixedVectorType *DstTy,
+                                    bool IsLittleEndian) {
   Value *Op = ZExt->getOperand(0);
   auto *SrcTy = cast<FixedVectorType>(Op->getType());
-  auto *DstTy = cast<FixedVectorType>(ZExt->getType());
   auto SrcWidth = cast<IntegerType>(SrcTy->getElementType())->getBitWidth();
   auto DstWidth = cast<IntegerType>(DstTy->getElementType())->getBitWidth();
+  if (DstWidth % 8 != 0 || DstWidth <= 16 || DstWidth >= 64)
+    return false;
+
   assert(DstWidth % SrcWidth == 0 &&
          "TBL lowering is not supported for a ZExt instruction with this "
          "source & destination element type.");
@@ -14444,8 +14493,11 @@ static void createTblShuffleForZExt(ZExtInst *ZExt, bool IsLittleEndian) {
       PoisonValue::get(SrcTy), Builder.getInt8(0), uint64_t(0));
   Value *Result = Builder.CreateShuffleVector(Op, FirstEltZero, Mask);
   Result = Builder.CreateBitCast(Result, DstTy);
+  if (DstTy != ZExt->getType())
+    Result = Builder.CreateZExt(Result, ZExt->getType());
   ZExt->replaceAllUsesWith(Result);
   ZExt->eraseFromParent();
+  return true;
 }
 
 static void createTblForTrunc(TruncInst *TI, bool IsLittleEndian) {
@@ -14567,8 +14619,8 @@ static void createTblForTrunc(TruncInst *TI, bool IsLittleEndian) {
   TI->eraseFromParent();
 }
 
-bool AArch64TargetLowering::optimizeExtendOrTruncateConversion(Instruction *I,
-                                                               Loop *L) const {
+bool AArch64TargetLowering::optimizeExtendOrTruncateConversion(
+    Instruction *I, Loop *L, const TargetTransformInfo &TTI) const {
   // shuffle_vector instructions are serialized when targeting SVE,
   // see LowerSPLAT_VECTOR. This peephole is not beneficial.
   if (Subtarget->useSVEForFixedLengthVectors())
@@ -14593,11 +14645,26 @@ bool AArch64TargetLowering::optimizeExtendOrTruncateConversion(Instruction *I,
   // into i8x lanes. This is enabled for cases where it is beneficial.
   auto *ZExt = dyn_cast<ZExtInst>(I);
   if (ZExt && SrcTy->getElementType()->isIntegerTy(8)) {
-    auto DstWidth = cast<IntegerType>(DstTy->getElementType())->getBitWidth();
-    if (DstWidth % 8 == 0 && DstWidth > 16 && DstWidth < 64) {
-      createTblShuffleForZExt(ZExt, Subtarget->isLittleEndian());
-      return true;
+    auto DstWidth = DstTy->getElementType()->getScalarSizeInBits();
+    if (DstWidth % 8 != 0)
+      return false;
+
+    auto *TruncDstType =
+        cast<FixedVectorType>(VectorType::getTruncatedElementVectorType(DstTy));
+    // If the ZExt can be lowered to a single ZExt to the next power-of-2 and
+    // the remaining ZExt folded into the user, don't use tbl lowering.
+    auto SrcWidth = SrcTy->getElementType()->getScalarSizeInBits();
+    if (TTI.getCastInstrCost(I->getOpcode(), DstTy, TruncDstType,
+                             TargetTransformInfo::getCastContextHint(I),
+                             TTI::TCK_SizeAndLatency, I) == TTI::TCC_Free) {
+      if (SrcWidth * 2 >= TruncDstType->getElementType()->getScalarSizeInBits())
+        return false;
+
+      DstTy = TruncDstType;
+      DstWidth = TruncDstType->getElementType()->getScalarSizeInBits();
     }
+
+    return createTblShuffleForZExt(ZExt, DstTy, Subtarget->isLittleEndian());
   }
 
   auto *UIToFP = dyn_cast<UIToFPInst>(I);
@@ -14609,8 +14676,8 @@ bool AArch64TargetLowering::optimizeExtendOrTruncateConversion(Instruction *I,
     auto *UI = Builder.CreateUIToFP(ZExt, DstTy);
     I->replaceAllUsesWith(UI);
     I->eraseFromParent();
-    createTblShuffleForZExt(ZExt, Subtarget->isLittleEndian());
-    return true;
+    return createTblShuffleForZExt(ZExt, cast<FixedVectorType>(ZExt->getType()),
+                                   Subtarget->isLittleEndian());
   }
 
   // Convert 'fptoui <(8|16) x float> to <(8|16) x i8>' to a wide fptoui
@@ -17879,8 +17946,8 @@ static SDValue performNegCSelCombine(SDNode *N, SelectionDAG &DAG) {
 // instruction can still be used profitably. This function puts the DAG into a
 // more appropriate form for those patterns to trigger.
 static SDValue performAddSubLongCombine(SDNode *N,
-                                        TargetLowering::DAGCombinerInfo &DCI,
-                                        SelectionDAG &DAG) {
+                                        TargetLowering::DAGCombinerInfo &DCI) {
+  SelectionDAG &DAG = DCI.DAG;
   if (DCI.isBeforeLegalizeOps())
     return SDValue();
 
@@ -18214,9 +18281,9 @@ static SDValue performSubAddMULCombine(SDNode *N, SelectionDAG &DAG) {
 // for vectors of type <1 x i64> and <2 x i64> when SVE is available.
 // It will transform the add/sub to a scalable version, so that we can
 // make use of SVE's MLA/MLS that will be generated for that pattern
-static SDValue performMulAddSubCombine(SDNode *N,
-                                       TargetLowering::DAGCombinerInfo &DCI,
-                                       SelectionDAG &DAG) {
+static SDValue
+performSVEMulAddSubCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
+  SelectionDAG &DAG = DCI.DAG;
   // Make sure that the types are legal
   if (!DCI.isAfterLegalizeDAG())
     return SDValue();
@@ -18262,28 +18329,64 @@ static SDValue performMulAddSubCombine(SDNode *N,
   return SDValue();
 }
 
+// Given a i64 add from a v1i64 extract, convert to a neon v1i64 add. This can
+// help, for example, to produce ssra from sshr+add.
+static SDValue performAddSubIntoVectorOp(SDNode *N, SelectionDAG &DAG) {
+  EVT VT = N->getValueType(0);
+  if (VT != MVT::i64)
+    return SDValue();
+  SDValue Op0 = N->getOperand(0);
+  SDValue Op1 = N->getOperand(1);
+
+  // At least one of the operands should be an extract, and the other should be
+  // something that is easy to convert to v1i64 type (in this case a load).
+  if (Op0.getOpcode() != ISD::EXTRACT_VECTOR_ELT &&
+      Op0.getOpcode() != ISD::LOAD)
+    return SDValue();
+  if (Op1.getOpcode() != ISD::EXTRACT_VECTOR_ELT &&
+      Op1.getOpcode() != ISD::LOAD)
+    return SDValue();
+
+  SDLoc DL(N);
+  if (Op0.getOpcode() == ISD::EXTRACT_VECTOR_ELT &&
+      Op0.getOperand(0).getValueType() == MVT::v1i64) {
+    Op0 = Op0.getOperand(0);
+    Op1 = DAG.getNode(ISD::SCALAR_TO_VECTOR, DL, MVT::v1i64, Op1);
+  } else if (Op1.getOpcode() == ISD::EXTRACT_VECTOR_ELT &&
+             Op1.getOperand(0).getValueType() == MVT::v1i64) {
+    Op0 = DAG.getNode(ISD::SCALAR_TO_VECTOR, DL, MVT::v1i64, Op0);
+    Op1 = Op1.getOperand(0);
+  } else
+    return SDValue();
+
+  return DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, MVT::i64,
+                     DAG.getNode(N->getOpcode(), DL, MVT::v1i64, Op0, Op1),
+                     DAG.getConstant(0, DL, MVT::i64));
+}
+
 static SDValue performAddSubCombine(SDNode *N,
-                                    TargetLowering::DAGCombinerInfo &DCI,
-                                    SelectionDAG &DAG) {
-  if (SDValue Val = performMulAddSubCombine(N, DCI, DAG))
-    return Val;
+                                    TargetLowering::DAGCombinerInfo &DCI) {
   // Try to change sum of two reductions.
-  if (SDValue Val = performAddUADDVCombine(N, DAG))
+  if (SDValue Val = performAddUADDVCombine(N, DCI.DAG))
     return Val;
-  if (SDValue Val = performAddDotCombine(N, DAG))
+  if (SDValue Val = performAddDotCombine(N, DCI.DAG))
     return Val;
-  if (SDValue Val = performAddCSelIntoCSinc(N, DAG))
+  if (SDValue Val = performAddCSelIntoCSinc(N, DCI.DAG))
     return Val;
-  if (SDValue Val = performNegCSelCombine(N, DAG))
+  if (SDValue Val = performNegCSelCombine(N, DCI.DAG))
     return Val;
-  if (SDValue Val = performVectorAddSubExtCombine(N, DAG))
+  if (SDValue Val = performVectorAddSubExtCombine(N, DCI.DAG))
     return Val;
-  if (SDValue Val = performAddCombineForShiftedOperands(N, DAG))
+  if (SDValue Val = performAddCombineForShiftedOperands(N, DCI.DAG))
     return Val;
-  if (SDValue Val = performSubAddMULCombine(N, DAG))
+  if (SDValue Val = performSubAddMULCombine(N, DCI.DAG))
+    return Val;
+  if (SDValue Val = performSVEMulAddSubCombine(N, DCI))
+    return Val;
+  if (SDValue Val = performAddSubIntoVectorOp(N, DCI.DAG))
     return Val;
 
-  return performAddSubLongCombine(N, DCI, DAG);
+  return performAddSubLongCombine(N, DCI);
 }
 
 // Massage DAGs which we can use the high-half "long" operations on into
@@ -18380,14 +18483,28 @@ static SDValue tryCombineShiftImm(unsigned IID, SDNode *N, SelectionDAG &DAG) {
     break;
   }
 
+  EVT VT = N->getValueType(0);
+  SDValue Op = N->getOperand(1);
+  SDLoc dl(N);
+  if (VT == MVT::i64) {
+    Op = DAG.getNode(ISD::SCALAR_TO_VECTOR, dl, MVT::v1i64, Op);
+    VT = MVT::v1i64;
+  }
+
   if (IsRightShift && ShiftAmount <= -1 && ShiftAmount >= -(int)ElemBits) {
-    SDLoc dl(N);
-    return DAG.getNode(Opcode, dl, N->getValueType(0), N->getOperand(1),
-                       DAG.getConstant(-ShiftAmount, dl, MVT::i32));
+    Op = DAG.getNode(Opcode, dl, VT, Op,
+                     DAG.getConstant(-ShiftAmount, dl, MVT::i32));
+    if (N->getValueType(0) == MVT::i64)
+      Op = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl, MVT::i64, Op,
+                       DAG.getConstant(0, dl, MVT::i64));
+    return Op;
   } else if (!IsRightShift && ShiftAmount >= 0 && ShiftAmount < ElemBits) {
-    SDLoc dl(N);
-    return DAG.getNode(Opcode, dl, N->getValueType(0), N->getOperand(1),
-                       DAG.getConstant(ShiftAmount, dl, MVT::i32));
+    Op = DAG.getNode(Opcode, dl, VT, Op,
+                     DAG.getConstant(ShiftAmount, dl, MVT::i32));
+    if (N->getValueType(0) == MVT::i64)
+      Op = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl, MVT::i64, Op,
+                       DAG.getConstant(0, dl, MVT::i64));
+    return Op;
   }
 
   return SDValue();
@@ -22294,7 +22411,7 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     return performVecReduceBitwiseCombine(N, DCI, DAG);
   case ISD::ADD:
   case ISD::SUB:
-    return performAddSubCombine(N, DCI, DAG);
+    return performAddSubCombine(N, DCI);
   case ISD::BUILD_VECTOR:
     return performBuildVectorCombine(N, DCI, DAG);
   case ISD::TRUNCATE:
@@ -23856,6 +23973,33 @@ bool AArch64TargetLowering::shouldConvertFpToSat(unsigned Op, EVT FPVT,
   return TargetLowering::shouldConvertFpToSat(Op, FPVT, VT);
 }
 
+MachineInstr *
+AArch64TargetLowering::EmitKCFICheck(MachineBasicBlock &MBB,
+                                     MachineBasicBlock::instr_iterator &MBBI,
+                                     const TargetInstrInfo *TII) const {
+  assert(MBBI->isCall() && MBBI->getCFIType() &&
+         "Invalid call instruction for a KCFI check");
+
+  switch (MBBI->getOpcode()) {
+  case AArch64::BLR:
+  case AArch64::BLRNoIP:
+  case AArch64::TCRETURNri:
+  case AArch64::TCRETURNriBTI:
+    break;
+  default:
+    llvm_unreachable("Unexpected CFI call opcode");
+  }
+
+  MachineOperand &Target = MBBI->getOperand(0);
+  assert(Target.isReg() && "Invalid target operand for an indirect call");
+  Target.setIsRenamable(false);
+
+  return BuildMI(MBB, MBBI, MBBI->getDebugLoc(), TII->get(AArch64::KCFI_CHECK))
+      .addReg(Target.getReg())
+      .addImm(MBBI->getCFIType())
+      .getInstr();
+}
+
 bool AArch64TargetLowering::enableAggressiveFMAFusion(EVT VT) const {
   return Subtarget->hasAggressiveFMA() && VT.isFloatingPoint();
 }
@@ -25163,13 +25307,11 @@ bool AArch64TargetLowering::isComplexDeinterleavingOperationSupported(
 }
 
 Value *AArch64TargetLowering::createComplexDeinterleavingIR(
-    Instruction *I, ComplexDeinterleavingOperation OperationType,
+    IRBuilderBase &B, ComplexDeinterleavingOperation OperationType,
     ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
     Value *Accumulator) const {
   VectorType *Ty = cast<VectorType>(InputA->getType());
   bool IsScalable = Ty->isScalableTy();
-
-  IRBuilder<> B(I);
 
   unsigned TyWidth =
       Ty->getScalarSizeInBits() * Ty->getElementCount().getKnownMinValue();
@@ -25194,9 +25336,9 @@ Value *AArch64TargetLowering::createComplexDeinterleavingIR(
           B.CreateExtractVector(HalfTy, Accumulator, B.getInt64(Stride));
     }
     auto *LowerSplitInt = createComplexDeinterleavingIR(
-        I, OperationType, Rotation, LowerSplitA, LowerSplitB, LowerSplitAcc);
+        B, OperationType, Rotation, LowerSplitA, LowerSplitB, LowerSplitAcc);
     auto *UpperSplitInt = createComplexDeinterleavingIR(
-        I, OperationType, Rotation, UpperSplitA, UpperSplitB, UpperSplitAcc);
+        B, OperationType, Rotation, UpperSplitA, UpperSplitB, UpperSplitAcc);
 
     auto *Result = B.CreateInsertVector(Ty, PoisonValue::get(Ty), LowerSplitInt,
                                         B.getInt64(0));
