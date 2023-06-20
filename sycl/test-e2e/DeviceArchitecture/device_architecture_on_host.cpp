@@ -1,4 +1,4 @@
-// UNSUPPORTED: cpu, cuda, hip, esimd_emulator
+// UNSUPPORTED: cuda, hip, esimd_emulator
 
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s
