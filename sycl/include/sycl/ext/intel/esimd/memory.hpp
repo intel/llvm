@@ -874,7 +874,7 @@ __ESIMD_API std::
 ///
 /// @tparam RGBAMask A pixel's channel mask.
 /// @tparam AccessorT The accessor type for the memory to be loaded/gathered.
-/// The returned vector elements mutch the accessor data type. The loaded
+/// The returned vector elements must match the accessor data type. The loaded
 /// elements must be 4 bytes in size.
 /// @tparam N Number of pixels to access (matches the size of the \c offsets
 ///   vector). Must be 8, 16 or 32.
@@ -2026,8 +2026,7 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
 /// the alignment parameter.
 /// @tparam Tx Element type.
 /// @tparam N Number of elements to load, <code>N * sizeof(Tx)</code> must
-/// be
-///    1, 2, 4 or 8 owords long.
+/// be 1, 2, 4 or 8 owords long.
 /// @tparam AccessorTy Accessor type (auto-deduced).
 /// @tparam Flags The alignment specifier type tag. Auto-deduced from the
 ///    \c Flags parameter. If it is less than \c 16, then slower unaligned
@@ -2139,7 +2138,7 @@ scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
 ///
 /// @tparam RGBAMask A pixel's channel mask.
 /// @tparam AccessorT The accessor type for the memory to be loaded/gathered.
-/// The returned vector elements mutch the accessor data type. The loaded
+/// The returned vector elements must match the accessor data type. The loaded
 /// elements must be 4 bytes in size.
 /// @tparam N Number of pixels to access (matches the size of the \c offsets
 ///   vector). Must be 8, 16 or 32.
@@ -2171,6 +2170,7 @@ gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
 /// for all loaded elements \c global_offset and per-element offsets \c offsets,
 /// and return it as simd vector. See @ref usm_gather_rgba for information about
 /// the operation semantics and parameter restrictions/interdependencies.
+///
 /// @tparam RGBAMask Pixel's channel mask.
 /// @tparam AccessorT The accessor type for the memory to be stored/scattered.
 /// The returned vector elements must match the accessor data type. The loaded
@@ -2201,8 +2201,7 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
 /// @cond EXCLUDE
 
 namespace detail {
-// ----- Outlined implementations of simd_obj_impl class memory access
-// APIs.
+// -- Outlined implementations of simd_obj_impl class memory access APIs.
 
 template <typename T, int N, class T1, class SFINAE>
 template <typename Flags, int ChunkSize, typename>
