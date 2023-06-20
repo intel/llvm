@@ -47,7 +47,7 @@ struct provider_base {
     enum uma_result_t purge_force(void *ptr, size_t size) noexcept {
         return UMA_RESULT_ERROR_UNKNOWN;
     }
-    void get_name(const char **ppName) noexcept { *ppName = "base"; }
+    const char *get_name() noexcept { return "base"; }
 };
 
 struct provider_malloc : public provider_base {
@@ -73,7 +73,7 @@ struct provider_malloc : public provider_base {
 #endif
         return UMA_RESULT_SUCCESS;
     }
-    void get_name(const char **ppName) noexcept { *ppName = "malloc"; }
+    const char *get_name() noexcept { return "malloc"; }
 };
 
 } // namespace uma_test

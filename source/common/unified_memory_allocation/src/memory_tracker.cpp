@@ -204,10 +204,10 @@ static enum uma_result_t trackingPurgeForce(void *provider, void *ptr,
     return umaMemoryProviderPurgeForce(p->hUpstream, ptr, size);
 }
 
-static void trackingName(void *provider, const char **ppName) {
+static const char *trackingName(void *provider) {
     uma_tracking_memory_provider_t *p =
         (uma_tracking_memory_provider_t *)provider;
-    return umaMemoryProviderGetName(p->hUpstream, ppName);
+    return umaMemoryProviderGetName(p->hUpstream);
 }
 
 enum uma_result_t umaTrackingMemoryProviderCreate(
