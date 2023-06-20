@@ -540,13 +540,13 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
                          (Op == __ESIMD_NS::atomic_op::fsub)) {
       Oldval[AddrIdx] =
           __ESIMD_DNS::atomic_sub<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::minsint) ||
-                         (Op == __ESIMD_NS::atomic_op::min) ||
+    } else if constexpr ((Op == __ESIMD_NS::atomic_op::smin) ||
+                         (Op == __ESIMD_NS::atomic_op::umin) ||
                          (Op == __ESIMD_NS::atomic_op::fmin)) {
       Oldval[AddrIdx] =
           __ESIMD_DNS::atomic_min<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::maxsint) ||
-                         (Op == __ESIMD_NS::atomic_op::max) ||
+    } else if constexpr ((Op == __ESIMD_NS::atomic_op::smax) ||
+                         (Op == __ESIMD_NS::atomic_op::umax) ||
                          (Op == __ESIMD_NS::atomic_op::fmax)) {
       Oldval[AddrIdx] =
           __ESIMD_DNS::atomic_max<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
