@@ -1343,7 +1343,9 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
     if (YcArg || YuArg) {
       StringRef ThroughHeader = YcArg ? YcArg->getValue() : YuArg->getValue();
-      if (!isa<PrecompileJobAction>(JA)) {
+      // Enable PCH inclusion when performing host compilation with -fsycl.
+      if (!isa<PrecompileJobAction>(JA) && JA.isOffloading(Action::OFK_SYCL) &&
+          !JA.isDeviceOffloading(Action::OFK_SYCL)) {
         CmdArgs.push_back("-include-pch");
         CmdArgs.push_back(Args.MakeArgString(D.GetClPchPath(
             C, !ThroughHeader.empty()
@@ -1375,7 +1377,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
         ;
       // Disable PCH inclusion when performing device compilation with -fsycl.
       else if (JA.isDeviceOffloading(Action::OFK_SYCL) &&
-               Args.hasArg(options::OPT_fno_sycl_use_footer))
+               !Args.hasArg(options::OPT_fno_sycl_use_footer))
         break;
       // Handling of gcc-style gch precompiled headers.
       bool IsFirstImplicitInclude = !RenderedImplicitInclude;
