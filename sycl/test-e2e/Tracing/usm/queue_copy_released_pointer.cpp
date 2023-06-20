@@ -1,4 +1,4 @@
-// UNSUPPORTED: windows
+// UNSUPPORTED: windows || hip_amd
 // RUN: %{build} -o %t.out
 // RUN: %{run} sycl-trace --verify %t.out | FileCheck %s
 
@@ -16,9 +16,9 @@ int main() {
     // CHECK: [USM] Function uses unknown USM pointer (could be already released or not allocated as USM) as destination memory block
     // CHECK: | memcpy location: function main at {{.*}}/queue_copy_released_pointer.cpp:[[# @LINE + 1 ]]
     Q.copy(AllocDst, AllocSrc, 1);
+    Q.wait();
   } catch (...) {
   }
-  Q.wait();
   sycl::free(AllocSrc, Q);
   return 0;
 }

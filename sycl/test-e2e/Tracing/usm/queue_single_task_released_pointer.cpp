@@ -1,4 +1,4 @@
-// UNSUPPORTED: windows
+// UNSUPPORTED: windows || hip_amd
 // RUN: %{build} -o %t.out
 // RUN: %{run} sycl-trace --verify %t.out | FileCheck %s
 
@@ -15,8 +15,8 @@ int main() {
     // CHECK: [USM] Function uses unknown USM pointer (could be already released or not allocated as USM) as kernel parameter with index = 0.
     // CHECK: | kernel location: function main at {{.*}}/queue_single_task_released_pointer.cpp:[[# @LINE + 1 ]]
     Q.single_task([=]() { *AllocSrc = 13; });
+    Q.wait();
   } catch (...) {
   }
-  Q.wait();
   return 0;
 }

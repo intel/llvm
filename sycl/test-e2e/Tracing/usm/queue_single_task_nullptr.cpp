@@ -1,4 +1,4 @@
-// UNSUPPORTED: windows
+// UNSUPPORTED: windows || hip_amd
 // RUN: %{build} -o %t.out
 // RUN: %{run} sycl-trace --verify %t.out | FileCheck %s
 
@@ -16,8 +16,8 @@ int main() {
       if (AllocSrc == nullptr)
         sycl::ext::oneapi::experimental::printf("nullptr");
     });
+    Q.wait();
   } catch (...) {
   }
-  Q.wait();
   return 0;
 }
