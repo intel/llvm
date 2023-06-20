@@ -104,28 +104,23 @@ void umaPoolFree(uma_memory_pool_handle_t hPool, void *ptr);
 void umaFree(void *ptr);
 
 ///
-/// \brief Retrieve string representation of the underlying pool specific
-///        result reported by the last API that returned
-///        UMA_RESULT_ERROR_POOL_SPECIFIC or NULL ptr (in case of allocation
-///        functions). Allows for a pool independent way to
-///        return a pool specific result.
+/// \brief Retrieve uma_result_t representing the error of the last failed allocation
+///        operation in this thread (malloc, calloc, realloc, aligned_malloc).
 ///
 /// \details
-///     - The string returned via the ppMessage is a NULL terminated C style
-///       string.
-///     - The string returned via the ppMessage is thread local.
-///     - The memory in the string returned via the ppMessage is owned by the
-///       adapter.
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
+/// * Implementations *must* store the error code in thread-local
+///   storage prior to returning NULL from the allocation functions.
+///
+/// * If the last allocation/de-allocation operation succeeded, the value returned by
+///   this function is unspecified.
+///
+/// * The application *may* call this function from simultaneous threads.
+///
+/// * The implementation of this function *should* be lock-free.
 /// \param hPool specified memory hPool
-/// \param ppMessage [out] pointer to a string containing provider specific
-///                  result in string representation.
-/// \return UMA_RESULT_SUCCESS if the result being
-///         reported is to be considered a warning. Any other result code
-///         returned indicates that the adapter specific result is an error.
-enum uma_result_t umaPoolGetLastResult(uma_memory_pool_handle_t hPool,
-                                       const char **ppMessage);
+/// \return Error code desciribng the failure of the last failed allocation operation.
+///         The value is undefined if the previous allocation was successful.
+enum uma_result_t umaPoolGetLastAllocationError(uma_memory_pool_handle_t hPool);
 
 ///
 /// \brief Retrieve memory pool associated with a given ptr.

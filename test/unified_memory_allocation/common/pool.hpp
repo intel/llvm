@@ -37,8 +37,8 @@ struct pool_base {
     void *aligned_malloc(size_t, size_t) noexcept { return nullptr; }
     size_t malloc_usable_size(void *) noexcept { return 0; }
     void free(void *) noexcept {}
-    enum uma_result_t get_last_result(const char **ppMessage) noexcept {
-        return UMA_RESULT_ERROR_UNKNOWN;
+    enum uma_result_t get_last_allocation_error() noexcept {
+        return UMA_RESULT_SUCCESS;
     }
 };
 
@@ -101,9 +101,6 @@ struct proxy_pool : public pool_base {
     void free(void *ptr) noexcept {
         auto ret = umaMemoryProviderFree(provider, ptr, 0);
         EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
-    }
-    enum uma_result_t get_last_result(const char **ppMessage) noexcept {
-        return umaMemoryProviderGetLastResult(provider, ppMessage);
     }
     uma_memory_provider_handle_t provider;
 };

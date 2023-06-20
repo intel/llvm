@@ -33,9 +33,7 @@ struct provider_base {
     enum uma_result_t free(void *ptr, size_t size) noexcept {
         return UMA_RESULT_ERROR_UNKNOWN;
     }
-    enum uma_result_t get_last_result(const char **) noexcept {
-        return UMA_RESULT_ERROR_UNKNOWN;
-    }
+    void get_last_native_error(const char **, int32_t *) noexcept {}
     enum uma_result_t get_recommended_page_size(size_t size,
                                                 size_t *pageSize) noexcept {
         return UMA_RESULT_ERROR_UNKNOWN;

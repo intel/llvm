@@ -87,7 +87,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
 
     UMA_ASSIGN_OP(ops, T, alloc, UMA_RESULT_ERROR_UNKNOWN);
     UMA_ASSIGN_OP(ops, T, free, UMA_RESULT_ERROR_UNKNOWN);
-    UMA_ASSIGN_OP(ops, T, get_last_result, UMA_RESULT_ERROR_UNKNOWN);
+    UMA_ASSIGN_OP_NORETURN(ops, T, get_last_native_error);
     UMA_ASSIGN_OP(ops, T, get_recommended_page_size, UMA_RESULT_ERROR_UNKNOWN);
     UMA_ASSIGN_OP(ops, T, get_min_page_size, UMA_RESULT_ERROR_UNKNOWN);
     UMA_ASSIGN_OP(ops, T, purge_lazy, UMA_RESULT_ERROR_UNKNOWN);
@@ -147,13 +147,14 @@ auto poolMakeUnique(uma_memory_provider_handle_t *providers,
     UMA_ASSIGN_OP(ops, T, realloc, ((void *)nullptr));
     UMA_ASSIGN_OP(ops, T, malloc_usable_size, ((size_t)0));
     UMA_ASSIGN_OP_NORETURN(ops, T, free);
-    UMA_ASSIGN_OP(ops, T, get_last_result, UMA_RESULT_ERROR_UNKNOWN);
+    UMA_ASSIGN_OP(ops, T, get_last_allocation_error, UMA_RESULT_ERROR_UNKNOWN);
 
     uma_memory_pool_handle_t hPool = nullptr;
     auto ret = umaPoolCreate(&ops, providers, numProviders, &argsTuple, &hPool);
     return std::pair<uma_result_t, pool_unique_handle_t>{
         ret, pool_unique_handle_t(hPool, &umaPoolDestroy)};
 }
+
 } // namespace uma
 
 #endif /* UMA_HELPERS_H */

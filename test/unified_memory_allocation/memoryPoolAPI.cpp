@@ -80,14 +80,10 @@ TEST_F(test, memoryPoolTrace) {
 
     ASSERT_EQ(providerCalls.size(), provider_call_count);
 
-    ret = umaPoolGetLastResult(tracingPool.get(), nullptr);
+    ret = umaPoolGetLastAllocationError(tracingPool.get());
     ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
-
-    ASSERT_EQ(poolCalls["get_last_result"], 1);
+    ASSERT_EQ(poolCalls["get_last_native_error"], 1);
     ASSERT_EQ(poolCalls.size(), ++pool_call_count);
-
-    ASSERT_EQ(providerCalls["get_last_result"], 1);
-    ASSERT_EQ(providerCalls.size(), ++provider_call_count);
 
     umaMemoryProviderDestroy(providerDesc);
 }
@@ -194,7 +190,6 @@ struct poolInitializeTest : uma_test::test,
 INSTANTIATE_TEST_SUITE_P(
     poolInitializeTest, poolInitializeTest,
     ::testing::Values(UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY,
-                      UMA_RESULT_ERROR_POOL_SPECIFIC,
                       UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC,
                       UMA_RESULT_ERROR_INVALID_ARGUMENT,
                       UMA_RESULT_ERROR_UNKNOWN));

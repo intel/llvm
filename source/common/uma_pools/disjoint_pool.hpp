@@ -68,7 +68,7 @@ class DisjointPool {
     void *aligned_malloc(size_t size, size_t alignment);
     size_t malloc_usable_size(void *);
     void free(void *ptr);
-    enum uma_result_t get_last_result(const char **ppMessage);
+    enum uma_result_t get_last_allocation_error();
 
     DisjointPool();
     ~DisjointPool();

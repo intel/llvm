@@ -62,10 +62,11 @@ enum uma_result_t umaMemoryProviderFree(uma_memory_provider_handle_t hProvider,
     return hProvider->ops.free(hProvider->provider_priv, ptr, size);
 }
 
-enum uma_result_t
-umaMemoryProviderGetLastResult(uma_memory_provider_handle_t hProvider,
-                               const char **ppMessage) {
-    return hProvider->ops.get_last_result(hProvider->provider_priv, ppMessage);
+void umaMemoryProviderGetLastNativeError(uma_memory_provider_handle_t hProvider,
+                                         const char **ppMessage,
+                                         int32_t *pError) {
+    hProvider->ops.get_last_native_error(hProvider->provider_priv, ppMessage,
+                                         pError);
 }
 
 void *umaMemoryProviderGetPriv(uma_memory_provider_handle_t hProvider) {
