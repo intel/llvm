@@ -130,9 +130,9 @@ void umaFree(void *ptr) {
     }
 }
 
-enum uma_result_t umaPoolGetLastResult(uma_memory_pool_handle_t hPool,
-                                       const char **ppMessage) {
-    return hPool->ops.get_last_result(hPool->pool_priv, ppMessage);
+enum uma_result_t
+umaPoolGetLastAllocationError(uma_memory_pool_handle_t hPool) {
+    return hPool->ops.get_last_allocation_error(hPool->pool_priv);
 }
 
 uma_memory_pool_handle_t umaPoolByPtr(const void *ptr) {

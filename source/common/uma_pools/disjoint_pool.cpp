@@ -332,8 +332,7 @@ static void *memoryProviderAlloc(uma_memory_provider_handle_t hProvider,
     void *ptr;
     auto ret = umaMemoryProviderAlloc(hProvider, size, alignment, &ptr);
     if (ret != UMA_RESULT_SUCCESS) {
-        // TODO: Set last error appropriately
-        throw std::runtime_error("umaMemoryProviderAlloc");
+        throw MemoryProviderError{ret};
     }
     return ptr;
 }
@@ -342,8 +341,7 @@ static void memoryProviderFree(uma_memory_provider_handle_t hProvider,
                                void *ptr) {
     auto ret = umaMemoryProviderFree(hProvider, ptr, 0);
     if (ret != UMA_RESULT_SUCCESS) {
-        // TODO: introduce custom exceptions? PI L0 relies on those
-        throw std::runtime_error("memoryProviderFree");
+        throw MemoryProviderError{ret};
     }
 }
 
@@ -939,9 +937,7 @@ void DisjointPool::free(void *ptr) {
     return;
 }
 
-enum uma_result_t DisjointPool::get_last_result(const char **ppMessage) {
-    // TODO: implement and return last error, we probably need something like
-    // https://github.com/oneapi-src/unified-runtime/issues/500 in UMA
+enum uma_result_t DisjointPool::get_last_allocation_error() {
     return UMA_RESULT_ERROR_UNKNOWN;
 }
 

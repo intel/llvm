@@ -168,11 +168,11 @@ static enum uma_result_t trackingInitialize(void *params, void **ret) {
 
 static void trackingFinalize(void *provider) { free(provider); }
 
-static enum uma_result_t trackingGetLastResult(void *provider,
-                                               const char **msg) {
+static void trackingGetLastError(void *provider, const char **msg,
+                                 int32_t *pError) {
     uma_tracking_memory_provider_t *p =
         (uma_tracking_memory_provider_t *)provider;
-    return umaMemoryProviderGetLastResult(p->hUpstream, msg);
+    umaMemoryProviderGetLastNativeError(p->hUpstream, msg, pError);
 }
 
 static enum uma_result_t
@@ -224,7 +224,7 @@ enum uma_result_t umaTrackingMemoryProviderCreate(
     trackingMemoryProviderOps.finalize = trackingFinalize;
     trackingMemoryProviderOps.alloc = trackingAlloc;
     trackingMemoryProviderOps.free = trackingFree;
-    trackingMemoryProviderOps.get_last_result = trackingGetLastResult;
+    trackingMemoryProviderOps.get_last_native_error = trackingGetLastError;
     trackingMemoryProviderOps.get_min_page_size = trackingGetMinPageSize;
     trackingMemoryProviderOps.get_recommended_page_size =
         trackingGetRecommendedPageSize;

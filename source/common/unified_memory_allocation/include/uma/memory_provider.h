@@ -67,23 +67,25 @@ enum uma_result_t umaMemoryProviderFree(uma_memory_provider_handle_t hProvider,
 ///        independent way to return a provider specific result.
 ///
 /// \details
-///     - The string returned via the ppMessage is a NULL terminated C style
-///       string.
-///     - The string returned via the ppMessage is thread local.
-///     - The memory in the string returned via the ppMessage is owned by the
-///       adapter.
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
+/// * Implementations *must* store the message and error code in thread-local
+///   storage prior to returning UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC.
 ///
+/// * The message and error code will only be valid if a previously
+///   called entry-point returned UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC.
+///
+/// * The memory pointed to by the C string returned in `ppMessage` is owned by
+///   the adapter and *must* be null terminated.
+///
+/// * The application *may* call this function from simultaneous threads.
+///
+/// * The implementation of this function *should* be lock-free.
 /// \param hProvider handle to the memory provider
 /// \param ppMessage [out] pointer to a string containing provider specific
 ///        result in string representation
-/// \return UMA_RESULT_SUCCESS if the result being reported is to be considered
-///         a warning. Any other result code returned indicates that the
-///         adapter specific result is an error.
-enum uma_result_t
-umaMemoryProviderGetLastResult(uma_memory_provider_handle_t hProvider,
-                               const char **ppMessage);
+/// \param pError [out] pointer to an integer where the adapter specific error code will be stored
+void umaMemoryProviderGetLastNativeError(uma_memory_provider_handle_t hProvider,
+                                         const char **ppMessage,
+                                         int32_t *pError);
 
 ///
 /// \brief Retrieve recommended page size for a given allocation size.
