@@ -992,9 +992,12 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
     }
     // -ftarget-compile-fast
-    if (Args.hasArg(options::OPT_ftarget_compile_fast)) {
+    if (Args.hasArg(options::OPT_ftarget_compile_fast))
       BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
-    }
+    // -ftarget-export-symbols
+    if (Args.hasFlag(options::OPT_ftarget_export_symbols,
+                     options::OPT_fno_target_export_symbols, false))
+      BeArgs.push_back("-library-compilation");
   }
   if (BeArgs.empty())
     return;
