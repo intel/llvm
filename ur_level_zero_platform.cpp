@@ -545,6 +545,11 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
   return UR_RESULT_SUCCESS;
 }
 
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-ze-opt-disable' for frontend_option = -O0.
+// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
+// Return '-ze-opt-level=2' for frontend_option = -O3.
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance.
     const char *FrontendOption, ///< [in] string containing the frontend option.
