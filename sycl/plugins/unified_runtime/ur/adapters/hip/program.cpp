@@ -120,6 +120,12 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramLink(ur_context_handle_t hContext, uint32_t count,
               const ur_program_handle_t *phPrograms, const char *pOptions,
               ur_program_handle_t *phProgram) {
+  std::ignore = hContext;
+  std::ignore = count;
+  std::ignore = phPrograms;
+  std::ignore = pOptions;
+  std::ignore = phProgram;
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -255,6 +261,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     const uint8_t *pBinary, const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
+  std::ignore = pProperties;
+
   UR_ASSERT(pBinary != nullptr && size != 0, UR_RESULT_ERROR_INVALID_BINARY);
   UR_ASSERT(hContext->getDevice()->get() == hDevice->get(),
             UR_RESULT_ERROR_INVALID_CONTEXT);

@@ -71,6 +71,8 @@ void simpleGuessLocalWorkSize(size_t *ThreadsPerBlock,
   assert(ThreadsPerBlock != nullptr);
   assert(GlobalWorkSize != nullptr);
   assert(Kernel != nullptr);
+
+  std::ignore = Kernel;
   // int recommendedBlockSize, minGrid;
 
   // UR_CHECK_ERROR(hipOccupancyMaxPotentialBlockSize(
@@ -1297,10 +1299,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  void *HIPDevicePtr = const_cast<void *>(pMem);
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
                                         HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
-                                        (hipDeviceptr_t)pMem));
+                                        (hipDeviceptr_t)HIPDevicePtr));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 
   // flags is currently unused so fail if set
@@ -1338,10 +1341,11 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
   std::ignore = advice;
 
+  void *HIPDevicePtr = const_cast<void *>(pMem);
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
                                         HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
-                                        (hipDeviceptr_t)pMem));
+                                        (hipDeviceptr_t)HIPDevicePtr));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 
   // TODO implement a mapping to hipMemAdvise once the expected behaviour

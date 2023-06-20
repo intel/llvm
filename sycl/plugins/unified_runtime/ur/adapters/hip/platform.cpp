@@ -13,6 +13,7 @@ hipEvent_t ur_platform_handle_t_::EvBase{nullptr};
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
                   size_t propSize, void *pPropValue, size_t *pSizeRet) {
+  std::ignore = hPlatform;
   UrReturnHelper ReturnValue(propSize, pPropValue, pSizeRet);
 
   switch (propName) {
