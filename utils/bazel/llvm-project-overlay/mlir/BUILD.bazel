@@ -10149,6 +10149,7 @@ cc_library(
         ":CastInterfaces",
         ":ControlFlowInterfaces",
         ":IR",
+        ":Pass",
         ":Rewrite",
         ":SideEffectInterfaces",
         ":Support",
@@ -10755,6 +10756,23 @@ gentbl_cc_library(
     deps = [":MathOpsTdFiles"],
 )
 
+gentbl_cc_library(
+    name = "MathPassIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            [
+                "-gen-pass-decls",
+                "-name=Math",
+            ],
+            "include/mlir/Dialect/Math/Transforms/Passes.h.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/Dialect/Math/Transforms/Passes.td",
+    deps = [":PassBaseTdFiles"],
+)
+
 cc_library(
     name = "MathDialect",
     srcs = glob(
@@ -10791,9 +10809,10 @@ cc_library(
     deps = [
         ":ArithDialect",
         ":DialectUtils",
-        ":FuncDialect",
         ":IR",
         ":MathDialect",
+        ":MathPassIncGen",
+        ":Pass",
         ":SCFDialect",
         ":Transforms",
         ":VectorDialect",

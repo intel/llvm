@@ -4673,10 +4673,14 @@ def : Pat<(v4i16 (int_aarch64_neon_vcvtfp2hf (v4f32 V128:$Rn))),
 def : Pat<(concat_vectors V64:$Rd,
                           (v4i16 (int_aarch64_neon_vcvtfp2hf (v4f32 V128:$Rn)))),
           (FCVTNv8i16 (INSERT_SUBREG (IMPLICIT_DEF), V64:$Rd, dsub), V128:$Rn)>;
-def : Pat<(v2f32 (any_fpround (v2f64 V128:$Rn))), (FCVTNv2i32 V128:$Rn)>;
-def : Pat<(v4f16 (any_fpround (v4f32 V128:$Rn))), (FCVTNv4i16 V128:$Rn)>;
+def : Pat<(v2f32 (any_fpround (v2f64 V128:$Rn))),
+          (FCVTNv2i32 V128:$Rn)>;
+def : Pat<(v4f16 (any_fpround (v4f32 V128:$Rn))),
+          (FCVTNv4i16 V128:$Rn)>;
 def : Pat<(concat_vectors V64:$Rd, (v2f32 (any_fpround (v2f64 V128:$Rn)))),
           (FCVTNv4i32 (INSERT_SUBREG (IMPLICIT_DEF), V64:$Rd, dsub), V128:$Rn)>;
+def : Pat<(concat_vectors V64:$Rd, (v4f16 (any_fpround (v4f32 V128:$Rn)))),
+          (FCVTNv8i16 (INSERT_SUBREG (IMPLICIT_DEF), V64:$Rd, dsub), V128:$Rn)>;
 defm FCVTPS : SIMDTwoVectorFPToInt<0,1,0b11010, "fcvtps",int_aarch64_neon_fcvtps>;
 defm FCVTPU : SIMDTwoVectorFPToInt<1,1,0b11010, "fcvtpu",int_aarch64_neon_fcvtpu>;
 defm FCVTXN : SIMDFPInexactCvtTwoVector<1, 0, 0b10110, "fcvtxn",
@@ -6324,6 +6328,17 @@ multiclass SIMDAcrossLaneLongPairIntrinsic<string Opc, SDPatternOperator addlp> 
 
 defm : SIMDAcrossLaneLongPairIntrinsic<"UADDLV", AArch64uaddlp>;
 defm : SIMDAcrossLaneLongPairIntrinsic<"SADDLV", AArch64saddlp>;
+
+// Patterns for uaddlv(uaddlp(x)) ==> uaddlv
+def : Pat<(i64 (int_aarch64_neon_uaddlv (v4i32 (AArch64uaddlp (v8i16 V128:$op))))),
+          (i64 (EXTRACT_SUBREG
+            (v4i32 (SUBREG_TO_REG (i64 0), (UADDLVv8i16v V128:$op), ssub)),
+            dsub))>;
+
+def : Pat<(i32 (int_aarch64_neon_uaddlv (v8i16 (AArch64uaddlp (v16i8 V128:$op))))),
+          (i32 (EXTRACT_SUBREG
+            (v8i16 (SUBREG_TO_REG (i64 0), (UADDLVv16i8v V128:$op), hsub)),
+            ssub))>;
 
 // Patterns for across-vector intrinsics, that have a node equivalent, that
 // returns a vector (with only the low lane defined) instead of a scalar.
@@ -8516,6 +8531,25 @@ def : Pat<(any_fadd (vector_extract (v4f32 FPR128:$Rn), (i64 0)),
 def : Pat<(any_fadd (vector_extract (v8f16 FPR128:$Rn), (i64 0)),
                     (vector_extract (v8f16 FPR128:$Rn), (i64 1))),
           (f16 (FADDPv2i16p (EXTRACT_SUBREG FPR128:$Rn, dsub)))>;
+
+// Prefer using the bottom lanes of addp Rn, Rn compared to
+// addp extractlow(Rn), extracthigh(Rn)
+def : Pat<(AArch64addp (v2i32 (extract_subvector (v4i32 FPR128:$Rn), (i64 0))),
+                       (v2i32 (extract_subvector (v4i32 FPR128:$Rn), (i64 2)))),
+          (v2i32 (EXTRACT_SUBREG (ADDPv4i32 $Rn, $Rn), dsub))>;
+def : Pat<(AArch64addp (v4i16 (extract_subvector (v8i16 FPR128:$Rn), (i64 0))),
+                       (v4i16 (extract_subvector (v8i16 FPR128:$Rn), (i64 4)))),
+          (v4i16 (EXTRACT_SUBREG (ADDPv8i16 $Rn, $Rn), dsub))>;
+def : Pat<(AArch64addp (v8i8 (extract_subvector (v16i8 FPR128:$Rn), (i64 0))),
+                       (v8i8 (extract_subvector (v16i8 FPR128:$Rn), (i64 8)))),
+          (v8i8 (EXTRACT_SUBREG (ADDPv16i8 $Rn, $Rn), dsub))>;
+
+def : Pat<(AArch64faddp (v2f32 (extract_subvector (v4f32 FPR128:$Rn), (i64 0))),
+                        (v2f32 (extract_subvector (v4f32 FPR128:$Rn), (i64 2)))),
+          (v2f32 (EXTRACT_SUBREG (FADDPv4f32 $Rn, $Rn), dsub))>;
+def : Pat<(AArch64faddp (v4f16 (extract_subvector (v8f16 FPR128:$Rn), (i64 0))),
+                        (v4f16 (extract_subvector (v8f16 FPR128:$Rn), (i64 4)))),
+          (v4f16 (EXTRACT_SUBREG (FADDPv8f16 $Rn, $Rn), dsub))>;
 
 // Scalar 64-bit shifts in FPR64 registers.
 def : Pat<(i64 (int_aarch64_neon_sshl (i64 FPR64:$Rn), (i64 FPR64:$Rm))),

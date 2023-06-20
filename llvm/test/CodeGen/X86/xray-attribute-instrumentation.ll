@@ -23,12 +23,12 @@ define i32 @foo() nounwind noinline uwtable "function-instrument"="xray-always" 
 ; CHECK-LINUX:         .quad .Lxray_sleds_start0
 ; CHECK-LINUX-NEXT:    .quad .Lxray_sleds_end0
 
-; CHECK-MACOS-LABEL: .section __DATA,xray_instr_map{{$}}
+; CHECK-MACOS-LABEL: .section __DATA,xray_instr_map,regular,live_support{{$}}
 ; CHECK-MACOS-LABEL: Lxray_sleds_start0:
 ; CHECK-MACOS:         .quad Lxray_sled_0
 ; CHECK-MACOS:         .quad Lxray_sled_1
 ; CHECK-MACOS-LABEL: Lxray_sleds_end0:
-; CHECK-MACOS-LABEL: .section __DATA,xray_fn_idx{{$}}
+; CHECK-MACOS-LABEL: .section __DATA,xray_fn_idx,regular,live_support{{$}}
 ; CHECK-MACOS:         .quad Lxray_sleds_start0
 ; CHECK-MACOS-NEXT:    .quad Lxray_sleds_end0
 
@@ -59,26 +59,26 @@ NotEqual:
 
 ; CHECK-LINUX-LABEL: .section xray_instr_map,"ao",@progbits,bar{{$}}
 ; CHECK-LINUX-LABEL: .Lxray_sleds_start1:
-; CHECK-LINUX:       .Ltmp2:
-; CHECK-LINUX-NEXT:    .quad .Lxray_sled_2-.Ltmp2
-; CHECK-LINUX:       .Ltmp3:
-; CHECK-LINUX-NEXT:    .quad .Lxray_sled_3-.Ltmp3
-; CHECK-LINUX:       .Ltmp4:
-; CHECK-LINUX-NEXT:    .quad .Lxray_sled_4-.Ltmp4
+; CHECK-LINUX:       [[TMP:.Ltmp[0-9]+]]:
+; CHECK-LINUX-NEXT:    .quad .Lxray_sled_2-[[TMP]]
+; CHECK-LINUX:       [[TMP:.Ltmp[0-9]+]]:
+; CHECK-LINUX-NEXT:    .quad .Lxray_sled_3-[[TMP]]
+; CHECK-LINUX:       [[TMP:.Ltmp[0-9]+]]:
+; CHECK-LINUX-NEXT:    .quad .Lxray_sled_4-[[TMP]]
 ; CHECK-LINUX-LABEL: .Lxray_sleds_end1:
 ; CHECK-LINUX-LABEL: .section xray_fn_idx,"awo",@progbits,bar{{$}}
 ; CHECK-LINUX:         .quad .Lxray_sleds_start1
 ; CHECK-LINUX-NEXT:    .quad .Lxray_sleds_end1
 
-; CHECK-MACOS-LABEL: .section __DATA,xray_instr_map{{$}}
+; CHECK-MACOS-LABEL: .section __DATA,xray_instr_map,regular,live_support{{$}}
 ; CHECK-MACOS-LABEL: Lxray_sleds_start1:
-; CHECK-MACOS:       Ltmp2:
-; CHECK-MACOS-NEXT:    .quad Lxray_sled_2-Ltmp2
-; CHECK-MACOS:       Ltmp3:
-; CHECK-MACOS-NEXT:    .quad Lxray_sled_3-Ltmp3
-; CHECK-MACOS:       Ltmp4:
-; CHECK-MACOS-NEXT:    .quad Lxray_sled_4-Ltmp4
+; CHECK-MACOS:       [[TMP:Ltmp[0-9]+]]:
+; CHECK-MACOS-NEXT:    .quad Lxray_sled_2-[[TMP]]
+; CHECK-MACOS:       [[TMP:Ltmp[0-9]+]]:
+; CHECK-MACOS-NEXT:    .quad Lxray_sled_3-[[TMP]]
+; CHECK-MACOS:       [[TMP:Ltmp[0-9]+]]:
+; CHECK-MACOS-NEXT:    .quad Lxray_sled_4-[[TMP]]
 ; CHECK-MACOS-LABEL: Lxray_sleds_end1:
-; CHECK-MACOS-LABEL: .section __DATA,xray_fn_idx{{$}}
+; CHECK-MACOS-LABEL: .section __DATA,xray_fn_idx,regular,live_support{{$}}
 ; CHECK-MACOS:         .quad Lxray_sleds_start1
 ; CHECK-MACOS-NEXT:    .quad Lxray_sleds_end1

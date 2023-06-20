@@ -4,23 +4,13 @@
 define i32 @foo() nounwind noinline uwtable "function-instrument"="xray-always" {
 ; CHECK-LABEL: Lxray_sled_0:
 ; CHECK-NEXT:  b  #20
-; CHECK-NEXT:  nop
-; CHECK-NEXT:  nop
-; CHECK-NEXT:  nop
-; CHECK-NEXT:  nop
-; CHECK-NEXT:  nop
-; CHECK-NEXT:  nop
-; CHECK-LABEL: Ltmp0:
+; CHECK-COUNT-6: nop
+; CHECK-NEXT:  Ltmp[[#]]:
   ret i32 0
 ; CHECK-LABEL: Lxray_sled_1:
 ; CHECK-NEXT:  b  #20
-; CHECK-NEXT:  nop
-; CHECK-NEXT:  nop
-; CHECK-NEXT:  nop
-; CHECK-NEXT:  nop
-; CHECK-NEXT:  nop
-; CHECK-NEXT:  nop
-; CHECK-LABEL: Ltmp1:
+; CHECK-COUNT-6: nop
+; CHECK-NEXT:  Ltmp[[#]]:
 ; CHECK-NEXT:  bx lr
 }
 
@@ -33,11 +23,11 @@ define i32 @foo() nounwind noinline uwtable "function-instrument"="xray-always" 
 ; CHECK-LINUX:         .long .Lxray_sleds_start0
 ; CHECK-LINUX-NEXT:    .long .Lxray_sleds_end0
 
-; CHECK-IOS-LABEL: .section __DATA,xray_instr_map{{$}}
+; CHECK-IOS-LABEL: .section __DATA,xray_instr_map,regular,live_support{{$}}
 ; CHECK-IOS-LABEL: Lxray_sleds_start0:
 ; CHECK-IOS:         .long Lxray_sled_0
 ; CHECK-IOS:         .long Lxray_sled_1
 ; CHECK-IOS-LABEL: Lxray_sleds_end0:
-; CHECK-IOS-LABEL: .section __DATA,xray_fn_idx{{$}}
+; CHECK-IOS-LABEL: .section __DATA,xray_fn_idx,regular,live_support{{$}}
 ; CHECK-IOS:         .long Lxray_sleds_start0
 ; CHECK-IOS-NEXT:    .long Lxray_sleds_end0
