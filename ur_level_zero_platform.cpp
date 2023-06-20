@@ -484,8 +484,8 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
         if (numQueueGroups == 0) {
           return UR_RESULT_ERROR_UNKNOWN;
         }
-        std::vector<ze_command_queue_group_properties_t> QueueGroupProperties(
-            numQueueGroups);
+        std::vector<ZeStruct<ze_command_queue_group_properties_t>>
+            QueueGroupProperties(numQueueGroups);
         ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
                    (UrSubDevice->ZeDevice, &numQueueGroups,
                     QueueGroupProperties.data()));
