@@ -155,6 +155,11 @@ auto poolMakeUnique(uma_memory_provider_handle_t *providers,
         ret, pool_unique_handle_t(hPool, &umaPoolDestroy)};
 }
 
+template <typename Type> uma_result_t &getPoolLastStatusRef() {
+    static thread_local uma_result_t last_status = UMA_RESULT_SUCCESS;
+    return last_status;
+}
+
 } // namespace uma
 
 #endif /* UMA_HELPERS_H */
