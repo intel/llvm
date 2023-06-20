@@ -995,7 +995,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
     }
   } else if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
-             !Triple.isNVPTX() && !Triple.isAMDGCN()) {
+             Triple.isSPIR()) {
     // -ftarget-compile-fast JIT
     Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
   }
