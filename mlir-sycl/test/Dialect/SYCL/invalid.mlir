@@ -306,3 +306,11 @@ func.func @test_vec_f80(%v: !sycl.vec<[f80, 2], (vector<2xi2>)>) {
 func.func @test_vec_nonscalar(%v: !sycl.vec<[!sycl_vec_i8_1_, 2], (vector<2x1xi8>)>) {
   return
 }
+
+// -----
+
+func.func @test_host_constructor() -> !llvm.ptr {
+// expected-error @below {{'sycl.host.constructor' op expecting a sycl type as constructed type. Got 'i32'}}
+  %0 = sycl.host.constructor() {type = i32} : () -> !llvm.ptr
+  return %0 : !llvm.ptr
+}
