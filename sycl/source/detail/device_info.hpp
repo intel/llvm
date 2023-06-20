@@ -625,18 +625,18 @@ struct get_device_info_impl<
     // TODO: add support of other arhitectures by extending with else if
 
     // Generating a user-friendly error message
-    std::string device_str;
+    std::string DeviceStr;
     if (Dev->is_gpu())
-      device_str = "GPU";
+      DeviceStr = "GPU";
     else if (Dev->is_cpu())
-      device_str = "CPU";
+      DeviceStr = "CPU";
     else if (Dev->is_accelerator())
-      device_str = "accelerator";
+      DeviceStr = "accelerator";
     // else if not needed
     std::stringstream ErrorMessage;
     ErrorMessage
         << "sycl_ext_oneapi_device_architecture feature is not supported on "
-        << device_str << " device with sycl::backend::" << CurrentBackend
+        << DeviceStr << " device with sycl::backend::" << CurrentBackend
         << " backend.";
     throw sycl::exception(make_error_code(errc::runtime), ErrorMessage.str());
   }
