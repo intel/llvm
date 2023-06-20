@@ -127,7 +127,9 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
       MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw sycl::exception(sycl::errc::invalid, "The syclContext must match the OpenCL context associated with the clEvent.");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "The syclContext must match the OpenCL context "
+                          "associated with the clEvent.");
   }
 
   RT::PiContext TempContext;
@@ -135,13 +137,15 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
                                                sizeof(RT::PiContext),
                                                &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw sycl::exception(sycl::errc::invalid, "The syclContext must match the OpenCL context associated with the clEvent.");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "The syclContext must match the OpenCL context "
+                          "associated with the clEvent.");
   }
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue},
-      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
+    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
+                                         Queue->MIsProfilingEnabled},
       MLimitedProfiling{MIsProfilingEnabled && Queue->isProfilingLimited()} {
   this->setContextImpl(Queue->getContextImplPtr());
 
@@ -151,7 +155,7 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
-        throw sycl::exception(sycl::errc::runtime, "Out of host memory");
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime), "Out of host memory");
     }
     return;
   }
@@ -281,7 +285,8 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw sycl::exception(0,sycl::errc::invalid, "Profiling info is not available.");
+    throw sycl::exception(0, sycl::errc::invalid,
+                          "Profiling info is not available.");
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -295,7 +300,8 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw sycl::exception(sycl::errc::invalid, "Profiling info is not available.");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Profiling info is not available.");
   return MHostProfilingInfo->getEndTime();
 }
 

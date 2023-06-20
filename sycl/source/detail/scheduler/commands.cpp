@@ -1526,7 +1526,8 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
   }
-  throw sycl::exception(sycl::errc::runtime,"Alloca for command not found");
+  throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                        "Alloca for command not found");
 }
 
 std::vector<std::shared_ptr<const void>>
@@ -2230,7 +2231,7 @@ static pi_result SetKernelParamsAndLaunch(
     case kernel_param_kind_t::kind_specialization_constants_buffer: {
       if (Queue->is_host()) {
         throw sycl::exception(
-            sycl::errc::feature_not_supported,
+            sycl::make_error_code(sycl::errc::feature_not_supported),
             "SYCL2020 specialization constants are not yet supported on host "
             "device");
       }
@@ -2244,7 +2245,8 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     }
     case kernel_param_kind_t::kind_invalid:
-      throw sycl::exception(sycl::errc::runtime, "Invalid kernel param kind");
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Invalid kernel param kind");
       break;
     }
   };
@@ -2491,7 +2493,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
   switch (MCommandGroup->getType()) {
 
   case CG::CGTYPE::UpdateHost: {
-    throw sycl::exception(sycl::errc::runtime,
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "Update host should be handled by the Scheduler.");
   }
   case CG::CGTYPE::CopyAccToPtr: {
@@ -2630,12 +2632,12 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
     switch (Error) {
     case PI_ERROR_INVALID_OPERATION:
-      throw sycl::exception(sycl::errc::runtime,
-          "Device doesn't support run_on_host_intel tasks.");
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Device doesn't support run_on_host_intel tasks.");
     case PI_SUCCESS:
       return Error;
     default:
-      throw sycl::exception(sycl::errc::runtime,
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                             "Enqueueing run_on_host_intel task has failed.");
     }
   }
@@ -2794,7 +2796,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
         break;
       }
       default:
-        throw sycl::exception(sycl::errc::runtime, "Unsupported arg type");
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Unsupported arg type");
       }
     }
 
@@ -2803,7 +2806,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
       // available if a user asks for them inside the interop task scope
-      const std::vector<Requirement *> &HandlerReq = HostTask->getRequirements();
+      const std::vector<Requirement *> &HandlerReq =
+          HostTask->getRequirements();
       auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
         const std::vector<AllocaCommandBase *> &AllocaCmds =
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
@@ -2822,7 +2826,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
                "Can't get memory object due to no allocation available");
 
         throw sycl::exception(
-            sycl::errc::runtime,
+            sycl::make_error_code(sycl::errc::runtime),
             "Can't get memory object due to no allocation available");
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
@@ -2901,7 +2905,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
                                     typeSize, RawEvents, Event, read);
   }
   case CG::CGTYPE::None:
-    throw sycl::exception(sycl::errc::runtime, "CG type not implemented.");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "CG type not implemented.");
   }
   return PI_ERROR_INVALID_OPERATION;
 }
