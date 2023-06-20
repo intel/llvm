@@ -2034,9 +2034,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     }
   }
 
-  if (Args.getLastArg(options::OPT_ffp_builtin_accuracy_EQ))
-    Opts.FPAccuracy = 1;
-
   if (auto *arg =
           Args.getLastArg(options::OPT_fdiagnostics_misexpect_tolerance_EQ)) {
     auto ResultOrErr = parseToleranceOption(arg->getValue());

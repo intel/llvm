@@ -546,7 +546,8 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(
     unsigned FPAccuracyIntrinsicID = Intrinsic::not_intrinsic) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
   if (FPAccuracyIntrinsicID != Intrinsic::not_intrinsic) {
-    if (CGF.CGM.getCodeGenOpts().FPAccuracy) {
+    if (!CGF.getLangOpts().FPAccuracyVal.empty() ||
+        !CGF.getLangOpts().FPAccuracyFuncMap.empty()) {
       if (CGF.getLangOpts().MathErrno) {
         DiagnosticsEngine &Diags = CGF.CGM.getDiags();
         Diags.Report(E->getBeginLoc(), diag::err_drv_incompatible_options)
@@ -582,7 +583,8 @@ static Value *emitBinaryMaybeConstrainedFPBuiltin(
     unsigned FPAccuracyIntrinsicID = Intrinsic::not_intrinsic) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
   llvm::Value *Src1 = CGF.EmitScalarExpr(E->getArg(1));
-  if (CGF.CGM.getCodeGenOpts().FPAccuracy) {
+  if (!CGF.CGM.getLangOpts().FPAccuracyVal.empty() ||
+      !CGF.CGM.getLangOpts().FPAccuracyFuncMap.empty()) {
     StringRef Name =
         CGF.CGM.getContext().BuiltinInfo.getName(CGF.getCurrentBuiltinID());
     // Use fpbuiltin intrinsic only when needed.
