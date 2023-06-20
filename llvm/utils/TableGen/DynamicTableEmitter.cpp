@@ -53,14 +53,6 @@ struct DynamicTable {
   std::string CppTypeName;
   SmallVector<GenericField, 2> Fields;
   std::vector<Record *> Entries;
-
-  const GenericField *getFieldByName(StringRef Name) const {
-    for (const auto &Field : Fields) {
-      if (Name == Field.Name)
-        return &Field;
-    }
-    return nullptr;
-  }
 };
 
 class DynamicTableEmitter {
@@ -80,36 +72,44 @@ private:
         return std::string(SI->getValue());
 
       return SI->getAsString();
-    } else if (BitsInit *BI = dyn_cast<BitsInit>(I))
+    }
+    if (BitsInit *BI = dyn_cast<BitsInit>(I))
       return "0x" + utohexstr(getAsInt(BI));
-    else if (BitInit *BI = dyn_cast<BitInit>(I))
+    if (BitInit *BI = dyn_cast<BitInit>(I))
       return BI->getValue() ? "true" : "false";
-    else if (Field.IsList) {
+    if (Field.IsList) {
       if (auto LI = dyn_cast<ListInit>(I)) {
-        std::stringstream res;
-        auto values = LI->getValues();
+        std::stringstream Result;
+        // Open list
+        Result << "{";
+        auto Values = LI->getValues();
         bool IsAspect = (Field.Name == "aspects");
-        for (const auto &[idx, val] : enumerate(values)) {
-          if (idx > 0)
-            res << ", ";
+        ListSeparator LS;
+        for (const auto &[Idx, Val] : enumerate(Values)) {
+          // ListSeparator only provides the StringRef() operator.
+          StringRef Separator = LS;
+          Result << Separator.str();
 
-          if (IsAspect) {
-            auto rec = LI->getElementAsRecord(idx);
-            res << "\"" << rec->getValueAsString("Name").str() << "\"";
-          } else
-            res << val->getAsString();
+          if (!IsAspect)
+            Result << Val->getAsString();
+          else {
+            auto Record = LI->getElementAsRecord(Idx);
+            Result << "\"" << Record->getValueAsString("Name").str() << "\"";
           }
-          return res.str();
+        }
+        // Close list
+        Result << "}";
+        return Result.str();
       }
       PrintFatalError(Loc,
                       Twine("Entry for field '") + Field.Name + "' is null");
     }
-    PrintFatalError(Loc, Twine("invalid field type for field '") + Field.Name + 
+    PrintFatalError(Loc, Twine("invalid field type for field '") + Field.Name +
                              "'; expected: bit, bits, string, or code");
   }
 
   void emitDynamicTable(const DynamicTable &Table, raw_ostream &OS);
-  void emitIfdef(StringRef Guard, raw_ostream &OS);
+  void emitIfdef(Twine Guard, raw_ostream &OS);
 
   bool parseFieldType(GenericField &Field, Init *II);
   void collectTableEntries(DynamicTable &Table,
@@ -118,47 +118,43 @@ private:
 
 } // End anonymous namespace.
 
-void DynamicTableEmitter::emitIfdef(StringRef Guard, raw_ostream &OS) {
-  OS << "#ifdef " << Guard << "\n";
-  PreprocessorGuards.insert(std::string(Guard));
+void DynamicTableEmitter::emitIfdef(Twine Guard, raw_ostream &OS) {
+  OS << "#ifdef " << Guard.str() << "\n";
+  PreprocessorGuards.insert(Guard.str());
 }
 
 void DynamicTableEmitter::emitDynamicTable(const DynamicTable &Table,
                                            raw_ostream &OS) {
-  emitIfdef((Twine("GET_") + Table.PreprocessorGuard + "_IMPL").str(), OS);
+  emitIfdef((Twine("GET_") + Table.PreprocessorGuard + "_IMPL"), OS);
 
   // The primary data table contains all the fields defined for this map.
   OS << "std::map<std::string, " << Table.CppTypeName << "> " << Table.Name
      << " = {\n";
+  // Iterate over the key-value pairs the dynamic table will contain.
   for (unsigned i = 0; i < Table.Entries.size(); ++i) {
     Record *Entry = Table.Entries[i];
+    // Open key-value pair
     OS << "  { ";
 
-    ListSeparator LS;
-    bool first = true;
-    bool second = false;
-    for (const auto &Field : Table.Fields) {
+    ListSeparator MapElemSeparator;
+    ListSeparator TargetInfoElemSeparator;
+    // Iterate over the different fields of each entry. First field is the key,
+    // the rest of fields are part of the value.
+    for (const auto &[Idx, Field] : enumerate(Table.Fields)) {
+      bool IsKey = (Idx == 0);
       std::string val = primaryRepresentation(Table.Locs[0], Field,
                                               Entry->getValueInit(Field.Name));
-      if (first) {
-        first = false;
-        second = true;
-        OS << LS << val << ", { ";
-      } else {
-        if (!second) {
-          OS << LS;
-        }
-        if (Field.IsList) {
-          val.insert(0, 1, '{');
-          val.push_back('}');
-        }
-        OS << val;
-        second = false;
+      if (!IsKey)
+        OS << TargetInfoElemSeparator << val;
+      else {
+        // Emit key and open the TargetInfo object.
+        OS << MapElemSeparator << val << MapElemSeparator << "{";
       }
     }
-
+    // Close TargetInfo object and key-value pair.
     OS << " }}, // " << i << "\n";
   }
+  // Close map.
   OS << " };\n";
 
   OS << "#endif\n\n";
@@ -169,10 +165,11 @@ bool DynamicTableEmitter::parseFieldType(GenericField &Field, Init *TypeOf) {
     if (Type->getValue() == "code") {
       Field.IsCode = true;
       return true;
-    } else if (Type->getValue().starts_with("list")) {
+    }
+    if (Type->getValue().starts_with("list")) {
       // Nested lists are not allowed, make sure there are none
-      auto occurrences = Type->getValue().count("list");
-      if (occurrences > 1) {
+      auto Occurrences = Type->getValue().count("list");
+      if (Occurrences > 1) {
         PrintFatalError(Twine("Nested lists are not allowed: ") +
                         Type->getValue().str());
       }
@@ -186,10 +183,6 @@ bool DynamicTableEmitter::parseFieldType(GenericField &Field, Init *TypeOf) {
 
 void DynamicTableEmitter::collectTableEntries(
     DynamicTable &Table, const std::vector<Record *> &Items) {
-  if (Items.empty())
-    PrintFatalError(Table.Locs,
-                    Twine("Table '") + Table.Name + "' has no entries");
-
   for (auto *EntryRec : Items) {
     for (auto &Field : Table.Fields) {
       auto TI = dyn_cast<TypedInit>(EntryRec->getValueInit(Field.Name));
@@ -204,11 +197,11 @@ void DynamicTableEmitter::collectTableEntries(
       } else {
         RecTy *Ty = resolveTypes(Field.RecType, TI->getType());
         if (!Ty)
-          PrintFatalError(EntryRec->getValue(Field.Name), 
+          PrintFatalError(EntryRec->getValue(Field.Name),
                           Twine("Field '") + Field.Name + "' of table '" +
-                          Table.Name + "' entry has incompatible type: " +
-                          TI->getType()->getAsString() + " vs. " +
-                          Field.RecType->getAsString());
+                              Table.Name + "' entry has incompatible type: " +
+                              TI->getType()->getAsString() + " vs. " +
+                              Field.RecType->getAsString());
         Field.RecType = Ty;
       }
     }
@@ -234,11 +227,13 @@ void DynamicTableEmitter::run(raw_ostream &OS) {
     for (const auto &FieldName : Fields) {
       Table->Fields.emplace_back(FieldName); // Construct a GenericField.
 
-      if (auto TypeOfRecordVal = TableRec->getValue(("TypeOf_" + FieldName).str())) {
-        if (!parseFieldType(Table->Fields.back(), TypeOfRecordVal->getValue())) {
-          PrintError(TypeOfRecordVal, 
-                     Twine("Table '") + Table->Name +
-                         "' has invalid 'TypeOf_" + FieldName +
+      if (auto TypeOfRecordVal =
+              TableRec->getValue(("TypeOf_" + FieldName).str())) {
+        if (!parseFieldType(Table->Fields.back(),
+                            TypeOfRecordVal->getValue())) {
+          PrintError(TypeOfRecordVal,
+                     Twine("Table '") + Table->Name + "' has invalid 'TypeOf_" +
+                         FieldName +
                          "': " + TypeOfRecordVal->getValue()->getAsString());
           PrintFatalNote("The 'TypeOf_xxx' field must be a string naming a "
                          "GenericEnum record, or \"code\"");
@@ -248,9 +243,9 @@ void DynamicTableEmitter::run(raw_ostream &OS) {
 
     StringRef FilterClass = TableRec->getValueAsString("FilterClass");
     if (!Records.getClass(FilterClass))
-      PrintFatalError(TableRec->getValue("FilterClass"), 
-                      Twine("Table FilterClass '") +
-                          FilterClass + "' does not exist");
+      PrintFatalError(TableRec->getValue("FilterClass"),
+                      Twine("Table FilterClass '") + FilterClass +
+                          "' does not exist");
 
     collectTableEntries(*Table, Records.getAllDerivedDefinitions(FilterClass));
 

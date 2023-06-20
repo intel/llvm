@@ -19,7 +19,7 @@
   __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)
 
 TEST(DeviceConfigFile, DeviceConfigFileAspects) {
-  auto testAspects = DeviceConfigFile::TargetTable.find("TestAspectList");
+  auto testAspects = DeviceConfigFile::TargetTable.find("__TestAspectList");
   assert(testAspects != DeviceConfigFile::TargetTable.end());
   auto aspectsList = testAspects->second.aspects;
 
@@ -33,7 +33,7 @@ TEST(DeviceConfigFile, DeviceConfigFileAspects) {
 #undef __SYCL_ASPECT
 
   auto testDeprecatedAspects =
-      DeviceConfigFile::TargetTable.find("TestDeprecatedAspectList");
+      DeviceConfigFile::TargetTable.find("__TestDeprecatedAspectList");
   assert(testDeprecatedAspects != DeviceConfigFile::TargetTable.end());
   auto deprecatedAspectsList = testDeprecatedAspects->second.aspects;
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ASPECT_VAL, MSG)                      \
