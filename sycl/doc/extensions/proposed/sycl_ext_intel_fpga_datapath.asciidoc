@@ -40,6 +40,14 @@ This extension is written against the SYCL 2020 revision 7 specification. All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../supported/sycl_ext_oneapi_accessor_properties.asciidoc[
+  sycl_ext_oneapi_accessor_properties.asciidoc] as described in the <<Properties for fpga memory>> section below
+* link:sycl_ext_intel_fpga_mem.asciidoc[sycl_ext_intel_fpga_mem.asciidoc] as described in the <<Restrictions on creating fpga_mem objects>> section below
+* link:sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global.asciidoc] as described in the <<Restrictions on creating fpga_mem objects>> section below
+
 == Status
 Experimental
 
@@ -61,7 +69,7 @@ The purpose of this document is to clearly describe and specify `fpga_datapath` 
 related concepts, types, and mechanisms, and to give examples and context for their usage.
 
 === Motivation
-`fpga_datapath` is a wrapper around user variables that asserts the variable should be implemented in the datapath of the kernel.
+`fpga_datapath` is a class template templated on type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in the datapath, as opposed to an off-datapath memory.
 
 === Example
 [source,c++]
@@ -90,7 +98,7 @@ dot operator may be applied.
 
 == Specification
 
-`fpga_datapath` is a
+`fpga_datapath` is a class template templated on type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in the datapath, as opposed to an off-datapath memory.
 
 === Feature test macro
 
@@ -234,6 +242,6 @@ Returns a reference to the underlying `T`.
 There are restrictions on how the application can create objects of type
 `fpga_datapath`. Applications that violate these restrictions are ill-formed.
 
-* The `fpga_datapath` variable must not itself be wrapped in a `fpga_datapath` class
-* The `fpga_datapath` variable must not have dynamic storage duration
-* The `fpga_datapath` variable can only have accesses from a single kernel
+* The `fpga_datapath` variable can only have accesses from a single kernel. This happens when `device_global` is templated on a `fpga_datapath` type. 
+
+* The `fpga_datapath` variable cannot be templated on a `fpga_mem` object, as this is a conflict of requirements on how the variable should be implemented, on or off the datapath. Diagnostic is required.

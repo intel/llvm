@@ -44,8 +44,9 @@ SYCL specification refer to that revision.
 This extension also depends on the following other SYCL extensions:
 
 * link:../supported/sycl_ext_oneapi_accessor_properties.asciidoc[
-  sycl_ext_oneapi_accessor_properties.asciidoc]
-
+  sycl_ext_oneapi_accessor_properties.asciidoc] as described in the <<Properties for fpga memory>> section below
+* link:sycl_ext_intel_fpga_datapath.asciidoc[sycl_ext_intel_fpga_datapath.asciidoc] as described in the <<Restrictions on creating fpga_mem objects>> section below
+* link:sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global.asciidoc] as described in the <<Restrictions on creating fpga_mem objects>> section below
 
 == Status
 Experimental
@@ -68,7 +69,8 @@ The purpose of this document is to clearly describe and specify `fpga_mem` and
 related concepts, types, and mechanisms, and to give examples and context for their usage.
 
 === Motivation
-`fpga_mem` is a wrapper around user variables that asserts the variable should be implemented off the datapath in FPGA memory resources and enables attaching compile-time hints which configure the memory resource and may impact the performance of the design.
+`fpga_mem` is a class template templated on type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in off-datapath memory, as opposed in the datapath.
+`fpga_mem` enables attaching compile-time hints which configure the memory resource and may impact the performance of the design.
 
 === Example
 [source,c++]
@@ -97,7 +99,8 @@ dot operator may be applied.
 
 == Specification
 
-`fpga_mem` is a
+`fpga_mem` is a class template templated on type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in off-datapath memory, as opposed in the datapath.
+`fpga_mem` enables attaching compile-time hints which configure the memory resource and may impact the performance of the design.
 
 === Feature test macro
 
