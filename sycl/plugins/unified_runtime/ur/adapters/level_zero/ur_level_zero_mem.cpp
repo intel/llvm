@@ -1264,7 +1264,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   ur_event_handle_t InternalEvent;
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
-  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_EXT_COMMAND_TYPE_USER,
+  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_PREFETCH,
                                        CommandList, IsInternal));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
@@ -1320,7 +1320,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
   ur_event_handle_t InternalEvent{};
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
-  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_EXT_COMMAND_TYPE_USER,
+  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_ADVISE,
                                        CommandList, IsInternal));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;

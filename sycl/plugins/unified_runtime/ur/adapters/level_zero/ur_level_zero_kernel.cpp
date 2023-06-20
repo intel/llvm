@@ -633,15 +633,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
     ZE2UR_CALL(zeKernelSetIndirectAccess, (Kernel->ZeKernel, IndirectFlags));
-  } else if (PropName == UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG) {
+  } else if (PropName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
     ze_cache_config_flag_t ZeCacheConfig{};
     auto CacheConfig =
-        *(static_cast<const ur_kernel_cache_config *>(PropValue));
-    if (CacheConfig == UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM)
+        *(static_cast<const ur_kernel_cache_config_t *>(PropValue));
+    if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM)
       ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
-    else if (CacheConfig == UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA)
+    else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA)
       ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
-    else if (CacheConfig == UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT)
+    else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_DEFAULT)
       ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
     else
       // Unexpected cache configuration value.

@@ -39,30 +39,8 @@ template <> uint32_t inline ur_cast(uint64_t Value) {
 const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
     (ur_device_info_t)0x103D;
 
-const ur_device_info_t UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP =
-    (ur_device_info_t)((uint32_t)UR_DEVICE_INFO_FORCE_UINT32 - 1);
-
 const ur_command_t UR_EXT_COMMAND_TYPE_USER =
     (ur_command_t)((uint32_t)UR_COMMAND_FORCE_UINT32 - 1);
-
-const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG =
-    (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 1);
-
-typedef enum {
-  // No preference for SLM or data cache.
-  UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT = 0x0,
-  // Large SLM size.
-  UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM = 0x1,
-  // Large General Data size.
-  UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA = 0x2
-} ur_kernel_cache_config;
-
-// TODO(ur): These CUDA specific queue properties should live in the UR spec. In
-// the mean time just use the PI values.
-// PI Command Queue using Default stream
-#define __SYCL_UR_CUDA_USE_DEFAULT_STREAM (0xFF03)
-// PI Command queue will sync with default stream
-#define __SYCL_UR_CUDA_SYNC_WITH_DEFAULT (0xFF04)
 
 /// Program metadata tags recognized by the UR adapters. For kernels the tag
 /// must appear after the kernel name.
