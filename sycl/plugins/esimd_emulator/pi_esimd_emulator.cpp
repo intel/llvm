@@ -1409,7 +1409,8 @@ pi_result piKernelSetArg(pi_kernel, pi_uint32, size_t, const void *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextKernelSetArgMemObj(pi_kernel, pi_uint32, const pi_mem *, const pi_mem_obj_property*) {
+pi_result piextKernelSetArgMemObj(pi_kernel, pi_uint32,
+                                  const pi_mem_obj_property *, const pi_mem *) {
   DIE_NO_IMPLEMENTATION;
 }
 

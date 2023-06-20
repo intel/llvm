@@ -2177,17 +2177,15 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   }
 }
 
-pi_mem_obj_access AccessModeToPi(access::mode AccessorMode)
-{
-  switch (AccessorMode)
-  {
-    case access::mode::read:
-      return PI_ACCESS_READ_ONLY;
-    case access::mode::write:
-    case access::mode::discard_write:
-      return PI_ACCESS_WRITE_ONLY;
-    default:
-      return PI_ACCESS_READ_WRITE;
+pi_mem_obj_access AccessModeToPi(access::mode AccessorMode) {
+  switch (AccessorMode) {
+  case access::mode::read:
+    return PI_ACCESS_READ_ONLY;
+  case access::mode::write:
+  case access::mode::discard_write:
+    return PI_ACCESS_WRITE_ONLY;
+  default:
+    return PI_ACCESS_READ_WRITE;
   }
 }
 
@@ -2228,8 +2226,8 @@ static pi_result SetKernelParamsAndLaunch(
         pi_mem_obj_property MemObjData{};
         MemObjData.mem_access = AccessModeToPi(Req->MAccessMode);
         MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
-        Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex, 
-                                                          &MemArg, &MemObjData);
+        Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                         &MemObjData, &MemArg);
       }
       break;
     }
@@ -2269,8 +2267,8 @@ static pi_result SetKernelParamsAndLaunch(
       pi_mem_obj_property MemObjData{};
       MemObjData.mem_access = PI_ACCESS_READ_ONLY;
       MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
-      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex, 
-                                                         SpecConstsBufferArg, &MemObjData);
+      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(
+          Kernel, NextTrueIndex, &MemObjData, SpecConstsBufferArg);
       break;
     }
     case kernel_param_kind_t::kind_invalid:
@@ -2838,7 +2836,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
       // available if a user asks for them inside the interop task scope
-      const std::vector<Requirement *> &HandlerReq = HostTask->getRequirements();
+      const std::vector<Requirement *> &HandlerReq =
+          HostTask->getRequirements();
       auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
         const std::vector<AllocaCommandBase *> &AllocaCmds =
             Req->MSYCLMemObj->MRecord->MAllocaCommands;

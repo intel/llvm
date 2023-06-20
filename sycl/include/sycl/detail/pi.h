@@ -1716,15 +1716,13 @@ typedef enum {
 } _pi_mem_obj_access;
 using pi_mem_obj_access = _pi_mem_obj_access;
 
-typedef enum {
-  PI_KERNEL_ARG_MEM_OBJ_ACCESS
-} _pi_mem_obj_property_type;
+typedef enum { PI_KERNEL_ARG_MEM_OBJ_ACCESS } _pi_mem_obj_property_type;
 using pi_mem_obj_property_type = _pi_mem_obj_property_type;
 
 typedef struct {
   pi_mem_obj_property_type type;
   void *pNext;
-  _pi_mem_obj_access  mem_access;
+  _pi_mem_obj_access mem_access;
 } _pi_mem_obj_property;
 using pi_mem_obj_property = _pi_mem_obj_property;
 
@@ -1732,10 +1730,9 @@ using pi_mem_obj_property = _pi_mem_obj_property;
 // as an argument for a kernel.
 // Note: This is needed by the CUDA backend to extract the device pointer to
 // the memory as the kernels uses it rather than the PI object itself.
-__SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel kernel,
-                                                pi_uint32 arg_index,
-                                                const pi_mem *arg_value,
-                                                const pi_mem_obj_property* arg_properties);
+__SYCL_EXPORT pi_result piextKernelSetArgMemObj(
+    pi_kernel kernel, pi_uint32 arg_index,
+    const pi_mem_obj_property *arg_properties, const pi_mem *arg_value);
 
 // Extension to allow backends to process a PI sampler object before adding it
 // as an argument for a kernel.

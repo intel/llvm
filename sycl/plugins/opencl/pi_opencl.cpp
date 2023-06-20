@@ -1116,7 +1116,8 @@ pi_result piSamplerCreate(pi_context context,
 }
 
 pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
-                                  const pi_mem *arg_value, const pi_mem_obj_property* arg_properties) {
+                                  const pi_mem_obj_property *arg_properties,
+                                  const pi_mem *arg_value) {
   std::ignore = arg_properties;
   return cast<pi_result>(
       clSetKernelArg(cast<cl_kernel>(kernel), cast<cl_uint>(arg_index),

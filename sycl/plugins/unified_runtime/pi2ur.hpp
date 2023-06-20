@@ -1904,8 +1904,10 @@ inline pi_result piextGetDeviceFunctionPointer(pi_device Device,
 }
 
 // Special version of piKernelSetArg to accept pi_mem.
-inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
-                                         const pi_mem *ArgValue, const pi_mem_obj_property* ArgProperties) {
+inline pi_result
+piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
+                        const pi_mem_obj_property *ArgProperties,
+                        const pi_mem *ArgValue) {
 
   // TODO: the better way would probably be to add a new PI API for
   // extracting native PI object from PI handle, and have SYCL
@@ -1918,36 +1920,31 @@ inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   if (ArgValue)
     UrMemory = reinterpret_cast<ur_mem_handle_t>(*ArgValue);
 
-  ur_kernel_arg_mem_obj_properties_t Properties{};
-
   // We don't yet know the device where this kernel will next be run on.
   // Thus we can't know the actual memory allocation that needs to be used.
   // Remember the memory object being used as an argument for this kernel
   // to process it later when the device is known (at the kernel enqueue).
   //
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  if (ArgProperties)
-  {
+  if (ArgProperties) {
     assert(ArgProperties->type == PI_KERNEL_ARG_MEM_OBJ_ACCESS);
-    ur_mem_obj_properties_t UrMemProperties{};
-    UrMemProperties.stype = UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES;
-    switch (ArgProperties->mem_access)
-    {
-      case PI_ACCESS_READ_ONLY:
-        UrMemProperties.memory_access = UR_MEM_FLAG_READ_ONLY;
-        break;
-      case PI_ACCESS_WRITE_ONLY:
-        UrMemProperties.memory_access = UR_MEM_FLAG_WRITE_ONLY;
-        break;
-      case PI_ACCESS_READ_WRITE:
-        UrMemProperties.memory_access = UR_MEM_FLAG_READ_WRITE;
-        break;
+    ur_kernel_arg_mem_obj_properties_t UrMemProperties{};
+    UrMemProperties.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
+    switch (ArgProperties->mem_access) {
+    case PI_ACCESS_READ_ONLY:
+      UrMemProperties.memoryAccess = UR_MEM_FLAG_READ_ONLY;
+      break;
+    case PI_ACCESS_WRITE_ONLY:
+      UrMemProperties.memoryAccess = UR_MEM_FLAG_WRITE_ONLY;
+      break;
+    case PI_ACCESS_READ_WRITE:
+      UrMemProperties.memoryAccess = UR_MEM_FLAG_READ_WRITE;
+      break;
     }
-    HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, UrMemory, &UrMemProperties));
-  }
-  else
-  {
-    HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, UrMemory, nullptr));
+    HANDLE_ERRORS(
+        urKernelSetArgMemObj(UrKernel, ArgIndex, &UrMemProperties, UrMemory));
+  } else {
+    HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, nullptr, UrMemory));
   }
 
   return PI_SUCCESS;
