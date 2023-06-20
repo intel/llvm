@@ -48,6 +48,8 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_BUILD_PROGRAM_FAILURE;
   case UR_RESULT_ERROR_UNINITIALIZED:
     return PI_ERROR_UNINITIALIZED;
+  case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   default:
     return PI_ERROR_UNKNOWN;
   };
