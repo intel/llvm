@@ -4355,13 +4355,17 @@ typedef enum ur_queue_flag_t {
                                                              ///< semantics. Implementation chooses submission mode.
     UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE = UR_BIT(8),          ///< Hint: enqueue and submit immediately. No change in queue semantics.
                                                              ///< Implementation chooses submission mode.
+    UR_QUEUE_FLAG_USE_DEFAULT_STREAM = UR_BIT(9),            ///< Use the default stream. Only meaningful for CUDA. Other platforms may
+                                                             ///< ignore this flag.
+    UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM = UR_BIT(10),     ///< Synchronize with the default stream. Only meaningful for CUDA. Other
+                                                             ///< platforms may ignore this flag.
     /// @cond
     UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
 } ur_queue_flag_t;
 /// @brief Bit Mask for validating ur_queue_flags_t
-#define UR_QUEUE_FLAGS_MASK 0xfffffe00
+#define UR_QUEUE_FLAGS_MASK 0xfffff800
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
