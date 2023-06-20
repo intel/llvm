@@ -774,6 +774,8 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return lhs.get_group_id() == rhs.get_group_id();
 #else
+    std::ignore = lhs;
+    std::ignore = rhs;
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
 #endif
@@ -783,6 +785,8 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return !(lhs == rhs);
 #else
+    std::ignore = lhs;
+    std::ignore = rhs;
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
 #endif
