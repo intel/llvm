@@ -274,6 +274,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
   if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
        AttrKindStr == SYCL_GRF_SIZE_ATTR) &&
       !llvm::esimd::isESIMD(F)) {
+    // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
     if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
       assert((PropVal == 0 || PropVal == 128 || PropVal == 256) &&
