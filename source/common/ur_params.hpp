@@ -6437,6 +6437,10 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_virtual_mem_access_flag_t value) {
     switch (value) {
 
+    case UR_VIRTUAL_MEM_ACCESS_FLAG_NONE:
+        os << "UR_VIRTUAL_MEM_ACCESS_FLAG_NONE";
+        break;
+
     case UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE:
         os << "UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE";
         break;
@@ -6457,6 +6461,17 @@ inline void serializeFlag<ur_virtual_mem_access_flag_t>(std::ostream &os,
                                                         uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
+
+    if ((val & UR_VIRTUAL_MEM_ACCESS_FLAG_NONE) ==
+        (uint32_t)UR_VIRTUAL_MEM_ACCESS_FLAG_NONE) {
+        val ^= (uint32_t)UR_VIRTUAL_MEM_ACCESS_FLAG_NONE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_VIRTUAL_MEM_ACCESS_FLAG_NONE;
+    }
 
     if ((val & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE) ==
         (uint32_t)UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE) {
