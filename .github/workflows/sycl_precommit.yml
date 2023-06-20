@@ -39,8 +39,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
+        ref: ${{ github.base_ref }}
         sparse-checkout: |
           devops/actions/cached_checkout
+          devops/actions/clang-format
     - name: 'PR commits + 2'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 2 ))" >> "${GITHUB_ENV}"
     - uses: ./devops/actions/cached_checkout
@@ -51,7 +53,7 @@ jobs:
         cache_path: "/__w/repo_cache/"
         merge: false
     - name: Run clang-format
-      uses: ./src/devops/actions/clang-format
+      uses: ./devops/actions/clang-format
       with:
         path: src
 
