@@ -1324,8 +1324,9 @@ class ur_virtual_mem_granularity_info_t(c_int):
 ###############################################################################
 ## @brief Virtual memory access mode flags.
 class ur_virtual_mem_access_flags_v(IntEnum):
-    READ_WRITE = UR_BIT(0)                          ## Virtual memory both read and write accessible
-    READ_ONLY = UR_BIT(1)                           ## 
+    NONE = UR_BIT(0)                                ## Virtual memory has no access.
+    READ_WRITE = UR_BIT(1)                          ## Virtual memory has both read and write access.
+    READ_ONLY = UR_BIT(2)                           ## Virtual memory has read only access.
 
 class ur_virtual_mem_access_flags_t(c_int):
     def __str__(self):

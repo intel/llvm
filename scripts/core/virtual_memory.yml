@@ -106,12 +106,15 @@ desc: "Virtual memory access mode flags."
 class: $xVirtualMem
 name: $x_virtual_mem_access_flags_t
 etors:
-    - name: READ_WRITE
+    - name: NONE
       value: $X_BIT(0)
-      desc: "Virtual memory both read and write accessible"
-    - name: READ_ONLY
+      desc: "Virtual memory has no access."
+    - name: READ_WRITE
       value: $X_BIT(1)
-      desc: ""
+      desc: "Virtual memory has both read and write access."
+    - name: READ_ONLY
+      value: $X_BIT(2)
+      desc: "Virtual memory has read only access."
 
 --- #--------------------------------------------------------------------------
 type: function
