@@ -317,6 +317,7 @@ typedef enum {
   // Intel UUID extension.
   PI_DEVICE_INFO_UUID = 0x106A,
   // These are Intel-specific extensions.
+  PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION = 0x4250,
   PI_DEVICE_INFO_DEVICE_ID = 0x4251,
   PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
   PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,
@@ -356,7 +357,6 @@ typedef enum {
   PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 0x20008,
   // The number of max registers per block (device specific)
   PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 0x20009,
-  PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION = 0x4250,
 } _pi_device_info;
 
 typedef enum {
