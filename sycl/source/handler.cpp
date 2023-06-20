@@ -383,11 +383,10 @@ event handler::finalize() {
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> GraphImpl;
     if (MGraph) {
       GraphImpl = MGraph;
+      CommandGroup.reset(
+          new detail::CG(detail::CG::None, std::move(CGData), MCodeLoc));
     } else if (auto QueueGraph = MQueue->getCommandGraph(); QueueGraph) {
       GraphImpl = QueueGraph;
-    }
-
-    if (GraphImpl) {
       auto EventImpl = std::make_shared<detail::event_impl>();
 
       // Extract relevant data from the handler and pass to graph to create a
