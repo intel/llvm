@@ -22144,7 +22144,8 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     // Even if the current function doesn't have a clang builtin, create
     // an 'fpbuiltin-max-error' attribute for it; unless it's marked with
     // an NoBuiltin attribute.
-    if (!FD->hasAttr<NoBuiltinAttr>()) {
+    if (!FD->hasAttr<NoBuiltinAttr>() &&
+        FD->getNameInfo().getName().isIdentifier()) {
       Name = FD->getName();
       FPAccuracyIntrinsicID =
           llvm::StringSwitch<unsigned>(Name)
@@ -22155,7 +22156,11 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
               .Case("frem", llvm::Intrinsic::fpbuiltin_frem)
               .Case("sincos", llvm::Intrinsic::fpbuiltin_sincos)
               .Case("exp10", llvm::Intrinsic::fpbuiltin_exp10)
-              .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt);
+              .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt)
+              .Default(0);
+      if (!FPAccuracyIntrinsicID) {
+        return nullptr;
+      }
     } else {
       return nullptr;
     }
