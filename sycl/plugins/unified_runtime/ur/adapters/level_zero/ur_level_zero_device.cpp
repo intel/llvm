@@ -298,8 +298,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     auto ReturnHelper = [&](auto... Partitions) {
       struct {
         ur_device_partition_t Arr[sizeof...(Partitions) + 1];
-      } PartitionProperties = {
-          {Partitions..., ur_device_partition_t(0)}};
+      } PartitionProperties = {{Partitions..., ur_device_partition_t(0)}};
       return ReturnValue(PartitionProperties);
     };
 
