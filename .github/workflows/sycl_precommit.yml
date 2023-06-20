@@ -1,9 +1,8 @@
-name: SYCL Pre Commit
+name: SYCL MLIR Pre Commit
 
 on:
   pull_request_target:
     branches:
-    - sycl
     - sycl-mlir
     # Do not run builds if changes are only in the following locations
     paths-ignore:
@@ -62,7 +61,7 @@ jobs:
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "ocl_x64;ocl_gen9"
+      lts_config: "ocl_lin_intel"
 
   linux_default:
     name: Linux
