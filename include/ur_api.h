@@ -5277,6 +5277,10 @@ typedef enum ur_function_t {
     UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP = 165,                          ///< Enumerator for ::urUsmP2PEnablePeerAccessExp
     UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP = 166,                         ///< Enumerator for ::urUsmP2PDisablePeerAccessExp
     UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP = 167,                        ///< Enumerator for ::urUsmP2PPeerAccessGetInfoExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP = 168,               ///< Enumerator for ::urCommandBufferAppendMembufferWriteExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP = 169,                ///< Enumerator for ::urCommandBufferAppendMembufferReadExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP = 170,          ///< Enumerator for ::urCommandBufferAppendMembufferWriteRectExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP = 171,           ///< Enumerator for ::urCommandBufferAppendMembufferReadRectExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7323,6 +7327,72 @@ urCommandBufferAppendMembufferCopyExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a memory write command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSrc`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendMembufferWriteExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
+    size_t offset,                                                ///< [in] offset in bytes in the buffer object.
+    size_t size,                                                  ///< [in] size in bytes of data being written.
+    const void *pSrc,                                             ///< [in] pointer to host memory where data is to be written from.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a memory read command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendMembufferReadExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
+    size_t offset,                                                ///< [in] offset in bytes in the buffer object.
+    size_t size,                                                  ///< [in] size in bytes of data being written.
+    void *pDst,                                                   ///< [in] pointer to host memory where data is to be written to.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Append a rectangular memory copy command to a command-buffer object
 ///
 /// @returns
@@ -7354,6 +7424,87 @@ urCommandBufferAppendMembufferCopyRectExp(
     size_t srcSlicePitch,                                         ///< [in] Slice pitch of the source memory.
     size_t dstRowPitch,                                           ///< [in] Row pitch of the destination memory.
     size_t dstSlicePitch,                                         ///< [in] Slice pitch of the destination memory.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a rectangular memory write command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSrc`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendMembufferWriteRectExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
+    ur_rect_offset_t bufferOffset,                                ///< [in] 3D offset in the buffer.
+    ur_rect_offset_t hostOffset,                                  ///< [in] 3D offset in the host region.
+    ur_rect_region_t region,                                      ///< [in] 3D rectangular region descriptor: width, height, depth.
+    size_t bufferRowPitch,                                        ///< [in] length of each row in bytes in the buffer object.
+    size_t bufferSlicePitch,                                      ///< [in] length of each 2D slice in bytes in the buffer object being
+                                                                  ///< written.
+    size_t hostRowPitch,                                          ///< [in] length of each row in bytes in the host memory region pointed to
+                                                                  ///< by pSrc.
+    size_t hostSlicePitch,                                        ///< [in] length of each 2D slice in bytes in the host memory region
+                                                                  ///< pointed to by pSrc.
+    void *pSrc,                                                   ///< [in] pointer to host memory where data is to be written from.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a rectangular memory read command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendMembufferReadRectExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
+    ur_rect_offset_t bufferOffset,                                ///< [in] 3D offset in the buffer.
+    ur_rect_offset_t hostOffset,                                  ///< [in] 3D offset in the host region.
+    ur_rect_region_t region,                                      ///< [in] 3D rectangular region descriptor: width, height, depth.
+    size_t bufferRowPitch,                                        ///< [in] length of each row in bytes in the buffer object.
+    size_t bufferSlicePitch,                                      ///< [in] length of each 2D slice in bytes in the buffer object being read.
+    size_t hostRowPitch,                                          ///< [in] length of each row in bytes in the host memory region pointed to
+                                                                  ///< by pDst.
+    size_t hostSlicePitch,                                        ///< [in] length of each 2D slice in bytes in the host memory region
+                                                                  ///< pointed to by pDst.
+    void *pDst,                                                   ///< [in] pointer to host memory where data is to be read into.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
@@ -7494,6 +7645,7 @@ typedef enum ur_exp_peer_info_t {
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
@@ -7535,6 +7687,7 @@ urUsmP2PEnablePeerAccessExp(
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
@@ -7561,6 +7714,7 @@ urUsmP2PDisablePeerAccessExp(
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
@@ -9193,6 +9347,36 @@ typedef struct ur_command_buffer_append_membuffer_copy_exp_params_t {
 } ur_command_buffer_append_membuffer_copy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferAppendMembufferWriteExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_append_membuffer_write_exp_params_t {
+    ur_exp_command_buffer_handle_t *phCommandBuffer;
+    ur_mem_handle_t *phBuffer;
+    size_t *poffset;
+    size_t *psize;
+    const void **ppSrc;
+    uint32_t *pnumSyncPointsInWaitList;
+    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+} ur_command_buffer_append_membuffer_write_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferAppendMembufferReadExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_append_membuffer_read_exp_params_t {
+    ur_exp_command_buffer_handle_t *phCommandBuffer;
+    ur_mem_handle_t *phBuffer;
+    size_t *poffset;
+    size_t *psize;
+    void **ppDst;
+    uint32_t *pnumSyncPointsInWaitList;
+    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+} ur_command_buffer_append_membuffer_read_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferAppendMembufferCopyRectExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -9211,6 +9395,46 @@ typedef struct ur_command_buffer_append_membuffer_copy_rect_exp_params_t {
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
 } ur_command_buffer_append_membuffer_copy_rect_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferAppendMembufferWriteRectExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_append_membuffer_write_rect_exp_params_t {
+    ur_exp_command_buffer_handle_t *phCommandBuffer;
+    ur_mem_handle_t *phBuffer;
+    ur_rect_offset_t *pbufferOffset;
+    ur_rect_offset_t *phostOffset;
+    ur_rect_region_t *pregion;
+    size_t *pbufferRowPitch;
+    size_t *pbufferSlicePitch;
+    size_t *phostRowPitch;
+    size_t *phostSlicePitch;
+    void **ppSrc;
+    uint32_t *pnumSyncPointsInWaitList;
+    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+} ur_command_buffer_append_membuffer_write_rect_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferAppendMembufferReadRectExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_append_membuffer_read_rect_exp_params_t {
+    ur_exp_command_buffer_handle_t *phCommandBuffer;
+    ur_mem_handle_t *phBuffer;
+    ur_rect_offset_t *pbufferOffset;
+    ur_rect_offset_t *phostOffset;
+    ur_rect_region_t *pregion;
+    size_t *pbufferRowPitch;
+    size_t *pbufferSlicePitch;
+    size_t *phostRowPitch;
+    size_t *phostSlicePitch;
+    void **ppDst;
+    uint32_t *pnumSyncPointsInWaitList;
+    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+} ur_command_buffer_append_membuffer_read_rect_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferEnqueueExp
