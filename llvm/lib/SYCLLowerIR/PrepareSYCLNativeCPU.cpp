@@ -112,11 +112,11 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   // subhandler steals its name
   std::string NewName = F->getName().str() + "_NativeCPUKernel";
   const auto SubHandlerName = F->getName();
+  F->setName(NewName); 
   FunctionType *FTy = FunctionType::get(
       Type::getVoidTy(Ctx), {NativeCPUArgDescPtrType, StatePtrType}, false);
   auto SubhFCallee = F->getParent()->getOrInsertFunction(SubHandlerName, FTy);
   Function *SubhF = cast<Function>(SubhFCallee.getCallee());
-  F->setName(NewName); 
 
   // Emit function body, unpack kernel args
   auto UsedIndexes = getUsedIndexes(F);

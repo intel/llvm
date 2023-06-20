@@ -2,11 +2,17 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <map>
 #include <sycl/detail/cg_types.hpp> // NDRDescT
 #include <sycl/detail/native_cpu.hpp>
 #include <sycl/detail/pi.h>
 
 static bool PrintPiTrace = true;
+
+struct nativecpu_entry {
+  char *kernelname;
+  unsigned char *kernel_ptr;
+};
 
 struct _pi_object {
   _pi_object() : RefCount{1} {}
@@ -52,7 +58,7 @@ struct _pi_context : _pi_object {
 
 struct _pi_program : _pi_object {
   _pi_context *_ctx;
-  const unsigned char *_ptr;
+  std::map<std::string, unsigned char *> _kernels;
 };
 
 using nativecpu_kernel_t = void(const sycl::detail::NativeCPUArgDesc *,
@@ -684,8 +690,13 @@ pi_result piProgramCreateWithBinary(pi_context context, pi_uint32,
                                     pi_int32 *, pi_program *program) {
   // Todo: proper error checking
   assert(binaries);
+  auto nativecpu_entries = (const nativecpu_entry *)(*binaries);
+  auto nativecpu_it = nativecpu_entries;
   auto p = new _pi_program();
-  p->_ptr = binaries[0];
+  while(strcmp(nativecpu_it->kernelname, "__nativecpu_dummy") != 0) {
+    p->_kernels.insert(std::make_pair(nativecpu_it->kernelname, nativecpu_it->kernel_ptr));
+    nativecpu_it++;
+  } 
   p->_ctx = context;
   *program = p;
   return PI_SUCCESS;
@@ -782,7 +793,7 @@ pi_result piKernelCreate(pi_program program, const char *name,
                          pi_kernel *kernel) {
   // Todo: error checking
   auto ker = new _pi_kernel();
-  auto f = reinterpret_cast<nativecpu_ptr_t>(program->_ptr);
+  auto f = reinterpret_cast<nativecpu_ptr_t>(program->_kernels[std::string(name)]);
   ker->_subhandler = *f;
   ker->_name = name;
   *kernel = ker;

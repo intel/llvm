@@ -5697,16 +5697,16 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     }
   }
 
-  if (S.getLangOpts().SYCLIsNativeCPU) {
-    // This is a temporary workaround for the integration header file
-    // being emitted too early.
-    std::string HCName = getNativeCPUHeaderName(S.getLangOpts());
+  //if (S.getLangOpts().SYCLIsNativeCPU) {
+  //  // This is a temporary workaround for the integration header file
+  //  // being emitted too early.
+  //  std::string HCName = getNativeCPUHeaderName(S.getLangOpts());
 
-    OS << "\n// including the kernel handlers calling the kernels\n";
-    OS << "\n#include \"";
-    OS << HCName;
-    OS << "\"\n\n";
-  }
+  //  OS << "\n// including the kernel handlers calling the kernels\n";
+  //  OS << "\n#include \"";
+  //  OS << HCName;
+  //  OS << "\"\n\n";
+  //}
   if (EmittedFirstSpecConstant)
     OS << "#include <sycl/detail/spec_const_integration.hpp>\n";
 
