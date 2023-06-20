@@ -3018,7 +3018,15 @@ __SYCL_DEF_BUILTIN_GENFLOATF
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
-// genfloatf powr (genfloatf x)
+// genfloatf powr (genfloatf x, genfloatf y)
+// TODO: remove when __SYCL_DEF_BUILTIN_MARRAY is defined
+template <typename T, size_t N>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<std::is_same_v<T, float>, marray<T, N>>
+    powr(marray<T, N> x, marray<T, N> y) __NOEXC {
+  return native::powr(x, y);
+}
+
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE powr(TYPE x, TYPE y) __NOEXC { return native::powr(x, y); }
 __SYCL_DEF_BUILTIN_GENFLOATF
