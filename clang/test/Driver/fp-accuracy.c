@@ -48,6 +48,8 @@
 // RUN: -fmath-errno %s 2>&1  \
 // RUN: | FileCheck %s --check-prefixes=ERR-3
 
+// Disabled due to https://github.com/intel/llvm/issues/9934
+// UNSUPPORTED: system-linux
 
 // HIGH: "-ffp-builtin-accuracy=high"
 // LOW: "-ffp-builtin-accuracy=low"
