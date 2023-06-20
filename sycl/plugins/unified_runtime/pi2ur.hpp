@@ -430,9 +430,9 @@ inline pi_result ur2piSamplerInfoValue(ur_sampler_info_t ParamName,
 }
 
 inline pi_result ur2piVirtualMemInfoValue(ur_virtual_mem_info_t ParamName,
-                                       size_t ParamValueSizePI,
-                                       size_t *ParamValueSizeUR,
-                                       void *ParamValue) {
+                                          size_t ParamValueSizePI,
+                                          size_t *ParamValueSizeUR,
+                                          void *ParamValue) {
 
   ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
   switch (ParamName) {
@@ -4147,7 +4147,6 @@ inline pi_result piextVirtualMemGetInfo(pi_context Context, const void *Ptr,
   default:
     return PI_ERROR_UNKNOWN;
   }
-
 
   HANDLE_ERRORS(urVirtualMemGetInfo(UrContext, UrDevice, InfoType,
                                     ParamValueSize, ParamValue,
