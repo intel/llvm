@@ -772,9 +772,7 @@ struct sub_group {
   // Common member functions for by-value semantics
   friend bool operator==(const sub_group &lhs, const sub_group &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    return (rhs.dimensions == lhs.dimensions) &&
-           (rhs.fence_scope == lhs.fence_scope) &&
-           (rhs.get_group_id() == lhs.get_group_id());
+    return lhs.get_group_id() == rhs.get_group_id();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
