@@ -22,7 +22,7 @@
 
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <sycl/syclcompat/dims.hpp>
+#include <syclcompat/dims.hpp>
 
 TEST(DimTest, Construct) {
   syclcompat::dim3 d3(512);

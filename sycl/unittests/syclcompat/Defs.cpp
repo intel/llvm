@@ -22,7 +22,7 @@
 
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <sycl/syclcompat/defs.hpp>
+#include <syclcompat/defs.hpp>
 
 TEST(DPCT, Align) {
   struct {

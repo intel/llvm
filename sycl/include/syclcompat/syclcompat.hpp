@@ -17,9 +17,10 @@
  *  syclcompat.hpp
  *
  *  Description:
- *    Main include header for SYCLcompat
+ *    Main include internal header for SYCLcompat
  **************************************************************************/
 
 #pragma once
 
-#include <sycl/syclcompat/syclcompat.hpp>
+#include <syclcompat/defs.hpp>
+#include <syclcompat/dims.hpp>
