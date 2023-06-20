@@ -465,6 +465,7 @@ enum {
 }
 
 namespace TypeMember {
+namespace OpenCL {
 enum {
   NameIdx         = 0,
   TypeIdx         = 1,
@@ -479,6 +480,22 @@ enum {
   MinOperandCount = 9
 };
 }
+
+namespace NonSemantic {
+enum {
+  NameIdx         = 0,
+  TypeIdx         = 1,
+  SourceIdx       = 2,
+  LineIdx         = 3,
+  ColumnIdx       = 4,
+  OffsetIdx       = 5,
+  SizeIdx         = 6,
+  FlagsIdx        = 7,
+  ValueIdx        = 8,
+  MinOperandCount = 8
+};
+}
+} // namespace TypeMember
 
 namespace TypeInheritance {
 enum {
@@ -934,7 +951,7 @@ inline bool hasDbgInstParentScopeIdx(const uint32_t Kind,
     ParentScopeIdx = TypeEnum::ParentIdx;
     return true;
   case SPIRVDebug::TypeComposite:
-    ParentScopeIdx = TypeMember::ParentIdx;
+    ParentScopeIdx = TypeMember::OpenCL::ParentIdx;
     return true;
   case SPIRVDebug::TypeInheritance:
     ParentScopeIdx = TypeInheritance::ParentIdx;

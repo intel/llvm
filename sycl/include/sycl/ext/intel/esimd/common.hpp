@@ -244,9 +244,9 @@ constexpr __ESIMD_NS::native::lsc::atomic_op to_lsc_atomic_op() {
     return __ESIMD_NS::native::lsc::atomic_op::inc;
   case __ESIMD_NS::atomic_op::dec:
     return __ESIMD_NS::native::lsc::atomic_op::dec;
-  case __ESIMD_NS::atomic_op::min:
+  case __ESIMD_NS::atomic_op::umin:
     return __ESIMD_NS::native::lsc::atomic_op::umin;
-  case __ESIMD_NS::atomic_op::max:
+  case __ESIMD_NS::atomic_op::umax:
     return __ESIMD_NS::native::lsc::atomic_op::umax;
   case __ESIMD_NS::atomic_op::cmpxchg:
     return __ESIMD_NS::native::lsc::atomic_op::cmpxchg;
@@ -256,9 +256,9 @@ constexpr __ESIMD_NS::native::lsc::atomic_op to_lsc_atomic_op() {
     return __ESIMD_NS::native::lsc::atomic_op::bit_or;
   case __ESIMD_NS::atomic_op::bit_xor:
     return __ESIMD_NS::native::lsc::atomic_op::bit_xor;
-  case __ESIMD_NS::atomic_op::minsint:
+  case __ESIMD_NS::atomic_op::smin:
     return __ESIMD_NS::native::lsc::atomic_op::smin;
-  case __ESIMD_NS::atomic_op::maxsint:
+  case __ESIMD_NS::atomic_op::smax:
     return __ESIMD_NS::native::lsc::atomic_op::smax;
   case __ESIMD_NS::atomic_op::fmax:
     return __ESIMD_NS::native::lsc::atomic_op::fmax;
@@ -291,9 +291,9 @@ constexpr __ESIMD_NS::atomic_op to_atomic_op() {
   case __ESIMD_NS::native::lsc::atomic_op::dec:
     return __ESIMD_NS::atomic_op::dec;
   case __ESIMD_NS::native::lsc::atomic_op::umin:
-    return __ESIMD_NS::atomic_op::min;
+    return __ESIMD_NS::atomic_op::umin;
   case __ESIMD_NS::native::lsc::atomic_op::umax:
-    return __ESIMD_NS::atomic_op::max;
+    return __ESIMD_NS::atomic_op::umax;
   case __ESIMD_NS::native::lsc::atomic_op::cmpxchg:
     return __ESIMD_NS::atomic_op::cmpxchg;
   case __ESIMD_NS::native::lsc::atomic_op::bit_and:
@@ -303,9 +303,9 @@ constexpr __ESIMD_NS::atomic_op to_atomic_op() {
   case __ESIMD_NS::native::lsc::atomic_op::bit_xor:
     return __ESIMD_NS::atomic_op::bit_xor;
   case __ESIMD_NS::native::lsc::atomic_op::smin:
-    return __ESIMD_NS::atomic_op::minsint;
+    return __ESIMD_NS::atomic_op::smin;
   case __ESIMD_NS::native::lsc::atomic_op::smax:
-    return __ESIMD_NS::atomic_op::maxsint;
+    return __ESIMD_NS::atomic_op::smax;
   case __ESIMD_NS::native::lsc::atomic_op::fmax:
     return __ESIMD_NS::atomic_op::fmax;
   case __ESIMD_NS::native::lsc::atomic_op::fmin:
