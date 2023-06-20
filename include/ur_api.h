@@ -3055,15 +3055,16 @@ urVirtualMemFree(
 /// @brief Virtual memory access mode flags.
 typedef uint32_t ur_virtual_mem_access_flags_t;
 typedef enum ur_virtual_mem_access_flag_t {
-    UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE = UR_BIT(0), ///< Virtual memory both read and write accessible
-    UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY = UR_BIT(1),  ///<
+    UR_VIRTUAL_MEM_ACCESS_FLAG_NONE = UR_BIT(0),       ///< Virtual memory has no access.
+    UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE = UR_BIT(1), ///< Virtual memory has both read and write access.
+    UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY = UR_BIT(2),  ///< Virtual memory has read only access.
     /// @cond
     UR_VIRTUAL_MEM_ACCESS_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
 } ur_virtual_mem_access_flag_t;
 /// @brief Bit Mask for validating ur_virtual_mem_access_flags_t
-#define UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK 0xfffffffc
+#define UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Map a virtual memory range to a physical memory handle.
