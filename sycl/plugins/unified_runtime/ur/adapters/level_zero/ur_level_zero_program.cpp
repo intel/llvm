@@ -154,10 +154,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
     // RT calls piProgramRelease().
     Program->State = ur_program_handle_t_::Invalid;
     Result = ze2urResult(ZeResult);
-    if (Program->ZeBuildLog) {
-      ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
-      Program->ZeBuildLog = nullptr;
-    }
     if (ZeModule) {
       ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
       ZeModule = nullptr;
