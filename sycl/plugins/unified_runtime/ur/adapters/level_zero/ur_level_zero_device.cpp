@@ -299,7 +299,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
       struct {
         ur_device_partition_t Arr[sizeof...(Partitions) + 1];
       } PartitionProperties = {
-          {Partitions..., ur_device_partition_property_t(0)}};
+          {Partitions..., ur_device_partition_t(0)}};
       return ReturnValue(PartitionProperties);
     };
 
