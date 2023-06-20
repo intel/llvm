@@ -58,15 +58,15 @@ int main() {
       h.parallel_for<class SimplestKernel>(
           range<1>{1}, [=](id<1> id) SYCL_ESIMD_KERNEL {
             lsc_prefetch_2d<int, Width, Height, NumBlocks, cache_hint::cached,
-                           cache_hint::uncached>(
+                            cache_hint::uncached>(
                 input, (data_width * sizeof(int)) - 1, data_height - 1,
                 (data_pitch * sizeof(int)) - 1, x, y);
             auto data = lsc_load_2d<int, Width, Height, NumBlocks, false, false,
-                                   cache_hint::uncached, cache_hint::uncached>(
+                                    cache_hint::uncached, cache_hint::uncached>(
                 input, (data_width * sizeof(int)) - 1, data_height - 1,
                 (data_pitch * sizeof(int)) - 1, x, y);
             lsc_store_2d<int, Width, Height, cache_hint::uncached,
-                        cache_hint::uncached>(
+                         cache_hint::uncached>(
                 block_store, (data_width * sizeof(int)) - 1, data_height - 1,
                 (data_pitch * sizeof(int)) - 1, x, y, data);
           });
