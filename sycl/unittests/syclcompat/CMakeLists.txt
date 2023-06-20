@@ -25,6 +25,7 @@ add_sycl_library_unittest(syclcompat-base
   SYCL_EXTRA_FLAGS
     ${SYCL_EXTRA_FLAGS}
   SOURCES
+    Device.cpp
     Dim.cpp
     Defs.cpp)
 
