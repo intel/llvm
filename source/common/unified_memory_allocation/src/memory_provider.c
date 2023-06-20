@@ -99,7 +99,6 @@ umaMemoryProviderPurgeForce(uma_memory_provider_handle_t hProvider, void *ptr,
     return hProvider->ops.purge_force(hProvider->provider_priv, ptr, size);
 }
 
-void umaMemoryProviderGetName(uma_memory_provider_handle_t hProvider,
-                              const char **ppName) {
-    hProvider->ops.get_name(hProvider->provider_priv, ppName);
+const char *umaMemoryProviderGetName(uma_memory_provider_handle_t hProvider) {
+    return hProvider->ops.get_name(hProvider->provider_priv);
 }

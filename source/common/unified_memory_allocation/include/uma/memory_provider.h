@@ -138,8 +138,7 @@ umaMemoryProviderPurgeForce(uma_memory_provider_handle_t hProvider, void *ptr,
 /// \brief Retrive name of a given memory provider.
 /// \param hProvider handle to the memory provider
 /// \param ppName [out] pointer to a string containing name of the provider
-void umaMemoryProviderGetName(uma_memory_provider_handle_t hProvider,
-                              const char **ppName);
+const char *umaMemoryProviderGetName(uma_memory_provider_handle_t hProvider);
 
 #ifdef __cplusplus
 }

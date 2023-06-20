@@ -92,7 +92,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
     UMA_ASSIGN_OP(ops, T, get_min_page_size, UMA_RESULT_ERROR_UNKNOWN);
     UMA_ASSIGN_OP(ops, T, purge_lazy, UMA_RESULT_ERROR_UNKNOWN);
     UMA_ASSIGN_OP(ops, T, purge_force, UMA_RESULT_ERROR_UNKNOWN);
-    UMA_ASSIGN_OP_NORETURN(ops, T, get_name);
+    UMA_ASSIGN_OP(ops, T, get_name, "");
 
     uma_memory_provider_handle_t hProvider = nullptr;
     auto ret = umaMemoryProviderCreate(&ops, &argsTuple, &hProvider);

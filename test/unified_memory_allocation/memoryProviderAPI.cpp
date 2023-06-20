@@ -60,8 +60,7 @@ TEST_F(test, memoryProviderTrace) {
     ASSERT_EQ(calls["purge_force"], 1);
     ASSERT_EQ(calls.size(), ++call_count);
 
-    const char *pName;
-    umaMemoryProviderGetName(tracingProvider.get(), &pName);
+    const char *pName = umaMemoryProviderGetName(tracingProvider.get());
     ASSERT_EQ(calls["name"], 1);
     ASSERT_EQ(calls.size(), ++call_count);
     ASSERT_EQ(std::string(pName), std::string("null"));

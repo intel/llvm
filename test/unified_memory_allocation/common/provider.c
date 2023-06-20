@@ -73,9 +73,9 @@ static enum uma_result_t nullPurgeForce(void *provider, void *ptr,
     return UMA_RESULT_SUCCESS;
 }
 
-static void nullName(void *provider, const char **ppName) {
+static const char *nullName(void *provider) {
     (void)provider;
-    *ppName = "null";
+    return "null";
 }
 
 uma_memory_provider_handle_t nullProviderCreate(void) {
@@ -178,11 +178,11 @@ static enum uma_result_t tracePurgeForce(void *provider, void *ptr,
                                        size);
 }
 
-static void traceName(void *provider, const char **ppName) {
+static const char *traceName(void *provider) {
     struct traceParams *traceProvider = (struct traceParams *)provider;
 
     traceProvider->trace("name");
-    umaMemoryProviderGetName(traceProvider->hUpstreamProvider, ppName);
+    return umaMemoryProviderGetName(traceProvider->hUpstreamProvider);
 }
 
 uma_memory_provider_handle_t
