@@ -47,4 +47,4 @@ jobs:
               - *xptifw
               - *libclc
               - 'sycl/*'
-              - 'sycl/!(test-e2e)/**'
+              - 'sycl/!(test-e2e|doc)/**'

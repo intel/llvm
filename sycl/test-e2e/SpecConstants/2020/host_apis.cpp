@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: hip
-
 #include <sycl/sycl.hpp>
 
 #include <cmath>
