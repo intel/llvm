@@ -25,6 +25,7 @@ name: "$x_exp_interop_semaphore_handle_t"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
+typed_etors: true
 desc: "Extension enums to $x_device_info_t to support bindless images."
 name: $x_device_info_t
 etors: 
