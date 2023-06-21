@@ -4,8 +4,9 @@
 // RUN: %{build} -fsycl-device-code-split=per_source -DUSE_DEVICE_IMAGE_SCOPE -o %t_dev_img_scope.out
 // RUN: %{run} %t_dev_img_scope.out
 //
-// The HIP backend does not currently support device_global backend calls.
-// UNSUPPORTED: hip
+// The HIP and OpenCL GPU backends do not currently support device_global
+// backend calls.
+// UNSUPPORTED: hip || (opencl && gpu)
 //
 // Tests basic device_global access through device kernels.
 // NOTE: USE_DEVICE_IMAGE_SCOPE needs both kernels to be in the same image so
