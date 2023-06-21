@@ -6569,6 +6569,122 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PEnablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
+    ur_device_handle_t
+        commandDevice,            ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice ///< [in] handle of the peer device object
+) {
+    auto pfnEnablePeerAccessExp =
+        context.urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
+
+    if (nullptr == pfnEnablePeerAccessExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == commandDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == peerDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnEnablePeerAccessExp(commandDevice, peerDevice);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PDisablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
+    ur_device_handle_t
+        commandDevice,            ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice ///< [in] handle of the peer device object
+) {
+    auto pfnDisablePeerAccessExp =
+        context.urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
+
+    if (nullptr == pfnDisablePeerAccessExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == commandDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == peerDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnDisablePeerAccessExp(commandDevice, peerDevice);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PPeerAccessGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
+    ur_device_handle_t
+        commandDevice,             ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice, ///< [in] handle of the peer device object
+    ur_exp_peer_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If propSize is not equal to or greater than the real number of bytes
+    ///< needed to return the info
+    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    ///< pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
+) {
+    auto pfnPeerAccessGetInfoExp =
+        context.urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
+
+    if (nullptr == pfnPeerAccessGetInfoExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == commandDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == peerDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+    }
+
+    ur_result_t result =
+        pfnPeerAccessGetInfoExp(commandDevice, peerDevice, propName, propSize,
+                                pPropValue, pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Global table
 ///        with current process' addresses
 ///
@@ -7522,6 +7638,49 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's UsmP2PExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_usm_p2p_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_validation_layer::context.urDdiTable.UsmP2PExp;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnEnablePeerAccessExp = pDdiTable->pfnEnablePeerAccessExp;
+    pDdiTable->pfnEnablePeerAccessExp =
+        ur_validation_layer::urUsmP2PEnablePeerAccessExp;
+
+    dditable.pfnDisablePeerAccessExp = pDdiTable->pfnDisablePeerAccessExp;
+    pDdiTable->pfnDisablePeerAccessExp =
+        ur_validation_layer::urUsmP2PDisablePeerAccessExp;
+
+    dditable.pfnPeerAccessGetInfoExp = pDdiTable->pfnPeerAccessGetInfoExp;
+    pDdiTable->pfnPeerAccessGetInfoExp =
+        ur_validation_layer::urUsmP2PPeerAccessGetInfoExp;
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's VirtualMem table
 ///        with current process' addresses
 ///
@@ -7711,6 +7870,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable) {
     if (UR_RESULT_SUCCESS == result) {
         result = ur_validation_layer::urGetUSMExpProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->USMExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_validation_layer::urGetUsmP2PExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->UsmP2PExp);
     }
 
     if (UR_RESULT_SUCCESS == result) {
