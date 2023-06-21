@@ -62,7 +62,6 @@
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/RISCVTargetParser.h"
 #include <cctype>
-#include <iostream>
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
