@@ -259,10 +259,10 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
     UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,               ///< ::ur_queue_native_desc_t
     UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
-    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 27,         ///< ::ur_exp_command_buffer_desc_t
-    UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 28,      ///< ::ur_exp_sampler_mip_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 29,   ///< ::ur_kernel_arg_mem_obj_properties_t
-    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 30,         ///< ::ur_physical_mem_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,   ///< ::ur_kernel_arg_mem_obj_properties_t
+    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,         ///< ::ur_physical_mem_properties_t
+    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,     ///< ::ur_exp_command_buffer_desc_t
+    UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,  ///< ::ur_exp_sampler_mip_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4689,7 +4689,7 @@ typedef enum ur_command_t {
     UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ = 24,      ///< Event created by ::urEnqueueDeviceGlobalVariableRead
     UR_COMMAND_READ_HOST_PIPE = 25,                   ///< Event created by ::urEnqueueReadHostPipe
     UR_COMMAND_WRITE_HOST_PIPE = 26,                  ///< Event created by ::urEnqueueWriteHostPipe
-    UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP = 27,       ///< Event created by ::urCommandBufferEnqueueExp
+    UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP = 0x1000,   ///< Event created by ::urCommandBufferEnqueueExp
     UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP = 0x2000,   ///< Event created by ::urBindlessImagesWaitExternalSemaphoreExp
     UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP = 0x2001, ///< Event created by ::urBindlessImagesSignalExternalSemaphoreExp
     /// @cond
