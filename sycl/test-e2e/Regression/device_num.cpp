@@ -5,8 +5,8 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:2" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:3" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 
-// Temporarily disable on L0 and HIP due to fails in CI
-// UNSUPPORTED: level_zero, hip
+// Temporarily disable on L0 due to fails in CI
+// UNSUPPORTED: level_zero
 
 #include <fstream>
 #include <iostream>

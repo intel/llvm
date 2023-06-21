@@ -2331,6 +2331,24 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   return PI_SUCCESS;
 }
 
+pi_result piEventGetInfo(pi_event event, pi_event_info param_name,
+                         size_t param_value_size, void *param_value,
+                         size_t *param_value_size_ret) {
+  cl_int result =
+      clGetEventInfo(reinterpret_cast<cl_event>(event), param_name,
+                     param_value_size, param_value, param_value_size_ret);
+  if (result == CL_SUCCESS && param_name == CL_EVENT_COMMAND_EXECUTION_STATUS) {
+    // If the CL_EVENT_COMMAND_EXECUTION_STATUS info value is CL_QUEUED, change
+    // it to CL_SUBMITTED. This change is needed since
+    // sycl::info::event::event_command_status has no equivalent to CL_QUEUED.
+    const auto param_value_int = static_cast<cl_int *>(param_value);
+    if (*param_value_int == CL_QUEUED) {
+      *param_value_int = CL_SUBMITTED;
+    }
+  }
+  return static_cast<pi_result>(result);
+}
+
 const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -2418,7 +2436,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelGetNativeHandle, piextKernelGetNativeHandle)
   // Event
   _PI_CL(piEventCreate, piEventCreate)
-  _PI_CL(piEventGetInfo, clGetEventInfo)
+  _PI_CL(piEventGetInfo, piEventGetInfo)
   _PI_CL(piEventGetProfilingInfo, clGetEventProfilingInfo)
   _PI_CL(piEventsWait, clWaitForEvents)
   _PI_CL(piEventSetCallback, clSetEventCallback)
