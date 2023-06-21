@@ -273,9 +273,9 @@ struct sub_group {
   load(CVT *cv_src) const {
     T *src = const_cast<T *>(cv_src);
 
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
     return src[get_local_id()[0]];
-#else  // __NVPTX__
+#else  // __NVPTX__ || __AMDGCN__ || __AMDGCN__
     auto l = __SYCL_GenericCastToPtrExplicit_ToLocal<T>(src);
     if (l)
       return load(l);
@@ -286,7 +286,7 @@ struct sub_group {
 
     assert(!"Sub-group load() is supported for local or global pointers only.");
     return {};
-#endif // __NVPTX__
+#endif // __NVPTX__ || __AMDGCN__ || __AMDGCN__
   }
 #else  //__SYCL_DEVICE_ONLY__
   template <typename CVT, typename T = std::remove_cv_t<CVT>>
@@ -305,16 +305,16 @@ struct sub_group {
     multi_ptr<T, Space, IsDecorated> src =
         sycl::detail::GetUnqualMultiPtr(cv_src);
 #ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
     return src.get()[get_local_id()[0]];
 #else
     return sycl::detail::sub_group::load(src);
-#endif // __NVPTX__
+#endif // __NVPTX__ || __AMDGCN__ || __AMDGCN__
 #else
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
-#endif
+#endif // __NVPTX__ || __AMDGCN__ || __AMDGCN__
   }
 
   template <typename CVT, access::address_space Space,
@@ -333,7 +333,7 @@ struct sub_group {
 #endif
   }
 #ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
   std::enable_if_t<
@@ -348,7 +348,7 @@ struct sub_group {
     }
     return res;
   }
-#else  // __NVPTX__
+#else  // __NVPTX__ || __AMDGCN__
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
   std::enable_if_t<
@@ -451,9 +451,9 @@ struct sub_group {
   std::enable_if_t<std::is_same<remove_decoration_t<T>, T>::value>
   store(T *dst, const remove_decoration_t<T> &x) const {
 
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
     dst[get_local_id()[0]] = x;
-#else  // __NVPTX__
+#else  // __NVPTX__ || __AMDGCN__
     auto l = __SYCL_GenericCastToPtrExplicit_ToLocal<T>(dst);
     if (l) {
       store(l, x);
@@ -469,7 +469,7 @@ struct sub_group {
     assert(
         !"Sub-group store() is supported for local or global pointers only.");
     return;
-#endif // __NVPTX__
+#endif // __NVPTX__ || __AMDGCN__
   }
 #else  //__SYCL_DEVICE_ONLY__
   template <typename T> void store(T *dst, const T &x) const {
@@ -486,11 +486,11 @@ struct sub_group {
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
     dst.get()[get_local_id()[0]] = x;
 #else
     sycl::detail::sub_group::store(dst, x);
-#endif // __NVPTX__
+#endif // __NVPTX__ || __AMDGCN__
 #else
     (void)dst;
     (void)x;
@@ -515,7 +515,7 @@ struct sub_group {
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
   std::enable_if_t<
@@ -525,7 +525,7 @@ struct sub_group {
       *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
     }
   }
-#else // __NVPTX__
+#else // __NVPTX__ || __AMDGCN__
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
   std::enable_if_t<
@@ -566,7 +566,7 @@ struct sub_group {
                                         x.hi());
   }
 
-#endif // __NVPTX__
+#endif // __NVPTX__ || __AMDGCN__
 #else  // __SYCL_DEVICE_ONLY__
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>

@@ -3,7 +3,6 @@
 //
 // Missing __spirv_SubgroupBlockReadINTEL, __spirv_SubgroupBlockWriteINTEL on
 // AMD
-// XFAIL: hip_amd
 //
 //==----------- load_store.cpp - SYCL sub_group load/store test ------------==//
 //
