@@ -387,45 +387,45 @@ enum class trace_point_type_t : uint16_t {
   mem_release_end = XPTI_TRACE_POINT_END(19),
   /// Used to notify that offload buffer will be created
   offload_alloc_buffer_construct = XPTI_TRACE_POINT_BEGIN(20),
+  /// Used to notify that offload buffer will be destructed
+  offload_alloc_buffer_destruct = XPTI_TRACE_POINT_END(20),
   /// Used to notify about association between user and internal
   /// handle of the offload buffer
   offload_alloc_buffer_associate = XPTI_TRACE_POINT_BEGIN(21),
-  /// Used to notify that offload buffer will be destructed
-  offload_alloc_buffer_destruct = XPTI_TRACE_POINT_BEGIN(22),
   /// Used to notify about releasing internal handle for offload buffer
-  offload_alloc_buffer_release = XPTI_TRACE_POINT_BEGIN(23),
+  offload_alloc_buffer_release = XPTI_TRACE_POINT_END(21),
   /// Used to notify about creation accessor for offload buffer
-  offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
+  offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(22),
   /// User to notify when a queue has been created
-  queue_create = XPTI_TRACE_POINT_BEGIN(25),
+  queue_create = XPTI_TRACE_POINT_BEGIN(23),
   /// User to notify when a queue has been destroyed
-  queue_destroy = XPTI_TRACE_POINT_END(25),
+  queue_destroy = XPTI_TRACE_POINT_END(23),
   /// Used to notify that offload sampled image will be created
-  offload_alloc_sampled_image_construct = XPTI_TRACE_POINT_BEGIN(26),
+  offload_alloc_sampled_image_construct = XPTI_TRACE_POINT_BEGIN(24),
+  /// Used to notify that offload sampled image will be destructed
+  offload_alloc_sampled_image_destruct = XPTI_TRACE_POINT_END(24),
   /// Used to notify about association between user and internal
   /// handle of the offload sampled image
-  offload_alloc_sampled_image_associate = XPTI_TRACE_POINT_BEGIN(27),
-  /// Used to notify that offload sampled image will be destructed
-  offload_alloc_sampled_image_destruct = XPTI_TRACE_POINT_BEGIN(28),
+  offload_alloc_sampled_image_associate = XPTI_TRACE_POINT_BEGIN(25),
   /// Used to notify about releasing internal handle for offload sampled image
-  offload_alloc_sampled_image_release = XPTI_TRACE_POINT_BEGIN(29),
+  offload_alloc_sampled_image_release = XPTI_TRACE_POINT_END(25),
   /// Used to notify that offload unsampled image will be created
-  offload_alloc_unsampled_image_construct = XPTI_TRACE_POINT_BEGIN(30),
+  offload_alloc_unsampled_image_construct = XPTI_TRACE_POINT_BEGIN(26),
+  /// Used to notify that offload unsampled image will be destructed
+  offload_alloc_unsampled_image_destruct = XPTI_TRACE_POINT_END(26),
   /// Used to notify about association between user and internal
   /// handle of the offload unsampled image
-  offload_alloc_unsampled_image_associate = XPTI_TRACE_POINT_BEGIN(31),
-  /// Used to notify that offload unsampled image will be destructed
-  offload_alloc_unsampled_image_destruct = XPTI_TRACE_POINT_BEGIN(32),
+  offload_alloc_unsampled_image_associate = XPTI_TRACE_POINT_BEGIN(27),
   /// Used to notify about releasing internal handle for offload unsampled image
-  offload_alloc_unsampled_image_release = XPTI_TRACE_POINT_BEGIN(33),
+  offload_alloc_unsampled_image_release = XPTI_TRACE_POINT_END(27),
   /// Used to notify about creation accessor for offload sampled image
-  offload_alloc_sampled_image_accessor = XPTI_TRACE_POINT_BEGIN(34),
+  offload_alloc_sampled_image_accessor = XPTI_TRACE_POINT_BEGIN(28),
   /// Used to notify about creation host accessor for offload sampled image
-  offload_alloc_host_sampled_image_accessor = XPTI_TRACE_POINT_BEGIN(35),
+  offload_alloc_host_sampled_image_accessor = XPTI_TRACE_POINT_BEGIN(29),
   /// Used to notify about creation accessor for offload unsampled image
-  offload_alloc_unsampled_image_accessor = XPTI_TRACE_POINT_BEGIN(36),
+  offload_alloc_unsampled_image_accessor = XPTI_TRACE_POINT_BEGIN(30),
   /// Used to notify about creation host accessor for offload unsampled image
-  offload_alloc_host_unsampled_image_accessor = XPTI_TRACE_POINT_BEGIN(37),
+  offload_alloc_host_unsampled_image_accessor = XPTI_TRACE_POINT_BEGIN(31),
   /// Used to notify error/informational messages and no action to take
   diagnostics = XPTI_TRACE_POINT_BEGIN(63),
   /// Indicates that the trace point is user defined and only the tool defined
