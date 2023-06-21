@@ -1,6 +1,5 @@
 // RUN: %{build} -fsycl-dead-args-optimization -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
-// UNSUPPORTED: hip
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

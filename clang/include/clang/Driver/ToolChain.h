@@ -160,7 +160,6 @@ private:
   mutable std::unique_ptr<Tool> OffloadPackager;
   mutable std::unique_ptr<Tool> OffloadDeps;
   mutable std::unique_ptr<Tool> SPIRVTranslator;
-  mutable std::unique_ptr<Tool> SPIRCheck;
   mutable std::unique_ptr<Tool> SYCLPostLink;
   mutable std::unique_ptr<Tool> BackendCompiler;
   mutable std::unique_ptr<Tool> AppendFooter;
@@ -180,7 +179,6 @@ private:
   Tool *getOffloadPackager() const;
   Tool *getOffloadDeps() const;
   Tool *getSPIRVTranslator() const;
-  Tool *getSPIRCheck() const;
   Tool *getSYCLPostLink() const;
   Tool *getBackendCompiler() const;
   Tool *getAppendFooter() const;

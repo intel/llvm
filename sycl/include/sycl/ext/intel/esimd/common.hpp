@@ -153,10 +153,8 @@ enum class atomic_op : uint8_t {
   dec = 0x3,
   /// Minimum: <code>*addr = min(*addr, src0)</code>.
   umin = 0x4,
-  min __SYCL_DEPRECATED("use umin") = umin,
   /// Maximum: <code>*addr = max(*addr, src0)</code>.
   umax = 0x5,
-  max __SYCL_DEPRECATED("use smax") = umax,
   /// Exchange. <code>*addr == src0;</code>
   xchg = 0x6,
   /// Compare and exchange. <code>if (*addr == src0) *sddr = src1;</code>
@@ -169,10 +167,8 @@ enum class atomic_op : uint8_t {
   bit_xor = 0xa,
   /// Minimum (signed integer): <code>*addr = min(*addr, src0)</code>.
   smin = 0xb,
-  minsint __SYCL_DEPRECATED("use smin") = smin,
   /// Maximum (signed integer): <code>*addr = max(*addr, src0)</code>.
   smax = 0xc,
-  maxsint __SYCL_DEPRECATED("use smax") = 0xc,
   /// Minimum (floating point): <code>*addr = min(*addr, src0)</code>.
   fmax __SYCL_DEPRECATED("fmax" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x10,
   /// Maximum (floating point): <code>*addr = max(*addr, src0)</code>.
@@ -244,9 +240,9 @@ constexpr __ESIMD_NS::native::lsc::atomic_op to_lsc_atomic_op() {
     return __ESIMD_NS::native::lsc::atomic_op::inc;
   case __ESIMD_NS::atomic_op::dec:
     return __ESIMD_NS::native::lsc::atomic_op::dec;
-  case __ESIMD_NS::atomic_op::min:
+  case __ESIMD_NS::atomic_op::umin:
     return __ESIMD_NS::native::lsc::atomic_op::umin;
-  case __ESIMD_NS::atomic_op::max:
+  case __ESIMD_NS::atomic_op::umax:
     return __ESIMD_NS::native::lsc::atomic_op::umax;
   case __ESIMD_NS::atomic_op::cmpxchg:
     return __ESIMD_NS::native::lsc::atomic_op::cmpxchg;
@@ -256,9 +252,9 @@ constexpr __ESIMD_NS::native::lsc::atomic_op to_lsc_atomic_op() {
     return __ESIMD_NS::native::lsc::atomic_op::bit_or;
   case __ESIMD_NS::atomic_op::bit_xor:
     return __ESIMD_NS::native::lsc::atomic_op::bit_xor;
-  case __ESIMD_NS::atomic_op::minsint:
+  case __ESIMD_NS::atomic_op::smin:
     return __ESIMD_NS::native::lsc::atomic_op::smin;
-  case __ESIMD_NS::atomic_op::maxsint:
+  case __ESIMD_NS::atomic_op::smax:
     return __ESIMD_NS::native::lsc::atomic_op::smax;
   case __ESIMD_NS::atomic_op::fmax:
     return __ESIMD_NS::native::lsc::atomic_op::fmax;
@@ -291,9 +287,9 @@ constexpr __ESIMD_NS::atomic_op to_atomic_op() {
   case __ESIMD_NS::native::lsc::atomic_op::dec:
     return __ESIMD_NS::atomic_op::dec;
   case __ESIMD_NS::native::lsc::atomic_op::umin:
-    return __ESIMD_NS::atomic_op::min;
+    return __ESIMD_NS::atomic_op::umin;
   case __ESIMD_NS::native::lsc::atomic_op::umax:
-    return __ESIMD_NS::atomic_op::max;
+    return __ESIMD_NS::atomic_op::umax;
   case __ESIMD_NS::native::lsc::atomic_op::cmpxchg:
     return __ESIMD_NS::atomic_op::cmpxchg;
   case __ESIMD_NS::native::lsc::atomic_op::bit_and:
@@ -303,9 +299,9 @@ constexpr __ESIMD_NS::atomic_op to_atomic_op() {
   case __ESIMD_NS::native::lsc::atomic_op::bit_xor:
     return __ESIMD_NS::atomic_op::bit_xor;
   case __ESIMD_NS::native::lsc::atomic_op::smin:
-    return __ESIMD_NS::atomic_op::minsint;
+    return __ESIMD_NS::atomic_op::smin;
   case __ESIMD_NS::native::lsc::atomic_op::smax:
-    return __ESIMD_NS::atomic_op::maxsint;
+    return __ESIMD_NS::atomic_op::smax;
   case __ESIMD_NS::native::lsc::atomic_op::fmax:
     return __ESIMD_NS::atomic_op::fmax;
   case __ESIMD_NS::native::lsc::atomic_op::fmin:

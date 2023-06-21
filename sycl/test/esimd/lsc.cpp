@@ -1,9 +1,13 @@
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx -O0 -fsycl -fno-sycl-esimd-force-stateless-mem -fsycl-device-only -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
-// RUN: FileCheck %s -input-file=%t_esimd_0.ll
+// RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
+
+// RUN: %clangxx -O0 -fsycl -fsycl-esimd-force-stateless-mem -fsycl-device-only -Xclang -emit-llvm %s -o %t
+// RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem -O0 -S %t -o %t.table
+// RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD intrinsic translation.
-// NOTE: must be run in -O0, as optimizer optimizes away some of the code
+// NOTE: must be run in -O0, as optimizer optimizes away some of the code.
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
@@ -40,7 +44,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
   simd<int, VL> data1 = 1;
   lsc_block_store<int, VL>(ptr, data1);
 
-  // CHECK: {{[^)]+}} = call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK: call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   simd<int, VL> data2 = lsc_block_load<int, VL>(ptr);
 
   //CHECK: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
@@ -52,7 +56,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
   // CHECK: call void @llvm.genx.lsc.store.stateless.v4i1.v4i64.v4i32(<4 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   lsc_scatter<int>(ptr, offsets, data1);
 
-  // CHECK: {{[^)]+}} = call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, i32 0)
+  // CHECK: call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, i32 0)
   simd<int, VL> data3 = lsc_gather<int>(ptr, offsets);
 
   // CHECK: call void @llvm.genx.lsc.prefetch.stateless.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, i32 0)
@@ -61,30 +65,36 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
 
   uint32_t surf_offset = 1 * VL * sizeof(int);
 
-  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   lsc_block_store<int, VL>(acc, surf_offset, data1);
 
-  // CHECK: {{[^)]+}} = call <4 x i32> @llvm.genx.lsc.load.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.load.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   simd<int, VL> data4 = lsc_block_load<int, VL>(acc, surf_offset);
 
-  // CHECK: call void @llvm.genx.lsc.prefetch.bti.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.lsc.prefetch.bti.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   lsc_prefetch<int, 4, lsc_data_size::default_size, cache_hint::uncached,
                cache_hint::cached>(acc, surf_offset);
 
-  // CHECK: call void @llvm.genx.lsc.store.bti.v4i1.v4i32.v4i32(<4 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.lsc.store.bti.v4i1.v4i32.v4i32(<4 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call void @llvm.genx.lsc.store.stateless.v4i1.v4i64.v4i32(<4 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   lsc_scatter<int>(acc, offsets, data1);
 
-  // CHECK: {{[^)]+}} = call <4 x i32> @llvm.genx.lsc.load.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.load.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, i32 0)
   simd<int, VL> data5 = lsc_gather<int>(acc, offsets);
 
-  // CHECK: call void @llvm.genx.lsc.prefetch.bti.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.lsc.prefetch.bti.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call void @llvm.genx.lsc.prefetch.stateless.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, i32 0)
   lsc_prefetch<int, 1, lsc_data_size::default_size, cache_hint::uncached,
                cache_hint::cached>(acc, offsets);
 
   // CHECK: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   lsc_slm_block_store<int, VL>(surf_offset, data1);
 
-  // CHECK: {{[^)]+}} = call <4 x i32> @llvm.genx.lsc.load.slm.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, i32 0)
+  // CHECK: call <4 x i32> @llvm.genx.lsc.load.slm.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, i32 0)
   simd<int, VL> data6 = lsc_slm_gather<int>(offsets);
 
   auto add = simd<int, VL>(5);
@@ -116,15 +126,18 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
   auto res_slm_atomic_2 = lsc_slm_atomic_update<atomic_op::cmpxchg, int>(
       offsets, compare, swap, pred);
 
-  // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+  // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
   auto res_surf_atomic_0 =
       lsc_atomic_update<atomic_op::inc, int>(acc, offsets, pred);
 
-  // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+  // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 0, <4 x i32> undef)
   auto res_surf_atomic_1 =
       lsc_atomic_update<atomic_op::add, int>(acc, offsets, add, pred);
 
-  // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> undef)
+  // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> undef)
+  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
   auto res_surf_atomic_2 = lsc_atomic_update<atomic_op::cmpxchg, int>(
       acc, offsets, compare, swap, pred);
 
@@ -133,21 +146,21 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
   constexpr unsigned NumBlocks = 2;
   unsigned data_height, data_width, data_pitch, x, y;
 
-  // CHECK: {{[^)]+}} = call <32 x i32> @llvm.genx.lsc.load2d.stateless.v32i32.v32i1.i64(<32 x i1> {{[^)]+}}, i8 1, i8 1, i8 3, i8 1, i8 2, i16 4, i16 4, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
-  simd<int, Width *Height *NumBlocks> data7 =
-      lsc_load2d<int, Width, Height, NumBlocks, false, false,
-                 cache_hint::uncached, cache_hint::uncached>(
+  // CHECK: call <32 x i32> @llvm.genx.lsc.load2d.stateless.v32i32.v32i1.i64(<32 x i1> {{[^)]+}}, i8 1, i8 1, i8 3, i8 1, i8 2, i16 4, i16 4, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
+  simd<int, Width * Height * NumBlocks> data7 =
+      lsc_load_2d<int, Width, Height, NumBlocks, false, false,
+                  cache_hint::uncached, cache_hint::uncached>(
           ptr, data_width, data_height, data_pitch, x, y);
 
   simd<int, Width *Height * 1> data8 = 7;
   // CHECK: call void @llvm.genx.lsc.store2d.stateless.v16i1.i64.v16i32(<16 x i1> {{[^)]+}}, i8 1, i8 1, i8 3, i8 1, i8 1, i16 4, i16 4, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x i32> {{[^)]+}})
-  lsc_store2d<int, Width, Height, cache_hint::uncached, cache_hint::uncached>(
+  lsc_store_2d<int, Width, Height, cache_hint::uncached, cache_hint::uncached>(
       ptr, data_width, data_height, data_pitch, x, y, data8);
 
   // CHECK: call void @llvm.genx.lsc.prefetch2d.stateless.v32i1.i64(<32 x i1> {{[^)]+}}, i8 1, i8 2, i8 3, i8 1, i8 2, i16 4, i16 4, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
-  lsc_prefetch2d<int, Width, Height, NumBlocks, cache_hint::uncached,
-                 cache_hint::cached>(ptr, data_width, data_height, data_pitch,
-                                     x, y);
+  lsc_prefetch_2d<int, Width, Height, NumBlocks, cache_hint::uncached,
+                  cache_hint::cached>(ptr, data_width, data_height, data_pitch,
+                                      x, y);
 
   lsc_fence<lsc_memory_kind::shared_local, lsc_fence_op::none, lsc_scope::group,
             16>();
