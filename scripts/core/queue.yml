@@ -68,6 +68,12 @@ etors:
     - name: SUBMISSION_IMMEDIATE
       value: "$X_BIT(8)"
       desc: "Hint: enqueue and submit immediately. No change in queue semantics. Implementation chooses submission mode."
+    - name: USE_DEFAULT_STREAM
+      desc: "Use the default stream. Only meaningful for CUDA. Other platforms may ignore this flag."
+      value: "$X_BIT(9)"
+    - name: SYNC_WITH_DEFAULT_STREAM
+      desc: "Synchronize with the default stream. Only meaningful for CUDA. Other platforms may ignore this flag."
+      value: "$X_BIT(10)"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a command queue"

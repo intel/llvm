@@ -1633,6 +1633,10 @@ class ur_queue_flags_v(IntEnum):
                                                     ## semantics. Implementation chooses submission mode.
     SUBMISSION_IMMEDIATE = UR_BIT(8)                ## Hint: enqueue and submit immediately. No change in queue semantics.
                                                     ## Implementation chooses submission mode.
+    USE_DEFAULT_STREAM = UR_BIT(9)                  ## Use the default stream. Only meaningful for CUDA. Other platforms may
+                                                    ## ignore this flag.
+    SYNC_WITH_DEFAULT_STREAM = UR_BIT(10)           ## Synchronize with the default stream. Only meaningful for CUDA. Other
+                                                    ## platforms may ignore this flag.
 
 class ur_queue_flags_t(c_int):
     def __str__(self):

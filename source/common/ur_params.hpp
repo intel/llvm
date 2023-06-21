@@ -7764,6 +7764,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value) {
     case UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE:
         os << "UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE";
         break;
+
+    case UR_QUEUE_FLAG_USE_DEFAULT_STREAM:
+        os << "UR_QUEUE_FLAG_USE_DEFAULT_STREAM";
+        break;
+
+    case UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM:
+        os << "UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -7873,6 +7881,28 @@ inline void serializeFlag<ur_queue_flag_t>(std::ostream &os, uint32_t flag) {
             first = false;
         }
         os << UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+    }
+
+    if ((val & UR_QUEUE_FLAG_USE_DEFAULT_STREAM) ==
+        (uint32_t)UR_QUEUE_FLAG_USE_DEFAULT_STREAM) {
+        val ^= (uint32_t)UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
+    }
+
+    if ((val & UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM) ==
+        (uint32_t)UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM) {
+        val ^= (uint32_t)UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
     }
     if (val != 0) {
         std::bitset<32> bits(val);
