@@ -13,7 +13,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 device getDeviceFromHandler(handler &CommandGroupHandlerRef) {
-  return CommandGroupHandlerRef.MQueue->get_device();
+    return CommandGroupHandlerRef.MQueue->get_device();
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
