@@ -18,9 +18,7 @@
 #include <string>
 
 // Default signature enables the passing of user code location information to
-// public methods as a default argument. If the end-user wants to disable the
-// code location information, they must compile the code with
-// -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
+// public methods as a default argument.
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -95,31 +93,6 @@ private:
   unsigned long MLineNo;
   unsigned long MColumnNo;
 };
-
-// The C++ FE may instrument user calls with code location metadata.
-// If it does then that will appear as an extra last argument.
-// Having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-// Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
-// _CODELOCARG(&CodeLoc).
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define _CODELOCONLYPARAM(a)                                                   \
-  const ::sycl::detail::code_location a =                                      \
-      ::sycl::detail::code_location::current()
-#define _CODELOCPARAM(a)                                                       \
-  , const ::sycl::detail::code_location a =                                    \
-        ::sycl::detail::code_location::current()
-#define _CODELOCPARAMDEF(a) , const ::sycl::detail::code_location a
-
-#define _CODELOCARG(a)
-#define _CODELOCFW(a) , a
-#else
-#define _CODELOCONLYPARAM(a)
-#define _CODELOCPARAM(a)
-
-#define _CODELOCARG(a) const ::sycl::detail::code_location a = {}
-#define _CODELOCFW(a)
-#endif
 
 /// @brief Data type that manages the code_location information in TLS
 /// @details As new SYCL features are added, they all enable the propagation of

@@ -30,7 +30,7 @@ sycl/ @intel/llvm-reviewers-runtime
 # Documentation
 sycl/ReleaseNotes.md @intel/dpcpp-doc-reviewers @tfzhu
 sycl/doc/ @intel/dpcpp-doc-reviewers
-sycl/doc/design/ @intel/dpcpp-specification-reviewers
+sycl/doc/design/ @intel/llvm-reviewers-runtime
 sycl/doc/design/spirv-extensions/ @intel/dpcpp-spirv-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
@@ -44,7 +44,7 @@ sycl/plugins/unified_runtime/ @intel/dpcpp-l0-pi-reviewers
 sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 
 # CUDA plugin
-sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
+sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
@@ -74,7 +74,7 @@ clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 ESIMD/ @intel/dpcpp-esimd-reviewers
 esimd/ @intel/dpcpp-esimd-reviewers
 sycl/include/sycl/ext/intel/esimd.hpp @intel/dpcpp-esimd-reviewers
-sycl/doc/extensions/experimental/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
+sycl/doc/extensions/**/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
 llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
 
 # invoke_simd
