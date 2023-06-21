@@ -1968,7 +1968,12 @@ llvm::Function *CodeGenFunction::generateBuiltinOSLogHelperFunction(
 
     Address Arg = GetAddrOfLocalVar(Args[I]);
     Address Addr = Builder.CreateConstByteGEP(BufAddr, Offset, "argData");
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Addr = Addr.withElementType(Arg.getElementType());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    Addr =
+        Builder.CreateElementBitCast(Addr, Arg.getElementType(), "argDataCast");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Builder.CreateStore(Builder.CreateLoad(Arg), Addr);
     Offset += Size;
     ++I;

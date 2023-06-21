@@ -2231,7 +2231,12 @@ static void emitNonZeroVLAInit(CodeGenFunction &CGF, QualType baseType,
   llvm::Value *baseSizeInChars
     = llvm::ConstantInt::get(CGF.IntPtrTy, baseSize.getQuantity());
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Address begin = dest.withElementType(CGF.Int8Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  Address begin =
+    Builder.CreateElementBitCast(dest, CGF.Int8Ty, "vla.begin");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *end = Builder.CreateInBoundsGEP(
       begin.getElementType(), begin.getPointer(), sizeInChars, "vla.end");
 
@@ -2276,7 +2281,12 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
   }
 
   if (DestPtr.getElementType() != Int8Ty)
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     DestPtr = DestPtr.withElementType(Int8Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    // Cast the dest ptr to the appropriate i8 pointer type.
+    DestPtr = Builder.CreateElementBitCast(DestPtr, Int8Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Get size and alignment info for this aggregate.
   CharUnits size = getContext().getTypeSizeInChars(Ty);
@@ -2436,7 +2446,11 @@ llvm::Value *CodeGenFunction::emitArrayLength(const ArrayType *origArrayType,
     }
 
     llvm::Type *baseType = ConvertType(eltType);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     addr = addr.withElementType(baseType);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    addr = Builder.CreateElementBitCast(addr, baseType, "array.begin");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   } else {
     // Create the actual GEP.
     addr = Address(Builder.CreateInBoundsGEP(

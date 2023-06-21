@@ -401,7 +401,11 @@ void CodeGenFunction::EmitAnyExprToExn(const Expr *e, Address addr) {
   // __cxa_allocate_exception returns a void*;  we need to cast this
   // to the appropriate type for the object.
   llvm::Type *ty = ConvertTypeForMem(e->getType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Address typedAddr = addr.withElementType(ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  Address typedAddr = Builder.CreateElementBitCast(addr, ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // FIXME: this isn't quite right!  If there's a final unelided call
   // to a copy constructor, then according to [except.terminate]p1 we

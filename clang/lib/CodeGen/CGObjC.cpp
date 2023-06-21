@@ -1190,7 +1190,11 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
 
     // Perform an atomic load.  This does not impose ordering constraints.
     Address ivarAddr = LV.getAddress(*this);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     ivarAddr = ivarAddr.withElementType(bitcastType);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    ivarAddr = Builder.CreateElementBitCast(ivarAddr, bitcastType);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::LoadInst *load = Builder.CreateLoad(ivarAddr, "load");
     load->setAtomic(llvm::AtomicOrdering::Unordered);
 
@@ -1204,7 +1208,12 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
       bitcastType = llvm::Type::getIntNTy(getLLVMContext(), retTySize);
       ivarVal = Builder.CreateTrunc(load, bitcastType);
     }
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Builder.CreateStore(ivarVal, ReturnValue.withElementType(bitcastType));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    Builder.CreateStore(ivarVal,
+                        Builder.CreateElementBitCast(ReturnValue, bitcastType));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     // Make sure we don't do an autorelease.
     AutoreleaseResult = false;
@@ -1484,13 +1493,25 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
 
     // Currently, all atomic accesses have to be through integer
     // types, so there's no point in trying to pick a prettier type.
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *castType = llvm::Type::getIntNTy(
         getLLVMContext(), getContext().toBits(strategy.getIvarSize()));
 
-    // Cast both arguments to the chosen operation type.
+     // Cast both arguments to the chosen operation type.
     argAddr = argAddr.withElementType(castType);
     ivarAddr = ivarAddr.withElementType(castType);
 
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *bitcastType =
+      llvm::Type::getIntNTy(getLLVMContext(),
+                            getContext().toBits(strategy.getIvarSize()));
+
+    // Cast both arguments to the chosen operation type.
+    argAddr = Builder.CreateElementBitCast(argAddr, bitcastType);
+    ivarAddr = Builder.CreateElementBitCast(ivarAddr, bitcastType);
+
+    // This bitcast load is likely to cause some nasty IR.
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Value *load = Builder.CreateLoad(argAddr);
 
     // Perform an atomic store.  There are no memory ordering requirements.
@@ -2202,7 +2223,22 @@ static llvm::Value *emitARCLoadOperation(CodeGenFunction &CGF, Address addr,
   if (!fn)
     fn = getARCIntrinsic(IntID, CGF.CGM);
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   return CGF.EmitNounwindRuntimeCall(fn, addr.getPointer());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  // Cast the argument to 'id*'.
+  llvm::Type *origType = addr.getElementType();
+  addr = CGF.Builder.CreateElementBitCast(addr, CGF.Int8PtrTy);
+
+  // Call the function.
+  llvm::Value *result = CGF.EmitNounwindRuntimeCall(fn, addr.getPointer());
+
+  // Cast the result back to a dereference of the original type.
+  if (origType != CGF.Int8PtrTy)
+    result = CGF.Builder.CreateBitCast(result, origType);
+
+  return result;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 /// Perform an operation having the following signature:
@@ -2646,6 +2682,11 @@ void CodeGenFunction::EmitARCDestroyWeak(Address addr) {
   llvm::Function *&fn = CGM.getObjCEntrypoints().objc_destroyWeak;
   if (!fn)
     fn = getARCIntrinsic(llvm::Intrinsic::objc_destroyWeak, CGM);
+
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+  // Cast the argument to 'id*'.
+  addr = Builder.CreateElementBitCast(addr, Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   EmitNounwindRuntimeCall(fn, addr.getPointer());
 }

@@ -315,7 +315,11 @@ Address SparcV9ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
   case ABIArgInfo::Indirect:
   case ABIArgInfo::IndirectAliased:
     Stride = SlotSize;
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     ArgAddr = Addr.withElementType(ArgPtrTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    ArgAddr = Builder.CreateElementBitCast(Addr, ArgPtrTy, "indirect");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     ArgAddr = Address(Builder.CreateLoad(ArgAddr, "indirect.arg"), ArgTy,
                       TypeInfo.Align);
     break;
@@ -328,7 +332,11 @@ Address SparcV9ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
   Address NextPtr = Builder.CreateConstInBoundsByteGEP(Addr, Stride, "ap.next");
   Builder.CreateStore(NextPtr.getPointer(), VAListAddr);
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   return ArgAddr.withElementType(ArgTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  return Builder.CreateElementBitCast(ArgAddr, ArgTy, "arg.addr");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 void SparcV9ABIInfo::computeInfo(CGFunctionInfo &FI) const {

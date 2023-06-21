@@ -1758,7 +1758,12 @@ llvm::Value *CodeGenFunction::EmitLoadOfScalar(Address Addr, bool Volatile,
 
       llvm::VectorType *vec4Ty =
           llvm::FixedVectorType::get(VTy->getElementType(), 4);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Address Cast = Addr.withElementType(vec4Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+      // Bitcast to vec4 type.
+      Address Cast = Builder.CreateElementBitCast(Addr, vec4Ty, "castToVec4");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       // Now load value.
       llvm::Value *V = Builder.CreateLoad(Cast, Volatile, "loadVec4");
 
@@ -1898,7 +1903,11 @@ void CodeGenFunction::EmitStoreOfScalar(llvm::Value *Value, Address Addr,
         SrcTy = llvm::FixedVectorType::get(VecTy->getElementType(), 4);
       }
       if (Addr.getElementType() != SrcTy) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
         Addr = Addr.withElementType(SrcTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+        Addr = Builder.CreateElementBitCast(Addr, SrcTy, "storetmp");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       }
     }
   }
@@ -2080,7 +2089,13 @@ Address CodeGenFunction::EmitExtVectorElementLValue(LValue LV) {
   QualType EQT = LV.getType()->castAs<VectorType>()->getElementType();
   llvm::Type *VectorElementTy = CGM.getTypes().ConvertType(EQT);
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Address CastToPointerElement = VectorAddress.withElementType(VectorElementTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  Address CastToPointerElement =
+    Builder.CreateElementBitCast(VectorAddress, VectorElementTy,
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+                                 "conv.ptr.element");
 
   const llvm::Constant *Elts = LV.getExtVectorElts();
   unsigned ix = getAccessedFieldNo(0, Elts);
@@ -4534,7 +4549,12 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
     }
 
     if (FieldType->isReferenceType())
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       addr = addr.withElementType(CGM.getTypes().ConvertTypeForMem(FieldType));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+      addr = Builder.CreateElementBitCast(
+          addr, CGM.getTypes().ConvertTypeForMem(FieldType), field->getName());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   } else {
     if (!IsInPreservedAIRegion &&
         (!getDebugInfo() || !rec->hasAttr<BPFPreserveAccessIndexAttr>()))
@@ -4559,8 +4579,16 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
   }
 
   // Make sure that the address is pointing to the right type.  This is critical
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   // for both unions and structs.
   addr = addr.withElementType(CGM.getTypes().ConvertTypeForMem(FieldType));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  // for both unions and structs.  A union needs a bitcast, a struct element
+  // will need a bitcast if the LLVM type laid out doesn't match the desired
+  // type.
+  addr = Builder.CreateElementBitCast(
+      addr, CGM.getTypes().ConvertTypeForMem(FieldType), field->getName());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   if (field->hasAttr<AnnotateAttr>())
     addr = EmitFieldAnnotations(field, addr);
@@ -4598,7 +4626,11 @@ CodeGenFunction::EmitLValueForFieldInitialization(LValue Base,
 
   // Make sure that the address is pointing to the right type.
   llvm::Type *llvmType = ConvertTypeForMem(FieldType);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   V = V.withElementType(llvmType);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  V = Builder.CreateElementBitCast(V, llvmType, Field->getName());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // TODO: Generate TBAA information that describes this access as a structure
   // member access and not just an access to an object of the field's type. This
