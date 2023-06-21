@@ -740,17 +740,6 @@ gather_rgba(const T *p, Toffset offset, simd_mask<N> mask = 1) {
   return gather_rgba<RGBAMask, T, N>(p, simd<Toffset, N>(offset), mask);
 }
 
-template <typename T, int N, rgba_channel_mask RGBAMask>
-__SYCL_DEPRECATED("use gather_rgba<rgba_channel_mask>()")
-__ESIMD_API std::enable_if_t<
-    (N == 8 || N == 16 || N == 32) && sizeof(T) == 4,
-    simd<T, N * get_num_channels_enabled(
-                    RGBAMask)>> gather_rgba(const T *p,
-                                            simd<uint32_t, N> offsets,
-                                            simd_mask<N> mask = 1) {
-  return gather_rgba<RGBAMask>(p, offsets, mask);
-}
-
 namespace detail {
 template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
   using CM = rgba_channel_mask;
@@ -1015,18 +1004,18 @@ constexpr void check_atomic() {
   }
   if constexpr (Op == __ESIMD_NS::atomic_op::add ||
                 Op == __ESIMD_NS::atomic_op::sub ||
-                Op == __ESIMD_NS::atomic_op::min ||
-                Op == __ESIMD_NS::atomic_op::max ||
+                Op == __ESIMD_NS::atomic_op::umin ||
+                Op == __ESIMD_NS::atomic_op::umax ||
                 Op == __ESIMD_NS::atomic_op::bit_and ||
                 Op == __ESIMD_NS::atomic_op::bit_or ||
                 Op == __ESIMD_NS::atomic_op::bit_xor ||
-                Op == __ESIMD_NS::atomic_op::minsint ||
-                Op == __ESIMD_NS::atomic_op::maxsint) {
+                Op == __ESIMD_NS::atomic_op::smin ||
+                Op == __ESIMD_NS::atomic_op::smax) {
     static_assert(IsInt2BytePlus, "Integral 16-bit or wider type is expected");
-    constexpr bool IsSignedMinmax = (Op == __ESIMD_NS::atomic_op::minsint) ||
-                                    (Op == __ESIMD_NS::atomic_op::maxsint);
-    constexpr bool IsUnsignedMinmax = (Op == __ESIMD_NS::atomic_op::min) ||
-                                      (Op == __ESIMD_NS::atomic_op::max);
+    constexpr bool IsSignedMinmax = (Op == __ESIMD_NS::atomic_op::smin) ||
+                                    (Op == __ESIMD_NS::atomic_op::smax);
+    constexpr bool IsUnsignedMinmax = (Op == __ESIMD_NS::atomic_op::umin) ||
+                                      (Op == __ESIMD_NS::atomic_op::umax);
 
     if constexpr (IsSignedMinmax || IsUnsignedMinmax) {
       constexpr bool SignOK = std::is_signed_v<T> == IsSignedMinmax;

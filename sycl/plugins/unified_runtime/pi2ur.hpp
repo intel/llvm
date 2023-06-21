@@ -48,6 +48,8 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_BUILD_PROGRAM_FAILURE;
   case UR_RESULT_ERROR_UNINITIALIZED:
     return PI_ERROR_UNINITIALIZED;
+  case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   default:
     return PI_ERROR_UNKNOWN;
   };
@@ -616,11 +618,6 @@ inline pi_result piextPluginGetOpaqueData(void *opaque_data_param,
   return PI_ERROR_UNKNOWN;
 }
 
-// Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return '-ze-opt-disable' for frontend_option = -O0.
-// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
-// Return '-ze-opt-level=2' for frontend_option = -O3.
 inline pi_result piPluginGetBackendOption(pi_platform Platform,
                                           const char *FrontendOption,
                                           const char **PlatformOption) {
@@ -1015,6 +1012,10 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     break;
   case PI_DEVICE_INFO_BACKEND_VERSION: {
     InfoType = UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION;
+    break;
+  }
+  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    InfoType = UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
     break;
   }
   default:
@@ -1607,17 +1608,20 @@ inline pi_result piProgramCreateWithBinary(
       reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(DeviceList[0]);
 
-  std::unique_ptr<ur_program_metadata_t[]> pMetadatas(
-      new ur_program_metadata_t[NumMetadataEntries]);
-  for (unsigned i = 0; i < NumMetadataEntries; i++) {
-    HANDLE_ERRORS(mapPIMetadataToUR(&Metadata[i], &pMetadatas[i]));
-  }
-
-  ur_program_properties_t Properties;
+  ur_program_properties_t Properties = {};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
   Properties.pNext = nullptr;
   Properties.count = NumMetadataEntries;
-  Properties.pMetadatas = pMetadatas.get();
+
+  std::unique_ptr<ur_program_metadata_t[]> pMetadatas;
+  if (NumMetadataEntries) {
+    pMetadatas.reset(new ur_program_metadata_t[NumMetadataEntries]);
+    for (unsigned i = 0; i < NumMetadataEntries; i++) {
+      HANDLE_ERRORS(mapPIMetadataToUR(&Metadata[i], &pMetadatas[i]));
+    }
+
+    Properties.pMetadatas = pMetadatas.get();
+  }
 
   ur_program_handle_t *UrProgram =
       reinterpret_cast<ur_program_handle_t *>(Program);
@@ -1933,11 +1937,11 @@ inline pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
   return PI_SUCCESS;
 }
 
-inline pi_result piKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
-                                       size_t arg_size, const void *arg_value) {
-  (void)arg_size;
-  auto hKernel = reinterpret_cast<ur_kernel_handle_t>(kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(hKernel, arg_index, arg_value));
+inline pi_result piKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
+                                       size_t ArgSize, const void *ArgValue) {
+  std::ignore = ArgSize;
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, ArgValue));
 
   return PI_SUCCESS;
 }
@@ -2802,8 +2806,6 @@ inline pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_mem_handle_t *UrMem = reinterpret_cast<ur_mem_handle_t *>(Mem);
-  // TODO: Pass OwnNativeHandle to the output parameter
-  // while we get it in interface
   ur_mem_native_properties_t Properties{};
   Properties.isNativeHandleOwned = OwnNativeHandle;
   HANDLE_ERRORS(urMemBufferCreateWithNativeHandle(UrNativeMem, UrContext,

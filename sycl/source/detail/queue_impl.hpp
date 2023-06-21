@@ -41,6 +41,13 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+
+// forward declaration
+
+namespace ext::oneapi::experimental::detail {
+class graph_impl;
+}
+
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
@@ -645,6 +652,16 @@ public:
 
   bool isProfilingLimited() { return MLimitedProfiling; }
 
+  void setCommandGraph(
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+    MGraph = Graph;
+  }
+
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  getCommandGraph() const {
+    return MGraph;
+  }
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -819,6 +836,13 @@ protected:
   // able to discard events, because the final decision is made right before the
   // operation itself.
   const bool MHasDiscardEventsSupport;
+
+  // Command graph which is associated with this queue for the purposes of
+  // recording commands to it.
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph =
+      nullptr;
+
+  friend class sycl::ext::oneapi::experimental::detail::node_impl;
 };
 
 } // namespace detail
