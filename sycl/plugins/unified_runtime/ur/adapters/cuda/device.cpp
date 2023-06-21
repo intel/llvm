@@ -694,7 +694,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     return ReturnValue(0u);
   }
-  case UR_DEVICE_INFO_PARTITION_PROPERTIES: {
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
     return ReturnValue(static_cast<ur_device_partition_t>(0u));
   }
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
@@ -1023,7 +1023,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urDevicePartition(ur_device_handle_t, const ur_device_partition_property_t *,
+urDevicePartition(ur_device_handle_t, const ur_device_partition_properties_t *,
                   uint32_t, ur_device_handle_t *, uint32_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

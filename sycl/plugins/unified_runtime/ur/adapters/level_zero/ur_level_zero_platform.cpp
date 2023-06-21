@@ -341,13 +341,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urGetLastResult(
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetLastError(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance
-    const char **Message ///< [out] pointer to a string containing adapter
-                         ///< specific result in string representation.
+    const char **Message, ///< [out] pointer to a C string where the adapter
+                          ///< specific error message will be stored.
+    int32_t *Error ///< [out] pointer to an integer where the adapter specific
+                   ///< error code will be stored.
 ) {
   std::ignore = Platform;
   std::ignore = Message;
+  std::ignore = Error;
   urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
