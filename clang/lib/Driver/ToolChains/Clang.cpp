@@ -1343,9 +1343,15 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
     if (YcArg || YuArg) {
       StringRef ThroughHeader = YcArg ? YcArg->getValue() : YuArg->getValue();
-      // Enable PCH inclusion when performing host compilation with -fsycl.
-      if (!isa<PrecompileJobAction>(JA) && JA.isOffloading(Action::OFK_SYCL) &&
-          !JA.isDeviceOffloading(Action::OFK_SYCL)) {
+      // If PCH file is available, include it while performing
+      // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
+      // as well as in non-sycl mode.
+      bool NonSYCLCompilation = !JA.isOffloading(Action::OFK_SYCL);
+      bool SYCLHostCompilation = JA.isOffloading(Action::OFK_SYCL) &&
+                                 !JA.isDeviceOffloading(Action::OFK_SYCL);
+
+      if (!isa<PrecompileJobAction>(JA) &&
+          (NonSYCLCompilation || SYCLHostCompilation)) {
         CmdArgs.push_back("-include-pch");
         CmdArgs.push_back(Args.MakeArgString(D.GetClPchPath(
             C, !ThroughHeader.empty()
@@ -1371,14 +1377,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
          D.getProbePrecompiled()) ||
         A->getOption().matches(options::OPT_include_pch)) {
 
-      // Enable PCH inclusion when performing host compilation with -fsycl.
-      if (JA.isOffloading(Action::OFK_SYCL) &&
-          !JA.isDeviceOffloading(Action::OFK_SYCL))
-        ;
-      // Disable PCH inclusion when performing device compilation with -fsycl.
-      else if (JA.isDeviceOffloading(Action::OFK_SYCL) &&
-               !Args.hasArg(options::OPT_fno_sycl_use_footer))
-        break;
       // Handling of gcc-style gch precompiled headers.
       bool IsFirstImplicitInclude = !RenderedImplicitInclude;
       RenderedImplicitInclude = true;
@@ -1398,8 +1396,15 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
           FoundPCH = true;
         }
       }
+      // If PCH file is available, include it while performing
+      // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
+      // as well as in non-sycl mode.
+      bool SYCLHostComp = JA.isOffloading(Action::OFK_SYCL) &&
+                          !JA.isDeviceOffloading(Action::OFK_SYCL);
 
-      if (FoundPCH) {
+      bool NonSYCLComp = !JA.isOffloading(Action::OFK_SYCL);
+
+      if (FoundPCH && (SYCLHostComp || NonSYCLComp)) {
         if (IsFirstImplicitInclude) {
           A->claim();
           CmdArgs.push_back("-include-pch");
@@ -1411,6 +1416,13 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                                        << A->getAsString(Args);
         }
       }
+      // No PCH file, but we still want to include the header file
+      // (-include dummy.h) in device compilation mode.
+      else if (JA.isDeviceOffloading(Action::OFK_SYCL) &&
+               A->getOption().matches(options::OPT_include_pch)) {
+        continue;
+      }
+
     } else if (A->getOption().matches(options::OPT_isystem_after)) {
       // Handling of paths which must come late.  These entries are handled by
       // the toolchain itself after the resource dir is inserted in the right
