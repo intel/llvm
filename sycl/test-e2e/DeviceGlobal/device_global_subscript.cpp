@@ -4,9 +4,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_source -DUSE_DEVICE_IMAGE_SCOPE -o %t_dev_img_scope.out
 // RUN: %{run} %t_dev_img_scope.out
 //
-// CPU and accelerators are not currently guaranteed to support the required
-// extensions they are disabled until they are.
-// UNSUPPORTED: cpu, accelerator
+// The HIP backend does not currently support device_global backend calls.
+// UNSUPPORTED: hip
 //
 // Tests operator[] on device_global.
 // NOTE: USE_DEVICE_IMAGE_SCOPE needs both kernels to be in the same image so
