@@ -20,6 +20,13 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace detail {
+template <class T> struct is_fixed_size_group : std::false_type {};
+
+template <class T>
+inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
+} // namespace detail
+
 template <int Dimensions> class group;
 namespace ext::oneapi {
 struct sub_group;
