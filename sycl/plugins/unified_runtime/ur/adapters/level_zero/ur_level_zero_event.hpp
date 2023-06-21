@@ -111,6 +111,15 @@ struct _ur_ze_event_list_t {
     }
     return *this;
   }
+
+  // This function allows to merge two _ur_ze_event_lists
+  // The ur_ze_event_list "other" is added to the caller list.
+  // Note that new containers are allocated to contains the additional elements.
+  // Elements are moved to the new containers.
+  // other list can not be used after the call to this function.
+  ur_result_t insert(_ur_ze_event_list_t &Other);
+
+  bool isEmpty() const { return (this->ZeEventList == nullptr); }
 };
 
 void printZeEventList(const _ur_ze_event_list_t &PiZeEventList);

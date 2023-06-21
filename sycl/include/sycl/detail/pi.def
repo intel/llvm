@@ -141,6 +141,16 @@ _PI_API(piextKernelSetArgSampler)
 
 _PI_API(piextPluginGetOpaqueData)
 
+/// command-buffer Extension
+_PI_API(piextCommandBufferCreate)
+_PI_API(piextCommandBufferRetain)
+_PI_API(piextCommandBufferRelease)
+_PI_API(piextCommandBufferFinalize)
+_PI_API(piextCommandBufferNDRangeKernel)
+_PI_API(piextCommandBufferMemcpyUSM)
+_PI_API(piextCommandBufferMemBufferCopy)
+_PI_API(piextCommandBufferMemBufferCopyRect)
+_PI_API(piextEnqueueCommandBuffer)
 _PI_API(piPluginGetLastError)
 
 _PI_API(piTearDown)

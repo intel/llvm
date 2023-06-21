@@ -5575,6 +5575,79 @@ pi_result hip_piextEnqueueWriteHostPipe(
   sycl::detail::pi::die("hip_piextEnqueueWriteHostPipe not implemented");
   return {};
 }
+pi_result
+hip_piextCommandBufferCreate(pi_context context, pi_device device,
+                             const pi_ext_command_buffer_desc *desc,
+                             pi_ext_command_buffer *ret_command_buffer) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferFinalize(pi_ext_command_buffer command_buffer) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result
+hip_piextCommandBufferMemcpyUSM(pi_ext_command_buffer command_buffer,
+                                void *dst_ptr, const void *src_ptr, size_t size,
+                                pi_uint32 num_sync_points_in_wait_list,
+                                const pi_ext_sync_point *sync_point_wait_list,
+                                pi_ext_sync_point *sync_point) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    size_t src_offset, size_t dst_offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
+    pi_buff_rect_region region, size_t src_row_pitch, size_t src_slice_pitch,
+    size_t dst_row_pitch, size_t dst_slice_pitch,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
+                                        pi_queue queue,
+                                        pi_uint32 num_events_in_wait_list,
+                                        const pi_event *event_wait_list,
+                                        pi_event *event) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
 
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // Windows: dynamically loaded plugins might have been unloaded already
@@ -5765,6 +5838,17 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Host Pipe
   _PI_CL(piextEnqueueReadHostPipe, hip_piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, hip_piextEnqueueWriteHostPipe)
+
+  // command-buffer
+  _PI_CL(piextCommandBufferCreate, hip_piextCommandBufferCreate)
+  _PI_CL(piextCommandBufferRetain, hip_piextCommandBufferRetain)
+  _PI_CL(piextCommandBufferRelease, hip_piextCommandBufferRelease)
+  _PI_CL(piextCommandBufferNDRangeKernel, hip_piextCommandBufferNDRangeKernel)
+  _PI_CL(piextCommandBufferMemcpyUSM, hip_piextCommandBufferMemcpyUSM)
+  _PI_CL(piextCommandBufferMemBufferCopy, hip_piextCommandBufferMemBufferCopy)
+  _PI_CL(piextCommandBufferMemBufferCopyRect,
+         hip_piextCommandBufferMemBufferCopyRect)
+  _PI_CL(piextEnqueueCommandBuffer, hip_piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
