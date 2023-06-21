@@ -144,9 +144,9 @@ void DynamicTableEmitter::emitDynamicTable(const DynamicTable &Table,
       bool IsKey = (Idx == 0);
       std::string val = primaryRepresentation(Table.Locs[0], Field,
                                               Entry->getValueInit(Field.Name));
-      if (!IsKey)
+      if (!IsKey) {
         OS << TargetInfoElemSeparator << val;
-      else {
+      } else {
         // Emit key and open the TargetInfo object.
         OS << MapElemSeparator << val << MapElemSeparator << "{";
       }
