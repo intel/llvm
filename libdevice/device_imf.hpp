@@ -488,6 +488,77 @@ static inline double __trunc(double x) {
 #endif
 }
 
+static inline float __fast_exp10f(float x) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __builtin_expf(__builtin_logf(10.f) * x);
+#elif defined(__SPIR__)
+  return __spirv_ocl_native_exp10(x);
+#endif
+}
+
+static inline float __fast_expf(float x) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __builtin_expf(x);
+#elif defined(__SPIR__)
+  return __spirv_ocl_native_exp(x);
+#endif
+}
+
+static inline float __fast_logf(float x) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __builtin_logf(x);
+#elif defined(__SPIR__)
+  return __spirv_ocl_native_log(x);
+#endif
+}
+
+static inline float __fast_log2f(float x) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __builtin_log2f(x);
+#elif defined(__SPIR__)
+  return __spirv_ocl_native_log2(x);
+#endif
+}
+
+static inline float __fast_log10f(float x) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __builtin_log10f(x);
+#elif defined(__SPIR__)
+  return __spirv_ocl_native_log10(x);
+#endif
+}
+
+static inline float __fast_powf(float x, float y) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __builtin_powf(x, y);
+#elif defined(__SPIR__)
+  return __spirv_ocl_native_powr(x, y);
+#endif
+}
+
+static inline float __fast_fdividef(float x, float y) {
+  unsigned ybits = __builtin_bit_cast(unsigned, y);
+  unsigned xbits = __builtin_bit_cast(unsigned, x);
+  ybits &= 0x7FFF'FFFF;
+  xbits &= 0x7FFF'FFFF;
+  unsigned yexp_bits = (ybits >> 23) & 0xFF;
+  unsigned xexp_bits = (xbits >> 23) & 0xFF;
+  unsigned yman_bits = ybits & 0x7F'FFFF;
+  unsigned xman_bits = xbits & 0x7F'FFFF;
+  if ((yexp_bits == 0xFD && yman_bits != 0) || (yexp_bits == 0xFE)) {
+    if ((xexp_bits = 0xFF) && (xman_bits == 0))
+      return __builtin_bit_cast(float, 0x7FC00000);
+    else
+      return 0;
+  }
+
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return x / y;
+#elif defined(__SPIR__)
+  return __spirv_ocl_native_divide(x, y);
+#endif
+}
+
 static inline _iml_half __trunc(_iml_half x) {
   _iml_half_internal x_i = x.get_internal();
 #if defined(__LIBDEVICE_HOST_IMPL__)
