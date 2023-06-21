@@ -347,6 +347,12 @@ public:
     copy_from(acc, offset, Flags{});
   }
 
+  /// Copy assignment operator.
+  Derived &operator=(const simd_obj_impl &other) noexcept {
+    set(other.data());
+    return cast_this_to_derived();
+  }
+
   /// Type conversion into a scalar:
   /// <code><simd_obj_impl<RawTy, 1, simd<Ty,1>></code> to \c Ty.
   template <typename T = simd_obj_impl,
