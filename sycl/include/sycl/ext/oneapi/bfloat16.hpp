@@ -123,7 +123,7 @@ public:
 #else
     return -to_float(lhs.value);
 #endif
-}
+  }
 
 // Increment and decrement operators overloading
 #define OP(op)                                                                 \
