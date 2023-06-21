@@ -385,6 +385,7 @@ event handler::finalize() {
       GraphImpl = MGraph;
       CommandGroup.reset(
           new detail::CG(detail::CG::None, std::move(CGData), MCodeLoc));
+      MGraphNodeCG = std::move(CommandGroup);
     } else if (auto QueueGraph = MQueue->getCommandGraph(); QueueGraph) {
       GraphImpl = QueueGraph;
       auto EventImpl = std::make_shared<detail::event_impl>();
