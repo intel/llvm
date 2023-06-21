@@ -13,6 +13,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 device getDeviceFromHandler(handler &CommandGroupHandlerRef) {
+  std::ignore = CommandGroupHandlerRef;
   return CommandGroupHandlerRef.MQueue->get_device();
 }
 
