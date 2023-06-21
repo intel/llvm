@@ -23,9 +23,6 @@
 
 using namespace sycl;
 
-template <typename T>
-using Acc = accessor<T, 1, access_mode::read_write, access::target::device>;
-
 template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
   constexpr size_t size = VL;
   constexpr int MASKED_LANE = VL - 1;
@@ -55,18 +52,18 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
 
     q.submit([&](handler &cgh) {
        auto acc = buf.template get_access<access::mode::read_write>(cgh);
-       auto LocalAcc = local_accessor<T, 1>(size, cgh);
+       auto LocalAcc = local_accessor<T, 1>(size * STRIDE, cgh);
        cgh.parallel_for(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
          using namespace sycl::ext::intel::esimd;
          simd<T, VL> valsIn;
          valsIn.copy_from(acc, 0);
-
-         simd<uint32_t, VL> offsets(0, STRIDE * sizeof(T));
-         scatter<T, VL>(LocalAcc, offsets, valsIn, 0);
-
          simd_mask<VL> pred = 1;
          pred[MASKED_LANE] = 0; // mask out the last lane
-         simd<T, VL> valsOut = gather<T, VL>(LocalAcc, offsets, 0, pred);
+         LocalAcc[MASKED_LANE * STRIDE] = -1;
+         simd<uint32_t, VL> offsets(0, STRIDE * sizeof(T));
+         scatter<T, VL>(LocalAcc, offsets, valsIn, 0, pred);
+
+         simd<T, VL> valsOut = gather<T, VL>(LocalAcc, offsets, 0);
 
          valsOut.copy_to(acc, 0);
        });
@@ -83,6 +80,14 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
     if (i != MASKED_LANE) {
       T gold = static_cast<T>(i);
 
+      if (A[i] != gold) {
+        if (++err_cnt < 35) {
+          std::cout << "failed at index " << i << ": " << A[i] << " != " << gold
+                    << " (gold)\n";
+        }
+      }
+    } else {
+      T gold = static_cast<T>(-1);
       if (A[i] != gold) {
         if (++err_cnt < 35) {
           std::cout << "failed at index " << i << ": " << A[i] << " != " << gold

@@ -22,9 +22,6 @@
 
 using namespace sycl;
 
-template <typename T>
-using AccT = accessor<T, 1, access_mode::read_write, access::target::device>;
-
 constexpr int MASKED_LANE_NUM_REV = 1;
 constexpr int NUM_RGBA_CHANNELS =
     get_num_channels_enabled(sycl::ext::intel::esimd::rgba_channel_mask::ABGR);

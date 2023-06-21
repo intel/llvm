@@ -319,13 +319,13 @@ __ESIMD_API simd<Tx, N> block_load(const Tx *addr, Flags = {}) {
 /// @param Flags Specifies the alignment.
 /// @return A vector of loaded elements.
 ///
-template <
-    typename Tx, int N, typename AccessorTy,
-    typename Flags = vector_aligned_tag,
-    typename = std::enable_if_t<
-        is_simd_flag_type_v<Flags> && !std::is_pointer<AccessorTy>::value &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>,
-    class T = detail::__raw_t<Tx>>
+template <typename Tx, int N, typename AccessorTy,
+          typename Flags = vector_aligned_tag,
+          typename = std::enable_if_t<
+              is_simd_flag_type_v<Flags> &&
+              sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
+              !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>,
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
                                    uint64_t offset,
@@ -396,7 +396,7 @@ __ESIMD_API void block_store(Tx *p, simd<Tx, N> vals) {
 template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer<AccessorTy>::value &&
+    sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
 block_store(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -537,7 +537,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer<AccessorTy>::value &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
         !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
     simd<T, N>>
 gather(AccessorTy acc,
@@ -591,7 +591,7 @@ gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset = 0,
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    !std::is_pointer<AccessorTy>::value &&
+    sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
 scatter(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -2062,10 +2062,8 @@ template <typename Tx, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
     sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
 block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals) {
-  slm_block_store<Tx, N>(
-      offset + static_cast<uint32_t>(
-                   reinterpret_cast<std::uintptr_t>(acc.get_pointer())),
-      vals);
+  slm_block_store<Tx, N>(offset + __ESIMD_DNS::localAccessorToOffset(acc),
+                         vals);
 }
 
 /// Variant of gather that uses local accessor as a parameter
@@ -2091,10 +2089,7 @@ __ESIMD_API std::enable_if_t<
 gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
        simd_mask<N> mask = 1) {
   return slm_gather<T, N>(
-      offsets + glob_offset +
-          static_cast<uint32_t>(
-              reinterpret_cast<std::uintptr_t>(acc.get_pointer())),
-      mask);
+      offsets + glob_offset + __ESIMD_DNS::localAccessorToOffset(acc), mask);
 }
 
 /// Variant of scatter that uses local accessor as a parameter
@@ -2121,8 +2116,7 @@ __ESIMD_API std::enable_if_t<
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
         uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
   slm_scatter<T, N>(offsets + glob_offset +
-                        static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(
-                            acc.get_pointer())),
+                        __ESIMD_DNS::localAccessorToOffset(acc),
                     vals, mask);
 }
 
@@ -2159,10 +2153,7 @@ __ESIMD_API std::enable_if_t<
 gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
             uint32_t global_offset = 0, simd_mask<N> mask = 1) {
   return slm_gather_rgba<T, N, RGBAMask>(
-      offsets + global_offset +
-          static_cast<uint32_t>(
-              reinterpret_cast<std::uintptr_t>(acc.get_pointer())),
-      mask);
+      offsets + global_offset + __ESIMD_DNS::localAccessorToOffset(acc), mask);
 }
 
 /// Variant of scatter_rgba that uses local accessor as a parameter
@@ -2190,11 +2181,9 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              uint32_t global_offset = 0, simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<RGBAMask>();
-  slm_scatter_rgba<T, N, RGBAMask>(
-      offsets + global_offset +
-          static_cast<uint32_t>(
-              reinterpret_cast<std::uintptr_t>(acc.get_pointer())),
-      vals, mask);
+  slm_scatter_rgba<T, N, RGBAMask>(offsets + global_offset +
+                                       __ESIMD_DNS::localAccessorToOffset(acc),
+                                   vals, mask);
 }
 /// @} sycl_esimd_memory
 
