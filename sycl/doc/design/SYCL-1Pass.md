@@ -8,7 +8,7 @@ This design reuqires some changes from the FE.  In particular, it needs to emit 
 
 ### Generation and dispatch to the OpenCL Kernel
 
-The FE will generate the OpenCL Kernel which creates the Functor object that it will call into.  Fe then replaces the [[sycl_kernel]] function with one that dispatches to the OpenCL Kernel.  New APIs from the SYCL Runtime Library (RTL) are needed to accomplish this task.
+The FE will generate the OpenCL Kernel which creates the Functor object that it will call into.  FE then replaces the [[sycl_kernel]] function with one that dispatches to the OpenCL Kernel.  New APIs from the SYCL Runtime Library (RTL) are needed to accomplish this task.
 
 
 ### Elimination of generation of the integration header file
@@ -19,7 +19,7 @@ Since there is no longer separate device and host compilation invocations, commu
 Similarly, an integration footer file too is no longer necessary, but specialization constants need to still be handled.
 
 ### Intrinsics and builtins
-There will need to be some kind of unification of all intrinsics that we support over all devices into one table.  If intrinsics are spelled the same but have differing signatures, they will need to be renamed to be unique across the affected devices.
+There will need to be some kind of collection of all intrinsics that we support over all devices into one table.  If intrinsics are spelled the same but have differing signatures, they will need to be renamed to be unique across the affected devices.
 
 ### Function attributes and instruction extensions
 TODO
@@ -28,7 +28,7 @@ TODO
 FE will add an end-of-TU checker to emit deferred device diagnostics.
 
 ## Optimizer Changes
-The main change here will be to enable the ability to have multiple versions of LLVM IR running at once, as well as multiple separate invocations of the Code Generator.  A split-pass which creates a host LLVM-IR and device LLVM-IRs is added here; this in turn needs reachability analysis to figure out which is needed for device(s).  Optimizations specific to host or device occur on the respective IRs after this pass.  For ease of implementation, this document does not suggest adding optimizations common to both host and device(s) to occur prior to the split.  They may be added later when needed arises.
+The main change here will be to enable the ability to have multiple versions of LLVM IR running at once, as well as multiple separate invocations of the Code Generator.  A split-pass which creates a host LLVM-IR and device LLVM-IRs is added here; this in turn needs reachability analysis to figure out which is needed for device(s).  Optimizations specific to host or device occur on the respective IRs after this pass.  For ease of implementation, this document does not suggest adding optimizations common to both host and device(s) to occur prior to the split.  They may be added later when need arises.
 
 ## RTL Changes
 New APIs are needed to assist the FE in generating the dispatch to the OpenCL Kernel.
@@ -38,7 +38,7 @@ A new tool (device-code-extractor) will be added before the llvm-link step to sp
 sycl-post-link changes may be needed based on the changes in the IR emitted by the FE.
 
 ## Header files and library changes
-Since the host and devices are not compiled separately anymore, using macros to separate code the executes on one side or the other, is no longer a viable option.
+Since the host and devices are not compiled separately anymore, using macros to separate code that executes on one side or the other, is no longer a viable option.
 
 Some general areas that will need to be addressed include:
 
