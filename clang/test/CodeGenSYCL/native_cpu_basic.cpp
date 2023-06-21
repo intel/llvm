@@ -2,7 +2,7 @@
 // * Kernel name mangling
 // * kernel_arg_type metadata node
 // * is-native-cpu module flag
-// RUN: %clang_cc1 -fsycl-is-device  -D __SYCL_NATIVE_CPU__ -O2 -S -emit-llvm -internal-isystem %S/Inputs -fsycl-is-native-cpu -fsycl-int-header=%t.h -fsycl-int-footer=%t-footer.h -o %t.ll %s 
+// RUN: %clang_cc1 -fsycl-is-device -S -emit-llvm -internal-isystem %S/Inputs -fsycl-is-native-cpu -o %t.ll %s 
 // RUN: FileCheck -input-file=%t.ll %s 
 
 #include "sycl.hpp"
