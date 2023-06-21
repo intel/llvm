@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/memcpy.hpp>
 
 #include <type_traits>

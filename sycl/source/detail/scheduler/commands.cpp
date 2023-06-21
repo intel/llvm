@@ -1874,7 +1874,7 @@ void instrumentationAddExtraKernelMetadata(
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::string &KernelName,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const detail::OSModuleHandle &OSModHandle, const QueueImplPtr &Queue,
+    const QueueImplPtr &Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
                                   // sorted in this function
 {
@@ -1914,8 +1914,8 @@ void instrumentationAddExtraKernelMetadata(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            OSModHandle, Queue->getContextImplPtr(), Queue->getDeviceImplPtr(),
-            KernelName, nullptr);
+            Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName,
+            nullptr);
   }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, CGArgs, FilterArgs);
@@ -2007,7 +2007,7 @@ void emitKernelInstrumentationData(
     const detail::code_location &CodeLoc, const std::string &SyclKernelName,
     const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const detail::OSModuleHandle &OSModHandle, std::vector<ArgDesc> &CGArgs) {
+    std::vector<ArgDesc> &CGArgs) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
     return;
@@ -2028,9 +2028,9 @@ void emitKernelInstrumentationData(
                                 CmdTraceEvent);
 
   if (CmdTraceEvent) {
-    instrumentationAddExtraKernelMetadata(
-        CmdTraceEvent, NDRDesc, KernelBundleImplPtr, SyclKernelName, SyclKernel,
-        OSModHandle, Queue, CGArgs);
+    instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
+                                          KernelBundleImplPtr, SyclKernelName,
+                                          SyclKernel, Queue, CGArgs);
 
     xptiNotifySubscribers(
         StreamID, xpti::trace_node_create, detail::GSYCLGraphEvent,
@@ -2045,7 +2045,6 @@ void emitKernelInstrumentationData(
   std::ignore = Queue;
   std::ignore = NDRDesc;
   std::ignore = KernelBundleImplPtr;
-  std::ignore = OSModHandle;
   std::ignore = CGArgs;
 #endif
 }
@@ -2083,8 +2082,8 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle(),
-          KernelCG->MKernelName, KernelCG->MSyclKernel,
-          KernelCG->MOSModuleHandle, MQueue, KernelCG->MArgs);
+          KernelCG->MKernelName, KernelCG->MSyclKernel, MQueue,
+          KernelCG->MArgs);
     }
 
     xptiNotifySubscribers(
@@ -2294,8 +2293,8 @@ void DispatchNativeKernel(void *Blob) {
   std::vector<Requirement *> *Reqs =
       static_cast<std::vector<Requirement *> *>(CastedBlob[0]);
 
-  std::unique_ptr<HostKernelBase> *HostKernel =
-      static_cast<std::unique_ptr<HostKernelBase> *>(CastedBlob[1]);
+  std::shared_ptr<HostKernelBase> *HostKernel =
+      static_cast<std::shared_ptr<HostKernelBase> *>(CastedBlob[1]);
 
   NDRDescT *NDRDesc = static_cast<NDRDescT *>(CastedBlob[2]);
 
@@ -2316,8 +2315,8 @@ pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
-    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
+    const std::string &KernelName, std::vector<RT::PiEvent> &RawEvents,
+    RT::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     RT::PiKernelCacheConfig KernelCacheConfig) {
 
@@ -2364,8 +2363,7 @@ pi_int32 enqueueImpKernel(
       RT::PiKernel FoundKernel = nullptr;
       std::tie(FoundKernel, KernelMutex, EliminatedArgMask, std::ignore) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
-              OSModuleHandle, ContextImpl, DeviceImpl, KernelName,
-              SyclProg.get());
+              ContextImpl, DeviceImpl, KernelName, SyclProg.get());
       assert(FoundKernel == Kernel);
     } else {
       // Non-cacheable kernels use mutexes from kernel_impls.
@@ -2380,7 +2378,7 @@ pi_int32 enqueueImpKernel(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            OSModuleHandle, ContextImpl, DeviceImpl, KernelName, nullptr);
+            ContextImpl, DeviceImpl, KernelName, nullptr);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2573,10 +2571,13 @@ pi_int32 ExecCGCommand::enqueueImp() {
     std::vector<Requirement *> *CopyReqs =
         new std::vector<Requirement *>(HostTask->getRequirements());
 
-    // Not actually a copy, but move. Should be OK as it's not expected that
-    // MHostKernel will be used elsewhere.
-    std::unique_ptr<HostKernelBase> *CopyHostKernel =
-        new std::unique_ptr<HostKernelBase>(std::move(HostTask->MHostKernel));
+    // Create a shared_ptr on the heap so that the reference count is
+    // incremented until the DispatchNativeKernel() callback is run, which
+    // will free the heap shared_ptr and decrement the reference count. This
+    // prevents errors when the HostTask command-group is deleted before
+    // DispatchNativeKernel() can be run.
+    std::shared_ptr<HostKernelBase> *CopyHostKernel =
+        new std::shared_ptr<HostKernelBase>(HostTask->MHostKernel);
 
     NDRDescT *CopyNDRDesc = new NDRDescT(HostTask->MNDRDesc);
 
@@ -2687,22 +2688,21 @@ pi_int32 ExecCGCommand::enqueueImp() {
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
         ExecKernel->MSyclKernel;
     const std::string &KernelName = ExecKernel->MKernelName;
-    const detail::OSModuleHandle &OSModuleHandle = ExecKernel->MOSModuleHandle;
 
     if (!Event) {
       // Kernel only uses assert if it's non interop one
-      bool KernelUsesAssert = !(SyclKernel && SyclKernel->isInterop()) &&
-                              ProgramManager::getInstance().kernelUsesAssert(
-                                  OSModuleHandle, KernelName);
+      bool KernelUsesAssert =
+          !(SyclKernel && SyclKernel->isInterop()) &&
+          ProgramManager::getInstance().kernelUsesAssert(KernelName);
       if (KernelUsesAssert) {
         Event = &MEvent->getHandleRef();
       }
     }
 
-    return enqueueImpKernel(
-        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig);
+    return enqueueImpKernel(MQueue, NDRDesc, Args,
+                            ExecKernel->getKernelBundle(), SyclKernel,
+                            KernelName, RawEvents, Event, getMemAllocationFunc,
+                            ExecKernel->MKernelCacheConfig);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
@@ -2875,7 +2875,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     MemoryManager::copy_to_device_global(
         Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
         Copy->getNumBytes(), Copy->getOffset(), Copy->getSrc(),
-        Copy->getOSModuleHandle(), std::move(RawEvents), Event);
+        std::move(RawEvents), Event);
 
     return CL_SUCCESS;
   }
@@ -2885,7 +2885,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     MemoryManager::copy_from_device_global(
         Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
         Copy->getNumBytes(), Copy->getOffset(), Copy->getDest(),
-        Copy->getOSModuleHandle(), std::move(RawEvents), Event);
+        std::move(RawEvents), Event);
 
     return CL_SUCCESS;
   }
@@ -2903,6 +2903,9 @@ pi_int32 ExecCGCommand::enqueueImp() {
     }
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
                                     typeSize, RawEvents, Event, read);
+  }
+  case CG::CGTYPE::ExecCommandBuffer: {
+    throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);
   }
   case CG::CGTYPE::None:
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);

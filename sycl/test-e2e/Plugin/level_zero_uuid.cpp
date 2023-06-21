@@ -23,6 +23,7 @@ int main() {
 
   auto zedev = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(dev);
   ze_device_properties_t device_properties{};
+  device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
   zeDeviceGetProperties(zedev, &device_properties);
   std::stringstream uuid_l0;
   for (int i = 0; i < ZE_MAX_DEVICE_UUID_SIZE; ++i)

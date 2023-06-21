@@ -5,6 +5,9 @@
 // supported on host device.` on Nvidia.
 // XFAIL: hip_nvidia
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
 #include "reduction_utils.hpp"
 
 // This test performs basic checks of parallel_for(range<1>, reduction, func)

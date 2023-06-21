@@ -323,16 +323,34 @@ public:
   ///   the generated code. Auto-deduced from the unnamed alignment tag
   ///   argument.
   /// @param acc The accessor to read from.
-  /// @param offset 32-bit offset in bytes of the first element.
+  /// @param offset offset in bytes of the first element.
   template <
       typename AccessorT, typename Flags = element_aligned_tag,
       typename = std::enable_if_t<
           detail::is_sycl_accessor_with<AccessorT, accessor_mode_cap::can_read,
                                         sycl::access::target::device>::value &&
           is_simd_flag_type_v<Flags>>>
-  simd_obj_impl(AccessorT acc, uint32_t offset, Flags = {}) noexcept {
-    __esimd_dbg_print(simd_obj_impl(AccessorT acc, uint32_t offset, Flags));
+  simd_obj_impl(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                uint64_t offset,
+#else
+                uint32_t offset,
+#endif
+                Flags = {}) noexcept {
+    __esimd_dbg_print(simd_obj_impl(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                                    uint64_t offset,
+#else
+                                    uint32_t offset,
+#endif
+                                    Flags));
     copy_from(acc, offset, Flags{});
+  }
+
+  /// Copy assignment operator.
+  Derived &operator=(const simd_obj_impl &other) noexcept {
+    set(other.data());
+    return cast_this_to_derived();
   }
 
   /// Type conversion into a scalar:
@@ -358,12 +376,6 @@ public:
   /// underlying raw vector. Intended for use
   /// with l-value contexts in inline assembly.
   raw_vector_type &data_ref() { return M_data; }
-
-  /// Commit the current stored underlying raw vector to memory.
-  /// This is required when using inline assembly with private global variables.
-  __SYCL_DEPRECATED(
-      "commit is deprecated and will be removed in a future release")
-  void commit() {}
 
   /// @return Newly constructed (from the underlying data) object of the Derived
   /// type.
@@ -727,7 +739,13 @@ public:
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                                 sycl::access::target::device, void>
-  copy_from(AccessorT acc, uint32_t offset, Flags = {}) SYCL_ESIMD_FUNCTION;
+  copy_from(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+            uint64_t offset,
+#else
+            uint32_t offset,
+#endif
+            Flags = {}) SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// None of the template parameters should be be specified by callers.
@@ -753,7 +771,13 @@ public:
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                                 sycl::access::target::device, void>
-  copy_to(AccessorT acc, uint32_t offset, Flags = {}) const SYCL_ESIMD_FUNCTION;
+  copy_to(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+          uint64_t offset,
+#else
+          uint32_t offset,
+#endif
+          Flags = {}) const SYCL_ESIMD_FUNCTION;
 
   // Unary operations.
 

@@ -1035,12 +1035,12 @@ define <2 x i16> @rhadd8x2_sext_lsr(<2 x i8> %src1, <2 x i8> %src2) {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    shl.2s v0, v0, #24
 ; CHECK-NEXT:    shl.2s v1, v1, #24
-; CHECK-NEXT:    movi.2s v2, #1
+; CHECK-NEXT:    movi d2, #0x00ffff0000ffff
 ; CHECK-NEXT:    sshr.2s v0, v0, #24
-; CHECK-NEXT:    ssra.2s v0, v1, #24
-; CHECK-NEXT:    movi d1, #0x00ffff0000ffff
-; CHECK-NEXT:    add.2s v0, v0, v2
-; CHECK-NEXT:    and.8b v0, v0, v1
+; CHECK-NEXT:    sshr.2s v1, v1, #24
+; CHECK-NEXT:    mvn.8b v0, v0
+; CHECK-NEXT:    sub.2s v0, v1, v0
+; CHECK-NEXT:    and.8b v0, v0, v2
 ; CHECK-NEXT:    ushr.2s v0, v0, #1
 ; CHECK-NEXT:    ret
   %zextsrc1 = sext <2 x i8> %src1 to <2 x i16>

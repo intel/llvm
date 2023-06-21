@@ -152,7 +152,7 @@ template <typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
   return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
 }
-template <typename Group>
+
 bool GroupAll(const ext::oneapi::experimental::opportunistic_group &,
               bool pred) {
   return __spirv_GroupNonUniformAll(
@@ -1022,8 +1022,10 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
 template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>>
-ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
-#if defined(__SPIR__)
+ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
+#if defined(__NVPTX__)
+  __nvvm_bar_warp_sync(detail::ExtractMask(detail::GetMask(g))[0]);
+#else
   // SPIR-V does not define an instruction to synchronize partial groups.
   // However, most (possibly all?) of the current SPIR-V targets execute
   // work-items in lockstep, so we can probably get away with a MemoryBarrier.
@@ -1033,8 +1035,6 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
                             __spv::MemorySemanticsMask::SubgroupMemory |
                             __spv::MemorySemanticsMask::WorkgroupMemory |
                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
-#elif defined(__NVPTX__)
-  // TODO: Call syncwarp with appropriate mask extracted from the group
 #endif
 }
 
