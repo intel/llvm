@@ -286,14 +286,15 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
                                pi_device_affinity_domain>(ConvertFunc);
   } else if (ParamName == UR_DEVICE_INFO_PARTITION_TYPE) {
     auto ConvertFunc = [](ur_device_partition_t UrValue) {
-      switch (UrValue) {
-      case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
+      if (UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN == UrValue)
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
-      case UR_DEVICE_PARTITION_BY_CSLICE:
+      else if (UR_DEVICE_PARTITION_BY_CSLICE == UrValue)
         return PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE;
-      default:
-        die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
-      }
+      else if ((ur_device_partition_t)
+                   UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE == UrValue)
+        return (pi_device_partition_property)
+            PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE;
+      die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
     };
     return Value
         .convertArray<ur_device_partition_t, pi_device_partition_property>(
