@@ -1077,4 +1077,6 @@ def SYCLGroupGetLocalLinearRangeOp
   let results = (outs I64:$Res);
 }
 
+include "mlir/Dialect/SYCL/IR/SYCLHostOps.td"
+
 #endif // SYCL_OPS
