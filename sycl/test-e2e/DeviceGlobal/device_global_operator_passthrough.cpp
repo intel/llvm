@@ -1,15 +1,8 @@
-// TODO: device_global without the device_image_scope property is not currently
-//       initialized on device. Enable the following test cases when it is
-//       supported.
-// RUNx: %{build} -o %t.out
-// RUNx: %{run} %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // RUN: %{build} -fsycl-device-code-split=per_source -DUSE_DEVICE_IMAGE_SCOPE -o %t_dev_img_scope.out
 // RUN: %{run} %t_dev_img_scope.out
-//
-// CPU and accelerators are not currently guaranteed to support the required
-// extensions they are disabled until they are.
-// UNSUPPORTED: cpu, accelerator
 //
 // Tests the passthrough of operators on device_global.
 // NOTE: USE_DEVICE_IMAGE_SCOPE needs both kernels to be in the same image so

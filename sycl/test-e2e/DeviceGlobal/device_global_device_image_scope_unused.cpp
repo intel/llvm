@@ -1,5 +1,5 @@
-// RUNx: %{build} -o %t.out
-// RUNx: %{run} %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // RUN: %{build} -fsycl-device-code-split=per_source -DUSE_DEVICE_IMAGE_SCOPE -o %t_dev_img_scope.out
 // RUN: %{run} %t_dev_img_scope.out
