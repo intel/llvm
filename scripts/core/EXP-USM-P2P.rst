@@ -34,9 +34,8 @@ This experimental extension to UR aims to provide a portable interface that can
 call appropriate driver functions to query and control peer memory access
 across the CUDA, HIP and L0 adapters.
 
-================================================================================
 API
-================================================================================
+--------------------------------------------------------------------------------
 
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
