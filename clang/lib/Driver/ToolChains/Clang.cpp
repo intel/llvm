@@ -47,7 +47,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Option/ArgList.h"
-#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
@@ -5305,35 +5304,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         D.addSYCLTargetMacroArg(Args, Macro);
       }
     };
-    for (const auto &entry : DeviceConfigFile::TargetTable) {
-      auto info = entry.second;
-      std::cout << "Target info for target named " << entry.first << std::endl;
-      std::cout << "Supported aspects: {";
-      for (const auto &[idx, aspect] : llvm::enumerate(info.aspects)) {
-        if (idx > 0)
-          std::cout << ", ";
-        std::cout << aspect.str();
-      }
-      std::cout << "}\n";
-      std::cout << "May support other aspects: " << info.maySupportOtherAspects
-                << std::endl;
-      std::cout << "Sub group sizes: {";
-      for (const auto &[idx, sz] : llvm::enumerate(info.subGroupSizes)) {
-        if (idx > 0)
-          std::cout << ", ";
-        std::cout << sz;
-      }
-      std::cout << "}\n";
-      std::cout << "AOT Toolchain: " << info.aotToolchain << std::endl;
-      std::cout << "AOT Toolchain options: " << info.aotToolchainOptions
-                << std::endl;
-    }
-    //  auto res = lookupDeviceTableByValues(1);
-    //  if (res->maySupportOtherAspects) {
-    //    D.addSYCLTargetMacroArg(Args, "-D__SYCL_MAY_SUPPORT_OTHER_ASPECTS");
-    //    CmdArgs.push_back(
-    //        Args.MakeArgString("-D__SYCL_MAY_SUPPORT_OTHER_ASPECTS"));
-    //  }
     if (IsSYCLOffloadDevice)
       addTargetMacros(RawTriple);
     else {
