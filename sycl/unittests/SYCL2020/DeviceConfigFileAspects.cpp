@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 //
+#include <map>
+
 #include <llvm/ADT/StringRef.h>
 #include <llvm/SYCLLowerIR/DeviceConfigFile.hpp>
-#include <map>
 #include <sycl/sycl.hpp>
 
 #include <helpers/PiMock.hpp>
