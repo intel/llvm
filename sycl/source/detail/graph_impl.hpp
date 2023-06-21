@@ -106,7 +106,11 @@ public:
 
   /// Query if this is an empty node.
   /// @return True if this is an empty node, false otherwise.
-  bool isEmpty() const { return MIsEmpty; }
+  bool isEmpty() const {
+    if (MCGType == sycl::detail::CG::None)
+      return true;
+    return MIsEmpty;
+  }
 
   /// Get a deep copy of this node's command group
   /// @return A unique ptr to the new command group object.
@@ -367,7 +371,7 @@ public:
   /// Turns the internal graph representation into UR command-buffers for a
   /// device.
   /// @param D Device to create backend command-buffers for.
-  void createURCommandBuffers(sycl::device Device);                    
+  void createURCommandBuffers(sycl::device Device);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
