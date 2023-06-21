@@ -296,8 +296,12 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   if (AS != ExpectedAS) {
     Addr = getTargetCodeGenInfo().performAddrSpaceCast(
         *this, GV, AS, ExpectedAS,
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
         llvm::PointerType::get(getLLVMContext(),
                                getContext().getTargetAddressSpace(ExpectedAS)));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+        LTy->getPointerTo(getContext().getTargetAddressSpace(ExpectedAS)));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   setStaticLocalDeclAddress(&D, Addr);
@@ -2551,7 +2555,11 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
       assert(getContext().getTargetAddressSpace(SrcLangAS) ==
              CGM.getDataLayout().getAllocaAddrSpace());
       auto DestAS = getContext().getTargetAddressSpace(DestLangAS);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       auto *T = llvm::PointerType::get(getLLVMContext(), DestAS);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+      auto *T = DeclPtr.getElementType()->getPointerTo(DestAS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       DeclPtr =
           DeclPtr.withPointer(getTargetHooks().performAddrSpaceCast(
                                   *this, V, SrcLangAS, DestLangAS, T, true),

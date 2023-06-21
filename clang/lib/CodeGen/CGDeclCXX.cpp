@@ -124,8 +124,13 @@ static void EmitDeclDestroy(CodeGenFunction &CGF, const VarDecl &D,
     if (CGF.getContext().getLangOpts().OpenCL) {
       auto DestAS =
           CGM.getTargetCodeGenInfo().getAddrSpaceOfCxaAtexitPtrParam();
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       auto DestTy = llvm::PointerType::get(
           CGM.getLLVMContext(), CGM.getContext().getTargetAddressSpace(DestAS));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+      auto DestTy = CGF.getTypes().ConvertType(Type)->getPointerTo(
+          CGM.getContext().getTargetAddressSpace(DestAS));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       auto SrcAS = D.getType().getQualifiers().getAddressSpace();
       if (DestAS == SrcAS)
         Argument = llvm::ConstantExpr::getBitCast(Addr.getPointer(), DestTy);
@@ -134,7 +139,12 @@ static void EmitDeclDestroy(CodeGenFunction &CGF, const VarDecl &D,
         // of the global destructor function should be adjusted accordingly.
         Argument = llvm::ConstantPointerNull::get(DestTy);
     } else {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Argument = Addr.getPointer();
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+      Argument = llvm::ConstantExpr::getBitCast(
+          Addr.getPointer(), CGF.getTypes().ConvertType(Type)->getPointerTo());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     }
   // Otherwise, the standard logic requires a helper function.
   } else {

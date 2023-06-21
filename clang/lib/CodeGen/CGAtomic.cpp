@@ -88,8 +88,12 @@ namespace {
             CGF.Int8Ty, VoidPtrAddr, OffsetInChars.getQuantity());
         llvm::Type *IntTy = CGF.Builder.getIntNTy(AtomicSizeInBits);
         auto Addr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
             VoidPtrAddr, llvm::PointerType::getUnqual(CGF.getLLVMContext()),
             "atomic_bitfield_base");
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+            VoidPtrAddr, IntTy->getPointerTo(), "atomic_bitfield_base");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
         BFI = OrigBFI;
         BFI.Offset = Offset;
         BFI.StorageSize = AtomicSizeInBits;
@@ -797,7 +801,12 @@ AddDirectArgument(CodeGenFunction &CGF, CallArgList &Args,
     ValTy =
         CGF.getContext().getIntTypeForBitwidth(SizeInBits, /*Signed=*/false);
     llvm::Type *ITy = llvm::IntegerType::get(CGF.getLLVMContext(), SizeInBits);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Address Ptr = Address(Val, ITy, Align);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    Address Ptr = Address(CGF.Builder.CreateBitCast(Val, ITy->getPointerTo()),
+                          ITy, Align);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Val = CGF.EmitLoadOfScalar(Ptr, false,
                                CGF.getContext().getPointerType(ValTy),
                                Loc);
