@@ -481,3 +481,12 @@ etors:
 - name: USM_RELEASE_EXP
   desc: Enumerator for $xUSMReleaseExp
   value: '164'
+- name: USM_P2P_ENABLE_PEER_ACCESS_EXP
+  desc: Enumerator for $xUsmP2PEnablePeerAccessExp
+  value: '165'
+- name: USM_P2P_DISABLE_PEER_ACCESS_EXP
+  desc: Enumerator for $xUsmP2PDisablePeerAccessExp
+  value: '166'
+- name: USM_P2P_PEER_ACCESS_GET_INFO_EXP
+  desc: Enumerator for $xUsmP2PPeerAccessGetInfoExp
+  value: '167'

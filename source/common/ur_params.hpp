@@ -175,6 +175,10 @@ template <>
 inline void serializeFlag<ur_exp_image_copy_flag_t>(std::ostream &os,
                                                     uint32_t flag);
 
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_exp_peer_info_t value, size_t size);
+
 } // namespace ur_params
 
 inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value);
@@ -371,6 +375,8 @@ operator<<(std::ostream &os,
            const struct ur_exp_sampler_mip_properties_t params);
 inline std::ostream &
 operator<<(std::ostream &os, const struct ur_exp_command_buffer_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_peer_info_t value);
 
 inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     switch (value) {
@@ -9054,6 +9060,18 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_USM_RELEASE_EXP:
         os << "UR_FUNCTION_USM_RELEASE_EXP";
         break;
+
+    case UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP:
+        os << "UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP";
+        break;
+
+    case UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP:
+        os << "UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP";
+        break;
+
+    case UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP:
+        os << "UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -9290,6 +9308,67 @@ operator<<(std::ostream &os, const struct ur_exp_command_buffer_desc_t params) {
     os << "}";
     return os;
 }
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_peer_info_t value) {
+    switch (value) {
+
+    case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED:
+        os << "UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED";
+        break;
+
+    case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED:
+        os << "UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+namespace ur_params {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_exp_peer_info_t value, size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_init_params_t *params) {
@@ -13624,6 +13703,74 @@ operator<<(std::ostream &os, const struct ur_usm_release_exp_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
+           const struct ur_usm_p2p_enable_peer_access_exp_params_t *params) {
+
+    os << ".commandDevice = ";
+
+    ur_params::serializePtr(os, *(params->pcommandDevice));
+
+    os << ", ";
+    os << ".peerDevice = ";
+
+    ur_params::serializePtr(os, *(params->ppeerDevice));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_usm_p2p_disable_peer_access_exp_params_t *params) {
+
+    os << ".commandDevice = ";
+
+    ur_params::serializePtr(os, *(params->pcommandDevice));
+
+    os << ", ";
+    os << ".peerDevice = ";
+
+    ur_params::serializePtr(os, *(params->ppeerDevice));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_usm_p2p_peer_access_get_info_exp_params_t *params) {
+
+    os << ".commandDevice = ";
+
+    ur_params::serializePtr(os, *(params->pcommandDevice));
+
+    os << ", ";
+    os << ".peerDevice = ";
+
+    ur_params::serializePtr(os, *(params->ppeerDevice));
+
+    os << ", ";
+    os << ".propName = ";
+
+    os << *(params->ppropName);
+
+    os << ", ";
+    os << ".propSize = ";
+
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
+
+    os << ", ";
+    os << ".pPropSizeRet = ";
+
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
            const struct ur_virtual_mem_granularity_get_info_params_t *params) {
 
     os << ".hContext = ";
@@ -14537,6 +14684,17 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     } break;
     case UR_FUNCTION_USM_RELEASE_EXP: {
         os << (const struct ur_usm_release_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP: {
+        os << (const struct ur_usm_p2p_enable_peer_access_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP: {
+        os << (const struct ur_usm_p2p_disable_peer_access_exp_params_t *)
+                params;
+    } break;
+    case UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP: {
+        os << (const struct ur_usm_p2p_peer_access_get_info_exp_params_t *)
+                params;
     } break;
     case UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO: {
         os << (const struct ur_virtual_mem_granularity_get_info_params_t *)

@@ -1732,6 +1732,57 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetCommandBufferExpProcAddrTable_t)(
     ur_command_buffer_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUsmP2PEnablePeerAccessExp
+typedef ur_result_t(UR_APICALL *ur_pfnUsmP2PEnablePeerAccessExp_t)(
+    ur_device_handle_t,
+    ur_device_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUsmP2PDisablePeerAccessExp
+typedef ur_result_t(UR_APICALL *ur_pfnUsmP2PDisablePeerAccessExp_t)(
+    ur_device_handle_t,
+    ur_device_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUsmP2PPeerAccessGetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnUsmP2PPeerAccessGetInfoExp_t)(
+    ur_device_handle_t,
+    ur_device_handle_t,
+    ur_exp_peer_info_t,
+    size_t,
+    void *,
+    size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of UsmP2PExp functions pointers
+typedef struct ur_usm_p2p_exp_dditable_t {
+    ur_pfnUsmP2PEnablePeerAccessExp_t pfnEnablePeerAccessExp;
+    ur_pfnUsmP2PDisablePeerAccessExp_t pfnDisablePeerAccessExp;
+    ur_pfnUsmP2PPeerAccessGetInfoExp_t pfnPeerAccessGetInfoExp;
+} ur_usm_p2p_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's UsmP2PExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL
+urGetUsmP2PExpProcAddrTable(
+    ur_api_version_t version,            ///< [in] API version requested
+    ur_usm_p2p_exp_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetUsmP2PExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetUsmP2PExpProcAddrTable_t)(
+    ur_api_version_t,
+    ur_usm_p2p_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urInit
 typedef ur_result_t(UR_APICALL *ur_pfnInit_t)(
     ur_device_init_flags_t);
@@ -1981,6 +2032,7 @@ typedef struct ur_dditable_t {
     ur_usm_dditable_t USM;
     ur_usm_exp_dditable_t USMExp;
     ur_command_buffer_exp_dditable_t CommandBufferExp;
+    ur_usm_p2p_exp_dditable_t UsmP2PExp;
     ur_global_dditable_t Global;
     ur_virtual_mem_dditable_t VirtualMem;
     ur_device_dditable_t Device;

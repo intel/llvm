@@ -6945,4 +6945,163 @@ ur_result_t UR_APICALL urUSMReleaseExp(
     return exceptionToResult(std::current_exception());
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enable access to peer device memory
+///
+/// @details
+///     - Enables the command device to access and write device memory
+///       allocations located on the peer device, provided that a P2P link
+///       between the two devices is available.
+///     - When Peer Access is successfully enabled, P2P memory accesses are
+///       guaranteed to be allowed on the peer device until
+///       ::urUsmP2PDisablePeerAccessExp is called.
+///     - Note that the function operands may, but aren't guaranteed to, commute
+///       for a given adapter: the peer device is not guaranteed to have access
+///       to device memory allocations located on the command device.
+///     - It is not guaranteed that the commutation relations of the function
+///       arguments are identical for peer access and peer copies: For example,
+///       for a given adapter the peer device may be able to copy data from the
+///       command device, but not access and write the same data on the command
+///       device.
+///     - Consult the appropriate adapter driver documentation for details of
+///       adapter specific behavior and native error codes that may be returned.
+///
+/// @remarks
+///   _Analogues_
+///     - **cuCtxEnablePeerAccess**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == commandDevice`
+///         + `NULL == peerDevice`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
+    ur_device_handle_t
+        commandDevice,            ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice ///< [in] handle of the peer device object
+    ) try {
+    auto pfnEnablePeerAccessExp =
+        ur_lib::context->urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
+    if (nullptr == pfnEnablePeerAccessExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnEnablePeerAccessExp(commandDevice, peerDevice);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Disable access to peer device memory
+///
+/// @details
+///     - Disables the ability of the command device to access and write device
+///       memory allocations located on the peer device, provided that a P2P
+///       link between the two devices was enabled prior to the call.
+///     - Note that the function operands may, but aren't guaranteed to, commute
+///       for a given adapter. If, prior to the function call, the peer device
+///       had access to device memory allocations on the command device, it is
+///       not guaranteed to still have such access following the function
+///       return.
+///     - It is not guaranteed that the commutation relations of the function
+///       arguments are identical for peer access and peer copies: For example
+///       for a given adapter, if, prior to the call, the peer device had access
+///       to device memory allocations on the command device, the peer device
+///       may still, following the function call, be able to copy data from the
+///       command device, but not access and write the same data on the command
+///       device.
+///     - Consult the appropriate adapter driver documentation for details of
+///       adapter specific behavior and native error codes that may be returned.
+///
+/// @remarks
+///   _Analogues_
+///     - **cuCtxDisablePeerAccess**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == commandDevice`
+///         + `NULL == peerDevice`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
+    ur_device_handle_t
+        commandDevice,            ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice ///< [in] handle of the peer device object
+    ) try {
+    auto pfnDisablePeerAccessExp =
+        ur_lib::context->urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
+    if (nullptr == pfnDisablePeerAccessExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnDisablePeerAccessExp(commandDevice, peerDevice);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Disable access to peer device memory
+///
+/// @details
+///     - Queries the peer access capabilities from the command device to the
+///       peer device according to the query `propName`.
+///
+/// @remarks
+///   _Analogues_
+///     - **cuDeviceGetP2PAttribute**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == commandDevice`
+///         + `NULL == peerDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
+    ur_device_handle_t
+        commandDevice,             ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice, ///< [in] handle of the peer device object
+    ur_exp_peer_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If propSize is not equal to or greater than the real number of bytes
+    ///< needed to return the info
+    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    ///< pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
+    ) try {
+    auto pfnPeerAccessGetInfoExp =
+        ur_lib::context->urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
+    if (nullptr == pfnPeerAccessGetInfoExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnPeerAccessGetInfoExp(commandDevice, peerDevice, propName,
+                                   propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
 } // extern "C"
