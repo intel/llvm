@@ -478,33 +478,33 @@ static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
   if (isMemoryEffectFree(&op)) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
-      llvm::dbgs().indent(2) << "**** can be hoisted: has no side effects\n\n";
+      llvm::dbgs().indent(2) << "**** has no side effects\n\n";
     });
-    return true;
-  }
+  } else {
 
-  // Do not hoist operations that allocate a resource.
-  const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo);
-  if (sideEffects.allocatesResource()) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Operation: " << op << "\n";
-      llvm::dbgs().indent(2)
-          << "**** cannot be hoisted: operation allocates a resource\n\n";
-    });
-    return false;
-  }
+    // Do not hoist operations that allocate a resource.
+    const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo);
+    if (sideEffects.allocatesResource()) {
+      LLVM_DEBUG({
+        llvm::dbgs() << "Operation: " << op << "\n";
+        llvm::dbgs().indent(2)
+            << "**** cannot be hoisted: operation allocates a resource\n\n";
+      });
+      return false;
+    }
 
-  LLVM_DEBUG(llvm::dbgs() << sideEffects);
+    LLVM_DEBUG(llvm::dbgs() << sideEffects);
 
-  // If the operation has side effects, check whether other operations in the
-  // loop prevent hosting it.
-  if ((sideEffects.readsFromResource() || sideEffects.writesToResource() ||
-       sideEffects.freesResource()) &&
-      hasConflictsInLoop(candidate, loop, willBeMoved, aliasAnalysis,
-                         domInfo)) {
-    LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "**** cannot be hoisted: found conflicting operation\n\n");
-    return false;
+    // If the operation has side effects, check whether other operations in the
+    // loop prevent hosting it.
+    if ((sideEffects.readsFromResource() || sideEffects.writesToResource() ||
+         sideEffects.freesResource()) &&
+        hasConflictsInLoop(candidate, loop, willBeMoved, aliasAnalysis,
+                           domInfo)) {
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "**** cannot be hoisted: found conflicting operation\n\n");
+      return false;
+    }
   }
 
   // Recurse into the regions for this op and check whether the contained ops
