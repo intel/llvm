@@ -769,6 +769,29 @@ struct sub_group {
 #endif
   }
 
+  // Common member functions for by-value semantics
+  friend bool operator==(const sub_group &lhs, const sub_group &rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    return lhs.get_group_id() == rhs.get_group_id();
+#else
+    std::ignore = lhs;
+    std::ignore = rhs;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif
+  }
+
+  friend bool operator!=(const sub_group &lhs, const sub_group &rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    return !(lhs == rhs);
+#else
+    std::ignore = lhs;
+    std::ignore = rhs;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif
+  }
+
 protected:
   template <int dimensions> friend class sycl::nd_item;
   friend sub_group this_sub_group();
