@@ -23,6 +23,10 @@ int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
 uint64_t ur_device_handle_t_::getElapsedTime(CUevent ev) const {
   float Milliseconds = 0.0f;
 
+  // cuEventSynchronize waits till the event is ready for call to
+  // cuEventElapsedTime.
+  UR_CHECK_ERROR(cuEventSynchronize(EvBase));
+  UR_CHECK_ERROR(cuEventSynchronize(ev));
   UR_CHECK_ERROR(cuEventElapsedTime(&Milliseconds, EvBase, ev));
 
   return static_cast<uint64_t>(Milliseconds * 1.0e6);
