@@ -78,7 +78,7 @@ supports.
 
 === API Additions
 
-This extension adds the following new member function to SYCL in the 
+This extension adds the following new functions to SYCL in the 
 `sycl::ext::oneapi` namespace.
 
 ```
