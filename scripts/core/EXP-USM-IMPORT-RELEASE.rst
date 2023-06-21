@@ -43,7 +43,7 @@ Import a range of host memory into USM.
 
     // Import into USM
     ${x}USMImportExp(hContext, hostPtr, size);
-            
+
 Release Host Memory Previously Imported into USM
 ================================================
 
