@@ -317,8 +317,9 @@ public:
   ///        resolve spec constant name to SPIR-V integer ID
   /// \param NativePrg if not null, used as the flush target, otherwise MProgram
   ///        is used
-  void flush_spec_constants(const RTDeviceBinaryImage &Img,
-                            sycl::detail::pi::PiProgram NativePrg = nullptr) const;
+  void
+  flush_spec_constants(const RTDeviceBinaryImage &Img,
+                       sycl::detail::pi::PiProgram NativePrg = nullptr) const;
 
   void stableSerializeSpecConstRegistry(SerializedObj &Dst) const {
     detail::stableSerializeSpecConstRegistry(SpecConstRegistry, Dst);

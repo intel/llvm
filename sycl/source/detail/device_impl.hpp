@@ -42,11 +42,13 @@ public:
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
-  explicit device_impl(sycl::detail::pi::PiDevice Device, PlatformImplPtr Platform);
+  explicit device_impl(sycl::detail::pi::PiDevice Device,
+                       PlatformImplPtr Platform);
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
-  explicit device_impl(sycl::detail::pi::PiDevice Device, const PluginPtr &Plugin);
+  explicit device_impl(sycl::detail::pi::PiDevice Device,
+                       const PluginPtr &Plugin);
 
   ~device_impl();
 
@@ -244,10 +246,12 @@ public:
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
 
   /// Get device info string
-  std::string get_device_info_string(sycl::detail::pi::PiDeviceInfo InfoCode) const;
+  std::string
+  get_device_info_string(sycl::detail::pi::PiDeviceInfo InfoCode) const;
 
 private:
-  explicit device_impl(pi_native_handle InteropDevice, sycl::detail::pi::PiDevice Device,
+  explicit device_impl(pi_native_handle InteropDevice,
+                       sycl::detail::pi::PiDevice Device,
                        PlatformImplPtr Platform, const PluginPtr &Plugin);
   sycl::detail::pi::PiDevice MDevice = 0;
   sycl::detail::pi::PiDeviceType MType;

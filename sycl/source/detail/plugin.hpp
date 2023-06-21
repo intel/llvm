@@ -90,8 +90,8 @@ auto packCallArguments(ArgsT &&...Args) {
 class plugin {
 public:
   plugin() = delete;
-  plugin(const std::shared_ptr<sycl::detail::pi::PiPlugin> &Plugin, backend UseBackend,
-         void *LibraryHandle)
+  plugin(const std::shared_ptr<sycl::detail::pi::PiPlugin> &Plugin,
+         backend UseBackend, void *LibraryHandle)
       : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle),
         TracingMutex(std::make_shared<std::mutex>()),
         MPluginMutex(std::make_shared<std::mutex>()) {}
@@ -131,7 +131,8 @@ public:
   }
 
   /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
-  template <sycl::errc errc> void checkPiResult(sycl::detail::pi::PiResult pi_result) const {
+  template <sycl::errc errc>
+  void checkPiResult(sycl::detail::pi::PiResult pi_result) const {
     if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
       char *message = nullptr;
       pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
@@ -147,7 +148,8 @@ public:
     __SYCL_CHECK_CODE_THROW_VIA_ERRC(pi_result, errc);
   }
 
-  void reportPiError(sycl::detail::pi::PiResult pi_result, const char *context) const {
+  void reportPiError(sycl::detail::pi::PiResult pi_result,
+                     const char *context) const {
     if (pi_result != PI_SUCCESS) {
       throw sycl::runtime_error(std::string(context) +
                                     " API failed with error: " +

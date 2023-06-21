@@ -94,20 +94,21 @@ inline constexpr size_t CallStackSize = 16;
                                                                                \
   /*Overrides a plugin PI function with a given one */                         \
   template <detail::PiApiKind PiApiOffset>                                     \
-  inline void setFuncPtr(sycl::detail::pi::PiPlugin *MPlugin, decltype(&::api) FuncPtr);     \
+  inline void setFuncPtr(sycl::detail::pi::PiPlugin *MPlugin,                  \
+                         decltype(&::api) FuncPtr);                            \
   template <>                                                                  \
-  inline void setFuncPtr<detail::PiApiKind::api>(sycl::detail::pi::PiPlugin * MPlugin,       \
-                                                 decltype(&::api) FuncPtr) {   \
+  inline void setFuncPtr<detail::PiApiKind::api>(                              \
+      sycl::detail::pi::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {        \
     CallOriginal_##api = FuncPtr;                                              \
   }                                                                            \
                                                                                \
   /*Adds a function to be called before the PI function*/                      \
   template <detail::PiApiKind PiApiOffset>                                     \
-  inline void setFuncPtrBefore(sycl::detail::pi::PiPlugin *MPlugin,                          \
+  inline void setFuncPtrBefore(sycl::detail::pi::PiPlugin *MPlugin,            \
                                decltype(&::api) FuncPtr);                      \
   template <>                                                                  \
   inline void setFuncPtrBefore<detail::PiApiKind::api>(                        \
-      sycl::detail::pi::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {                      \
+      sycl::detail::pi::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {        \
     /* Find free slot */                                                       \
     size_t I = 0;                                                              \
     for (; I < CallStackSize && CallBefore_##api[I]; ++I)                      \
@@ -118,11 +119,11 @@ inline constexpr size_t CallStackSize = 16;
                                                                                \
   /*Adds a function to be called after the PI function*/                       \
   template <detail::PiApiKind PiApiOffset>                                     \
-  inline void setFuncPtrAfter(sycl::detail::pi::PiPlugin *MPlugin,                           \
+  inline void setFuncPtrAfter(sycl::detail::pi::PiPlugin *MPlugin,             \
                               decltype(&::api) FuncPtr);                       \
   template <>                                                                  \
   inline void setFuncPtrAfter<detail::PiApiKind::api>(                         \
-      sycl::detail::pi::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {                      \
+      sycl::detail::pi::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {        \
     /* Find free slot */                                                       \
     size_t I = 0;                                                              \
     for (; I < CallStackSize && CallAfter_##api[I]; ++I)                       \
@@ -351,9 +352,10 @@ public:
 
     assert(Plugins.empty() && "Clear failed to remove all plugins.");
 
-    auto RTPlugin = std::make_shared<sycl::detail::pi::PiPlugin>(
-        sycl::detail::pi::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
-                     getProxyMockedFunctionPointers()});
+    auto RTPlugin =
+        std::make_shared<sycl::detail::pi::PiPlugin>(sycl::detail::pi::PiPlugin{
+            "pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
+            getProxyMockedFunctionPointers()});
 
     MMockPluginPtr = std::make_shared<detail::plugin>(RTPlugin, Backend,
                                                       /*Library=*/nullptr);

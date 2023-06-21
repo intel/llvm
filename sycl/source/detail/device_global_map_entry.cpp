@@ -72,7 +72,8 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
     std::lock_guard<std::mutex> Lock(NewAlloc.MZeroInitEventMutex);
     sycl::detail::pi::PiEvent InitEvent;
     MemoryManager::fill_usm(NewAlloc.MPtr, QueueImpl, MDeviceGlobalTSize, 0,
-                            std::vector<sycl::detail::pi::PiEvent>{}, &InitEvent);
+                            std::vector<sycl::detail::pi::PiEvent>{},
+                            &InitEvent);
     NewAlloc.MZeroInitEvent = InitEvent;
   }
 

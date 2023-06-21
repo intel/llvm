@@ -69,8 +69,8 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
   MKernelProgramCache.setContextPtr(this);
 }
 
-context_impl::context_impl(sycl::detail::pi::PiContext PiContext, async_handler AsyncHandler,
-                           const PluginPtr &Plugin)
+context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
+                           async_handler AsyncHandler, const PluginPtr &Plugin)
     : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
       MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
 
@@ -82,9 +82,9 @@ context_impl::context_impl(sycl::detail::pi::PiContext PiContext, async_handler 
       nullptr);
   DeviceIds.resize(DevicesNum);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piContextGetInfo>(MContext, PI_CONTEXT_INFO_DEVICES,
-                                            sizeof(sycl::detail::pi::PiDevice) * DevicesNum,
-                                            &DeviceIds[0], nullptr);
+  Plugin->call<PiApiKind::piContextGetInfo>(
+      MContext, PI_CONTEXT_INFO_DEVICES,
+      sizeof(sycl::detail::pi::PiDevice) * DevicesNum, &DeviceIds[0], nullptr);
 
   if (!DeviceIds.empty()) {
     std::shared_ptr<detail::platform_impl> Platform =
@@ -231,7 +231,9 @@ context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
 }
 
 sycl::detail::pi::PiContext &context_impl::getHandleRef() { return MContext; }
-const sycl::detail::pi::PiContext &context_impl::getHandleRef() const { return MContext; }
+const sycl::detail::pi::PiContext &context_impl::getHandleRef() const {
+  return MContext;
+}
 
 KernelProgramCache &context_impl::getKernelProgramCache() const {
   return MKernelProgramCache;
@@ -245,8 +247,8 @@ bool context_impl::hasDevice(
   return false;
 }
 
-DeviceImplPtr
-context_impl::findMatchingDeviceImpl(sycl::detail::pi::PiDevice &DevicePI) const {
+DeviceImplPtr context_impl::findMatchingDeviceImpl(
+    sycl::detail::pi::PiDevice &DevicePI) const {
   for (device D : MDevices)
     if (getSyclObjImpl(D)->getHandleRef() == DevicePI)
       return getSyclObjImpl(D);
@@ -306,7 +308,8 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
   DeviceGlobalInitializer &InitRef = ImgIt->second;
   {
     std::lock_guard<std::mutex> InitLock(InitRef.MDeviceGlobalInitMutex);
-    std::vector<sycl::detail::pi::PiEvent> &InitEventsRef = InitRef.MDeviceGlobalInitEvents;
+    std::vector<sycl::detail::pi::PiEvent> &InitEventsRef =
+        InitRef.MDeviceGlobalInitEvents;
     if (!InitEventsRef.empty()) {
       // Initialization has begun but we do not know if the events are done.
       auto NewEnd = std::remove_if(
@@ -449,7 +452,8 @@ std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
     auto &Cache = LockedCache.get().Cache;
-    sycl::detail::pi::PiDevice &DevHandle = getSyclObjImpl(Device)->getHandleRef();
+    sycl::detail::pi::PiDevice &DevHandle =
+        getSyclObjImpl(Device)->getHandleRef();
     for (std::uintptr_t ImageIDs : ImgIdentifiers) {
       auto OuterKey = std::make_pair(ImageIDs, DevHandle);
       size_t NProgs = KeyMap.count(OuterKey);
@@ -475,7 +479,8 @@ std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
   return *MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
 }
 
-std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDeviceGlobal(
+std::optional<sycl::detail::pi::PiProgram>
+context_impl::getProgramForDeviceGlobal(
     const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
   return getProgramForDevImgs(Device, DeviceGlobalEntry->MImageIdentifiers,
                               "device_global");

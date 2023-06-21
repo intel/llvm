@@ -48,7 +48,8 @@ LockCacheItem::~LockCacheItem() {
 }
 
 // Returns true if the specified format is either SPIRV or a native binary.
-static bool IsSupportedImageFormat(sycl::detail::pi::PiDeviceBinaryType Format) {
+static bool
+IsSupportedImageFormat(sycl::detail::pi::PiDeviceBinaryType Format) {
   return Format == PI_DEVICE_BINARY_TYPE_SPIRV ||
          Format == PI_DEVICE_BINARY_TYPE_NATIVE;
 }

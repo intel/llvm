@@ -48,8 +48,8 @@ public:
     // Find out backend of the platform
     sycl::detail::pi::PiPlatformBackend PiBackend;
     APlugin->call_nocheck<PiApiKind::piPlatformGetInfo>(
-        APlatform, PI_EXT_PLATFORM_INFO_BACKEND, sizeof(sycl::detail::pi::PiPlatformBackend),
-        &PiBackend, nullptr);
+        APlatform, PI_EXT_PLATFORM_INFO_BACKEND,
+        sizeof(sycl::detail::pi::PiPlatformBackend), &PiBackend, nullptr);
     MBackend = convertBackend(PiBackend);
   }
 
@@ -165,7 +165,8 @@ public:
   /// \param PiDevice is the PiDevice whose impl is requested
   ///
   /// \return a shared_ptr<device_impl> corresponding to the device
-  std::shared_ptr<device_impl> getDeviceImpl(sycl::detail::pi::PiDevice PiDevice);
+  std::shared_ptr<device_impl>
+  getDeviceImpl(sycl::detail::pi::PiDevice PiDevice);
 
   /// Queries the device_impl cache to either return a shared_ptr
   /// for the device_impl corresponding to the PiDevice or add
@@ -196,7 +197,8 @@ public:
   /// \param Plugin is the PI plugin providing the backend for the platform
   /// \return the platform_impl representing the PI platform
   static std::shared_ptr<platform_impl>
-  getOrMakePlatformImpl(sycl::detail::pi::PiPlatform PiPlatform, const PluginPtr &Plugin);
+  getOrMakePlatformImpl(sycl::detail::pi::PiPlatform PiPlatform,
+                        const PluginPtr &Plugin);
 
   /// Queries the cache for the specified platform based on an input device.
   /// If found, returns the the cached platform_impl, otherwise creates a new
@@ -208,19 +210,22 @@ public:
   /// platform
   /// \return the platform_impl that contains the input device
   static std::shared_ptr<platform_impl>
-  getPlatformFromPiDevice(sycl::detail::pi::PiDevice PiDevice, const PluginPtr &Plugin);
+  getPlatformFromPiDevice(sycl::detail::pi::PiDevice PiDevice,
+                          const PluginPtr &Plugin);
 
   // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
   // ensure every device is a root one.
   bool MAlwaysRootDevice = false;
 
 private:
-  std::shared_ptr<device_impl> getDeviceImplHelper(sycl::detail::pi::PiDevice PiDevice);
+  std::shared_ptr<device_impl>
+  getDeviceImplHelper(sycl::detail::pi::PiDevice PiDevice);
 
   // Helper to filter reportable devices in the platform
   template <typename ListT, typename FilterT>
-  std::vector<int> filterDeviceFilter(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
-                                      ListT *FilterList) const;
+  std::vector<int>
+  filterDeviceFilter(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
+                     ListT *FilterList) const;
 
   bool MHostPlatform = false;
   sycl::detail::pi::PiPlatform MPlatform = 0;

@@ -36,8 +36,9 @@ PlatformImplPtr platform_impl::getHostPlatformImpl() {
   return HostImpl;
 }
 
-PlatformImplPtr platform_impl::getOrMakePlatformImpl(sycl::detail::pi::PiPlatform PiPlatform,
-                                                     const PluginPtr &Plugin) {
+PlatformImplPtr
+platform_impl::getOrMakePlatformImpl(sycl::detail::pi::PiPlatform PiPlatform,
+                                     const PluginPtr &Plugin) {
   PlatformImplPtr Result;
   {
     const std::lock_guard<std::mutex> Guard(
@@ -63,7 +64,8 @@ PlatformImplPtr platform_impl::getOrMakePlatformImpl(sycl::detail::pi::PiPlatfor
 PlatformImplPtr
 platform_impl::getPlatformFromPiDevice(sycl::detail::pi::PiDevice PiDevice,
                                        const PluginPtr &Plugin) {
-  sycl::detail::pi::PiPlatform Plt = nullptr; // TODO catch an exception and put it to list
+  sycl::detail::pi::PiPlatform Plt =
+      nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
   Plugin->call<PiApiKind::piDeviceGetInfo>(PiDevice, PI_DEVICE_INFO_PLATFORM,
                                            sizeof(Plt), &Plt, nullptr);
@@ -215,9 +217,9 @@ std::vector<platform> platform_impl::get_platforms() {
 // The return value is a vector that represents the indices of the chosen
 // devices.
 template <typename ListT, typename FilterT>
-std::vector<int>
-platform_impl::filterDeviceFilter(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
-                                  ListT *FilterList) const {
+std::vector<int> platform_impl::filterDeviceFilter(
+    std::vector<sycl::detail::pi::PiDevice> &PiDevices,
+    ListT *FilterList) const {
 
   constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
   // There are some differences in implementation between SYCL_DEVICE_FILTER
@@ -250,8 +252,8 @@ platform_impl::filterDeviceFilter(std::vector<sycl::detail::pi::PiDevice> &PiDev
   // Find out backend of the platform
   sycl::detail::pi::PiPlatformBackend PiBackend;
   MPlugin->call<PiApiKind::piPlatformGetInfo>(
-      MPlatform, PI_EXT_PLATFORM_INFO_BACKEND, sizeof(sycl::detail::pi::PiPlatformBackend),
-      &PiBackend, nullptr);
+      MPlatform, PI_EXT_PLATFORM_INFO_BACKEND,
+      sizeof(sycl::detail::pi::PiPlatformBackend), &PiBackend, nullptr);
   backend Backend = convertBackend(PiBackend);
 
   int InsertIDx = 0;
@@ -261,9 +263,9 @@ platform_impl::filterDeviceFilter(std::vector<sycl::detail::pi::PiDevice> &PiDev
   int DeviceNum = MPlugin->getStartingDeviceId(MPlatform);
   for (sycl::detail::pi::PiDevice Device : PiDevices) {
     sycl::detail::pi::PiDeviceType PiDevType;
-    MPlugin->call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
-                                              sizeof(sycl::detail::pi::PiDeviceType),
-                                              &PiDevType, nullptr);
+    MPlugin->call<PiApiKind::piDeviceGetInfo>(
+        Device, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
+        &PiDevType, nullptr);
     // Assumption here is that there is 1-to-1 mapping between PiDevType and
     // Sycl device type for GPU, CPU, and ACC.
     info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
@@ -335,7 +337,8 @@ platform_impl::getDeviceImpl(sycl::detail::pi::PiDevice PiDevice) {
 }
 
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
-    sycl::detail::pi::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
+    sycl::detail::pi::PiDevice PiDevice,
+    const std::shared_ptr<platform_impl> &PlatformImpl) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   // If we've already seen this device, return the impl
   std::shared_ptr<device_impl> Result = getDeviceImplHelper(PiDevice);
@@ -551,7 +554,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // TODO catch an exception and put it to list of asynchronous exceptions
   MPlugin->call<PiApiKind::piDevicesGet>(
       MPlatform,
-      pi::cast<sycl::detail::pi::PiDeviceType>(DeviceType), // CP info::device_type::all
+      pi::cast<sycl::detail::pi::PiDeviceType>(
+          DeviceType), // CP info::device_type::all
       NumDevices, PiDevices.data(), nullptr);
 
   // Some elements of PiDevices vector might be filtered out, so make a copy of

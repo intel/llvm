@@ -20,7 +20,8 @@ namespace detail {
 uint8_t GBufferStreamID;
 #endif
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                               void *HostPtr, sycl::detail::pi::PiEvent &OutEventToWait) {
+                               void *HostPtr,
+                               sycl::detail::pi::PiEvent &OutEventToWait) {
   bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
@@ -67,7 +68,8 @@ buffer_impl::getNativeVector(backend BackendName) const {
   }
 
   for (auto &Cmd : MRecord->MAllocaCommands) {
-    sycl::detail::pi::PiMem NativeMem = pi::cast<sycl::detail::pi::PiMem>(Cmd->getMemAllocation());
+    sycl::detail::pi::PiMem NativeMem =
+        pi::cast<sycl::detail::pi::PiMem>(Cmd->getMemAllocation());
     auto Ctx = Cmd->getWorkerContext();
     auto Platform = Ctx->getPlatformImpl();
     // If Host Shared Memory is not supported then there is alloca for host that

@@ -82,7 +82,8 @@ public:
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
               bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
-              sycl::detail::pi::PiMemImageChannelOrder Order, sycl::detail::pi::PiMemImageChannelType Type,
+              sycl::detail::pi::PiMemImageChannelOrder Order,
+              sycl::detail::pi::PiMemImageChannelType Type,
               range<3> Range3WithOnes, unsigned Dimensions, size_t ElementSize);
 
   virtual ~SYCLMemObjT() = default;
@@ -245,7 +246,8 @@ public:
                                      pi_native_handle MemObject);
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, sycl::detail::pi::PiEvent &InteropEvent) override {
+                    void *HostPtr,
+                    sycl::detail::pi::PiEvent &InteropEvent) override {
     (void)Context;
     (void)InitFromUserData;
     (void)HostPtr;

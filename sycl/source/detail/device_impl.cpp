@@ -26,17 +26,19 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          const PluginPtr &Plugin)
     : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
 
-device_impl::device_impl(sycl::detail::pi::PiDevice Device, PlatformImplPtr Platform)
+device_impl::device_impl(sycl::detail::pi::PiDevice Device,
+                         PlatformImplPtr Platform)
     : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, Platform,
                   Platform->getPlugin()) {}
 
-device_impl::device_impl(sycl::detail::pi::PiDevice Device, const PluginPtr &Plugin)
+device_impl::device_impl(sycl::detail::pi::PiDevice Device,
+                         const PluginPtr &Plugin)
     : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, nullptr,
                   Plugin) {}
 
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
-                         sycl::detail::pi::PiDevice Device, PlatformImplPtr Platform,
-                         const PluginPtr &Plugin)
+                         sycl::detail::pi::PiDevice Device,
+                         PlatformImplPtr Platform, const PluginPtr &Plugin)
     : MDevice(Device), MIsHostDevice(false),
       MDeviceHostBaseTime(std::make_pair(0, 0)) {
 
@@ -53,14 +55,15 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin->call<PiApiKind::piDeviceGetInfo>(
-      MDevice, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType), &MType, nullptr);
+      MDevice, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
+      &MType, nullptr);
 
   // No need to set MRootDevice when MAlwaysRootDevice is true
   if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin->call<PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(sycl::detail::pi::PiDevice),
-        &MRootDevice, nullptr);
+        MDevice, PI_DEVICE_INFO_PARENT_DEVICE,
+        sizeof(sycl::detail::pi::PiDevice), &MRootDevice, nullptr);
   }
 
   if (!InteroperabilityConstructor) {

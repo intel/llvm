@@ -247,7 +247,8 @@ public:
   size_t size() const noexcept { return MRange.size(); }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, sycl::detail::pi::PiEvent &OutEventToWait) override;
+                    void *HostPtr,
+                    sycl::detail::pi::PiEvent &OutEventToWait) override;
 
   MemObjType getType() const override { return MemObjType::Image; }
 
@@ -310,8 +311,8 @@ private:
     return Desc;
   }
 
-  bool checkImageDesc(const sycl::detail::pi::PiMemImageDesc &Desc, ContextImplPtr Context,
-                      void *UserPtr);
+  bool checkImageDesc(const sycl::detail::pi::PiMemImageDesc &Desc,
+                      ContextImplPtr Context, void *UserPtr);
 
   sycl::detail::pi::PiMemImageFormat getImageFormat() {
     sycl::detail::pi::PiMemImageFormat Format;

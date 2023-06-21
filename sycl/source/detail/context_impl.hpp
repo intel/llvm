@@ -68,8 +68,8 @@ public:
   /// \param AsyncHandler is an instance of async_handler.
   /// \param Plugin is the reference to the underlying Plugin that this
   /// context is associated with.
-  context_impl(sycl::detail::pi::PiContext PiContext, async_handler AsyncHandler,
-               const PluginPtr &Plugin);
+  context_impl(sycl::detail::pi::PiContext PiContext,
+               async_handler AsyncHandler, const PluginPtr &Plugin);
 
   ~context_impl();
 
@@ -141,7 +141,8 @@ public:
   const std::vector<device> &getDevices() const { return MDevices; }
 
   using CachedLibProgramsT =
-      std::map<std::pair<DeviceLibExt, sycl::detail::pi::PiDevice>, sycl::detail::pi::PiProgram>;
+      std::map<std::pair<DeviceLibExt, sycl::detail::pi::PiDevice>,
+               sycl::detail::pi::PiProgram>;
 
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the
@@ -191,7 +192,8 @@ public:
 
   /// Given a PiDevice, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.
-  DeviceImplPtr findMatchingDeviceImpl(sycl::detail::pi::PiDevice &DevicePI) const;
+  DeviceImplPtr
+  findMatchingDeviceImpl(sycl::detail::pi::PiDevice &DevicePI) const;
 
   /// Gets the native handle of the SYCL context.
   ///
@@ -288,7 +290,8 @@ private:
     std::vector<sycl::detail::pi::PiEvent> MDeviceGlobalInitEvents;
   };
 
-  std::map<std::pair<sycl::detail::pi::PiProgram, sycl::detail::pi::PiDevice>, DeviceGlobalInitializer>
+  std::map<std::pair<sycl::detail::pi::PiProgram, sycl::detail::pi::PiDevice>,
+           DeviceGlobalInitializer>
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
 

@@ -628,8 +628,8 @@ static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
   return readELFValue<uint16_t>(ImgData + 16, 2, IsBigEndian);
 }
 
-sycl::detail::pi::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
-                                            size_t ImgSize) {
+sycl::detail::pi::PiDeviceBinaryType
+getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
   // Top-level magic numbers for the recognized binary image formats.
   struct {
     sycl::detail::pi::PiDeviceBinaryType Fmt;

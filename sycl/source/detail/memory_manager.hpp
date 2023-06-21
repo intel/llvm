@@ -70,12 +70,15 @@ public:
   // Allocates images in specified context taking into account situations such
   // as host ptr or cl_mem provided by user. TargetContext should be device
   // one(not host).
-  static void *allocateMemImage(
-      ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
-      bool HostPtrReadOnly, size_t Size, const sycl::detail::pi::PiMemImageDesc &Desc,
-      const sycl::detail::pi::PiMemImageFormat &Format, const EventImplPtr &InteropEvent,
-      const ContextImplPtr &InteropContext,
-      const sycl::property_list &PropsList, sycl::detail::pi::PiEvent &OutEventToWait);
+  static void *
+  allocateMemImage(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
+                   void *UserPtr, bool HostPtrReadOnly, size_t Size,
+                   const sycl::detail::pi::PiMemImageDesc &Desc,
+                   const sycl::detail::pi::PiMemImageFormat &Format,
+                   const EventImplPtr &InteropEvent,
+                   const ContextImplPtr &InteropContext,
+                   const sycl::property_list &PropsList,
+                   sycl::detail::pi::PiEvent &OutEventToWait);
 
   // Releases memory object(buffer or image). TargetContext should be device
   // one(not host).
@@ -86,18 +89,19 @@ public:
                                   bool HostPtrReadOnly, size_t Size,
                                   const sycl::property_list &PropsList);
 
-  static void *allocateInteropMemObject(ContextImplPtr TargetContext,
-                                        void *UserPtr,
-                                        const EventImplPtr &InteropEvent,
-                                        const ContextImplPtr &InteropContext,
-                                        const sycl::property_list &PropsList,
-                                        sycl::detail::pi::PiEvent &OutEventToWait);
+  static void *
+  allocateInteropMemObject(ContextImplPtr TargetContext, void *UserPtr,
+                           const EventImplPtr &InteropEvent,
+                           const ContextImplPtr &InteropContext,
+                           const sycl::property_list &PropsList,
+                           sycl::detail::pi::PiEvent &OutEventToWait);
 
-  static void *allocateImageObject(ContextImplPtr TargetContext, void *UserPtr,
-                                   bool HostPtrReadOnly,
-                                   const sycl::detail::pi::PiMemImageDesc &Desc,
-                                   const sycl::detail::pi::PiMemImageFormat &Format,
-                                   const sycl::property_list &PropsList);
+  static void *
+  allocateImageObject(ContextImplPtr TargetContext, void *UserPtr,
+                      bool HostPtrReadOnly,
+                      const sycl::detail::pi::PiMemImageDesc &Desc,
+                      const sycl::detail::pi::PiMemImageFormat &Format,
+                      const sycl::property_list &PropsList);
 
   static void *allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size,
@@ -112,30 +116,36 @@ public:
                    QueueImplPtr TgtQueue, unsigned int DimDst,
                    sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
                    sycl::id<3> DstOffset, unsigned int DstElemSize,
-                   std::vector<sycl::detail::pi::PiEvent> DepEvents, sycl::detail::pi::PiEvent &OutEvent);
+                   std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                   sycl::detail::pi::PiEvent &OutEvent);
 
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const char *Pattern, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
-                   std::vector<sycl::detail::pi::PiEvent> DepEvents, sycl::detail::pi::PiEvent &OutEvent);
+                   std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                   sycl::detail::pi::PiEvent &OutEvent);
 
   static void *map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    access::mode AccessMode, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
-                   std::vector<sycl::detail::pi::PiEvent> DepEvents, sycl::detail::pi::PiEvent &OutEvent);
+                   std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                   sycl::detail::pi::PiEvent &OutEvent);
 
   static void unmap(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                    void *MappedPtr, std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                    void *MappedPtr,
+                    std::vector<sycl::detail::pi::PiEvent> DepEvents,
                     sycl::detail::pi::PiEvent &OutEvent);
 
   static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
-                       void *DstMem, std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                       void *DstMem,
+                       std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent);
 
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
-                       int Pattern, std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                       int Pattern,
+                       std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent);
 
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
@@ -164,19 +174,18 @@ public:
                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
                             sycl::detail::pi::PiEvent *OutEvent);
 
-  static void copy_to_device_global(const void *DeviceGlobalPtr,
-                                    bool IsDeviceImageScoped,
-                                    QueueImplPtr Queue, size_t NumBytes,
-                                    size_t Offset, const void *SrcMem,
-                                    const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-                                    sycl::detail::pi::PiEvent *OutEvent);
+  static void
+  copy_to_device_global(const void *DeviceGlobalPtr, bool IsDeviceImageScoped,
+                        QueueImplPtr Queue, size_t NumBytes, size_t Offset,
+                        const void *SrcMem,
+                        const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
+                        sycl::detail::pi::PiEvent *OutEvent);
 
-  static void copy_from_device_global(const void *DeviceGlobalPtr,
-                                      bool IsDeviceImageScoped,
-                                      QueueImplPtr Queue, size_t NumBytes,
-                                      size_t Offset, void *DstMem,
-                                      const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-                                      sycl::detail::pi::PiEvent *OutEvent);
+  static void copy_from_device_global(
+      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
+      size_t NumBytes, size_t Offset, void *DstMem,
+      const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
+      sycl::detail::pi::PiEvent *OutEvent);
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

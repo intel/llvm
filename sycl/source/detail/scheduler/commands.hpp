@@ -181,7 +181,8 @@ public:
       Command *Cmd, void *ObjAddr, bool IsCommand,
       std::optional<access::mode> AccMode = std::nullopt);
   /// Creates an edge event when the dependency is an event.
-  void emitEdgeEventForEventDependence(Command *Cmd, sycl::detail::pi::PiEvent &EventAddr);
+  void emitEdgeEventForEventDependence(Command *Cmd,
+                                       sycl::detail::pi::PiEvent &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.
   void emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr);
   /// Create a trace event of node_create type; this must be guarded by a
@@ -596,17 +597,18 @@ private:
   void **MDstPtr = nullptr;
 };
 
-pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
-                                  const std::string &PipeName, bool blocking,
-                                  void *ptr, size_t size,
-                                  std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-                                  sycl::detail::pi::PiEvent *OutEvent, bool read);
+pi_int32
+enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
+                         bool blocking, void *ptr, size_t size,
+                         std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+                         sycl::detail::pi::PiEvent *OutEvent, bool read);
 
 pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName, std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+    const std::string &KernelName,
+    std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig);

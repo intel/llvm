@@ -18,9 +18,10 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-inline std::string get_platform_info_string_impl(sycl::detail::pi::PiPlatform Plt,
-                                                 const PluginPtr &Plugin,
-                                                 pi_platform_info PiCode) {
+inline std::string
+get_platform_info_string_impl(sycl::detail::pi::PiPlatform Plt,
+                              const PluginPtr &Plugin,
+                              pi_platform_info PiCode) {
   size_t ResultSize;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin->call<PiApiKind::piPlatformGetInfo>(Plt, PiCode, 0, nullptr,

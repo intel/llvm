@@ -160,8 +160,8 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 
 // Helper function to allow using the specialization of get_device_info_impl
 // for string return type in other specializations.
-inline std::string
-device_impl::get_device_info_string(sycl::detail::pi::PiDeviceInfo InfoCode) const {
+inline std::string device_impl::get_device_info_string(
+    sycl::detail::pi::PiDeviceInfo InfoCode) const {
   size_t resultSize = 0;
   getPlugin()->call<PiApiKind::piDeviceGetInfo>(getHandleRef(), InfoCode, 0,
                                                 nullptr, &resultSize);

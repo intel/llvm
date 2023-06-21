@@ -495,8 +495,9 @@ public:
       Properties[2] = PI_QUEUE_COMPUTE_INDEX;
       Properties[3] = static_cast<sycl::detail::pi::PiQueueProperties>(Idx);
     }
-    sycl::detail::pi::PiResult Error = Plugin->call_nocheck<PiApiKind::piextQueueCreate>(
-        Context, Device, Properties, &Queue);
+    sycl::detail::pi::PiResult Error =
+        Plugin->call_nocheck<PiApiKind::piextQueueCreate>(Context, Device,
+                                                          Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return

@@ -23,7 +23,8 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 
-  sycl::detail::pi::PiSampler Sampler = pi::cast<sycl::detail::pi::PiSampler>(clSampler);
+  sycl::detail::pi::PiSampler Sampler =
+      pi::cast<sycl::detail::pi::PiSampler>(clSampler);
   MContextToSampler[syclContext] = Sampler;
   const PluginPtr &Plugin = getSyclObjImpl(syclContext)->getPlugin();
   Plugin->call<PiApiKind::piSamplerRetain>(Sampler);
@@ -47,7 +48,8 @@ sampler_impl::~sampler_impl() {
   }
 }
 
-sycl::detail::pi::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
+sycl::detail::pi::PiSampler
+sampler_impl::getOrCreateSampler(const context &Context) {
   {
     std::lock_guard<std::mutex> Lock(MMutex);
     auto It = MContextToSampler.find(Context);

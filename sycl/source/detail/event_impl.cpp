@@ -100,7 +100,9 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
-const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const { return MEvent; }
+const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
+  return MEvent;
+}
 sycl::detail::pi::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() {
@@ -121,7 +123,8 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MIsContextInitialized = true;
 }
 
-event_impl::event_impl(sycl::detail::pi::PiEvent Event, const context &SyclContext)
+event_impl::event_impl(sycl::detail::pi::PiEvent Event,
+                       const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
       MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
       MIsFlushed(true), MState(HES_Complete) {
@@ -134,9 +137,9 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event, const context &SyclConte
   }
 
   sycl::detail::pi::PiContext TempContext;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(MEvent, PI_EVENT_INFO_CONTEXT,
-                                               sizeof(sycl::detail::pi::PiContext),
-                                               &TempContext, nullptr);
+  getPlugin()->call<PiApiKind::piEventGetInfo>(
+      MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
+      &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
     throw sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
