@@ -77,22 +77,12 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
   int err_cnt = 0;
 
   for (unsigned i = 0; i < size; ++i) {
-    if (i != MASKED_LANE) {
-      T gold = static_cast<T>(i);
+    T gold = i != MASKED_LANE ? static_cast<T>(i) : static_cast<T>(-1);
 
-      if (A[i] != gold) {
-        if (++err_cnt < 35) {
-          std::cout << "failed at index " << i << ": " << A[i] << " != " << gold
-                    << " (gold)\n";
-        }
-      }
-    } else {
-      T gold = static_cast<T>(-1);
-      if (A[i] != gold) {
-        if (++err_cnt < 35) {
-          std::cout << "failed at index " << i << ": " << A[i] << " != " << gold
-                    << " (gold)\n";
-        }
+    if (A[i] != gold) {
+      if (++err_cnt < 35) {
+        std::cout << "failed at index " << i << ": " << A[i] << " != " << gold
+                  << " (gold)\n";
       }
     }
   }
