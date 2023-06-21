@@ -79,7 +79,7 @@ To compile using the open-source Intel DPC++ compiler:
 > `$ clang++ -fsycl vadd_usm.cpp`
 
 To compile using Intel(R) OneAPI Toolkit:
-> `$ dpcpp vadd_usm.cpp`
+> `$ icpx -fsycl vadd_usm.cpp`
 
 To run under emulation through ESIMD_EMULATOR backend:
 > `$ ONEAPI_DEVICE_SELECTOR=ext_intel_esimd_emulator:gpu ./a.out`
