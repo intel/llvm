@@ -18,10 +18,10 @@ class: $xUsmP2P
 name: $x_exp_peer_info_t
 typed_etors: True
 etors:
-  - name: UR_PEER_ACCESS_SUPPORTED
-    desc: "[uint32_t] 1 if P2P access is supported otherwise P2P access is not supported."
-  - name: UR_PEER_ATOMICS_SUPPORTED
-    desc: "[uint32_t] 1 if atomic operations are supported over the P2P link, otherwise such operations are not supported."
+    - name: UR_PEER_ACCESS_SUPPORTED
+      desc: "[uint32_t] 1 if P2P access is supported otherwise P2P access is not supported."
+    - name: UR_PEER_ATOMICS_SUPPORTED
+      desc: "[uint32_t] 1 if atomic operations are supported over the P2P link, otherwise such operations are not supported."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enable access to peer device memory"
@@ -31,11 +31,11 @@ ordinal: "0"
 analogue:
     - "**cuCtxEnablePeerAccess**"
 details:
-  - "Enables the command device to access and write device memory allocations located on the peer device, provided that a P2P link between the two devices is available."
-  - "When Peer Access is successfully enabled, P2P memory accesses are guaranteed to be allowed on the peer device until $xUsmP2PDisablePeerAccessExp is called."
-  - "Note that the function operands may, but aren't guaranteed to, commute for a given adapter: the peer device is not guaranteed to have access to device memory allocations located on the command device."
-  - "It is not guaranteed that the commutation relations of the function arguments are identical for peer access and peer copies: For example, for any given adapter the peer device may be able to copy data from the command device, but not access and write the same data on the command device."
-  - "Consult the appropriate adapter driver documentation for details of adapter specific behavior and native error codes that may be returned."
+    - "Enables the command device to access and write device memory allocations located on the peer device, provided that a P2P link between the two devices is available."
+    - "When Peer Access is successfully enabled, P2P memory accesses are guaranteed to be allowed on the peer device until $xUsmP2PDisablePeerAccessExp is called."
+    - "Note that the function operands may, but aren't guaranteed to, commute for a given adapter: the peer device is not guaranteed to have access to device memory allocations located on the command device."
+    - "It is not guaranteed that the commutation relations of the function arguments are identical for peer access and peer copies: For example, for a given adapter the peer device may be able to copy data from the command device, but not access and write the same data on the command device."
+    - "Consult the appropriate adapter driver documentation for details of adapter specific behavior and native error codes that may be returned."
 params:
     - type: $x_device_handle_t
       name: commandDevice
@@ -45,8 +45,7 @@ params:
       desc: "[in] handle of the peer device object"
 returns:
     - $X_RESULT_SUCCESS
-    - $X_RESULT_ERROR_ADAPTER_SPECIFIC:
-      - "Returned if a native error code is returned by the adapter driver function enabling P2P. Consult the UR documentation for details on retrieving the corresponding native error code."
+    - $X_RESULT_ERROR_ADAPTER_SPECIFIC
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Disable access to peer device memory"
@@ -56,10 +55,10 @@ ordinal: "0"
 analogue:
     - "**cuCtxDisablePeerAccess**"
 details:
-  - "Disables the ability of the command device to access and write device memory allocations located on the peer device, provided that a P2P link between the two devices was enabled prior to the call."
-  - "Note that the function operands may, but aren't guaranteed to, commute for a given adapter. If, prior to the function call, the peer device had access to device memory allocations on the command device, it is not guaranteed to still have such access following the function return."
-  - "It is not guaranteed that the commutation relations of the function arguments are identical for peer access and peer copies: For example for any given adapter, if, prior to the call, the peer device had access to device memory allocations on the command device, the peer device may still, following the function call, be able to copy data from the command device, but not access and write the same data on the command device."
-  - "Consult the appropriate adapter driver documentation for details of adapter specific behavior and native error codes that may be returned."
+    - "Disables the ability of the command device to access and write device memory allocations located on the peer device, provided that a P2P link between the two devices was enabled prior to the call."
+    - "Note that the function operands may, but aren't guaranteed to, commute for a given adapter. If, prior to the function call, the peer device had access to device memory allocations on the command device, it is not guaranteed to still have such access following the function return."
+    - "It is not guaranteed that the commutation relations of the function arguments are identical for peer access and peer copies: For example for a given adapter, if, prior to the call, the peer device had access to device memory allocations on the command device, the peer device may still, following the function call, be able to copy data from the command device, but not access and write the same data on the command device."
+    - "Consult the appropriate adapter driver documentation for details of adapter specific behavior and native error codes that may be returned."
 params:
     - type: $x_device_handle_t
       name: commandDevice
@@ -69,8 +68,7 @@ params:
       desc: "[in] handle of the peer device object"
 returns:
     - $X_RESULT_SUCCESS
-    - $X_RESULT_ERROR_ADAPTER_SPECIFIC:
-      - "Returned if a native error code is returned by the adapter driver function disabling P2P. Consult the UR documentation for details on retrieving the corresponding native error code."
+    - $X_RESULT_ERROR_ADAPTER_SPECIFIC
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Disable access to peer device memory"
@@ -80,7 +78,7 @@ ordinal: "0"
 analogue:
     - "**cuDeviceGetP2PAttribute**"
 details:
-  - "Queries the peer access capabilities from the command device to the peer device according to the query `propName`."
+    - "Queries the peer access capabilities from the command device to the peer device according to the query `propName`."
 params:
     - type: $x_device_handle_t
       name: commandDevice
@@ -115,5 +113,4 @@ returns:
         - "`propSize != 0 && pPropValue == NULL`"
         - "`pPropValue == NULL && pPropSizeRet == NULL`"
     - $X_RESULT_SUCCESS
-    - $X_RESULT_ERROR_ADAPTER_SPECIFIC:
-      - "Returned if a native error code is returned by the adapter driver function querying the property. Consult the UR documentation for details on retrieving the corresponding native error code."
+    - $X_RESULT_ERROR_ADAPTER_SPECIFIC
