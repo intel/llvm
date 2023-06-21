@@ -216,6 +216,15 @@ implement your experimental feature.
     $ python scripts/add_experimental_feature.py <name-of-your-experimental-feature>
 
 
+Experimental features *must* not make any changes to the core YaML files and 
+*must* be described entirely in their own YaML file. Sometimes, however 
+experimental feature require extending enumerations of the core specification. 
+If this is necessary, create a new enum with the ``extend`` field set to true 
+and list the required enumerations to support the experimental feature. These 
+additional enumerations will updated the specification with the appropriate 
+values.
+
+
 Naming Convention
 -----------------
 
