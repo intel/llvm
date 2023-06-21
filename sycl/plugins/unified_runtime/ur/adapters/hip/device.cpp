@@ -606,7 +606,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     //
     // query if/how the device can access page-locked host memory, possibly
     // through PCIe, using the same pointer as the host
-    uint64_t Value = {};
+    ur_device_usm_access_capability_flags_t Value = {};
     // if (getAttribute(device, HIP_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING)) {
     // the device shares a unified address space with the host
     if (getAttribute(hDevice, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
@@ -631,7 +631,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // associated with this device."
     //
     // query how the device can access memory allocated on the device itself (?)
-    uint64_t Value =
+    ur_device_usm_access_capability_flags_t Value =
         UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
         UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS |
         UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS |
@@ -644,7 +644,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // allocation associated with this device."
     //
     // query if/how the device can access managed memory associated to it
-    uint64_t Value = {};
+    ur_device_usm_access_capability_flags_t Value = {};
     if (getAttribute(hDevice, hipDeviceAttributeManagedMemory)) {
       // the device can allocate managed memory on this system
       Value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
@@ -672,7 +672,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     //
     // query if/how the device can access managed memory associated to other
     // devices
-    uint64_t Value = {};
+    ur_device_usm_access_capability_flags_t Value = {};
     if (getAttribute(hDevice, hipDeviceAttributeManagedMemory)) {
       // the device can allocate managed memory on this system
       Value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
@@ -700,7 +700,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     //
     // query if/how the device can access pageable host memory allocated by the
     // system allocator
-    uint64_t Value = {};
+    ur_device_usm_access_capability_flags_t Value = {};
     if (getAttribute(hDevice, hipDeviceAttributePageableMemoryAccess)) {
       // the link between the device and the host does not support native
       // atomic operations
