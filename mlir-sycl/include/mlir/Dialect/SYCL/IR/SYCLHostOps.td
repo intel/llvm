@@ -36,7 +36,7 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor"> {
     This operation differs with `sycl.constructor` in two points:
     - This operation will return a pointer to the constructed object instead of
       receiving a reference to the object to construct
-    - This opeation will return an `llvm.ptr` to any type instead of requiring a
+    - This operation will return an `llvm.ptr` to any type instead of requiring a
       `sycl` type.
 
     These two differences are the reason why this operation was introduced in
