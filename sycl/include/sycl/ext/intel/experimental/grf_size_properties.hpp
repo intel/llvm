@@ -72,6 +72,19 @@ struct PropertyMetaInfo<
   static constexpr const char *name = "sycl-grf-size";
   static constexpr unsigned int value = 0;
 };
+
+template <typename Properties>
+struct ConflictingProperties<sycl::ext::intel::experimental::grf_size_key,
+                             Properties>
+    : ContainsProperty<sycl::ext::intel::experimental::grf_size_automatic_key,
+                       Properties> {};
+
+template <typename Properties>
+struct ConflictingProperties<
+    sycl::ext::intel::experimental::grf_size_automatic_key, Properties>
+    : ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
+                       Properties> {};
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
