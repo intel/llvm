@@ -484,8 +484,8 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
         if (numQueueGroups == 0) {
           return UR_RESULT_ERROR_UNKNOWN;
         }
-        std::vector<ze_command_queue_group_properties_t> QueueGroupProperties(
-            numQueueGroups);
+        std::vector<ZeStruct<ze_command_queue_group_properties_t>>
+            QueueGroupProperties(numQueueGroups);
         ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
                    (UrSubDevice->ZeDevice, &numQueueGroups,
                     QueueGroupProperties.data()));
@@ -545,6 +545,13 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
   return UR_RESULT_SUCCESS;
 }
 
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-ze-opt-disable' for frontend_option = -O0.
+// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
+// Return '-ze-opt-level=2' for frontend_option = -O3.
+// Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
+// frontend_option=-ftarget-compile-fast.
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance.
     const char *FrontendOption, ///< [in] string containing the frontend option.
@@ -571,6 +578,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
   }
   if (FrontendOption == "-O3"sv) {
     *PlatformOption = "-ze-opt-level=2";
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == "-ftarget-compile-fast"sv) {
+    *PlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
     return UR_RESULT_SUCCESS;
   }
   return UR_RESULT_ERROR_INVALID_VALUE;

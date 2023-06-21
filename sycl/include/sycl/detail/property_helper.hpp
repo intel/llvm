@@ -43,8 +43,9 @@ enum DataLessPropKind {
   QueuePriorityNormal = 16,
   QueuePriorityLow = 17,
   QueuePriorityHigh = 18,
+  GraphNoCycleCheck = 19,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 18,
+  LastKnownDataLessPropKind = 19,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };
@@ -58,7 +59,8 @@ enum PropWithDataKind {
   BufferMemChannel = 4,
   AccPropBufferLocation = 5,
   QueueComputeIndex = 6,
-  PropWithDataKindSize = 7,
+  GraphNodeDependencies = 7,
+  PropWithDataKindSize = 8
 };
 
 // Base class for dataless properties, needed to check that the type of an

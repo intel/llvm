@@ -39,8 +39,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
+        ref: ${{ github.base_ref }}
         sparse-checkout: |
           devops/actions/cached_checkout
+          devops/actions/clang-format
     - name: 'PR commits + 2'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 2 ))" >> "${GITHUB_ENV}"
     - uses: ./devops/actions/cached_checkout
@@ -51,7 +53,7 @@ jobs:
         cache_path: "/__w/repo_cache/"
         merge: false
     - name: Run clang-format
-      uses: ./src/devops/actions/clang-format
+      uses: ./devops/actions/clang-format
       with:
         path: src
 
@@ -68,7 +70,7 @@ jobs:
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
     needs: [lint, test_matrix, detect_changes]
-    if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+    if: ${{ always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint')) && contains(needs.detect_changes.outputs.filters, 'sycl') }}
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
     with:
@@ -80,6 +82,15 @@ jobs:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
       check_filters: ${{ needs.detect_changes.outputs.filters }}
+
+  linux_e2e_on_nightly:
+    name: Linux SYCL E2E on Nightly
+    needs: [detect_changes]
+    if: ${{ !contains(needs.detect_changes.outputs.filters, 'sycl') }}
+    uses: ./.github/workflows/linux_matrix_e2e_on_nightly.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
 
   windows_default:
     name: Windows
