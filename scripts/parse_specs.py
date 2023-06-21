@@ -685,7 +685,8 @@ def _generate_returns(obj, meta):
         rets = [
             {"$X_RESULT_SUCCESS":[]},
             {"$X_RESULT_ERROR_UNINITIALIZED":[]},
-            {"$X_RESULT_ERROR_DEVICE_LOST":[]}
+            {"$X_RESULT_ERROR_DEVICE_LOST":[]},
+            {"$X_RESULT_ERROR_ADAPTER_SPECIFIC": []}
             ]
 
         # special function for appending to our list of dicts; avoiding duplicates
