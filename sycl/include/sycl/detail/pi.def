@@ -106,7 +106,6 @@ _PI_API(piSamplerRetain)
 _PI_API(piSamplerRelease)
 // Queue commands
 _PI_API(piEnqueueKernelLaunch)
-_PI_API(piEnqueueNativeKernel)
 _PI_API(piEnqueueEventsWait)
 _PI_API(piEnqueueEventsWaitWithBarrier)
 _PI_API(piEnqueueMemBufferRead)
