@@ -475,43 +475,38 @@ static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
   }
 
   // If the operation has no side effects it can be hoisted.
-  if (isMemoryEffectFree(&op)) {
+  if (isMemoryEffectFree(&op) &&
+      (op.getRegions().empty() ||
+       op.hasTrait<OpTrait::IsIsolatedFromAbove>())) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
-      llvm::dbgs().indent(2) << "**** has no side effects\n\n";
-    });
-  } else {
-
-    // Do not hoist operations that allocate a resource.
-    const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo);
-    if (sideEffects.allocatesResource()) {
-      LLVM_DEBUG({
-        llvm::dbgs() << "Operation: " << op << "\n";
-        llvm::dbgs().indent(2)
-            << "**** cannot be hoisted: operation allocates a resource\n\n";
-      });
-      return false;
-    }
-
-    LLVM_DEBUG(llvm::dbgs() << sideEffects);
-
-    // If the operation has side effects, check whether other operations in the
-    // loop prevent hosting it.
-    if ((sideEffects.readsFromResource() || sideEffects.writesToResource() ||
-         sideEffects.freesResource()) &&
-        hasConflictsInLoop(candidate, loop, willBeMoved, aliasAnalysis,
-                           domInfo)) {
-      LLVM_DEBUG(llvm::dbgs().indent(2)
-                 << "**** cannot be hoisted: found conflicting operation\n\n");
-      return false;
-    }
-  }
-
-  if (op.hasTrait<OpTrait::IsIsolatedFromAbove>()) {
-    LLVM_DEBUG({
-      llvm::dbgs().indent(2) << "**** isolated from above: can be hoisted\n\n";
+      llvm::dbgs().indent(2) << "**** has no side effects: can be hoisted\n\n";
     });
     return true;
+  }
+
+  // Do not hoist operations that allocate a resource.
+  const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo);
+  if (sideEffects.allocatesResource()) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "Operation: " << op << "\n";
+      llvm::dbgs().indent(2)
+          << "**** cannot be hoisted: operation allocates a resource\n\n";
+    });
+    return false;
+  }
+
+  LLVM_DEBUG(llvm::dbgs() << sideEffects);
+
+  // If the operation has side effects, check whether other operations in the
+  // loop prevent hosting it.
+  if ((sideEffects.readsFromResource() || sideEffects.writesToResource() ||
+       sideEffects.freesResource()) &&
+      hasConflictsInLoop(candidate, loop, willBeMoved, aliasAnalysis,
+                         domInfo)) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "**** cannot be hoisted: found conflicting operation\n\n");
+    return false;
   }
 
   // Recurse into the regions for this op and check whether the contained ops
