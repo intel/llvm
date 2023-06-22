@@ -2293,8 +2293,8 @@ void DispatchNativeKernel(void *Blob) {
   std::vector<Requirement *> *Reqs =
       static_cast<std::vector<Requirement *> *>(CastedBlob[0]);
 
-  std::unique_ptr<HostKernelBase> *HostKernel =
-      static_cast<std::unique_ptr<HostKernelBase> *>(CastedBlob[1]);
+  std::shared_ptr<HostKernelBase> *HostKernel =
+      static_cast<std::shared_ptr<HostKernelBase> *>(CastedBlob[1]);
 
   NDRDescT *NDRDesc = static_cast<NDRDescT *>(CastedBlob[2]);
 
@@ -2571,10 +2571,13 @@ pi_int32 ExecCGCommand::enqueueImp() {
     std::vector<Requirement *> *CopyReqs =
         new std::vector<Requirement *>(HostTask->getRequirements());
 
-    // Not actually a copy, but move. Should be OK as it's not expected that
-    // MHostKernel will be used elsewhere.
-    std::unique_ptr<HostKernelBase> *CopyHostKernel =
-        new std::unique_ptr<HostKernelBase>(std::move(HostTask->MHostKernel));
+    // Create a shared_ptr on the heap so that the reference count is
+    // incremented until the DispatchNativeKernel() callback is run, which
+    // will free the heap shared_ptr and decrement the reference count. This
+    // prevents errors when the HostTask command-group is deleted before
+    // DispatchNativeKernel() can be run.
+    std::shared_ptr<HostKernelBase> *CopyHostKernel =
+        new std::shared_ptr<HostKernelBase>(HostTask->MHostKernel);
 
     NDRDescT *CopyNDRDesc = new NDRDescT(HostTask->MNDRDesc);
 
@@ -2900,6 +2903,9 @@ pi_int32 ExecCGCommand::enqueueImp() {
     }
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
                                     typeSize, RawEvents, Event, read);
+  }
+  case CG::CGTYPE::ExecCommandBuffer: {
+    throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);
   }
   case CG::CGTYPE::None:
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);

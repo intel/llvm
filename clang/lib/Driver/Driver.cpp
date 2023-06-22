@@ -308,9 +308,14 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
     }
 
     // Deprecated options emit a diagnostic about deprecation, but are still
-    // supported until removed.
-    if (A->getOption().hasFlag(options::Deprecated)) {
-      Diag(diag::warn_drv_deprecated_option_release) << A->getAsString(Args);
+    // supported until removed. It's possible to have a deprecated option which
+    // aliases with a non-deprecated option, so always compute the argument
+    // actually used before checking for deprecation.
+    const Arg *Used = A;
+    while (Used->getAlias())
+      Used = Used->getAlias();
+    if (Used->getOption().hasFlag(options::Deprecated)) {
+      Diag(diag::warn_drv_deprecated_option_release) << Used->getAsString(Args);
       ContainsError |= Diags.getDiagnosticLevel(
                            diag::warn_drv_deprecated_option_release,
                            SourceLocation()) > DiagnosticsEngine::Warning;
@@ -1570,6 +1575,10 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
         }
     }
   }
+
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
+      CCCIsCC())
+    setDriverMode("g++");
 
   // Check for working directory option before accessing any files
   if (Arg *WD = Args.getLastArg(options::OPT_working_directory))
@@ -6950,7 +6959,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
            types::isSrcFile(I.first))) {
         // Unique ID is generated for source files and preprocessed files.
         SmallString<128> ResultID;
-        llvm::sys::fs::createUniquePath("%%%%%%%%%%%%%%%%", ResultID, false);
+        llvm::sys::fs::createUniquePath("uid%%%%%%%%%%%%%%%%", ResultID, false);
         addSYCLUniqueID(Args.MakeArgString(ResultID.str()), SrcFileName);
       }
       if (!types::isSrcFile(I.first))
@@ -9252,6 +9261,11 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     }
   }
 
+  // Emit an error if PCH(Pre-Compiled Header) file generation is forced in
+  // -fsycl mode.
+  if (C.getArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
+      JA.getType() == types::TY_PCH)
+    Diag(clang::diag::err_drv_fsycl_with_pch);
   // As an annoying special case, PCH generation doesn't strip the pathname.
   if (JA.getType() == types::TY_PCH && !IsCLMode()) {
     llvm::sys::path::remove_filename(BasePath);
