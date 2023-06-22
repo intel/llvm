@@ -1,5 +1,5 @@
 """
- Copyright (C) 2022 Intel Corporation
+ Copyright (C) 2022-2023 Intel Corporation
 
  Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  See LICENSE.TXT
@@ -231,7 +231,7 @@ def _validate_doc(f, d, tags, line_num):
                     raise Exception(prefix+"typed etor " + item['name'] + " must begin with a type identifier: [type]")
                 type_name = _subt(type, tags)
                 if not is_iso(type_name):
-                    raise Exception(prefix+"type " + str(type) + " in a typed etor " + item['name'] + " must be a valid ISO C identifer")
+                    raise Exception(prefix+"type " + str(type) + " in a typed etor " + item['name'] + " must be a valid ISO C identifier")
 
             __validate_name(item, 'name', tags, case='upper', prefix=prefix)
 
