@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <vector>
+
 namespace DeviceConfigFile {
 
 struct TargetInfo {
