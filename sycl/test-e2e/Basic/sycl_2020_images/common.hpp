@@ -395,7 +395,7 @@ float4 CalcLinearRead(typename FormatTraits<Format>::rep_elem_type *RefData,
   CoordT<ImageType::Sampled, Dims> AdjCoord = Coord;
   if constexpr (AddrMode == addressing_mode::repeat) {
     assert(Normalized);
-    AdjCoord -= floor(AdjCoord);
+    AdjCoord -= sycl::floor(AdjCoord);
     AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
   } else if constexpr (AddrMode == addressing_mode::mirrored_repeat) {
     assert(Normalized);
