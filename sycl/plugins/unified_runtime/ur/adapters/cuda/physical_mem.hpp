@@ -11,6 +11,9 @@
 
 #include <cuda.h>
 
+#include "platform.hpp"
+#include "device.hpp"
+
 /// UR queue mapping on physical memory allocations used in virtual memory
 /// management.
 ///
@@ -19,9 +22,9 @@ struct ur_physical_mem_t_ {
 
   std::atomic_uint32_t RefCount;
   native_type PhysicalMem;
-  ur_context_handle_t_ Context;
+  ur_context_handle_t_ *Context;
 
-  ur_physical_mem_t_(native_type PhysMem, ur_context_handle_t_ Ctx)
+  ur_physical_mem_t_(native_type PhysMem, ur_context_handle_t_ *Ctx)
       : RefCount(1), PhysicalMem(PhysMem), Context(Ctx) {
     urContextRetain(Context);
   }
@@ -30,7 +33,7 @@ struct ur_physical_mem_t_ {
 
   native_type get() const noexcept { return PhysicalMem; }
 
-  ur_context_handle_t_ getContext() const noexcept { return Context; }
+  ur_context_handle_t_ *getContext() const noexcept { return Context; }
 
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
