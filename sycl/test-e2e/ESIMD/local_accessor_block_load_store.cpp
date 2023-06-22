@@ -97,8 +97,7 @@ int main() {
   auto Q = queue{gpu_selector_v};
   auto Dev = Q.get_device();
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
-  std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
-            << ", Local memory size available : " << DeviceSLMSize << std::endl;
+  esimd_test::printTestLabel(Q, "Local memory size available", DeviceSLMSize);
 
   constexpr uint32_t LocalRange = 16;
   constexpr uint32_t GlobalRange = LocalRange * 2; // 2 groups.
@@ -106,7 +105,8 @@ int main() {
   bool Pass = true;
   Pass &= test<int>(Q, LocalRange, GlobalRange);
   Pass &= test<float>(Q, LocalRange, GlobalRange);
-  if (Dev.has(aspect::fp16))
+
+  if (Dev.has(aspect::fp16) && esimd_test::minLinuxDriver(Q, "1.3.26032"))
     Pass &= test<sycl::half>(Q, LocalRange, GlobalRange);
 
   std::cout << "Test result: " << (Pass ? "Pass" : "Fail") << std::endl;

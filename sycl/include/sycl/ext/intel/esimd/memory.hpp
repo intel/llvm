@@ -37,19 +37,6 @@ namespace ext::intel::esimd {
 
 /// @} sycl_esimd_memory
 
-/// @cond ESIMD_DETAIL
-
-namespace detail {
-// Type used in internal functions to designate SLM access by
-// providing dummy accessor of this type. Used to make it possible to delegate
-// implemenations of SLM memory accesses to general surface-based memory
-// accesses and thus reuse validity checks etc.
-struct LocalAccessorMarker {};
-
-} // namespace detail
-
-/// @endcond ESIMD_DETAIL
-
 /// @addtogroup sycl_esimd_memory
 /// @{
 
@@ -279,8 +266,7 @@ scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
 /// the loaded data as a vector. Actual code generated depends on the
 /// alignment parameter.
 /// @tparam Tx Element type.
-/// @tparam N Number of elements to load, <code>N * sizeof(Tx)</code> must be
-///    1, 2, 4 or 8 owords long.
+/// @tparam N Number of elements to load.
 /// @tparam Flags The alignment specifier type tag. Auto-deduced from the
 ///    \c Flags parameter. If it is less than \c 16, then slower unaligned
 ///    access is generated, otherwise the access is aligned.
@@ -288,27 +274,15 @@ scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
 /// @param Flags Specifies the alignment.
 /// @return A vector of loaded elements.
 ///
-template <typename Tx, int N, typename Flags = vector_aligned_tag,
-          class T = detail::__raw_t<Tx>,
-          typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-__ESIMD_API simd<Tx, N> block_load(const Tx *addr, Flags = {}) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= detail::OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % detail::OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
-                "block size must be at most 8 owords");
-
-  uintptr_t Addr = reinterpret_cast<uintptr_t>(addr);
-  if constexpr (Flags::template alignment<simd<T, N>> >=
-                detail::OperandSize::OWORD) {
-    return __esimd_svm_block_ld<T, N>(Addr);
-  } else {
-    return __esimd_svm_block_ld_unaligned<T, N>(Addr);
-  }
+template <typename Tx, int N,
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
+__ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>, simd<Tx, N>>
+block_load(const Tx *addr, Flags = {}) {
+  using T = typename detail::__raw_t<Tx>;
+  using VecT = typename simd<T, N>::raw_vector_type;
+  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
+  return __esimd_svm_block_ld<T, N, Align>(
+      reinterpret_cast<const VecT *>(addr));
 }
 
 /// Loads a contiguous block of memory from given accessor and offset and
@@ -366,27 +340,25 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
 }
 
 /// Stores elements of a vector to a contiguous block of memory at given
-/// address. The address must be at least \c 16 bytes-aligned.
+/// address. Actual code generated depends on the alignment parameter.
 /// @tparam Tx Element type.
-/// @tparam N Number of elements to store, <code>N * sizeof(Tx)</code> must be
-///    1, 2, 4 or 8 owords long.
-/// @param p The memory address to store at.
+/// @tparam N Number of elements to store.
+/// @tparam Flags The alignment specifier type tag. Auto-deduced from the
+///    \c Flags parameter. If it is less than \c 16, then slower scatter-based
+/// code sequence is generated, otherwise the store is aligned and more
+/// efficient code is generated.
+/// @param addr The memory address to store at.
 /// @param vals The vector to store.
-///
-template <typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API void block_store(Tx *p, simd<Tx, N> vals) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= detail::OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % detail::OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
-                "block size must be at most 8 owords");
-
-  uintptr_t Addr = reinterpret_cast<uintptr_t>(p);
-  __esimd_svm_block_st<T, N>(Addr, vals.data());
+/// @param Flags Specifies the alignment.
+template <typename Tx, int N,
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
+__ESIMD_API __ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>>
+block_store(Tx *addr, simd<Tx, N> vals, Flags = {}) {
+  using T = typename detail::__raw_t<Tx>;
+  using VecT = typename simd<T, N>::raw_vector_type;
+  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
+  __esimd_svm_block_st<T, N, Align>(reinterpret_cast<VecT *>(addr),
+                                    vals.data());
 }
 
 /// Stores elements of a vector to a contiguous block of memory represented by
@@ -1850,20 +1822,11 @@ slm_scatter_rgba(simd<uint32_t, N> offsets,
 /// @param offset The offset to load from in bytes. Must be oword-aligned.
 /// @return A vector of loaded elements.
 ///
-template <typename T, int N>
+template <typename T, int N,
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
 __ESIMD_API simd<T, N> slm_block_load(uint32_t offset) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= detail::OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % detail::OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 16 * detail::OperandSize::OWORD,
-                "block size must be at most 16 owords");
-
-  const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
-  return __esimd_oword_ld<detail::__raw_t<T>, N>(si, offset >> 4);
+  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
+  return __esimd_slm_block_ld<detail::__raw_t<T>, N, Align>(offset);
 }
 
 /// Stores elements of a vector to a contiguous block of SLM at given
@@ -1874,20 +1837,11 @@ __ESIMD_API simd<T, N> slm_block_load(uint32_t offset) {
 /// @param offset The offset in bytes to store at. Must be oword-aligned.
 /// @param vals The vector to store.
 ///
-template <typename T, int N>
+template <typename T, int N,
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
 __ESIMD_API void slm_block_store(uint32_t offset, simd<T, N> vals) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= detail::OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % detail::OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
-                "block size must be at most 8 owords");
-  const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
-  // offset in genx.oword.st is in owords
-  __esimd_oword_st<detail::__raw_t<T>, N>(si, offset >> 4, vals.data());
+  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
+  __esimd_slm_block_st<detail::__raw_t<T>, N, Align>(offset, vals.data());
 }
 
 /// Atomic update operation performed on SLM. No source operands version.
@@ -1962,7 +1916,7 @@ __ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
 
   if constexpr (Width < RoundedWidth) {
     constexpr unsigned int n1 = RoundedWidth / sizeof(T);
-    simd<T, m *n1> temp =
+    simd<T, m * n1> temp =
         __esimd_media_ld<T, m, n1, Mod, SurfIndTy, (int)plane, BlockWidth>(
             si, x, y);
     return temp.template select<m, 1, N, 1>(0, 0);

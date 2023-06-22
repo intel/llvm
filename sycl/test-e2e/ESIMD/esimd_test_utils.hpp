@@ -610,4 +610,37 @@ std::string toString(sycl::ext::intel::experimental::esimd::lsc_data_size DS) {
   return "INVALID lsc_data_size";
 }
 
+template <typename... ArgT> void printTestLabel(queue Q, ArgT &&...Args) {
+  auto Dev = Q.get_device();
+  auto Name = Dev.get_info<sycl::info::device::name>();
+  auto Driver = Dev.get_info<sycl::info::device::driver_version>();
+  std::cout << "Running on " << Name << ", driver=[" << Driver << "]";
+  if constexpr (sizeof...(ArgT) > 0) {
+    ([&] { std::cout << " : " << Args; }(), ...);
+  }
+  std::cout << std::endl;
+}
+
+// Not Linux: return true;
+// Linux:     return true iff GPU driver version >= MinDriver
+bool minLinuxDriver(queue Q, std::string MinDriver) {
+#ifdef __SYCL_RT_OS_LINUX
+  auto Driver = Q.get_device().get_info<sycl::info::device::driver_version>();
+  return Driver >= MinDriver;
+#else
+  return true;
+#endif
+}
+
+// Not Windows: return true;
+// Windows:     return true iff GPU driver version >= MinDriver
+bool minWindowsDriver(queue Q, std::string MinDriver) {
+#ifdef __SYCL_RT_OS_WINDOWS
+  auto Driver = Q.get_device().get_info<sycl::info::device::driver_version>();
+  return Driver >= MinDriver;
+#else
+  return true;
+#endif
+}
+
 } // namespace esimd_test
