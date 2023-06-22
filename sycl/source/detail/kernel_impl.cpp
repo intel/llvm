@@ -17,7 +17,8 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
+kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
+                         ContextImplPtr Context,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
     : kernel_impl(Kernel, Context,
@@ -33,8 +34,9 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
   MIsInterop = true;
 }
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
-                         ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
+kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
+                         ContextImplPtr ContextImpl, ProgramImplPtr ProgramImpl,
+                         bool IsCreatedFromSource,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(ContextImpl),
@@ -43,7 +45,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MKernelArgMaskPtr{ArgMask} {
 
-  RT::PiContext Context = nullptr;
+  sycl::detail::pi::PiContext Context = nullptr;
   // Using the plugin from the passed ContextImpl
   getPlugin()->call<PiApiKind::piKernelGetInfo>(
       MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
@@ -55,7 +57,8 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
   MIsInterop = MProgramImpl->isInterop();
 }
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
+                         ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)

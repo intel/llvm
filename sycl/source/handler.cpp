@@ -867,7 +867,7 @@ void handler::depends_on(const std::vector<event> &Events) {
 
 static bool
 checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
-                     detail::RT::PiContextInfo InfoQuery) {
+                     sycl::detail::pi::PiContextInfo InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   pi_bool SupportsOp = false;
   Plugin->call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
@@ -1005,7 +1005,8 @@ handler::getContextImplPtr() const {
   return MQueue->getContextImplPtr();
 }
 
-void handler::setKernelCacheConfig(detail::RT::PiKernelCacheConfig Config) {
+void handler::setKernelCacheConfig(
+    sycl::detail::pi::PiKernelCacheConfig Config) {
   MImpl->MKernelCacheConfig = Config;
 }
 
