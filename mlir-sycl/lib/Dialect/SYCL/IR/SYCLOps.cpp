@@ -219,8 +219,9 @@ void SYCLIDConstructorOp::getEffects(
     }
   }
   // The result will be allocated
-  effects.emplace_back(MemoryEffects::Allocate::get(), getId(),
-                       defaultResource);
+  Value id = getId();
+  effects.emplace_back(MemoryEffects::Allocate::get(), id, defaultResource);
+  effects.emplace_back(MemoryEffects::Write::get(), id, defaultResource);
 }
 
 LogicalResult SYCLIDConstructorOp::verify() {
