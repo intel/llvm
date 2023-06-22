@@ -327,6 +327,12 @@ operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_program_native_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_arg_value_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_arg_local_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_group_info_t value);
@@ -336,6 +342,15 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_cache_config_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_exec_info_t value);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_arg_pointer_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_exec_info_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_arg_sampler_properties_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_kernel_arg_mem_obj_properties_t params);
@@ -788,6 +803,26 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES";
         break;
 
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES";
+        break;
+
     case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
         os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
         break;
@@ -974,6 +1009,36 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES: {
         const ur_physical_mem_properties_t *pstruct =
             (const ur_physical_mem_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES: {
+        const ur_kernel_arg_pointer_properties_t *pstruct =
+            (const ur_kernel_arg_pointer_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES: {
+        const ur_kernel_arg_sampler_properties_t *pstruct =
+            (const ur_kernel_arg_sampler_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES: {
+        const ur_kernel_exec_info_properties_t *pstruct =
+            (const ur_kernel_exec_info_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES: {
+        const ur_kernel_arg_value_properties_t *pstruct =
+            (const ur_kernel_arg_value_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES: {
+        const ur_kernel_arg_local_properties_t *pstruct =
+            (const ur_kernel_arg_local_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
 
@@ -7064,6 +7129,40 @@ operator<<(std::ostream &os,
     os << "}";
     return os;
 }
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_arg_value_properties_t params) {
+    os << "(struct ur_kernel_arg_value_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << "}";
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_arg_local_properties_t params) {
+    os << "(struct ur_kernel_arg_local_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << "}";
+    return os;
+}
 inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_info_t value) {
     switch (value) {
 
@@ -7532,6 +7631,57 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
     }
 }
 } // namespace ur_params
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_arg_pointer_properties_t params) {
+    os << "(struct ur_kernel_arg_pointer_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << "}";
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_exec_info_properties_t params) {
+    os << "(struct ur_kernel_exec_info_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << "}";
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_arg_sampler_properties_t params) {
+    os << "(struct ur_kernel_arg_sampler_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << "}";
+    return os;
+}
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_kernel_arg_mem_obj_properties_t params) {
@@ -12118,6 +12268,11 @@ operator<<(std::ostream &os,
     os << *(params->pargSize);
 
     os << ", ";
+    os << ".pProperties = ";
+
+    ur_params::serializePtr(os, *(params->ppProperties));
+
+    os << ", ";
     os << ".pArgValue = ";
 
     ur_params::serializePtr(os, *(params->ppArgValue));
@@ -12143,6 +12298,11 @@ operator<<(std::ostream &os,
 
     os << *(params->pargSize);
 
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur_params::serializePtr(os, *(params->ppProperties));
+
     return os;
 }
 
@@ -12158,6 +12318,11 @@ operator<<(std::ostream &os,
     os << ".argIndex = ";
 
     os << *(params->pargIndex);
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur_params::serializePtr(os, *(params->ppProperties));
 
     os << ", ";
     os << ".pArgValue = ";
@@ -12186,6 +12351,11 @@ operator<<(std::ostream &os,
     os << *(params->ppropSize);
 
     os << ", ";
+    os << ".pProperties = ";
+
+    ur_params::serializePtr(os, *(params->ppProperties));
+
+    os << ", ";
     os << ".pPropValue = ";
     ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
                                *(params->ppropSize));
@@ -12205,6 +12375,11 @@ operator<<(std::ostream &os,
     os << ".argIndex = ";
 
     os << *(params->pargIndex);
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur_params::serializePtr(os, *(params->ppProperties));
 
     os << ", ";
     os << ".hArgValue = ";
