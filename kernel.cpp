@@ -302,6 +302,8 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
+  std::ignore = Properties;
+
   // Below sets kernel arg when zero-sized buffers are handled.
   // In such case the corresponding memory is null.
   if (hArgValue == nullptr) {
