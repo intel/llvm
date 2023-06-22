@@ -704,7 +704,8 @@ struct urKernelExecutionTest : urKernelTest {
             size_t offsets[1] = {0};
         } accessor;
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
-                                           sizeof(accessor), &accessor));
+                                           sizeof(accessor), nullptr,
+                                           &accessor));
 
         current_arg_index += 2;
         buffer_args.push_back(mem_handle);
@@ -713,7 +714,7 @@ struct urKernelExecutionTest : urKernelTest {
 
     template <class T> void AddPodArg(T data) {
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index,
-                                           sizeof(data), &data));
+                                           sizeof(data), nullptr, &data));
         current_arg_index++;
     }
 

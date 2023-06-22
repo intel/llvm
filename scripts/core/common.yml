@@ -327,6 +327,16 @@ etors:
       desc: $x_kernel_arg_mem_obj_properties_t
     - name: PHYSICAL_MEM_PROPERTIES
       desc: $x_physical_mem_properties_t
+    - name: KERNEL_ARG_POINTER_PROPERTIES
+      desc: $x_kernel_arg_pointer_properties_t
+    - name: KERNEL_ARG_SAMPLER_PROPERTIES
+      desc: $x_kernel_arg_sampler_properties_t
+    - name: KERNEL_EXEC_INFO_PROPERTIES
+      desc: $x_kernel_exec_info_properties_t
+    - name: KERNEL_ARG_VALUE_PROPERTIES
+      desc: $x_kernel_arg_value_properties_t
+    - name: KERNEL_ARG_LOCAL_PROPERTIES
+      desc: $x_kernel_arg_local_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"

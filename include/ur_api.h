@@ -261,6 +261,11 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
     UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,   ///< ::ur_kernel_arg_mem_obj_properties_t
     UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,         ///< ::ur_physical_mem_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 29,   ///< ::ur_kernel_arg_pointer_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES = 30,   ///< ::ur_kernel_arg_sampler_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES = 31,     ///< ::ur_kernel_exec_info_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES = 32,     ///< ::ur_kernel_arg_value_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,     ///< ::ur_kernel_arg_local_properties_t
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,     ///< ::ur_exp_command_buffer_desc_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,  ///< ::ur_exp_sampler_mip_properties_t
     /// @cond
@@ -3830,6 +3835,15 @@ urKernelCreate(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Properties for for ::urKernelSetArgValue.
+typedef struct ur_kernel_arg_value_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+
+} ur_kernel_arg_value_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Set kernel argument to a value.
 ///
 /// @details
@@ -3849,11 +3863,21 @@ urKernelCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t argIndex,          ///< [in] argument index in range [0, num args - 1]
-    size_t argSize,             ///< [in] size of argument type
-    const void *pArgValue       ///< [in] argument value represented as matching arg type.
+    ur_kernel_handle_t hKernel,                          ///< [in] handle of the kernel object
+    uint32_t argIndex,                                   ///< [in] argument index in range [0, num args - 1]
+    size_t argSize,                                      ///< [in] size of argument type
+    const ur_kernel_arg_value_properties_t *pProperties, ///< [in][optional] pointer to value properties.
+    const void *pArgValue                                ///< [in] argument value represented as matching arg type.
 );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Properties for for ::urKernelSetArgLocal.
+typedef struct ur_kernel_arg_local_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+
+} ur_kernel_arg_local_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Set kernel argument to a local buffer.
@@ -3873,9 +3897,10 @@ urKernelSetArgValue(
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgLocal(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t argIndex,          ///< [in] argument index in range [0, num args - 1]
-    size_t argSize              ///< [in] size of the local buffer to be allocated by the runtime
+    ur_kernel_handle_t hKernel,                         ///< [in] handle of the kernel object
+    uint32_t argIndex,                                  ///< [in] argument index in range [0, num args - 1]
+    size_t argSize,                                     ///< [in] size of the local buffer to be allocated by the runtime
+    const ur_kernel_arg_local_properties_t *pProperties ///< [in][optional] pointer to local buffer properties.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4095,6 +4120,15 @@ urKernelRelease(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Properties for for ::urKernelSetArgPointer.
+typedef struct ur_kernel_arg_pointer_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+
+} ur_kernel_arg_pointer_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Set a USM pointer as the argument value of a Kernel.
 ///
 /// @details
@@ -4116,11 +4150,21 @@ urKernelRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t argIndex,          ///< [in] argument index in range [0, num args - 1]
-    const void *pArgValue       ///< [in][optional] USM pointer to memory location holding the argument
-                                ///< value. If null then argument value is considered null.
+    ur_kernel_handle_t hKernel,                            ///< [in] handle of the kernel object
+    uint32_t argIndex,                                     ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_pointer_properties_t *pProperties, ///< [in][optional] pointer to USM pointer properties.
+    const void *pArgValue                                  ///< [in][optional] USM pointer to memory location holding the argument
+                                                           ///< value. If null then argument value is considered null.
 );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Properties for for ::urKernelSetExecInfo.
+typedef struct ur_kernel_exec_info_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+
+} ur_kernel_exec_info_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Set additional Kernel execution attributes.
@@ -4146,12 +4190,22 @@ urKernelSetArgPointer(
 ///         + `NULL == pPropValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetExecInfo(
-    ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
-    ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
-    size_t propSize,                ///< [in] size in byte the attribute value
-    const void *pPropValue          ///< [in][typename(propName, propSize)] pointer to memory location holding
-                                    ///< the property value.
+    ur_kernel_handle_t hKernel,                          ///< [in] handle of the kernel object
+    ur_kernel_exec_info_t propName,                      ///< [in] name of the execution attribute
+    size_t propSize,                                     ///< [in] size in byte the attribute value
+    const ur_kernel_exec_info_properties_t *pProperties, ///< [in][optional] pointer to execution info properties.
+    const void *pPropValue                               ///< [in][typename(propName, propSize)] pointer to memory location holding
+                                                         ///< the property value.
 );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Properties for for ::urKernelSetArgSampler.
+typedef struct ur_kernel_arg_sampler_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+
+} ur_kernel_arg_sampler_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Set a Sampler object as the argument value of a Kernel.
@@ -4171,9 +4225,10 @@ urKernelSetExecInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgSampler(
-    ur_kernel_handle_t hKernel,   ///< [in] handle of the kernel object
-    uint32_t argIndex,            ///< [in] argument index in range [0, num args - 1]
-    ur_sampler_handle_t hArgValue ///< [in] handle of Sampler object.
+    ur_kernel_handle_t hKernel,                            ///< [in] handle of the kernel object
+    uint32_t argIndex,                                     ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_sampler_properties_t *pProperties, ///< [in][optional] pointer to sampler properties.
+    ur_sampler_handle_t hArgValue                          ///< [in] handle of Sampler object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7743,6 +7798,7 @@ typedef struct ur_kernel_set_arg_value_params_t {
     ur_kernel_handle_t *phKernel;
     uint32_t *pargIndex;
     size_t *pargSize;
+    const ur_kernel_arg_value_properties_t **ppProperties;
     const void **ppArgValue;
 } ur_kernel_set_arg_value_params_t;
 
@@ -7754,6 +7810,7 @@ typedef struct ur_kernel_set_arg_local_params_t {
     ur_kernel_handle_t *phKernel;
     uint32_t *pargIndex;
     size_t *pargSize;
+    const ur_kernel_arg_local_properties_t **ppProperties;
 } ur_kernel_set_arg_local_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7763,6 +7820,7 @@ typedef struct ur_kernel_set_arg_local_params_t {
 typedef struct ur_kernel_set_arg_pointer_params_t {
     ur_kernel_handle_t *phKernel;
     uint32_t *pargIndex;
+    const ur_kernel_arg_pointer_properties_t **ppProperties;
     const void **ppArgValue;
 } ur_kernel_set_arg_pointer_params_t;
 
@@ -7774,6 +7832,7 @@ typedef struct ur_kernel_set_exec_info_params_t {
     ur_kernel_handle_t *phKernel;
     ur_kernel_exec_info_t *ppropName;
     size_t *ppropSize;
+    const ur_kernel_exec_info_properties_t **ppProperties;
     const void **ppPropValue;
 } ur_kernel_set_exec_info_params_t;
 
@@ -7784,6 +7843,7 @@ typedef struct ur_kernel_set_exec_info_params_t {
 typedef struct ur_kernel_set_arg_sampler_params_t {
     ur_kernel_handle_t *phKernel;
     uint32_t *pargIndex;
+    const ur_kernel_arg_sampler_properties_t **ppProperties;
     ur_sampler_handle_t *phArgValue;
 } ur_kernel_set_arg_sampler_params_t;
 

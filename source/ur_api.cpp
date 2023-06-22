@@ -2500,6 +2500,8 @@ ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t argSize,    ///< [in] size of argument type
+    const ur_kernel_arg_value_properties_t
+        *pProperties, ///< [in][optional] pointer to value properties.
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
 ) {
@@ -2527,7 +2529,9 @@ ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t
-        argSize ///< [in] size of the local buffer to be allocated by the runtime
+        argSize, ///< [in] size of the local buffer to be allocated by the runtime
+    const ur_kernel_arg_local_properties_t
+        *pProperties ///< [in][optional] pointer to local buffer properties.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -2715,6 +2719,8 @@ ur_result_t UR_APICALL urKernelRelease(
 ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_pointer_properties_t
+        *pProperties, ///< [in][optional] pointer to USM pointer properties.
     const void *
         pArgValue ///< [in][optional] USM pointer to memory location holding the argument
                   ///< value. If null then argument value is considered null.
@@ -2749,6 +2755,8 @@ ur_result_t UR_APICALL urKernelSetExecInfo(
     ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
     ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
     size_t propSize,                ///< [in] size in byte the attribute value
+    const ur_kernel_exec_info_properties_t
+        *pProperties, ///< [in][optional] pointer to execution info properties.
     const void *
         pPropValue ///< [in][typename(propName, propSize)] pointer to memory location holding
                    ///< the property value.
@@ -2776,6 +2784,8 @@ ur_result_t UR_APICALL urKernelSetExecInfo(
 ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_sampler_properties_t
+        *pProperties, ///< [in][optional] pointer to sampler properties.
     ur_sampler_handle_t hArgValue ///< [in] handle of Sampler object.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;

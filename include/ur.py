@@ -238,6 +238,11 @@ class ur_structure_type_v(IntEnum):
     DEVICE_PARTITION_PROPERTIES = 26                ## ::ur_device_partition_properties_t
     KERNEL_ARG_MEM_OBJ_PROPERTIES = 27              ## ::ur_kernel_arg_mem_obj_properties_t
     PHYSICAL_MEM_PROPERTIES = 28                    ## ::ur_physical_mem_properties_t
+    KERNEL_ARG_POINTER_PROPERTIES = 29              ## ::ur_kernel_arg_pointer_properties_t
+    KERNEL_ARG_SAMPLER_PROPERTIES = 30              ## ::ur_kernel_arg_sampler_properties_t
+    KERNEL_EXEC_INFO_PROPERTIES = 31                ## ::ur_kernel_exec_info_properties_t
+    KERNEL_ARG_VALUE_PROPERTIES = 32                ## ::ur_kernel_arg_value_properties_t
+    KERNEL_ARG_LOCAL_PROPERTIES = 33                ## ::ur_kernel_arg_local_properties_t
     EXP_COMMAND_BUFFER_DESC = 0x1000                ## ::ur_exp_command_buffer_desc_t
     EXP_SAMPLER_MIP_PROPERTIES = 0x2000             ## ::ur_exp_sampler_mip_properties_t
 
@@ -1500,6 +1505,24 @@ class ur_program_native_properties_t(Structure):
     ]
 
 ###############################################################################
+## @brief Properties for for ::urKernelSetArgValue.
+class ur_kernel_arg_value_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES
+        ("pNext", c_void_p)                                             ## [in,out][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief Properties for for ::urKernelSetArgLocal.
+class ur_kernel_arg_local_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES
+        ("pNext", c_void_p)                                             ## [in,out][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
 ## @brief Get Kernel object information
 class ur_kernel_info_v(IntEnum):
     FUNCTION_NAME = 0                               ## [char[]] Return null-terminated kernel function name.
@@ -1573,6 +1596,33 @@ class ur_kernel_exec_info_t(c_int):
     def __str__(self):
         return str(ur_kernel_exec_info_v(self.value))
 
+
+###############################################################################
+## @brief Properties for for ::urKernelSetArgPointer.
+class ur_kernel_arg_pointer_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES
+        ("pNext", c_void_p)                                             ## [in,out][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief Properties for for ::urKernelSetExecInfo.
+class ur_kernel_exec_info_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES
+        ("pNext", c_void_p)                                             ## [in,out][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief Properties for for ::urKernelSetArgSampler.
+class ur_kernel_arg_sampler_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES
+        ("pNext", c_void_p)                                             ## [in,out][optional] pointer to extension-specific structure
+    ]
 
 ###############################################################################
 ## @brief Properties for for ::urKernelSetArgMemObj.
@@ -2452,37 +2502,37 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgValue
 if __use_win_types:
-    _urKernelSetArgValue_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, c_void_p )
+    _urKernelSetArgValue_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, POINTER(ur_kernel_arg_value_properties_t), c_void_p )
 else:
-    _urKernelSetArgValue_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, c_void_p )
+    _urKernelSetArgValue_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, POINTER(ur_kernel_arg_value_properties_t), c_void_p )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgLocal
 if __use_win_types:
-    _urKernelSetArgLocal_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t )
+    _urKernelSetArgLocal_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, POINTER(ur_kernel_arg_local_properties_t) )
 else:
-    _urKernelSetArgLocal_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t )
+    _urKernelSetArgLocal_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, POINTER(ur_kernel_arg_local_properties_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgPointer
 if __use_win_types:
-    _urKernelSetArgPointer_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_void_p )
+    _urKernelSetArgPointer_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_kernel_arg_pointer_properties_t), c_void_p )
 else:
-    _urKernelSetArgPointer_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_void_p )
+    _urKernelSetArgPointer_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_kernel_arg_pointer_properties_t), c_void_p )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetExecInfo
 if __use_win_types:
-    _urKernelSetExecInfo_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_exec_info_t, c_size_t, c_void_p )
+    _urKernelSetExecInfo_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_exec_info_t, c_size_t, POINTER(ur_kernel_exec_info_properties_t), c_void_p )
 else:
-    _urKernelSetExecInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_exec_info_t, c_size_t, c_void_p )
+    _urKernelSetExecInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_exec_info_t, c_size_t, POINTER(ur_kernel_exec_info_properties_t), c_void_p )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgSampler
 if __use_win_types:
-    _urKernelSetArgSampler_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_sampler_handle_t )
+    _urKernelSetArgSampler_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_kernel_arg_sampler_properties_t), ur_sampler_handle_t )
 else:
-    _urKernelSetArgSampler_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_sampler_handle_t )
+    _urKernelSetArgSampler_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_kernel_arg_sampler_properties_t), ur_sampler_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgMemObj

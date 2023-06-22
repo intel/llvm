@@ -481,6 +481,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgValue_t)(
     ur_kernel_handle_t,
     uint32_t,
     size_t,
+    const ur_kernel_arg_value_properties_t *,
     const void *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -488,13 +489,15 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgValue_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgLocal_t)(
     ur_kernel_handle_t,
     uint32_t,
-    size_t);
+    size_t,
+    const ur_kernel_arg_local_properties_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urKernelSetArgPointer
 typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgPointer_t)(
     ur_kernel_handle_t,
     uint32_t,
+    const ur_kernel_arg_pointer_properties_t *,
     const void *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -503,6 +506,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelSetExecInfo_t)(
     ur_kernel_handle_t,
     ur_kernel_exec_info_t,
     size_t,
+    const ur_kernel_exec_info_properties_t *,
     const void *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -510,6 +514,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelSetExecInfo_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgSampler_t)(
     ur_kernel_handle_t,
     uint32_t,
+    const ur_kernel_arg_sampler_properties_t *,
     ur_sampler_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////

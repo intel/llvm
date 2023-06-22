@@ -2994,6 +2994,8 @@ ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t argSize,    ///< [in] size of argument type
+    const ur_kernel_arg_value_properties_t
+        *pProperties, ///< [in][optional] pointer to value properties.
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
     ) try {
@@ -3002,7 +3004,7 @@ ur_result_t UR_APICALL urKernelSetArgValue(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSetArgValue(hKernel, argIndex, argSize, pArgValue);
+    return pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -3027,14 +3029,16 @@ ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t
-        argSize ///< [in] size of the local buffer to be allocated by the runtime
+        argSize, ///< [in] size of the local buffer to be allocated by the runtime
+    const ur_kernel_arg_local_properties_t
+        *pProperties ///< [in][optional] pointer to local buffer properties.
     ) try {
     auto pfnSetArgLocal = ur_lib::context->urDdiTable.Kernel.pfnSetArgLocal;
     if (nullptr == pfnSetArgLocal) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSetArgLocal(hKernel, argIndex, argSize);
+    return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -3254,6 +3258,8 @@ ur_result_t UR_APICALL urKernelRelease(
 ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_pointer_properties_t
+        *pProperties, ///< [in][optional] pointer to USM pointer properties.
     const void *
         pArgValue ///< [in][optional] USM pointer to memory location holding the argument
                   ///< value. If null then argument value is considered null.
@@ -3263,7 +3269,7 @@ ur_result_t UR_APICALL urKernelSetArgPointer(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSetArgPointer(hKernel, argIndex, pArgValue);
+    return pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -3294,6 +3300,8 @@ ur_result_t UR_APICALL urKernelSetExecInfo(
     ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
     ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
     size_t propSize,                ///< [in] size in byte the attribute value
+    const ur_kernel_exec_info_properties_t
+        *pProperties, ///< [in][optional] pointer to execution info properties.
     const void *
         pPropValue ///< [in][typename(propName, propSize)] pointer to memory location holding
                    ///< the property value.
@@ -3303,7 +3311,7 @@ ur_result_t UR_APICALL urKernelSetExecInfo(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSetExecInfo(hKernel, propName, propSize, pPropValue);
+    return pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -3327,6 +3335,8 @@ ur_result_t UR_APICALL urKernelSetExecInfo(
 ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_sampler_properties_t
+        *pProperties, ///< [in][optional] pointer to sampler properties.
     ur_sampler_handle_t hArgValue ///< [in] handle of Sampler object.
     ) try {
     auto pfnSetArgSampler = ur_lib::context->urDdiTable.Kernel.pfnSetArgSampler;
@@ -3334,7 +3344,7 @@ ur_result_t UR_APICALL urKernelSetArgSampler(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSetArgSampler(hKernel, argIndex, hArgValue);
+    return pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
