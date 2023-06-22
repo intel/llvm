@@ -271,7 +271,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
       if (Queue->Device->ImmCommandListUsed) {
         // If immediate command lists are being used, each will act as their own
         // queue, so we must insert a barrier into each.
-        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+        for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
           if (ImmCmdList != Queue->CommandListMap.end())
             CmdLists.push_back(ImmCmdList);
       } else {
