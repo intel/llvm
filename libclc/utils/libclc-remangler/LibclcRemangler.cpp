@@ -449,8 +449,7 @@ private:
     auto *FTD = FunctionTemplateDecl::Create(*AST, FD->getDeclContext(),
                                              SourceLocation(),
                                              DeclarationName(), TPL, FD);
-    auto TAArr =
-        makeArrayRef(TemplateArguments.begin(), TemplateArguments.size());
+    auto TAArr = ArrayRef(TemplateArguments.begin(), TemplateArguments.size());
     auto *TAL = TemplateArgumentList::CreateCopy(*AST, TAArr);
     FDSpecialization->setTemplateParameterListsInfo(*AST, TPL);
     FDSpecialization->setFunctionTemplateSpecialization(
@@ -962,9 +961,10 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
-  CommonOptionsParser &OptionsParser = ExpectedParser.get();
-  ClangTool Tool(OptionsParser.getCompilations(),
-                 OptionsParser.getSourcePathList());
+  // Use a default Compilation DB instead of the build one, as it might contain
+  // toolchain specific options, not compatible with clang.
+  FixedCompilationDatabase Compilations("/", std::vector<std::string>());
+  ClangTool Tool(Compilations, ExpectedParser->getSourcePathList());
 
   LibCLCRemanglerActionFactory LRAF{};
   std::unique_ptr<FrontendActionFactory> FrontendFactory;
