@@ -64,6 +64,13 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
                 sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>) {
     return detail::SLM_BTI;
   } else {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+    static_assert(sycl::detail::acc_properties::is_image_accessor_v<AccessorTy>,
+                  "The function get_surface_index() is available only for "
+                  "image- and local-accessors in stateless-only memory mode. "
+                  "Consider using "
+                  "-fno-sycl-esimd-force-stateless-mem compilation switch.");
+#endif // __ESIMD_FORCE_STATELESS_MEM
     return __esimd_get_surface_index(
         detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
   }
@@ -1910,7 +1917,6 @@ __ESIMD_API simd<Tx, N> slm_atomic_update(simd<uint32_t, N> offsets,
 
 /// @} sycl_esimd_memory_slm
 
-#ifndef __ESIMD_FORCE_STATELESS_MEM
 /// @addtogroup sycl_esimd_memory
 /// @{
 
@@ -1996,7 +2002,6 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
                                                                  vals.data());
   }
 }
-#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @} sycl_esimd_memory
 

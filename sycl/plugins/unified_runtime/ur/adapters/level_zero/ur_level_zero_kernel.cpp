@@ -669,9 +669,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t ArgIndex,       ///< [in] argument index in range [0, num args - 1]
+    uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_mem_obj_properties_t
+        *Properties, ///< [in][optional] pointer to Memory object properties.
     ur_mem_handle_t ArgValue ///< [in][optional] handle of Memory object.
 ) {
+  std::ignore = Properties;
+
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   // The ArgValue may be a NULL pointer in which case a NULL value is used for
   // the kernel argument declared as a pointer to global or constant memory.

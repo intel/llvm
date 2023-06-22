@@ -1,6 +1,10 @@
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -Xclang -emit-llvm -Xclang -opaque-pointers %s -o %t
+// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -Xclang -emit-llvm -Xclang -opaque-pointers %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
-// RUN: FileCheck %s -input-file=%t_esimd_0.ll
+// RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
+
+// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -Xclang -emit-llvm -Xclang -opaque-pointers %s -o %t
+// RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem -O0 -S %t -o %t.table
+// RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD intrinsic translation with opaque pointers.
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
@@ -266,31 +270,35 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
     // 4-byte element gather
     simd<int, 8> v = gather<int, 8>(acc, offsets, 100);
-    // CHECK: %[[SI3_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(ptr addrspace(1) noundef %{{[0-9a-zA-Z_.]+}})
-    // CHECK: store i32 %[[SI3_VAL]], ptr addrspace(4) %[[SI3_ADDR:[0-9a-zA-Z_.]+]]
-    // CHECK: %[[SI3:[0-9a-zA-Z_.]+]] = load i32, ptr addrspace(4) %[[SI3_ADDR]]
-    // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 2, i16 0, i32 %[[SI3]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i1> %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATEFUL: %[[SI3_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(ptr addrspace(1) noundef %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATEFUL: store i32 %[[SI3_VAL]], ptr addrspace(4) %[[SI3_ADDR:[0-9a-zA-Z_.]+]]
+    // CHECK-STATEFUL: %[[SI3:[0-9a-zA-Z_.]+]] = load i32, ptr addrspace(4) %[[SI3_ADDR]]
+    // CHECK-STATEFUL: call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 2, i16 0, i32 %[[SI3]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i1> %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATELESS: call <8 x i32> @llvm.genx.svm.gather.v8i32.v8i1.v8i64(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <8 x i64> %{{[0-9a-zA-Z_.]+}}, <8 x i32> undef)
 
     // 4-byte element scatter
     scatter<int, 8>(acc, offsets, v, 100, pred);
-    // CHECK: %[[SI4_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(ptr addrspace(1) noundef %{{[0-9a-zA-Z_.]+}})
-    // CHECK: store i32 %[[SI4_VAL]], ptr addrspace(4) %[[SI4_ADDR:[0-9a-zA-Z_.]+]]
-    // CHECK: %[[SI4:[0-9a-zA-Z_.]+]] = load i32, ptr addrspace(4) %[[SI4_ADDR]]
-    // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 2, i16 0, i32 %[[SI4]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATEFUL: %[[SI4_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(ptr addrspace(1) noundef %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATEFUL: store i32 %[[SI4_VAL]], ptr addrspace(4) %[[SI4_ADDR:[0-9a-zA-Z_.]+]]
+    // CHECK-STATEFUL: %[[SI4:[0-9a-zA-Z_.]+]] = load i32, ptr addrspace(4) %[[SI4_ADDR]]
+    // CHECK-STATEFUL: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 2, i16 0, i32 %[[SI4]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATELESS: call void @llvm.genx.svm.scatter.v8i1.v8i64.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <8 x i64> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
 
     // 1-byte element gather
     simd<unsigned char, 8> v1 = gather<unsigned char, 8>(acc, offsets, 100);
-    // CHECK: %[[SI5_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(ptr addrspace(1) noundef %{{[0-9a-zA-Z_.]+}})
-    // CHECK: store i32 %[[SI5_VAL]], ptr addrspace(4) %[[SI5_ADDR:[0-9a-zA-Z_.]+]]
-    // CHECK: %[[SI5:[0-9a-zA-Z_.]+]] = load i32, ptr addrspace(4) %[[SI5_ADDR]]
-    // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 0, i16 0, i32 %[[SI5]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i1> %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATEFUL: %[[SI5_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(ptr addrspace(1) noundef %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATEFUL: store i32 %[[SI5_VAL]], ptr addrspace(4) %[[SI5_ADDR:[0-9a-zA-Z_.]+]]
+    // CHECK-STATEFUL: %[[SI5:[0-9a-zA-Z_.]+]] = load i32, ptr addrspace(4) %[[SI5_ADDR]]
+    // CHECK-STATEFUL: call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 0, i16 0, i32 %[[SI5]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i1> %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATELESS: call <32 x i8> @llvm.genx.svm.gather.v32i8.v8i1.v8i64(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <8 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i8> undef)
 
     // 1-byte element scatter
     scatter<unsigned char, 8>(acc, offsets, v1, 100, pred);
-    // CHECK: %[[SI6_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(ptr addrspace(1) noundef %{{[0-9a-zA-Z_.]+}})
-    // CHECK: store i32 %[[SI6_VAL]], ptr addrspace(4) %[[SI6_ADDR:[0-9a-zA-Z_.]+]]
-    // CHECK: %[[SI6:[0-9a-zA-Z_.]+]] = load i32, ptr addrspace(4) %[[SI6_ADDR]]
-    // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, i16 0, i32 %[[SI6]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATEFUL: %[[SI6_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(ptr addrspace(1) noundef %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATEFUL: store i32 %[[SI6_VAL]], ptr addrspace(4) %[[SI6_ADDR:[0-9a-zA-Z_.]+]]
+    // CHECK-STATEFUL: %[[SI6:[0-9a-zA-Z_.]+]] = load i32, ptr addrspace(4) %[[SI6_ADDR]]
+    // CHECK-STATEFUL: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, i16 0, i32 %[[SI6]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
+    // CHECK-STATELESS: call void @llvm.genx.svm.scatter.v8i1.v8i64.v32i8(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <8 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i8> %{{[0-9a-zA-Z_.]+}})
   }
   __esimd_fence(fence_mask::global_coherent_fence);
   // CHECK: call void @llvm.genx.fence(i8 1)
