@@ -9,6 +9,8 @@
 
 #include <ur/ur.hpp>
 
+#include <cuda.h>
+
 /// UR queue mapping on physical memory allocations used in virtual memory
 /// management.
 ///
@@ -17,9 +19,9 @@ struct ur_physical_mem_t_ {
 
   std::atomic_uint32_t RefCount;
   native_type PhysicalMem;
-  pi_context Context;
+  ur_context_handle_t_ Context;
 
-  ur_physical_mem_t_(native_type PhysMem, pi_context Ctx)
+  ur_physical_mem_t_(native_type PhysMem, ur_context_handle_t_ Ctx)
       : RefCount(1), PhysicalMem(PhysMem), Context(Ctx) {
     urContextRetain(Context);
   }
@@ -28,22 +30,22 @@ struct ur_physical_mem_t_ {
 
   native_type get() const noexcept { return PhysicalMem; }
 
-  pi_context getContext() const noexcept { return Context; }
+  ur_context_handle_t_ getContext() const noexcept { return Context; }
 
-  pi_uint32 incrementReferenceCount() noexcept { return ++RefCount; }
+  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
-  pi_uint32 decrementReferenceCount() noexcept { return --RefCount; }
+  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
 
-  pi_uint32 getReferenceCount() const noexcept { return RefCount; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 };
 
 // Find a device ordinal of a device.
-static pi_result GetDeviceOrdinal(pi_device Device, int &Ordinal) {
+static ur_result_t GetDeviceOrdinal(ur_device_handle_t Device, int &Ordinal) {
   // Get list of platforms
   uint32_t NumPlatforms;
   UR_ASSERT(urPlatformGet(0, nullptr, &NumPlatforms),
             UR_RESULT_ERROR_INVALID_ARGUMENT);
-  UR_ASSERT(NumPlatforms);
+  UR_ASSERT(NumPlatforms, UR_RESULT_ERROR_UNKNOWN);
 
   std::vector<ur_platform_handle_t> Platforms{NumPlatforms};
   UR_ASSERT(urPlatformGet(NumPlatforms, Platforms.data(), nullptr),

@@ -81,7 +81,7 @@ urVirtualMemSetAccess(ur_context_handle_t hContext, const void *pStart,
   CUmemAccessDesc AccessDesc;
   if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
     AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
-  else if (flags & UR_VIRTUAL_MEM_ACCESS_FLAGS_READ_ONLY)
+  else if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY)
     AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_READ;
   AccessDesc.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
   // TODO: When contexts support multiple devices, we should create a descriptor
@@ -147,7 +147,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(
     if (CuAccessFlags == CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
       UrAccessFlags = UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE;
     else if (CuAccessFlags == CU_MEM_ACCESS_FLAGS_PROT_READ)
-      UrAccessFlags = UR_VIRTUAL_MEM_ACCESS_FLAGS_READ_ONLY;
+      UrAccessFlags = UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY;
     return ReturnValue(UrAccessFlags);
   }
   default:

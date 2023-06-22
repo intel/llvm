@@ -30,6 +30,7 @@
 #include <ur/adapters/cuda/event.hpp>
 #include <ur/adapters/cuda/kernel.hpp>
 #include <ur/adapters/cuda/memory.hpp>
+#include <ur/adapters/cuda/physical_mem.hpp>
 #include <ur/adapters/cuda/platform.hpp>
 #include <ur/adapters/cuda/program.hpp>
 #include <ur/adapters/cuda/queue.hpp>

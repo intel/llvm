@@ -26,7 +26,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
   CUmemAllocationProp AllocProps = {};
   AllocProps.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
   AllocProps.type = CU_MEM_ALLOCATION_TYPE_PINNED;
-  UR_ASSERT(GetDeviceOrdinal(hDevice, alloc_props.location.id),
+  UR_ASSERT(GetDeviceOrdinal(hDevice, AllocProps.location.id),
             UR_RESULT_ERROR_INVALID_DEVICE);
 
   CUmemGenericAllocationHandle ResHandle;
