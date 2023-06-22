@@ -17,19 +17,19 @@
 /// UR queue mapping on physical memory allocations used in virtual memory
 /// management.
 ///
-struct ur_physical_mem_t_ {
+struct ur_physical_mem_handle_t_ {
   using native_type = CUmemGenericAllocationHandle;
 
   std::atomic_uint32_t RefCount;
   native_type PhysicalMem;
   ur_context_handle_t_ *Context;
 
-  ur_physical_mem_t_(native_type PhysMem, ur_context_handle_t_ *Ctx)
+  ur_physical_mem_handle_t_(native_type PhysMem, ur_context_handle_t_ *Ctx)
       : RefCount(1), PhysicalMem(PhysMem), Context(Ctx) {
     urContextRetain(Context);
   }
 
-  ~ur_physical_mem_t_() { urContextRelease(Context); }
+  ~ur_physical_mem_handle_t_() { urContextRelease(Context); }
 
   native_type get() const noexcept { return PhysicalMem; }
 
@@ -43,7 +43,7 @@ struct ur_physical_mem_t_ {
 };
 
 // Find a device ordinal of a device.
-static ur_result_t GetDeviceOrdinal(ur_device_handle_t Device, int &Ordinal) {
+inline ur_result_t GetDeviceOrdinal(ur_device_handle_t Device, int &Ordinal) {
   // Get list of platforms
   uint32_t NumPlatforms;
   UR_ASSERT(urPlatformGet(0, nullptr, &NumPlatforms),
