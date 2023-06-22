@@ -9,11 +9,17 @@
 #include <numeric>
 using namespace sycl;
 
-void check(queue &q, buffer<int, 2> &res_buf) {
-  range<2> size = res_buf.get_range();
-  const size_t N_items = 2 * size[0];
-  const size_t N_iters = size[1];
+constexpr size_t N_items = 128;
 
+size_t CalculateIterations(device &device, size_t iter_cap) {
+  uint64_t max_chars_alloc =
+      device.get_info<info::device::max_mem_alloc_size>() / sizeof(char);
+  size_t max_iter =
+      (sycl::sqrt(static_cast<double>(max_chars_alloc)) - 1) / (N_items / 2);
+  return sycl::min(max_iter, iter_cap);
+}
+
+void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {
   // checking the results is computationally expensive so we do it on the device
   buffer<char, 2> checked_buf(
       {N_items / 2 * N_iters + 1, N_items / 2 * N_iters + 1});
@@ -68,9 +74,7 @@ void check(queue &q, buffer<int, 2> &res_buf) {
   assert(err_acc[0] == 0);
 }
 
-template <memory_order order> void test_global() {
-  const size_t N_items = 128;
-  const size_t N_iters = 1000;
+template <memory_order order> void test_global(size_t N_iters) {
 
   int val = 0;
 
@@ -100,13 +104,10 @@ template <memory_order order> void test_global() {
        }
      });
    }).wait_and_throw();
-  check(q, res_buf);
+  check(q, res_buf, N_iters);
 }
 
-template <memory_order order> void test_local() {
-  const size_t N_items = 128;
-  const size_t N_iters = 1000;
-
+template <memory_order order> void test_local(size_t N_iters) {
   int val = 0;
 
   queue q;
@@ -133,13 +134,14 @@ template <memory_order order> void test_local() {
        }
      });
    }).wait_and_throw();
-  check(q, res_buf);
+  check(q, res_buf, N_iters);
 }
 
 int main() {
   queue q;
+  device d = q.get_device();
   std::vector<memory_order> supported_memory_orders =
-      q.get_device().get_info<info::device::atomic_memory_order_capabilities>();
+      d.get_info<info::device::atomic_memory_order_capabilities>();
 
   if (!is_supported(supported_memory_orders, memory_order::seq_cst)) {
     std::cout
@@ -147,8 +149,12 @@ int main() {
         << std::endl;
     return 0;
   }
-  test_global<memory_order::seq_cst>();
-  test_local<memory_order::seq_cst>();
+
+  const size_t N_iters = CalculateIterations(d, 1000);
+  std::cout << "Using N_iters " << N_iters << std::endl;
+
+  test_global<memory_order::seq_cst>(N_iters);
+  test_local<memory_order::seq_cst>(N_iters);
 
   std::cout << "Test passed." << std::endl;
 }

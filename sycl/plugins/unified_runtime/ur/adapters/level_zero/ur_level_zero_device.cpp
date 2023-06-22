@@ -245,9 +245,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint64_t GlobalMemSize = 0;
+    // Support to read physicalSize depends on kernel,
+    // so fallback into reading totalSize if physicalSize
+    // is not available.
     for (const auto &ZeDeviceMemoryExtProperty :
          Device->ZeDeviceMemoryProperties->second) {
       GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
+    }
+    if (GlobalMemSize == 0) {
+      for (const auto &ZeDeviceMemoryProperty :
+           Device->ZeDeviceMemoryProperties->first) {
+        GlobalMemSize += ZeDeviceMemoryProperty.totalSize;
+      }
     }
     return ReturnValue(uint64_t{GlobalMemSize});
   }
@@ -281,7 +290,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{Device->RefCount.load()});
-  case UR_DEVICE_INFO_PARTITION_PROPERTIES: {
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
     auto Res = Device->Platform->populateDeviceCacheIfNeeded();
@@ -291,15 +300,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
 
     uint32_t ZeSubDeviceCount = Device->SubDevices.size();
     if (ZeSubDeviceCount < 2) {
-      return ReturnValue((ur_device_partition_property_t)0);
+      return ReturnValue((ur_device_partition_t)0);
     }
     bool PartitionedByCSlice = Device->SubDevices[0]->isCCS();
 
     auto ReturnHelper = [&](auto... Partitions) {
       struct {
-        ur_device_partition_property_t Arr[sizeof...(Partitions) + 1];
-      } PartitionProperties = {
-          {Partitions..., ur_device_partition_property_t(0)}};
+        ur_device_partition_t Arr[sizeof...(Partitions) + 1];
+      } PartitionProperties = {{Partitions..., ur_device_partition_t(0)}};
       return ReturnValue(PartitionProperties);
     };
 
@@ -324,13 +332,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_PARTITION_TYPE: {
     // For root-device there is no partitioning to report.
     if (!Device->isSubDevice())
-      return ReturnValue(ur_device_partition_property_t(0));
+      return ReturnValue(ur_device_partition_t(0));
 
     if (Device->isCCS()) {
       struct {
         ur_device_partition_property_t Arr[2];
       } PartitionProperties = {
-          {UR_DEVICE_PARTITION_BY_CSLICE, ur_device_partition_property_t(0)}};
+          {UR_DEVICE_PARTITION_BY_CSLICE, ur_device_partition_t(0)}};
       return ReturnValue(PartitionProperties);
     }
 
@@ -338,9 +346,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
       ur_device_partition_property_t Arr[3];
     } PartitionProperties = {
         {UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-         (ur_device_partition_property_t)
+         (ur_device_partition_t)
              UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE,
-         ur_device_partition_property_t(0)}};
+         ur_device_partition_t(0)}};
     return ReturnValue(PartitionProperties);
   }
 
@@ -1088,9 +1096,8 @@ void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
 
 UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     ur_device_handle_t Device, ///< [in] handle of the device to partition.
-    const ur_device_partition_property_t
-        *Properties, ///< [in] null-terminated array of <$_device_partition_t
-                     ///< enum, value> pairs.
+    const ur_device_partition_properties_t
+        *Properties,     ///< [in] Device partition properties.
     uint32_t NumDevices, ///< [in] the number of sub-devices.
     ur_device_handle_t
         *OutDevices, ///< [out][optional][range(0, NumDevices)] array of handle
@@ -1102,13 +1109,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
                             ///< according to the partitioning property.
 ) {
   // Other partitioning ways are not supported by Level Zero
-  if (Properties[0] == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
-    if ((Properties[1] != UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE &&
-         Properties[1] != UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA)) {
+  if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+    if ((Properties->pProperties->value.affinity_domain !=
+             UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE &&
+         Properties->pProperties->value.affinity_domain !=
+             UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA)) {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
-  } else if (Properties[0] == UR_DEVICE_PARTITION_BY_CSLICE) {
-    if (Properties[1] != 0) {
+  } else if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_CSLICE) {
+    if (Properties->pProperties->value.affinity_domain != 0) {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   } else {
@@ -1132,13 +1141,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     // UR_L0_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
     // still expose CSlices in partitioning by affinity domain for compatibility
     // reasons.
-    if (Properties[0] == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN &&
+    if (Properties->pProperties->type ==
+            UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN &&
         !ExposeCSliceInAffinityPartitioning) {
       if (Device->isSubDevice()) {
         return 0;
       }
     }
-    if (Properties[0] == UR_DEVICE_PARTITION_BY_CSLICE) {
+    if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_CSLICE) {
       // Not a CSlice-based partitioning.
       if (!Device->SubDevices[0]->isCCS()) {
         return 0;

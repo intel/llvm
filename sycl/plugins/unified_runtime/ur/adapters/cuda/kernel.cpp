@@ -295,8 +295,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, ur_mem_handle_t hArgValue) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                     const ur_kernel_arg_mem_obj_properties_t *Properties,
+                     ur_mem_handle_t hArgValue) {
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
