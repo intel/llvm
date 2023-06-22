@@ -515,7 +515,6 @@ void program_impl::create_pi_program_with_kernel_name(
   MProgram = PM.createPIProgram(Img, get_context(), {FirstDevice});
 }
 
-
 void program_impl::flush_spec_constants(
     const RTDeviceBinaryImage &Img,
     sycl::detail::pi::PiProgram NativePrg) const {
