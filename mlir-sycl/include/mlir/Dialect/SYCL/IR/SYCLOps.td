@@ -59,6 +59,13 @@ class SYCLMethodOpInterfaceImpl<
   }];
 }
 
+class SYCLConstructor<string name, list<Trait> traits = []>
+    : SYCL_Op<name # ".constructor", traits # [MemoryEffectsOpInterface]> {
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // TRAIT DECLARATIONS
 ////////////////////////////////////////////////////////////////////////////////
@@ -608,6 +615,45 @@ def SYCLNdRangeGetGroupRange
   let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs SYCL_RangeType:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// id.constructor OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLIDConstructorOp : SYCLConstructor<"id"> {
+  let summary = "Operation returning a new sycl.id value";
+  let description = [{
+    This operation creates a new `sycl.id`. The following signatures are
+    provided:
+    ```mlir
+    # 0-initialize object:
+    () -> memref<1x!sycl_id_N>
+    # Initialize each dimension:
+    (index) -> memref<1x!sycl_id_1>
+    (index, index) -> memref<1x!sycl_id_2>
+    (index, index, index) -> memref<1x!sycl_id_3>
+    # Copy the dimensions of the input:
+    (memref<?x!sycl_id_N>) -> memref<1x!sycl_id_N>
+    (memref<?x!sycl_range_N>) -> memref<1x!sycl_id_N>
+    # Construct from `sycl.item.get_id`'s result:
+    (memref<?x!sycl_item_N>) -> memref<1x!sycl_item_N>
+    ```
+    In addition of initializing the values, this operation also allocates the
+    object.
+  }];
+  let arguments = (ins Arg<Variadic<AnyType>, "Constructor arguments">:$Args);
+  let results =
+      (outs Res<MemRefRankOf<[SYCL_IDType], [1]>, "constructed object">:$id);
+  let extraClassDeclaration = [{
+    /// Return the memory effects associated to each argument.
+    ///
+    /// Each argument will have `MemoryEffects::Read` if they're a
+    /// pointer/memref and no memory effect otherwise.
+    void getEffects(::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<
+                        ::mlir::MemoryEffects::Effect>> &effects);
+  }];
+  let hasVerifier = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
