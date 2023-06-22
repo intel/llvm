@@ -1,4 +1,5 @@
 ; Original code:
+; Compile with: clang++ -fsycl -fsycl-device-only -fno-sycl-instrument-device-code -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ -S reqd-sub-group-size.cpp
 ; #include <sycl/sycl.hpp>
 
 ; int main() {
