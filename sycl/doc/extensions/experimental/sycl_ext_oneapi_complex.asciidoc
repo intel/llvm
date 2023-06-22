@@ -82,10 +82,11 @@ supports.
 
 === Complex Class
 
-The core of this extension in the complex math class. This class contains a real
+The core of this extension is the complex math class. This class contains a real
 and imaginary component and enables mathematical operations between complex
-numbers and decimals. The complex class interface and operations are shown
-below.
+numbers and decimals. The complex class interface and operations (shown below)
+are available in both host code and device code. Some operations, however, are
+available only in host code as noted below.
 
 The complex type is trivially copyable and type trait `is_device_copyable`
 should resolve to `std::true_type`.
@@ -202,8 +203,10 @@ namespace experimental {
             friend constexpr bool operator!=(value_type x, const complex<value_type> &w);
 
             /// Reads a complex number from is.
+            /// Not allowed in device code.
             template <class C, class T> friend std::basic_istream<C, T> &operator>>(std::basic_istream<C, T> &is, complex<value_type> &);
             /// Writes to os the complex number z in the form (real,imaginary).
+            /// Not allowed in device code.
             template <class C, class T> friend std::basic_ostream<C, T> &operator<<(std::basic_ostream<C, T> &os, const complex<value_type> &);
             /// Streams the complex number z in the format "(real,imaginary)" into `sycl::stream` x and return the result.
             friend const sycl::stream &operator<<(const sycl::stream &x, const complex<value_type> &z);
@@ -223,8 +226,27 @@ for the SYCL math functions, `abs`, `acos`, `asin`, `atan`, `acosh`, `asinh`,
 `atanh`, `arg`, `conj`, `cos`, `cosh`, `exp`, `log`, `log10`, `norm`, `polar`,
 `pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
 
-Each math function should follow the C++ standard for handling NaN's and Inf
-values.
+These functions are available in both host and device code, and each math
+function should follow the C++ standard for handling NaN's and Inf values.
+
+Note: In the case of the `pow` function, additional overloads have been added
+to ensure that for their first argument `base` and second `argument`:
+
+If `base` and/or `exponent` has type `complex<sycl::half>` or `sycl::half`,
+then `pow(base, exponent)` has the same effect as
+`pow(complex<sycl::half>(base), complex<sycl::half>(exponent))`.
+
+Otherwise, if `base` and/or `exponent` has type `complex<float>`, `float`,
+then `pow(base, exponent)` has the same effect as
+`pow(complex<float>(base), complex<float>(exponent))`.
+
+Otherwise, if `base` and/or `exponent` has type `complex<double>`, `double`,
+then `pow(base, exponent)` has the same effect as
+`pow(complex<double>(base), complex<double>(exponent))`.
+
+Lastly, if one argument has type `complex<T>` and the other argument has type
+`complex<U>`, then `pow(base, exponent)` has the same effect as
+`pow(complex<std::common_type_t<T, U>>(base), complex<std::common_type_t<T, U>>(exponent))`.
 
 ```C++
 namespace sycl {
@@ -261,7 +283,7 @@ namespace experimental {
     /// Compute the projection of number y, treated as complex number with positive zero imaginary component.
     template <class T> complex<T> proj(T);
     /// Construct a complex number from polar coordinates with mangitude rho and angle theta.
-    template <class T> complex<T> polar(const T &, const T &);
+    template <class T> complex<T> polar(const T &rho, const T &theta = T());
 
     /// TRANSCENDENTALS:
     /// Compute the natural log of complex number x.
