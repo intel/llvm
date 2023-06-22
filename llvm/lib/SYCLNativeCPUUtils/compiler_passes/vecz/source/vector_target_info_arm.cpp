@@ -18,7 +18,6 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicsAArch64.h>
 #include <llvm/IR/IntrinsicsARM.h>
-
 #include <multi_llvm/vector_type_helper.h>
 
 #include "debugging.h"
