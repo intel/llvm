@@ -616,6 +616,11 @@ pi_uint64 _pi_event::get_queued_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
 
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  PI_CHECK_ERROR(hipEventSynchronize(evStart_));
+  PI_CHECK_ERROR(hipEventSynchronize(evEnd_));
+
   PI_CHECK_ERROR(hipEventElapsedTime(&miliSeconds, evStart_, evEnd_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
@@ -623,6 +628,11 @@ pi_uint64 _pi_event::get_queued_time() const {
 pi_uint64 _pi_event::get_start_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  PI_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
+  PI_CHECK_ERROR(hipEventSynchronize(evStart_));
 
   PI_CHECK_ERROR(
       hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evStart_));
@@ -632,6 +642,11 @@ pi_uint64 _pi_event::get_start_time() const {
 pi_uint64 _pi_event::get_end_time() const {
   float miliSeconds = 0.0f;
   assert(is_started() && is_recorded());
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  PI_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
+  PI_CHECK_ERROR(hipEventSynchronize(evEnd_));
 
   PI_CHECK_ERROR(
       hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evEnd_));
