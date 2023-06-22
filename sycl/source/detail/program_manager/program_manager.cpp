@@ -623,24 +623,21 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
                                     " is not supported on the device");
       }
     } else if ((*It)->Name == "reqd_sub_group_size"sv) {
-      ByteArray ReqdSubGroupSize = DeviceBinaryProperty(*It).asByteArray();
-      // Drop 8 bytes describing the size of the byte array.
-      ReqdSubGroupSize.dropBytes(8);
+      auto ReqdSubGroupSize = DeviceBinaryProperty(*It).asUint32();
       auto SupportedSubGroupSizes =
           Device.get_info<info::device::sub_group_sizes>();
-      while (!ReqdSubGroupSize.empty()) {
-        int ReqdSubGroupSizeVal = ReqdSubGroupSize.consume<int>();
-        if (ReqdSubGroupSizeVal == 1 &&
-            getUint32PropAsBool(Img, "isEsimdImage"))
-          continue;
-        if (std::find(SupportedSubGroupSizes.cbegin(),
-                      SupportedSubGroupSizes.cend(),
-                      ReqdSubGroupSizeVal) == SupportedSubGroupSizes.cend())
-          throw sycl::exception(errc::kernel_not_supported,
-                                "Sub-group size " +
-                                    std::to_string(ReqdSubGroupSizeVal) +
-                                    " is not supported on the device");
-      }
+
+      // ReqdSubGroupSize != 1 is a WA for ESIMD, no backend
+      // currently includes 1 as a valid sub-group size.
+      // TODO: remove this WA when backends support this.
+      if (ReqdSubGroupSize != 1 &&
+          std::none_of(SupportedSubGroupSizes.cbegin(),
+                       SupportedSubGroupSizes.cend(),
+                       [=](auto s) { return s == ReqdSubGroupSize; }))
+        throw sycl::exception(errc::kernel_not_supported,
+                              "Sub-group size " +
+                                  std::to_string(ReqdSubGroupSize) +
+                                  " is not supported on the device");
     }
   }
 
@@ -2480,18 +2477,14 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
 
   // Check if device supports required sub-group size.
   if (ReqdSubGroupSizePropIt) {
-    ByteArray ReqdSubGroupSize =
-        DeviceBinaryProperty(*(ReqdSubGroupSizePropIt.value())).asByteArray();
-    // Drop 8 bytes describing the size of the byte array.
-    ReqdSubGroupSize.dropBytes(8);
+    auto ReqdSubGroupSize =
+        DeviceBinaryProperty(*(ReqdSubGroupSizePropIt.value())).asUint32();
     auto SupportedSubGroupSizes = Dev.get_info<info::device::sub_group_sizes>();
-    while (!ReqdSubGroupSize.empty()) {
-      int ReqdSubGroupSizeVal = ReqdSubGroupSize.consume<int>();
-      if (std::find(SupportedSubGroupSizes.cbegin(),
-                    SupportedSubGroupSizes.cend(),
-                    ReqdSubGroupSizeVal) == SupportedSubGroupSizes.cend())
-        return false;
-    }
+    if (ReqdSubGroupSize != 1 &&
+        std::none_of(SupportedSubGroupSizes.cbegin(),
+                     SupportedSubGroupSizes.cend(),
+                     [=](auto s) { return s == ReqdSubGroupSize; }))
+      return false;
   }
 
   return true;

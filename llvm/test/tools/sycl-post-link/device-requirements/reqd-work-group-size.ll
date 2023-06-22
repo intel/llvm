@@ -27,12 +27,10 @@
 
 ; CHECK-PROP-AUTO-SPLIT-0: [SYCL/device requirements]
 ; CHECK-PROP-AUTO-SPLIT-0-NEXT: aspects=2|AAAAAAAAAAA
-; CHECK-PROP-AUTO-SPLIT-0-NEXT: reqd_sub_group_size=2|AAAAAAAAAAA
 ; CHECK-PROP-AUTO-SPLIT-0-NEXT: reqd_work_group_size=2|gAAAAAAAAAAQAAAA
 
 ; CHECK-PROP-AUTO-SPLIT-1: [SYCL/device requirements]
 ; CHECK-PROP-AUTO-SPLIT-1-NEXT: aspects=2|AAAAAAAAAAA
-; CHECK-PROP-AUTO-SPLIT-1-NEXT: reqd_sub_group_size=2|AAAAAAAAAAA
 ; CHECK-PROP-AUTO-SPLIT-1-NEXT: reqd_work_group_size=2|gAAAAAAAAAAIAAAA
 
 ; ModuleID = '/tmp/source-5f7d0d.bc'

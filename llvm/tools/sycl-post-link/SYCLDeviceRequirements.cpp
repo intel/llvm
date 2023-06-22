@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SYCLDeviceRequirements.h"
+#include "ModuleSplitter.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
@@ -17,7 +18,8 @@
 using namespace llvm;
 
 void llvm::getSYCLDeviceRequirements(
-    const Module &M, std::map<StringRef, std::vector<uint32_t>> &Requirements) {
+    const module_split::ModuleDesc &M,
+    std::map<StringRef, llvm::util::PropertyValue> &Requirements) {
   auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
                                              unsigned OpNo) -> unsigned {
     Constant *C =
@@ -32,12 +34,11 @@ void llvm::getSYCLDeviceRequirements(
   constexpr std::pair<const char *, const char *> ReqdMDs[] = {
       {"sycl_used_aspects", "aspects"},
       {"sycl_fixed_targets", "fixed_target"},
-      {"reqd_work_group_size", "reqd_work_group_size"},
-      {"intel_reqd_sub_group_size", "reqd_sub_group_size"}};
+      {"reqd_work_group_size", "reqd_work_group_size"}};
 
   for (const auto &MD : ReqdMDs) {
     std::set<uint32_t> Values;
-    for (const Function &F : M) {
+    for (const Function &F : M.getModule()) {
       if (const MDNode *MDN = F.getMetadata(MD.first)) {
         for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
           Values.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
@@ -49,4 +50,26 @@ void llvm::getSYCLDeviceRequirements(
     Requirements[MD.second] =
         std::vector<uint32_t>(Values.begin(), Values.end());
   }
+
+  // There should only be at most one function with
+  // intel_reqd_sub_group_size metadata when considering the entry
+  // points of a module, but not necessarily when considering all the
+  // functions of a module: an entry point with a
+  // intel_reqd_sub_group_size can call an ESIMD function through
+  // invoke_esimd, and that function has intel_reqd_sub_group_size=1,
+  // which is valid.
+  std::optional<uint32_t> sub_group_size;
+  for (const Function *F : M.entries()) {
+    if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
+      assert(MDN->getNumOperands() == 1);
+      auto value = ExtractIntegerFromMDNodeOperand(MDN, 0);
+      if (!sub_group_size)
+        sub_group_size = value;
+      else
+        assert(*sub_group_size == value);
+    }
+  }
+  // Do not attach reqd_sub_group_Size if there is no attached metadata
+  if (sub_group_size)
+    Requirements["reqd_sub_group_size"] = *sub_group_size;
 }

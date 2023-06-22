@@ -12,12 +12,15 @@
 #include <map>
 #include <vector>
 
+#include "ModuleSplitter.h"
+#include "llvm/Support/PropertySetIO.h"
+
 namespace llvm {
 
-class Module;
 class StringRef;
 
 void getSYCLDeviceRequirements(
-    const Module &M, std::map<StringRef, std::vector<uint32_t>> &Requirements);
+    const module_split::ModuleDesc &M,
+    std::map<StringRef, llvm::util::PropertyValue> &Requirements);
 
 } // namespace llvm
