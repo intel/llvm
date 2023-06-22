@@ -6,10 +6,11 @@
 ; placed in the same module as @_Z3foov.
 ;
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-TU0-IR \
-; RUN:     --implicit-check-not TU0_kernel --implicit-check-not _Z3foov
+; RUN:     --implicit-check-not TU0_kernel --implicit-check-not _Z3foov \
+; RUN:     --implicit-check-not _Z4foo3v
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-TU1-IR \
 ; RUN:     --implicit-check-not TU1_kernel --implicit-check-not _Z4foo2v \
-; RUN:     --implicit-check-not _Z4foo3v
+; RUN:     --implicit-check-not _Z4foo1v
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-SYM
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-SYM
 ;
