@@ -119,15 +119,15 @@ endif()
 if(WIN32)
     target_sources(ur_loader
         PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/windows/adapter_search.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/lib_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_init.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_location.cpp
     )
 else()
     target_sources(ur_loader
         PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/linux/adapter_search.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/lib_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/loader_init.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/linux/loader_location.cpp
     )
 endif()
