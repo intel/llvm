@@ -475,7 +475,9 @@ static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
   }
 
   // If the operation has no side effects it can be hoisted.
-  if (isMemoryEffectFree(&op)) {
+  if (isMemoryEffectFree(&op) &&
+      (op.getRegions().empty() ||
+       op.hasTrait<OpTrait::IsIsolatedFromAbove>())) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
       llvm::dbgs().indent(2) << "**** can be hoisted: has no side effects\n\n";
