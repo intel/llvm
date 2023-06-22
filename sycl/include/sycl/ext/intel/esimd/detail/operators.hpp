@@ -540,12 +540,13 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
   }                                                                            \
   /* simd_mask BINOP simd_mask  */                                             \
   template <class SimdT, class T1 = typename SimdT::element_type,              \
-            class T2 = typename SimdT::element_type>                           \
+            class T2 = typename SimdT::element_type,                           \ 
+            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
+            class SimdTx = __ESIMD_NS::simd<Tx, SimdT::length>>                \
   inline std::enable_if_t<__ESIMD_DNS::is_simd_mask_type_v<SimdT> && COND,     \
-                          __ESIMD_NS::simd<T2, SimdT::length>>                 \
+                          SimdTx>                                              \
   operator BINOP(const SimdT &LHS, const SimdT &RHS) {                         \
-    return __ESIMD_NS::simd<T1, SimdT::length>(LHS)                            \
-        BINOP __ESIMD_NS::simd<T2, SimdT::length>(RHS);                        \
+    return SimdTx(LHS) BINOP SimdTx(RHS);                                      \
   }
 
 #define __ESIMD_DEF_SIMD_MASK_MULT_OP(COND)                                    \
@@ -608,11 +609,13 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
   }                                                                            \
   /* simd_mask * simd_mask  */                                                 \
   template <class SimdT, class T1 = typename SimdT::element_type,              \
-            class T2 = typename SimdT::element_type>                           \
+            class T2 = typename SimdT::element_type,                           \
+            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
+            class SimdTx = __ESIMD_NS::simd<Tx, SimdT::length>>                \
   inline std::enable_if_t<__ESIMD_DNS::is_simd_mask_type_v<SimdT> && COND,     \
-                          __ESIMD_NS::simd<T2, SimdT::length>>                 \
+                          SimdTx>                                              \
   operator*(const SimdT &LHS, const SimdT &RHS) {                              \
-    __ESIMD_NS::simd<T1, SimdT::length> res(0);                                \
+    SimdTx res(0);                                                             \
     res.merge(RHS, LHS);                                                       \
     return res;                                                                \
   }
