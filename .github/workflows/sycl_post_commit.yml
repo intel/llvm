@@ -1,8 +1,7 @@
 name: SYCL Post Commit
 
-
 on:
-  pull_request_target:
+  push:
     branches:
     - sycl
     - sycl-devops-pr/**
