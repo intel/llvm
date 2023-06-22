@@ -911,8 +911,8 @@ bool handler::supportsUSMMemset2D() {
 
 id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   device Dev = MQueue->get_device();
-  id<2> ItemLimit = Dev.get_info<info::device::max_work_item_sizes<2>>() *
-                    Dev.get_info<info::device::max_compute_units>();
+  range<2> ItemLimit = Dev.get_info<info::device::max_work_item_sizes<2>>() *
+                       Dev.get_info<info::device::max_compute_units>();
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
