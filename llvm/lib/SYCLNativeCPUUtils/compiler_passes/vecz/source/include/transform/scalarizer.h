@@ -189,8 +189,8 @@ class Scalarizer {
   ///
   /// @return Packet containing scalarized values or null.
   SimdPacket *scalarizeBinaryOp(llvm::BinaryOperator *BinOp, PacketMask PM);
-// Freeze instruction is not available in LLVM versions prior 10.0
-// and not used in LLVM versions prior to 11.0
+  // Freeze instruction is not available in LLVM versions prior 10.0
+  // and not used in LLVM versions prior to 11.0
   /// @brief Scalarize a freeze instruction.
   ///
   /// @param[in] FreezeInst Instruction to scalarize.
