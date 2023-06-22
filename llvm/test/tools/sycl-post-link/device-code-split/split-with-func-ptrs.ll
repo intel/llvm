@@ -33,12 +33,12 @@ $bar = comdat any
 
 ; Function Attrs: mustprogress norecurse nounwind
 define linkonce_odr dso_local spir_func void @foo() unnamed_addr #0 comdat align 2 {
-; CHECK-A0: define linkonce_odr dso_local spir_func void @foo
-; CHECK-A1: define linkonce_odr dso_local spir_func void @foo
+; CHECK-A0: define internal spir_func void @foo
+; CHECK-A1: define internal spir_func void @foo
 ; CHECK-B0: define linkonce_odr dso_local spir_func void @foo
 ; CHECK-B1: define linkonce_odr dso_local spir_func void @foo
-; CHECK-C0: define linkonce_odr dso_local spir_func void @foo
-; CHECK-C1: define linkonce_odr dso_local spir_func void @foo
+; CHECK-C0: define internal spir_func void @foo
+; CHECK-C1: define internal spir_func void @foo
   ret void
 }
 
@@ -57,12 +57,12 @@ define weak dso_local spir_func void @baz() #3 {
 
 ; Function Attrs: mustprogress norecurse nounwind
 define linkonce_odr dso_local spir_func void @bar() unnamed_addr #1 comdat align 2 {
-; CHECK-A0: define linkonce_odr dso_local spir_func void @bar
-; CHECK-A1: define linkonce_odr dso_local spir_func void @bar
+; CHECK-A0: define internal spir_func void @bar
+; CHECK-A1: define internal spir_func void @bar
 ; CHECK-B0: define linkonce_odr dso_local spir_func void @bar
 ; CHECK-B1: define linkonce_odr dso_local spir_func void @bar
-; CHECK-C0: define linkonce_odr dso_local spir_func void @bar
-; CHECK-C1: define linkonce_odr dso_local spir_func void @bar
+; CHECK-C0: define internal spir_func void @bar
+; CHECK-C1: define internal spir_func void @bar
   call void @baz()
   ret void
 }

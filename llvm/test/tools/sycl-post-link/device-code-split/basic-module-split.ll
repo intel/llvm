@@ -27,8 +27,8 @@ entry:
   ret void
 }
 
-; CHECK-TU1: define dso_local spir_func void @{{.*}}foo{{.*}}()
-; CHECK-TU0-NOT: define dso_local spir_func void @{{.*}}foo{{.*}}()
+; CHECK-TU1: define internal spir_func void @{{.*}}foo{{.*}}()
+; CHECK-TU0-NOT: define {{.*}} spir_func void @{{.*}}foo{{.*}}()
 
 ; CHECK-TU1: call spir_func i32 @{{.*}}bar{{.*}}(i32 1)
 
@@ -66,8 +66,8 @@ entry:
   ret void
 }
 
-; CHECK-TU1: define dso_local spir_func void @{{.*}}foo1{{.*}}()
-; CHECK-TU0-NOT: define dso_local spir_func void @{{.*}}foo1{{.*}}()
+; CHECK-TU1: define internal spir_func void @{{.*}}foo1{{.*}}()
+; CHECK-TU0-NOT: define {{.*}} spir_func void @{{.*}}foo1{{.*}}()
 
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z4foo1v() {
@@ -90,8 +90,8 @@ entry:
   ret void
 }
 
-; CHECK-TU1-NOT: define dso_local spir_func void @{{.*}}foo2{{.*}}()
-; CHECK-TU0: define dso_local spir_func void @{{.*}}foo2{{.*}}()
+; CHECK-TU1-NOT: define {{.*}} spir_func void @{{.*}}foo2{{.*}}()
+; CHECK-TU0: define internal spir_func void @{{.*}}foo2{{.*}}()
 
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z4foo2v() {

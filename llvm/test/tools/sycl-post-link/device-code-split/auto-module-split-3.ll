@@ -21,9 +21,9 @@
 ;
 ; CHECK-TU0-IR: @_ZL2GV = internal addrspace(1) constant
 ; CHECK-TU0-IR: define dso_local spir_kernel void @_ZTSZ4mainE11TU1_kernel0
-; CHECK-TU0-IR: define dso_local spir_func i32 @_Z4foo1v
+; CHECK-TU0-IR: define internal spir_func i32 @_Z4foo1v
 ; CHECK-TU0-IR: define dso_local spir_kernel void @_ZTSZ4mainE11TU1_kernel1
-; CHECK-TU0-IR: define dso_local spir_func void @_Z4foo2v
+; CHECK-TU0-IR: define internal spir_func void @_Z4foo2v
 ;
 ; CHECK-TU1-IR: define dso_local spir_kernel void @_ZTSZ4mainE10TU0_kernel
 ; CHECK-TU1-IR: define dso_local spir_func void @_Z3foov
