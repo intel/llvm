@@ -110,7 +110,6 @@ public:
     EMPTY_TASK,
     HOST_TASK,
     FUSION,
-    ENQUEUE_TO_CMD_BUFFER,
     EXEC_CMD_BUFFER,
   };
 
