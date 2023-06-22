@@ -628,11 +628,11 @@ static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
   return readELFValue<uint16_t>(ImgData + 16, 2, IsBigEndian);
 }
 
-RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
-                                            size_t ImgSize) {
+sycl::detail::pi::PiDeviceBinaryType
+getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
   // Top-level magic numbers for the recognized binary image formats.
   struct {
-    RT::PiDeviceBinaryType Fmt;
+    sycl::detail::pi::PiDeviceBinaryType Fmt;
     const uint32_t Magic;
   } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
               {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342},
@@ -651,7 +651,7 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
 
     // ELF e_type for recognized binary image formats.
     struct {
-      RT::PiDeviceBinaryType Fmt;
+      sycl::detail::pi::PiDeviceBinaryType Fmt;
       const uint16_t Magic;
     } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04},  // OpenCL executable
                    {PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF12}}; // ZEBIN executable

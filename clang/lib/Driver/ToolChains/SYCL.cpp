@@ -963,7 +963,6 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   if (Arg *A = Args.getLastArg(options::OPT_O_Group))
     if (A->getOption().matches(options::OPT_O0))
       BeArgs.push_back("-cl-opt-disable");
-
   if (IsGen) {
     // For GEN (spir64_gen) we have implied -device settings given usage
     // of intel_gpu_ as a target.  Handle those here, and also check that no
@@ -991,10 +990,14 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
     }
-    // -ftarget-compile-fast
+    // -ftarget-compile-fast AOT
     if (Args.hasArg(options::OPT_ftarget_compile_fast)) {
       BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
     }
+  } else if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
+             Triple.isSPIR()) {
+    // -ftarget-compile-fast JIT
+    Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
   }
   if (BeArgs.empty())
     return;

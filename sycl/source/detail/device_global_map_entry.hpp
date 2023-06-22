@@ -41,7 +41,7 @@ struct DeviceGlobalUSMMem {
 private:
   void *MPtr;
   std::mutex MZeroInitEventMutex;
-  std::optional<RT::PiEvent> MZeroInitEvent;
+  std::optional<sycl::detail::pi::PiEvent> MZeroInitEvent;
 
   friend struct DeviceGlobalMapEntry;
 };
