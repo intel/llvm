@@ -504,6 +504,12 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     LangOpts.NewAlignOverride = 0;
   }
 
+  // Diagnose FPAccuracy option validity.
+  if (!LangOpts.FPAccuracyVal.empty())
+    for (const auto &F : LangOpts.FPAccuracyFuncMap)
+      Diags.Report(diag::warn_function_fp_accuracy_already_set)
+          << F.second << F.first;
+
   // Prevent the user from specifying both -fsycl-is-device and -fsycl-is-host.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsHost)
     Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
@@ -4676,7 +4682,7 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Invocation,
                                         const char *Argv0) {
   CompilerInvocation DummyInvocation;
 
-  bool Res = RoundTrip(
+  return RoundTrip(
       [](CompilerInvocation &Invocation, ArrayRef<const char *> CommandLineArgs,
          DiagnosticsEngine &Diags, const char *Argv0) {
         return CreateFromArgsImpl(Invocation, CommandLineArgs, Diags, Argv0);
@@ -4687,14 +4693,6 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Invocation,
         Invocation.generateCC1CommandLine(Args, SA);
       },
       Invocation, DummyInvocation, CommandLineArgs, Diags, Argv0);
-
-  // Diagnose FPAccuracy option validity.
-  LangOptions &LangOpts = *Invocation.getLangOpts();
-  if (!LangOpts.FPAccuracyVal.empty())
-    for (const auto &F : LangOpts.FPAccuracyFuncMap)
-      Diags.Report(diag::warn_function_fp_accuracy_already_set)
-          << F.second << F.first;
-  return Res;
 }
 
 std::string CompilerInvocation::getModuleHash() const {
