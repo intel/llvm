@@ -480,7 +480,7 @@ static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
        op.hasTrait<OpTrait::IsIsolatedFromAbove>())) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
-      llvm::dbgs().indent(2) << "**** has no side effects: can be hoisted\n\n";
+      llvm::dbgs().indent(2) << "**** can be hoisted: has no side effects\n\n";
     });
     return true;
   }
