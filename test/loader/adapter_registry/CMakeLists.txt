@@ -12,10 +12,10 @@ function(add_adapter_reg_search_test name)
 
     if(WIN32)
         target_sources(${TEST_TARGET_NAME} PRIVATE
-            ${CMAKE_SOURCE_DIR}/source/loader/windows/loader_location.cpp)
+            ${CMAKE_SOURCE_DIR}/source/loader/windows/adapter_search.cpp)
     else()
         target_sources(${TEST_TARGET_NAME} PRIVATE
-            ${CMAKE_SOURCE_DIR}/source/loader/linux/loader_location.cpp)
+            ${CMAKE_SOURCE_DIR}/source/loader/linux/adapter_search.cpp)
     endif()
 
     target_link_libraries(${TEST_TARGET_NAME}
