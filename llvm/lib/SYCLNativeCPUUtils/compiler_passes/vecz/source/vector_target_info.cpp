@@ -14,7 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <llvm/ADT/Triple.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
@@ -22,6 +21,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <multi_llvm/creation_apis_helper.h>
 #include <multi_llvm/opaque_pointers.h>
+#include <multi_llvm/triple.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include "debugging.h"
