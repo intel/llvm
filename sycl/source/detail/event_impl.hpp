@@ -256,6 +256,15 @@ public:
     return MContext;
   }
 
+  // Sets a sync point which is used when this event represents an enqueue to a
+  // Command Bufferr.
+  void setSyncPoint(sycl::detail::pi::PiExtSyncPoint SyncPoint) {
+    MSyncPoint = SyncPoint;
+  }
+
+  // Get the sync point associated with this event.
+  sycl::detail::pi::PiExtSyncPoint getSyncPoint() const { return MSyncPoint; }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -301,6 +310,10 @@ protected:
 
   std::mutex MMutex;
   std::condition_variable cv;
+
+  // If this event represents a submission to a RT::PiExtCommandBuffer
+  // the sync point for that submission is stored here.
+  sycl::detail::pi::PiExtSyncPoint MSyncPoint;
 
   friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

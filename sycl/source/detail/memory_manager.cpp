@@ -1234,6 +1234,89 @@ void MemoryManager::copy_from_device_global(
                               DepEvents, OutEvent);
 }
 
+// Command buffer methods
+void MemoryManager::ext_oneapi_copy_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, SYCLMemObjI *SYCLMemObj,
+    void *SrcMem, unsigned int DimSrc, sycl::range<3> SrcSize,
+    sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+    unsigned int SrcElemSize, void *DstMem, unsigned int DimDst,
+    sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
+    sycl::id<3> DstOffset, unsigned int DstElemSize,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+
+  detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
+  TermPositions SrcPos, DstPos;
+  prepTermPositions(SrcPos, DimSrc, MemType);
+  prepTermPositions(DstPos, DimDst, MemType);
+
+  size_t DstXOffBytes = DstOffset[DstPos.XTerm] * DstElemSize;
+  size_t SrcXOffBytes = SrcOffset[SrcPos.XTerm] * SrcElemSize;
+  size_t SrcAccessRangeWidthBytes = SrcAccessRange[SrcPos.XTerm] * SrcElemSize;
+  size_t DstSzWidthBytes = DstSize[DstPos.XTerm] * DstElemSize;
+  size_t SrcSzWidthBytes = SrcSize[SrcPos.XTerm] * SrcElemSize;
+
+  if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
+    if (1 == DimDst && 1 == DimSrc) {
+      Plugin->call<PiApiKind::piextCommandBufferMemBufferCopy>(
+          CommandBuffer,
+          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), SrcXOffBytes,
+          DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(), Deps.data(),
+          OutSyncPoint);
+    } else {
+      // passing 0 for pitches not allowed. Because clEnqueueCopyBufferRect will
+      // calculate both src and dest pitch using region[0], which is not correct
+      // if src and dest are not the same size.
+      size_t SrcRowPitch = SrcSzWidthBytes;
+      size_t SrcSlicePitch = (DimSrc <= 1)
+                                 ? SrcSzWidthBytes
+                                 : SrcSzWidthBytes * SrcSize[SrcPos.YTerm];
+      size_t DstRowPitch = DstSzWidthBytes;
+      size_t DstSlicePitch = (DimDst <= 1)
+                                 ? DstSzWidthBytes
+                                 : DstSzWidthBytes * DstSize[DstPos.YTerm];
+
+      pi_buff_rect_offset_struct SrcOrigin{
+          SrcXOffBytes, SrcOffset[SrcPos.YTerm], SrcOffset[SrcPos.ZTerm]};
+      pi_buff_rect_offset_struct DstOrigin{
+          DstXOffBytes, DstOffset[DstPos.YTerm], DstOffset[DstPos.ZTerm]};
+      pi_buff_rect_region_struct Region{SrcAccessRangeWidthBytes,
+                                        SrcAccessRange[SrcPos.YTerm],
+                                        SrcAccessRange[SrcPos.ZTerm]};
+
+      Plugin->call<PiApiKind::piextCommandBufferMemBufferCopyRect>(
+          CommandBuffer,
+          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), &SrcOrigin,
+          &DstOrigin, &Region, SrcRowPitch, SrcSlicePitch, DstRowPitch,
+          DstSlicePitch, Deps.size(), Deps.data(), OutSyncPoint);
+    }
+  } else {
+    throw sycl::exception(sycl::errc::invalid,
+                          "Images are not supported in Graphs");
+  }
+}
+
+void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
+    ContextImplPtr Context, const void *SrcMem,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, size_t Len,
+    void *DstMem, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  if (!SrcMem || !DstMem)
+    throw runtime_error("NULL pointer argument in memory copy operation.",
+                        PI_ERROR_INVALID_VALUE);
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  Plugin->call<PiApiKind::piextCommandBufferMemcpyUSM>(
+      CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(),
+      OutSyncPoint);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

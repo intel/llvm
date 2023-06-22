@@ -497,6 +497,15 @@ public:
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
 };
+class CGExecCommandBuffer : public CG {
+public:
+  RT::PiExtCommandBuffer MCommandBuffer;
+
+  CGExecCommandBuffer(RT::PiExtCommandBuffer CommandBuffer,
+                      CG::StorageInitHelper CGData)
+      : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
+        MCommandBuffer(CommandBuffer) {}
+};
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

@@ -370,7 +370,8 @@ event handler::finalize() {
     // If we have a subgraph node we don't want to actually execute this command
     // graph submission.
     if (!MSubgraphNode) {
-      event GraphCompletionEvent = MExecGraph->enqueue(MQueue);
+      event GraphCompletionEvent =
+          MExecGraph->enqueue(MQueue, std::move(CGData));
       MLastEvent = GraphCompletionEvent;
       return MLastEvent;
     }
@@ -379,6 +380,27 @@ event handler::finalize() {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
+    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> GraphImpl;
+    if (MGraph) {
+      GraphImpl = MGraph;
+    } else if (auto QueueGraph = MQueue->getCommandGraph(); QueueGraph) {
+      GraphImpl = QueueGraph;
+    }
+
+    if (GraphImpl) {
+      auto EventImpl = std::make_shared<detail::event_impl>();
+
+      // Extract relevant data from the handler and pass to graph to create a
+      // new node representing this command group.
+      std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
+          GraphImpl->add(CGData.MEvents);
+
+      // Associate an event with this new node and return the event.
+      GraphImpl->addEventForNode(EventImpl, NodeImpl);
+
+      return detail::createSyclObjFromImpl<event>(EventImpl);
+    }
+
     detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
     MLastEvent = detail::createSyclObjFromImpl<event>(Event);
     return MLastEvent;
@@ -402,11 +424,28 @@ event handler::finalize() {
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
     auto EventImpl = std::make_shared<detail::event_impl>();
-
-    // Extract relevant data from the handler and pass to graph to create a
-    // new node representing this command group.
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
-        GraphImpl->add(MCGType, std::move(CommandGroup));
+        nullptr;
+
+    // Create a new node in the graph representing this command-group
+    if (MQueue->isInOrder()) {
+      // In-order queues create implicit linear dependencies between nodes.
+      // Find the last node added to the graph from this queue, so our new
+      // node can set it as a predecessor.
+      auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
+
+      NodeImpl = DependentNode
+                     ? GraphImpl->add(MCGType, std::move(CommandGroup),
+                                      {DependentNode})
+                     : GraphImpl->add(MCGType, std::move(CommandGroup));
+
+      // If we are recording an in-order queue remember the new node, so it
+      // can be used as a dependency for any more nodes recorded from this
+      // queue.
+      GraphImpl->setLastInorderNode(MQueue, NodeImpl);
+    } else {
+      NodeImpl = GraphImpl->add(MCGType, std::move(CommandGroup));
+    }
 
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(EventImpl, NodeImpl);
@@ -1028,6 +1067,12 @@ void handler::ext_oneapi_graph(
     // Store the node representing the subgraph in the handler so that we can
     // return it to the user later.
     MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl->getSchedule());
+
+    // If we are recording an in-order queue remember the subgraph node, so it
+    // can be used as a dependency for any more nodes recorded from this queue.
+    if (MQueue && MQueue->isInOrder()) {
+      ParentGraph->setLastInorderNode(MQueue, MSubgraphNode);
+    }
     // Associate an event with the subgraph node.
     auto SubgraphEvent = std::make_shared<event_impl>();
     ParentGraph->addEventForNode(SubgraphEvent, MSubgraphNode);
