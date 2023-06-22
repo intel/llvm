@@ -48,6 +48,8 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_BUILD_PROGRAM_FAILURE;
   case UR_RESULT_ERROR_UNINITIALIZED:
     return PI_ERROR_UNINITIALIZED;
+  case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   default:
     return PI_ERROR_UNKNOWN;
   };
@@ -285,35 +287,34 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
     return Value.convertBitSet<ur_device_affinity_domain_flag_t,
                                pi_device_affinity_domain>(ConvertFunc);
   } else if (ParamName == UR_DEVICE_INFO_PARTITION_TYPE) {
-    auto ConvertFunc = [](ur_device_partition_property_t UrValue) {
-      switch (UrValue) {
-      case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
+    auto ConvertFunc = [](ur_device_partition_t UrValue) {
+      if (UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN == UrValue)
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
-      case UR_DEVICE_PARTITION_BY_CSLICE:
+      else if (UR_DEVICE_PARTITION_BY_CSLICE == UrValue)
         return PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE;
-      case (ur_device_partition_property_t)
-          UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE:
+      else if ((ur_device_partition_t)
+                   UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE == UrValue)
         return (pi_device_partition_property)
             PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE;
-      default:
-        die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
-      }
+      die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
     };
-    return Value.convertArray<ur_device_partition_property_t,
-                              pi_device_partition_property>(ConvertFunc);
-  } else if (ParamName == UR_DEVICE_INFO_PARTITION_PROPERTIES) {
-    auto ConvertFunc = [](ur_device_partition_property_t UrValue) {
+    return Value
+        .convertArray<ur_device_partition_t, pi_device_partition_property>(
+            ConvertFunc);
+  } else if (ParamName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
+    auto ConvertFunc = [](ur_device_partition_t UrValue) {
       switch (UrValue) {
       case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
       case UR_DEVICE_PARTITION_BY_CSLICE:
         return PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE;
       default:
-        die("UR_DEVICE_INFO_PARTITION_PROPERTIES: unhandled value");
+        die("UR_DEVICE_INFO_SUPPORTED_PARTITIONS: unhandled value");
       }
     };
-    return Value.convertArray<ur_device_partition_property_t,
-                              pi_device_partition_property>(ConvertFunc);
+    return Value
+        .convertArray<ur_device_partition_t, pi_device_partition_property>(
+            ConvertFunc);
   } else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
     auto ConvertFunc = [](ur_device_local_mem_type_t UrValue) {
       switch (UrValue) {
@@ -616,11 +617,6 @@ inline pi_result piextPluginGetOpaqueData(void *opaque_data_param,
   return PI_ERROR_UNKNOWN;
 }
 
-// Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return '-ze-opt-disable' for frontend_option = -O0.
-// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
-// Return '-ze-opt-level=2' for frontend_option = -O3.
 inline pi_result piPluginGetBackendOption(pi_platform Platform,
                                           const char *FrontendOption,
                                           const char **PlatformOption) {
@@ -777,7 +773,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = UR_DEVICE_INFO_REFERENCE_COUNT;
     break;
   case PI_DEVICE_INFO_PARTITION_PROPERTIES:
-    InfoType = UR_DEVICE_INFO_PARTITION_PROPERTIES;
+    InfoType = UR_DEVICE_INFO_SUPPORTED_PARTITIONS;
     break;
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
     InfoType = UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN;
@@ -1084,7 +1080,7 @@ inline pi_result piDevicePartition(
   if (!Properties || !Properties[0])
     return PI_ERROR_INVALID_VALUE;
 
-  ur_device_partition_property_t Property;
+  ur_device_partition_t Property;
   switch (Properties[0]) {
   case PI_DEVICE_PARTITION_EQUALLY:
     Property = UR_DEVICE_PARTITION_EQUALLY;
@@ -1124,12 +1120,20 @@ inline pi_result piDevicePartition(
   // TODO: correctly terminate the UR properties, see:
   // https://github.com/oneapi-src/unified-runtime/issues/183
   //
-  ur_device_partition_property_t UrProperties[] = {
-      ur_device_partition_property_t(Property), Value, 0};
+  ur_device_partition_property_t UrProperty;
+  UrProperty.type = Property;
+  UrProperty.value.equally = Value;
+
+  ur_device_partition_properties_t UrProperties{
+      UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+      nullptr,
+      &UrProperty,
+      1,
+  };
 
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrSubDevices = reinterpret_cast<ur_device_handle_t *>(SubDevices);
-  HANDLE_ERRORS(urDevicePartition(UrDevice, UrProperties, NumEntries,
+  HANDLE_ERRORS(urDevicePartition(UrDevice, &UrProperties, NumEntries,
                                   UrSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }
@@ -1914,6 +1918,8 @@ inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   if (ArgValue)
     UrMemory = reinterpret_cast<ur_mem_handle_t>(*ArgValue);
 
+  ur_kernel_arg_mem_obj_properties_t Properties{};
+
   // We don't yet know the device where this kernel will next be run on.
   // Thus we can't know the actual memory allocation that needs to be used.
   // Remember the memory object being used as an argument for this kernel
@@ -1925,7 +1931,8 @@ inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   //
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, UrMemory));
+  HANDLE_ERRORS(
+      urKernelSetArgMemObj(UrKernel, ArgIndex, &Properties, UrMemory));
   return PI_SUCCESS;
 }
 
@@ -1940,11 +1947,11 @@ inline pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
   return PI_SUCCESS;
 }
 
-inline pi_result piKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
-                                       size_t arg_size, const void *arg_value) {
-  (void)arg_size;
-  auto hKernel = reinterpret_cast<ur_kernel_handle_t>(kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(hKernel, arg_index, arg_value));
+inline pi_result piKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
+                                       size_t ArgSize, const void *ArgValue) {
+  std::ignore = ArgSize;
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, ArgValue));
 
   return PI_SUCCESS;
 }
@@ -2809,8 +2816,6 @@ inline pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_mem_handle_t *UrMem = reinterpret_cast<ur_mem_handle_t *>(Mem);
-  // TODO: Pass OwnNativeHandle to the output parameter
-  // while we get it in interface
   ur_mem_native_properties_t Properties{};
   Properties.isNativeHandleOwned = OwnNativeHandle;
   HANDLE_ERRORS(urMemBufferCreateWithNativeHandle(UrNativeMem, UrContext,

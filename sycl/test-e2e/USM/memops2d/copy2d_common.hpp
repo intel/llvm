@@ -1,16 +1,4 @@
-//==---- memcpy2d.cpp - USM 2D memcpy test ---------------------------------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
-
-// Temporarily disabled until the failure is addressed.
-// UNSUPPORTED: gpu-intel-pvc || (level_zero && windows)
+#pragma once
 
 #include <sycl/sycl.hpp>
 
@@ -22,24 +10,24 @@ constexpr size_t RECT_WIDTH = 30;
 constexpr size_t RECT_HEIGHT = 21;
 
 template <typename T, OperationPath PathKind>
-event doMemcpy2D(queue &Q, void *Dest, size_t DestPitch, const void *Src,
-                 size_t SrcPitch, size_t Width, size_t Height,
-                 std::vector<event> DepEvents) {
+event doCopy2D(queue &Q, const T *Src, size_t SrcPitch, T *Dest,
+               size_t DestPitch, size_t Width, size_t Height,
+               std::vector<event> DepEvents) {
   if constexpr (PathKind == OperationPath::Expanded) {
     sycl::event::wait(DepEvents);
     return Q.submit([&](handler &CGH) {
-      CGH.ext_oneapi_memcpy2d(Dest, DestPitch, Src, SrcPitch, Width, Height);
+      CGH.ext_oneapi_copy2d(Src, SrcPitch, Dest, DestPitch, Width, Height);
     });
   }
   if constexpr (PathKind == OperationPath::ExpandedDependsOn) {
     return Q.submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
-      CGH.ext_oneapi_memcpy2d(Dest, DestPitch, Src, SrcPitch, Width, Height);
+      CGH.ext_oneapi_copy2d(Src, SrcPitch, Dest, DestPitch, Width, Height);
     });
   }
   if constexpr (PathKind == OperationPath::ShortcutEventList) {
-    return Q.ext_oneapi_memcpy2d(Dest, DestPitch, Src, SrcPitch, Width, Height,
-                                 DepEvents);
+    return Q.ext_oneapi_copy2d(Src, SrcPitch, Dest, DestPitch, Width, Height,
+                               DepEvents);
   }
 }
 
@@ -59,9 +47,9 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
         fill<SrcAllocKind>(Q, USMMemSrc, ExpectedVal1, SRC_ELEMS);
     event DstMemsetEvent =
         memset<DstAllocKind>(Q, USMMemDst, 0, DST_ELEMS * sizeof(T));
-    doMemcpy2D<T, PathKind>(Q, USMMemDst, RECT_WIDTH * sizeof(T), USMMemSrc,
-                            RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T),
-                            RECT_HEIGHT, {SrcFillEvent, DstMemsetEvent})
+    doCopy2D<T, PathKind>(Q, USMMemSrc, RECT_WIDTH, USMMemDst, RECT_WIDTH,
+                          RECT_WIDTH, RECT_HEIGHT,
+                          {SrcFillEvent, DstMemsetEvent})
         .wait();
     std::vector<T> Results;
     Results.resize(DST_ELEMS);
@@ -93,14 +81,13 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
         fill<SrcAllocKind>(Q, USMMemSrc2, ExpectedVal2, SRC_ELEMS);
     event DstMemsetEvent =
         memset<DstAllocKind>(Q, USMMemDst, 0, DST_ELEMS * sizeof(T));
-    event FirstMemcpyEvent = doMemcpy2D<T, PathKind>(
-        Q, USMMemDst, RECT_WIDTH * sizeof(T), USMMemSrc1,
-        RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {Src1FillEvent, Src2FillEvent, DstMemsetEvent});
-    doMemcpy2D<T, PathKind>(
-        Q, USMMemDst + SRC_ELEMS, RECT_WIDTH * sizeof(T), USMMemSrc2,
-        RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {FirstMemcpyEvent, Src1FillEvent, Src2FillEvent, DstMemsetEvent})
+    event FirstCopyEvent = doCopy2D<T, PathKind>(
+        Q, USMMemSrc1, RECT_WIDTH, USMMemDst, RECT_WIDTH, RECT_WIDTH,
+        RECT_HEIGHT, {Src1FillEvent, Src2FillEvent, DstMemsetEvent});
+    doCopy2D<T, PathKind>(
+        Q, USMMemSrc2, RECT_WIDTH, USMMemDst + SRC_ELEMS, RECT_WIDTH,
+        RECT_WIDTH, RECT_HEIGHT,
+        {FirstCopyEvent, Src1FillEvent, Src2FillEvent, DstMemsetEvent})
         .wait();
     std::vector<T> Results;
     Results.resize(DST_ELEMS);
@@ -134,14 +121,13 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
         fill<SrcAllocKind>(Q, USMMemSrc2, ExpectedVal2, SRC_ELEMS);
     event DstMemsetEvent =
         memset<DstAllocKind>(Q, USMMemDst, 0, DST_ELEMS * sizeof(T));
-    event FirstMemcpyEvent = doMemcpy2D<T, PathKind>(
-        Q, USMMemDst, 2 * RECT_WIDTH * sizeof(T), USMMemSrc1,
-        RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {Src1FillEvent, Src2FillEvent, DstMemsetEvent});
-    doMemcpy2D<T, PathKind>(
-        Q, USMMemDst + RECT_WIDTH, 2 * RECT_WIDTH * sizeof(T), USMMemSrc2,
-        RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {FirstMemcpyEvent, Src1FillEvent, Src2FillEvent, DstMemsetEvent})
+    event FirstCopyEvent = doCopy2D<T, PathKind>(
+        Q, USMMemSrc1, RECT_WIDTH, USMMemDst, 2 * RECT_WIDTH, RECT_WIDTH,
+        RECT_HEIGHT, {Src1FillEvent, Src2FillEvent, DstMemsetEvent});
+    doCopy2D<T, PathKind>(
+        Q, USMMemSrc2, RECT_WIDTH, USMMemDst + RECT_WIDTH, 2 * RECT_WIDTH,
+        RECT_WIDTH, RECT_HEIGHT,
+        {FirstCopyEvent, Src1FillEvent, Src2FillEvent, DstMemsetEvent})
         .wait();
     std::vector<T> Results;
     Results.resize(DST_ELEMS);
@@ -176,27 +162,26 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
     event DstMemsetEvent =
         memset<DstAllocKind>(Q, USMMemDst, 0, DST_ELEMS * sizeof(T));
     // Top left rectangle.
-    event FirstMemcpyEvent = doMemcpy2D<T, PathKind>(
-        Q, USMMemDst, 2 * RECT_WIDTH * sizeof(T), USMMemSrc1,
-        RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {Src1FillEvent, Src2FillEvent, DstMemsetEvent});
+    event FirstCopyEvent = doCopy2D<T, PathKind>(
+        Q, USMMemSrc1, RECT_WIDTH, USMMemDst, 2 * RECT_WIDTH, RECT_WIDTH,
+        RECT_HEIGHT, {Src1FillEvent, Src2FillEvent, DstMemsetEvent});
     // Top right rectangle.
-    event SecondMemcpyEvent = doMemcpy2D<T, PathKind>(
-        Q, USMMemDst + RECT_WIDTH, 2 * RECT_WIDTH * sizeof(T), USMMemSrc2,
-        RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {FirstMemcpyEvent, Src1FillEvent, Src2FillEvent, DstMemsetEvent});
+    event SecondCopyEvent = doCopy2D<T, PathKind>(
+        Q, USMMemSrc2, RECT_WIDTH, USMMemDst + RECT_WIDTH, 2 * RECT_WIDTH,
+        RECT_WIDTH, RECT_HEIGHT,
+        {FirstCopyEvent, Src1FillEvent, Src2FillEvent, DstMemsetEvent});
     // Bottom left rectangle.
-    event ThirdMemcpyEvent = doMemcpy2D<T, PathKind>(
-        Q, USMMemDst + 2 * SRC_ELEMS, 2 * RECT_WIDTH * sizeof(T), USMMemSrc2,
-        RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {FirstMemcpyEvent, SecondMemcpyEvent, Src1FillEvent, Src2FillEvent,
+    event ThirdCopyEvent = doCopy2D<T, PathKind>(
+        Q, USMMemSrc2, RECT_WIDTH, USMMemDst + 2 * SRC_ELEMS, 2 * RECT_WIDTH,
+        RECT_WIDTH, RECT_HEIGHT,
+        {FirstCopyEvent, SecondCopyEvent, Src1FillEvent, Src2FillEvent,
          DstMemsetEvent});
     // Bottom right rectangle.
-    doMemcpy2D<T, PathKind>(
-        Q, USMMemDst + 2 * SRC_ELEMS + RECT_WIDTH, 2 * RECT_WIDTH * sizeof(T),
-        USMMemSrc1, RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {FirstMemcpyEvent, SecondMemcpyEvent, ThirdMemcpyEvent, Src1FillEvent,
-         Src2FillEvent, DstMemsetEvent})
+    doCopy2D<T, PathKind>(Q, USMMemSrc1, RECT_WIDTH,
+                          USMMemDst + 2 * SRC_ELEMS + RECT_WIDTH,
+                          2 * RECT_WIDTH, RECT_WIDTH, RECT_HEIGHT,
+                          {FirstCopyEvent, SecondCopyEvent, ThirdCopyEvent,
+                           Src1FillEvent, Src2FillEvent, DstMemsetEvent})
         .wait();
     std::vector<T> Results;
     Results.resize(DST_ELEMS);
@@ -234,14 +219,13 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
         memset<DstAllocKind>(Q, USMMemDst1, 0, DST_ELEMS * sizeof(T));
     event Dst2MemsetEvent =
         memset<DstAllocKind>(Q, USMMemDst2, 0, DST_ELEMS * sizeof(T));
-    event FirstMemcpyEvent = doMemcpy2D<T, PathKind>(
-        Q, USMMemDst1, RECT_WIDTH * sizeof(T), USMMemSrc,
-        RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent});
-    doMemcpy2D<T, PathKind>(
-        Q, USMMemDst2, RECT_WIDTH * sizeof(T), USMMemSrc + DST_ELEMS,
-        RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {FirstMemcpyEvent, SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent})
+    event FirstCopyEvent = doCopy2D<T, PathKind>(
+        Q, USMMemSrc, RECT_WIDTH, USMMemDst1, RECT_WIDTH, RECT_WIDTH,
+        RECT_HEIGHT, {SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent});
+    doCopy2D<T, PathKind>(
+        Q, USMMemSrc + DST_ELEMS, RECT_WIDTH, USMMemDst2, RECT_WIDTH,
+        RECT_WIDTH, RECT_HEIGHT,
+        {FirstCopyEvent, SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent})
         .wait();
     std::vector<T> Results;
     Results.resize(SRC_ELEMS);
@@ -280,14 +264,13 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
         memset<DstAllocKind>(Q, USMMemDst1, 0, DST_ELEMS * sizeof(T));
     event Dst2MemsetEvent =
         memset<DstAllocKind>(Q, USMMemDst2, 0, DST_ELEMS * sizeof(T));
-    event FirstMemcpyEvent = doMemcpy2D<T, PathKind>(
-        Q, USMMemDst1, RECT_WIDTH * sizeof(T), USMMemSrc,
-        2 * RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent});
-    doMemcpy2D<T, PathKind>(
-        Q, USMMemDst2, RECT_WIDTH * sizeof(T), USMMemSrc + RECT_WIDTH,
-        2 * RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {FirstMemcpyEvent, SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent})
+    event FirstCopyEvent = doCopy2D<T, PathKind>(
+        Q, USMMemSrc, 2 * RECT_WIDTH, USMMemDst1, RECT_WIDTH, RECT_WIDTH,
+        RECT_HEIGHT, {SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent});
+    doCopy2D<T, PathKind>(
+        Q, USMMemSrc + RECT_WIDTH, 2 * RECT_WIDTH, USMMemDst2, RECT_WIDTH,
+        RECT_WIDTH, RECT_HEIGHT,
+        {FirstCopyEvent, SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent})
         .wait();
     std::vector<T> Results;
     Results.resize(SRC_ELEMS);
@@ -334,30 +317,29 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
     event Dst4MemsetEvent =
         memset<DstAllocKind>(Q, USMMemDst4, 0, DST_ELEMS * sizeof(T));
     // Top left rectangle.
-    event FirstMemcpyEvent = doMemcpy2D<T, PathKind>(
-        Q, USMMemDst1, RECT_WIDTH * sizeof(T), USMMemSrc,
-        2 * RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent, Dst3MemsetEvent,
-         Dst4MemsetEvent});
+    event FirstCopyEvent =
+        doCopy2D<T, PathKind>(Q, USMMemSrc, 2 * RECT_WIDTH, USMMemDst1,
+                              RECT_WIDTH, RECT_WIDTH, RECT_HEIGHT,
+                              {SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent,
+                               Dst3MemsetEvent, Dst4MemsetEvent});
     // Bottom right rectangle.
-    event SecondMemcpyEvent = doMemcpy2D<T, PathKind>(
-        Q, USMMemDst2, RECT_WIDTH * sizeof(T),
-        USMMemSrc + 2 * DST_ELEMS + RECT_WIDTH, 2 * RECT_WIDTH * sizeof(T),
-        RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {FirstMemcpyEvent, SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent,
+    event SecondCopyEvent = doCopy2D<T, PathKind>(
+        Q, USMMemSrc + 2 * DST_ELEMS + RECT_WIDTH, 2 * RECT_WIDTH, USMMemDst2,
+        RECT_WIDTH, RECT_WIDTH, RECT_HEIGHT,
+        {FirstCopyEvent, SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent,
          Dst3MemsetEvent, Dst4MemsetEvent});
     // Bottom left rectangle.
-    event ThirdMemcpyEvent = doMemcpy2D<T, PathKind>(
-        Q, USMMemDst3, RECT_WIDTH * sizeof(T), USMMemSrc + 2 * DST_ELEMS,
-        2 * RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {FirstMemcpyEvent, SecondMemcpyEvent, SrcFillEvent, Dst1MemsetEvent,
+    event ThirdCopyEvent = doCopy2D<T, PathKind>(
+        Q, USMMemSrc + 2 * DST_ELEMS, 2 * RECT_WIDTH, USMMemDst3, RECT_WIDTH,
+        RECT_WIDTH, RECT_HEIGHT,
+        {FirstCopyEvent, SecondCopyEvent, SrcFillEvent, Dst1MemsetEvent,
          Dst2MemsetEvent, Dst3MemsetEvent, Dst4MemsetEvent});
     // Top right rectangle.
-    doMemcpy2D<T, PathKind>(
-        Q, USMMemDst4, RECT_WIDTH * sizeof(T), USMMemSrc + RECT_WIDTH,
-        2 * RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {FirstMemcpyEvent, SecondMemcpyEvent, ThirdMemcpyEvent, SrcFillEvent,
-         Dst1MemsetEvent, Dst2MemsetEvent, Dst3MemsetEvent, Dst4MemsetEvent})
+    doCopy2D<T, PathKind>(Q, USMMemSrc + RECT_WIDTH, 2 * RECT_WIDTH, USMMemDst4,
+                          RECT_WIDTH, RECT_WIDTH, RECT_HEIGHT,
+                          {FirstCopyEvent, SecondCopyEvent, ThirdCopyEvent,
+                           SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent,
+                           Dst3MemsetEvent, Dst4MemsetEvent})
         .wait();
     std::vector<T> Results;
     Results.resize(SRC_ELEMS);
@@ -403,8 +385,8 @@ int testForAllPaths(queue &Q, T ExpectedVal1, T ExpectedVal2) {
   return Failures;
 }
 
-template <Alloc SrcAllocKind, Alloc DstAllocKind>
-int testForAllTypesAndPaths(queue &Q) {
+template <Alloc SrcAllocKind, Alloc DstAllocKind> int test() {
+  queue Q;
 
   bool SupportsHalf = Q.get_device().has(aspect::fp16);
   bool SupportsDouble = Q.get_device().has(aspect::fp64);
@@ -428,35 +410,5 @@ int testForAllTypesAndPaths(queue &Q) {
         testForAllPaths<double, SrcAllocKind, DstAllocKind>(Q, 42.34, 12.24);
   Failures += testForAllPaths<TestStruct, SrcAllocKind, DstAllocKind>(
       Q, TestStructRef1, TestStructRef2);
-  return Failures;
-}
-
-template <Alloc SrcAllocKind> int testForAllTypesAndPathsAndDsts(queue &Q) {
-  int Failures = 0;
-  Failures += testForAllTypesAndPaths<SrcAllocKind, Alloc::DirectHost>(Q);
-  if (Q.get_device().has(aspect::usm_device_allocations))
-    Failures += testForAllTypesAndPaths<SrcAllocKind, Alloc::Device>(Q);
-  if (Q.get_device().has(aspect::usm_host_allocations))
-    Failures += testForAllTypesAndPaths<SrcAllocKind, Alloc::Host>(Q);
-  if (Q.get_device().has(aspect::usm_shared_allocations))
-    Failures += testForAllTypesAndPaths<SrcAllocKind, Alloc::Shared>(Q);
-  return Failures;
-}
-
-int main() {
-  queue Q;
-
-  int Failures = 0;
-  Failures += testForAllTypesAndPathsAndDsts<Alloc::DirectHost>(Q);
-  if (Q.get_device().has(aspect::usm_device_allocations))
-    Failures += testForAllTypesAndPathsAndDsts<Alloc::Device>(Q);
-  if (Q.get_device().has(aspect::usm_host_allocations))
-    Failures += testForAllTypesAndPathsAndDsts<Alloc::Host>(Q);
-  if (Q.get_device().has(aspect::usm_shared_allocations))
-    Failures += testForAllTypesAndPathsAndDsts<Alloc::Shared>(Q);
-
-  if (!Failures)
-    std::cout << "Passed!" << std::endl;
-
   return Failures;
 }

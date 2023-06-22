@@ -410,6 +410,10 @@ and not recommended to use in production environment.
     Also, some of Intel GPUs or GPU run-time/drivers may support only
     "stateless" memory accesses.
 
+**`-ftarget-compile-fast`** [EXPERIMENTAL]
+    Instructs the target backend to reduce compilation time, potentially
+    at the cost of runtime performance. Currently only supported on Intel GPUs.
+
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.
