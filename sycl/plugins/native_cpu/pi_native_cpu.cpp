@@ -6,6 +6,8 @@
 #include <sycl/detail/native_cpu.hpp>
 #include <sycl/detail/pi.h>
 
+#include "pi_native_cpu.hpp"
+
 static bool PrintPiTrace = true;
 
 struct _pi_object {
@@ -18,10 +20,6 @@ struct _pi_device : _pi_object {
   _pi_device(pi_platform ArgPlt) : Platform{ArgPlt} {}
 
   pi_platform Platform;
-};
-
-struct _pi_platform {
-  _pi_device TheDevice{this};
 };
 
 struct _pi_mem : _pi_object {
@@ -162,73 +160,6 @@ extern "C" {
                 << std::endl;                                                  \
     }                                                                          \
     return PI_ERROR_INVALID_OPERATION;
-
-pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
-                         pi_uint32 *NumPlatforms) {
-  if (NumPlatforms == nullptr && Platforms == nullptr)
-    return PI_ERROR_INVALID_VALUE;
-  static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
-  static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
-  if (PiTraceValue == -1) {
-    PrintPiTrace = true;
-  }
-  if (NumPlatforms) {
-    *NumPlatforms = 1;
-  }
-
-  if (NumEntries == 0) {
-    if (Platforms != nullptr) {
-      if (PrintPiTrace)
-        std::cerr << "Invalid argument combination for piPlatformsGet\n";
-      return PI_ERROR_INVALID_VALUE;
-    }
-    return PI_SUCCESS;
-  }
-  if (Platforms && NumEntries > 0) {
-    static _pi_platform ThePlatform;
-    *Platforms = &ThePlatform;
-  }
-  return PI_SUCCESS;
-}
-
-pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
-                            size_t ParamValueSize, void *ParamValue,
-                            size_t *ParamValueSizeRet) {
-  if (Platform == nullptr) {
-    return PI_ERROR_INVALID_PLATFORM;
-  }
-  auto ReturnValueArray = [=](auto val) {
-    return getInfoArray(strlen(val) + 1, ParamValueSize, ParamValue,
-                        ParamValueSizeRet, val);
-  };
-
-  switch (ParamName) {
-  case PI_PLATFORM_INFO_NAME:
-    return ReturnValueArray("SYCL_NATIVE_CPU");
-
-  case PI_PLATFORM_INFO_VENDOR:
-    return ReturnValueArray("tbd");
-
-  case PI_PLATFORM_INFO_VERSION:
-    return ReturnValueArray("0.1");
-
-  case PI_PLATFORM_INFO_PROFILE:
-    return ReturnValueArray("FULL_PROFILE");
-
-  case PI_PLATFORM_INFO_EXTENSIONS:
-    return ReturnValueArray("");
-
-  case PI_EXT_PLATFORM_INFO_BACKEND:
-    return getInfo<pi_platform_backend>(
-        ParamValueSize, ParamValue, ParamValueSizeRet,
-        _pi_platform_backend::PI_EXT_PLATFORM_BACKEND_NATIVE_CPU);
-
-  default:
-    DIE_NO_IMPLEMENTATION;
-  }
-
-  return PI_SUCCESS;
-}
 
 pi_result piextPlatformGetNativeHandle(pi_platform, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
@@ -1406,6 +1337,14 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
 #include <sycl/detail/pi.def>
 
+#define _PI_CL(pi_api, native_cpu_api)                                         \
+  (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&native_cpu_api);
+
+  // Platform
+  _PI_CL(piPlatformsGet, pi2ur::piPlatformsGet)
+  _PI_CL(piPlatformGetInfo, pi2ur::piPlatformGetInfo)
+
+#undef _PI_CL
   return PI_SUCCESS;
 }
 }

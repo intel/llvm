@@ -237,6 +237,27 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   endif()
 endif()
 
+if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_sycl_library("ur_adapter_native_cpu" SHARED
+    SOURCES
+      "ur/ur.cpp"
+      "ur/ur.hpp"
+      "ur/adapters/native_cpu/common.hpp"
+      "ur/adapters/native_cpu/platform.cpp"
+      "ur/adapters/native_cpu/platform.hpp"
+    INCLUDE_DIRS
+      ${sycl_inc_dir}
+    LIBRARIES
+      UnifiedRuntime-Headers
+      Threads::Threads
+  )
+
+  set_target_properties("ur_adapter_native_cpu" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+  )
+endif()
+
 if (TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
   # Install the UR loader.

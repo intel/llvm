@@ -3,6 +3,8 @@ add_sycl_plugin(native_cpu
     pi_native_cpu.cpp
   INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR} 
+    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
   LIBRARIES
     sycl
+    UnifiedRuntime-Headers
 )
