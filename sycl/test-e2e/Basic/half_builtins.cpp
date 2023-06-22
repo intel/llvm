@@ -12,7 +12,8 @@ using namespace sycl;
 constexpr int SZ_max = 16;
 
 bool check(float a, float b) {
-  return sycl::fabs(2 * (a - b) / (a + b)) < std::numeric_limits<half>::epsilon() ||
+  return sycl::fabs(2 * (a - b) / (a + b)) <
+			 std::numeric_limits<half>::epsilon() ||
          a < std::numeric_limits<half>::min();
 }
 
