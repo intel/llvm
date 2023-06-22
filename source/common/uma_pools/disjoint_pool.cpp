@@ -67,6 +67,13 @@ static void *AlignPtrUp(void *Ptr, const size_t Alignment) {
     return static_cast<char *>(AlignedPtr) + Alignment;
 }
 
+// Aligns the value up to the specified alignment
+// (e.g. returns 16 for Size = 13, Alignment = 8)
+static size_t AlignUp(size_t Val, size_t Alignment) {
+    assert(Alignment > 0);
+    return (Val + Alignment - 1) & (~(Alignment - 1));
+}
+
 DisjointPoolConfig::DisjointPoolConfig()
     : limits(std::make_shared<DisjointPoolConfig::SharedLimits>()) {}
 
@@ -272,6 +279,9 @@ class DisjointPool::AllocImpl {
     // Configuration for this instance
     DisjointPoolConfig params;
 
+    // Coarse-grain allocation min alignment
+    size_t ProviderMinPageSize;
+
   public:
     AllocImpl(uma_memory_provider_handle_t hProvider, DisjointPoolConfig params)
         : MemHandle{hProvider}, params(params) {
@@ -285,6 +295,12 @@ class DisjointPool::AllocImpl {
             Buckets.push_back(std::make_unique<Bucket>(Size2, *this));
         }
         Buckets.push_back(std::make_unique<Bucket>(CutOff, *this));
+
+        auto ret = umaMemoryProviderGetMinPageSize(hProvider, nullptr,
+                                                   &ProviderMinPageSize);
+        if (ret != UMA_RESULT_SUCCESS) {
+            ProviderMinPageSize = 0;
+        }
     }
 
     void *allocate(size_t Size, size_t Alignment, bool &FromPool);
@@ -742,9 +758,18 @@ void *DisjointPool::AllocImpl::allocate(size_t Size, size_t Alignment,
         return allocate(Size, FromPool);
     }
 
-    // TODO: we potentially waste some space here, calulate it based on minBucketSize and Slab alignemnt
-    // (using umaMemoryProviderGetMinPageSize)?
-    size_t AlignedSize = (Size > 1) ? (Size + Alignment - 1) : Alignment;
+    size_t AlignedSize;
+    if (Alignment <= ProviderMinPageSize) {
+        // This allocation will be served from a Bucket which size is multiple
+        // of Alignment and Slab address is aligned to ProviderMinPageSize
+        // so the address will be properly aligned.
+        AlignedSize = (Size > 1) ? AlignUp(Size, Alignment) : Alignment;
+    } else {
+        // Slabs are only aligned to ProviderMinPageSize, we need to compensate
+        // for that in case the allocation is within pooling limit.
+        // TODO: consider creating properly-aligned Slabs on demand
+        AlignedSize = Size + Alignment - 1;
+    }
 
     // Check if requested allocation size is within pooling limit.
     // If not, just request aligned pointer from the system.
