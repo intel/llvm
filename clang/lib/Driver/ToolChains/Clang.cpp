@@ -1346,12 +1346,10 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // If PCH file is available, include it while performing
       // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
       // as well as in non-sycl mode.
-      bool NonSYCLCompilation = !JA.isOffloading(Action::OFK_SYCL);
-      bool SYCLHostCompilation = JA.isOffloading(Action::OFK_SYCL) &&
-                                 !JA.isDeviceOffloading(Action::OFK_SYCL);
+      bool SYCLDeviceCompilation = JA.isOffloading(Action::OFK_SYCL) &&
+                                   JA.isDeviceOffloading(Action::OFK_SYCL);
 
-      if (!isa<PrecompileJobAction>(JA) &&
-          (NonSYCLCompilation || SYCLHostCompilation)) {
+      if (!isa<PrecompileJobAction>(JA) && !SYCLDeviceCompilation) {
         CmdArgs.push_back("-include-pch");
         CmdArgs.push_back(Args.MakeArgString(D.GetClPchPath(
             C, !ThroughHeader.empty()
@@ -1372,7 +1370,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   bool RenderedImplicitInclude = false;
 
   for (const Arg *A : Args.filtered(options::OPT_clang_i_Group)) {
-    // Emit an error when PCH file is used in SYCL device mode.
     if ((A->getOption().matches(options::OPT_include) &&
          D.getProbePrecompiled()) ||
         A->getOption().matches(options::OPT_include_pch)) {
@@ -1399,12 +1396,11 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // If PCH file is available, include it while performing
       // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
       // as well as in non-sycl mode.
-      bool SYCLHostComp = JA.isOffloading(Action::OFK_SYCL) &&
-                          !JA.isDeviceOffloading(Action::OFK_SYCL);
 
-      bool NonSYCLComp = !JA.isOffloading(Action::OFK_SYCL);
+      bool SYCLDeviceCompilation = JA.isOffloading(Action::OFK_SYCL) &&
+                                   JA.isDeviceOffloading(Action::OFK_SYCL);
 
-      if (FoundPCH && (SYCLHostComp || NonSYCLComp)) {
+      if (FoundPCH && !SYCLDeviceCompilation) {
         if (IsFirstImplicitInclude) {
           A->claim();
           CmdArgs.push_back("-include-pch");
