@@ -58,9 +58,9 @@ bool test(Ops ops, queue &q) {
                           2, 2,  0, std::numeric_limits<T>::infinity(),
                           2, -2, 0, 0};
       } else {
-        expectedValues = {
-            2, 2, 0, 0, 2, 4294967294, 0, 0, 2, 2, 0, 0, 2, 4294967294,
-            0, 0, 0, 0, 0, 0,          2, 2, 0, 0, 2, 4294967294, 0, 0};
+        expectedValues = {2, 2, 0, 0,          2, 4294967294, 0, 0, 2, 2,
+                          0, 0, 2, 4294967294, 0, 0,          0, 0, 0, 0,
+                          2, 2, 0, 0,          2, 4294967294, 0, 0};
       }
 
     } else if constexpr (std::is_same_v<OpClass, esimd_test::CmpOp>) {
