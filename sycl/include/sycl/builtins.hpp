@@ -2060,6 +2060,70 @@ __SYCL_DEF_BUILTIN_GENGEOFLOATF
 __SYCL_DEF_BUILTIN_GENGEOFLOATF
 #undef __SYCL_BUILTIN_DEF
 
+// marray geometric functions
+
+#define __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(NAME, ...)              \
+  vec<detail::marray_element_t<T>, T::size()> result_v;                        \
+  result_v = NAME(__VA_ARGS__);                                                \
+  return detail::to_marray(result_v);
+
+template <typename T>
+std::enable_if_t<detail::is_gencrossmarray<T>::value, T> cross(T p0,
+                                                               T p1) __NOEXC {
+  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(cross, detail::to_vec(p0),
+                                                 detail::to_vec(p1))
+}
+
+template <typename T>
+std::enable_if_t<detail::is_gengeomarray<T>::value, T> normalize(T p) __NOEXC {
+  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(normalize, detail::to_vec(p))
+}
+
+template <typename T>
+std::enable_if_t<detail::is_gengeomarrayfloat<T>::value, T>
+fast_normalize(T p) __NOEXC {
+  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(fast_normalize,
+                                                 detail::to_vec(p))
+}
+
+#undef __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL
+
+#define __SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(NAME)  \
+  template <typename T>                                                        \
+  std::enable_if_t<detail::is_gengeomarray<T>::value,                          \
+                   detail::marray_element_t<T>>                                \
+  NAME(T p0, T p1) __NOEXC {                                                   \
+    return NAME(detail::to_vec(p0), detail::to_vec(p1));                       \
+  }
+
+// clang-format off
+__SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(dot)
+__SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(distance)
+// clang-format on
+
+#undef __SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD
+
+template <typename T>
+std::enable_if_t<detail::is_gengeomarray<T>::value, detail::marray_element_t<T>>
+length(T p) __NOEXC {
+  return __sycl_std::__invoke_length<detail::marray_element_t<T>>(
+      detail::to_vec(p));
+}
+
+template <typename T>
+std::enable_if_t<detail::is_gengeomarrayfloat<T>::value,
+                 detail::marray_element_t<T>>
+fast_distance(T p0, T p1) __NOEXC {
+  return fast_distance(detail::to_vec(p0), detail::to_vec(p1));
+}
+
+template <typename T>
+std::enable_if_t<detail::is_gengeomarrayfloat<T>::value,
+                 detail::marray_element_t<T>>
+fast_length(T p) __NOEXC {
+  return fast_length(detail::to_vec(p));
+}
+
 /* SYCL 1.2.1 ---- 4.13.7 Relational functions. -----------------------------*/
 /* SYCL 2020  ---- 4.17.9 Relational functions. -----------------------------*/
 
