@@ -49,8 +49,8 @@ int main(int argc, char *argv[]) {
             }
             it.barrier();
 
-            int i = (it.get_global_id(0) / sg.get_max_local_range()[0]) *
-                    sg.get_max_local_range()[0];
+            int i = (it.get_global_id(0) / sg.get_local_range()[0]) *
+                    sg.get_local_range()[0];
             // Global address space
             auto x = sg.load(&global[i]);
             auto x_cv = sg.load<const volatile int>(&global[i]);
