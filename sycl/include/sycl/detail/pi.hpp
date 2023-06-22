@@ -243,8 +243,6 @@ PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
 
 } // namespace pi
 
-namespace RT = sycl::detail::pi;
-
 // Workaround for build with GCC 5.x
 // An explicit specialization shall be declared in the namespace block.
 // Having namespace as part of template name is not supported by GCC
@@ -255,7 +253,8 @@ namespace pi {
 // operators.
 template <class To, class From> inline To cast(From value) {
   // TODO: see if more sanity checks are possible.
-  RT::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
+  sycl::detail::pi::assertion((sizeof(From) == sizeof(To)),
+                              "assert: cast failed size check");
   return (To)(value);
 }
 

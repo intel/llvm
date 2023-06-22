@@ -25,7 +25,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
   const PluginPtr &Plugin = DeviceImpl.getPlugin();
-  RT::PiDevice Device = DeviceImpl.getHandleRef();
+  sycl::detail::pi::PiDevice Device = DeviceImpl.getHandleRef();
   sycl::platform Platform = DeviceImpl.get_platform();
 
   if (HasLocalSize) {
@@ -302,7 +302,7 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
                                const NDRDescT &NDRDesc) {
 
   const PluginPtr &Plugin = DeviceImpl.getPlugin();
-  RT::PiDevice Device = DeviceImpl.getHandleRef();
+  sycl::detail::pi::PiDevice Device = DeviceImpl.getHandleRef();
 
   size_t MaxWISize[] = {0, 0, 0};
 
@@ -322,7 +322,7 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
 void handleInvalidValue(const device_impl &DeviceImpl,
                         const NDRDescT &NDRDesc) {
   const PluginPtr &Plugin = DeviceImpl.getPlugin();
-  RT::PiDevice Device = DeviceImpl.getHandleRef();
+  sycl::detail::pi::PiDevice Device = DeviceImpl.getHandleRef();
 
   size_t MaxNWGs[] = {0, 0, 0};
   Plugin->call<PiApiKind::piDeviceGetInfo>(
