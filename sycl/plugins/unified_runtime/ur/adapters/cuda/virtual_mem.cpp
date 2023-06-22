@@ -47,7 +47,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -105,7 +105,7 @@ urVirtualMemMap(ur_context_handle_t hContext, const void *pStart, size_t size,
 
   ScopedContext Active(hContext);
   UR_CHECK_ERROR(
-      cuMemMap((CUdeviceptr)pStart, size, offset, physical_mem->get(), 0));
+      cuMemMap((CUdeviceptr)pStart, size, offset, hPhysicalMem->get(), 0));
   if (flags)
     UR_ASSERT(urVirtualMemSetAccess(hContext, pStart, size, flags),
               UR_RESULT_ERROR_INVALID_ARGUMENT);
