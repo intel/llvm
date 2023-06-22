@@ -20,7 +20,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-inline RT::PiVirtualAccessFlags AccessModeToVirtualAccessFlags(
+inline sycl::detail::pi::PiVirtualAccessFlags AccessModeToVirtualAccessFlags(
     ext::oneapi::experimental::address_access_mode Mode) {
   switch (Mode) {
   case ext::oneapi::experimental::address_access_mode::read:
@@ -55,7 +55,8 @@ public:
   void *map(uintptr_t Ptr, size_t NumBytes,
             ext::oneapi::experimental::address_access_mode Mode,
             size_t Offset) const {
-    RT::PiVirtualAccessFlags AccessFlags = AccessModeToVirtualAccessFlags(Mode);
+    sycl::detail::pi::PiVirtualAccessFlags AccessFlags =
+        AccessModeToVirtualAccessFlags(Mode);
     const PluginPtr &Plugin = MContext->getPlugin();
     void *ResultPtr = reinterpret_cast<void *>(Ptr);
     Plugin->call<PiApiKind::piextVirtualMemMap>(
@@ -70,11 +71,13 @@ public:
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
   size_t size() const noexcept { return MNumBytes; }
 
-  RT::PiPhysicalMem &getHandleRef() { return MPhysicalMem; }
-  const RT::PiPhysicalMem &getHandleRef() const { return MPhysicalMem; }
+  sycl::detail::pi::PiPhysicalMem &getHandleRef() { return MPhysicalMem; }
+  const sycl::detail::pi::PiPhysicalMem &getHandleRef() const {
+    return MPhysicalMem;
+  }
 
 private:
-  RT::PiPhysicalMem MPhysicalMem = nullptr;
+  sycl::detail::pi::PiPhysicalMem MPhysicalMem = nullptr;
   const std::shared_ptr<device_impl> MDevice;
   const std::shared_ptr<context_impl> MContext;
   const size_t MNumBytes;
