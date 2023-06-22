@@ -236,7 +236,7 @@ event queue_impl::memcpyToDeviceGlobal(
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext), nullptr);
+        getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -254,8 +254,7 @@ event queue_impl::memcpyToDeviceGlobal(
     RT::PiEvent NativeEvent{};
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext),
-        &NativeEvent);
+        getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -283,7 +282,7 @@ event queue_impl::memcpyFromDeviceGlobal(
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext), nullptr);
+        getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -301,8 +300,7 @@ event queue_impl::memcpyFromDeviceGlobal(
     RT::PiEvent NativeEvent{};
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext),
-        &NativeEvent);
+        getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();

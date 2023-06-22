@@ -4,16 +4,7 @@ on:
   push:
     branches:
     - sycl
-  pull_request:
-    branches:
-    - sycl
-    paths:
-    - .github/workflows/sycl_post_commit.yml
-    - .github/workflows/sycl_gen_test_matrix.yml
-    - .github/workflows/sycl_linux_build_and_test.yml
-    - .github/workflows/sycl_windows_build_and_test.yml
-    - .github/workflows/sycl_macos_build_and_test.yml
-  workflow_dispatch:
+    - sycl-devops-pr/**
 
 jobs:
   # This job generates matrix of tests for SYCL End-to-End tests
@@ -23,42 +14,23 @@ jobs:
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       lts_config: "l0_gen9;win_l0_gen12"
-  linux_default:
-    name: Linux Default
+  linux_self_prod:
+    name: Linux (Self build + shared libraries + no-assertions)
     if: github.repository == 'intel/llvm'
     needs: test_matrix
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    secrets: inherit
-    with:
-      build_cache_root: "/__w/llvm"
-      build_artifact_suffix: "post_commit"
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
-      cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
-      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
-      build_configure_extra_args: --hip --cuda --enable-esimd-emulator --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
-  linux_no_assert:
-    name: Linux (no assert)
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    secrets: inherit
-    with:
-      build_cache_root: "/__w/llvm"
-      build_cache_suffix: gcc_no_assertions
-      build_artifact_suffix: gcc_no_assertions
-      build_configure_extra_args: --no-assertions
-  linux_self_prod:
-    name: Linux (Self build + shared libraries)
-    if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
-      build_configure_extra_args: --shared-libs
+      build_configure_extra_args: --shared-libs --no-assertions --hip --cuda --enable-esimd-emulator --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
       # Docker image has last nightly pre-installed and added to the PATH
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers"
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
       cc: clang
       cxx: clang++
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
+      cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
+      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
 
   windows_default:
     name: Windows

@@ -51,10 +51,15 @@ namespace mlir {
 /// indicating their types. This allows idiomatic printing of mixed value and
 /// integer attributes in a list. E.g.
 /// `[%arg0 : index, 7, 42, %arg42 : i32]`.
+///
+/// If  `isTrailingIdxScalable` is true, then wrap the trailing index with
+/// square brackets, e.g. `[42]`, to denote scalability. This would normally be
+/// used for scalable tile or vector sizes.
 void printDynamicIndexList(
     OpAsmPrinter &printer, Operation *op, OperandRange values,
     ArrayRef<int64_t> integers, TypeRange valueTypes = TypeRange(),
-    AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square);
+    AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square,
+    bool isTrailingIdxScalable = false);
 
 /// Parser hook for custom directive in assemblyFormat.
 ///
@@ -72,17 +77,27 @@ void printDynamicIndexList(
 ///   1. `result` is filled with the i64 ArrayAttr "[`kDynamic`, 7, 42,
 ///   `kDynamic`]"
 ///   2. `ssa` is filled with "[%arg0, %arg1]".
+///
+/// Trailing indices can be scalable. For example, "42" in "[7, [42]]" is
+/// scalable. This notation is similar to how scalable dims are marked when
+/// defining Vectors. If /p isTrailingIdxScalable is null, scalable indices are
+/// not allowed/expected. When it's not null, this hook will set the
+/// corresponding value to:
+///   * true if the trailing idx is scalable,
+///   * false otherwise.
 ParseResult parseDynamicIndexList(
     OpAsmParser &parser,
     SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
-    DenseI64ArrayAttr &integers, SmallVectorImpl<Type> *valueTypes = nullptr,
+    DenseI64ArrayAttr &integers, bool *isTrailingIdxScalable = nullptr,
+    SmallVectorImpl<Type> *valueTypes = nullptr,
     AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square);
 inline ParseResult parseDynamicIndexList(
     OpAsmParser &parser,
     SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
     DenseI64ArrayAttr &integers, SmallVectorImpl<Type> &valueTypes,
     AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square) {
-  return parseDynamicIndexList(parser, values, integers, &valueTypes,
+  return parseDynamicIndexList(parser, values, integers,
+                               /*isTrailingIdxScalable=*/nullptr, &valueTypes,
                                delimiter);
 }
 
