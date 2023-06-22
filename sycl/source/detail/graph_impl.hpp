@@ -311,7 +311,7 @@ public:
   /// @param Queue In-order queue to register \p Node for.
   /// @param Node Last node that was added to this graph from \p Queue.
   void setLastInorderNode(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                             std::shared_ptr<node_impl> Node) {
+                          std::shared_ptr<node_impl> Node) {
     std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
     MInorderQueueMap[QueueWeakPtr] = Node;
   }
