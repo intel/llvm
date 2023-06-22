@@ -9,9 +9,9 @@
 // UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,gpu-intel-pvc
 // TODO: esimd_emulator fails due to unimplemented 'raw_send' intrinsic
 // XFAIL: esimd_emulator
-// RUN: %{build} -o %t1.out
+// RUN: %{build} -fno-sycl-esimd-force-stateless-mem -o %t1.out
 // RUN: %{run} %t1.out
-// RUN: %{build} -DNEW_API -o %t2.out
+// RUN: %{build} -DNEW_API -fno-sycl-esimd-force-stateless-mem -o %t2.out
 // RUN: %{run} %t2.out
 
 // The test checks raw send functionality with block read/write implementation

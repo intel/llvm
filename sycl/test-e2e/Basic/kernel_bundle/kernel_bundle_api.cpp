@@ -1,11 +1,10 @@
 // REQUIRES: cpu
+
 // Use of per-kernel device code split and linking the bundle with all images
 // involved leads to multiple definition of AssertHappened structure due each
 // device image is statically linked against fallback libdevice.
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
-//
-// UNSUPPORTED: hip
 
 #include <iostream>
 #include <sycl/sycl.hpp>

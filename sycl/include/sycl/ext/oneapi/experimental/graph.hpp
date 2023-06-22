@@ -87,16 +87,18 @@ private:
 } // namespace node
 } // namespace property
 
-/// Graph in the modifiable state.
-template <graph_state State = graph_state::modifiable>
-class __SYCL_EXPORT command_graph {
+template <graph_state State> class command_graph;
+
+namespace detail {
+// Templateless modifiable command-graph base class.
+class __SYCL_EXPORT modifiable_command_graph {
 public:
   /// Constructor.
   /// @param SyclContext Context to use for graph.
   /// @param SyclDevice Device all nodes will be associated with.
   /// @param PropList Optional list of properties to pass.
-  command_graph(const context &SyclContext, const device &SyclDevice,
-                const property_list &PropList = {});
+  modifiable_command_graph(const context &SyclContext, const device &SyclDevice,
+                           const property_list &PropList = {});
 
   /// Add an empty node to the graph.
   /// @param PropList Property list used to pass [0..n] predecessor nodes.
@@ -166,10 +168,11 @@ public:
   /// executing.
   bool end_recording(const std::vector<queue> &RecordingQueues);
 
-private:
+protected:
   /// Constructor used internally by the runtime.
   /// @param Impl Detail implementation class to construct object with.
-  command_graph(const std::shared_ptr<detail::graph_impl> &Impl) : impl(Impl) {}
+  modifiable_command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
+      : impl(Impl) {}
 
   /// Template-less implementation of add() for CGF nodes.
   /// @param CGF Command-group function to add.
@@ -192,21 +195,22 @@ private:
   std::shared_ptr<detail::graph_impl> impl;
 };
 
-template <> class __SYCL_EXPORT command_graph<graph_state::executable> {
+// Templateless executable command-graph base class.
+class __SYCL_EXPORT executable_command_graph {
 public:
   /// An executable command-graph is not user constructable.
-  command_graph() = delete;
+  executable_command_graph() = delete;
 
   /// Update the inputs & output of the graph.
   /// @param Graph Graph to use the inputs and outputs of.
   void update(const command_graph<graph_state::modifiable> &Graph);
 
-private:
+protected:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
   /// @param Ctx Context to use for graph.
-  command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
-                const sycl::context &Ctx);
+  executable_command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
+                           const sycl::context &Ctx);
 
   template <class Obj>
   friend decltype(Obj::impl)
@@ -218,7 +222,34 @@ private:
   int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
 
-  friend class command_graph<graph_state::modifiable>;
+  friend class modifiable_command_graph;
+};
+} // namespace detail
+
+/// Graph in the modifiable state.
+template <graph_state State = graph_state::modifiable>
+class command_graph : public detail::modifiable_command_graph {
+public:
+  /// Constructor.
+  /// @param SyclContext Context to use for graph.
+  /// @param SyclDevice Device all nodes will be associated with.
+  /// @param PropList Optional list of properties to pass.
+  command_graph(const context &SyclContext, const device &SyclDevice,
+                const property_list &PropList = {})
+      : modifiable_command_graph(SyclContext, SyclDevice, PropList) {}
+
+private:
+  /// Constructor used internally by the runtime.
+  /// @param Impl Detail implementation class to construct object with.
+  command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
+      : modifiable_command_graph(Impl) {}
+};
+
+template <>
+class command_graph<graph_state::executable>
+    : public detail::executable_command_graph {
+private:
+  using detail::executable_command_graph::executable_command_graph;
 };
 
 /// Additional CTAD deduction guide.

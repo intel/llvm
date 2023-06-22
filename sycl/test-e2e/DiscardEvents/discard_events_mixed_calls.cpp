@@ -1,27 +1,25 @@
-// UNSUPPORTED: hip
-//
 // RUN: %{build} -o %t.out
-//
+
 // The purpose of all tests is to make sure in-order semantics works correctly
 // using discard_events and alternating event and eventless kernel calls in
 // different ways.
-//
+
 // The test checks that eventless kernel calls work correctly after several
 // event kernel calls.
 // RUN: %{run} %t.out accessor-usm
-//
+
 // The test checks that event kernel calls work correctly after several
 // eventless kernel calls.
 // RUN: %{run} %t.out usm-accessor
-//
+
 // The test checks that alternating event and eventless kernel calls work
 // correctly.
 // RUN: %{run} %t.out mixed
-//
+
 // The test checks that piEnqueueMemBufferMap and piEnqueueMemUnmap work
 // correctly when we alternate between event and eventless kernel calls.
 // RUN: %{run} %t.out map-unmap
-//
+
 // Note that the tests use buffer functionality and if you have problems with
 // the tests, please check if they pass without the discard_events property, if
 // they don't pass then it's most likely a general issue unrelated to
