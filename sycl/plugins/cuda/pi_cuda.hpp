@@ -76,8 +76,8 @@ struct _pi_sampler : ur_sampler_handle_t_ {
   using ur_sampler_handle_t_::ur_sampler_handle_t_;
 };
 
-struct _pi_physical_mem : ur_sampler_handle_t_ {
-  using ur_sampler_handle_t_::ur_physical_mem_handle_t_;
+struct _pi_physical_mem : ur_physical_mem_handle_t_ {
+  using ur_physical_mem_handle_t_::ur_physical_mem_handle_t_;
 };
 
 #endif // PI_CUDA_HPP
