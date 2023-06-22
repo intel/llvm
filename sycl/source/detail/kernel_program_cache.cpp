@@ -16,7 +16,7 @@ namespace detail {
 KernelProgramCache::~KernelProgramCache() {
   for (auto &ProgIt : MCachedPrograms.Cache) {
     ProgramWithBuildStateT &ProgWithState = ProgIt.second;
-    RT::PiProgram *ToBeDeleted = ProgWithState.Ptr.load();
+    sycl::detail::pi::PiProgram *ToBeDeleted = ProgWithState.Ptr.load();
 
     if (!ToBeDeleted)
       continue;
