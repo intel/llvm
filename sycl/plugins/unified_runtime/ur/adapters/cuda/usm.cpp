@@ -25,15 +25,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  size_t DeviceMaxMemAllocSize = 0;
-  UR_ASSERT(urDeviceGetInfo(hContext->getDevice(),
-                            UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE, sizeof(size_t),
-                            static_cast<void *>(&DeviceMaxMemAllocSize),
-                            nullptr) == UR_RESULT_SUCCESS,
-            UR_RESULT_ERROR_INVALID_DEVICE);
-  UR_ASSERT(size > 0 && size <= DeviceMaxMemAllocSize,
-            UR_RESULT_ERROR_INVALID_USM_SIZE);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedContext Active(hContext);
@@ -66,15 +57,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
                           ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  size_t DeviceMaxMemAllocSize = 0;
-  UR_ASSERT(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE,
-                            sizeof(size_t),
-                            static_cast<void *>(&DeviceMaxMemAllocSize),
-                            nullptr) == UR_RESULT_SUCCESS,
-            UR_RESULT_ERROR_INVALID_DEVICE);
-  UR_ASSERT(size > 0 && size <= DeviceMaxMemAllocSize,
-            UR_RESULT_ERROR_INVALID_USM_SIZE);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedContext Active(hContext);
@@ -102,15 +84,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
                           ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
             UR_RESULT_ERROR_INVALID_VALUE);
-
-  size_t DeviceMaxMemAllocSize = 0;
-  UR_ASSERT(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE,
-                            sizeof(size_t),
-                            static_cast<void *>(&DeviceMaxMemAllocSize),
-                            nullptr) == UR_RESULT_SUCCESS,
-            UR_RESULT_ERROR_INVALID_DEVICE);
-  UR_ASSERT(size > 0 && size <= DeviceMaxMemAllocSize,
-            UR_RESULT_ERROR_INVALID_USM_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
