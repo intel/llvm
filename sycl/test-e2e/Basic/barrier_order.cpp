@@ -2,9 +2,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Hangs on that platform (at least on gpu-intel-pvc),
+// Hangs on that platform (at least on gpu-intel-pvc), sporadically fails on
+// CUDA
 // https://github.com/intel/llvm/issues/7330.
-// UNSUPPORTED: opencl && gpu
+// UNSUPPORTED: opencl && gpu, cuda
 
 #include <iostream>
 #include <stdlib.h>
