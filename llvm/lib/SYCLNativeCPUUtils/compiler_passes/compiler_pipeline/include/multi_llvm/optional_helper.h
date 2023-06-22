@@ -17,8 +17,12 @@
 #ifndef MULTI_LLVM_OPTIONAL_HELPER_H_INCLUDED
 #define MULTI_LLVM_OPTIONAL_HELPER_H_INCLUDED
 
+#include <multi_llvm/llvm_version.h>
+
+#if (LLVM_VERSION_MAJOR < 17)
 #include <llvm/ADT/None.h>
 #include <llvm/ADT/Optional.h>
+#endif
 
 #if (LLVM_VERSION_MAJOR >= 16)
 #include <optional>

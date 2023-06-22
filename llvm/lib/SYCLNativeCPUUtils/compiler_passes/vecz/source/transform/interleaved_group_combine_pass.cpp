@@ -260,7 +260,7 @@ PreservedAnalyses InterleavedGroupCombinePass::run(
         continue;
       }
 
-      Optional<MemOp> Op = MemOp::get(CI);
+      multi_llvm::Optional<MemOp> Op = MemOp::get(CI);
       // We can't optimize interleaved memops if we don't know the stride at
       // runtime, since we need to check if the stride and the group size match.
       if (!Op || !Op->isStrideConstantInt()) {
@@ -324,7 +324,7 @@ PreservedAnalyses InterleavedGroupCombinePass::run(
             Group.Kind == eMaskedInterleavedLoad) {
           Masks.reserve(Group.Data.size());
           for (auto *V : Group.Data) {
-            Optional<MemOp> Op = MemOp::get(cast<Instruction>(V));
+            multi_llvm::Optional<MemOp> Op = MemOp::get(cast<Instruction>(V));
             assert(Op && "Unanalyzable interleaved access?");
             Masks.push_back(Op->getMaskOperand());
           }
@@ -455,7 +455,7 @@ bool InterleavedGroupCombinePass::findGroup(
           CanMove = canMoveUp(Group.Data, cast<Instruction>(InfoN.Op));
 
           if (InfoN.Kind == eMaskedInterleavedLoad) {
-            Optional<MemOp> Op = MemOp::get(InfoN.Op);
+            multi_llvm::Optional<MemOp> Op = MemOp::get(InfoN.Op);
             assert(Op && "Unanalyzable load?");
             if (auto *MaskInst = dyn_cast<Instruction>(Op->getMaskOperand())) {
               CanMove &= Group.canDeinterleaveMask(*MaskInst);

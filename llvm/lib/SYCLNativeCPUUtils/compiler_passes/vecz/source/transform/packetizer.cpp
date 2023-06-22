@@ -38,10 +38,10 @@
 #include <multi_llvm/llvm_version.h>
 #include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/opaque_pointers.h>
-#include <multi_llvm/optional_helper.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include <memory>
+#include <optional>
 
 #include "analysis/instantiation_analysis.h"
 #include "analysis/packetization_analysis.h"
@@ -1662,13 +1662,13 @@ ValuePacket Packetizer::Impl::packetizeSubgroupScan(
   // operations. The value 'None' here represents an operation where the sign
   // of the operands is unimportant, such as floating-point operations, or
   // integer addition.
-  multi_llvm::Optional<bool> optIsSignedInt;
+  std::optional<bool> optIsSignedInt;
   bool isInt = Tys[0]->isIntOrIntVectorTy();
 
   // Determine whether this is a signed or unsigned integer min/max scan.
-  const auto isSignedArg0 = [isInt, fnName, &mangler]() -> Optional<bool> {
+  const auto isSignedArg0 = [isInt, fnName, &mangler]() -> std::optional<bool> {
     if (!isInt) {
-      return multi_llvm::None;
+      return std::nullopt;
     }
     // Demangle the function name to get the type qualifiers.
     SmallVector<Type *, 2> types;
