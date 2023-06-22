@@ -22,7 +22,6 @@
 #define VECZ_PASS_H
 
 #include <compiler/utils/vectorization_factor.h>
-#include <llvm/ADT/Optional.h>
 #include <llvm/IR/PassManager.h>
 
 #include <cstdint>
@@ -61,7 +60,7 @@ struct VeczPassOptions {
   /// @brief Index of vectorization dimension to use (0 => x, 1 => y, 2 => z).
   uint32_t vec_dim_idx;
 
-  /// @param local_size Value specifying the local size for the function (0 is
+  /// @brief local_size Value specifying the local size for the function (0 is
   /// unknown)
   uint64_t local_size;
 };

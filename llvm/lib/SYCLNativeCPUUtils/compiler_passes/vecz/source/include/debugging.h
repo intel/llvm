@@ -21,7 +21,6 @@
 #ifndef VECZ_DEBUGGING_H_INCLUDED
 #define VECZ_DEBUGGING_H_INCLUDED
 
-#include <llvm/ADT/Optional.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/IR/DiagnosticInfo.h>
 #include <llvm/IR/Function.h>
