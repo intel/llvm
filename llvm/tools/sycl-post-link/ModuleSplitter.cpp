@@ -134,7 +134,8 @@ bool isESIMDFunction(const Function &F) {
 // Predicate for Internalize pass.
 bool mustPreserveGV(const GlobalValue &GV) {
   if (const Function *F = dyn_cast<Function>(&GV))
-    return F->getCallingConv() == CallingConv::SPIR_KERNEL || F->isDeclaration() || F->hasFnAttribute("sycl-module-id");
+    return F->getCallingConv() == CallingConv::SPIR_KERNEL ||
+           F->isDeclaration() || F->hasFnAttribute("sycl-module-id");
 
   GV.removeDeadConstantUsers();
   return !GV.use_empty();
