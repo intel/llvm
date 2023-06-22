@@ -10,7 +10,7 @@
 ; RUN:     --implicit-check-not _Z4foo3v
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-TU1-IR \
 ; RUN:     --implicit-check-not TU1_kernel --implicit-check-not _Z4foo2v \
-; RUN:     --implicit-check-not _Z4foo1v
+; RUN:     --implicit-check-not _Z4foo3v --implicit-check-not _Z4foo1v
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-SYM
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-SYM
 ;
@@ -26,8 +26,7 @@
 ; CHECK-TU0-IR: define internal spir_func void @_Z4foo2v
 ;
 ; CHECK-TU1-IR: define dso_local spir_kernel void @_ZTSZ4mainE10TU0_kernel
-; CHECK-TU1-IR: define dso_local spir_func void @_Z3foov
-; CHECK-TU1-IR: define dso_local spir_func i32 @_Z4foo3v
+; CHECK-TU1-IR: define internal spir_func void @_Z3foov
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
