@@ -2033,9 +2033,8 @@ template <typename Tx, int N, typename AccessorTy,
           typename = std::enable_if_t<
               sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>>
 __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset) {
-  return slm_block_load<Tx, N>(
-      offset + static_cast<uint32_t>(
-                   reinterpret_cast<std::uintptr_t>(acc.get_pointer())));
+  return slm_block_load<Tx, N>(offset +
+                               __ESIMD_DNS::localAccessorToOffset(acc));
 }
 
 /// Variant of block_store that uses local accessor as a parameter
