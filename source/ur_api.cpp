@@ -5855,6 +5855,7 @@ ur_result_t UR_APICALL urUSMReleaseExp(
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
@@ -5899,6 +5900,7 @@ ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
@@ -5928,6 +5930,7 @@ ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
