@@ -898,7 +898,7 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
   return EmptyCmd;
 }
 
-template <typename T> static bool isInteropHostTask(T *Cmd) {
+static bool isInteropHostTask(ExecCGCommand *Cmd) {
   if (Cmd->getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     return false;
 
