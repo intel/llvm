@@ -507,6 +507,13 @@ static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
     }
   }
 
+  if (op.hasTrait<OpTrait::IsIsolatedFromAbove>()) {
+    LLVM_DEBUG({
+      llvm::dbgs().indent(2) << "**** isolated from above: can be hoisted\n\n";
+    });
+    return true;
+  }
+
   // Recurse into the regions for this op and check whether the contained ops
   // can be hoisted. We can inductively assume that this op will have its
   // block args available outside the loop.

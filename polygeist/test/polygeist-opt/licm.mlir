@@ -435,7 +435,6 @@ func.func @affine_if_within_for_hoist() {
     scf.if %true {
       arith.cmpi eq, %c0, %c1 : i32
     }
-    affine.yield
   }
   func.return
 }
@@ -464,7 +463,6 @@ func.func @affine_if_within_for_not_hoist() {
     scf.if %true {
       arith.cmpi eq, %0, %1 : i32
     }
-    affine.yield
   }
   func.return
 }
