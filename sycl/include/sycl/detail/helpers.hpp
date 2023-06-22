@@ -40,7 +40,7 @@ namespace detail {
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
-__SYCL_EXPORT std::vector<RT::PiEvent>
+__SYCL_EXPORT std::vector<sycl::detail::pi::PiEvent>
 getOrWaitEvents(std::vector<sycl::event> DepEvents,
                 std::shared_ptr<sycl::detail::context_impl> Context);
 
