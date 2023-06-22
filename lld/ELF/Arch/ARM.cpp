@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "InputFiles.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
@@ -939,6 +940,117 @@ int64_t ARM::getImplicitAddend(const uint8_t *buf, RelType type) const {
   case R_ARM_JUMP_SLOT:
     // These relocations are defined as not having an implicit addend.
     return 0;
+  }
+}
+
+static bool isArmMapSymbol(const Symbol *b) {
+  return b->getName() == "$a" || b->getName().startswith("$a.");
+}
+
+static bool isThumbMapSymbol(const Symbol *s) {
+  return s->getName() == "$t" || s->getName().startswith("$t.");
+}
+
+static bool isDataMapSymbol(const Symbol *b) {
+  return b->getName() == "$d" || b->getName().startswith("$d.");
+}
+
+void elf::sortArmMappingSymbols() {
+  // For each input section make sure the mapping symbols are sorted in
+  // ascending order.
+  for (auto &kv : sectionMap) {
+    SmallVector<const Defined *, 0> &mapSyms = kv.second;
+    llvm::stable_sort(mapSyms, [](const Defined *a, const Defined *b) {
+      return a->value < b->value;
+    });
+  }
+}
+
+void elf::addArmInputSectionMappingSymbols() {
+  // Collect mapping symbols for every executable input sections.
+  // The linker generated mapping symbols for all the synthetic
+  // sections are adding into the sectionmap through the function
+  // addArmSyntheitcSectionMappingSymbol.
+  for (ELFFileBase *file : ctx.objectFiles) {
+    for (Symbol *sym : file->getLocalSymbols()) {
+      auto *def = dyn_cast<Defined>(sym);
+      if (!def)
+        continue;
+      if (!isArmMapSymbol(def) && !isDataMapSymbol(def) &&
+          !isThumbMapSymbol(def))
+        continue;
+      if (auto *sec = cast_if_present<InputSection>(def->section))
+        if (sec->flags & SHF_EXECINSTR)
+          sectionMap[sec].push_back(def);
+    }
+  }
+}
+
+// Synthetic sections are not backed by an ELF file where we can access the
+// symbol table, instead mapping symbols added to synthetic sections are stored
+// in the synthetic symbol table. Due to the presence of strip (--strip-all),
+// we can not rely on the synthetic symbol table retaining the mapping symbols.
+// Instead we record the mapping symbols locally.
+void elf::addArmSyntheticSectionMappingSymbol(Defined *sym) {
+  if (!isArmMapSymbol(sym) && !isDataMapSymbol(sym) && !isThumbMapSymbol(sym))
+    return;
+  if (auto *sec = cast_if_present<InputSection>(sym->section))
+    if (sec->flags & SHF_EXECINSTR)
+      sectionMap[sec].push_back(sym);
+}
+
+static void toLittleEndianInstructions(uint8_t *buf, uint64_t start,
+                                       uint64_t end, uint64_t width) {
+  CodeState curState = static_cast<CodeState>(width);
+  if (curState == CodeState::Arm)
+    for (uint64_t i = start; i < end; i += width)
+      write32le(buf + i, read32(buf + i));
+
+  if (curState == CodeState::Thumb)
+    for (uint64_t i = start; i < end; i += width)
+      write16le(buf + i, read16(buf + i));
+}
+
+// Arm BE8 big endian format requires instructions to be little endian, with
+// the initial contents big-endian. Convert the big-endian instructions to
+// little endian leaving literal data untouched. We use mapping symbols to
+// identify half open intervals of Arm code [$a, non $a) and Thumb code
+// [$t, non $t) and convert these to little endian a word or half word at a
+// time respectively.
+void elf::convertArmInstructionstoBE8(InputSection *sec, uint8_t *buf) {
+  if (!sectionMap.contains(sec))
+    return;
+
+  SmallVector<const Defined *, 0> &mapSyms = sectionMap[sec];
+
+  if (mapSyms.empty())
+    return;
+
+  CodeState curState = CodeState::Data;
+  uint64_t start = 0, width = 0, size = sec->getSize();
+  for (auto &msym : mapSyms) {
+    CodeState newState = CodeState::Data;
+    if (isThumbMapSymbol(msym))
+      newState = CodeState::Thumb;
+    else if (isArmMapSymbol(msym))
+      newState = CodeState::Arm;
+
+    if (newState == curState)
+      continue;
+
+    if (curState != CodeState::Data) {
+      width = static_cast<uint64_t>(curState);
+      toLittleEndianInstructions(buf, start, msym->value, width);
+    }
+    start = msym->value;
+    curState = newState;
+  }
+
+  // Passed last mapping symbol, may need to reverse
+  // up to end of section.
+  if (curState != CodeState::Data) {
+    width = static_cast<uint64_t>(curState);
+    toLittleEndianInstructions(buf, start, size, width);
   }
 }
 
