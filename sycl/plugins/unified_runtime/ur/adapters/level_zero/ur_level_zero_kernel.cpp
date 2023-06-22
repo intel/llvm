@@ -683,24 +683,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
   ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
 
   ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
-  if (ArgProperties)
-  {
-    assert(ArgProperties->stype == UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES);
-    switch(ArgProperties->memory_access)
-    {
-      case 0:
-        break;
-      case UR_MEM_FLAG_READ_WRITE:
-        UrAccessMode = ur_mem_handle_t_::read_write;
-        break;
-      case UR_MEM_FLAG_WRITE_ONLY:
-        UrAccessMode = ur_mem_handle_t_::write_only;
-        break;
-      case UR_MEM_FLAG_READ_ONLY:
-        UrAccessMode = ur_mem_handle_t_::read_only;
-        break;
-      default:
-        return UR_RESULT_ERROR_INVALID_ARGUMENT;
+  if (Properties) {
+    assert(Properties->stype ==
+           UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES);
+    switch (Properties->memoryAccess) {
+    case 0:
+      break;
+    case UR_MEM_FLAG_READ_WRITE:
+      UrAccessMode = ur_mem_handle_t_::read_write;
+      break;
+    case UR_MEM_FLAG_WRITE_ONLY:
+      UrAccessMode = ur_mem_handle_t_::write_only;
+      break;
+    case UR_MEM_FLAG_READ_ONLY:
+      UrAccessMode = ur_mem_handle_t_::read_only;
+      break;
+    default:
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
   }
   auto Arg = UrMem ? UrMem : nullptr;
