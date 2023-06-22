@@ -4,7 +4,6 @@
 #include <sycl/sycl.hpp>
 
 // CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
-// CHECK-DAG: !sycl_accessor_1_i32_rw_l = !sycl.accessor<[1, i32, read_write, local], (!sycl_local_accessor_base_1_i32_rw)>
 // CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(memref<?xi32, 1>)>)>
 // CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl_accessor_impl_device_3_, !llvm.struct<(memref<?xf32, 1>)>)>
 // CHECK-DAG: !sycl_accessor_1_21sycl2Evec3C5Bi322C_45D2C_28vector3C4xi323E293E_rw_gb = !sycl.accessor<[1, !sycl_vec_i32_4_, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?x!sycl_vec_i32_4_, 1>)>)>
@@ -59,7 +58,7 @@ SYCL_EXTERNAL void accessor_3(sycl::accessor<sycl::cl_float, 3, sycl::access::mo
 
 // COM: Local Accessor Test
 // CHECK-LABEL: func.func @_Z10accessor_4N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
-// CHECK:          %arg0: memref<?x!sycl_accessor_1_i32_rw_l> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_1_i32_rw_l, llvm.noundef}) 
+// CHECK:          %arg0: memref<?x!sycl_local_accessor_1_i32_> {llvm.align = 8 : i64, llvm.byval = !sycl_local_accessor_1_i32_, llvm.noundef}) 
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void accessor_4(sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write, sycl::access::target::local>) {}
 
