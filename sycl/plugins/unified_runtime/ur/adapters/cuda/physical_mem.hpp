@@ -11,8 +11,8 @@
 
 #include <cuda.h>
 
-#include "platform.hpp"
 #include "device.hpp"
+#include "platform.hpp"
 
 /// UR queue mapping on physical memory allocations used in virtual memory
 /// management.
