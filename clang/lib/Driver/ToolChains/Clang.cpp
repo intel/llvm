@@ -4939,7 +4939,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsFPGASYCLOffloadDevice =
       IsSYCLOffloadDevice &&
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
-  bool IsSYCLNativeCPU = TC.getTriple() == C.getDefaultToolChain().getTriple();
+  const bool IsSYCLNativeCPU =
+      TC.getTriple() == C.getDefaultToolChain().getTriple();
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -9359,6 +9360,12 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TargetTripleOpt = ("llvm_" + TargetTripleOpt).str();
     }
 
+    const bool IsSYCLNativeCPU =
+        TC.getTriple() == C.getDefaultToolChain().getTriple();
+    if (IsSYCLNativeCPU) {
+      TargetTripleOpt = "native_cpu";
+      WrapperArgs.push_back(C.getArgs().MakeArgString("-native-cpu"));
+    }
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));
 

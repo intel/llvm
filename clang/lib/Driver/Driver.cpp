@@ -5673,25 +5673,14 @@ class OffloadingActionBuilder final {
           } else
             FullDeviceLinkAction = FullLinkObject;
 
-          if (isSYCLNativeCPU) {
-            // for SYCL Native CPU, we just take the linked device
-            // modules, lower them to an object file , and link it to the host
-            // object file.
-            auto *backendAct = C.MakeAction<BackendJobAction>(
-                FullDeviceLinkAction, types::TY_PP_Asm);
-            auto *asmAct =
-                C.MakeAction<AssembleJobAction>(backendAct, types::TY_Object);
-            DA.add(*asmAct, *TC, BoundArch, Action::OFK_SYCL);
-            return;
-          }
-
           // reflects whether current target is ahead-of-time and can't
           // support runtime setting of specialization constants
-          bool isAOT = isNVPTX || isAMDGCN || isSpirvAOT;
+          bool isAOT = isNVPTX || isAMDGCN || isSpirvAOT || isSYCLNativeCPU;
 
           // post link is not optional - even if not splitting, always need to
           // process specialization constants
-          types::ID PostLinkOutType = isSPIR ? types::TY_Tempfiletable
+          types::ID PostLinkOutType = isSPIR || isSYCLNativeCPU
+                                          ? types::TY_Tempfiletable
                                           : types::TY_LLVM_BC;
           auto createPostLinkAction = [&]() {
             // For SPIR-V targets, force TY_Tempfiletable.
@@ -5701,6 +5690,20 @@ class OffloadingActionBuilder final {
             return TypedPostLinkAction;
           };
           Action *PostLinkAction = createPostLinkAction();
+          if (isSYCLNativeCPU) {
+            // for SYCL Native CPU, we just take the linked device
+            // modules, lower them to an object file , and link it to the host
+            // object file.
+            auto *backendAct = C.MakeAction<BackendJobAction>(
+                FullDeviceLinkAction, types::TY_PP_Asm);
+            auto *asmAct =
+                C.MakeAction<AssembleJobAction>(backendAct, types::TY_Object);
+            DA.add(*asmAct, *TC, BoundArch, Action::OFK_SYCL);
+            auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
+                PostLinkAction, types::TY_Object);
+            DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
+            return;
+          }
           if (isNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
             // When compiling for Nvidia/CUDA devices and the user requested the
             // IR to be embedded in the application (via option), run the output

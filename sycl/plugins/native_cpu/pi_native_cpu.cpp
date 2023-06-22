@@ -328,7 +328,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
-    return ReturnValue("");
+    return ReturnValueArray("cl_khr_fp64 ");
   case PI_DEVICE_INFO_VERSION:
     return ReturnValueArray("0.1");
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
@@ -693,10 +693,11 @@ pi_result piProgramCreateWithBinary(pi_context context, pi_uint32,
   auto nativecpu_entries = (const nativecpu_entry *)(*binaries);
   auto nativecpu_it = nativecpu_entries;
   auto p = new _pi_program();
-  while(strcmp(nativecpu_it->kernelname, "__nativecpu_dummy") != 0) {
-    p->_kernels.insert(std::make_pair(nativecpu_it->kernelname, nativecpu_it->kernel_ptr));
+  while (strcmp(nativecpu_it->kernelname, "__nativecpu_end") != 0) {
+    p->_kernels.insert(
+        std::make_pair(nativecpu_it->kernelname, nativecpu_it->kernel_ptr));
     nativecpu_it++;
-  } 
+  }
   p->_ctx = context;
   *program = p;
   return PI_SUCCESS;
@@ -793,7 +794,8 @@ pi_result piKernelCreate(pi_program program, const char *name,
                          pi_kernel *kernel) {
   // Todo: error checking
   auto ker = new _pi_kernel();
-  auto f = reinterpret_cast<nativecpu_ptr_t>(program->_kernels[std::string(name)]);
+  auto f =
+      reinterpret_cast<nativecpu_ptr_t>(program->_kernels[std::string(name)]);
   ker->_subhandler = *f;
   ker->_name = name;
   *kernel = ker;

@@ -110,9 +110,10 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   // name, otherwise this may lead to runtime failures due to *weird* 
   // codegen/linking behaviour, we change the name of the kernel, and the
   // subhandler steals its name
-  std::string NewName = F->getName().str() + "_NativeCPUKernel";
-  const auto SubHandlerName = F->getName();
-  F->setName(NewName); 
+  std::string OldName = F->getName().str();
+  std::string NewName = OldName + "_NativeCPUKernel";
+  const auto SubHandlerName = OldName;
+  F->setName(NewName);
   FunctionType *FTy = FunctionType::get(
       Type::getVoidTy(Ctx), {NativeCPUArgDescPtrType, StatePtrType}, false);
   auto SubhFCallee = F->getParent()->getOrInsertFunction(SubHandlerName, FTy);

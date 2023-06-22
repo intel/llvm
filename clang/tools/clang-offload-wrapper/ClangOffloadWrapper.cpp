@@ -17,20 +17,20 @@
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/IR/Constant.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/TargetParser/Triple.h"
 #ifndef NDEBUG
 #include "llvm/IR/Verifier.h"
 #endif // NDEBUG
@@ -218,8 +218,9 @@ static cl::opt<bool> BatchMode(
              "a_1.bin|||"),
     cl::cat(ClangOffloadWrapperCategory));
 
-static cl::opt<bool> NativeCPU("native-cpu", cl::NotHidden, cl::init(false), 
-    cl::Optional, cl::desc("Enable wrapping for SYCL Native CPU"));
+static cl::opt<bool> NativeCPU("native-cpu", cl::NotHidden, cl::init(false),
+                               cl::Optional,
+                               cl::desc("Enable wrapping for SYCL Native CPU"));
 
 static StringRef offloadKindToString(OffloadKind Kind) {
   switch (Kind) {
@@ -605,13 +606,14 @@ private:
     return AutoGcBufs.back().get();
   }
 
-  Function * addDeclarationForNativeCPU(StringRef Name) {
-    static FunctionType *NativeCPUFuncTy = FunctionType::get(Type::getVoidTy(C),
+  Function *addDeclarationForNativeCPU(StringRef Name) {
+    static FunctionType *NativeCPUFuncTy = FunctionType::get(
+        Type::getVoidTy(C),
         {PointerType::getUnqual(C), PointerType::getUnqual(C)}, false);
-    static FunctionType *NativeCPUBuiltinTy = FunctionType::get(PointerType::getUnqual(C),
-        {PointerType::getUnqual(C)}, false);
+    static FunctionType *NativeCPUBuiltinTy = FunctionType::get(
+        PointerType::getUnqual(C), {PointerType::getUnqual(C)}, false);
     FunctionType *FTy;
-    if(Name.starts_with("__dpcpp_nativecpu")) 
+    if (Name.starts_with("__dpcpp_nativecpu"))
       FTy = NativeCPUBuiltinTy;
     else
       FTy = NativeCPUFuncTy;
@@ -619,7 +621,8 @@ private:
     return dyn_cast<Function>(FCalle.getCallee());
   }
 
-  Expected<std::pair<Constant *, Constant *>> addDeclarationsForNativeCPU(StringRef EntriesFile) {
+  Expected<std::pair<Constant *, Constant *>>
+  addDeclarationsForNativeCPU(StringRef EntriesFile) {
     Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
     if (!MBOrErr)
       return MBOrErr.takeError();
@@ -629,33 +632,38 @@ private:
       auto NewDecl = addDeclarationForNativeCPU(*LI);
       NativeCPUDecls.push_back(NewDecl);
     }
-    // Add a dummy function whose pointer is used for the end of the array
-    auto *DummyTy = FunctionType::get(Type::getVoidTy(C), {}, false);
-    auto *DummyF = Function::Create(DummyTy, GlobalValue::LinkageTypes::WeakAnyLinkage, "__nativecpu_dummy", &M);
-    BasicBlock *Block = BasicBlock::Create(C, "entry", DummyF);
-    ReturnInst::Create(C, Block); 
-    NativeCPUDecls.push_back(DummyF);
 
-    // the Native CPU PI Plug-in expects the BinaryStart field to point to an array of
-    // struct nativecpu_entry {
+    // the Native CPU PI Plug-in expects the BinaryStart field to point to an
+    // array of struct nativecpu_entry {
     //   char *kernelname;
     //   unsigned char *kernel_ptr;
     // };
-    StructType *NCPUEntryT = StructType::create({PointerType::getUnqual(C), PointerType::getUnqual(C)}, "__nativecpu_entry");
+    StructType *NCPUEntryT = StructType::create(
+        {PointerType::getUnqual(C), PointerType::getUnqual(C)},
+        "__nativecpu_entry");
     SmallVector<Constant *, 5> NativeCPUEntries;
-    for(auto& F : NativeCPUDecls) {
-      NativeCPUEntries.push_back(
-          ConstantStruct::get(NCPUEntryT, {addStringToModule(F->getName(), "__ncpu_function_name"), F}));
+    for (auto &F : NativeCPUDecls) {
+      NativeCPUEntries.push_back(ConstantStruct::get(
+          NCPUEntryT,
+          {addStringToModule(F->getName(), "__ncpu_function_name"), F}));
     }
 
-    // Create the constant array containing the {kernel name, function pointers} pairs
+    // Add an empty entry that we use as end iterator
+    static auto *NativeCPUEndStr =
+        addStringToModule("__nativecpu_end", "__ncpu_end_str");
+    auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
+    NativeCPUEntries.push_back(
+        ConstantStruct::get(NCPUEntryT, {NativeCPUEndStr, NullPtr}));
+
+    // Create the constant array containing the {kernel name, function pointers}
+    // pairs
     ArrayType *ATy = ArrayType::get(NCPUEntryT, NativeCPUEntries.size());
     Constant *CA = ConstantArray::get(ATy, NativeCPUEntries);
     auto *GVar = new GlobalVariable(M, CA->getType(), true,
-                                       GlobalVariable::InternalLinkage, CA,
-                                       "__sycl_native_cpu_decls");
-    auto *Begin = ConstantExpr::getGetElementPtr(
-        GVar->getValueType(), GVar, getSizetConstPair(0u, 0u));
+                                    GlobalVariable::InternalLinkage, CA,
+                                    "__sycl_native_cpu_decls");
+    auto *Begin = ConstantExpr::getGetElementPtr(GVar->getValueType(), GVar,
+                                                 getSizetConstPair(0u, 0u));
     auto *End = ConstantExpr::getGetElementPtr(
         GVar->getValueType(), GVar,
         getSizetConstPair(0u, NativeCPUDecls.size()));
@@ -1031,7 +1039,7 @@ private:
         Bin = addELFNotes(Bin, Img.File);
       }
       std::pair<Constant *, Constant *> Fbin;
-      if(NativeCPU) {
+      if (NativeCPU) {
         auto FBinOrErr = addDeclarationsForNativeCPU(Img.EntriesFile);
         if (!FBinOrErr)
           return FBinOrErr.takeError();
@@ -1039,7 +1047,8 @@ private:
       } else {
         Fbin = addDeviceImageToModule(
             ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
-            Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind, Img.Tgt);
+            Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
+            Img.Tgt);
       }
 
       if (Kind == OffloadKind::SYCL) {

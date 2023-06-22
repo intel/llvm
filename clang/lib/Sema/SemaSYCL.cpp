@@ -5697,7 +5697,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     }
   }
 
-  //if (S.getLangOpts().SYCLIsNativeCPU) {
+  // if (S.getLangOpts().SYCLIsNativeCPU) {
   //  // This is a temporary workaround for the integration header file
   //  // being emitted too early.
   //  std::string HCName = getNativeCPUHeaderName(S.getLangOpts());

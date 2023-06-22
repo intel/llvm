@@ -3,9 +3,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="opencl:cpu" %t
-// Todo: this test currently fails because the rounded range wrapper is run
-// instead of the main kernel, and gives wrong results.
-// XFAIL: native_cpu_be
 
 #include <sycl/sycl.hpp>
 
