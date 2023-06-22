@@ -76,7 +76,7 @@ Support
 Adapters which support this experimental feature *must* return the valid string 
 defined in ``${"${X}"}_${"_".join(name.split("-")).upper()}_EXTENSION_STRING_EXP`` 
 as one of the options from ${"${x}"}DeviceGetInfo when querying for 
-${"${X}"}_DEVICE_INFO_EXTENSIONS. Conversly, before using any of the 
+${"${X}"}_DEVICE_INFO_EXTENSIONS. Conversely, before using any of the 
 functionality defined in this experimental feature the user *must* use the 
 device query to determine if the adapter supports this feature.
 

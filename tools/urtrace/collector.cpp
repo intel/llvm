@@ -181,7 +181,7 @@ static class cli_args {
     bool no_args;
     enum output_format output_format;
     std::optional<std::string>
-        filter_str; //the filter_str is kept primarly for printing.
+        filter_str; //the filter_str is kept primarily for printing.
     std::optional<std::regex> filter;
 } cli_args;
 

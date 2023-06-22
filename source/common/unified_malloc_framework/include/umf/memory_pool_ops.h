@@ -26,7 +26,7 @@ struct umf_memory_pool_ops_t {
     uint32_t version;
 
     ///
-    /// \brief Intializes memory pool.
+    /// \brief Initializes memory pool.
     /// \param providers array of memory providers that will be used for coarse-grain allocations.
     ///        Should contain at least one memory provider.
     /// \param numProvider number of elements in the providers array

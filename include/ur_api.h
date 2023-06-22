@@ -863,7 +863,7 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS = 32,                ///< [uint32_t] max number of image objects arguments of a kernel declared
                                                                   ///< with the read_write qualifier
     UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH = 33,                        ///< [size_t] max width of Image2D object
-    UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT = 34,                       ///< [size_t] max heigh of Image2D object
+    UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT = 34,                       ///< [size_t] max height of Image2D object
     UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH = 35,                        ///< [size_t] max width of Image3D object
     UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT = 36,                       ///< [size_t] max height of Image3D object
     UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH = 37,                        ///< [size_t] max depth of Image3D object
@@ -1173,7 +1173,7 @@ typedef union ur_device_partition_value_t {
 /// @brief Device partition property
 typedef struct ur_device_partition_property_t {
     ur_device_partition_t type;        ///< [in] The partitioning type to be used.
-    ur_device_partition_value_t value; ///< [in] The paritioning value.
+    ur_device_partition_value_t value; ///< [in] The partitioning value.
 
 } ur_device_partition_property_t;
 

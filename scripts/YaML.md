@@ -20,7 +20,7 @@ This document describes the YaML format used by the scripts for the API specific
 * A header requires the following scalar fields: {`desc`}
   - `desc` will be used as the region description comment
 * A header may take the following optional scalar fields: {`ordinal`, `version`}
-  - `ordinal` will be used to override the default order (alphebetical) in which regions appear in the specification; `default="1000"`. Multiple regions with the same ordinal will be ordered alphebetically.
+  - `ordinal` will be used to override the default order (alphabetical) in which regions appear in the specification; `default="1000"`. Multiple regions with the same ordinal will be ordered alphabetically.
   - `version` can be used to define the minimum API version for all documents in the yml file; `default="1.0"`
 
 <table>
@@ -325,7 +325,7 @@ class ur_name_handle_t(c_void_p):
   - `version` will be used to define the minimum API version in which the enum will appear; `default="1.0"` This will also affect the order in which the enum appears within its section and class.
   - `extend` will be used to extend an existing enum with additional `etors`, 
   usually used to implement experimental features. `type` *must* refer to an 
-  exiting enum and each `etor` must include a unique `value`.
+  existing enum and each `etor` must include a unique `value`.
   - `typed_etors` boolean value that will be used to determine whether the enum's values have associated types.
 * An enum requires the following sequence of mappings: {`etors`}
   - An etor requires the following scalar fields: {`name`, `desc`}

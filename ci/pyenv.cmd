@@ -112,7 +112,7 @@ goto :eof
 ::===============================================================
 :: Deletes existing python virtual env.
 :reset_python
-echo Reseting python...
+echo Resetting python...
 set VDIR_ACTIVE=
 if exist "%VDIR%" (
     call "%VDIR%\Scripts\deactivate.bat"
