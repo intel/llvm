@@ -6790,6 +6790,103 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a memory write command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSrc`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    size_t offset,           ///< [in] offset in bytes in the buffer object.
+    size_t size,             ///< [in] size in bytes of data being written.
+    const void *
+        pSrc, ///< [in] pointer to host memory where data is to be written from.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    auto pfnAppendMembufferWriteExp =
+        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendMembufferWriteExp;
+    if (nullptr == pfnAppendMembufferWriteExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnAppendMembufferWriteExp(hCommandBuffer, hBuffer, offset, size,
+                                      pSrc, numSyncPointsInWaitList,
+                                      pSyncPointWaitList, pSyncPoint);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a memory read command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    size_t offset,           ///< [in] offset in bytes in the buffer object.
+    size_t size,             ///< [in] size in bytes of data being written.
+    void *pDst, ///< [in] pointer to host memory where data is to be written to.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    auto pfnAppendMembufferReadExp =
+        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendMembufferReadExp;
+    if (nullptr == pfnAppendMembufferReadExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnAppendMembufferReadExp(hCommandBuffer, hBuffer, offset, size,
+                                     pDst, numSyncPointsInWaitList,
+                                     pSyncPointWaitList, pSyncPoint);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Append a rectangular memory copy command to a command-buffer object
 ///
 /// @returns
@@ -6841,6 +6938,132 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     return pfnAppendMembufferCopyRectExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a rectangular memory write command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSrc`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer.
+    ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region.
+    ur_rect_region_t
+        region, ///< [in] 3D rectangular region descriptor: width, height, depth.
+    size_t
+        bufferRowPitch, ///< [in] length of each row in bytes in the buffer object.
+    size_t
+        bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the buffer object being
+                          ///< written.
+    size_t
+        hostRowPitch, ///< [in] length of each row in bytes in the host memory region pointed to
+                      ///< by pSrc.
+    size_t
+        hostSlicePitch, ///< [in] length of each 2D slice in bytes in the host memory region
+                        ///< pointed to by pSrc.
+    void *
+        pSrc, ///< [in] pointer to host memory where data is to be written from.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    auto pfnAppendMembufferWriteRectExp =
+        ur_lib::context->urDdiTable.CommandBufferExp
+            .pfnAppendMembufferWriteRectExp;
+    if (nullptr == pfnAppendMembufferWriteRectExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnAppendMembufferWriteRectExp(
+        hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
+        bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a rectangular memory read command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer.
+    ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region.
+    ur_rect_region_t
+        region, ///< [in] 3D rectangular region descriptor: width, height, depth.
+    size_t
+        bufferRowPitch, ///< [in] length of each row in bytes in the buffer object.
+    size_t
+        bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the buffer object being read.
+    size_t
+        hostRowPitch, ///< [in] length of each row in bytes in the host memory region pointed to
+                      ///< by pDst.
+    size_t
+        hostSlicePitch, ///< [in] length of each 2D slice in bytes in the host memory region
+                        ///< pointed to by pDst.
+    void *pDst, ///< [in] pointer to host memory where data is to be read into.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    auto pfnAppendMembufferReadRectExp =
+        ur_lib::context->urDdiTable.CommandBufferExp
+            .pfnAppendMembufferReadRectExp;
+    if (nullptr == pfnAppendMembufferReadRectExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnAppendMembufferReadRectExp(
+        hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
+        bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 } catch (...) {
     return exceptionToResult(std::current_exception());

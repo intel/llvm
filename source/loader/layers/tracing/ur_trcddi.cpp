@@ -5156,6 +5156,101 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferWriteExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    size_t offset,           ///< [in] offset in bytes in the buffer object.
+    size_t size,             ///< [in] size in bytes of data being written.
+    const void *
+        pSrc, ///< [in] pointer to host memory where data is to be written from.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendMembufferWriteExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMembufferWriteExp;
+
+    if (nullptr == pfnAppendMembufferWriteExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_command_buffer_append_membuffer_write_exp_params_t params = {
+        &hCommandBuffer,
+        &hBuffer,
+        &offset,
+        &size,
+        &pSrc,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+    uint64_t instance = context.notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP,
+        "urCommandBufferAppendMembufferWriteExp", &params);
+
+    ur_result_t result = pfnAppendMembufferWriteExp(
+        hCommandBuffer, hBuffer, offset, size, pSrc, numSyncPointsInWaitList,
+        pSyncPointWaitList, pSyncPoint);
+
+    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP,
+                       "urCommandBufferAppendMembufferWriteExp", &params,
+                       &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferReadExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    size_t offset,           ///< [in] offset in bytes in the buffer object.
+    size_t size,             ///< [in] size in bytes of data being written.
+    void *pDst, ///< [in] pointer to host memory where data is to be written to.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendMembufferReadExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMembufferReadExp;
+
+    if (nullptr == pfnAppendMembufferReadExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_command_buffer_append_membuffer_read_exp_params_t params = {
+        &hCommandBuffer,
+        &hBuffer,
+        &offset,
+        &size,
+        &pDst,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+    uint64_t instance = context.notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP,
+        "urCommandBufferAppendMembufferReadExp", &params);
+
+    ur_result_t result = pfnAppendMembufferReadExp(
+        hCommandBuffer, hBuffer, offset, size, pDst, numSyncPointsInWaitList,
+        pSyncPointWaitList, pSyncPoint);
+
+    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP,
+                       "urCommandBufferAppendMembufferReadExp", &params,
+                       &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     ur_exp_command_buffer_handle_t
@@ -5212,6 +5307,140 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     context.notify_end(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP,
         "urCommandBufferAppendMembufferCopyRectExp", &params, &result,
+        instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferWriteRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer.
+    ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region.
+    ur_rect_region_t
+        region, ///< [in] 3D rectangular region descriptor: width, height, depth.
+    size_t
+        bufferRowPitch, ///< [in] length of each row in bytes in the buffer object.
+    size_t
+        bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the buffer object being
+                          ///< written.
+    size_t
+        hostRowPitch, ///< [in] length of each row in bytes in the host memory region pointed to
+                      ///< by pSrc.
+    size_t
+        hostSlicePitch, ///< [in] length of each 2D slice in bytes in the host memory region
+                        ///< pointed to by pSrc.
+    void *
+        pSrc, ///< [in] pointer to host memory where data is to be written from.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendMembufferWriteRectExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMembufferWriteRectExp;
+
+    if (nullptr == pfnAppendMembufferWriteRectExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_command_buffer_append_membuffer_write_rect_exp_params_t params = {
+        &hCommandBuffer,
+        &hBuffer,
+        &bufferOffset,
+        &hostOffset,
+        &region,
+        &bufferRowPitch,
+        &bufferSlicePitch,
+        &hostRowPitch,
+        &hostSlicePitch,
+        &pSrc,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+    uint64_t instance = context.notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP,
+        "urCommandBufferAppendMembufferWriteRectExp", &params);
+
+    ur_result_t result = pfnAppendMembufferWriteRectExp(
+        hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
+        bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    context.notify_end(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP,
+        "urCommandBufferAppendMembufferWriteRectExp", &params, &result,
+        instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferReadRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer.
+    ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region.
+    ur_rect_region_t
+        region, ///< [in] 3D rectangular region descriptor: width, height, depth.
+    size_t
+        bufferRowPitch, ///< [in] length of each row in bytes in the buffer object.
+    size_t
+        bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the buffer object being read.
+    size_t
+        hostRowPitch, ///< [in] length of each row in bytes in the host memory region pointed to
+                      ///< by pDst.
+    size_t
+        hostSlicePitch, ///< [in] length of each 2D slice in bytes in the host memory region
+                        ///< pointed to by pDst.
+    void *pDst, ///< [in] pointer to host memory where data is to be read into.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendMembufferReadRectExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMembufferReadRectExp;
+
+    if (nullptr == pfnAppendMembufferReadRectExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_command_buffer_append_membuffer_read_rect_exp_params_t params = {
+        &hCommandBuffer,
+        &hBuffer,
+        &bufferOffset,
+        &hostOffset,
+        &region,
+        &bufferRowPitch,
+        &bufferSlicePitch,
+        &hostRowPitch,
+        &hostSlicePitch,
+        &pDst,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+    uint64_t instance = context.notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP,
+        "urCommandBufferAppendMembufferReadRectExp", &params);
+
+    ur_result_t result = pfnAppendMembufferReadRectExp(
+        hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
+        bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    context.notify_end(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP,
+        "urCommandBufferAppendMembufferReadRectExp", &params, &result,
         instance);
 
     return result;
@@ -5596,10 +5825,28 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     pDdiTable->pfnAppendMembufferCopyExp =
         ur_tracing_layer::urCommandBufferAppendMembufferCopyExp;
 
+    dditable.pfnAppendMembufferWriteExp = pDdiTable->pfnAppendMembufferWriteExp;
+    pDdiTable->pfnAppendMembufferWriteExp =
+        ur_tracing_layer::urCommandBufferAppendMembufferWriteExp;
+
+    dditable.pfnAppendMembufferReadExp = pDdiTable->pfnAppendMembufferReadExp;
+    pDdiTable->pfnAppendMembufferReadExp =
+        ur_tracing_layer::urCommandBufferAppendMembufferReadExp;
+
     dditable.pfnAppendMembufferCopyRectExp =
         pDdiTable->pfnAppendMembufferCopyRectExp;
     pDdiTable->pfnAppendMembufferCopyRectExp =
         ur_tracing_layer::urCommandBufferAppendMembufferCopyRectExp;
+
+    dditable.pfnAppendMembufferWriteRectExp =
+        pDdiTable->pfnAppendMembufferWriteRectExp;
+    pDdiTable->pfnAppendMembufferWriteRectExp =
+        ur_tracing_layer::urCommandBufferAppendMembufferWriteRectExp;
+
+    dditable.pfnAppendMembufferReadRectExp =
+        pDdiTable->pfnAppendMembufferReadRectExp;
+    pDdiTable->pfnAppendMembufferReadRectExp =
+        ur_tracing_layer::urCommandBufferAppendMembufferReadRectExp;
 
     dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
     pDdiTable->pfnEnqueueExp = ur_tracing_layer::urCommandBufferEnqueueExp;
