@@ -26,5 +26,43 @@ is to show the basic ESIMD APIs in well known examples.
      });
    }).wait_and_throw();
    ```
+2) Calling ESIMD from SYCL using invoke_simd - ["invoke_simd"](./invoke_simd.md).
+   Please see the full source code here: ["invoke_simd"](./invoke_simd.md)
+   ```c++
+   [[intel::device_indirectly_callable]] simd<int, VL> __regcall scale(
+     simd<int, VL> x, int n) SYCL_ESIMD_FUNCTION {
+     esimd::simd<int, VL> vec = x;
+     esimd::simd<int, VL> result = vec * n;
+    return result;
+   }
 
-2) TODO: Add more examples here.
+   int main(void) { 
+     int *In = new int[Size];
+     int *Out = new int[Size];
+     buffer<int, 1> bufin(In, range<1>(Size));
+     buffer<int, 1> bufout(Out, range<1>(Size));
+
+     // scale factor
+     int n = 2;
+
+     sycl::range<1> GlobalRange{Size};
+     sycl::range<1> LocalRange{VL};
+    
+     q.submit([&](handler &cgh) {
+      auto accin = bufin.get_access<access::mode::read>(cgh);
+      auto accout = bufout.get_access<access::mode::write>(cgh);
+
+      cgh.parallel_for<class Scale>(
+          nd_range<1>(GlobalRange, LocalRange), [=](nd_item<1> item) {
+            sycl::sub_group sg = item.get_sub_group();
+            unsigned int offset = item.get_global_linear_id();
+
+            int in = sg.load(accin.get_pointer() + offset);
+
+            int out = invoke_simd(sg, scale, in, uniform{n});
+
+            sg.store(accout.get_pointer() + offset, out);
+          });
+    });
+    ```
+3) TODO: Add more examples here.
