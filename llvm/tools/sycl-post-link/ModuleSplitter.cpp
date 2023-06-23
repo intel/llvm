@@ -129,61 +129,6 @@ bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
 }
 
-// This function makes one or two groups depending on kernel types (SYCL, ESIMD)
-EntryPointGroupVec
-groupEntryPointsByKernelType(ModuleDesc &MD,
-                             bool EmitOnlyKernelsAsEntryPoints) {
-  Module &M = MD.getModule();
-  EntryPointGroupVec EntryPointGroups{};
-  std::map<StringRef, EntryPointSet> EntryPointMap;
-
-  bool ESIMDFunctionsExist = false;
-  // Only process module entry points:
-  for (Function &F : M.functions()) {
-    if (isESIMDFunction(F))
-      ESIMDFunctionsExist = true;
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
-        !MD.isEntryPointCandidate(F))
-      continue;
-    if (isESIMDFunction(F))
-      EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
-    else
-      EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
-  }
-
-  if (!EntryPointMap.empty()) {
-    for (auto &EPG : EntryPointMap) {
-      EntryPointGroups.emplace_back(EPG.first, std::move(EPG.second),
-                                    MD.getEntryPointGroup().Props);
-      EntryPointGroup &G = EntryPointGroups.back();
-
-      if (G.GroupId == ESIMD_SCOPE_NAME) {
-        G.Props.HasESIMD = SyclEsimdSplitStatus::ESIMD_ONLY;
-      } else {
-        assert(G.GroupId == SYCL_SCOPE_NAME);
-        G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
-      }
-    }
-    // If ESIMD functions exist in the module, but there were
-    // no ESIMD entry points, create an empty entry point group
-    // with HasESIMD so the ESIMD constructs can be lowered properly
-    // later.
-    if (ESIMDFunctionsExist && EntryPointGroups.size() == 1 &&
-        EntryPointGroups.back().isSycl()) {
-      EntryPointGroups.emplace_back(ESIMD_SCOPE_NAME, EntryPointSet{});
-      EntryPointGroup &G = EntryPointGroups.back();
-      G.Props.HasESIMD = SyclEsimdSplitStatus::ESIMD_ONLY;
-    }
-  } else {
-    // No entry points met, record this.
-    EntryPointGroups.emplace_back(SYCL_SCOPE_NAME, EntryPointSet{});
-    EntryPointGroup &G = EntryPointGroups.back();
-    G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
-  }
-
-  return EntryPointGroups;
-}
-
 // Represents "dependency" or "use" graph of global objects (functions and
 // global variables) in a module. It is used during device code split to
 // understand which global variables and functions (other than entry points)
@@ -976,9 +921,39 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
                                         bool EmitOnlyKernelsAsEntryPoints) {
 
   SmallVector<module_split::ModuleDesc, 2> Result;
+  EntryPointGroupVec EntryPointGroups{};
+  EntryPointSet SYCLEntryPoints, ESIMDEntryPoints;
+  bool hasESIMDFunctions = false;
 
-  EntryPointGroupVec EntryPointGroups =
-      groupEntryPointsByKernelType(MD, EmitOnlyKernelsAsEntryPoints);
+  // Only process module entry points:
+  for (Function &F : MD.getModule().functions()) {
+    if (isESIMDFunction(F))
+      hasESIMDFunctions = true;
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
+        !MD.isEntryPointCandidate(F))
+      continue;
+    if (isESIMDFunction(F))
+      ESIMDEntryPoints.insert(&F);
+    else
+      SYCLEntryPoints.insert(&F);
+  }
+
+  // If there are no ESIMD entry points but but there are functions,
+  // we still need to create an (empty) entry point group so that we
+  // can lower the ESIMD functions.
+  if (!ESIMDEntryPoints.empty() || hasESIMDFunctions) {
+    EntryPointGroups.emplace_back(ESIMD_SCOPE_NAME, std::move(ESIMDEntryPoints),
+                                  MD.getEntryPointGroup().Props);
+    EntryPointGroup &G = EntryPointGroups.back();
+    G.Props.HasESIMD = SyclEsimdSplitStatus::ESIMD_ONLY;
+  }
+
+  if (!SYCLEntryPoints.empty() || EntryPointGroups.empty()) {
+    EntryPointGroups.emplace_back(SYCL_SCOPE_NAME, std::move(SYCLEntryPoints),
+                                  MD.getEntryPointGroup().Props);
+    EntryPointGroup &G = EntryPointGroups.back();
+    G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
+  }
 
   if (EntryPointGroups.size() == 1) {
     Result.emplace_back(std::move(MD.releaseModulePtr()),
