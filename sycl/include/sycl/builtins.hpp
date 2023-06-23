@@ -2619,10 +2619,7 @@ __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(powr)
   inline TYPE cos(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_cos<TYPE>(x);                           \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf divide (genfloatf x, genfloatf y)
@@ -2630,10 +2627,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE divide(TYPE x, TYPE y) __NOEXC {                                 \
     return __sycl_std::__invoke_native_divide<TYPE>(x, y);                     \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp (genfloatf x)
@@ -2641,10 +2635,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE exp(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_exp<TYPE>(x);                           \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp2 (genfloatf x)
@@ -2652,10 +2643,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE exp2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_native_exp2<TYPE>(x);                          \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp10 (genfloatf x)
@@ -2663,10 +2651,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE exp10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_exp10<TYPE>(x);                         \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf log (genfloatf x)
@@ -2674,10 +2659,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE log(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_log<TYPE>(x);                           \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf log2 (genfloatf x)
@@ -2685,10 +2667,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE log2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_native_log2<TYPE>(x);                          \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf log10 (genfloatf x)
@@ -2696,10 +2675,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE log10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_log10<TYPE>(x);                         \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf powr (genfloatf x, genfloatf y)
@@ -2707,10 +2683,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_native_powr<TYPE>(x, y);                       \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf recip (genfloatf x)
@@ -2718,10 +2691,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE recip(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_recip<TYPE>(x);                         \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf rsqrt (genfloatf x)
@@ -2729,10 +2699,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_rsqrt<TYPE>(x);                         \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf sin (genfloatf x)
@@ -2740,10 +2707,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE sin(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_sin<TYPE>(x);                           \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf sqrt (genfloatf x)
@@ -2751,10 +2715,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE sqrt(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_native_sqrt<TYPE>(x);                          \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf tan (genfloatf x)
@@ -2762,10 +2723,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE tan(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_tan<TYPE>(x);                           \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 } // namespace native
@@ -2829,8 +2787,7 @@ __SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD(powr)
   inline TYPE cos(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_half_cos<TYPE>(x);                             \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf divide (genfloatf x, genfloatf y)
@@ -2838,8 +2795,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE divide(TYPE x, TYPE y) __NOEXC {                                 \
     return __sycl_std::__invoke_half_divide<TYPE>(x, y);                       \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp (genfloatf x)
@@ -2847,8 +2803,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE exp(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_half_exp<TYPE>(x);                             \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp2 (genfloatf x)
@@ -2856,8 +2811,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE exp2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_half_exp2<TYPE>(x);                            \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp10 (genfloatf x)
@@ -2865,8 +2819,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE exp10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_half_exp10<TYPE>(x);                           \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf log (genfloatf x)
@@ -2874,8 +2827,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE log(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_half_log<TYPE>(x);                             \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf log2 (genfloatf x)
@@ -2883,8 +2835,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE log2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_half_log2<TYPE>(x);                            \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf log10 (genfloatf x)
@@ -2892,8 +2843,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE log10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_half_log10<TYPE>(x);                           \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf powr (genfloatf x, genfloatf y)
@@ -2901,8 +2851,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_half_powr<TYPE>(x, y);                         \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf recip (genfloatf x)
@@ -2910,8 +2859,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE recip(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_half_recip<TYPE>(x);                           \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf rsqrt (genfloatf x)
@@ -2919,8 +2867,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_half_rsqrt<TYPE>(x);                           \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf sin (genfloatf x)
@@ -2928,8 +2875,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE sin(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_half_sin<TYPE>(x);                             \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf sqrt (genfloatf x)
@@ -2937,8 +2883,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE sqrt(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_half_sqrt<TYPE>(x);                            \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf tan (genfloatf x)
@@ -2946,8 +2891,7 @@ __SYCL_DEF_BUILTIN_FLOAT_VEC
   inline TYPE tan(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_half_tan<TYPE>(x);                             \
   }
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
 
 } // namespace half_precision
