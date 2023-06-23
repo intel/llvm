@@ -681,8 +681,7 @@ inline pi_result piDeviceRelease(pi_device Device) {
 }
 
 inline pi_result piPluginGetLastError(char **message) {
-  std::ignore = message;
-  return PI_SUCCESS;
+  return HANDLE_ERRORS(urGetLastResult(message));
 }
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
@@ -3991,7 +3990,6 @@ pi_result piextPeerAccessGetInfo(pi_device command_device,
   }
   default: {
     return PI_ERROR_UNKNOWN;
-    ;
   }
   }
 

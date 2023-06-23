@@ -21,6 +21,7 @@ void enableCUDATracing();
 
 //-- PI API implementation
 extern "C" {
+
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {

@@ -48,7 +48,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     ur_device_handle_t commandDevice, ur_device_handle_t peerDevice,
     ur_exp_peer_info_t propName, size_t propSize, void *pPropValue,
     size_t *pPropSizeRet) {
-  
+
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   int value;

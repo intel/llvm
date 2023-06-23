@@ -16,8 +16,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
   std::ignore = commandDevice;
   std::ignore = peerDevice;
 
-  //sycl::detail::ur::die("Experimental USM-P2P feature is not "
-  //                      "implemented in the L0 adapter.");
+  sycl::detail::ur::die("Experimental USM-P2P feature is not "
+                        "implemented in the L0 adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -27,8 +27,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
   std::ignore = commandDevice;
   std::ignore = peerDevice;
 
-  //sycl::detail::ur::die("Experimental USM-P2P feature is not "
-  //                      "implemented in the L0 adapter.");
+  sycl::detail::ur::die("Experimental USM-P2P feature is not "
+                        "implemented in the L0 adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
