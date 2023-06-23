@@ -327,8 +327,13 @@ namespace __sycl_std = __host_std;
   __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSVEC                                         \
   __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSVEC                                        \
   __SYCL_DEF_BUILTIN_HALF_GEOCROSSVEC
-// TODO: Replace with overloads.
 
+#define __SYCL_DEF_BUILTIN_VGENGEOFLOAT                                        \
+  __SYCL_DEF_BUILTIN_FLOAT_GEOVEC                                              \
+  __SYCL_DEF_BUILTIN_DOUBLE_GEOVEC                                             \
+  __SYCL_DEF_BUILTIN_HALF_GEOVEC
+
+// TODO: Replace with overloads.
 #ifdef __FAST_MATH__
 #define __FAST_MATH_GENFLOAT(T)                                                \
   (detail::is_svgenfloatd<T>::value || detail::is_svgenfloath<T>::value)
@@ -1974,77 +1979,52 @@ __SYCL_DEF_BUILTIN_VGENGEOCROSSFLOAT
   inline TYPE dot(TYPE p0, TYPE p1) __NOEXC { return p0 * p1; }
 __SYCL_DEF_BUILTIN_SGENFLOAT
 #undef __SYCL_BUILTIN_DEF
-
 // float dot (vgengeofloat p0, vgengeofloat p1)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline float dot(TYPE p0, TYPE p1) __NOEXC {                                 \
-    return __sycl_std::__invoke_Dot<float>(p0, p1);                            \
-  }
-__SYCL_DEF_BUILTIN_FLOAT_GEOVEC
-#undef __SYCL_BUILTIN_DEF
-
 // double dot (vgengeodouble p0, vgengeodouble p1)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline double dot(TYPE p0, TYPE p1) __NOEXC {                                \
-    return __sycl_std::__invoke_Dot<double>(p0, p1);                           \
-  }
-__SYCL_DEF_BUILTIN_DOUBLE_GEOVEC
-#undef __SYCL_BUILTIN_DEF
-
 // half dot (vgengeohalf p0, vgengeohalf p1)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline half dot(TYPE p0, TYPE p1) __NOEXC {                                  \
-    return __sycl_std::__invoke_Dot<half>(p0, p1);                             \
+  inline TYPE::element_type dot(TYPE p0, TYPE p1) __NOEXC {                    \
+    return __sycl_std::__invoke_Dot<TYPE::element_type>(p0, p1);               \
   }
-__SYCL_DEF_BUILTIN_HALF_GEOVEC
+__SYCL_DEF_BUILTIN_VGENGEOFLOAT
 #undef __SYCL_BUILTIN_DEF
 
-// float distance (gengeofloat p0, gengeofloat p1)
+// float distance (float p0, float p1)
+// double distance (double p0, double p1)
+// half distance (half p0, half p1)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline float distance(TYPE p0, TYPE p1) __NOEXC {                            \
-    return __sycl_std::__invoke_distance<float>(p0, p1);                       \
+  inline TYPE distance(TYPE p0, TYPE p1) __NOEXC {                             \
+    return __sycl_std::__invoke_distance<TYPE>(p0, p1);                        \
   }
-__SYCL_DEF_BUILTIN_GENGEOFLOATF
+__SYCL_DEF_BUILTIN_SGENFLOAT
+#undef __SYCL_BUILTIN_DEF
+// float distance (vgengeofloat p0, vgengeofloat p1)
+// double distance (vgengeodouble p0, vgengeodouble p1)
+// half distance (vgengeohalf p0, vgengeohalf p1)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE::element_type distance(TYPE p0, TYPE p1) __NOEXC {               \
+    return __sycl_std::__invoke_distance<TYPE::element_type>(p0, p1);          \
+  }
+__SYCL_DEF_BUILTIN_VGENGEOFLOAT
 #undef __SYCL_BUILTIN_DEF
 
-// double distance (gengeodouble p0, gengeodouble p1)
+// float length (float p0, float p1)
+// double length (double p0, double p1)
+// half length (half p0, half p1)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline double distance(TYPE p0, TYPE p1) __NOEXC {                           \
-    return __sycl_std::__invoke_distance<double>(p0, p1);                      \
+  inline TYPE length(TYPE p) __NOEXC {                                         \
+    return __sycl_std::__invoke_length<TYPE>(p);                               \
   }
-__SYCL_DEF_BUILTIN_GENGEOFLOATD
+__SYCL_DEF_BUILTIN_SGENFLOAT
 #undef __SYCL_BUILTIN_DEF
-
-// half distance (gengeohalf p0, gengeohalf p1)
+// float length (vgengeofloat p0, vgengeofloat p1)
+// double length (vgengeodouble p0, vgengeodouble p1)
+// half length (vgengeohalf p0, vgengeohalf p1)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline half distance(TYPE p0, TYPE p1) __NOEXC {                             \
-    return __sycl_std::__invoke_distance<half>(p0, p1);                        \
+  inline TYPE::element_type length(TYPE p) __NOEXC {                           \
+    return __sycl_std::__invoke_length<TYPE::element_type>(p);                 \
   }
-__SYCL_DEF_BUILTIN_GENGEOFLOATH
-#undef __SYCL_BUILTIN_DEF
-
-// float length (gengeofloat p)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline float length(TYPE p) __NOEXC {                                        \
-    return __sycl_std::__invoke_length<float>(p);                              \
-  }
-__SYCL_DEF_BUILTIN_GENGEOFLOATF
-#undef __SYCL_BUILTIN_DEF
-
-// double length (gengeodouble p)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline double length(TYPE p) __NOEXC {                                       \
-    return __sycl_std::__invoke_length<double>(p);                             \
-  }
-__SYCL_DEF_BUILTIN_GENGEOFLOATD
-#undef __SYCL_BUILTIN_DEF
-
-// half length (gengeohalf p)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline half length(TYPE p) __NOEXC {                                         \
-    return __sycl_std::__invoke_length<half>(p);                               \
-  }
-__SYCL_DEF_BUILTIN_GENGEOFLOATH
+__SYCL_DEF_BUILTIN_VGENGEOFLOAT
 #undef __SYCL_BUILTIN_DEF
 
 // gengeofloat normalize (gengeofloat p)
