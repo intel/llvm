@@ -16,14 +16,14 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        ur_queue_handle_t Queue,
                                        hipStream_t Stream, uint32_t StreamToken)
     : CommandType{Type}, RefCount{1}, HasBeenWaitedOn{false}, IsRecorded{false},
-      IsStarted{false}, StreamToken{StreamToken}, EventEnd{nullptr},
+      IsStarted{false}, StreamToken{StreamToken}, EvEnd{nullptr},
       EvStart{nullptr}, EvQueued{nullptr}, Queue{Queue}, Stream{Stream},
       Context{Context} {
 
   bool ProfilingEnabled = Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE;
 
   UR_CHECK_ERROR(hipEventCreateWithFlags(
-      &EventEnd, ProfilingEnabled ? hipEventDefault : hipEventDisableTiming));
+      &EvEnd, ProfilingEnabled ? hipEventDefault : hipEventDisableTiming));
 
   if (ProfilingEnabled) {
     UR_CHECK_ERROR(hipEventCreateWithFlags(&EvQueued, hipEventDefault));
@@ -66,7 +66,7 @@ bool ur_event_handle_t_::isCompleted() const noexcept {
     return false;
   }
   if (!HasBeenWaitedOn) {
-    const hipError_t Result = hipEventQuery(EventEnd);
+    const hipError_t Result = hipEventQuery(EvEnd);
     if (Result != hipSuccess && Result != hipErrorNotReady) {
       UR_CHECK_ERROR(Result);
       return false;
@@ -84,10 +84,10 @@ uint64_t ur_event_handle_t_::getQueuedTime() const {
 
   // hipEventSynchronize waits till the event is ready for call to
   // hipEventElapsedTime.
-  UR_CHECK_ERROR(hipEventSynchronize(evStart_));
-  UR_CHECK_ERROR(hipEventSynchronize(evEnd_));
+  UR_CHECK_ERROR(hipEventSynchronize(EvStart));
+  UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
 
-  UR_CHECK_ERROR(hipEventElapsedTime(&MiliSeconds, EvStart, EventEnd));
+  UR_CHECK_ERROR(hipEventElapsedTime(&MiliSeconds, EvStart, EvEnd));
   return static_cast<uint64_t>(MiliSeconds * 1.0e6);
 }
 
@@ -97,8 +97,8 @@ uint64_t ur_event_handle_t_::getStartTime() const {
 
   // hipEventSynchronize waits till the event is ready for call to
   // hipEventElapsedTime.
-  UR_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
-  UR_CHECK_ERROR(hipEventSynchronize(evStart_));
+  UR_CHECK_ERROR(hipEventSynchronize(ur_platform_handle_t_::EvBase));
+  UR_CHECK_ERROR(hipEventSynchronize(EvStart));
 
   UR_CHECK_ERROR(hipEventElapsedTime(&MiliSeconds,
                                      ur_platform_handle_t_::EvBase, EvStart));
@@ -111,11 +111,11 @@ uint64_t ur_event_handle_t_::getEndTime() const {
 
   // hipEventSynchronize waits till the event is ready for call to
   // hipEventElapsedTime.
-  UR_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
-  UR_CHECK_ERROR(hipEventSynchronize(evEnd_));
+  UR_CHECK_ERROR(hipEventSynchronize(ur_platform_handle_t_::EvBase));
+  UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
 
-  UR_CHECK_ERROR(hipEventElapsedTime(&MiliSeconds,
-                                     ur_platform_handle_t_::EvBase, EventEnd));
+  UR_CHECK_ERROR(
+      hipEventElapsedTime(&MiliSeconds, ur_platform_handle_t_::EvBase, EvEnd));
   return static_cast<uint64_t>(MiliSeconds * 1.0e6);
 }
 
@@ -135,7 +135,7 @@ ur_result_t ur_event_handle_t_::record() {
       sycl::detail::ur::die(
           "Unrecoverable program state reached in event identifier overflow");
     }
-    Result = UR_CHECK_ERROR(hipEventRecord(EventEnd, Stream));
+    Result = UR_CHECK_ERROR(hipEventRecord(EvEnd, Stream));
   } catch (ur_result_t Error) {
     Result = Error;
   }
@@ -150,7 +150,7 @@ ur_result_t ur_event_handle_t_::record() {
 ur_result_t ur_event_handle_t_::wait() {
   ur_result_t Result;
   try {
-    Result = UR_CHECK_ERROR(hipEventSynchronize(EventEnd));
+    Result = UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
     HasBeenWaitedOn = true;
   } catch (ur_result_t Error) {
     Result = Error;
@@ -161,7 +161,7 @@ ur_result_t ur_event_handle_t_::wait() {
 
 ur_result_t ur_event_handle_t_::release() {
   assert(Queue != nullptr);
-  UR_CHECK_ERROR(hipEventDestroy(EventEnd));
+  UR_CHECK_ERROR(hipEventDestroy(EvEnd));
 
   if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
     UR_CHECK_ERROR(hipEventDestroy(EvQueued));

@@ -22,7 +22,7 @@ public:
 
   ur_result_t start();
 
-  native_type get() const noexcept { return EventEnd; };
+  native_type get() const noexcept { return EvEnd; };
 
   ur_queue_handle_t getQueue() const noexcept { return Queue; }
 
@@ -108,8 +108,8 @@ private:
   uint32_t StreamToken;
   uint32_t EventId; // Queue identifier of the event.
 
-  native_type EventEnd; // HIP event handle. If this ur_event_handle_t_
-                        // represents a user event, this will be nullptr.
+  native_type EvEnd; // HIP event handle. If this ur_event_handle_t_
+                     // represents a user event, this will be nullptr.
 
   native_type EvStart; // HIP event handle associated with the start
 

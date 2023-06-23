@@ -262,8 +262,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, ur_mem_handle_t hArgValue) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
+                     ur_mem_handle_t hArgValue) {
+  std::ignore = pProperties;
   // Below sets kernel arg when zero-sized buffers are handled.
   // In such case the corresponding memory is null.
   if (hArgValue == nullptr) {
