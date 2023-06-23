@@ -79,6 +79,12 @@ template <typename T, accessor_mode_cap_val_t Capability,
 using EnableIfAccessor = std::enable_if_t<
     detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value, RetT>;
 
+template <typename T, int Dimensions>
+__ESIMD_API uint32_t localAccessorToOffset(local_accessor<T, Dimensions> acc) {
+  return static_cast<uint32_t>(
+      reinterpret_cast<std::uintptr_t>(acc.get_pointer()));
+}
+
 } // namespace ext::intel::esimd::detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

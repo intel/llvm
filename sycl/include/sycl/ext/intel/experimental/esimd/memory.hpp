@@ -36,10 +36,6 @@ __ESIMD_API void split_barrier(split_barrier_action flag) {
 
 /// @} sycl_esimd_memory
 
-// sycl_esimd_raw_send intrinsics are not available when stateless memory
-// accesses are enforced.
-#ifndef __ESIMD_FORCE_STATELESS_MEM
-
 /// @addtogroup sycl_esimd_raw_send
 /// @{
 
@@ -92,19 +88,6 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
       msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
 }
 
-template <typename T1, int n1, typename T2, int n2, typename T3, int n3,
-          int N = 16>
-__SYCL_DEPRECATED("raw_sends_load is deprecated. Use raw_sends")
-__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
-    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-    __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
-    uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
-    uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
-    __ESIMD_NS::simd_mask<N> mask = 1) {
-  return raw_sends(msgDst, msgSrc0, msgSrc1, exDesc, msgDesc, execSize, sfid,
-                   numSrc0, numSrc1, numDst, isEOT, isSendc);
-}
-
 /// Raw send.
 ///
 /// @param msgDst is the old value of the destination operand.
@@ -144,17 +127,6 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
   return __esimd_raw_send2<ElemT1, n1, ElemT2, n2, N>(
       modifier, execSize, mask.data(), numSrc0, numDst, sfid, exDesc, msgDesc,
       msgSrc0.data(), msgDst.data());
-}
-
-template <typename T1, int n1, typename T2, int n2, int N = 16>
-__SYCL_DEPRECATED("raw_send_load is deprecated. Use raw_send")
-__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_send_load(
-    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-    uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
-    uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
-    __ESIMD_NS::simd_mask<N> mask = 1) {
-  return raw_send(msgDst, msgSrc0, exDesc, msgDesc, execSize, sfid, numSrc0,
-                  numDst, isEOT, isSendc, mask);
 }
 
 /// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
@@ -197,19 +169,6 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
       msgSrc0.data(), msgSrc1.data());
 }
 
-template <typename T1, int n1, typename T2, int n2, int N = 16>
-__SYCL_DEPRECATED("raw_sends_store is deprecated. Use raw_sends")
-__ESIMD_API
-    void raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
-                         __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
-                         uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
-                         uint8_t numSrc0, uint8_t numSrc1, uint8_t isEOT = 0,
-                         uint8_t isSendc = 0,
-                         __ESIMD_NS::simd_mask<N> mask = 1) {
-  raw_sends(msgSrc0, msgSrc1, exDesc, msgDesc, execSize, sfid, numSrc0, numSrc1,
-            isEOT, isSendc, mask);
-}
-
 /// Raw send. Generates a \c send or \c sendc instruction for the message
 /// gateway.
 ///
@@ -242,20 +201,7 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
                                             msgSrc0.data());
 }
 
-template <typename T1, int n1, int N = 16>
-__SYCL_DEPRECATED("raw_send_store is deprecated. Use raw_send")
-__ESIMD_API
-    void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
-                        uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
-                        uint8_t numSrc0, uint8_t isEOT = 0, uint8_t isSendc = 0,
-                        __ESIMD_NS::simd_mask<N> mask = 1) {
-  raw_send(msgSrc0, exDesc, msgDesc, execSize, sfid, numSrc0, isEOT, isSendc,
-           mask);
-}
-
 /// @} sycl_esimd_raw_send
-
-#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @defgroup sycl_esimd_memory_nbarrier Named barrier APIs.
 /// @ingroup sycl_esimd_memory
@@ -782,7 +728,8 @@ lsc_gather(AccessorTy acc,
 #endif
            __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer(), offsets, pred);
+  return lsc_gather<T, NElts, DS, L1H, L3H>(
+      reinterpret_cast<T *>(acc.get_pointer()), offsets, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -855,8 +802,9 @@ lsc_gather(AccessorTy acc,
            __ESIMD_NS::simd_mask<N> pred,
            __ESIMD_NS::simd<T, N * NElts> old_values) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer(), offsets, pred,
-                                            old_values);
+  return lsc_gather<T, NElts, DS, L1H, L3H>(
+      reinterpret_cast<T *>(acc.get_pointer()), offsets, pred, old_values);
+
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -2309,22 +2257,6 @@ lsc_load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
   }
 }
 
-template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
-          bool Transposed = false, bool Transformed = false,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N = detail::get_lsc_block_2d_data_size<
-              T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
-__SYCL_DEPRECATED("use lsc_load_2d()")
-__ESIMD_API __ESIMD_NS::simd<T, N> lsc_load2d(const T *Ptr,
-                                              unsigned SurfaceWidth,
-                                              unsigned SurfaceHeight,
-                                              unsigned SurfacePitch, int X,
-                                              int Y) {
-  return lsc_load_2d<T, BlockWidth, BlockHeight, NBlocks, Transposed,
-                     Transformed, L1H, L3H>(Ptr, SurfaceWidth, SurfaceHeight,
-                                            SurfacePitch, X, Y);
-}
-
 /// 2D USM pointer block prefetch.
 /// Supported platforms: PVC
 /// VISA instruction: lsc_load_block2d.ugm
@@ -2368,17 +2300,6 @@ __ESIMD_API void lsc_prefetch_2d(const T *Ptr, unsigned SurfaceWidth,
       pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
 }
 
-template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N = detail::get_lsc_block_2d_data_size<
-              T, NBlocks, BlockHeight, BlockWidth, false, false>()>
-__SYCL_DEPRECATED("use lsc_prefetch_2d()")
-__ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
-                                unsigned SurfaceHeight, unsigned SurfacePitch,
-                                int X, int Y) {
-  lsc_prefetch_2d<T, BlockWidth, BlockHeight, NBlocks, L1H, L3H>(
-      Ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
-}
 /// 2D USM pointer block store.
 /// Supported platforms: PVC
 /// VISA instruction: lsc_store_block2d.ugm
@@ -2437,18 +2358,6 @@ __ESIMD_API void lsc_store_2d(T *Ptr, unsigned SurfaceWidth,
                                 BlockHeight, false, BlockHeight * Pitch>(
       pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
       Raw.data());
-}
-
-template <typename T, int BlockWidth, int BlockHeight = 1,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N = detail::get_lsc_block_2d_data_size<
-              T, 1u, BlockHeight, BlockWidth, false, false>()>
-__SYCL_DEPRECATED("use lsc_store_2d()")
-__ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
-                             unsigned SurfaceHeight, unsigned SurfacePitch,
-                             int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
-  lsc_store_2d<T, BlockWidth, BlockHeight, L1H, L3H>(
-      Ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y, Vals);
 }
 
 /// <summary>
