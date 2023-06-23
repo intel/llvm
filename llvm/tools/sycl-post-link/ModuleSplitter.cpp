@@ -168,8 +168,7 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
     // no ESIMD entry points, create an empty entry point group
     // with HasESIMD so the ESIMD constructs can be lowered properly
     // later.
-    if (ESIMDFunctionsExist &&
-        EntryPointGroups.size() == 1 &&
+    if (ESIMDFunctionsExist && EntryPointGroups.size() == 1 &&
         EntryPointGroups.back().isSycl()) {
       EntryPointGroups.emplace_back(ESIMD_SCOPE_NAME, EntryPointSet{});
       EntryPointGroup &G = EntryPointGroups.back();
@@ -970,9 +969,9 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 // duplicated into each module.
 //
 // If there are dependencies between ESIMD and non-ESIMD code (produced by
-// invoke_simd, for example), the modules has to be linked back together to avoid
-// undefined behavior at later stages. That is done at higher level, outside of
-// this function.
+// invoke_simd, for example), the modules has to be linked back together to
+// avoid undefined behavior at later stages. That is done at higher level,
+// outside of this function.
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
                                         bool EmitOnlyKernelsAsEntryPoints) {
 
