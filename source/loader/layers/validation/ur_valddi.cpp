@@ -2755,6 +2755,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t argSize,    ///< [in] size of argument type
+    const ur_kernel_arg_value_properties_t
+        *pProperties, ///< [in][optional] pointer to value properties.
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
 ) {
@@ -2774,7 +2776,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
         }
     }
 
-    ur_result_t result = pfnSetArgValue(hKernel, argIndex, argSize, pArgValue);
+    ur_result_t result =
+        pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
 
     return result;
 }
@@ -2785,7 +2788,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t
-        argSize ///< [in] size of the local buffer to be allocated by the runtime
+        argSize, ///< [in] size of the local buffer to be allocated by the runtime
+    const ur_kernel_arg_local_properties_t
+        *pProperties ///< [in][optional] pointer to local buffer properties.
 ) {
     auto pfnSetArgLocal = context.urDdiTable.Kernel.pfnSetArgLocal;
 
@@ -2799,7 +2804,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
         }
     }
 
-    ur_result_t result = pfnSetArgLocal(hKernel, argIndex, argSize);
+    ur_result_t result =
+        pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
 
     return result;
 }
@@ -2994,6 +3000,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_pointer_properties_t
+        *pProperties, ///< [in][optional] pointer to USM pointer properties.
     const void *
         pArgValue ///< [in][optional] USM pointer to memory location holding the argument
                   ///< value. If null then argument value is considered null.
@@ -3010,7 +3018,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
         }
     }
 
-    ur_result_t result = pfnSetArgPointer(hKernel, argIndex, pArgValue);
+    ur_result_t result =
+        pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
 
     return result;
 }
@@ -3021,6 +3030,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
     ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
     size_t propSize,                ///< [in] size in byte the attribute value
+    const ur_kernel_exec_info_properties_t
+        *pProperties, ///< [in][optional] pointer to execution info properties.
     const void *
         pPropValue ///< [in][typename(propName, propSize)] pointer to memory location holding
                    ///< the property value.
@@ -3046,7 +3057,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     }
 
     ur_result_t result =
-        pfnSetExecInfo(hKernel, propName, propSize, pPropValue);
+        pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
 
     return result;
 }
@@ -3056,6 +3067,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_sampler_properties_t
+        *pProperties, ///< [in][optional] pointer to sampler properties.
     ur_sampler_handle_t hArgValue ///< [in] handle of Sampler object.
 ) {
     auto pfnSetArgSampler = context.urDdiTable.Kernel.pfnSetArgSampler;
@@ -3074,7 +3087,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
         }
     }
 
-    ur_result_t result = pfnSetArgSampler(hKernel, argIndex, hArgValue);
+    ur_result_t result =
+        pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
 
     return result;
 }

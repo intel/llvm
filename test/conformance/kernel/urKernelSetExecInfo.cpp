@@ -12,7 +12,7 @@ TEST_P(urKernelSetExecInfoTest, SuccessIndirectAccess) {
     bool property_value = false;
     ASSERT_SUCCESS(
         urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
-                            sizeof(property_value), &property_value));
+                            sizeof(property_value), nullptr, &property_value));
 }
 
 TEST_P(urKernelSetExecInfoTest, InvalidNullHandleKernel) {
@@ -20,7 +20,7 @@ TEST_P(urKernelSetExecInfoTest, InvalidNullHandleKernel) {
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_HANDLE,
         urKernelSetExecInfo(nullptr, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
-                            sizeof(property_value), &property_value));
+                            sizeof(property_value), nullptr, &property_value));
 }
 
 TEST_P(urKernelSetExecInfoTest, InvalidEnumeration) {
@@ -28,7 +28,7 @@ TEST_P(urKernelSetExecInfoTest, InvalidEnumeration) {
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_ENUMERATION,
         urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_FORCE_UINT32,
-                            sizeof(property_value), &property_value));
+                            sizeof(property_value), nullptr, &property_value));
 }
 
 TEST_P(urKernelSetExecInfoTest, InvalidNullPointerPropValue) {
@@ -36,7 +36,7 @@ TEST_P(urKernelSetExecInfoTest, InvalidNullPointerPropValue) {
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_POINTER,
         urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
-                            sizeof(property_value), nullptr));
+                            sizeof(property_value), nullptr, nullptr));
 }
 
 struct urKernelSetExecInfoUSMPointersTest : uur::urKernelTest {
@@ -70,7 +70,7 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessHost) {
     void *pointers[] = {allocation};
 
     ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_PTRS,
-                                       sizeof(pointers), pointers));
+                                       sizeof(pointers), nullptr, pointers));
 }
 
 TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessDevice) {
@@ -86,7 +86,7 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessDevice) {
     void *pointers[] = {allocation};
 
     ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_PTRS,
-                                       sizeof(pointers), pointers));
+                                       sizeof(pointers), nullptr, pointers));
 }
 
 TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessShared) {
@@ -103,7 +103,7 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessShared) {
     void *pointers[] = {allocation};
 
     ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_PTRS,
-                                       sizeof(pointers), pointers));
+                                       sizeof(pointers), nullptr, pointers));
 }
 
 using urKernelSetExecInfoCacheConfigTest =
@@ -118,6 +118,6 @@ UUR_TEST_SUITE_P(urKernelSetExecInfoCacheConfigTest,
 TEST_P(urKernelSetExecInfoCacheConfigTest, Success) {
     auto property_value = getParam();
     ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_CACHE_CONFIG,
-                                       sizeof(property_value),
+                                       sizeof(property_value), nullptr,
                                        &property_value));
 }
