@@ -2875,7 +2875,13 @@ void RewriteInstance::handleRelocation(const SectionRef &RelocatedSection,
           ReferencedSymbol =
               ReferencedBF->getOrCreateLocalLabel(Address,
                                                   /*CreatePastEnd =*/true);
-          ReferencedBF->registerReferencedOffset(RefFunctionOffset);
+
+          // If ContainingBF != nullptr, it equals ReferencedBF (see
+          // if-condition above) so we're handling a relocation from a function
+          // to itself. RISC-V uses such relocations for branches, for example.
+          // These should not be registered as externally references offsets.
+          if (!ContainingBF)
+            ReferencedBF->registerReferencedOffset(RefFunctionOffset);
         }
         if (opts::Verbosity > 1 &&
             BinarySection(*BC, RelocatedSection).isWritable())
@@ -2985,7 +2991,9 @@ void RewriteInstance::handleRelocation(const SectionRef &RelocatedSection,
   };
 
   if ((ReferencedSection && refersToReorderedSection(ReferencedSection)) ||
-      (opts::ForceToDataRelocations && checkMaxDataRelocations()))
+      (opts::ForceToDataRelocations && checkMaxDataRelocations()) ||
+      // RISC-V has ADD/SUB data-to-data relocations
+      BC->isRISCV())
     ForceRelocation = true;
 
   if (IsFromCode) {
@@ -3969,6 +3977,21 @@ std::vector<BinarySection *> RewriteInstance::getCodeSections() {
       CodeSections.emplace_back(&Section);
 
   auto compareSections = [&](const BinarySection *A, const BinarySection *B) {
+    // If both A and B have names starting with ".text.cold", then
+    // - if opts::HotFunctionsAtEnd is true, we want order
+    //   ".text.cold.T", ".text.cold.T-1", ... ".text.cold.1", ".text.cold"
+    // - if opts::HotFunctionsAtEnd is false, we want order
+    //   ".text.cold", ".text.cold.1", ... ".text.cold.T-1", ".text.cold.T"
+    if (A->getName().startswith(BC->getColdCodeSectionName()) &&
+        B->getName().startswith(BC->getColdCodeSectionName())) {
+      if (A->getName().size() != B->getName().size())
+        return (opts::HotFunctionsAtEnd)
+                   ? (A->getName().size() > B->getName().size())
+                   : (A->getName().size() < B->getName().size());
+      return (opts::HotFunctionsAtEnd) ? (A->getName() > B->getName())
+                                       : (A->getName() < B->getName());
+    }
+
     // Place movers before anything else.
     if (A->getName() == BC->getHotTextMoverSectionName())
       return true;

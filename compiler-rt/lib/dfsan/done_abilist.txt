@@ -88,6 +88,7 @@ fun:isalnum=functional
 fun:ispunct=functional
 fun:isspace=functional
 fun:tolower=functional
+fun:_tolower=functional
 fun:toupper=functional
 
 # Functions that return a value that is data-dependent on the input.
@@ -268,6 +269,7 @@ fun:strtoll=custom
 fun:strtoul=custom
 fun:strtoull=custom
 fun:strcat=custom
+fun:strncat=custom
 
 # Functions that produce an output that is computed from the input, but is not
 # necessarily data dependent.

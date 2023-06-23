@@ -100,6 +100,12 @@ on support follow.
      ``Zbkc``         Supported
      ``Zbkx``         Supported (`See note <#riscv-scalar-crypto-note1>`__)
      ``Zbs``          Supported
+     ``Zca``          Supported
+     ``Zcb``          Supported
+     ``Zcd``          Supported
+     ``Zcf``          Supported
+     ``Zcmp``         Assembly Support
+     ``Zcmt``         Assembly Support
      ``Zdinx``        Supported
      ``Zfh``          Supported
      ``Zfhmin``       Supported
@@ -183,24 +189,6 @@ The primary goal of experimental support is to assist in the process of ratifica
 ``experimental-ssaia``
   LLVM implements the `Ratification candidate 3 <https://github.com/riscv/riscv-aia/releases/tag/1.0-RC3>`_.
 
-``experimental-zca``
-  LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`__.
-
-``experimental-zcb``
-  LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`__.
-
-``experimental-zcd``
-  LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`__.
-
-``experimental-zcf``
-  LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`__.
-
-``experimental-zcmp``
-  LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`__.
-
-``experimental-zcmt``
-  LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`_.
-
 ``experimental-zfa``
   LLVM implements the `0.2 draft specification <https://github.com/riscv/riscv-isa-manual/releases/download/draft-20230131-c0b298a/zfa-20230414.pdf>`__.
 
@@ -282,3 +270,6 @@ The current vendor extensions supported are:
 
 ``XCVbitmanip``
   LLVM implements `version 1.3.1 of the Core-V bit manipulation custom instructions specification <https://github.com/openhwgroup/cv32e40p/blob/62bec66b36182215e18c9cf10f723567e23878e9/docs/source/instruction_set_extensions.rst>`_ by Core-V.  All instructions are prefixed with `cv.` as described in the specification.
+
+``XCVmac``
+  LLVM implements `version 1.3.1 of the Core-V Multiply-Accumulate (MAC) custom instructions specification <https://github.com/openhwgroup/cv32e40p/blob/4f024fe4b15a68b76615b0630c07a6745c620da7/docs/source/instruction_set_extensions.rst>`_ by Core-V.  All instructions are prefixed with `cv.mac.` as described in the specification. These instructions are only available for riscv32 at this time.
