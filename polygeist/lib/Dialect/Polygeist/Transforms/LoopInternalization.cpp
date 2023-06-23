@@ -642,7 +642,7 @@ public:
 private:
   /// Return the ideal memory space for \p memAccess.
   MemorySpace selectMemorySpace(const MemoryAccess &memAccess,
-                                ArrayRef<Value> threadVars,
+                                const unsigned gridDimension,
                                 AccessKind accessKind) const;
 
   /// Return true iff no memref accesses in \p accesses are stores.
@@ -697,8 +697,7 @@ MemorySelector::getMemorySpace(Value memref) const {
 void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
   // Collect the global thread ids used in the function the loop is in.
   auto funcOp = loop->template getParentOfType<FunctionOpInterface>();
-  SmallVector<Value> threadVars =
-      memAccessAnalysis.getThreadVector(funcOp, solver);
+  const unsigned gridDimension = getGridDimension(funcOp);
 
   // Collect candidate memref accesses in the loop.
   DenseMap<Value, SmallVector<affine::MemRefAccess>> memRefToMemRefAccesses;
@@ -734,7 +733,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
     }
 
     memRefAccessToMemSpace[memRef] =
-        selectMemorySpace(*memAccess, threadVars, accessKind);
+        selectMemorySpace(*memAccess, gridDimension, accessKind);
 
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << memRefAccessToMemSpace.at(memRef) << " memory space\n");
@@ -743,10 +742,8 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
 
 MemorySelector::MemorySpace
 MemorySelector::selectMemorySpace(const MemoryAccess &memAccess,
-                                  ArrayRef<Value> threadVars,
+                                  const unsigned gridDimension,
                                   AccessKind accessKind) const {
-  const unsigned gridDimension = threadVars.size();
-
   // Whether the memory access is (partially) coalesced or not.
   auto isCoalesced = [&](const MemoryAccess &memAccess) {
     MemoryAccessMatrix interThreadMatrix =
