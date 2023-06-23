@@ -2985,6 +2985,7 @@ std::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
 #undef __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_DEF_BUILTIN_SGENTYPE
 #undef __SYCL_DEF_BUILTIN_GENTYPE
+#undef __SYCL_COMMA
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
