@@ -180,6 +180,7 @@ const SPIRVEncoder &operator<<(const SPIRVEncoder &O, const std::string &Str) {
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (SPIRVUseTextFormat) {
     writeQuotedString(O.OS, Str);
+    O.OS << " ";
     return O;
   }
 #endif
