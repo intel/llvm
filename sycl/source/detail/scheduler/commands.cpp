@@ -1527,7 +1527,8 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
       return Dep.MAllocaCmd;
   }
   throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                        "Alloca for command not found");
+                        "Alloca for command not found " +
+                            codeToString(PI_ERROR_INVALID_OPERATION));
 }
 
 std::vector<std::shared_ptr<const void>>
@@ -2233,7 +2234,8 @@ static pi_result SetKernelParamsAndLaunch(
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::feature_not_supported),
             "SYCL2020 specialization constants are not yet supported on host "
-            "device");
+            "device " +
+                codeToString(PI_ERROR_INVALID_OPERATION));
       }
       assert(DeviceImageImpl != nullptr);
       RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
@@ -2246,7 +2248,8 @@ static pi_result SetKernelParamsAndLaunch(
     }
     case kernel_param_kind_t::kind_invalid:
       throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Invalid kernel param kind");
+                            "Invalid kernel param kind " +
+                                codeToString(PI_ERROR_INVALID_VALUE));
       break;
     }
   };
@@ -2494,7 +2497,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
   case CG::CGTYPE::UpdateHost: {
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                          "Update host should be handled by the Scheduler.");
+                          "Update host should be handled by the Scheduler. " +
+                              codeToString(PI_ERROR_INVALID_VALUE));
   }
   case CG::CGTYPE::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2633,12 +2637,14 @@ pi_int32 ExecCGCommand::enqueueImp() {
     switch (Error) {
     case PI_ERROR_INVALID_OPERATION:
       throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Device doesn't support run_on_host_intel tasks.");
+                            "Device doesn't support run_on_host_intel tasks. " +
+                                Error);
     case PI_SUCCESS:
       return Error;
     default:
       throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Enqueueing run_on_host_intel task has failed.");
+                            "Enqueueing run_on_host_intel task has failed. " +
+                                Error);
     }
   }
   case CG::CGTYPE::Kernel: {
@@ -2797,7 +2803,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
       }
       default:
         throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "Unsupported arg type");
+                              "Unsupported arg type " +
+                                  codeToString(PI_ERROR_INVALID_VALUE));
       }
     }
 
@@ -2827,7 +2834,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::runtime),
-            "Can't get memory object due to no allocation available");
+            "Can't get memory object due to no allocation available " +
+                codeToString(PI_ERROR_INVALID_MEM_OBJECT));
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
@@ -2906,7 +2914,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
   }
   case CG::CGTYPE::None:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                          "CG type not implemented.");
+                          "CG type not implemented. " +
+                              codeToString(PI_ERROR_INVALID_OPERATION));
   }
   return PI_ERROR_INVALID_OPERATION;
 }

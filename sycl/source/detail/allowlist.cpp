@@ -76,7 +76,8 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                           "SYCL_DEVICE_ALLOWLIST has incorrect format. For "
                           "details, please refer to "
                           "https://github.com/intel/llvm/blob/sycl/sycl/"
-                          "doc/EnvironmentVariables.md");
+                          "doc/EnvironmentVariables.md " +
+                              codeToString(PI_ERROR_INVALID_VALUE));
 
   const std::string &DeprecatedKeyNameDeviceName = DeviceNameKeyName;
   const std::string &DeprecatedKeyNamePlatformName = PlatformNameKeyName;
@@ -100,7 +101,8 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
           "Unrecognized key in SYCL_DEVICE_ALLOWLIST. For details, please "
           "refer to "
           "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-          "EnvironmentVariables.md");
+          "EnvironmentVariables.md " +
+              codeToString(PI_ERROR_INVALID_VALUE));
     }
 
     if (Key == DeprecatedKeyNameDeviceName) {
@@ -155,7 +157,8 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                       " is not valid in "
                       "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
                       "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                      "EnvironmentVariables.md");
+                      "EnvironmentVariables.md " +
+                      codeToString(PI_ERROR_INVALID_VALUE));
           }
         };
 
@@ -175,7 +178,8 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                     "SYCL_DEVICE_ALLOWLIST. It should have the hex format. For "
                     "details, please refer to "
                     "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                    "EnvironmentVariables.md");
+                    "EnvironmentVariables.md " +
+                    codeToString(PI_ERROR_INVALID_VALUE));
           }
         }
       }
@@ -187,11 +191,12 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
         // TODO: can be changed to string_view::starts_with after switching
         // DPC++ RT to C++20
         if (Prefix != AllowListRaw.substr(ValueStart, Prefix.length())) {
-          throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                                "Key " + Key +
-                                    " of SYCL_DEVICE_ALLOWLIST should have "
-                                    "value which starts with " +
-                                    Prefix);
+          throw sycl::exception(
+              sycl::errc::runtime,
+              "Key " + Key +
+                  " of SYCL_DEVICE_ALLOWLIST should have "
+                  "value which starts with " +
+                  Prefix + " " + detail::codeToString(PI_ERROR_INVALID_VALUE));
         }
         // cut off prefix from the value
         ValueStart += Prefix.length();
@@ -205,11 +210,13 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
           // if it is the last iteration and next 2 symbols are not a postfix,
           // throw exception
           if (ValueEnd == AllowListRaw.length() - Postfix.length())
-            throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                                  "Key " + Key +
-                                      " of SYCL_DEVICE_ALLOWLIST should have "
-                                      "value which ends with " +
-                                      Postfix);
+            throw sycl::exception(
+                sycl::make_error_code(sycl::errc::runtime),
+                "Key " + Key +
+                    " of SYCL_DEVICE_ALLOWLIST should have "
+                    "value which ends with " +
+                    Postfix + " " +
+                    detail::codeToString(PI_ERROR_INVALID_VALUE));
         }
         size_t NextExpectedDelimiterPos = ValueEnd + Postfix.length();
         // if it is not the end of the string, check that symbol next to a
@@ -224,7 +231,8 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                   std::to_string(NextExpectedDelimiterPos) + ": " +
                   AllowListRaw[NextExpectedDelimiterPos] +
                   ". Should be either " + DelimiterBtwItemsInDeviceDesc +
-                  " or " + DelimiterBtwDeviceDescs);
+                  " or " + DelimiterBtwDeviceDescs +
+                  codeToString(PI_ERROR_INVALID_VALUE));
 
         if (AllowListRaw[NextExpectedDelimiterPos] == DelimiterBtwDeviceDescs)
           ShouldAllocateNewDeviceDescMap = true;
@@ -240,9 +248,11 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
       // add key and value to the map
       DeviceDescMap.emplace(Key, Value);
     } else
-      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime), "Re-definition of key " + Key +
-                                                     " is not allowed in "
-                                                     "SYCL_DEVICE_ALLOWLIST");
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Re-definition of key " + Key +
+                                " is not allowed in "
+                                "SYCL_DEVICE_ALLOWLIST " +
+                                codeToString(PI_ERROR_INVALID_VALUE));
 
     KeyStart = ValueEnd;
     if (KeyStart != std::string::npos)
