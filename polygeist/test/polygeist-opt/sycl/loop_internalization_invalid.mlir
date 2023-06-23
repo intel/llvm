@@ -78,6 +78,7 @@ func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: 
   %c0_i32 = arith.constant 0 : i32
   %c1_i32 = arith.constant 1 : i32
   %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
+  %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
 
   affine.for %ii = 0 to 256 {
     %i = arith.index_cast %ii : index to i64
@@ -85,7 +86,7 @@ func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: 
     %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_id_2>) -> memref<?xf32>
     %load1 = affine.load %subscr1[0] : memref<?xf32>
 
-    sycl.constructor @id(%id, %i, %tx) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_2>, i64, i64)    
+    sycl.constructor @id(%id, %i, %ty) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_2>, i64, i64)    
     %subscr2 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_id_2>) -> memref<?xf32>
     %load2 = affine.load %subscr2[0] : memref<?xf32>
   }

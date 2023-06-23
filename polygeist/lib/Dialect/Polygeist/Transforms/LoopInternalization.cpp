@@ -397,14 +397,15 @@ memref::GlobalOp getWorkGroupSharedLocalMemory(gpu::GPUModuleOp module,
 /// \p accTy.
 memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
                             memref::GetGlobalOp source,
+                            ArrayRef<unsigned> localIDOrdering,
                             const WorkGroupSize &workGroupSize,
                             OpBuilder builder, Location loc) {
   SmallVector<int64_t> shape;
   SmallVector<Value> sizes;
   for (unsigned dim = 0; dim < accTy.getDimension(); ++dim) {
-    std::variant<Value, unsigned> size = workGroupSize[dim];
+    std::variant<Value, unsigned> size = workGroupSize[localIDOrdering[dim]];
     if (workGroupSize.isKnown())
-      shape.push_back(std::get<unsigned>(workGroupSize[dim]));
+      shape.push_back(std::get<unsigned>(size));
     else {
       shape.push_back(ShapedType::kDynamic);
       sizes.push_back(std::get<Value>(size));
@@ -566,6 +567,49 @@ bool usesValue(Value user, Value use) {
 
   return llvm::any_of(op->getOperands(),
                       [&](Value operand) { return usesValue(operand, use); });
+}
+
+/// Return the local id ordering for \p accSub to index the shared local memory.
+/// The algorithm is to use the local id associated with the global id used for
+/// a dimension. For example, assuming ty is a global id of dimension 1,
+///   A[ty][i], global id 1 is used as the first index,
+///   so local id 1 is used as the first index, and remaining local id 0 is used
+///   as the second index. The result is [1, 0].
+SmallVector<unsigned> getLocalIDOrdering(sycl::SYCLAccessorSubscriptOp accSub,
+                                         DataFlowSolver &solver) {
+  const SmallVector<Value> indexes = getIndexes(accSub, solver);
+  auto func = accSub->getParentOfType<FunctionOpInterface>();
+  SmallVector<Value> globalIDs = polygeist::getThreadVector(func, solver);
+
+  SmallVector<std::optional<unsigned>> localIDOrdering(globalIDs.size(),
+                                                       std::nullopt);
+  llvm::SmallSet<int, 3> unusedIndexes;
+  for (unsigned globalDim = 0; globalDim < globalIDs.size(); ++globalDim) {
+    bool used = false;
+    for (unsigned indexDim = 0; indexDim < indexes.size(); ++indexDim)
+      if (globalIDs[globalDim] &&
+          usesValue(indexes[indexDim], globalIDs[globalDim])) {
+        localIDOrdering[indexDim] = globalDim;
+        used = true;
+        break;
+      }
+    // Insert the dimension of unused local id in unusedIndexes.
+    if (!used)
+      unusedIndexes.insert(globalDim);
+  }
+
+  SmallVector<unsigned> result;
+  for (std::optional<unsigned> index : localIDOrdering) {
+    if (index.has_value()) {
+      result.push_back(*index);
+      continue;
+    }
+    // Use unused local id for indexes that do not reference global id.
+    int unusedIndex = *unusedIndexes.begin();
+    result.push_back(unusedIndex);
+    unusedIndexes.erase(unusedIndex);
+  }
+  return result;
 }
 
 /// Return Value of \p val with index type.
@@ -881,12 +925,12 @@ private:
                          AliasAnalysis &aliasAnalysis, DataFlowSolver &solver);
 
   /// Analyze the memory accesses that should use shared memory and aggregate
-  /// which dimensions use the loop induction variable.
+  /// which local ids for dimensions that use the loop induction variable.
   /// For example given (assume 'i' is the loop IV):
-  ///   A[tx][ty][i], B[tx][i][ty]
+  ///   A[tx][i], B[i][ty]
   /// The set collected would contain {0,1}.
-  std::set<unsigned> getDimsThatUseLoopIV(LoopLikeOpInterface loop,
-                                          DataFlowSolver &solver) const;
+  std::set<unsigned> getLocalIDDimForLoopIV(LoopLikeOpInterface loop,
+                                            DataFlowSolver &solver) const;
 
   // If the memory accesses do not use the loop induction variable
   // 'consistently' (that is on the same dimension), create a versioning
@@ -1051,18 +1095,19 @@ void LoopInternalization::selectMemorySpace(
 }
 
 std::set<unsigned>
-LoopInternalization::getDimsThatUseLoopIV(LoopLikeOpInterface loop,
-                                          DataFlowSolver &solver) const {
+LoopInternalization::getLocalIDDimForLoopIV(LoopLikeOpInterface loop,
+                                            DataFlowSolver &solver) const {
   const Value indVar = *loop.getSingleInductionVar();
   std::set<unsigned> dimsThatUseLoopIV;
 
   for (Operation *memref : loopToSharedMemref.at(loop)) {
     auto accSub = cast<sycl::SYCLAccessorSubscriptOp>(memref);
     const SmallVector<Value> indexes = getIndexes(accSub, solver);
+    SmallVector<unsigned> localIDOrdering = getLocalIDOrdering(accSub, solver);
 
     for (unsigned dim = 0; dim < indexes.size(); ++dim) {
       if (usesValue(indexes[dim], indVar))
-        dimsThatUseLoopIV.insert(dim);
+        dimsThatUseLoopIV.insert(localIDOrdering[dim]);
     }
   }
 
@@ -1076,7 +1121,7 @@ Value LoopInternalization::checkForConsistentUseOfLoopIV(
   // should use shared memory. For example given (assume 'i' is the loop IV):
   //   A[tx][ty][i], B[tx][i][ty]
   // The set collected would contain {0,1}.
-  std::set<unsigned> dimsThatUseLoopIV = getDimsThatUseLoopIV(loop, solver);
+  std::set<unsigned> dimsThatUseLoopIV = getLocalIDDimForLoopIV(loop, solver);
   if (dimsThatUseLoopIV.size() <= 1)
     return nullptr;
 
@@ -1133,10 +1178,11 @@ bool LoopInternalization::canBeTransformed(LoopLikeOpInterface loop,
                                            const WorkGroupSize &workGroupSize,
                                            DataFlowSolver &solver) const {
   if (workGroupSize.isKnown()) {
-    std::set<unsigned> dimsThatUseLoopIV = getDimsThatUseLoopIV(loop, solver);
-    const unsigned firstDim = *dimsThatUseLoopIV.begin();
+    std::set<unsigned> localIDDimForLoopIV =
+        getLocalIDDimForLoopIV(loop, solver);
+    const unsigned firstDim = *localIDDimForLoopIV.begin();
 
-    if (llvm::any_of(dimsThatUseLoopIV, [&](unsigned dim) {
+    if (llvm::any_of(localIDDimForLoopIV, [&](unsigned dim) {
           return (workGroupSize.get<unsigned>(dim) !=
                   workGroupSize.get<unsigned>(firstDim));
         })) {
@@ -1151,11 +1197,11 @@ bool LoopInternalization::canBeTransformed(LoopLikeOpInterface loop,
 Value LoopInternalization::getTileSize(LoopLikeOpInterface loop,
                                        const WorkGroupSize &workGroupSize,
                                        DataFlowSolver &solver) const {
-  std::set<unsigned> dimsThatUseLoopIV = getDimsThatUseLoopIV(loop, solver);
-  assert(!dimsThatUseLoopIV.empty() && "set should not be empty");
+  std::set<unsigned> localIDDimForLoopIV = getLocalIDDimForLoopIV(loop, solver);
+  assert(!localIDDimForLoopIV.empty() && "set should not be empty");
 
   OpBuilder builder(loop);
-  return ValueOrUnsigned::getValue(workGroupSize[*dimsThatUseLoopIV.begin()],
+  return ValueOrUnsigned::getValue(workGroupSize[*localIDDimForLoopIV.begin()],
                                    builder);
 }
 
@@ -1254,13 +1300,15 @@ void LoopInternalization::transform(
       ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
   for (Operation *memref : memRefs) {
     Location loc = memref->getLoc();
+    auto accSub = cast<sycl::SYCLAccessorSubscriptOp>(memref);
     sycl::AccessorType accTy =
         getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
 
+    SmallVector<unsigned> localIDOrdering = getLocalIDOrdering(accSub, solver);
     // Get pointer to the shared memory portion for each memref.
     memref::ViewOp viewOp =
         createViewOp(accTy, ValueOrUnsigned::getValue(offset, builder),
-                     getGlobalOp, workGroupSize, builder, loc);
+                     getGlobalOp, localIDOrdering, workGroupSize, builder, loc);
 
     promote(memref, viewOp, loopInfo, localIDs, builder, solver);
 
@@ -1289,6 +1337,10 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp viewOp,
   auto accSub = cast<sycl::SYCLAccessorSubscriptOp>(memref);
   const SmallVector<Value> indexes = getIndexes(accSub, solver);
 
+  SmallVector<Value> viewIndexes;
+  for (unsigned index : getLocalIDOrdering(accSub, solver))
+    viewIndexes.push_back(localIDs[index]);
+
   // Populate indexes needed for loading the accesses from global memory.
   SmallVector<Value> globalIndexes(indexes.size());
   for (unsigned dim = 0; dim < indexes.size(); ++dim) {
@@ -1298,7 +1350,7 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp viewOp,
       OpBuilder::InsertionGuard insertGuard(builder);
       builder.setInsertionPointAfterValue(lowerBound);
       Value adjustedGlobalIV = builder.create<arith::AddIOp>(
-          localIDs[dim].getLoc(), localIDs[dim], lowerBound);
+          viewIndexes[dim].getLoc(), viewIndexes[dim], lowerBound);
       IRMapping mapping;
       mapping.map(inductionVar, adjustedGlobalIV);
       globalIndexes[dim] = castToIndex(
@@ -1323,7 +1375,7 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp viewOp,
   auto load = builder.create<memref::LoadOp>(loc, globalAccSub, zeroIndex);
 
   // Store to shared memory.
-  builder.create<memref::StoreOp>(loc, load, viewOp, localIDs);
+  builder.create<memref::StoreOp>(loc, load, viewOp, viewIndexes);
 
   // Populate indexes will be used in loop with shared memory.
   SmallVector<Value> adjustedIndexes;
@@ -1339,7 +1391,7 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp viewOp,
           builder.clone(*index.getDefiningOp(), mapping)->getResult(0)));
       continue;
     }
-    adjustedIndexes.push_back(localIDs[dim]);
+    adjustedIndexes.push_back(viewIndexes[dim]);
   }
 
   // Replace original accesses with accesses to shared memory.
