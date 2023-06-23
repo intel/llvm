@@ -158,7 +158,8 @@ class ur_result_v(IntEnum):
     ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35           ## Image format not supported
     ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36        ## Memory object allocation failure
     ERROR_INVALID_PROGRAM_EXECUTABLE = 37           ## Program object parameter is invalid.
-    ERROR_UNINITIALIZED = 38                        ## [Validation] adapter is not initialized
+    ERROR_UNINITIALIZED = 38                        ## [Validation] adapter is not initialized or specific entry-point is not
+                                                    ## implemented
     ERROR_OUT_OF_HOST_MEMORY = 39                   ## Insufficient host memory to satisfy call
     ERROR_OUT_OF_DEVICE_MEMORY = 40                 ## Insufficient device memory to satisfy call
     ERROR_OUT_OF_RESOURCES = 41                     ## Out of resources
