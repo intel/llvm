@@ -129,39 +129,46 @@ group_local_memory_for_overwrite(Group g);
 } // namespace sycl::ext::oneapi
 ----
 
-[frame="topbot",options="header,footer"]
-|======================
-|Functions |Description
+[source,c++]
+----
+template <typename T, typename Group, typename ... Args>
+multi_ptr<T, access::address_space::local_space>
+group_local_memory(Group g, Args&&... args)
+----
+_Constraints_: `Group` must be `sycl::group`, and `T` must be trivially
+destructible.
 
-|`template <typename T, typename Group, typename ... Args>
- multi_ptr<T, access::address_space::local_space>
- group_local_memory(Group g, Args&&... args)` |
-Constructs an object of type `T` in an address space accessible by all
-work-items in group _g_, forwarding _args_ to the constructor's parameter list.
-If _args_ is empty, the object is value initialized. For array types, the
-_args_ parameter pack is used to initialize the array using aggregate
+_Preconditions_: All arguments in `args` must be the same for all work-items in
+the group.
+
+_Effects_: Constructs an object of type `T` in an address space accessible by
+all work-items in group `g`, forwarding `args` to the constructor's parameter
+list. If `args` is empty, the object is value initialized. For array types, the
+`args` parameter pack is used to initialize the array using aggregate
 initialization. The constructor is called once per group, upon or before the
-first call to `group_local_memory`.  The storage for the object is allocated
+first call to `group_local_memory`. The storage for the object is allocated
 upon or before the first call to `group_local_memory`, and deallocated when all
 work-items in the group have completed execution of the kernel.
 
-All arguments in _args_ must be the same for all work-items in the group.
+_Returns_: A `multi_ptr` to the constructed object.
 
-`Group` must be `sycl::group`, and `T` must be trivially destructible.
+[source,c++]
+----
+template <typename T, typename Group>
+multi_ptr<T, access::address_space::local_space>
+group_local_memory_for_overwrite(Group g)
+----
+_Constraints_: `Group` must be `sycl::group`, and `T` must be trivially
+destructible.
 
-|`template <typename T, typename Group>
- multi_ptr<T, access::address_space::local_space>
- group_local_memory_for_overwrite(Group g)` |
-Constructs an object of type `T` in an address space accessible by all
-work-items in group _g_, using default initialization.  The object is
-initialized upon or before the first call to `group_local_memory`.  The storage
+_Effects_: Constructs an object of type `T` in an address space accessible by
+all work-items in group `g`, using default initialization.  The object is
+initialized upon or before the first call to `group_local_memory`. The storage
 for the object is allocated upon or before the first call to
 `group_local_memory`, and deallocated when all work-items in the group have
 completed execution of the kernel.
 
-`Group` must be `sycl::group`, and `T` must be trivially destructible.
-
-|======================
+_Returns_: A `multi_ptr` to the constructed object.
 
 NOTE: The restrictions on supported types for `Group` and `T` may be lifted
 in a future version of this extension.
