@@ -181,9 +181,10 @@ public:
       Command *Cmd, void *ObjAddr, bool IsCommand,
       std::optional<access::mode> AccMode = std::nullopt);
   /// Creates an edge event when the dependency is an event.
-  void emitEdgeEventForEventDependence(Command *Cmd, RT::PiEvent &EventAddr);
+  void emitEdgeEventForEventDependence(Command *Cmd,
+                                       sycl::detail::pi::PiEvent &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.
-  void emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr);
+  void emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr);
   /// Create a trace event of node_create type; this must be guarded by a
   /// check for xptiTraceEnabled().
   /// Post Condition: MTraceEvent will be set to the event created.
@@ -227,12 +228,12 @@ public:
 
   /// Collect PI events from EventImpls and filter out some of them in case of
   /// in order queue
-  std::vector<RT::PiEvent>
+  std::vector<sycl::detail::pi::PiEvent>
   getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
   /// Collect PI events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce pi
   /// event but has empty native handle.
-  std::vector<RT::PiEvent>
+  std::vector<sycl::detail::pi::PiEvent>
   getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
@@ -248,7 +249,7 @@ protected:
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
-                     RT::PiEvent &Event);
+                     sycl::detail::pi::PiEvent &Event);
 
   void waitForPreparedHostEvents() const;
 
@@ -596,20 +597,21 @@ private:
   void **MDstPtr = nullptr;
 };
 
-pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
-                                  const std::string &PipeName, bool blocking,
-                                  void *ptr, size_t size,
-                                  std::vector<RT::PiEvent> &RawEvents,
-                                  RT::PiEvent *OutEvent, bool read);
+pi_int32
+enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
+                         bool blocking, void *ptr, size_t size,
+                         std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+                         sycl::detail::pi::PiEvent *OutEvent, bool read);
 
 pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName, std::vector<RT::PiEvent> &RawEvents,
-    RT::PiEvent *OutEvent,
+    const std::string &KernelName,
+    std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+    sycl::detail::pi::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    RT::PiKernelCacheConfig KernelCacheConfig);
+    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig);
 
 class KernelFusionCommand;
 
