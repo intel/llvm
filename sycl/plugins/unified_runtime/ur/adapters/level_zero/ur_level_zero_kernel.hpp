@@ -83,7 +83,8 @@ struct ur_kernel_handle_t_ : _ur_object {
   struct ArgumentInfo {
     uint32_t Index;
     size_t Size;
-    // const ur_mem_handle_t_ *Value;
+    bool isNullArg = false;
+    void *ArgValue;
     ur_mem_handle_t_ *Value;
     ur_mem_handle_t_::access_mode_t AccessMode{ur_mem_handle_t_::unknown};
   };

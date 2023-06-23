@@ -57,8 +57,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   for (auto &Arg : Kernel->PendingArguments) {
     // The ArgValue may be a NULL pointer in which case a NULL value is used for
     // the kernel argument declared as a pointer to global or constant memory.
+    // printf("%s %d Kernel %lx Arg.Index %d Arg.ArgValue %lx Arg.Value %lx
+    // Arg.Size %zd\n", __FILE__, __LINE__,
+    //     (unsigned long int)Kernel, Arg.Index, (unsigned long
+    //     int)Arg.ArgValue, (unsigned long int)Arg.Value, Arg.Size);
+    if (Arg.ArgValue || Arg.isNullArg) {
+      // printf("%s %d\n", __FILE__, __LINE__);
+      ZE2UR_CALL(zeKernelSetArgumentValue,
+                 (Kernel->ZeKernel, Arg.Index, Arg.Size,
+                  reinterpret_cast<void *>(&(Arg.ArgValue))));
+      continue;
+    }
     char **ZeHandlePtr = nullptr;
     if (Arg.Value) {
+      // printf("%s %d\n", __FILE__, __LINE__);
       UR_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
                                         Queue->Device));
     }
@@ -397,12 +409,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
   // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
   if (ArgSize == sizeof(void *) && PArgValue &&
       *(void **)(const_cast<void *>(PArgValue)) == nullptr) {
+    // printf("%s %d\n", __FILE__, __LINE__);
     PArgValue = nullptr;
   }
+  // printf("%s %d Kernel %lx ArgIndex %d PArgValue %lx\n", __FILE__, __LINE__,
+  //   (unsigned long int)Kernel, ArgIndex, (unsigned long int)PArgValue);
 
-  std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  ZE2UR_CALL(zeKernelSetArgumentValue,
-             (Kernel->ZeKernel, ArgIndex, ArgSize, PArgValue));
+  // if argument is null, then delay setting it until
+  // kernel enqueue
+  // if (PArgValue && *(void **)(const_cast<void *>(PArgValue)) == nullptr &&
+  // ArgIndex == 4)
+  if (PArgValue && *(void **)(const_cast<void *>(PArgValue)) == nullptr) {
+    // printf("%s %d Kernel %lx ArgIndex %d PArgValue %lx ArgSize %zd\n",
+    // __FILE__, __LINE__, (unsigned long int)Kernel, ArgIndex, (unsigned long
+    // int)PArgValue, ArgSize);
+    std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+    Kernel->PendingArguments.push_back({ArgIndex, ArgSize, true, nullptr,
+                                        nullptr, ur_mem_handle_t_::read_write});
+  } else {
+    // printf("%s %d Kernel %lx ArgIndex %d PArgValue %lx\n", __FILE__,
+    // __LINE__, (unsigned long int)Kernel, ArgIndex, (unsigned long
+    // int)PArgValue);
+    std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+    ZE2UR_CALL(zeKernelSetArgumentValue,
+               (Kernel->ZeKernel, ArgIndex, ArgSize, PArgValue));
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -608,8 +639,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
                          ///< holding the argument value. If null then argument
                          ///< value is considered null.
 ) {
-  UR_CALL(
-      urKernelSetArgValue(Kernel, ArgIndex, sizeof(const void *), ArgValue));
+  void *ArgAddress = nullptr;
+  if (ArgValue) {
+    ArgAddress = *reinterpret_cast<void *const *>(const_cast<void *>(ArgValue));
+  }
+
+  // printf("%s %d ArgIndex %d ArgAddress %lx\n", __FILE__, __LINE__, ArgIndex,
+  // (unsigned long int)ArgAddress);
+
+  std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+  Kernel->PendingArguments.push_back({ArgIndex, sizeof(void *), false,
+                                      const_cast<void *>(ArgAddress), nullptr,
+                                      ur_mem_handle_t_::read_write});
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -683,8 +725,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
   ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
 
   auto Arg = UrMem ? UrMem : nullptr;
-  Kernel->PendingArguments.push_back(
-      {ArgIndex, sizeof(void *), Arg, ur_mem_handle_t_::read_write});
+  Kernel->PendingArguments.push_back({ArgIndex, sizeof(void *), false, nullptr,
+                                      Arg, ur_mem_handle_t_::read_write});
 
   return UR_RESULT_SUCCESS;
 }

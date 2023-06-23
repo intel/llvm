@@ -1943,6 +1943,8 @@ inline pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
+  // printf("%s %d\n", __FILE__, __LINE__);
+
   HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, ArgValue));
   return PI_SUCCESS;
 }
@@ -2211,7 +2213,7 @@ inline pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                           const void *ArgValue) {
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
-  HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, ArgValue));
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, ArgValue));
 
   return PI_SUCCESS;
 }
