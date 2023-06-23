@@ -275,17 +275,13 @@ sycl::event exec_graph_impl::enqueue(
       sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   return QueueEvent;
 }
-} // namespace detail
 
-template <>
-command_graph<graph_state::modifiable>::command_graph(
+modifiable_command_graph::modifiable_command_graph(
     const sycl::context &SyclContext, const sycl::device &SyclDevice,
     const sycl::property_list &)
     : impl(std::make_shared<detail::graph_impl>(SyclContext, SyclDevice)) {}
 
-template <>
-node command_graph<graph_state::modifiable>::addImpl(
-    const std::vector<node> &Deps) {
+node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
     DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
@@ -295,9 +291,8 @@ node command_graph<graph_state::modifiable>::addImpl(
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
-template <>
-node command_graph<graph_state::modifiable>::addImpl(
-    std::function<void(handler &)> CGF, const std::vector<node> &Deps) {
+node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
+                                       const std::vector<node> &Deps) {
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
     DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
@@ -308,8 +303,7 @@ node command_graph<graph_state::modifiable>::addImpl(
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
-template <>
-void command_graph<graph_state::modifiable>::make_edge(node &Src, node &Dest) {
+void modifiable_command_graph::make_edge(node &Src, node &Dest) {
   std::shared_ptr<detail::node_impl> SenderImpl =
       sycl::detail::getSyclObjImpl(Src);
   std::shared_ptr<detail::node_impl> ReceiverImpl =
@@ -320,17 +314,13 @@ void command_graph<graph_state::modifiable>::make_edge(node &Src, node &Dest) {
   impl->removeRoot(ReceiverImpl); // remove receiver from root node list
 }
 
-template <>
 command_graph<graph_state::executable>
-command_graph<graph_state::modifiable>::finalize(
-    const sycl::property_list &) const {
+modifiable_command_graph::finalize(const sycl::property_list &) const {
   return command_graph<graph_state::executable>{this->impl,
                                                 this->impl->getContext()};
 }
 
-template <>
-bool command_graph<graph_state::modifiable>::begin_recording(
-    queue &RecordingQueue) {
+bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   if (QueueImpl->getCommandGraph() == nullptr) {
     QueueImpl->setCommandGraph(impl);
@@ -347,8 +337,7 @@ bool command_graph<graph_state::modifiable>::begin_recording(
   return false;
 }
 
-template <>
-bool command_graph<graph_state::modifiable>::begin_recording(
+bool modifiable_command_graph::begin_recording(
     const std::vector<queue> &RecordingQueues) {
   bool QueueStateChanged = false;
   for (queue Queue : RecordingQueues) {
@@ -357,13 +346,9 @@ bool command_graph<graph_state::modifiable>::begin_recording(
   return QueueStateChanged;
 }
 
-template <> bool command_graph<graph_state::modifiable>::end_recording() {
-  return impl->clearQueues();
-}
+bool modifiable_command_graph::end_recording() { return impl->clearQueues(); }
 
-template <>
-bool command_graph<graph_state::modifiable>::end_recording(
-    queue &RecordingQueue) {
+bool modifiable_command_graph::end_recording(queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   if (QueueImpl->getCommandGraph() == impl) {
     QueueImpl->setCommandGraph(nullptr);
@@ -380,8 +365,7 @@ bool command_graph<graph_state::modifiable>::end_recording(
   return false;
 }
 
-template <>
-bool command_graph<graph_state::modifiable>::end_recording(
+bool modifiable_command_graph::end_recording(
     const std::vector<queue> &RecordingQueues) {
   bool QueueStateChanged = false;
   for (queue Queue : RecordingQueues) {
@@ -390,25 +374,26 @@ bool command_graph<graph_state::modifiable>::end_recording(
   return QueueStateChanged;
 }
 
-command_graph<graph_state::executable>::command_graph(
+executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
     : MTag(rand()),
       impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
   finalizeImpl(); // Create backend representation for executable graph
 }
 
-void command_graph<graph_state::executable>::finalizeImpl() {
+void executable_command_graph::finalizeImpl() {
   // Create PI command-buffers for each device in the finalized context
   impl->schedule();
 }
 
-void command_graph<graph_state::executable>::update(
+void executable_command_graph::update(
     const command_graph<graph_state::modifiable> &Graph) {
   (void)Graph;
   throw sycl::exception(sycl::make_error_code(errc::invalid),
                         "Method not yet implemented");
 }
 
+} // namespace detail
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

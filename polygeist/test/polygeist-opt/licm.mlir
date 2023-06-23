@@ -1,5 +1,5 @@
-// RUN: polygeist-opt --licm="relaxed-aliasing=false" --split-input-file %s 2>&1 | FileCheck %s
-// RUN: polygeist-opt --licm="relaxed-aliasing=true" --split-input-file %s 2>&1 | FileCheck --check-prefix=CHECK-RELAXED-ALIASING %s
+// RUN: polygeist-opt --allow-unregistered-dialect --licm="relaxed-aliasing=false" --split-input-file %s 2>&1 | FileCheck %s
+// RUN: polygeist-opt --allow-unregistered-dialect --licm="relaxed-aliasing=true" --split-input-file %s 2>&1 | FileCheck --check-prefix=CHECK-RELAXED-ALIASING %s
 
 // COM: Test LICM on scf.for loops.
 module {
@@ -405,4 +405,64 @@ func.func @affine_parallel_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: ind
   }
   return
 }
+}
+
+// -----
+
+// COM: Every operation in the loop is safe to hoist.
+
+// CHECK: #set = affine_set<() : (9 >= 0)>
+
+// CHECK-LABEL:   func.func @affine_if_within_for_hoist() {
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 0 : i32
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i32
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant true
+// CHECK-NEXT:      affine.if #set() {
+// CHECK-NEXT:        scf.if %[[VAL_2]] {
+// CHECK-NEXT:          %[[VAL_3:.*]] = arith.cmpi eq, %[[VAL_0]], %[[VAL_1]] : i32
+// CHECK-NEXT:        }
+// CHECK-NEXT:        affine.for %[[VAL_4:.*]] = 0 to 10 {
+// CHECK-NEXT:        }
+// CHECK-NEXT:      }
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+func.func @affine_if_within_for_hoist() {
+  affine.for %arg0 = 0 to 10 {
+    %c0 = arith.constant 0 : i32
+    %c1 = arith.constant 1 : i32
+    %true = arith.constant true
+    scf.if %true {
+      arith.cmpi eq, %c0, %c1 : i32
+    }
+  }
+  func.return
+}
+
+// -----
+
+// COM: Only `%true` is safe to hoist. The rest of the operations cannot be hoisted.
+
+// CHECK-LABEL:   func.func @affine_if_within_for_not_hoist() {
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant true
+// CHECK-NEXT:      affine.for %[[VAL_1:.*]] = 0 to 10 {
+// CHECK-NEXT:        %[[VAL_2:.*]] = "gen"() : () -> i32
+// CHECK-NEXT:        %[[VAL_3:.*]] = "gen"() : () -> i32
+// CHECK-NEXT:        scf.if %[[VAL_0]] {
+// CHECK-NEXT:          %[[VAL_4:.*]] = arith.cmpi eq, %[[VAL_2]], %[[VAL_3]] : i32
+// CHECK-NEXT:        }
+// CHECK-NEXT:      }
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+func.func @affine_if_within_for_not_hoist() {
+  affine.for %arg0 = 0 to 10 {
+    %0 = "gen"() : () -> i32
+    %1 = "gen"() : () -> i32
+    %true = arith.constant true
+    scf.if %true {
+      arith.cmpi eq, %0, %1 : i32
+    }
+  }
+  func.return
 }

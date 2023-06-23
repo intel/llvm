@@ -456,16 +456,33 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += std::string(backend_option);
     }
   }
-  if ((PlatformImpl->getBackend() == backend::ext_oneapi_level_zero ||
+  bool IsIntelGPU =
+      (PlatformImpl->getBackend() == backend::ext_oneapi_level_zero ||
        PlatformImpl->getBackend() == backend::opencl) &&
-      std::all_of(Devs.begin(), Devs.end(),
-                  [](const device &Dev) { return Dev.is_gpu(); }) &&
-      Img.getDeviceGlobals().size() != 0) {
+      std::all_of(Devs.begin(), Devs.end(), [](const device &Dev) {
+        return Dev.is_gpu() &&
+               Dev.get_info<info::device::vendor_id>() == 0x8086;
+      });
+  if (IsIntelGPU && Img.getDeviceGlobals().size() != 0) {
     // If the image has device globals we need to add the
     // -ze-take-global-address option to tell IGC to record addresses of these.
     if (!CompileOpts.empty())
       CompileOpts += " ";
     CompileOpts += "-ze-take-global-address";
+  }
+  if (!CompileOptsEnv) {
+    static const char *TargetCompileFast = "-ftarget-compile-fast";
+    if (auto Pos = CompileOpts.find(TargetCompileFast);
+        Pos != std::string::npos) {
+      const char *BackendOption = nullptr;
+      if (IsIntelGPU)
+        PlatformImpl->getBackendOption(TargetCompileFast, &BackendOption);
+      auto OptLen = strlen(TargetCompileFast);
+      if (IsIntelGPU && BackendOption && BackendOption[0] != '\0')
+        CompileOpts.replace(Pos, OptLen, BackendOption);
+      else
+        CompileOpts.erase(Pos, OptLen);
+    }
   }
 }
 

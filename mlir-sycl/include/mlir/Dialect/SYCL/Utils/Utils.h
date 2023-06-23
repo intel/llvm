@@ -26,12 +26,13 @@ inline AccessorType getAccessorType(SYCLAccessorSubscriptOp op) {
   return AccessorPtrValue(op.getAcc()).getAccessorType();
 }
 
-/// Create sycl.id.get with id \p id and index \p index.
-SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
-                              OpBuilder builder, Location loc);
+/// Create sycl.id.get with result type \resTy, id \p id and index \p index.
+SYCLIDGetOp createSYCLIDGetOp(Type resTy, TypedValue<MemRefType> id,
+                              unsigned index, OpBuilder builder, Location loc);
 
-/// Create sycl.range.get with id \p range and index \p index.
-SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
+/// Create sycl.range.get with result type \p resTy, range \p range and index \p
+/// index.
+SYCLRangeGetOp createSYCLRangeGetOp(Type resTy, TypedValue<MemRefType> range,
                                     unsigned index, OpBuilder builder,
                                     Location loc);
 
@@ -52,7 +53,12 @@ sycl::SYCLWorkGroupSizeOp createWorkGroupSize(unsigned numDims,
 /// Populate \p wgSizes with workgroup size per dimensionality, given the rank
 /// \p numDims.
 void populateWorkGroupSize(SmallVectorImpl<Value> &wgSizes, unsigned numDims,
-                           OpBuilder builder);
+                           OpBuilder builder, Location loc);
+
+/// Populate \p localIDs with local id per dimensionality, given the rank
+/// \p numDims.
+void populateLocalID(SmallVectorImpl<Value> &localIDs, unsigned numDims,
+                     OpBuilder builder, Location loc);
 
 } // namespace sycl
 } // namespace mlir

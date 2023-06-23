@@ -618,12 +618,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue to be finished.
+    ur_queue_handle_t UrQueue ///< [in] handle of the queue to be finished.
 ) {
-  // _pi_queue *PiQueue = reinterpret_cast<_pi_queue *>(Queue);
-  // ur_queue_handle_t UrQueue = PiQueue->UrQueue;
-  ur_queue_handle_t_ *UrQueue = reinterpret_cast<ur_queue_handle_t_ *>(hQueue);
-
   if (UrQueue->Device->ImmCommandListUsed) {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<ur_shared_mutex> Lock(UrQueue->Mutex);
