@@ -21,74 +21,6 @@ void enableCUDATracing();
 
 //-- PI API implementation
 extern "C" {
-
-pi_result cuda_piextEnablePeerAccess(pi_device command_device,
-                                     pi_device peer_device) {
-  pi_result result = PI_SUCCESS;
-  try {
-    ScopedContext active(command_device->get_context());
-    CUresult cu_res = cuCtxEnablePeerAccess(peer_device->get_context(), 0);
-    if (cu_res != CUDA_SUCCESS) {
-      setPluginSpecificMessage(cu_res);
-      result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-    }
-  } catch (pi_result err) {
-    result = err;
-  }
-  return result;
-}
-
-pi_result cuda_piextDisablePeerAccess(pi_device command_device,
-                                      pi_device peer_device) {
-  pi_result result = PI_SUCCESS;
-  try {
-    ScopedContext active(command_device->get_context());
-    CUresult cu_res = cuCtxDisablePeerAccess(peer_device->get_context());
-    if (cu_res != CUDA_SUCCESS) {
-      setPluginSpecificMessage(cu_res);
-      result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-    }
-  } catch (pi_result err) {
-    result = err;
-  }
-  return result;
-}
-
-pi_result cuda_piextPeerAccessGetInfo(pi_device command_device,
-                                      pi_device peer_device, pi_peer_attr attr,
-                                      size_t param_value_size,
-                                      void *param_value,
-                                      size_t *param_value_size_ret) {
-  int value;
-  CUdevice_P2PAttribute cu_attr;
-  try {
-    ScopedContext active(command_device->get_context());
-    switch (attr) {
-    case PI_PEER_ACCESS_SUPPORTED: {
-      cu_attr = CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED;
-      break;
-    }
-    case PI_PEER_ATOMICS_SUPPORTED: {
-      cu_attr = CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
-      break;
-    }
-    default: {
-      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(attr);
-    }
-    }
-
-    CUresult cu_res = cuDeviceGetP2PAttribute(
-        &value, cu_attr, command_device->get(), peer_device->get());
-    if (cu_res != CUDA_SUCCESS) {
-      setPluginSpecificMessage(cu_res);
-      return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-    }
-  } catch (pi_result err) {
-    return err;
-  }
-  return getInfo(param_value_size, param_value, param_value_size_ret, value);
-}
-
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -254,9 +186,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetBackendOption, pi2ur::piPluginGetBackendOption)
 
   // Peer to Peer
-  _PI_CL(piextEnablePeerAccess, cuda_piextEnablePeerAccess)
-  _PI_CL(piextDisablePeerAccess, cuda_piextDisablePeerAccess)
-  _PI_CL(piextPeerAccessGetInfo, cuda_piextPeerAccessGetInfo)
+  _PI_CL(piextEnablePeerAccess, pi2ur::piextEnablePeerAccess)
+  _PI_CL(piextDisablePeerAccess, pi2ur::piextDisablePeerAccess)
+  _PI_CL(piextPeerAccessGetInfo, pi2ur::piextPeerAccessGetInfo)
 
 #undef _PI_CL
 

@@ -1114,40 +1114,23 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
 pi_result piextEnablePeerAccess(pi_device command_device,
                                 pi_device peer_device) {
 
-  std::ignore = command_device;
-  std::ignore = peer_device;
-
-  setErrorMessage("piextEnablePeerAccess not "
-                  "implemented in L0",
-                  UR_RESULT_ERROR_INVALID_VALUE);
-
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  return pi2ur::piextEnablePeerAccess(command_device, peer_device);
 }
 
 pi_result piextDisablePeerAccess(pi_device command_device,
                                  pi_device peer_device) {
 
-  std::ignore = command_device;
-  std::ignore = peer_device;
-
-  setErrorMessage("piextDisablePeerAccess not "
-                  "implemented in L0",
-                  UR_RESULT_ERROR_INVALID_VALUE);
-
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  return pi2ur::piextDisablePeerAccess(command_device, peer_device);
 }
 
 pi_result piextPeerAccessGetInfo(pi_device command_device,
                                  pi_device peer_device, pi_peer_attr attr,
                                  size_t ParamValueSize, void *ParamValue,
                                  size_t *ParamValueSizeRet) {
-  std::ignore = command_device;
-  std::ignore = peer_device;
-  std::ignore = attr;
 
-  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
-  // Zero return value indicates that all of the queries currently return false.
-  return ReturnValue(pi_int32{0});
+  return pi2ur::piextPeerAccessGetInfo(command_device, peer_device, attr,
+                                       ParamValueSize, ParamValue,
+                                       ParamValueSizeRet);
 }
 
 #ifdef _WIN32

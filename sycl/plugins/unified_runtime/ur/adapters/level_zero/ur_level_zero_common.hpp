@@ -466,3 +466,21 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 // Utility function for setting a message and warning
 [[maybe_unused]] void setErrorMessage(const char *message,
                                       ur_result_t error_code);
+
+/// ------ Error handling, matching OpenCL plugin semantics.
+/*namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace detail {
+namespace ur {
+
+// Report error and no return (keeps compiler from printing warnings).
+// TODO: Probably change that to throw a catchable exception,
+//       but for now it is useful to see every failure.
+//
+[[noreturn]] void die(const char *Message);
+
+} // namespace ur
+} // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
+*/
