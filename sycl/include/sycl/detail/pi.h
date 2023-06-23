@@ -2030,11 +2030,10 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
 /// \param param_value_size is the size of the result in bytes.
 /// \param param_value is the result.
 /// \param param_value_size_ret is how many bytes were written.
-pi_result
-piextVirtualMemGranularityGetInfo(pi_context context, pi_device device,
-                                  pi_virtual_mem_granularity_info param_name,
-                                  size_t param_value_size, void *param_value,
-                                  size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piextVirtualMemGranularityGetInfo(
+    pi_context context, pi_device device,
+    pi_virtual_mem_granularity_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret);
 
 /// API for creating a physical memory handle that virtual memory can be mapped
 /// to.
@@ -2044,19 +2043,19 @@ piextVirtualMemGranularityGetInfo(pi_context context, pi_device device,
 /// \param mem_size is the size of physical memory to allocate. This must be a
 ///        multiple of the minimum virtual memory granularity.
 /// \param ret_physical_mem is the handle for the resulting physical memory.
-pi_result piextPhysicalMemCreate(pi_context context, pi_device device,
-                                 size_t mem_size,
-                                 pi_physical_mem *ret_physical_mem);
+__SYCL_EXPORT pi_result
+piextPhysicalMemCreate(pi_context context, pi_device device, size_t mem_size,
+                       pi_physical_mem *ret_physical_mem);
 
 /// API for retaining a physical memory handle.
 ///
 /// \param physical_mem is the handle for the physical memory to retain.
-pi_result piextPhysicalMemRetain(pi_physical_mem physical_mem);
+__SYCL_EXPORT pi_result piextPhysicalMemRetain(pi_physical_mem physical_mem);
 
 /// API for releasing a physical memory handle.
 ///
 /// \param physical_mem is the handle for the physical memory to free.
-pi_result piextPhysicalMemRelease(pi_physical_mem physical_mem);
+__SYCL_EXPORT pi_result piextPhysicalMemRelease(pi_physical_mem physical_mem);
 
 /// API for reserving a virtual memory range.
 ///
@@ -2068,8 +2067,10 @@ pi_result piextPhysicalMemRelease(pi_physical_mem physical_mem);
 ///        bytes.
 /// \param ret_ptr is the pointer to the start of the resulting virtual memory
 ///        range.
-pi_result piextVirtualMemReserve(pi_context context, const void *start,
-                                 size_t range_size, void **ret_ptr);
+__SYCL_EXPORT pi_result piextVirtualMemReserve(pi_context context,
+                                               const void *start,
+                                               size_t range_size,
+                                               void **ret_ptr);
 
 /// API for freeing a virtual memory range.
 ///
@@ -2077,8 +2078,8 @@ pi_result piextVirtualMemReserve(pi_context context, const void *start,
 ///        reserved.
 /// \param ptr is the pointer to the start of the virtual memory range.
 /// \param range_size is the size of the virtual address range.
-pi_result piextVirtualMemFree(pi_context context, const void *ptr,
-                              size_t range_size);
+__SYCL_EXPORT pi_result piextVirtualMemFree(pi_context context, const void *ptr,
+                                            size_t range_size);
 
 /// API for mapping a virtual memory range to a a physical memory allocation at
 /// a given offset.
@@ -2090,9 +2091,11 @@ pi_result piextVirtualMemFree(pi_context context, const void *ptr,
 /// \param physical_mem is the handle for the physical memory to map ptr to.
 /// \param offset is the offset into physical_mem in bytes to map ptr to.
 /// \param flags is the access flags to set for the mapping.
-pi_result piextVirtualMemMap(pi_context context, const void *ptr,
-                             size_t range_size, pi_physical_mem physical_mem,
-                             size_t offset, pi_virtual_access_flags flags);
+__SYCL_EXPORT pi_result piextVirtualMemMap(pi_context context, const void *ptr,
+                                           size_t range_size,
+                                           pi_physical_mem physical_mem,
+                                           size_t offset,
+                                           pi_virtual_access_flags flags);
 
 /// API for unmapping a virtual memory range previously mapped in a context.
 /// After a call to this function, the virtual memory range is left in a state
@@ -2102,8 +2105,9 @@ pi_result piextVirtualMemMap(pi_context context, const void *ptr,
 ///        currently mapped.
 /// \param ptr is the pointer to the start of the virtual memory range.
 /// \param range_size is the size of the virtual address range in bytes.
-pi_result piextVirtualMemUnmap(pi_context context, const void *ptr,
-                               size_t range_size);
+__SYCL_EXPORT pi_result piextVirtualMemUnmap(pi_context context,
+                                             const void *ptr,
+                                             size_t range_size);
 
 /// API for setting the access mode of a mapped virtual memory range.
 ///
@@ -2112,9 +2116,10 @@ pi_result piextVirtualMemUnmap(pi_context context, const void *ptr,
 /// \param ptr is the pointer to the start of the virtual memory range.
 /// \param range_size is the size of the virtual address range in bytes.
 /// \param flags is the access flags to set for the mapped virtual access range.
-pi_result piextVirtualMemSetAccess(pi_context context, const void *ptr,
-                                   size_t range_size,
-                                   pi_virtual_access_flags flags);
+__SYCL_EXPORT pi_result piextVirtualMemSetAccess(pi_context context,
+                                                 const void *ptr,
+                                                 size_t range_size,
+                                                 pi_virtual_access_flags flags);
 
 /// API for getting info about a mapped virtual memory range.
 ///
@@ -2126,11 +2131,10 @@ pi_result piextVirtualMemSetAccess(pi_context context, const void *ptr,
 /// \param param_value_size is the size of the result in bytes.
 /// \param param_value is the result.
 /// \param param_value_size_ret is how many bytes were written.
-pi_result piextVirtualMemGetInfo(pi_context context, const void *ptr,
-                                 size_t range_size,
-                                 pi_virtual_mem_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result
+piextVirtualMemGetInfo(pi_context context, const void *ptr, size_t range_size,
+                       pi_virtual_mem_info param_name, size_t param_value_size,
+                       void *param_value, size_t *param_value_size_ret);
 
 ///
 /// Plugin
