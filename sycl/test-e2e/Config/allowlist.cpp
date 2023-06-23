@@ -92,7 +92,7 @@ int main() {
   if (getenv("TEST_INCORRECT_VALUE")) {
     try {
       sycl::platform::get_platforms();
-    } catch (sycl::runtime_error &E) {
+    } catch (sycl::exception &E) {
       // Workaround to make CI pass.
       // TODO: after the submission of PR intel/llvm:3826, create PR to
       // intel/llvm-test-suite with removal of 1st parameter of the vector,
