@@ -650,7 +650,12 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
       auto SupportedSubGroupSizes =
           Device.get_info<info::device::sub_group_sizes>();
 
-      if (std::none_of(SupportedSubGroupSizes.cbegin(),
+      // !getUint32PropAsBool(Img, "isEsimdImage") is a WA for ESIMD,
+      // as ESIMD images have a reqd-sub-group-size of 1, but currently
+      // no backend currently includes 1 as a valid sub-group size.
+      // This can be removed if backends add 1 as a valid sub-group size.
+      if (!getUint32PropAsBool(Img, "isEsimdImage") &&
+          std::none_of(SupportedSubGroupSizes.cbegin(),
                        SupportedSubGroupSizes.cend(),
                        [=](auto s) { return s == ReqdSubGroupSize; }))
         throw sycl::exception(errc::kernel_not_supported,
@@ -2515,7 +2520,8 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
     auto ReqdSubGroupSize =
         DeviceBinaryProperty(*(ReqdSubGroupSizePropIt.value())).asUint32();
     auto SupportedSubGroupSizes = Dev.get_info<info::device::sub_group_sizes>();
-    if (std::none_of(SupportedSubGroupSizes.cbegin(),
+    if (!getUint32PropAsBool(Img, "isEsimdImage") &&
+        std::none_of(SupportedSubGroupSizes.cbegin(),
                      SupportedSubGroupSizes.cend(),
                      [=](auto s) { return s == ReqdSubGroupSize; }))
       return false;
