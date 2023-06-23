@@ -143,10 +143,8 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
     GlobalSizeNormalized[i] = GlobalWorkSize[i];
   }
 
-  cuDeviceGetAttribute(&MaxBlockDim[1], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
-                       Device->get());
-  cuDeviceGetAttribute(&MaxBlockDim[2], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
-                       Device->get());
+  MaxBlockDim[1] = Device->getMaxBlockDimY();
+  MaxBlockDim[2] = Device->getMaxBlockDimZ();
 
   UR_CHECK_ERROR(
       cuOccupancyMaxPotentialBlockSize(&MinGrid, &MaxBlockSize, Kernel->get(),
@@ -183,14 +181,9 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
 bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
                                      ur_kernel_handle_t Kernel,
                                      size_t BlockSize) {
-  int MaxRegsPerBlock{0};
-  UR_CHECK_ERROR(cuDeviceGetAttribute(
-      &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
-      Device->get()));
 
-  int RegsPerThread{0};
-  UR_CHECK_ERROR(cuFuncGetAttribute(&RegsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS,
-                                    Kernel->get()));
+  int MaxRegsPerBlock = Device->getMaxRegsPerBlock();
+  int RegsPerThread = Kernel->getRegsPerThread();
 
   return BlockSize * RegsPerThread > size_t(MaxRegsPerBlock);
 }
