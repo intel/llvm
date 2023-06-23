@@ -36,7 +36,7 @@ void llvm::getSYCLDeviceRequirements(
       {"sycl_fixed_targets", "fixed_target"},
       {"reqd_work_group_size", "reqd_work_group_size"}};
 
-  for (const auto& [MDName, MappedName] : ReqdMDs) {
+  for (const auto &[MDName, MappedName] : ReqdMDs) {
     std::set<uint32_t> Values;
     for (const Function &F : MD.getModule()) {
       if (const MDNode *MDN = F.getMetadata(MDName)) {
