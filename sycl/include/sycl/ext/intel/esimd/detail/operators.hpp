@@ -616,7 +616,7 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
                           SimdTx>                                              \
   operator*(const SimdT &LHS, const SimdT &RHS) {                              \
     SimdTx res(0);                                                             \
-    res.merge(RHS, LHS);                                                       \
+    res.merge(SimdTx(RHS), LHS);                                               \
     return res;                                                                \
   }
 
