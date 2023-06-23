@@ -11,7 +11,7 @@ is to show the basic ESIMD APIs in well known examples.
    float *b = new float[Size];               // B uses HOST memory
    buffer<float, 1> buf_b(b, Size);
 
-   // initialize 'a' and 'b' here.
+   // Initialize 'a' and 'b' here.
     
    // Compute: a[i] += b[i];
    q.submit([&](handler &cgh) {
