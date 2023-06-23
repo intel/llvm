@@ -201,7 +201,7 @@ etors:
     - name: ERROR_INVALID_PROGRAM_EXECUTABLE
       desc: "Program object parameter is invalid."
     - name: ERROR_UNINITIALIZED
-      desc: "[Validation] adapter is not initialized"
+      desc: "[Validation] adapter is not initialized or specific entry-point is not implemented"
     - name: ERROR_OUT_OF_HOST_MEMORY
       desc: "Insufficient host memory to satisfy call"
     - name: ERROR_OUT_OF_DEVICE_MEMORY
