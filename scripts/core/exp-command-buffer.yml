@@ -259,6 +259,84 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
+desc: "Append a memory write command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendMembufferWriteExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object."
+    - type: "size_t"
+      name: offset
+      desc: "[in] offset in bytes in the buffer object."
+    - type: "size_t"
+      name: size
+      desc: "[in] size in bytes of data being written."
+    - type: "const void*"
+      name: pSrc
+      desc: "[in] pointer to host memory where data is to be written from."
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: "$x_exp_command_buffer_sync_point_t*"
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append a memory read command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendMembufferReadExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object."
+    - type: "size_t"
+      name: offset
+      desc: "[in] offset in bytes in the buffer object."
+    - type: "size_t"
+      name: size
+      desc: "[in] size in bytes of data being written."
+    - type: "void*"
+      name: pDst
+      desc: "[in] pointer to host memory where data is to be written to."
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: "$x_exp_command_buffer_sync_point_t*"
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
 desc: "Append a rectangular memory copy command to a command-buffer object"
 class: $xCommandBuffer
 name: AppendMembufferCopyRectExp
@@ -293,6 +371,114 @@ params:
     - type: "size_t"
       name: dstSlicePitch
       desc: "[in] Slice pitch of the destination memory."
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: $x_exp_command_buffer_sync_point_t*
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append a rectangular memory write command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendMembufferWriteRectExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object."
+    - type: $x_rect_offset_t
+      name: bufferOffset
+      desc: "[in] 3D offset in the buffer."
+    - type: $x_rect_offset_t
+      name: hostOffset
+      desc: "[in] 3D offset in the host region."
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] 3D rectangular region descriptor: width, height, depth."
+    - type: "size_t"
+      name: bufferRowPitch
+      desc: "[in] length of each row in bytes in the buffer object."
+    - type: "size_t"
+      name: bufferSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the buffer object being written."
+    - type: "size_t"
+      name: hostRowPitch
+      desc: "[in] length of each row in bytes in the host memory region pointed to by pSrc."
+    - type: "size_t"
+      name: hostSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the host memory region pointed to by pSrc."
+    - type: "void*"
+      name: pSrc
+      desc: "[in] pointer to host memory where data is to be written from."
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: $x_exp_command_buffer_sync_point_t*
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append a rectangular memory read command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendMembufferReadRectExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object."
+    - type: $x_rect_offset_t
+      name: bufferOffset
+      desc: "[in] 3D offset in the buffer."
+    - type: $x_rect_offset_t
+      name: hostOffset
+      desc: "[in] 3D offset in the host region."
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] 3D rectangular region descriptor: width, height, depth."
+    - type: "size_t"
+      name: bufferRowPitch
+      desc: "[in] length of each row in bytes in the buffer object."
+    - type: "size_t"
+      name: bufferSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the buffer object being read."
+    - type: "size_t"
+      name: hostRowPitch
+      desc: "[in] length of each row in bytes in the host memory region pointed to by pDst."
+    - type: "size_t"
+      name: hostSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the host memory region pointed to by pDst."
+    - type: "void*"
+      name: pDst
+      desc: "[in] pointer to host memory where data is to be read into."
     - type: uint32_t
       name: numSyncPointsInWaitList
       desc: "[in] The number of sync points in the provided dependency list."
