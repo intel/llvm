@@ -12,6 +12,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Support/LLVM.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
@@ -205,6 +206,57 @@ void SYCLConstructorOp::getEffects(
       effects.emplace_back(MemoryEffects::Read::get(), value, defaultResource);
     }
   }
+}
+
+void SYCLIDConstructorOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  auto *defaultResource = SideEffects::DefaultResource::get();
+  // All of the arguments will be scalar or read from
+  for (auto value : getArgs()) {
+    if (isa<MemRefType, LLVM::LLVMPointerType>(value.getType())) {
+      effects.emplace_back(MemoryEffects::Read::get(), value, defaultResource);
+    }
+  }
+  // The result will be allocated and written to
+  Value id = getId();
+  effects.emplace_back(MemoryEffects::Allocate::get(), id, defaultResource);
+  effects.emplace_back(MemoryEffects::Write::get(), id, defaultResource);
+}
+
+LogicalResult SYCLIDConstructorOp::verify() {
+  OperandRange::type_range argTypes = getArgs().getTypes();
+  if (argTypes.empty()) {
+    // sycl.id.constructor() -> memref<1x!sycl_id_N>
+    return success();
+  }
+  MemRefType type = getId().getType();
+  unsigned dimensions = getDimensions(type);
+  if (llvm::all_of(argTypes, [](Type type) { return isa<IndexType>(type); })) {
+    // sycl.id.constructor({index}N) -> memref<1x!sycl_id_N>
+    if (argTypes.size() != dimensions) {
+      return emitOpError("expects to be passed the same number of 'index' "
+                         "numbers as the number of dimensions of the input: ")
+             << argTypes.size() << " vs " << dimensions;
+    }
+    return success();
+  }
+  if (argTypes.size() == 1) {
+    if (auto MT = dyn_cast<MemRefType>(argTypes.front());
+        MT && isa<IDType, ItemType, RangeType>(MT.getElementType())) {
+      // sycl.id.constructor(memref<?x!sycl_[id|item|range]_N>) ->
+      // memref<1x!sycl_id_N>
+      unsigned argDimensions = getDimensions(MT);
+      if (dimensions != argDimensions) {
+        return emitOpError("expects input and output to have the same number "
+                           "of dimensions: ")
+               << argDimensions << " vs " << dimensions;
+      }
+      return success();
+    }
+  }
+  return emitOpError(
+      "expects a different signature. Check documentation for details");
 }
 
 #define GET_OP_CLASSES
