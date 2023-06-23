@@ -2638,13 +2638,13 @@ pi_int32 ExecCGCommand::enqueueImp() {
     case PI_ERROR_INVALID_OPERATION:
       throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                             "Device doesn't support run_on_host_intel tasks. " +
-                                Error);
+                                detail::codeToString(Error));
     case PI_SUCCESS:
       return Error;
     default:
       throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                             "Enqueueing run_on_host_intel task has failed. " +
-                                Error);
+                                detail::codeToString(Error));
     }
   }
   case CG::CGTYPE::Kernel: {

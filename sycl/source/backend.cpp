@@ -199,7 +199,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
       if (State == bundle_state::input)
         throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                               "Program and kernel_bundle state mismatch " +
-                                  PI_ERROR_INVALID_VALUE);
+                                  detail::codeToString(PI_ERROR_INVALID_VALUE));
       if (State == bundle_state::executable)
         Plugin->call<errc::build, PiApiKind::piProgramLink>(
             ContextImpl->getHandleRef(), 1, &Dev, nullptr, 1, &PiProgram,

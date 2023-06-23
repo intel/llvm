@@ -192,7 +192,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
         // DPC++ RT to C++20
         if (Prefix != AllowListRaw.substr(ValueStart, Prefix.length())) {
           throw sycl::exception(
-              sycl::errc::runtime,
+              sycl::make_error_code(sycl::errc::runtime),
               "Key " + Key +
                   " of SYCL_DEVICE_ALLOWLIST should have "
                   "value which starts with " +
