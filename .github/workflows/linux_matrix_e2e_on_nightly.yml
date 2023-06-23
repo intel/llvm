@@ -1,0 +1,81 @@
+name: SYCL E2E Matrix on Nightly build
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      uniq:
+        description: Unique string to name dynamic runners in AWS
+        type: string
+        required: false
+        default: ${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  linux_e2e_on_nightly:
+    name: E2E on Nightly
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build
+            extra_cmake_args: -DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"
+            extra_image_opts: --device=/dev/kfd
+            target_devices: all
+
+          - name: Intel
+            runner: '["Linux", "gen9"]'
+            image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
+            extra_cmake_args:
+            extra_image_opts: -u 1001
+            target_devices: all
+
+          - name: ESIMD Emu
+            runner: '["Linux", "x86-cpu"]'
+            image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
+            extra_cmake_args:
+            extra_image_opts: -u 1001
+            target_devices: ext_intel_esimd_emulator:gpu
+    uses: ./.github/workflows/linux_single_e2e_on_nightly.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix. runner }}
+      image: ${{ matrix.image }}
+      extra_cmake_args: ${{ matrix.extra_cmake_args }}
+      extra_image_opts: ${{ matrix.extra_image_opts }}
+      target_devices: ${{ matrix.target_devices }}
+      ref: ${{ inputs.ref }}
+
+  aws_start:
+    name: AWS Start
+    uses: ./.github/workflows/aws.yml
+    secrets: inherit
+    with:
+      mode: start
+      runs-on-list: '[{"runs-on":"aws-cuda_${{ inputs.uniq }}","aws-ami":"ami-01cb0573cb039ab24","aws-type":["g5.2xlarge","g5.4xlarge"],"aws-disk":"/dev/sda1:64","aws-spot":"false"}]'
+
+  linux_e2e_on_nightly_aws:
+    name: '[AWS][CUDA] E2E on Nightly'
+    needs: [aws_start]
+    uses: ./.github/workflows/linux_single_e2e_on_nightly.yml
+    with:
+      name: CUDA
+      runner: '["aws-cuda_${{ inputs.uniq }}"]'
+      image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build
+      extra_cmake_args:
+      extra_image_opts: --gpus all
+      target_devices: all
+      ref: ${{ inputs.ref }}
+
+  aws_stop:
+    name: AWS Stop
+    needs: [aws_start, linux_e2e_on_nightly_aws]
+    if: always()
+    uses: ./.github/workflows/aws.yml
+    secrets: inherit
+    with:
+      mode: stop
+      runs-on-list: '[{"runs-on":"aws-cuda_${{ inputs.uniq }}","aws-ami":"ami-01cb0573cb039ab24","aws-type":["g5.2xlarge","g5.4xlarge"],"aws-disk":"/dev/sda1:64","aws-spot":"false"}]'

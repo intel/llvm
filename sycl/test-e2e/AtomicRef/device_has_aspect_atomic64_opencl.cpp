@@ -1,9 +1,7 @@
 // REQUIRES: opencl, opencl_icd
+
 // RUN: %{build} -o %t.out %opencl_lib
 // RUN: %{run} %t.out
-
-// XFAIL: hip
-// Expected failure because hip does not have atomic64 check implementation
 
 #include <CL/cl.h>
 #include <CL/sycl.hpp>

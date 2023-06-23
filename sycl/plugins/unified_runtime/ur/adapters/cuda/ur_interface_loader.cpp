@@ -200,7 +200,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnGetLastResult = urGetLastResult;
   pDdiTable->pfnInit = urInit;
   pDdiTable->pfnTearDown = urTearDown;
   return UR_RESULT_SUCCESS;

@@ -177,7 +177,7 @@ __CLC_SUBGROUP_COLLECTIVE(Any, __CLC_OR, bool, a, true)
     /* Perform InclusiveScan over sub-group results */                         \
     TYPE sg_prefix;                                                            \
     TYPE sg_aggregate = scratch[0];                                            \
-    _Pragma("unroll") for (int s = 1; s < num_sg; ++s) {                       \
+    for (int s = 1; s < num_sg; ++s) {                                         \
       if (sg_id == s) {                                                        \
         sg_prefix = sg_aggregate;                                              \
       }                                                                        \

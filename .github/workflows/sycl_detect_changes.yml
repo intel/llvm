@@ -1,5 +1,4 @@
-name: Identify impacted LIT tests
-# Outlined into a separate reusable workflow to ease testing for new rules.
+name: Identify changed files
 
 on:
   workflow_call:
@@ -47,4 +46,7 @@ jobs:
               - *xptifw
               - *libclc
               - 'sycl/*'
-              - 'sycl/!(test-e2e)/**'
+              - 'sycl/!(test-e2e|doc)/**'
+            ci:
+              - .github/workflows/**
+              - devops/**
