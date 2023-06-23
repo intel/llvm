@@ -122,49 +122,52 @@ bool test(Ops ops, queue &q) {
          esimd::simd<T, Size> x = TestValue;
          esimd::simd<T, Size> InputVector(Input);
 
-         esimd_test::apply_ops(
-             ops, x, InputVector < (Size / 2),
-             [=](comp_t<T, uint16_t, OpClass, Size> res, OpClass op, unsigned op_num) {
-               unsigned res_off = op_num * Size;
-               res.copy_to(Output + res_off);
-             });
-         esimd_test::apply_ops(
-             ops, InputVector < (Size / 2), x,
-             [=](comp_t<uint16_t, T, OpClass, Size> res, OpClass op, unsigned op_num) {
-               unsigned res_off = CSize + op_num * Size;
-               res.copy_to(Output + res_off);
-             });
-         esimd_test::apply_ops(
-             ops, TestValue, InputVector < (Size / 2),
-             [=](comp_t<T, uint16_t, OpClass, Size> res, OpClass op, unsigned op_num) {
-               unsigned res_off = 2 * CSize + op_num * Size;
-               res.copy_to(Output + res_off);
-             });
-         esimd_test::apply_ops(
-             ops, InputVector < (Size / 2), TestValue,
-             [=](comp_t<uint16_t, T, OpClass, Size> res, OpClass op, unsigned op_num) {
-               unsigned res_off = 3 * CSize + op_num * Size;
-               res.copy_to(Output + res_off);
-             });
+         esimd_test::apply_ops(ops, x, InputVector < (Size / 2),
+                               [=](comp_t<T, uint16_t, OpClass, Size> res,
+                                   OpClass op, unsigned op_num) {
+                                 unsigned res_off = op_num * Size;
+                                 res.copy_to(Output + res_off);
+                               });
+         esimd_test::apply_ops(ops, InputVector < (Size / 2), x,
+                               [=](comp_t<uint16_t, T, OpClass, Size> res,
+                                   OpClass op, unsigned op_num) {
+                                 unsigned res_off = CSize + op_num * Size;
+                                 res.copy_to(Output + res_off);
+                               });
+         esimd_test::apply_ops(ops, TestValue, InputVector < (Size / 2),
+                               [=](comp_t<T, uint16_t, OpClass, Size> res,
+                                   OpClass op, unsigned op_num) {
+                                 unsigned res_off = 2 * CSize + op_num * Size;
+                                 res.copy_to(Output + res_off);
+                               });
+         esimd_test::apply_ops(ops, InputVector < (Size / 2), TestValue,
+                               [=](comp_t<uint16_t, T, OpClass, Size> res,
+                                   OpClass op, unsigned op_num) {
+                                 unsigned res_off = 3 * CSize + op_num * Size;
+                                 res.copy_to(Output + res_off);
+                               });
          esimd_test::apply_ops(
              ops, InputVector < (Size / 2), InputVector < (Size / 2),
-             [=](comp_t<uint16_t, uint16_t, OpClass, Size> res, OpClass op, unsigned op_num) {
+             [=](comp_t<uint16_t, uint16_t, OpClass, Size> res, OpClass op,
+                 unsigned op_num) {
                unsigned res_off = 4 * CSize + op_num * Size;
                esimd::simd<T, Size> Result(res);
                Result.copy_to(Output + res_off);
              });
-         esimd_test::apply_ops(
-             ops, x.template bit_cast_view<T>(), InputVector < (Size / 2),
-             [=](comp_t<T, uint16_t, OpClass, Size> res, OpClass op, unsigned op_num) {
-               unsigned res_off = 5 * CSize + op_num * Size;
-               res.copy_to(Output + res_off);
-             });
-         esimd_test::apply_ops(
-             ops, InputVector < (Size / 2), x.template bit_cast_view<T>(),
-             [=](comp_t<uint16_t, T, OpClass, Size> res, OpClass op, unsigned op_num) {
-               unsigned res_off = 6 * CSize + op_num * Size;
-               res.copy_to(Output + res_off);
-             });
+         esimd_test::apply_ops(ops, x.template bit_cast_view<T>(),
+                               InputVector < (Size / 2),
+                               [=](comp_t<T, uint16_t, OpClass, Size> res,
+                                   OpClass op, unsigned op_num) {
+                                 unsigned res_off = 5 * CSize + op_num * Size;
+                                 res.copy_to(Output + res_off);
+                               });
+         esimd_test::apply_ops(ops, InputVector < (Size / 2),
+                               x.template bit_cast_view<T>(),
+                               [=](comp_t<uint16_t, T, OpClass, Size> res,
+                                   OpClass op, unsigned op_num) {
+                                 unsigned res_off = 6 * CSize + op_num * Size;
+                                 res.copy_to(Output + res_off);
+                               });
        });
      }).wait();
   } catch (sycl::exception const &e) {
