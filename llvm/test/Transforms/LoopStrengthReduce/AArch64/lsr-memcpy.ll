@@ -6,12 +6,25 @@
 ; <rdar://problem/12702735> [ARM64][coalescer] need better register
 ; coalescing for simple unit tests.
 
-; CHECK: testCase
-; CHECK: %while.body{{$}}
-; CHECK: ldr [[STREG:x[0-9]+]], [{{x[0-9]+}}], #8
-; CHECK-NEXT: str [[STREG]], [{{x[0-9]+}}], #8
-; CHECK: %while.end
 define i32 @testCase() nounwind ssp {
+; CHECK-LABEL: testCase:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    str x30, [sp, #-16]! // 8-byte Folded Spill
+; CHECK-NEXT:    mov w8, #1288 // =0x508
+; CHECK-NEXT:    mov x9, #4294967296 // =0x100000000
+; CHECK-NEXT:    mov x10, #6442450944 // =0x180000000
+; CHECK-NEXT:  .LBB0_1: // %while.body
+; CHECK-NEXT:    // =>This Inner Loop Header: Depth=1
+; CHECK-NEXT:    ldr x11, [x9], #8
+; CHECK-NEXT:    str x11, [x10], #8
+; CHECK-NEXT:    subs x8, x8, #8
+; CHECK-NEXT:    b.pl .LBB0_1
+; CHECK-NEXT:  // %bb.2: // %while.end
+; CHECK-NEXT:    mov x8, #6442450944 // =0x180000000
+; CHECK-NEXT:    blr x8
+; CHECK-NEXT:    mov w0, #0 // =0x0
+; CHECK-NEXT:    ldr x30, [sp], #16 // 8-byte Folded Reload
+; CHECK-NEXT:    ret
 entry:
   br label %while.body
 
