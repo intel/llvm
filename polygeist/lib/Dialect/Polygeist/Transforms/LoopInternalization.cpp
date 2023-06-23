@@ -71,6 +71,8 @@
 #include "mlir/IR/IRMapping.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
+#include <list>
+#include <numeric>
 #include <type_traits>
 #include <variant>
 
@@ -569,32 +571,45 @@ bool usesValue(Value user, Value use) {
                       [&](Value operand) { return usesValue(operand, use); });
 }
 
-/// Return the local id ordering for \p accSub to index the shared local memory.
-/// The algorithm is to use the local id associated with the global id used for
-/// a dimension. For example, assuming ty is a global id of dimension 1,
+/// Return the local id ordering for \p accSub to index the shared local memory
+/// buffer created for \p accSub by this optimization. The algorithm is to use
+/// the local id associated with the global id used by a dimension. For indexes
+/// that do not reference global id, use unused local id in increasing order.
+/// For example, assuming tx and ty are the global id of dimension 0 and
+/// dimension 1,
 ///   A[ty][i], global id 1 is used as the first index,
 ///   so local id 1 is used as the first index, and remaining local id 0 is used
 ///   as the second index. The result is [1, 0].
+///   A[tx][i], global id 0 is used as the first index,
+///   so local id 0 is used as the first index, and remaining local id 1 is used
+///   as the second index. The result is [0, 1].
+///   A[i][tx], global id 0 is used as the second index,
+///   so local id 0 is used as the second index, and remaining local id 1 is
+///   used as the first index. The result is [1, 0]. A[i][j], global ids are not
+///   used, so local id are used in increasing order. The result is [0, 1].
 SmallVector<unsigned> getLocalIDOrdering(sycl::SYCLAccessorSubscriptOp accSub,
                                          DataFlowSolver &solver) {
   const SmallVector<Value> indexes = getIndexes(accSub, solver);
   auto func = accSub->getParentOfType<FunctionOpInterface>();
-  SmallVector<Value> globalIDs = polygeist::getThreadVector(func, solver);
+  const SmallVector<Value> globalIDs = polygeist::getThreadVector(func, solver);
+  assert(globalIDs.size() == indexes.size() &&
+         "Expecting number of global id the same as number of indexes");
 
   SmallVector<std::optional<unsigned>> localIDOrdering(globalIDs.size(),
                                                        std::nullopt);
   llvm::SmallSet<int, 3> unusedIndexes;
   for (unsigned globalDim = 0; globalDim < globalIDs.size(); ++globalDim) {
-    bool used = false;
-    for (unsigned indexDim = 0; indexDim < indexes.size(); ++indexDim)
-      if (globalIDs[globalDim] &&
-          usesValue(indexes[indexDim], globalIDs[globalDim])) {
-        localIDOrdering[indexDim] = globalDim;
-        used = true;
-        break;
-      }
+    std::list<unsigned> dimensions(indexes.size());
+    std::iota(dimensions.begin(), dimensions.end(), 0);
     // Insert the dimension of unused local id in unusedIndexes.
-    if (!used)
+    if (llvm::none_of(dimensions, [&](unsigned dim) {
+          if (globalIDs[globalDim] &&
+              usesValue(indexes[dim], globalIDs[globalDim])) {
+            localIDOrdering[dim] = globalDim;
+            return true;
+          }
+          return false;
+        }))
       unusedIndexes.insert(globalDim);
   }
 
@@ -789,6 +804,7 @@ operator<<(raw_ostream &os, const MemorySelector::MemorySpace &memSpace) {
   case MemorySelector::MemorySpace::Texture:
     return os << "texture";
   }
+  llvm_unreachable("Unexpected MemorySelector::MemorySpace");
 }
 
 std::optional<MemorySelector::MemorySpace>
@@ -927,8 +943,11 @@ private:
   /// Analyze the memory accesses that should use shared memory and aggregate
   /// which local ids for dimensions that use the loop induction variable.
   /// For example given (assume 'i' is the loop IV):
-  ///   A[tx][i], B[i][ty]
-  /// The set collected would contain {0,1}.
+  ///   A[tx][i] => local id of dimension 1 is used for second index.
+  ///   A[i][tx] => local id of dimension 1 is used for first index.
+  ///   A[i][ty] => local id of dimension 0 is used for first index.
+  ///   A[ty][i] => local id of dimension 0 is used for second index.
+  /// The set collected for A[i][tx] and B[ty][i] would contain {0,1}.
   std::set<unsigned> getLocalIDDimForLoopIV(LoopLikeOpInterface loop,
                                             DataFlowSolver &solver) const;
 
