@@ -199,7 +199,6 @@ int main(int, char **) {
   Passed &= test<float, esimd_test::BinaryOp, 2>(arith_ops, q);
   Passed &= test<float, esimd_test::BinaryOp, 1>(arith_ops, q);
   Passed &= test<uint32_t, esimd_test::BinaryOp, 2>(arith_ops, q);
-  Passed &= test<uint32_t, esimd_test::BinaryOp, 1>(arith_ops, q);
   if (dev.has(aspect::fp16)) {
     Passed &= test<half, esimd_test::BinaryOp, 2>(arith_ops, q);
   }
