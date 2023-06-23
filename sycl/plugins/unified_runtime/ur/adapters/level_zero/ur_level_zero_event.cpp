@@ -98,10 +98,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
     if (OutEvent) {
-      UR_CALL(createEventAndAssociateQueue(Queue, OutEvent,
-                                           UR_COMMAND_EVENTS_WAIT,
-                                           Queue->CommandListMap.end(),
-                                           /* IsInternal */ false));
+      UR_CALL(createEventAndAssociateQueue(
+          Queue, OutEvent, UR_COMMAND_EVENTS_WAIT, Queue->CommandListMap.end(),
+          /* IsInternal */ false));
     }
 
     Queue->synchronize();

@@ -2042,7 +2042,8 @@ inline pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
-  HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
+  HANDLE_ERRORS(
+      urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
   return PI_SUCCESS;
 }
 
@@ -2129,8 +2130,8 @@ inline pi_result piKernelSetExecInfo(pi_kernel Kernel,
   default:
     die("piKernelSetExecInfo: unsupported ParamName\n");
   }
-  HANDLE_ERRORS(
-      urKernelSetExecInfo(UrKernel, PropName, ParamValueSize, nullptr, &PropValue));
+  HANDLE_ERRORS(urKernelSetExecInfo(UrKernel, PropName, ParamValueSize, nullptr,
+                                    &PropValue));
 
   return PI_SUCCESS;
 }
@@ -2308,7 +2309,8 @@ inline pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                           const void *ArgValue) {
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
-  HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
+  HANDLE_ERRORS(
+      urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
 
   return PI_SUCCESS;
 }
