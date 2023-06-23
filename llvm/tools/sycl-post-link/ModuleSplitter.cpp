@@ -938,7 +938,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       SYCLEntryPoints.insert(&F);
   }
 
-  // If there are no ESIMD entry points but but there are functions,
+  // If there are no ESIMD entry points but there are ESIMD functions,
   // we still need to create an (empty) entry point group so that we
   // can lower the ESIMD functions.
   if (!ESIMDEntryPoints.empty() || hasESIMDFunctions) {

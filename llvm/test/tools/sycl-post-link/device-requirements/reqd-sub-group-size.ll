@@ -61,8 +61,6 @@ entry:
   ret void
 }
 
-declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)*, ...)
-
 attributes #0 = { norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="foo.cpp" "sycl-optlevel"="2" "uniform-work-group-size"="true" }
 
 !llvm.module.flags = !{!0, !1}
