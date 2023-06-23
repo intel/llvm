@@ -137,8 +137,11 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
   EntryPointGroupVec EntryPointGroups{};
   std::map<StringRef, EntryPointSet> EntryPointMap;
 
+  bool ESIMDFunctionsExist = false;
   // Only process module entry points:
   for (Function &F : M.functions()) {
+    if (isESIMDFunction(F))
+      ESIMDFunctionsExist = true;
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
         !MD.isEntryPointCandidate(F))
       continue;
@@ -160,6 +163,17 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
         assert(G.GroupId == SYCL_SCOPE_NAME);
         G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
       }
+    }
+    // If ESIMD functions exist in the module, but there were
+    // no ESIMD entry points, create an empty entry point group
+    // with HasESIMD so the ESIMD constructs can be lowered properly
+    // later.
+    if (ESIMDFunctionsExist &&
+        EntryPointGroups.size() == 1 &&
+        EntryPointGroups.back().isSycl()) {
+      EntryPointGroups.emplace_back(ESIMD_SCOPE_NAME, EntryPointSet{});
+      EntryPointGroup &G = EntryPointGroups.back();
+      G.Props.HasESIMD = SyclEsimdSplitStatus::ESIMD_ONLY;
     }
   } else {
     // No entry points met, record this.
@@ -955,8 +969,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 // Functions, which are used from both ESIMD and non-ESIMD code will be
 // duplicated into each module.
 //
-// If there are dependenceis between ESIMD and non-ESIMD code (produced by
-// inoke_simd, for example), the modules has to be linked back together to avoid
+// If there are dependencies between ESIMD and non-ESIMD code (produced by
+// invoke_simd, for example), the modules has to be linked back together to avoid
 // undefined behavior at later stages. That is done at higher level, outside of
 // this function.
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
