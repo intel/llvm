@@ -15,19 +15,6 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-// Get the value of the specialization constant with given name.
-// Post-link tool traces the ID to a string literal it points to and assigns
-// integer ID.
-template <typename T>
-__DPCPP_SYCL_EXTERNAL T __sycl_getScalarSpecConstantValue(const char *ID);
-
-template <typename T>
-__DPCPP_SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
-
-// The intrinsics below are used to implement support SYCL2020 specialization
-// constants. SYCL2020 version requires more parameters compared to the initial
-// version.
-
 // Get the value of the specialization constant with given symbolic ID.
 // `SymbolicID` is a unique string ID of a specialization constant.
 // `DefaultValue` contains a pointer to a global variable with the initializer,
