@@ -650,11 +650,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
       auto SupportedSubGroupSizes =
           Device.get_info<info::device::sub_group_sizes>();
 
-      // ReqdSubGroupSize != 1 is a WA for ESIMD, no backend
-      // currently includes 1 as a valid sub-group size.
-      // TODO: remove this WA when backends support this.
-      if (ReqdSubGroupSize != 1 &&
-          std::none_of(SupportedSubGroupSizes.cbegin(),
+      if (std::none_of(SupportedSubGroupSizes.cbegin(),
                        SupportedSubGroupSizes.cend(),
                        [=](auto s) { return s == ReqdSubGroupSize; }))
         throw sycl::exception(errc::kernel_not_supported,
@@ -2519,8 +2515,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
     auto ReqdSubGroupSize =
         DeviceBinaryProperty(*(ReqdSubGroupSizePropIt.value())).asUint32();
     auto SupportedSubGroupSizes = Dev.get_info<info::device::sub_group_sizes>();
-    if (ReqdSubGroupSize != 1 &&
-        std::none_of(SupportedSubGroupSizes.cbegin(),
+    if (std::none_of(SupportedSubGroupSizes.cbegin(),
                      SupportedSubGroupSizes.cend(),
                      [=](auto s) { return s == ReqdSubGroupSize; }))
       return false;
