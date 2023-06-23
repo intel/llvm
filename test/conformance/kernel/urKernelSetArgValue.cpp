@@ -17,19 +17,19 @@ UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgValueTest);
 
 TEST_P(urKernelSetArgValueTest, Success) {
     ASSERT_SUCCESS(
-        urKernelSetArgValue(kernel, 2, sizeof(arg_value), &arg_value));
+        urKernelSetArgValue(kernel, 2, sizeof(arg_value), nullptr, &arg_value));
 }
 
 TEST_P(urKernelSetArgValueTest, InvalidNullHandleKernel) {
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urKernelSetArgValue(nullptr, 2, sizeof(arg_value), &arg_value));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urKernelSetArgValue(nullptr, 2, sizeof(arg_value), nullptr,
+                                         &arg_value));
 }
 
 TEST_P(urKernelSetArgValueTest, InvalidNullPointerArgValue) {
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_POINTER,
-        urKernelSetArgValue(kernel, 2, sizeof(arg_value), nullptr));
+        urKernelSetArgValue(kernel, 2, sizeof(arg_value), nullptr, nullptr));
 }
 
 TEST_P(urKernelSetArgValueTest, InvalidKernelArgumentIndex) {
@@ -40,10 +40,11 @@ TEST_P(urKernelSetArgValueTest, InvalidKernelArgumentIndex) {
 
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
                      urKernelSetArgValue(kernel, num_kernel_args + 1,
-                                         sizeof(arg_value), &arg_value));
+                                         sizeof(arg_value), nullptr,
+                                         &arg_value));
 }
 
 TEST_P(urKernelSetArgValueTest, InvalidKernelArgumentSize) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE,
-                     urKernelSetArgValue(kernel, 2, 0, &arg_value));
+                     urKernelSetArgValue(kernel, 2, 0, nullptr, &arg_value));
 }
