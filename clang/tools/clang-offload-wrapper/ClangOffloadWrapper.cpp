@@ -36,13 +36,14 @@
 #endif // NDEBUG
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/LineIterator.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
@@ -617,7 +618,8 @@ private:
       FTy = NativeCPUBuiltinTy;
     else
       FTy = NativeCPUFuncTy;
-    auto FCalle = M.getOrInsertFunction(Name, FTy);
+    auto FCalle =
+        M.getOrInsertFunction(sycl::utils::addSYCLNativeCPUSuffix(Name), FTy);
     return dyn_cast<Function>(FCalle.getCallee());
   }
 
@@ -627,12 +629,6 @@ private:
     if (!MBOrErr)
       return MBOrErr.takeError();
     MemoryBuffer *MB = *MBOrErr;
-    SmallVector<Constant *, 5> NativeCPUDecls;
-    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI) {
-      auto NewDecl = addDeclarationForNativeCPU(*LI);
-      NativeCPUDecls.push_back(NewDecl);
-    }
-
     // the Native CPU PI Plug-in expects the BinaryStart field to point to an
     // array of struct nativecpu_entry {
     //   char *kernelname;
@@ -642,10 +638,11 @@ private:
         {PointerType::getUnqual(C), PointerType::getUnqual(C)},
         "__nativecpu_entry");
     SmallVector<Constant *, 5> NativeCPUEntries;
-    for (auto &F : NativeCPUDecls) {
+    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI) {
+      auto *NewDecl = addDeclarationForNativeCPU(*LI);
       NativeCPUEntries.push_back(ConstantStruct::get(
           NCPUEntryT,
-          {addStringToModule(F->getName(), "__ncpu_function_name"), F}));
+          {addStringToModule(*LI, "__ncpu_function_name"), NewDecl}));
     }
 
     // Add an empty entry that we use as end iterator
@@ -666,7 +663,7 @@ private:
                                                  getSizetConstPair(0u, 0u));
     auto *End = ConstantExpr::getGetElementPtr(
         GVar->getValueType(), GVar,
-        getSizetConstPair(0u, NativeCPUDecls.size()));
+        getSizetConstPair(0u, NativeCPUEntries.size()));
     return std::make_pair(Begin, End);
   }
 

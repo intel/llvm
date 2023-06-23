@@ -70,6 +70,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   GlobalOffset.cpp
   TargetHelpers.cpp
   PrepareSYCLNativeCPU.cpp
+  RenameKernelSYCLNativeCPU.cpp
   EmitSYCLNativeCPUHeader.cpp
 
   ADDITIONAL_HEADER_DIRS

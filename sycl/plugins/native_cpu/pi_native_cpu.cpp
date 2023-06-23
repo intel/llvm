@@ -694,6 +694,7 @@ pi_result piProgramCreateWithBinary(pi_context context, pi_uint32,
   auto nativecpu_it = nativecpu_entries;
   auto p = new _pi_program();
   while (strcmp(nativecpu_it->kernelname, "__nativecpu_end") != 0) {
+    std::cout << "[ptrdbg] insering " << nativecpu_it->kernelname << "\n";
     p->_kernels.insert(
         std::make_pair(nativecpu_it->kernelname, nativecpu_it->kernel_ptr));
     nativecpu_it++;
@@ -794,8 +795,10 @@ pi_result piKernelCreate(pi_program program, const char *name,
                          pi_kernel *kernel) {
   // Todo: error checking
   auto ker = new _pi_kernel();
-  auto f =
-      reinterpret_cast<nativecpu_ptr_t>(program->_kernels[std::string(name)]);
+  auto kernelEntry = program->_kernels.find(std::string(name));
+  if (kernelEntry == program->_kernels.end())
+    return PI_ERROR_INVALID_KERNEL_NAME;
+  auto f = reinterpret_cast<nativecpu_ptr_t>(kernelEntry->second);
   ker->_subhandler = *f;
   ker->_name = name;
   *kernel = ker;
