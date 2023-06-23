@@ -112,10 +112,10 @@ template <> struct sycl_to_pi<bool> {
   using type = pi_bool;
 };
 template <> struct sycl_to_pi<device> {
-  using type = RT::PiDevice;
+  using type = sycl::detail::pi::PiDevice;
 };
 template <> struct sycl_to_pi<platform> {
-  using type = RT::PiPlatform;
+  using type = sycl::detail::pi::PiPlatform;
 };
 
 // Mapping fp_config device info types to the values used to check fp support
@@ -160,8 +160,8 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 
 // Helper function to allow using the specialization of get_device_info_impl
 // for string return type in other specializations.
-inline std::string
-device_impl::get_device_info_string(RT::PiDeviceInfo InfoCode) const {
+inline std::string device_impl::get_device_info_string(
+    sycl::detail::pi::PiDeviceInfo InfoCode) const {
   size_t resultSize = 0;
   getPlugin()->call<PiApiKind::piDeviceGetInfo>(getHandleRef(), InfoCode, 0,
                                                 nullptr, &resultSize);
@@ -241,7 +241,7 @@ template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
     if (!checkNativeQueueProfiling(Dev))
       return false;
-    RT::PiResult Result =
+    sycl::detail::pi::PiResult Result =
         Dev->getPlugin()
             ->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
                 Dev->getHandleRef(), nullptr, nullptr);
@@ -315,7 +315,7 @@ struct get_device_info_impl<bool,
   static bool get(const DeviceImplPtr &Dev) {
     bool result = false;
 
-    RT::PiResult Err =
+    sycl::detail::pi::PiResult Err =
         Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
             Dev->getHandleRef(),
             PiInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
