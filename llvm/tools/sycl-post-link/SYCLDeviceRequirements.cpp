@@ -18,7 +18,7 @@
 using namespace llvm;
 
 void llvm::getSYCLDeviceRequirements(
-    const module_split::ModuleDesc &M,
+    const module_split::ModuleDesc &MD,
     std::map<StringRef, llvm::util::PropertyValue> &Requirements) {
   auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
                                              unsigned OpNo) -> unsigned {
@@ -36,18 +36,18 @@ void llvm::getSYCLDeviceRequirements(
       {"sycl_fixed_targets", "fixed_target"},
       {"reqd_work_group_size", "reqd_work_group_size"}};
 
-  for (const auto &MD : ReqdMDs) {
+  for (const auto& [MDName, MappedName] : ReqdMDs) {
     std::set<uint32_t> Values;
-    for (const Function &F : M.getModule()) {
-      if (const MDNode *MDN = F.getMetadata(MD.first)) {
+    for (const Function &F : MD.getModule()) {
+      if (const MDNode *MDN = F.getMetadata(MDName)) {
         for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
           Values.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
       }
     }
     // We don't need the "fixed_target" property if it's empty
-    if (std::string(MD.first) == "sycl_fixed_targets" && Values.empty())
+    if (std::string(MDName) == "sycl_fixed_targets" && Values.empty())
       continue;
-    Requirements[MD.second] =
+    Requirements[MappedName] =
         std::vector<uint32_t>(Values.begin(), Values.end());
   }
 
@@ -59,7 +59,7 @@ void llvm::getSYCLDeviceRequirements(
   // invoke_esimd, and that function has intel_reqd_sub_group_size=1,
   // which is valid.
   std::optional<uint32_t> sub_group_size;
-  for (const Function *F : M.entries()) {
+  for (const Function *F : MD.entries()) {
     if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
       assert(MDN->getNumOperands() == 1);
       auto value = ExtractIntegerFromMDNodeOperand(MDN, 0);
@@ -69,7 +69,7 @@ void llvm::getSYCLDeviceRequirements(
         assert(*sub_group_size == value);
     }
   }
-  // Do not attach reqd_sub_group_Size if there is no attached metadata
+  // Do not attach reqd_sub_group_size if there is no attached metadata
   if (sub_group_size)
     Requirements["reqd_sub_group_size"] = *sub_group_size;
 }
