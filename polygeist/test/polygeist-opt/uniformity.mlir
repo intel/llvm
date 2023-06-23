@@ -10,10 +10,6 @@
 !sycl_item_2 = !sycl.item<[2, true], (!sycl_item_base_2)>
 !sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
 
-// CHECK: test1_add1, uniformity: unknown
-// CHECK: test1_add2, uniformity: non-uniform
-// CHECK: test1_add3, uniformity: non-uniform
-// CHECK: test1_add4, uniformity: uniform
 func.func @test1(%arg0 : i1, %arg1: memref<?x!sycl_nd_item_2>)  {
   %c0_i32 = arith.constant 0 : i32  
   %true = arith.constant 1 : i1
@@ -21,40 +17,38 @@ func.func @test1(%arg0 : i1, %arg1: memref<?x!sycl_nd_item_2>)  {
   %c3 = arith.constant 2 : i64
   %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
 
-  // %arg0 uniformity is unknown -> %v0 uniformity also unknown
-
-  %v0 = scf.if %arg0 -> i64 {
+  // %arg0 uniformity is unknown -> result uniformity also unknown.
+  // CHECK: test1_v1, uniformity: unknown
+  %v1 = scf.if %arg0 -> i64 {
     scf.yield %c2 : i64
   } else {
     scf.yield %c3 : i64
-  }
-  %c1 = arith.constant 1 : i64  
-  %add1 = arith.addi %v0, %c1 {tag = "test1_add1"} : i64
+  } {tag = "test1_v1"} 
 
-  // branch condition is non-uniform -> %v2 is non-uniform
-  %cond2 = arith.cmpi slt, %tx, %c1 : i64
+  // branch condition is non-uniform -> result is non-uniform.
+  // CHECK: test1_v2, uniformity: non-uniform  
+  %cond2 = arith.cmpi slt, %tx, %c2 : i64
   %v2 = scf.if %cond2 -> i64 {
     scf.yield %c2 : i64
   } else {
     scf.yield %c3 : i64
-  }
-  %add2 = arith.addi %v2, %c1 {tag = "test1_add2"} : i64  
+  } {tag = "test1_v2"}
 
-  // branch condition is uniform, but yielded value is non-uniform -> %v0 is non-uniform
+  // branch condition is uniform, but yielded value is non-uniform -> result is non-uniform.
+  // CHECK: test1_v3, uniformity: non-uniform  
   %v3 = scf.if %true -> i64 {
     scf.yield %tx : i64
   } else {
     scf.yield %c3 : i64
-  }  
-  %add3 = arith.addi %v3, %c1 {tag = "test1_add3"} : i64
+  } {tag = "test1_v3"} 
 
-  // branch condition is uniform, and yielded values is uniform -> %v0 is uniform
+  // branch condition is uniform, and yielded values is uniform -> result is uniform.
+  // CHECK: test1_v4, uniformity: uniform  
   %v4 = scf.if %true -> i64 {
     scf.yield %c2 : i64
   } else {
     scf.yield %c3 : i64
-  }
-  %add4 = arith.addi %v4, %c1 {tag = "test1_add4"} : i64
+  } {tag = "test1_v4"} 
 
   return
 }

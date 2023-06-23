@@ -50,9 +50,8 @@ void UniformityLattice::onUpdate(DataFlowSolver *solver) const {
   Lattice::onUpdate(solver);
 
   auto value = point.get<Value>();
-  Operation *op = value.getDefiningOp();
 
-  if (op) {
+  if (Operation *op = value.getDefiningOp()) {
     if (auto branch = dyn_cast<RegionBranchOpInterface>(op)) {
       for (Value operand : branch->getOperands()) {
         auto *uniformity = solver->lookupState<UniformityLattice>(operand);

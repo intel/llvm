@@ -38,20 +38,6 @@ struct TestUniformityAnalysisPass
     if (failed(solver.initializeAndRun(op)))
       return signalPassFailure();
 
-    auto printUniformity = [](const Uniformity &info, raw_ostream &os) {
-      switch (info.getKind()) {
-      case Uniformity::Kind::Unknown:
-        os << "unknown\n";
-        break;
-      case Uniformity::Kind::Uniform:
-        os << "uniform\n";
-        break;
-      case Uniformity::Kind::NonUniform:
-        os << "non-uniform\n";
-        break;
-      }
-    };
-
     op->walk([&](Operation *op) {
       auto tag = op->getAttrOfType<StringAttr>("tag");
       if (!tag)
@@ -64,8 +50,6 @@ struct TestUniformityAnalysisPass
              "lattice element should be initialized");
 
       llvm::errs() << tag.getValue() << ", " << *uniformity << "\n";
-
-      //      printUniformity(uniformity->getValue(), llvm::errs());
     });
   }
 };
