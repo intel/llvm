@@ -51,6 +51,7 @@ namespace mlir {
 namespace test {
 void registerTestMemoryAccessAnalysisPass();
 void registerTestReachingDefinitionAnalysisPass();
+void registerTestUniformityAnalysisPass();
 } // namespace test
 } // namespace mlir
 
@@ -58,6 +59,7 @@ void registerTestReachingDefinitionAnalysisPass();
 void registerTestPasses() {
   mlir::test::registerTestMemoryAccessAnalysisPass();
   mlir::test::registerTestReachingDefinitionAnalysisPass();
+  mlir::test::registerTestUniformityAnalysisPass();
 }
 #endif
 
