@@ -28,7 +28,6 @@
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 #include <sycl/stl.hpp>
 
 #include <algorithm>
@@ -1531,9 +1530,9 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       auto It = NativePrograms.find(NativePrg);
       if (It == NativePrograms.end())
-        throw sycl::ext::oneapi::experimental::spec_const_error(
-            "spec constant is set in a program w/o a binary image",
-            PI_ERROR_INVALID_OPERATION);
+        throw sycl::exception(
+            sycl::errc::invalid,
+            "spec constant is set in a program w/o a binary image");
       Img = It->second;
     }
     if (!Img->supportsSpecConstants()) {
