@@ -32,7 +32,7 @@ objects at the kernel functor scope.
 
 == Notice
 
-Copyright (c) 2021 Intel Corporation.  All rights reserved.
+Copyright (c) 2021-2023 Intel Corporation.  All rights reserved.
 
 == Status
 
@@ -48,7 +48,7 @@ products.
 
 == Version
 
-Revision: 1
+Revision: 2
 
 == Contact
 
@@ -62,7 +62,7 @@ Michael Kinsner, Intel +
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 3.
+This extension is written against the SYCL 2020 specification, Revision 7.
 
 == Feature Test Macro
 
@@ -78,6 +78,7 @@ value to determine which of the extension's APIs the implementation supports.
 |===
 |Value |Description
 |1     |Initial extension version.  Base features are supported.
+|2     |Support for aggregate initialization of arrays.
 |===
 
 == Overview
@@ -131,10 +132,12 @@ namespace ext {
 namespace oneapi {
 
 template <typename T, typename Group, typename... Args>
-multi_ptr<T, Group::address_space> group_local_memory(Group g, Args&&... args);
+multi_ptr<T, access::address_space::local_space>
+group_local_memory(Group g, Args&&... args);
 
 template <typename T, typename Group>
-multi_ptr<T, Group::address_space> group_local_memory_for_overwrite(Group g);
+multi_ptr<T, access::address_space::local_space>
+group_local_memory_for_overwrite(Group g);
 
 } // namespace oneapi
 } // namespace ext
@@ -146,21 +149,24 @@ multi_ptr<T, Group::address_space> group_local_memory_for_overwrite(Group g);
 |Functions |Description
 
 |`template <typename T, typename Group, typename ... Args>
- multi_ptr<T, Group::address_space> group_local_memory(Group g, Args&&... args)` |
+ multi_ptr<T, access::address_space::local_space>
+ group_local_memory(Group g, Args&&... args)` |
 Constructs an object of type `T` in an address space accessible by all
 work-items in group _g_, forwarding _args_ to the constructor's parameter list.
-If _args_ is empty, the object is value initialized.
-The constructor is called once per group, upon or before the first call to
-`group_local_memory`.  The storage for the object is allocated upon or before
-the first call to `group_local_memory`, and deallocated when all work-items in
-the group have completed execution of the kernel.
+If _args_ is empty, the object is value initialized. For array types, the
+_args_ parameter pack is used to initialize the array using aggregate
+initialization. The constructor is called once per group, upon or before the
+first call to `group_local_memory`.  The storage for the object is allocated
+upon or before the first call to `group_local_memory`, and deallocated when all
+work-items in the group have completed execution of the kernel.
 
 All arguments in _args_ must be the same for all work-items in the group.
 
 `Group` must be `sycl::group`, and `T` must be trivially destructible.
 
 |`template <typename T, typename Group>
- multi_ptr<T, Group::address_space> group_local_memory_for_overwrite(Group g)` |
+ multi_ptr<T, access::address_space::local_space>
+ group_local_memory_for_overwrite(Group g)` |
 Constructs an object of type `T` in an address space accessible by all
 work-items in group _g_, using default initialization.  The object is
 initialized upon or before the first call to `group_local_memory`.  The storage
