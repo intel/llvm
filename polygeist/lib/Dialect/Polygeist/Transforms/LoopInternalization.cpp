@@ -217,7 +217,8 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
 /// An access is a candidate iff it is AffineLoadOp or AffineStoreOp, with int
 /// or float element type, and with accessor dimension the same as grid
 /// dimension.
-bool isCandidateAccess(Operation *op) {
+bool isCandidateAccess(Operation *op,
+                       const MemoryAccessAnalysis &memAccessAnalysis) {
   assert(op && "Expecting valid op");
 
   if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
@@ -238,6 +239,25 @@ bool isCandidateAccess(Operation *op) {
   if (auto func = op->getParentOfType<FunctionOpInterface>();
       getGridDimension(func) != getAccessorType(accSub).getDimension())
     return false;
+
+  std::optional<MemoryAccess> memAccess =
+      memAccessAnalysis.getMemoryAccess(memRefAccess);
+  if (!memAccess.has_value())
+    return false;
+
+  // Limitation: Unable to transform memory access with indexes that use more
+  // than one innermost loop induction variable or thread ids in the same
+  // dimension.
+  dataflow::IntegerValueRange zero(ConstantIntRanges::constant(APInt(1, 0)));
+  MemoryAccessMatrix matrix = memAccess->getAccessMatrix();
+  for (size_t i = 0; i < matrix.getNumRows(); ++i) {
+    // Not a candidate when there exists more than one non-zero entry in a
+    // row.
+    if (count_if(matrix.getRow(i), [&](dataflow::IntegerValueRange range) {
+          return !(range == zero);
+        }) > 1)
+      return false;
+  }
 
   return true;
 }
@@ -727,10 +747,8 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
 
     std::optional<MemoryAccess> memAccess =
         memAccessAnalysis.getMemoryAccess(memRefAccess);
-    if (!memAccess.has_value()) {
-      LLVM_DEBUG(llvm::dbgs() << "Unable to analyze memref access\n");
-      continue;
-    }
+    assert(memAccess.has_value() &&
+           "Expecting valid memory access analysis result");
 
     memRefAccessToMemSpace[memRef] =
         selectMemorySpace(*memAccess, gridDimension, accessKind);
@@ -974,7 +992,7 @@ void LoopInternalization::selectMemorySpace(
   memorySelector.analyze(loop, MemorySelector::AccessKind::ReadOnly);
 
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    if (!isCandidateAccess(op))
+    if (!isCandidateAccess(op, memAccessAnalysis))
       return;
 
     affine::MemRefAccess memRefAccess(op);
