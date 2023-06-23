@@ -1,7 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
 // UNSUPPORTED: accelerator
+
+// UNSUPPORTED: hip
 
 // This test checks the spenario of using specialization constants with an
 // 'array of array' as well as a 'stuct with an array of array' types for

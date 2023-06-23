@@ -32,6 +32,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   }
 
   pDdiTable->pfnInit = urInit;
+  pDdiTable->pfnGetLastResult = urGetLastResult;
   pDdiTable->pfnTearDown = urTearDown;
 
   return retVal;
@@ -182,7 +183,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
   pDdiTable->pfnCreateWithNativeHandle = urPlatformCreateWithNativeHandle;
   pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
   pDdiTable->pfnGetBackendOption = urPlatformGetBackendOption;
-  pDdiTable->pfnGetLastError = urPlatformGetLastError;
 
   return retVal;
 }

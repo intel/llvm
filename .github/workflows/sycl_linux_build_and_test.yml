@@ -77,8 +77,6 @@ jobs:
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
-    outputs:
-      build_conclusion: ${{ steps.build.conclusion }}
     steps:
     # GHA requires relative paths for actions. Copy actions from container root
     # to CWD.
@@ -148,7 +146,6 @@ jobs:
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
     - name: Install
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       # TODO replace utility installation with a single CMake target
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
@@ -162,7 +159,7 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
         cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
     - name: Additional Install for "--shared-libs" build
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '--shared-libs') }}
+      if: ${{ contains(inputs.build_configure_extra_args, '--shared-libs') }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-libraries
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-libraries
@@ -175,10 +172,8 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
 
     - name: Pack toolchain
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: tar -I 'zstd -9' -cf llvm_sycl.tar.zst -C $GITHUB_WORKSPACE/build/install .
     - name: Upload toolchain
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
@@ -187,7 +182,7 @@ jobs:
   aws-start:
     name: Start AWS
     needs: build
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_aws_matrix != '[]' }}
+    if: ${{ inputs.lts_aws_matrix != '[]' }}
     uses: ./.github/workflows/aws.yml
     secrets: inherit
     with:
@@ -198,7 +193,7 @@ jobs:
     needs: [build, aws-start]
     # Continue if build was successful. If aws-start is not successful all
     # AWS tasks will fail, but all non-AWS tasks should continue.
-    if: ${{ always() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_matrix != '[]' }}
+    if: ${{ always() && needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:

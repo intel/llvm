@@ -1,3 +1,4 @@
+// UNSUPPORTED: hip_amd
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

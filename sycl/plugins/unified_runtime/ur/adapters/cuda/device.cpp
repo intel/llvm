@@ -23,10 +23,6 @@ int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
 uint64_t ur_device_handle_t_::getElapsedTime(CUevent ev) const {
   float Milliseconds = 0.0f;
 
-  // cuEventSynchronize waits till the event is ready for call to
-  // cuEventElapsedTime.
-  UR_CHECK_ERROR(cuEventSynchronize(EvBase));
-  UR_CHECK_ERROR(cuEventSynchronize(ev));
   UR_CHECK_ERROR(cuEventElapsedTime(&Milliseconds, EvBase, ev));
 
   return static_cast<uint64_t>(Milliseconds * 1.0e6);
@@ -694,7 +690,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     return ReturnValue(0u);
   }
-  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
+  case UR_DEVICE_INFO_PARTITION_PROPERTIES: {
     return ReturnValue(static_cast<ur_device_partition_t>(0u));
   }
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
@@ -1023,7 +1019,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urDevicePartition(ur_device_handle_t, const ur_device_partition_properties_t *,
+urDevicePartition(ur_device_handle_t, const ur_device_partition_property_t *,
                   uint32_t, ur_device_handle_t *, uint32_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

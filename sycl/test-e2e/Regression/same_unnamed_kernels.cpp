@@ -1,8 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
 // Temporarily disabled on CUDA: https://github.com/intel/llvm/issues/9174
-// UNSUPPORTED: cuda
+// UNSUPPORTED: hip, cuda
 
 //==----- same_unnamed_kernels.cpp - SYCL kernel naming variants test ------==//
 //

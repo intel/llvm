@@ -539,31 +539,28 @@ struct get_device_info_impl<bool, info::device::kernel_kernel_pipe_support> {
   }
 };
 
-template <int Dimensions>
-range<Dimensions> construct_range(size_t *values) = delete;
+template <int Dimensions> id<Dimensions> construct_id(size_t *values) = delete;
 // Due to the flipping of work group dimensions before kernel launch, the values
 // should also be reversed.
-template <> inline range<1> construct_range<1>(size_t *values) {
-  return {values[0]};
-}
-template <> inline range<2> construct_range<2>(size_t *values) {
+template <> inline id<1> construct_id<1>(size_t *values) { return {values[0]}; }
+template <> inline id<2> construct_id<2>(size_t *values) {
   return {values[1], values[0]};
 }
-template <> inline range<3> construct_range<3>(size_t *values) {
+template <> inline id<3> construct_id<3>(size_t *values) {
   return {values[2], values[1], values[0]};
 }
 
 // Specialization for max_work_item_sizes.
 template <int Dimensions>
-struct get_device_info_impl<range<Dimensions>,
+struct get_device_info_impl<id<Dimensions>,
                             info::device::max_work_item_sizes<Dimensions>> {
-  static range<Dimensions> get(const DeviceImplPtr &Dev) {
+  static id<Dimensions> get(const DeviceImplPtr &Dev) {
     size_t result[3];
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::max_work_item_sizes<Dimensions>>::value,
         sizeof(result), &result, nullptr);
-    return construct_range<Dimensions>(result);
+    return construct_id<Dimensions>(result);
   }
 };
 
@@ -846,19 +843,19 @@ inline uint32_t get_device_info_host<info::device::max_work_item_dimensions>() {
 }
 
 template <>
-inline range<1> get_device_info_host<info::device::max_work_item_sizes<1>>() {
+inline id<1> get_device_info_host<info::device::max_work_item_sizes<1>>() {
   // current value is the required minimum
   return {1};
 }
 
 template <>
-inline range<2> get_device_info_host<info::device::max_work_item_sizes<2>>() {
+inline id<2> get_device_info_host<info::device::max_work_item_sizes<2>>() {
   // current value is the required minimum
   return {1, 1};
 }
 
 template <>
-inline range<3> get_device_info_host<info::device::max_work_item_sizes<3>>() {
+inline id<3> get_device_info_host<info::device::max_work_item_sizes<3>>() {
   // current value is the required minimum
   return {1, 1, 1};
 }

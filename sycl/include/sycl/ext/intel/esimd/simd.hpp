@@ -126,11 +126,6 @@ public:
     return sycl::ext::oneapi::experimental::simd<Ty, N1>(base_type::data());
   }
 
-  /// Copy assignment operator.
-  simd &operator=(const simd &other) noexcept {
-    return base_type::operator=(other);
-  }
-
   /// Prefix increment, increments elements of this object.
   /// @return Reference to this object.
   simd &operator++() {

@@ -1,3 +1,4 @@
+// UNSUPPORTED: hip
 // RUN: %{build} -fsycl-device-code-split=per_kernel -I . -o %t.out
 // RUN: %{run} %t.out
 

@@ -4,7 +4,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   message(STATUS "Download Level Zero loader and headers from github.com")
 
   set(LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
-  set(LEVEL_ZERO_LOADER_TAG v1.11.0)
+  set(LEVEL_ZERO_LOADER_TAG v1.8.8)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
@@ -32,7 +32,6 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-extra-semi")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-non-virtual-dtor")
   endif()
 
   FetchContent_MakeAvailable(level-zero-loader)

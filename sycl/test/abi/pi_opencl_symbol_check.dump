@@ -13,7 +13,6 @@ piDeviceGetInfo
 piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate
-piEventGetInfo
 piGetDeviceAndHostTimer
 piKernelCreate
 piKernelGetGroupInfo

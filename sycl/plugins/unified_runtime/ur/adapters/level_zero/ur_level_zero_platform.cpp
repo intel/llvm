@@ -341,16 +341,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetLastError(
+UR_APIEXPORT ur_result_t UR_APICALL urGetLastResult(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance
-    const char **Message, ///< [out] pointer to a C string where the adapter
-                          ///< specific error message will be stored.
-    int32_t *Error ///< [out] pointer to an integer where the adapter specific
-                   ///< error code will be stored.
+    const char **Message ///< [out] pointer to a string containing adapter
+                         ///< specific result in string representation.
 ) {
   std::ignore = Platform;
   std::ignore = Message;
-  std::ignore = Error;
   urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -487,8 +484,8 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
         if (numQueueGroups == 0) {
           return UR_RESULT_ERROR_UNKNOWN;
         }
-        std::vector<ZeStruct<ze_command_queue_group_properties_t>>
-            QueueGroupProperties(numQueueGroups);
+        std::vector<ze_command_queue_group_properties_t> QueueGroupProperties(
+            numQueueGroups);
         ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
                    (UrSubDevice->ZeDevice, &numQueueGroups,
                     QueueGroupProperties.data()));
@@ -548,13 +545,6 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
   return UR_RESULT_SUCCESS;
 }
 
-// Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return '-ze-opt-disable' for frontend_option = -O0.
-// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
-// Return '-ze-opt-level=2' for frontend_option = -O3.
-// Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
-// frontend_option=-ftarget-compile-fast.
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance.
     const char *FrontendOption, ///< [in] string containing the frontend option.
@@ -581,10 +571,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
   }
   if (FrontendOption == "-O3"sv) {
     *PlatformOption = "-ze-opt-level=2";
-    return UR_RESULT_SUCCESS;
-  }
-  if (FrontendOption == "-ftarget-compile-fast"sv) {
-    *PlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
     return UR_RESULT_SUCCESS;
   }
   return UR_RESULT_ERROR_INVALID_VALUE;

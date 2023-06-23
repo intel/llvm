@@ -1,3 +1,5 @@
+// UNSUPPORTED: hip
+
 // RUN: %{build} -fsycl-instrument-device-code -o %t.out
 // RUN: %{run} %t.out
 

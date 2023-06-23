@@ -12,7 +12,7 @@ int main() {
   sycl::queue Queue;
   sycl::buffer<int, 1> Buf(8);
   sycl::device Dev = Queue.get_device();
-  sycl::range<1> MaxWISizes =
+  sycl::id<1> MaxWISizes =
       Dev.get_info<sycl::info::device::max_work_item_sizes<1>>();
   bool ExceptionCaught = false;
   try {

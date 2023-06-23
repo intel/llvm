@@ -1,12 +1,10 @@
 // REQUIRES: gpu
 // REQUIRES: aspect-fp16
-
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || hip
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

@@ -1,13 +1,12 @@
 // REQUIRES: gpu
 // REQUIRES: aspect-fp16
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
-
-// UNSUPPORTED: cuda
+//
+// UNSUPPORTED: cuda || hip
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
