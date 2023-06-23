@@ -112,6 +112,8 @@ the following values for the :ref:`offload kind<table-offload_kind>` and the
     +------------+-------+---------------------------------------+
     | OFK_HIP    | 0x03  | The producer was HIP                  |
     +------------+-------+---------------------------------------+
+    | OFK_SYCL   | 0x04  | The producer was SYCL                 |
+    +------------+-------+---------------------------------------+
 
 The flags are used to signify certain conditions, such as the presence of
 debugging information or whether or not LTO was used. The string entry table is
@@ -124,7 +126,7 @@ array of the :ref:`string entry<table-binary_string>` format.
     +----------+--------------+-------------------------------------------------------+
     |   Type   |   Identifier | Description                                           |
     +==========+==============+=======================================================+
-    | uint64_t |  key offset  | Absolute byte offset of the key in th string table    |
+    | uint64_t |  key offset  | Absolute byte offset of the key in the string table   |
     +----------+--------------+-------------------------------------------------------+
     | uint64_t | value offset | Absolute byte offset of the value in the string table |
     +----------+--------------+-------------------------------------------------------+
@@ -145,9 +147,9 @@ Usage
 =====
 
 This tool can be used with the following arguments. Generally information is
-passed as a key-value pair to the ``image=`` argument. The ``file`` and ``triple``,
-arguments are considered mandatory to make a valid image. The ``arch`` argument 
-is suggested.
+passed as a key-value pair to the ``image=`` argument. The ``file`` and
+``triple``, arguments are considered mandatory to make a valid image.
+The ``arch`` argument is suggested.
 
 .. code-block:: console
 
