@@ -11,7 +11,7 @@ is to show the basic ESIMD APIs in well known examples.
    float *b = new float[Size];               // B uses HOST memory
    buffer<float, 1> buf_b(b, Size);
 
-   // Initialize 'a' and 'b' here.
+   // initialize 'a' and 'b' here.
     
    // Compute: a[i] += b[i];
    q.submit([&](handler &cgh) {
@@ -37,15 +37,15 @@ is to show the basic ESIMD APIs in well known examples.
    }
 
    int main(void) { 
-     int *In = new int[Size];
-     int *Out = new int[Size];
-     buffer<int, 1> bufin(In, range<1>(Size));
-     buffer<int, 1> bufout(Out, range<1>(Size));
+     int *in = new int[SIZE];
+     int *out = new int[SIZE];
+     buffer<int, 1> bufin(in, range<1>(SIZE));
+     buffer<int, 1> bufout(out, range<1>(SIZE));
 
      // scale factor
      int n = 2;
 
-     sycl::range<1> GlobalRange{Size};
+     sycl::range<1> GlobalRange{SIZE};
      sycl::range<1> LocalRange{VL};
     
      q.submit([&](handler &cgh) {
@@ -57,11 +57,11 @@ is to show the basic ESIMD APIs in well known examples.
             sycl::sub_group sg = item.get_sub_group();
             unsigned int offset = item.get_global_linear_id();
 
-            int in = sg.load(accin.get_pointer() + offset);
+            int in_val = sg.load(accin.get_pointer() + offset);
 
-            int out = invoke_simd(sg, scale, in, uniform{n});
+            int out_val = invoke_simd(sg, scale, in_val, uniform{n});
 
-            sg.store(accout.get_pointer() + offset, out);
+            sg.store(accout.get_pointer() + offset, out_val);
           });
     });
     ```

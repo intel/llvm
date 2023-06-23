@@ -21,7 +21,7 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 namespace esimd = sycl::ext::intel::esimd;
 
-constexpr int Size = 512;
+constexpr int SIZE = 512;
 constexpr int VL = 16;
 
 [[intel::device_indirectly_callable]] simd<int, VL> __regcall scale(
@@ -37,22 +37,22 @@ int main(void) {
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
   bool passed = true;
-  int *In = new int[Size];
-  int *Out = new int[Size];
+  int *in = new int[SIZE];
+  int *out = new int[SIZE];
 
-  for (int i = 0; i < Size; ++i) {
-    In[i] = i;
-    Out[i] = 0;
+  for (int i = 0; i < SIZE; ++i) {
+    in[i] = i;
+    out[i] = 0;
   }
 
   // scale factor
   int n = 2;
 
   try {
-    buffer<int, 1> bufin(In, range<1>(Size));
-    buffer<int, 1> bufout(Out, range<1>(Size));
+    buffer<int, 1> bufin(in, range<1>(SIZE));
+    buffer<int, 1> bufout(out, range<1>(SIZE));
 
-    sycl::range<1> GlobalRange{Size};
+    sycl::range<1> GlobalRange{SIZE};
     sycl::range<1> LocalRange{VL};
 
     auto e = q.submit([&](handler &cgh) {
@@ -64,30 +64,30 @@ int main(void) {
             sycl::sub_group sg = item.get_sub_group();
             unsigned int offset = item.get_global_linear_id();
 
-            int in = sg.load(accin.get_pointer() + offset);
+            int in_val = sg.load(accin.get_pointer() + offset);
 
-            int out = invoke_simd(sg, scale, in, uniform{n});
+            int out_val = invoke_simd(sg, scale, in_val, uniform{n});
 
-            sg.store(accout.get_pointer() + offset, out);
+            sg.store(accout.get_pointer() + offset, out_val);
           });
     });
     e.wait();
   } catch (sycl::exception const &e) {
-    delete[] In;
-    delete[] Out;
+    delete[] in;
+    delete[] out;
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return 1;
   }
 
-  for (int i = 0; i < Size; ++i) {
-    if (Out[i] != In[i] * n) {
-      std::cout << "failed at index " << i << ", " << Out[i] << " != " << In[i]
+  for (int i = 0; i < SIZE; ++i) {
+    if (out[i] != in[i] * n) {
+      std::cout << "failed at index " << i << ", " << out[i] << " != " << in[i]
                 << " * " << n << "\n";
       passed = false;
     }
   }
-  delete[] In;
-  delete[] Out;
+  delete[] in;
+  delete[] out;
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
 }
