@@ -167,7 +167,7 @@ public:
   std::string MKernelName;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
-  RT::PiKernelCacheConfig MKernelCacheConfig;
+  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
 
   CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -176,7 +176,8 @@ public:
                std::string KernelName,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
-               CGTYPE Type, RT::PiKernelCacheConfig KernelCacheConfig,
+               CGTYPE Type,
+               sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
                detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
