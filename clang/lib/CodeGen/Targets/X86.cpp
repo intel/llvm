@@ -3352,6 +3352,10 @@ ABIArgInfo WinX86_64ABIInfo::classify(QualType Ty, unsigned &FreeSSERegs,
 }
 
 void WinX86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
+  ASTContext &Context = getContext();
+  if (doOpenCLClassification(FI, Context))
+    return;
+
   const unsigned CC = FI.getCallingConvention();
   bool IsVectorCall = CC == llvm::CallingConv::X86_VectorCall;
   bool IsRegCall = CC == llvm::CallingConv::X86_RegCall;
