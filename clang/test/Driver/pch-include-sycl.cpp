@@ -4,7 +4,8 @@
 
 // RUN: touch %t.h
 
-// RUN: %clang -c -x c++-header %t.h
+// PCH file.
+// RUN: touch %t.h.gch
 
 // Linux
 // -fsycl and -include
