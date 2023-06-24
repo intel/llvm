@@ -9,6 +9,49 @@
 // This pass tiles perfect loop nests to 'prefetch' memory accesses in shared
 // local memory.
 //
+// Before optimization:
+//   size_t global_id = nditem.get_global_id(0)
+//   for (size_t k = 0; k < N; ++k)
+//     A[k];
+//
+// After optimization (pseudocode):
+//   // Obtain shared local memory for all candidate memory access in a kernel
+//   needed for this optimization.
+//   memref.global "private" @WGLocalMem
+//                             : memref<-xi8, #sycl.access.address_space<local>>
+//   %shared_memory_ptr = memref.get_global @WGLocalMem
+//                             : memref<-xi8, #sycl.access.address_space<local>>
+//   size_t global_id = nditem.get_global_id(0);
+//   %local_id = nditem.get_local_id(0)
+//   %work_group_size = nditem.get_local_range(0)
+//   // When there are more than one memory access promoted to shared local
+//   memory, then %offset needs to incremented by the size of the previous
+//   memory access.
+//   %offset = 0
+//   // Get pointer to the shared local memory portion for 'A'. Notice that
+//   %view has %work_group_size number of entries.
+//   %view = memref.view %shared_memory_ptr[%offset][%work_group_size]
+//                             : memref<-xi8, #sycl.access.address_space<local>>
+//                             to memref<?xf32,
+//                             #sycl.access.address_space<local>>
+//   // Loop is tiled with %work_group_size as the tile size.
+//   for (size_t k = 0; k < N; k+= work_group_size) {
+//     // Copy from global memory to shared local memory.
+//     // A's index needs to be adjusted to outer loop induction variable plus
+//     tiled loop lower bound, to get different portion of 'A'.
+//     %view[local_id] = A[local_id+k]
+//     // The optimization relies on each thread in a work group to initialize
+//     %view, so we need a barrier here before reading from %view.
+//     group_barrier(nditem.get_group());
+//     for (size_t t = k; t < k + work_group_size; ++t)
+//       // %view's index needs to be adjusted to tiled loop induction variable
+//       minus tiled loop lower bound, as %view starts from zero.
+//       %view[t-k]
+//     // Before %view get overwritten in the next loop iteration, we need to
+//     ensure it is done reading from, so we need another barrier here.
+//     group_barrier(nditem.get_group());
+//   }
+//
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
