@@ -99,7 +99,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 
 // -----
 
-// COM: Not candidate: Access references more than one global id or innerloop induction variable.
+// COM: Not candidate: Access references more than one global id or innermost loop induction variable.
 // CHECK: LoopInternalization
 // CHECK:   (S) 0 num-tiled - Number of loops tiled
 
