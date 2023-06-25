@@ -1164,10 +1164,6 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// getter methods returning surface index are not available when stateless
-// memory accesses are enforced.
-#ifndef __ESIMD_FORCE_STATELESS_MEM
-
 // \brief Converts given value to a surface index.
 // The input must always be a result of
 //   detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc)
@@ -1200,7 +1196,5 @@ ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
       __ESIMD_DNS::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
-
-#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @endcond ESIMD_DETAIL

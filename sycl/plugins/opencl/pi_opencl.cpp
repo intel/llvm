@@ -99,8 +99,6 @@ pi_result piPluginGetLastError(char **message) {
 }
 
 // Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
 pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
                                    const char **backend_option) {
   using namespace std::literals;
@@ -110,6 +108,7 @@ pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
     *backend_option = "";
     return PI_SUCCESS;
   }
+  // Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
   if (!strcmp(frontend_option, "-O0")) {
     *backend_option = "-cl-opt-disable";
     return PI_SUCCESS;
@@ -117,6 +116,10 @@ pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
   if (frontend_option == "-O1"sv || frontend_option == "-O2"sv ||
       frontend_option == "-O3"sv) {
     *backend_option = "";
+    return PI_SUCCESS;
+  }
+  if (frontend_option == "-ftarget-compile-fast"sv) {
+    *backend_option = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
     return PI_SUCCESS;
   }
   return PI_ERROR_INVALID_VALUE;
@@ -2331,6 +2334,24 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   return PI_SUCCESS;
 }
 
+pi_result piEventGetInfo(pi_event event, pi_event_info param_name,
+                         size_t param_value_size, void *param_value,
+                         size_t *param_value_size_ret) {
+  cl_int result =
+      clGetEventInfo(reinterpret_cast<cl_event>(event), param_name,
+                     param_value_size, param_value, param_value_size_ret);
+  if (result == CL_SUCCESS && param_name == CL_EVENT_COMMAND_EXECUTION_STATUS) {
+    // If the CL_EVENT_COMMAND_EXECUTION_STATUS info value is CL_QUEUED, change
+    // it to CL_SUBMITTED. This change is needed since
+    // sycl::info::event::event_command_status has no equivalent to CL_QUEUED.
+    const auto param_value_int = static_cast<cl_int *>(param_value);
+    if (*param_value_int == CL_QUEUED) {
+      *param_value_int = CL_SUBMITTED;
+    }
+  }
+  return static_cast<pi_result>(result);
+}
+
 const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -2418,7 +2439,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelGetNativeHandle, piextKernelGetNativeHandle)
   // Event
   _PI_CL(piEventCreate, piEventCreate)
-  _PI_CL(piEventGetInfo, clGetEventInfo)
+  _PI_CL(piEventGetInfo, piEventGetInfo)
   _PI_CL(piEventGetProfilingInfo, clGetEventProfilingInfo)
   _PI_CL(piEventsWait, clWaitForEvents)
   _PI_CL(piEventSetCallback, clSetEventCallback)
