@@ -490,9 +490,9 @@ static inline double __trunc(double x) {
 
 static inline float __fast_exp10f(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
-  return __builtin_expf(__builtin_logf(10.f) * x);
+  return __builtin_expf(0x1.26bb1cp1f * x);
 #elif defined(__SPIR__)
-  return __spirv_ocl_native_exp10(x);
+  return __spirv_ocl_native_exp(0x1.26bb1cp1f * x);
 #endif
 }
 
@@ -516,7 +516,7 @@ static inline float __fast_log2f(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_log2f(x);
 #elif defined(__SPIR__)
-  return __spirv_ocl_native_log2(x);
+  return __spirv_ocl_native_log(x) / 0x1.62e43p-1f;
 #endif
 }
 
@@ -524,7 +524,7 @@ static inline float __fast_log10f(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_log10f(x);
 #elif defined(__SPIR__)
-  return __spirv_ocl_native_log10(x);
+  return __spirv_ocl_native_log(x) / 0x1.26bb1cp1f;
 #endif
 }
 
@@ -545,7 +545,7 @@ static inline float __fast_fdividef(float x, float y) {
   unsigned xexp_bits = (xbits >> 23) & 0xFF;
   unsigned yman_bits = ybits & 0x7F'FFFF;
   unsigned xman_bits = xbits & 0x7F'FFFF;
-  if ((yexp_bits == 0xFD && yman_bits != 0) || (yexp_bits == 0xFE)) {
+  if (ybits > 0x7E80'0000) {
     if ((xexp_bits = 0xFF) && (xman_bits == 0))
       return __builtin_bit_cast(float, 0x7FC00000);
     else
