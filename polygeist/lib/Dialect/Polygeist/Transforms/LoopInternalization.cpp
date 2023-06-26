@@ -15,7 +15,7 @@
 //     A[k];
 //
 // After optimization (pseudocode):
-//   // Obtain shared local memory for all candidate memory access in a kernel
+//   // Obtain shared local memory for all candidate memory accesses in a kernel
 //   needed for this optimization.
 //   memref.global "private" @WGLocalMem
 //                             : memref<-xi8, #sycl.access.address_space<local>>
