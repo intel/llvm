@@ -21,8 +21,8 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include <ur/usm_allocator_config.hpp>
 #include <sycl/detail/defines.hpp>
+#include <ur/usm_allocator_config.hpp>
 
 struct _ur_platform_handle_t;
 
