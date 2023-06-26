@@ -13,7 +13,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/pi.h>
-#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/property_list.hpp>
 
@@ -514,17 +513,6 @@ void program_impl::create_pi_program_with_kernel_name(
   RTDeviceBinaryImage &Img = PM.getDeviceImage(
       KernelName, get_context(), FirstDevice, JITCompilationIsRequired);
   MProgram = PM.createPIProgram(Img, get_context(), {FirstDevice});
-}
-
-void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
-                                          size_t ValSize) {
-  if (MState != program_state::none)
-    throw sycl::ext::oneapi::experimental::spec_const_error(
-        "Invalid program state", PI_ERROR_INVALID_PROGRAM);
-  // Reuse cached programs lock as opposed to introducing a new lock.
-  auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();
-  spec_constant_impl &SC = SpecConstRegistry[Name];
-  SC.set(ValSize, ValAddr);
 }
 
 void program_impl::flush_spec_constants(
