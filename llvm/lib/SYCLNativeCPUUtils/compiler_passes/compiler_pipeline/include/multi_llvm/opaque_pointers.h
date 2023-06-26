@@ -27,28 +27,18 @@ inline bool isOpaquePointerTy(llvm::Type *Ty) {
   return false;
 }
 
-inline bool isOpaqueOrPointeeTypeMatches(llvm::PointerType *PTy,
-                                         llvm::Type *EltTy) {
-#if LLVM_VERSION_MAJOR >= 15
-  (void)EltTy;
+inline bool isOpaqueOrPointeeTypeMatches(llvm::PointerType *PTy, llvm::Type *) {
   (void)PTy;
   assert(PTy->isOpaque() && "No support for typed pointers in LLVM 15+");
   return true;
-#else
-  return PTy->isOpaque() || PTy->getPointerElementType() == EltTy;
-#endif
 }
 
 inline llvm::Type *getPtrElementType(llvm::PointerType *PTy) {
   if (PTy->isOpaque()) {
     return nullptr;
   }
-#if LLVM_VERSION_MAJOR >= 15
-  assert(false && "No support for typed pointers in LLVM 15+");
+  assert(false && "No support for typed pointers");
   return nullptr;
-#else
-  return PTy->getPointerElementType();
-#endif
 }
 
 };  // namespace multi_llvm
