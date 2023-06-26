@@ -6,8 +6,6 @@
 // TODO currently the feature isn't supported on FPGA.
 // UNSUPPORTED: accelerator
 //
-// Not currently supported on HIP.
-// UNSUPPORTED: hip
 
 //==----------- bfloat16_type.cpp - SYCL bfloat16 type test ----------------==//
 //
