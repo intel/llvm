@@ -1926,23 +1926,33 @@ piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   // to process it later when the device is known (at the kernel enqueue).
   //
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  if (ArgProperties) {
-    assert(ArgProperties->type == PI_KERNEL_ARG_MEM_OBJ_ACCESS);
-    ur_kernel_arg_mem_obj_properties_t UrMemProperties{};
-    UrMemProperties.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
-    switch (ArgProperties->mem_access) {
-    case PI_ACCESS_READ_ONLY:
-      UrMemProperties.memoryAccess = UR_MEM_FLAG_READ_ONLY;
-      break;
-    case PI_ACCESS_WRITE_ONLY:
-      UrMemProperties.memoryAccess = UR_MEM_FLAG_WRITE_ONLY;
-      break;
-    case PI_ACCESS_READ_WRITE:
-      UrMemProperties.memoryAccess = UR_MEM_FLAG_READ_WRITE;
-      break;
-    }
+  // the only applicable type, just ignore anything else
+  if (ArgProperties && ArgProperties->type == PI_KERNEL_ARG_MEM_OBJ_ACCESS) {
+    // following structure layout checks to be replaced with
+    // std::is_layout_compatible after move to C++20
+    static_assert(sizeof(pi_mem_obj_property) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t));
+    static_assert(sizeof(pi_mem_obj_property::type) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t::stype));
+    static_assert(sizeof(pi_mem_obj_property::pNext) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t::pNext));
+    static_assert(sizeof(pi_mem_obj_property::mem_access) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t::memoryAccess));
+
+    static_assert(uint32_t(PI_ACCESS_READ_WRITE) ==
+                  uint32_t(UR_MEM_FLAG_READ_WRITE));
+    static_assert(uint32_t(PI_ACCESS_READ_ONLY) ==
+                  uint32_t(UR_MEM_FLAG_READ_ONLY));
+    static_assert(uint32_t(PI_ACCESS_WRITE_ONLY) ==
+                  uint32_t(UR_MEM_FLAG_WRITE_ONLY));
+    static_assert(uint32_t(PI_KERNEL_ARG_MEM_OBJ_ACCESS) ==
+                  uint32_t(UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES));
+
+    const ur_kernel_arg_mem_obj_properties_t *UrMemProperties =
+        reinterpret_cast<const ur_kernel_arg_mem_obj_properties_t *>(
+            ArgProperties);
     HANDLE_ERRORS(
-        urKernelSetArgMemObj(UrKernel, ArgIndex, &UrMemProperties, UrMemory));
+        urKernelSetArgMemObj(UrKernel, ArgIndex, UrMemProperties, UrMemory));
   } else {
     HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, nullptr, UrMemory));
   }
