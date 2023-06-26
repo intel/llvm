@@ -24,7 +24,7 @@
 #include <sycl/sycl.hpp>
 #include <syclcompat/defs.hpp>
 
-TEST(DPCT, Align) {
+TEST(DEFS, Align) {
   struct {
     int a;
     char c;
