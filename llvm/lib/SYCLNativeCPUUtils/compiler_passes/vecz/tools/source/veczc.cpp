@@ -46,7 +46,6 @@
 
 #include <string>
 
-#include "multi_llvm/multi_llvm.h"
 #include "vecz/pass.h"
 #include "vecz/vecz_target_info.h"
 
@@ -287,9 +286,8 @@ int main(const int argc, const char *const argv[]) {
 
   llvm::SMDiagnostic err;
   llvm::LLVMContext context;
-#if LLVM_VERSION_GREATER_EQUAL(15, 0)
   context.setOpaquePointers(true);
-#endif
+
   std::unique_ptr<llvm::Module> module =
       llvm::parseIRFile(InputFilename, err, context);
 
