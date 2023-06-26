@@ -64,18 +64,6 @@ class Optional : public llvm::Optional<T> {
   inline constexpr bool has_value() const {
     return llvm::Optional<T>::hasValue();
   }
-
-#if (LLVM_VERSION_MAJOR <= 14)
-  inline constexpr const T &value() const {
-    return llvm::Optional<T>::getValue();
-  }
-  inline constexpr T &value() { return llvm::Optional<T>::getValue(); }
-
-  template <typename U>
-  constexpr T value_or(U &&alt) const & {
-    return llvm::Optional<T>::getValueOr(alt);
-  }
-#endif
 };
 
 #endif

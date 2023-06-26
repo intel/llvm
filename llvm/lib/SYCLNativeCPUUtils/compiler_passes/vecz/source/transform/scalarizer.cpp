@@ -27,7 +27,6 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/raw_ostream.h>
-#include <multi_llvm/llvm_version.h>
 #include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
@@ -667,11 +666,7 @@ SimdPacket *Scalarizer::extractLanes(llvm::Value *V, PacketMask PM) {
     }
 
     Value *Idx = B.getInt32(i);
-#if LLVM_VERSION_GREATER_EQUAL(15, 0)
     Value *Extract = simplifyExtractElementInst(V, Idx, Q);
-#else
-    Value *Extract = SimplifyExtractElementInst(V, Idx, Q);
-#endif
     if (!Extract) {
       Extract = B.CreateExtractElement(V, Idx);
     }

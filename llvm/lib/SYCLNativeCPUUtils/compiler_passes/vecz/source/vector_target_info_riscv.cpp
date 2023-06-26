@@ -360,10 +360,8 @@ llvm::Value *TargetInfoRISCV::createScalableExtractElement(
                                  indices, zero);
 
   SmallVector<Value *, 4> ops;
-#if LLVM_VERSION_GREATER_EQUAL(15, 0)
-  // LLVM 15+ has a pass-through operand - we set it to undef.
+  // Add the a pass-through operand - we set it to undef.
   ops.push_back(UndefValue::get(srcTy));
-#endif
   ops.push_back(src);
   ops.push_back(indices);
   ops.push_back(avl);
@@ -428,10 +426,8 @@ llvm::Value *TargetInfoRISCV::createScalableBroadcast(llvm::IRBuilder<> &B,
   auto *const avl = getIntrinsicVL(B, VL, wideTy, getTargetMachine());
 
   SmallVector<Value *, 4> ops;
-#if LLVM_VERSION_GREATER_EQUAL(15, 0)
-  // LLVM 15+ has a pass-through operand - we set it to undef.
+  // Add the pass-through operand - we set it to undef.
   ops.push_back(UndefValue::get(vs2->getType()));
-#endif
   ops.push_back(vs2);
   ops.push_back(vs1);
   ops.push_back(avl);
@@ -641,10 +637,8 @@ llvm::Value *TargetInfoRISCV::createVectorShuffle(llvm::IRBuilder<> &B,
   auto *const avl = getIntrinsicVL(B, VL, gatherTy, getTargetMachine());
 
   SmallVector<Value *, 4> ops;
-#if LLVM_VERSION_GREATER_EQUAL(15, 0)
-  // LLVM 15+ has a pass-through operand - we set it to undef.
+  // Add the pass-through operand - we set it to undef.
   ops.push_back(UndefValue::get(gatherTy));
-#endif
   ops.push_back(src);
   ops.push_back(mask);
   ops.push_back(avl);
@@ -676,10 +670,8 @@ llvm::Value *TargetInfoRISCV::createVectorSlideUp(llvm::IRBuilder<> &B,
   auto *const avl = getIntrinsicVL(B, VL, srcTy, getTargetMachine());
 
   SmallVector<Value *, 4> ops;
-#if LLVM_VERSION_GREATER_EQUAL(15, 0)
-  // LLVM 15+ has a pass-through operand - we set it to undef.
+  // Add the pass-through operand - we set it to undef.
   ops.push_back(UndefValue::get(srcTy));
-#endif
   ops.push_back(src);
   ops.push_back(insert);
   ops.push_back(avl);

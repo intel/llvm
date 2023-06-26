@@ -31,8 +31,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/raw_ostream.h>
-#include <multi_llvm/multi_llvm.h>
-#include <multi_llvm/vector_type_helper.h>
+#include <multi_llvm/optional_helper.h>
 
 #include <queue>
 #include <utility>
@@ -3064,11 +3063,7 @@ bool ControlFlowConversionState::Impl::simplifyMasks() {
         if (I.use_empty()) {
           toDelete.push_back(&I);
         } else {
-#if LLVM_VERSION_GREATER_EQUAL(15, 0)
           Value *simpleMask = simplifyInstruction(&I, Q);
-#else
-          Value *simpleMask = SimplifyInstruction(&I, Q);
-#endif
           if (simpleMask && simpleMask != &I) {
             I.replaceAllUsesWith(simpleMask);
             toDelete.push_back(&I);
