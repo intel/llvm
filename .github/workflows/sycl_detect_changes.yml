@@ -39,7 +39,7 @@ jobs:
               - *llvm_spirv
               - *clang
               - 'libclc/**'
-            sycl:
+            sycl: &sycl
               - *clang
               - *sycl-fusion
               - *llvm_spirv
@@ -49,4 +49,11 @@ jobs:
               - 'sycl/!(test-e2e|doc)/**'
             ci:
               - .github/workflows/**
-              - devops/**
+              - devops/*/**
+              # devops/* contains config files, including drivers versions.
+              # Allow them to be tested in pre-commit.
+            drivers_and_configs: &drivers_and_configs
+              - devops/*
+            test_build:
+              - *sycl
+              - *drivers_and_configs
