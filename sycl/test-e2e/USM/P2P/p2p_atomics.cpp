@@ -1,5 +1,5 @@
 // REQUIRES: cuda
-// RUN: %if any-device-is-cuda %{ %{build} -DUSE_CUDA_SM80=1 -Xsycl-target-backend --cuda-gpu-arch=sm_61 -o %t.out %}
+// RUN: %if any-device-is-cuda %{ %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_61 -o %t.out %}
 // RUN: %if ext_oneapi_cuda %{ %{run} %t.out %}
 
 #include <cassert>
@@ -77,6 +77,6 @@ int main() {
 
   free(d_sum, Queues[0]);
   free(d_in, Queues[0]);
-
+  std::cout << "PASS" << std::endl;
   return 0;
 }

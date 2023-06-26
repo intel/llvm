@@ -681,7 +681,8 @@ inline pi_result piDeviceRelease(pi_device Device) {
 }
 
 inline pi_result piPluginGetLastError(char **message) {
-  return HANDLE_ERRORS(urGetLastResult(message));
+  std::ignore = message;
+  return PI_SUCCESS;
 }
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,

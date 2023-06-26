@@ -16,11 +16,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
   ur_result_t result = UR_RESULT_SUCCESS;
   try {
     ScopedContext active(commandDevice->getContext());
-    CUresult cu_res = cuCtxEnablePeerAccess(peerDevice->getContext(), 0);
-    if (cu_res != CUDA_SUCCESS) {
-      setPluginSpecificMessage(cu_res);
-      result = UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-    }
+    UR_CHECK_ERROR(cuCtxEnablePeerAccess(peerDevice->getContext(), 0));
   } catch (ur_result_t err) {
     result = err;
   }
@@ -33,11 +29,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
   ur_result_t result = UR_RESULT_SUCCESS;
   try {
     ScopedContext active(commandDevice->getContext());
-    CUresult cu_res = cuCtxDisablePeerAccess(peerDevice->getContext());
-    if (cu_res != CUDA_SUCCESS) {
-      setPluginSpecificMessage(cu_res);
-      result = UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-    }
+    UR_CHECK_ERROR(cuCtxDisablePeerAccess(peerDevice->getContext()));
   } catch (ur_result_t err) {
     result = err;
   }

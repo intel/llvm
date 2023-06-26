@@ -22,6 +22,7 @@
 #include <zes_api.h>
 
 #include <ur/usm_allocator_config.hpp>
+#include <sycl/detail/defines.hpp>
 
 struct _ur_platform_handle_t;
 
@@ -468,7 +469,7 @@ extern thread_local char ErrorMessage[MaxMessageSize];
                                       ur_result_t error_code);
 
 /// ------ Error handling, matching OpenCL plugin semantics.
-/*namespace sycl {
+namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace ur {
@@ -483,4 +484,3 @@ namespace ur {
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-*/

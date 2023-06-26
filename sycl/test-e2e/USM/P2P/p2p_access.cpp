@@ -66,6 +66,6 @@ int main() {
   sycl::free(arr1, Queues[1]);
 
   Devs[0].ext_oneapi_disable_peer_access(Devs[1]);
-
+  std::cout << "PASS" << std::endl;
   return 0;
 }
