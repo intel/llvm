@@ -163,10 +163,11 @@ destructible.
 
 _Effects_: Constructs an object of type `T` in an address space accessible by
 all work-items in group `g`, using default initialization.  The object is
-initialized upon or before the first call to `group_local_memory`. The storage
-for the object is allocated upon or before the first call to
-`group_local_memory`, and deallocated when all work-items in the group have
-completed execution of the kernel.
+initialized upon or before the first call to
+`group_local_memory_for_overwrite`. The storage for the object is allocated
+upon or before the first call to `group_local_memory_for_overwrite`, and
+deallocated when all work-items in the group have completed execution of the
+kernel.
 
 _Returns_: A `multi_ptr` to the constructed object.
 
