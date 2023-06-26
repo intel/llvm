@@ -11,6 +11,7 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/PropertySetIO.h"
 
 #include <set>
 #include <vector>
@@ -19,7 +20,7 @@ using namespace llvm;
 
 void llvm::getSYCLDeviceRequirements(
     const module_split::ModuleDesc &MD,
-    std::map<StringRef, llvm::util::PropertyValue> &Requirements) {
+    std::map<StringRef, util::PropertyValue> &Requirements) {
   auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
                                              unsigned OpNo) -> unsigned {
     Constant *C =
