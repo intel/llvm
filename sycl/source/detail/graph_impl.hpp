@@ -363,7 +363,7 @@ public:
 
   /// Turns the internal graph representation into UR command-buffers for a
   /// device.
-  /// @param D Device to create backend command-buffers for.
+  /// @param Device Device to create backend command-buffers for.
   void createURCommandBuffers(sycl::device Device);
 
   /// Query for the context tied to this graph.
