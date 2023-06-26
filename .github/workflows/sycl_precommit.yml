@@ -105,7 +105,9 @@ jobs:
     name: Windows
     needs: [lint, test_matrix, detect_changes]
     if: |
-      github.repository == 'intel/llvm'
+      always()
+      && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+      && github.repository == 'intel/llvm'
       && !contains(needs.detect_changes.outputs.filters, 'ci')
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
