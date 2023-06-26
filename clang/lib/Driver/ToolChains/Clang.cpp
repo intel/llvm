@@ -1124,6 +1124,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                     const InputInfoList &Inputs) const {
   const bool IsIAMCU = getToolChain().getTriple().isOSIAMCU();
   const bool IsIntelFPGA = Args.hasArg(options::OPT_fintelfpga);
+  bool SYCLDeviceCompilation = JA.isOffloading(Action::OFK_SYCL) &&
+                               JA.isDeviceOffloading(Action::OFK_SYCL);
 
   CheckPreprocessingOptions(D, Args);
 
@@ -1346,8 +1348,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // If PCH file is available, include it while performing
       // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
       // as well as in non-sycl mode.
-      bool SYCLDeviceCompilation = JA.isOffloading(Action::OFK_SYCL) &&
-                                   JA.isDeviceOffloading(Action::OFK_SYCL);
 
       if (!isa<PrecompileJobAction>(JA) && !SYCLDeviceCompilation) {
         CmdArgs.push_back("-include-pch");
@@ -1396,9 +1396,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // If PCH file is available, include it while performing
       // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
       // as well as in non-sycl mode.
-
-      bool SYCLDeviceCompilation = JA.isOffloading(Action::OFK_SYCL) &&
-                                   JA.isDeviceOffloading(Action::OFK_SYCL);
 
       if (FoundPCH && !SYCLDeviceCompilation) {
         if (IsFirstImplicitInclude) {
