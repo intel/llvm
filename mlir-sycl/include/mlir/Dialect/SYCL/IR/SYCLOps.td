@@ -688,7 +688,7 @@ def SYCLIDGetOp
 def SYCLItemGetIDOp
     : SYCLMethodOpInterfaceImpl<"item.get_id", "ItemType",
                                 ["get_id", "operator[]", "operator unsigned long"],
-                                [SYCLGetID]> {
+                                [SYCLGetID, ResultsNonUniform]> {
   let summary = "Call to item::get_id/operator[]/operator size_t";
   let description = [{
     This operation represents a call to the item::get_id/operator[]/operator size_t functions.
@@ -729,7 +729,8 @@ def SYCLItemGetRangeOp
 
 def SYCLItemGetLinearIDOp
     : SYCLMethodOpInterfaceImpl<"item.get_linear_id", "ItemType",
-                                ["get_linear_id"]> {
+                                ["get_linear_id"], 
+                                [ResultsNonUniform]> {
   let summary = "Call to item::get_linear_id";
   let description = [{
     This operation represents a call to the item::get_linear_id function.
@@ -749,7 +750,7 @@ def SYCLItemGetLinearIDOp
 def SYCLNDItemGetGlobalIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_global_id", "NdItemType",
                                 ["get_global_id"], 
-                                [SYCLGetID]> {
+                                [SYCLGetID, ResultsNonUniform]> {
   let summary = "Call to nd_item::get_global_id";
   let description = [{
     This operation represents a call to the nd_item::get_global_id function.
@@ -769,7 +770,8 @@ def SYCLNDItemGetGlobalIDOp
 
 def SYCLNDItemGetGlobalLinearIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_global_linear_id", "NdItemType",
-                                ["get_global_linear_id"]> {
+                                ["get_global_linear_id"], 
+                                [ResultsNonUniform]> {
   let summary = "Call to nd_item::get_global_linear_id";
   let description = [{
     This operation represents a call to the nd_item::get_global_linear_id function.
@@ -789,7 +791,7 @@ def SYCLNDItemGetGlobalLinearIDOp
 def SYCLNDItemGetLocalIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_local_id", "NdItemType",
                                 ["get_local_id"], 
-                                [SYCLGetID]> {
+                                [SYCLGetID, ResultsNonUniform]> {
   let summary = "Call to nd_item::get_local_id";
   let description = [{
     This operation represents a call to the nd_item::get_local_id function.
@@ -809,7 +811,8 @@ def SYCLNDItemGetLocalIDOp
 
 def SYCLNDItemGetLocalLinearIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_local_linear_id", "NdItemType",
-                                ["get_local_linear_id"]> {
+                                ["get_local_linear_id"],
+                                [ResultsNonUniform]> {
   let summary = "Call to nd_item::get_local_linear_id";
   let description = [{
     This operation represents a call to the nd_item::get_local_linear_id function.

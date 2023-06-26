@@ -2039,6 +2039,8 @@ def ConstantLike : NativeOpTrait<"ConstantLike">;
 def IsolatedFromAbove : NativeOpTrait<"IsIsolatedFromAbove">;
 // Op results are float or vectors/tensors thereof.
 def ResultsAreFloatLike : NativeOpTrait<"ResultsAreFloatLike">;
+// Op results are not the same for each thread.
+def ResultsNonUniform : NativeOpTrait<"ResultsNonUniform">;
 // Op has the same operand type.
 def SameTypeOperands : NativeOpTrait<"SameTypeOperands">;
 // Op has same shape for all operands.
