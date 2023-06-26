@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_mem.cpp - Level Zero Adapter -------------===//
+//===--------- mem.cpp - Level Zero Adapter --------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,8 +11,8 @@
 #include <string.h>
 
 #include "ur_level_zero.hpp"
-#include "ur_level_zero_context.hpp"
-#include "ur_level_zero_event.hpp"
+#include "context.hpp"
+#include "event.hpp"
 
 // Default to using compute engine for fill operation, but allow to
 // override this with an environment variable.

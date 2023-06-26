@@ -1,4 +1,4 @@
-//===--------- ur_loader_interface.cpp - Level Zero Adapter----------===//
+//===--------- ur_interface_loader.cpp - Level Zero Adapter-----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_usm.cpp - Level Zero Adapter -------------===//
+//===--------- usm.cpp - Level Zero Adapter --------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,8 +11,8 @@
 #include <string.h>
 
 #include "ur_level_zero.hpp"
-#include "ur_level_zero_context.hpp"
-#include "ur_level_zero_event.hpp"
+#include "context.hpp"
+#include "event.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     ur_context_handle_t Context, ///< [in] handle of the context object

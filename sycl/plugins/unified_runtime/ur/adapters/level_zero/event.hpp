@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_event.hpp - Level Zero Adapter -----------===//
+//===--------- event.hpp - Level Zero Adapter ------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,8 +22,8 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "ur_level_zero_common.hpp"
-#include "ur_level_zero_queue.hpp"
+#include "common.hpp"
+#include "queue.hpp"
 
 extern "C" {
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event);
