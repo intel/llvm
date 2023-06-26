@@ -13,7 +13,6 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_MAX_COMPUTE_UNITS, sizeof(uint32_t)},
     {UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS, sizeof(uint32_t)},
     {UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t)},
-    {UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t)},
     {UR_DEVICE_INFO_SINGLE_FP_CONFIG, sizeof(ur_device_fp_capability_flags_t)},
     {UR_DEVICE_INFO_HALF_FP_CONFIG, sizeof(ur_device_fp_capability_flags_t)},
     {UR_DEVICE_INFO_DOUBLE_FP_CONFIG, sizeof(ur_device_fp_capability_flags_t)},
@@ -258,7 +257,7 @@ TEST_P(urDeviceGetInfoTest, Success) {
             ASSERT_SUCCESS(urDeviceGetInfo(device, info_type, size,
                                            info_data.data(), nullptr));
         } else {
-            ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_INVALID_ENUMERATION);
+            ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
         }
     }
 }
