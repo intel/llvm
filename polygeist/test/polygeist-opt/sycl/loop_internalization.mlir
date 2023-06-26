@@ -352,7 +352,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        %[[VAL_34:.*]] = sycl.nd_item.get_global_id(%[[VAL_1]], %[[VAL_32]]) : (memref<?x!sycl_nd_item_2_>, i32) -> i64
 // CHECK-NEXT:        %[[VAL_35:.*]] = arith.index_cast %[[VAL_34]] : i64 to index
 // CHECK-NEXT:        %[[VAL_36:.*]] = sycl.nd_item.get_global_id(%[[VAL_1]], %[[VAL_33]]) : (memref<?x!sycl_nd_item_2_>, i32) -> i64
-// CHECK-NEXT:        %[[VAL_37:.*]] = arith.index_cast %[[VAL_36]] : i64 to index
+// CHECK-NEXT:        %[[GLOBALID1:.*]] = arith.index_cast %[[VAL_36]] : i64 to index
 
 // COM: Ensure there is a sufficient amount of shared local memory available and memory accesses reference the loop IV 'consistently':
 // CHECK-NEXT:        %[[SHARED_MEM_AMOUNT:.*]] = arith.constant 32000 : index
@@ -411,7 +411,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:            %[[VAL_69:.*]] = arith.constant 0 : index
 // CHECK-NEXT:            %[[VAL_70:.*]] = arith.constant 0 : i32
 // CHECK-NEXT:            %[[VAL_71:.*]] = sycl.id.get %[[VAL_68]]{{\[}}%[[VAL_70]]] : (memref<1x!sycl_id_2_>, i32) -> memref<?xindex>
-// CHECK-NEXT:            memref.store %[[VAL_37]], %[[VAL_71]]{{\[}}%[[VAL_69]]] : memref<?xindex>
+// CHECK-NEXT:            memref.store %[[GLOBALID1]], %[[VAL_71]]{{\[}}%[[VAL_69]]] : memref<?xindex>
 // CHECK-NEXT:            %[[VAL_72:.*]] = arith.constant 1 : i32
 // CHECK-NEXT:            %[[VAL_73:.*]] = sycl.id.get %[[VAL_68]]{{\[}}%[[VAL_72]]] : (memref<1x!sycl_id_2_>, i32) -> memref<?xindex>
 // CHECK-NEXT:            memref.store %[[VAL_45]], %[[VAL_73]]{{\[}}%[[VAL_69]]] : memref<?xindex>
