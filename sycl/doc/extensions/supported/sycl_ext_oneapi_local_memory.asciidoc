@@ -194,6 +194,10 @@ myQueue.submit([&](handler &h) {
 The example above creates a kernel with four work-groups, each containing 32
 work-items. An `int[64]` object is defined in group-local memory, and
 each work-item in the work-group obtains a `multi_ptr` to the same allocation.
+The array is aggregate initialized, but since there are no arguments supplied
+after `item.get_group()` there are no arguments to forward to the array
+constructor. The result is that all array elements are value initialized
+(to zero, since that is the value initialization behavior for `float`).
 
 
 == Issues
