@@ -2284,21 +2284,32 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 pi_result piextCommandBufferCreate(pi_context context, pi_device device,
                                    const pi_ext_command_buffer_desc *desc,
                                    pi_ext_command_buffer *ret_command_buffer) {
+  (void)context;
+  (void)device;
+  (void)desc;
+  (void)ret_command_buffer;
+
   // Not implemented
   return {};
 }
 
 pi_result piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
   // Not implemented
   return {};
 }
 
 pi_result piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
   // Not implemented
   return {};
 }
 
 pi_result piextCommandBufferFinalize(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
   // Not implemented
   return {};
 }
@@ -2309,6 +2320,15 @@ pi_result piextCommandBufferNDRangeKernel(
     const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)kernel;
+  (void)work_dim;
+  (void)global_work_offset;
+  (void)global_work_size;
+  (void)local_work_size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+
   // Not implemented
   return {};
 }
@@ -2319,6 +2339,14 @@ piextCommandBufferMemcpyUSM(pi_ext_command_buffer command_buffer, void *dst_ptr,
                             pi_uint32 num_sync_points_in_wait_list,
                             const pi_ext_sync_point *sync_point_wait_list,
                             pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)dst_ptr;
+  (void)src_ptr;
+  (void)size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
   // Not implemented
   return {};
 }
@@ -2329,6 +2357,16 @@ pi_result piextCommandBufferMemBufferCopy(
     pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)src_buffer;
+  (void)dst_buffer;
+  (void)src_offset;
+  (void)dst_offset;
+  (void)size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
   // Not implemented
   return {};
 }
@@ -2341,6 +2379,18 @@ pi_result piextCommandBufferMemBufferCopyRect(
     pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)src_buffer;
+  (void)dst_buffer;
+  (void)src_origin;
+  (void)dst_origin;
+  (void)region;
+  (void)src_row_pitch;
+  (void)src_slice_pitch;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
   // Not implemented
   return {};
 }
@@ -2350,6 +2400,12 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
                                     pi_uint32 num_events_in_wait_list,
                                     const pi_event *event_wait_list,
                                     pi_event *event) {
+  (void)command_buffer;
+  (void)queue;
+  (void)num_events_in_wait_list;
+  (void)event_wait_list;
+  (void)event;
+
   // Not implemented
   return {};
 }

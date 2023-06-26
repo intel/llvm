@@ -2135,8 +2135,8 @@ piextCommandBufferRetain(pi_ext_command_buffer command_buffer);
 
 /// API to decrement the reference count of the command-buffer. After the
 /// command_buffer reference count becomes zero and has finished execution, the
-/// command-buffer is deleted. \param command_buffer The command_buffer to
-/// release.
+/// command-buffer is deleted.
+/// \param command_buffer The command_buffer to release.
 __SYCL_EXPORT pi_result
 piextCommandBufferRelease(pi_ext_command_buffer command_buffer);
 
