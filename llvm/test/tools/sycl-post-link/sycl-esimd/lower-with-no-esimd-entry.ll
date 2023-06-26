@@ -1,3 +1,6 @@
+; This test checks to see if ESIMD lowering is performed even without the
+; the presence of ESIMD entry points.
+
 ; RUN: sycl-post-link -symbols -lower-esimd -split=auto -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table --check-prefixes CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYMS
@@ -24,6 +27,7 @@ entry:
 
 declare dso_local x86_regcallcc noundef i32 @_Z33__regcall3____builtin_invoke_simd1(ptr noundef, ptr noundef, i32 noundef)
 
+; The generated helper should be inlined with the call to @ESIMD_function.
 ; CHECK: @helper_{{[0-9]+}}(<16 x i32> %simd_args.coerce)
 ; CHECK-NEXT: entry:
 ; CHECK-NEXT: ret <16 x i32> zeroinitializer
