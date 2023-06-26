@@ -99,6 +99,10 @@ def : TargetInfo<"__TestDeprecatedAspectList",
     AspectUsm_restricted_shared_allocations, AspectHost],
     []>;
 
+def : TargetInfo<"spir64-unknown-unknown", [AspectGpu, AspectAtomic64, AspectFp16], [], "", "">;
+def : TargetInfo<"spir64_gen-unknown-unknown", [AspectGpu, AspectAtomic64], [], "", "">;
+def : TargetInfo<"x86_64-unknown-unknown", [AspectCpu, AspectAtomic64], [], "", "">;
+def : TargetInfo<"x86_64-unknown-linux-gnu", [AspectCpu, AspectAtomic64], [], "", "">;
 def : TargetInfo<"TargetA", [AspectCpu, AspectAtomic64], [8, 16], "ocloc", "devA", 1>;
 def : TargetInfo<"TargetB", [AspectGpu, AspectFp16], [8, 16], "ocloc", "devB">;
 def : TargetInfo<"TargetC", [AspectEmulated, AspectImage], [8, 16], "ocloc", "devC">;

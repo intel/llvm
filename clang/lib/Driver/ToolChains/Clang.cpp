@@ -47,6 +47,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
@@ -5317,6 +5318,81 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
                      options::OPT_fno_sycl_esimd_force_stateless_mem, false))
       CmdArgs.push_back("-fsycl-esimd-force-stateless-mem");
+
+    // Define macros associated with `any_device_has/all_devices_have` according
+    // to the aspects define in the DeviceConfigFile.
+    const auto &TargetTable = DeviceConfigFile::TargetTable;
+    std::map<StringRef, unsigned int> AllDevicesHave;
+    std::map<StringRef, bool> AnyDeviceHas;
+    bool AnyDeviceHasAnyAspect = false;
+    unsigned int ValidTargets = 0;
+    // If starts with "spir64", just use "spir64", otherwise use the full
+    // triple. std::string::start_with(...) is only available since C++20, so we
+    // use an alternative.
+    // auto AdjustedTripleStr =
+    //    (TripleStr.rfind("spir64", 0) == 0) ? "spir64" : TripleStr;
+    for (const auto &[TargetKey, TargetInfo] : TargetTable) {
+      // if (AdjustedTripleStr != TargetKey)
+      if (TripleStr != TargetKey)
+        continue;
+      ++ValidTargets;
+      const auto &AspectList = TargetInfo.aspects;
+      const auto &MaySupportOtherAspects = TargetInfo.maySupportOtherAspects;
+      if (!AnyDeviceHasAnyAspect)
+        AnyDeviceHasAnyAspect = MaySupportOtherAspects;
+      for (const auto &aspect : AspectList) {
+        // If target has an entry in the config file, the set of aspects
+        // supported by all devices supporting the target is 'AspectList'. If
+        // there's no entry, such set is empty.
+        const auto &AspectIt = AllDevicesHave.find(aspect);
+        if (AspectIt != AllDevicesHave.end())
+          ++AllDevicesHave[aspect];
+        else
+          AllDevicesHave[aspect] = 1;
+        // If target has an entry in the config file AND
+        // 'MaySupportOtherAspects' is false, the set of aspects supported by
+        // any device supporting the target is 'AspectList'. If there's no entry
+        // OR 'MaySupportOtherAspects' is true, such set contains all the
+        // aspects.
+        AnyDeviceHas[aspect] = true;
+      }
+    }
+
+    if (ValidTargets == 0) {
+      // If there's no entry for the target in the device config file, the set
+      // of aspects supported by any device supporting the target contains all
+      // the aspects.
+      AnyDeviceHasAnyAspect = true;
+    }
+
+    // TODO: Find a way of defining TotalExistingAspects associated with real
+    // aspects list from SYCL RT.
+    if (AnyDeviceHasAnyAspect) {
+      // There exists some target that supports any given aspect.
+      SmallString<64> MacroAnyDevice("-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1");
+      CmdArgs.push_back(Args.MakeArgString(MacroAnyDevice));
+      D.addSYCLTargetMacroArg(Args, MacroAnyDevice);
+    } else {
+      // Some of the aspects are not supported at all by any of the targets.
+      // Thus, we need to define individual macros for each supported aspect.
+      for (const auto &[TargetKey, SupportedTarget] : AnyDeviceHas) {
+        assert(SupportedTarget);
+        SmallString<64> MacroAnyDevice("-D__SYCL_ANY_DEVICE_HAS_");
+        MacroAnyDevice += TargetKey;
+        MacroAnyDevice += "__=1";
+        CmdArgs.push_back(Args.MakeArgString(MacroAnyDevice));
+        D.addSYCLTargetMacroArg(Args, MacroAnyDevice);
+      }
+    }
+    for (const auto &[TargetKey, SupportedTargets] : AllDevicesHave) {
+      if (SupportedTargets != ValidTargets)
+        continue;
+      SmallString<64> MacroAllDevices("-D__SYCL_ALL_DEVICES_HAVE_");
+      MacroAllDevices += TargetKey;
+      MacroAllDevices += "__=1";
+      CmdArgs.push_back(Args.MakeArgString(MacroAllDevices));
+      D.addSYCLTargetMacroArg(Args, MacroAllDevices);
+    }
   }
 
   if (IsOpenMPDevice) {
