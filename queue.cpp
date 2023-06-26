@@ -134,9 +134,9 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     bool IsOutOfOrder = false;
     if (pProps && pProps->stype == UR_STRUCTURE_TYPE_QUEUE_PROPERTIES) {
       URFlags = pProps->flags;
-      if (URFlags == __SYCL_UR_CUDA_USE_DEFAULT_STREAM) {
+      if (URFlags == UR_QUEUE_FLAG_USE_DEFAULT_STREAM) {
         Flags = CU_STREAM_DEFAULT;
-      } else if (URFlags == __SYCL_UR_CUDA_SYNC_WITH_DEFAULT) {
+      } else if (URFlags == UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM) {
         Flags = 0;
       }
 
@@ -261,9 +261,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 
   ur_queue_flags_t Flags = 0;
   if (CuFlags == CU_STREAM_DEFAULT)
-    Flags = __SYCL_UR_CUDA_USE_DEFAULT_STREAM;
+    Flags = UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
   else if (CuFlags == CU_STREAM_NON_BLOCKING)
-    Flags = __SYCL_UR_CUDA_SYNC_WITH_DEFAULT;
+    Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
   else
     sycl::detail::ur::die("Unknown cuda stream");
 
