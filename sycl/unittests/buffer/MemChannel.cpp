@@ -97,6 +97,12 @@ TEST_F(BufferMemChannelTest, MemChannelProp) {
 
   sycl::queue Q{Plt.get_devices()[0]};
   sycl::buffer<int, 1> Buf(3, sycl::property::buffer::mem_channel{42});
+
+  ASSERT_TRUE(Buf.has_property<sycl::property::buffer::mem_channel>());
+  ASSERT_EQ(
+      Buf.get_property<sycl::property::buffer::mem_channel>().get_channel(),
+      (uint32_t)42);
+
   Q.submit([&](sycl::handler &CGH) {
      sycl::accessor Acc{Buf, CGH, sycl::read_write};
      constexpr size_t KS = sizeof(decltype(Acc));
