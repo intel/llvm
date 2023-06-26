@@ -8,7 +8,7 @@
         "gen9"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
-      "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",
+      "container_options": "-u 1001 --device=/dev/dri --cap-add SYS_ADMIN",
       "targets": "ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu",
       "cmake_args": ""
     },
@@ -20,7 +20,7 @@
         "gen9"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
-      "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",
+      "container_options": "-u 1001 --device=/dev/dri --cap-add SYS_ADMIN",
       "targets": "ext_oneapi_level_zero:gpu",
       "cmake_args": ""
     },
@@ -42,7 +42,7 @@
         "gen9"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
-      "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",
+      "container_options": "-u 1001 --device=/dev/dri --cap-add SYS_ADMIN",
       "targets": "opencl:gpu",
       "cmake_args": ""
     },

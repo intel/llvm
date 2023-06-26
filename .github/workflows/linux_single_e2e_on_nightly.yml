@@ -24,7 +24,7 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
       image: ${{ inputs.image }}
-      options: --device=/dev/dri --privileged --cap-add SYS_ADMIN ${{ inputs.extra_image_opts }}
+      options: --device=/dev/dri --cap-add SYS_ADMIN ${{ inputs.extra_image_opts }}
     steps:
     - uses: actions/checkout@v3
       with:
