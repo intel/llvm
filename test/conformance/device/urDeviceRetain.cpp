@@ -27,6 +27,12 @@ TEST_F(urDeviceRetainTest, Success) {
 
 TEST_F(urDeviceRetainTest, SuccessSubdevices) {
     for (auto device : devices) {
+        if (!uur::hasDevicePartitionSupport(device,
+                                            UR_DEVICE_PARTITION_EQUALLY)) {
+            ::testing::Message() << "Device: \'" << device
+                                 << "\' does not support partitioning equally.";
+            continue;
+        }
 
         ur_device_partition_property_t prop = uur::makePartitionEquallyDesc(1);
         ur_device_partition_properties_t properties{

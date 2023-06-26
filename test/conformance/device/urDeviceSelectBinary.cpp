@@ -56,7 +56,7 @@ TEST_F(urDeviceSelectBinaryTest, InvalidValueNumBinaries) {
     for (auto device : devices) {
         uint32_t selected_binary;
         ASSERT_EQ_RESULT(
-            UR_RESULT_ERROR_INVALID_VALUE,
+            UR_RESULT_ERROR_INVALID_SIZE,
             urDeviceSelectBinary(device, binaries, 0, &selected_binary));
     }
 }
