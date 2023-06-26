@@ -232,21 +232,17 @@ function should follow the C++ standard for handling NaN's and Inf values.
 Note: In the case of the `pow` function, additional overloads have been added
 to ensure that for their first argument `base` and second `argument`:
 
-If `base` and/or `exponent` has type `complex<sycl::half>` or `sycl::half`,
-then `pow(base, exponent)` has the same effect as
-`pow(complex<sycl::half>(base), complex<sycl::half>(exponent))`.
+* If `base` and/or `exponent` has type `complex<double>`, `double`,
+  then `pow(base, exponent)` has the same effect as
+  `pow(complex<double>(base), complex<double>(exponent))`.
 
-Otherwise, if `base` and/or `exponent` has type `complex<float>`, `float`,
-then `pow(base, exponent)` has the same effect as
-`pow(complex<float>(base), complex<float>(exponent))`.
+* Otherwise, if `base` and/or `exponent` has type `complex<float>`, `float`,
+  then `pow(base, exponent)` has the same effect as
+  `pow(complex<float>(base), complex<float>(exponent))`.
 
-Otherwise, if `base` and/or `exponent` has type `complex<double>`, `double`,
-then `pow(base, exponent)` has the same effect as
-`pow(complex<double>(base), complex<double>(exponent))`.
-
-Lastly, if one argument has type `complex<T>` and the other argument has type
-`complex<U>`, then `pow(base, exponent)` has the same effect as
-`pow(complex<std::common_type_t<T, U>>(base), complex<std::common_type_t<T, U>>(exponent))`.
+* Otherwise, if `base` and/or `exponent` has type `complex<sycl::half>` or `sycl::half`,
+  then `pow(base, exponent)` has the same effect as
+  `pow(complex<sycl::half>(base), complex<sycl::half>(exponent))`.
 
 ```C++
 namespace sycl {
