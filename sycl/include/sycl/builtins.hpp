@@ -48,6 +48,8 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
 namespace __sycl_std = __host_std;
 #endif
 
+#define __SYCL_COMMA ,
+
 #define __SYCL_DEF_BUILTIN_VEC(TYPE)                                           \
   __SYCL_BUILTIN_DEF(TYPE##2)                                                  \
   __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
@@ -67,6 +69,19 @@ namespace __sycl_std = __host_std;
   __SYCL_BUILTIN_DEF(TYPE##2)                                                  \
   __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
   __SYCL_BUILTIN_DEF(TYPE##4)
+
+#define __SYCL_DEF_BUILTIN_GEOCROSSVEC(TYPE)                                   \
+  __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
+  __SYCL_BUILTIN_DEF(TYPE##4)
+
+#define __SYCL_DEF_BUILTIN_GEOMARRAY(TYPE)                                     \
+  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 2>)                              \
+  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 3>)                              \
+  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 4>)
+
+#define __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(TYPE)                                \
+  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 3>)                              \
+  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 4>)
 
 #define __SYCL_DEF_BUILTIN_MARRAY(TYPE)
 
@@ -263,6 +278,11 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_FLOAT_SCALAR __SYCL_BUILTIN_DEF(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_VEC __SYCL_DEF_BUILTIN_VEC(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(float)
+#define __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSMARRAY                                \
+  __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(float)
+#define __SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY __SYCL_DEF_BUILTIN_GEOMARRAY(float)
+#define __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSVEC                                   \
+  __SYCL_DEF_BUILTIN_GEOCROSSVEC(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(float)
 #define __SYCL_DEF_BUILTIN_FLOATN                                              \
   __SYCL_DEF_BUILTIN_FLOAT_VEC                                                 \
@@ -277,6 +297,11 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_DOUBLE_SCALAR __SYCL_BUILTIN_DEF(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_VEC __SYCL_DEF_BUILTIN_VEC(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(double)
+#define __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSMARRAY                               \
+  __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(double)
+#define __SYCL_DEF_BUILTIN_DOUBLE_GEOMARRAY __SYCL_DEF_BUILTIN_GEOMARRAY(double)
+#define __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSVEC                                  \
+  __SYCL_DEF_BUILTIN_GEOCROSSVEC(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_MARRAY __SYCL_DEF_BUILTIN_MARRAY(double)
 #define __SYCL_DEF_BUILTIN_DOUBLEN                                             \
   __SYCL_DEF_BUILTIN_DOUBLE_VEC                                                \
@@ -291,6 +316,10 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_HALF_SCALAR __SYCL_BUILTIN_DEF(half)
 #define __SYCL_DEF_BUILTIN_HALF_VEC __SYCL_DEF_BUILTIN_VEC(half)
 #define __SYCL_DEF_BUILTIN_HALF_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(half)
+#define __SYCL_DEF_BUILTIN_HALF_GEOCROSSMARRAY                                 \
+  __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(half)
+#define __SYCL_DEF_BUILTIN_HALF_GEOMARRAY __SYCL_DEF_BUILTIN_GEOMARRAY(half)
+#define __SYCL_DEF_BUILTIN_HALF_GEOCROSSVEC __SYCL_DEF_BUILTIN_GEOCROSSVEC(half)
 #define __SYCL_DEF_BUILTIN_HALF_MARRAY __SYCL_DEF_BUILTIN_MARRAY(half)
 #define __SYCL_DEF_BUILTIN_HALFN                                               \
   __SYCL_DEF_BUILTIN_HALF_VEC                                                  \
@@ -327,8 +356,28 @@ namespace __sycl_std = __host_std;
   __SYCL_BUILTIN_DEF(double)                                                   \
   __SYCL_BUILTIN_DEF(half)
 
-// TODO: Replace with overloads.
+#define __SYCL_DEF_BUILTIN_GENGEOCROSSMARRAY                                   \
+  __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSMARRAY                                      \
+  __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSMARRAY                                     \
+  __SYCL_DEF_BUILTIN_HALF_GEOCROSSMARRAY
 
+#define __SYCL_DEF_BUILTIN_GENGEOMARRAY                                        \
+  __SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY                                           \
+  __SYCL_DEF_BUILTIN_DOUBLE_GEOMARRAY                                          \
+  __SYCL_DEF_BUILTIN_HALF_GEOMARRAY
+
+// TODO: Replace with overloads.
+#define __SYCL_DEF_BUILTIN_VGENGEOCROSSFLOAT                                   \
+  __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSVEC                                         \
+  __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSVEC                                        \
+  __SYCL_DEF_BUILTIN_HALF_GEOCROSSVEC
+
+#define __SYCL_DEF_BUILTIN_VGENGEOFLOAT                                        \
+  __SYCL_DEF_BUILTIN_FLOAT_GEOVEC                                              \
+  __SYCL_DEF_BUILTIN_DOUBLE_GEOVEC                                             \
+  __SYCL_DEF_BUILTIN_HALF_GEOVEC
+
+// TODO: Replace with overloads.
 #ifdef __FAST_MATH__
 #define __FAST_MATH_GENFLOAT(T)                                                \
   (detail::is_svgenfloatd<T>::value || detail::is_svgenfloath<T>::value)
@@ -2014,205 +2063,184 @@ __SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_IU_OVERLOAD(upsample, 32bit)
 // double4 cross (double4 p0, double4 p1)
 // half3 cross (half3 p0, half3 p1)
 // half4 cross (half4 p0, half4 p1)
-template <typename T>
-std::enable_if_t<detail::is_gencross<T>::value, T> cross(T p0, T p1) __NOEXC {
-  return __sycl_std::__invoke_cross<T>(p0, p1);
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE cross(TYPE p0, TYPE p1) __NOEXC {                                \
+    return __sycl_std::__invoke_cross<TYPE>(p0, p1);                           \
+  }
+__SYCL_DEF_BUILTIN_VGENGEOCROSSFLOAT
+#undef __SYCL_BUILTIN_DEF
+#undef __SYCL_DEF_BUILTIN_VGENGEOCROSSFLOAT
+#undef __SYCL_DEF_BUILTIN_HALF_GEOCROSSVEC
+#undef __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSVEC
+#undef __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSVEC
+#undef __SYCL_DEF_BUILTIN_GEOCROSSVEC
 
 // float dot (float p0, float p1)
 // double dot (double p0, double p1)
 // half dot (half p0, half p1)
-template <typename T>
-std::enable_if_t<detail::is_sgenfloat<T>::value, T> dot(T p0, T p1) __NOEXC {
-  return p0 * p1;
-}
-
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE dot(TYPE p0, TYPE p1) __NOEXC { return p0 * p1; }
+__SYCL_DEF_BUILTIN_SGENFLOAT
+#undef __SYCL_BUILTIN_DEF
 // float dot (vgengeofloat p0, vgengeofloat p1)
-template <typename T>
-std::enable_if_t<detail::is_vgengeofloat<T>::value, float> dot(T p0,
-                                                               T p1) __NOEXC {
-  return __sycl_std::__invoke_Dot<float>(p0, p1);
-}
-
 // double dot (vgengeodouble p0, vgengeodouble p1)
-template <typename T>
-std::enable_if_t<detail::is_vgengeodouble<T>::value, double> dot(T p0,
-                                                                 T p1) __NOEXC {
-  return __sycl_std::__invoke_Dot<double>(p0, p1);
-}
-
 // half dot (vgengeohalf p0, vgengeohalf p1)
-template <typename T>
-std::enable_if_t<detail::is_vgengeohalf<T>::value, half> dot(T p0,
-                                                             T p1) __NOEXC {
-  return __sycl_std::__invoke_Dot<half>(p0, p1);
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE::element_type dot(TYPE p0, TYPE p1) __NOEXC {                    \
+    return __sycl_std::__invoke_Dot<TYPE::element_type>(p0, p1);               \
+  }
+__SYCL_DEF_BUILTIN_VGENGEOFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-// float distance (gengeofloat p0, gengeofloat p1)
-template <typename T,
-          typename = std::enable_if_t<detail::is_gengeofloat<T>::value, T>>
-float distance(T p0, T p1) __NOEXC {
-  return __sycl_std::__invoke_distance<float>(p0, p1);
-}
+// float distance (float p0, float p1)
+// double distance (double p0, double p1)
+// half distance (half p0, half p1)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE distance(TYPE p0, TYPE p1) __NOEXC {                             \
+    return __sycl_std::__invoke_distance<TYPE>(p0, p1);                        \
+  }
+__SYCL_DEF_BUILTIN_SGENFLOAT
+#undef __SYCL_BUILTIN_DEF
+// float distance (vgengeofloat p0, vgengeofloat p1)
+// double distance (vgengeodouble p0, vgengeodouble p1)
+// half distance (vgengeohalf p0, vgengeohalf p1)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE::element_type distance(TYPE p0, TYPE p1) __NOEXC {               \
+    return __sycl_std::__invoke_distance<TYPE::element_type>(p0, p1);          \
+  }
+__SYCL_DEF_BUILTIN_VGENGEOFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-// double distance (gengeodouble p0, gengeodouble p1)
-template <typename T,
-          typename = std::enable_if_t<detail::is_gengeodouble<T>::value, T>>
-double distance(T p0, T p1) __NOEXC {
-  return __sycl_std::__invoke_distance<double>(p0, p1);
-}
-
-// half distance (gengeohalf p0, gengeohalf p1)
-template <typename T,
-          typename = std::enable_if_t<detail::is_gengeohalf<T>::value, T>>
-half distance(T p0, T p1) __NOEXC {
-  return __sycl_std::__invoke_distance<half>(p0, p1);
-}
-
-// float length (gengeofloat p)
-template <typename T,
-          typename = std::enable_if_t<detail::is_gengeofloat<T>::value, T>>
-float length(T p) __NOEXC {
-  return __sycl_std::__invoke_length<float>(p);
-}
-
-// double length (gengeodouble p)
-template <typename T,
-          typename = std::enable_if_t<detail::is_gengeodouble<T>::value, T>>
-double length(T p) __NOEXC {
-  return __sycl_std::__invoke_length<double>(p);
-}
-
-// half length (gengeohalf p)
-template <typename T,
-          typename = std::enable_if_t<detail::is_gengeohalf<T>::value, T>>
-half length(T p) __NOEXC {
-  return __sycl_std::__invoke_length<half>(p);
-}
+// float length (float p0, float p1)
+// double length (double p0, double p1)
+// half length (half p0, half p1)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE length(TYPE p) __NOEXC {                                         \
+    return __sycl_std::__invoke_length<TYPE>(p);                               \
+  }
+__SYCL_DEF_BUILTIN_SGENFLOAT
+#undef __SYCL_BUILTIN_DEF
+// float length (vgengeofloat p0, vgengeofloat p1)
+// double length (vgengeodouble p0, vgengeodouble p1)
+// half length (vgengeohalf p0, vgengeohalf p1)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE::element_type length(TYPE p) __NOEXC {                           \
+    return __sycl_std::__invoke_length<TYPE::element_type>(p);                 \
+  }
+__SYCL_DEF_BUILTIN_VGENGEOFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // gengeofloat normalize (gengeofloat p)
-template <typename T>
-std::enable_if_t<detail::is_gengeofloat<T>::value, T> normalize(T p) __NOEXC {
-  return __sycl_std::__invoke_normalize<T>(p);
-}
-
 // gengeodouble normalize (gengeodouble p)
-template <typename T>
-std::enable_if_t<detail::is_gengeodouble<T>::value, T> normalize(T p) __NOEXC {
-  return __sycl_std::__invoke_normalize<T>(p);
-}
-
 // gengeohalf normalize (gengeohalf p)
-template <typename T>
-std::enable_if_t<detail::is_gengeohalf<T>::value, T> normalize(T p) __NOEXC {
-  return __sycl_std::__invoke_normalize<T>(p);
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE normalize(TYPE p) __NOEXC {                                      \
+    return __sycl_std::__invoke_normalize<TYPE>(p);                            \
+  }
+__SYCL_DEF_BUILTIN_GENGEOFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // float fast_distance (gengeofloat p0, gengeofloat p1)
-template <typename T,
-          typename = std::enable_if_t<detail::is_gengeofloat<T>::value, T>>
-float fast_distance(T p0, T p1) __NOEXC {
-  return __sycl_std::__invoke_fast_distance<float>(p0, p1);
-}
-
-// double fast_distance (gengeodouble p0, gengeodouble p1)
-template <typename T,
-          typename = std::enable_if_t<detail::is_gengeodouble<T>::value, T>>
-double fast_distance(T p0, T p1) __NOEXC {
-  return __sycl_std::__invoke_fast_distance<double>(p0, p1);
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline float fast_distance(TYPE p0, TYPE p1) __NOEXC {                       \
+    return __sycl_std::__invoke_fast_distance<float>(p0, p1);                  \
+  }
+__SYCL_DEF_BUILTIN_GENGEOFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // float fast_length (gengeofloat p)
-template <typename T,
-          typename = std::enable_if_t<detail::is_gengeofloat<T>::value, T>>
-float fast_length(T p) __NOEXC {
-  return __sycl_std::__invoke_fast_length<float>(p);
-}
-
-// double fast_length (gengeodouble p)
-template <typename T,
-          typename = std::enable_if_t<detail::is_gengeodouble<T>::value, T>>
-double fast_length(T p) __NOEXC {
-  return __sycl_std::__invoke_fast_length<double>(p);
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline float fast_length(TYPE p) __NOEXC {                                   \
+    return __sycl_std::__invoke_fast_length<float>(p);                         \
+  }
+__SYCL_DEF_BUILTIN_GENGEOFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // gengeofloat fast_normalize (gengeofloat p)
-template <typename T>
-std::enable_if_t<detail::is_gengeofloat<T>::value, T>
-fast_normalize(T p) __NOEXC {
-  return __sycl_std::__invoke_fast_normalize<T>(p);
-}
-
-// gengeodouble fast_normalize (gengeodouble p)
-template <typename T>
-std::enable_if_t<detail::is_gengeodouble<T>::value, T>
-fast_normalize(T p) __NOEXC {
-  return __sycl_std::__invoke_fast_normalize<T>(p);
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE fast_normalize(TYPE p) __NOEXC {                                 \
+    return __sycl_std::__invoke_fast_normalize<TYPE>(p);                       \
+  }
+__SYCL_DEF_BUILTIN_GENGEOFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // marray geometric functions
 
-#define __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(NAME, ...)              \
-  vec<detail::marray_element_t<T>, T::size()> result_v;                        \
-  result_v = NAME(__VA_ARGS__);                                                \
-  return detail::to_marray(result_v);
-
-template <typename T>
-std::enable_if_t<detail::is_gencrossmarray<T>::value, T> cross(T p0,
-                                                               T p1) __NOEXC {
-  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(cross, detail::to_vec(p0),
-                                                 detail::to_vec(p1))
-}
-
-template <typename T>
-std::enable_if_t<detail::is_gengeomarray<T>::value, T> normalize(T p) __NOEXC {
-  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(normalize, detail::to_vec(p))
-}
-
-template <typename T>
-std::enable_if_t<detail::is_gengeomarrayfloat<T>::value, T>
-fast_normalize(T p) __NOEXC {
-  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(fast_normalize,
-                                                 detail::to_vec(p))
-}
-
-#undef __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL
-
-#define __SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(NAME)  \
-  template <typename T>                                                        \
-  std::enable_if_t<detail::is_gengeomarray<T>::value,                          \
-                   detail::marray_element_t<T>>                                \
-  NAME(T p0, T p1) __NOEXC {                                                   \
-    return NAME(detail::to_vec(p0), detail::to_vec(p1));                       \
+// cross
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE cross(TYPE p0, TYPE p1) __NOEXC {                                \
+    return detail::to_marray(cross(detail::to_vec(p0), detail::to_vec(p1)));   \
   }
+__SYCL_DEF_BUILTIN_GENGEOCROSSMARRAY
+#undef __SYCL_BUILTIN_DEF
 
-// clang-format off
-__SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(dot)
-__SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(distance)
-// clang-format on
+#undef __SYCL_DEF_BUILTIN_GENGEOCROSSMARRAY
+#undef __SYCL_DEF_BUILTIN_HALF_GEOCROSSMARRAY
+#undef __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSMARRAY
+#undef __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSMARRAY
+#undef __SYCL_DEF_BUILTIN_GEOCROSSMARRAY
 
-#undef __SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD
+// dot
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE::value_type dot(TYPE p0, TYPE p1) __NOEXC {                      \
+    return dot(detail::to_vec(p0), detail::to_vec(p1));                        \
+  }
+__SYCL_DEF_BUILTIN_GENGEOMARRAY
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T>
-std::enable_if_t<detail::is_gengeomarray<T>::value, detail::marray_element_t<T>>
-length(T p) __NOEXC {
-  return __sycl_std::__invoke_length<detail::marray_element_t<T>>(
-      detail::to_vec(p));
-}
+// distance
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE::value_type distance(TYPE p0, TYPE p1) __NOEXC {                 \
+    return distance(detail::to_vec(p0), detail::to_vec(p1));                   \
+  }
+__SYCL_DEF_BUILTIN_GENGEOMARRAY
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T>
-std::enable_if_t<detail::is_gengeomarrayfloat<T>::value,
-                 detail::marray_element_t<T>>
-fast_distance(T p0, T p1) __NOEXC {
-  return fast_distance(detail::to_vec(p0), detail::to_vec(p1));
-}
+// length
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE::value_type length(TYPE p) __NOEXC {                             \
+    return length(detail::to_vec(p));                                          \
+  }
+__SYCL_DEF_BUILTIN_GENGEOMARRAY
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T>
-std::enable_if_t<detail::is_gengeomarrayfloat<T>::value,
-                 detail::marray_element_t<T>>
-fast_length(T p) __NOEXC {
-  return fast_length(detail::to_vec(p));
-}
+// normalize
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE normalize(TYPE p) __NOEXC {                                      \
+    return detail::to_marray(normalize(detail::to_vec(p)));                    \
+  }
+__SYCL_DEF_BUILTIN_GENGEOMARRAY
+#undef __SYCL_BUILTIN_DEF
+
+// fast_distance
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline float fast_distance(TYPE p0, TYPE p1) __NOEXC {                       \
+    return fast_distance(detail::to_vec(p0), detail::to_vec(p1));              \
+  }
+__SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
+#undef __SYCL_BUILTIN_DEF
+
+// fast_normalize
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE fast_normalize(TYPE p) __NOEXC {                                 \
+    return detail::to_marray(fast_normalize(detail::to_vec(p)));               \
+  }
+__SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
+#undef __SYCL_BUILTIN_DEF
+
+// fast_length
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline float fast_length(TYPE p) __NOEXC {                                   \
+    return fast_length(detail::to_vec(p));                                     \
+  }
+__SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
+#undef __SYCL_BUILTIN_DEF
+
+#undef __SYCL_DEF_BUILTIN_GENGEOMARRAY
+#undef __SYCL_DEF_BUILTIN_HALF_GEOMARRAY
+#undef __SYCL_DEF_BUILTIN_DOUBLE_GEOMARRAY
+#undef __SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
+#undef __SYCL_DEF_BUILTIN_GEOMARRAY
 
 /* SYCL 1.2.1 ---- 4.13.7 Relational functions. -----------------------------*/
 /* SYCL 2020  ---- 4.17.9 Relational functions. -----------------------------*/
@@ -3013,6 +3041,7 @@ std::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
 #undef __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_DEF_BUILTIN_SGENTYPE
 #undef __SYCL_DEF_BUILTIN_GENTYPE
+#undef __SYCL_COMMA
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
