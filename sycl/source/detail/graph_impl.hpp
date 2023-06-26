@@ -43,9 +43,6 @@ public:
   /// Command group object which stores all args etc needed to enqueue the node
   std::unique_ptr<sycl::detail::CG> MCommandGroup;
 
-  /// True if an empty node, false otherwise.
-  bool MIsEmpty = false;
-
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
   /// @param Prev Predecessor to \p node being added as successor.
@@ -65,7 +62,7 @@ public:
   }
 
   /// Construct an empty node.
-  node_impl() : MIsEmpty(true) {}
+  node_impl() {}
 
   /// Construct a node representing a command-group.
   /// @param CGType Type of the command-group.
@@ -106,7 +103,7 @@ public:
 
   /// Query if this is an empty node.
   /// @return True if this is an empty node, false otherwise.
-  bool isEmpty() const { return MIsEmpty; }
+  bool isEmpty() const { return MCGType == sycl::detail::CG::None; }
 
   /// Get a deep copy of this node's command group
   /// @return A unique ptr to the new command group object.
@@ -366,7 +363,7 @@ public:
 
   /// Turns the internal graph representation into UR command-buffers for a
   /// device.
-  /// @param D Device to create backend command-buffers for.
+  /// @param Device Device to create backend command-buffers for.
   void createURCommandBuffers(sycl::device Device);
 
   /// Query for the context tied to this graph.
