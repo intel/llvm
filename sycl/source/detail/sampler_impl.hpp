@@ -37,7 +37,7 @@ public:
 
   coordinate_normalization_mode get_coordinate_normalization_mode() const;
 
-  RT::PiSampler getOrCreateSampler(const context &Context);
+  sycl::detail::pi::PiSampler getOrCreateSampler(const context &Context);
 
   /// Checks if this sampler_impl has a property of type propertyT.
   ///
@@ -62,7 +62,7 @@ private:
   /// Protects all the fields that can be changed by class' methods.
   std::mutex MMutex;
 
-  std::unordered_map<context, RT::PiSampler> MContextToSampler;
+  std::unordered_map<context, sycl::detail::pi::PiSampler> MContextToSampler;
 
   coordinate_normalization_mode MCoordNormMode;
   addressing_mode MAddrMode;

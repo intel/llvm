@@ -44,7 +44,8 @@ public:
   // Method returns a pointer to host allocation if Context is host one and
   // cl_mem obect if not.
   virtual void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                            void *HostPtr, RT::PiEvent &InteropEvent) = 0;
+                            void *HostPtr,
+                            sycl::detail::pi::PiEvent &InteropEvent) = 0;
 
   // Should be used for memory object created without use_host_ptr property.
   virtual void *allocateHostMem() = 0;
