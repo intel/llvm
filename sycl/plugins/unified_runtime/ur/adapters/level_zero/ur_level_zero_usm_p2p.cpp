@@ -43,5 +43,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   // Zero return value indicates that all of the queries currently return false.
-  return ReturnValue(u_int32_t{0});
+  return ReturnValue(uint32_t{0});
 }

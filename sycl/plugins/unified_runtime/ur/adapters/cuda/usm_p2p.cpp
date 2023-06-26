@@ -61,12 +61,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     }
     }
 
-    CUresult cu_res = cuDeviceGetP2PAttribute(
-        &value, cu_attr, commandDevice->get(), peerDevice->get());
-    if (cu_res != CUDA_SUCCESS) {
-      setPluginSpecificMessage(cu_res);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-    }
+    UR_CHECK_ERROR(cuDeviceGetP2PAttribute(
+        &value, cu_attr, commandDevice->get(), peerDevice->get()));
   } catch (ur_result_t err) {
     return err;
   }
