@@ -32,8 +32,7 @@ jobs:
     runs-on: [Linux, build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
-      # actions/checkout fails without "--privileged".
-      options: -u 1001:1001 --privileged
+      options: -u 1001:1001
     steps:
     - uses: actions/checkout@v3
       with:
