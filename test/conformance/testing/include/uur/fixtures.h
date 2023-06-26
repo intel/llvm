@@ -244,6 +244,36 @@ template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
     ur_mem_handle_t buffer = nullptr;
 };
 
+template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
+                                        &format, &desc, nullptr, &image));
+        ASSERT_NE(nullptr, image);
+    }
+
+    void TearDown() override {
+        if (image) {
+            EXPECT_SUCCESS(urMemRelease(image));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
+    }
+    ur_mem_handle_t image = nullptr;
+    ur_image_format_t format = {UR_IMAGE_CHANNEL_ORDER_RGBA,
+                                UR_IMAGE_CHANNEL_TYPE_FLOAT};
+    ur_image_desc_t desc = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
+                            nullptr,                      // pNext
+                            UR_MEM_TYPE_IMAGE1D,          // mem object type
+                            1024,                         // image width
+                            1,                            // image height
+                            1,                            // image depth
+                            1,                            // array size
+                            0,                            // row pitch
+                            0,                            // slice pitch
+                            0,                            // mip levels
+                            0};                           // num samples
+};
+
 struct urQueueTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
