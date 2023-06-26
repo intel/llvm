@@ -11,8 +11,8 @@
 #include <mutex>
 #include <string.h>
 
-#include "ur_level_zero.hpp"
 #include "context.hpp"
+#include "ur_level_zero.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, ///< [in] the number of devices given in phDevices

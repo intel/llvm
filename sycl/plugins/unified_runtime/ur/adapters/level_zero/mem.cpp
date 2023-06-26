@@ -10,9 +10,9 @@
 #include <climits>
 #include <string.h>
 
-#include "ur_level_zero.hpp"
 #include "context.hpp"
 #include "event.hpp"
+#include "ur_level_zero.hpp"
 
 // Default to using compute engine for fill operation, but allow to
 // override this with an environment variable.

@@ -11,9 +11,9 @@
 #include <mutex>
 #include <string.h>
 
-#include "ur_level_zero.hpp"
 #include "common.hpp"
 #include "event.hpp"
+#include "ur_level_zero.hpp"
 
 void printZeEventList(const _ur_ze_event_list_t &UrZeEventList) {
   urPrint("  NumEventsInWaitList %d:", UrZeEventList.Length);
