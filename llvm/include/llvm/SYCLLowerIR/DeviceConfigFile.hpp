@@ -21,4 +21,5 @@ using TargetTable_t = std::map<std::string, TargetInfo>;
 
 #define GET_TargetTable_IMPL
 #include "llvm/SYCLLowerIR/DeviceConfigFile.inc"
+#undef GET_TargetTable_IMPL
 }; // namespace DeviceConfigFile
