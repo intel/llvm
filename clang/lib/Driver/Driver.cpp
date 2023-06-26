@@ -5700,7 +5700,7 @@ class OffloadingActionBuilder final {
             auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
                 PostLinkAction, types::TY_Object);
             DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
-            return;
+            continue;
           }
           if (isNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
             // When compiling for Nvidia/CUDA devices and the user requested the

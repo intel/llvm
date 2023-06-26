@@ -694,7 +694,6 @@ pi_result piProgramCreateWithBinary(pi_context context, pi_uint32,
   auto nativecpu_it = nativecpu_entries;
   auto p = new _pi_program();
   while (strcmp(nativecpu_it->kernelname, "__nativecpu_end") != 0) {
-    std::cout << "[ptrdbg] insering " << nativecpu_it->kernelname << "\n";
     p->_kernels.insert(
         std::make_pair(nativecpu_it->kernelname, nativecpu_it->kernel_ptr));
     nativecpu_it++;
@@ -1214,7 +1213,7 @@ pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *images,
       return PI_SUCCESS;
     }
   }
-  return PI_ERROR_INVALID_VALUE;
+  return PI_ERROR_INVALID_BINARY;
 }
 
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,

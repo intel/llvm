@@ -927,7 +927,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   ModulePassManager MPM;
 
   if (!CodeGenOpts.DisableLLVMPasses) {
-    llvm::errs() << "[ptrdbg] here2\n";
     // Map our optimization levels into one of the distinct levels used to
     // configure the pipeline.
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
