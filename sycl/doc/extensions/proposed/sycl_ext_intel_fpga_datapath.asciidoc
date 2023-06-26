@@ -69,7 +69,7 @@ The purpose of this document is to clearly describe and specify `fpga_datapath` 
 related concepts, types, and mechanisms, and to give examples and context for their usage.
 
 === Motivation
-`fpga_datapath` is a class template templated on type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in the datapath, as opposed to an off-datapath memory.
+`fpga_datapath` is a class template templated on a type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in the datapath, as opposed to an off-datapath memory.
 
 === Example
 [source,c++]
@@ -98,7 +98,7 @@ dot operator may be applied.
 
 == Specification
 
-`fpga_datapath` is a class template templated on type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in the datapath, as opposed to an off-datapath memory.
+`fpga_datapath` is a class template templated on a type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in the datapath, as opposed to an off-datapath memory.
 
 === Feature test macro
 
@@ -134,7 +134,7 @@ class fpga_datapath {
 `fpga_datapath` is a class template, parameterized by the type of the underlying
 allocation _T_ which encodes the size of the allocation.
 
-`fpga_datapath` initializes the underlying object `T` with the values passed into its constructor.
+`fpga_datapath` initializes the underlying object of type `T` with the values passed into its constructor.
 
 [NOTE]
 ====
@@ -218,6 +218,6 @@ Returns a reference to the underlying `T`.
 There are restrictions on how the application can create objects of type
 `fpga_datapath`. Applications that violate these restrictions are ill-formed.
 
-* The `fpga_datapath` variable can only have accesses from a single kernel. This happens when `device_global` is templated on a `fpga_datapath` type. 
+* The `fpga_datapath` variable can only have accesses from a single kernel. This can happen when `device_global` is templated on a `fpga_datapath` type. 
 
 * The `fpga_datapath` variable cannot be templated on a `fpga_mem` object, as this is a conflict of requirements on how the variable should be implemented, on or off the datapath. Diagnostic is required.

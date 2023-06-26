@@ -69,7 +69,7 @@ The purpose of this document is to clearly describe and specify `fpga_mem` and
 related concepts, types, and mechanisms, and to give examples and context for their usage.
 
 === Motivation
-`fpga_mem` is a class template templated on type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in off-datapath memory, as opposed in the datapath.
+`fpga_mem` is a class template templated on a type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in off-datapath memory, as opposed to in the datapath.
 `fpga_mem` enables attaching compile-time hints which configure the memory resource and may impact the performance of the design.
 
 === Example
@@ -99,7 +99,7 @@ dot operator may be applied.
 
 == Specification
 
-`fpga_mem` is a class template templated on type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in off-datapath memory, as opposed in the datapath.
+`fpga_mem` is a class template templated on a type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in off-datapath memory, as opposed to in the datapath.
 `fpga_mem` enables attaching compile-time hints which configure the memory resource and may impact the performance of the design.
 
 === Feature test macro
@@ -404,7 +404,7 @@ num_banks
 a|
 The number of banks that the array is divided into. If the `stride_size` property is not specified in conjunction with the `num_banks` property, the memory will be divided using a cyclic partitioning strategy, where consecutive words will be placed in different banks.
 
-Must be greater than zero and less than number of array elements.
+Must be greater than zero and less than or equal to the number of array elements.
 
 // --- ROW BREAK ---
 a|
@@ -413,9 +413,9 @@ a|
 stride_size
 ----
 a|
-The number of consecutive elements in an array that will be part of the same bank. If the `num_banks` property is not specified in conjunction with `stride_size` property, memory will be divided using block partitioning strategy, where consecutive words will be placed in the same bank until `stride_size` worth of elements is reached, at which point further words will be added to a new bank.
+The number of consecutive elements in an array that will be part of the same bank. If the `num_banks` property is not specified in conjunction with `stride_size` property, memory will be divided using a block partitioning strategy, where consecutive words will be placed in the same bank until `stride_size` worth of elements is reached, at which point further words will be added to a new bank.
 
-Must be greater than zero and less than the number of array elements.
+Must be greater than zero and less than or equal to the number of array elements.
 
 If the `word_size` property is specified, `stride_size` must be a multiple of `word_size`. 
 
