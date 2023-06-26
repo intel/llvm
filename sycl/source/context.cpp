@@ -87,7 +87,8 @@ context::context(const std::vector<device> &DeviceList,
 context::context(cl_context ClContext, async_handler AsyncHandler) {
   const auto &Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
   impl = std::make_shared<detail::context_impl>(
-      detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler, Plugin);
+      detail::pi::cast<sycl::detail::pi::PiContext>(ClContext), AsyncHandler,
+      Plugin);
 }
 
 template <typename Param>

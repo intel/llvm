@@ -154,11 +154,20 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
                                              void *user_data);
 
-// Function to load the shared library
+// Function to load a shared library
+// Implementation is OS dependent
+void *loadOsLibrary(const std::string &Library);
+
+// Function to unload a shared library
+// Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
+int unloadOsLibrary(void *Library);
+
+// Function to load the shared plugin library
+// On Windows, this will have been pre-loaded by proxy loader.
 // Implementation is OS dependent.
 void *loadOsPluginLibrary(const std::string &Library);
 
-// Function to unload the shared library
+// Function to unload the shared plugin library
 // Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
 int unloadOsPluginLibrary(void *Library);
 
@@ -242,8 +251,6 @@ PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
 
 } // namespace pi
 
-namespace RT = sycl::detail::pi;
-
 // Workaround for build with GCC 5.x
 // An explicit specialization shall be declared in the namespace block.
 // Having namespace as part of template name is not supported by GCC
@@ -254,7 +261,8 @@ namespace pi {
 // operators.
 template <class To, class From> inline To cast(From value) {
   // TODO: see if more sanity checks are possible.
-  RT::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
+  sycl::detail::pi::assertion((sizeof(From) == sizeof(To)),
+                              "assert: cast failed size check");
   return (To)(value);
 }
 

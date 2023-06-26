@@ -35,8 +35,8 @@ device::device() : device(default_selector_v) {}
 device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
-  detail::RT::PiDevice Device;
-  auto Plugin = detail::RT::getPlugin<backend::opencl>();
+  sycl::detail::pi::PiDevice Device;
+  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
   Plugin->call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
       detail::pi::cast<pi_native_handle>(DeviceId), nullptr, &Device);
   auto Platform =
