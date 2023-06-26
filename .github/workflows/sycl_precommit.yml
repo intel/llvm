@@ -16,8 +16,7 @@ on:
     - '**.rst'
     # For CI-related files we explicitly skip all the jobs below even if there
     # were other (non-ignored) files modified in this PR.
-    - '.github/workflows/**'
-    - 'devops/**'
+    - 'devops/*/**'
 
 permissions:
   contents: read
@@ -75,7 +74,7 @@ jobs:
     if: |
       always()
       && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
-      && contains(needs.detect_changes.outputs.filters, 'sycl')
+      && contains(needs.detect_changes.outputs.filters, 'test_build')
       && !contains(needs.detect_changes.outputs.filters, 'ci')
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -93,7 +92,7 @@ jobs:
     name: Linux SYCL E2E on Nightly
     needs: [detect_changes]
     if: |
-      !contains(needs.detect_changes.outputs.filters, 'sycl')
+      !contains(needs.detect_changes.outputs.filters, 'test_build')
       && !contains(needs.detect_changes.outputs.filters, 'ci')
     uses: ./.github/workflows/linux_matrix_e2e_on_nightly.yml
     secrets: inherit
