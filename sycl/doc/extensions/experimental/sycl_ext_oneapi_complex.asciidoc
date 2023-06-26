@@ -230,13 +230,13 @@ These functions are available in both host and device code, and each math
 function should follow the C++ standard for handling NaN's and Inf values.
 
 Note: In the case of the `pow` function, additional overloads have been added
-to ensure that for their first argument `base` and second `argument`:
+to ensure that for their first argument `base` and second argument `exponent`:
 
-* If `base` and/or `exponent` has type `complex<double>`, `double`,
+* If `base` and/or `exponent` has type `complex<double>` or `double`,
   then `pow(base, exponent)` has the same effect as
   `pow(complex<double>(base), complex<double>(exponent))`.
 
-* Otherwise, if `base` and/or `exponent` has type `complex<float>`, `float`,
+* Otherwise, if `base` and/or `exponent` has type `complex<float>` or `float`,
   then `pow(base, exponent)` has the same effect as
   `pow(complex<float>(base), complex<float>(exponent))`.
 
