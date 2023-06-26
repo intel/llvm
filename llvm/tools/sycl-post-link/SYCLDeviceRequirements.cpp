@@ -59,18 +59,18 @@ void llvm::getSYCLDeviceRequirements(
   // intel_reqd_sub_group_size can call an ESIMD function through
   // invoke_esimd, and that function has intel_reqd_sub_group_size=1,
   // which is valid.
-  std::optional<uint32_t> sub_group_size;
+  std::optional<uint32_t> SubGroupSize;
   for (const Function *F : MD.entries()) {
     if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
       assert(MDN->getNumOperands() == 1);
       auto value = ExtractIntegerFromMDNodeOperand(MDN, 0);
-      if (!sub_group_size)
-        sub_group_size = value;
+      if (!SubGroupSize)
+        SubGroupSize = value;
       else
-        assert(*sub_group_size == value);
+        assert(*SubGroupSize == value);
     }
   }
   // Do not attach reqd_sub_group_size if there is no attached metadata
-  if (sub_group_size)
-    Requirements["reqd_sub_group_size"] = *sub_group_size;
+  if (SubGroupSize)
+    Requirements["reqd_sub_group_size"] = *SubGroupSize;
 }
