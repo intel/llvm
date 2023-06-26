@@ -71,7 +71,7 @@ add_sycl_plugin(unified_runtime
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
-    LevelZeroLoader-Headers # we need for #include <ze_api.h> in ur_level_zero_common.h
+    LevelZeroLoader-Headers # we need for #include <ze_api.h> in common.h
 )
 
 # Build level zero adapter
