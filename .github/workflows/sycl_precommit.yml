@@ -41,6 +41,9 @@ jobs:
         sparse-checkout: |
           devops/actions/cached_checkout
           devops/actions/clang-format
+          devops/actions/cleanup
+    - name: Register cleanup after job is finished
+      uses: ./devops/actions/cleanup
     - name: 'PR commits + 2'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 2 ))" >> "${GITHUB_ENV}"
     - uses: ./devops/actions/cached_checkout
