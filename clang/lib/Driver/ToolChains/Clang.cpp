@@ -5333,7 +5333,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     //    (TripleStr.rfind("spir64", 0) == 0) ? "spir64" : TripleStr;
     for (const auto &[TargetKey, TargetInfo] : TargetTable) {
       // if (AdjustedTripleStr != TargetKey)
-      if (TripleStr != TargetKey)
+      if (RawTriple.getTriple() != TargetKey)
         continue;
       ++ValidTargets;
       const auto &AspectList = TargetInfo.aspects;
