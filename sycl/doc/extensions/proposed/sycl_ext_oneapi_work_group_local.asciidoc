@@ -164,9 +164,11 @@ with a unique allocation in work-group local memory.
 
 When `T` is an unbounded array, the size of the allocation is unknown at
 compile-time, and must be communicated to the SYCL implementation via the
-`work_group_local_memory_size` property. Every instance of
-`work_group_local<T>` is associated with a single, shared, allocation in
-work-group local memory.
+`work_group_local_memory_size` property. Every instance of `work_group_local`
+for which `T` is an unbounded array is associated with a single, shared,
+allocation in work-group local memory. For example, two instances declared as
+`work_group_local<int[]>` and `work_group_local<float[]>` will be associated
+with the same shared allocation.
 
 If the total amount of local memory requested (i.e., the sum of all memory
 requested by `local_accessor`, `group_local_memory`,
