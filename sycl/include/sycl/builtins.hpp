@@ -41,7 +41,7 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
   return marray;
 }
 
-// Vectors need fixed-sized integers instead of fundamental types.
+// Vectors need fixed-size integers instead of fundamental types.
 template <typename T, bool Signed, typename Cond = void>
 struct same_fixed_size_int;
 template <typename T>
@@ -130,7 +130,7 @@ struct same_size_int<marray<T, N>, Signed> {
   using type = marray<typename same_size_int<T, Signed>::type, N>;
 };
 
-// Trait for getting an floating point type of the same size as T. This
+// Trait for getting a floating point type of the same size as T. This
 // propagates through vec and marray.
 template <typename T, typename Cond = void> struct same_size_float;
 template <typename T>
