@@ -1306,9 +1306,9 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
     UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_LOW;
   if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)
     UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
-  if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_BATCHED_SUBMISSION)
+  if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_SUBMISSION_BATCHED)
     UrProperties.flags |= UR_QUEUE_FLAG_BATCHED_SUBMISSION;
-  if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_IMMEDIATE_SUBMISSION)
+  if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_SUBMISSION_IMMEDIATE)
     UrProperties.flags |= UR_QUEUE_FLAG_IMMEDIATE_SUBMISSION;
 
   ur_queue_index_properties_t IndexProperties{};

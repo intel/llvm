@@ -1327,11 +1327,11 @@ bool ur_queue_handle_t_::isPriorityHigh() const {
 }
 
 bool ur_queue_handle_t_::isBatchedSubmission() const {
-  return ((this->Properties & UR_QUEUE_FLAG_BATCHED_SUBMISSION) != 0);
+  return ((this->Properties & UR_QUEUE_FLAG_SUBMISSION_BATCHED) != 0);
 }
 
 bool ur_queue_handle_t_::isImmediateSubmission() const {
-  return ((this->Properties & UR_QUEUE_FLAG_IMMEDIATE_SUBMISSION) != 0);
+  return ((this->Properties & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE) != 0);
 }
 
 bool ur_queue_handle_t_::isInOrderQueue() const {
