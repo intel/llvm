@@ -252,26 +252,27 @@ static ur_result_t getEventsFromSyncPoints(
   return UR_RESULT_SUCCESS;
 }
 
+// Shared by all memory read/write/copy PI interfaces.
 // Helper function for common code when enqueuing memory operations to a command
 // buffer.
 static ur_result_t enqueueCommandBufferMemCopyHelper(
-    ur_exp_command_buffer_handle_t hCommandBuffer, void *Dst, const void *Src,
-    size_t Size, uint32_t NumSyncPointsInWaitList,
+    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
+    void *Dst, const void *Src, size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
   std::vector<ze_event_handle_t> ZeEventList;
-  ur_result_t Res = getEventsFromSyncPoints(hCommandBuffer->SyncPoints,
+  ur_result_t Res = getEventsFromSyncPoints(CommandBuffer->SyncPoints,
                                             NumSyncPointsInWaitList,
                                             SyncPointWaitList, ZeEventList);
 
   ur_event_handle_t LaunchEvent;
-  Res = EventCreate(hCommandBuffer->Context, nullptr, true, &LaunchEvent);
-  LaunchEvent->CommandType = UR_COMMAND_MEM_BUFFER_COPY;
+  Res = EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent);
   if (Res)
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  LaunchEvent->CommandType = CommandType;
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-             (hCommandBuffer->ZeCommandList, Dst, Src, Size,
+             (CommandBuffer->ZeCommandList, Dst, Src, Size,
               LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
 
   urPrint("calling zeCommandListAppendMemoryCopy() with"
@@ -279,18 +280,18 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
           ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
   // Get sync point and register the event with it.
-  *SyncPoint = hCommandBuffer->GetNextSyncPoint();
-  hCommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
   return UR_RESULT_SUCCESS;
 }
 
 // Helper function for common code when enqueuing rectangular memory operations
 // to a command buffer.
 static ur_result_t enqueueCommandBufferMemCopyRectHelper(
-    ur_exp_command_buffer_handle_t hCommandBuffer, void *Dst, const void *Src,
-    ur_rect_offset_t SrcOrigin, ur_rect_offset_t DstOrigin,
-    ur_rect_region_t Region, size_t SrcRowPitch, size_t DstRowPitch,
-    size_t SrcSlicePitch, size_t DstSlicePitch,
+    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
+    void *Dst, const void *Src, ur_rect_offset_t SrcOrigin,
+    ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
+    size_t DstRowPitch, size_t SrcSlicePitch, size_t DstSlicePitch,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
@@ -327,19 +328,18 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
                                         Width,      Height,     Depth};
 
   std::vector<ze_event_handle_t> ZeEventList;
-  ur_result_t Res = getEventsFromSyncPoints(hCommandBuffer->SyncPoints,
+  ur_result_t Res = getEventsFromSyncPoints(CommandBuffer->SyncPoints,
                                             NumSyncPointsInWaitList,
                                             SyncPointWaitList, ZeEventList);
 
   ur_event_handle_t LaunchEvent;
-  Res = EventCreate(hCommandBuffer->Context, nullptr, true, &LaunchEvent);
-  LaunchEvent->CommandType = UR_COMMAND_MEM_BUFFER_COPY_RECT;
-
+  Res = EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent);
   if (Res)
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  LaunchEvent->CommandType = CommandType;
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-             (hCommandBuffer->ZeCommandList, Dst, &ZeDstRegion, DstPitch,
+             (CommandBuffer->ZeCommandList, Dst, &ZeDstRegion, DstPitch,
               DstSlicePitch, Src, &ZeSrcRegion, SrcPitch, SrcSlicePitch,
               LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
 
@@ -348,8 +348,8 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
           ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
   // Get sync point and register the event with it.
-  *SyncPoint = hCommandBuffer->GetNextSyncPoint();
-  hCommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -523,9 +523,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  return enqueueCommandBufferMemCopyHelper(hCommandBuffer, pDst, pSrc, size,
-                                           numSyncPointsInWaitList,
-                                           pSyncPointWaitList, pSyncPoint);
+  return enqueueCommandBufferMemCopyHelper(
+      UR_COMMAND_USM_MEMCPY, hCommandBuffer, pDst, pSrc, size,
+      numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
@@ -552,7 +552,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
                                  hCommandBuffer->Device));
 
   return enqueueCommandBufferMemCopyHelper(
-      hCommandBuffer, ZeHandleDst, ZeHandleSrc, size, numSyncPointsInWaitList,
+      UR_COMMAND_MEM_BUFFER_COPY, hCommandBuffer, ZeHandleDst + dstOffset,
+      ZeHandleSrc + srcOffset, size, numSyncPointsInWaitList,
       pSyncPointWaitList, pSyncPoint);
 }
 
@@ -582,9 +583,102 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
                                  hCommandBuffer->Device));
 
   return enqueueCommandBufferMemCopyRectHelper(
-      hCommandBuffer, ZeHandleDst, ZeHandleSrc, srcOrigin, dstOrigin, region,
-      srcRowPitch, dstRowPitch, srcSlicePitch, dstSlicePitch,
-      numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+      UR_COMMAND_MEM_BUFFER_COPY_RECT, hCommandBuffer, ZeHandleDst, ZeHandleSrc,
+      srcOrigin, dstOrigin, region, srcRowPitch, dstRowPitch, srcSlicePitch,
+      dstSlicePitch, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_mem_handle_t hBuffer, size_t offset, size_t size, const void *pSrc, 
+    uint32_t numSyncPointsInWaitList, 
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+
+  UR_ASSERT(hCommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
+  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  std::scoped_lock<ur_shared_mutex> Lock(hBuffer->Mutex);
+
+  char *ZeHandleDst = nullptr;
+  UR_CALL(hBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
+                              hCommandBuffer->Device));
+
+  return enqueueCommandBufferMemCopyHelper(
+      UR_COMMAND_MEM_BUFFER_WRITE, hCommandBuffer,
+      ZeHandleDst + offset, // dst
+      pSrc,                 // src
+      size, numEventsInWaitList, pSyncPointWaitList, pSyncPoint);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_mem_handle_t hBuffer, ur_rect_offset_t bufferOffset,
+    ur_rect_offset_t hostOffset, ur_rect_region_t region,
+    size_t bufferRowPitch, size_t bufferSlicePitch,
+    size_t hostRowPitch, size_t hostSlicePitch,
+    void *pSrc, uint32_t numEventsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+
+  UR_ASSERT(hCommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
+  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  std::scoped_lock<ur_shared_mutex> Lock(hBuffer->Mutex);
+
+  char *ZeHandleDst = nullptr;
+  UR_CALL(hBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
+                              hCommandBuffer->Device));
+  return enqueueCommandBufferMemCopyRectHelper(
+      UR_COMMAND_MEM_BUFFER_WRITE_RECT, hCommandBuffer, ZeHandleDst,
+      const_cast<char *>(static_cast<const char *>(pSrc)), hostOffset,
+      bufferOffset, region, hostRowPitch, bufferRowPitch, hostSlicePitch,
+      bufferSlicePitch, numEventsInWaitList, pSyncPointWaitList, pSyncPoint);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_mem_handle_t hBuffer, size_t offset, size_t size, void *pDst,
+    uint32_t numEventsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+
+  UR_ASSERT(hCommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
+  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  std::scoped_lock<ur_shared_mutex> SrcLock(hBuffer->Mutex);
+
+  char *ZeHandleSrc = nullptr;
+  UR_CALL(hBuffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
+                           hCommandBuffer->Device));
+  return enqueueCommandBufferMemCopyHelper(
+      UR_COMMAND_MEM_BUFFER_READ, hCommandBuffer, pDst, ZeHandleSrc + offset,
+      size, numEventsInWaitList, pSyncPointWaitList, pSyncPoint);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_mem_handle_t hBuffer, ur_rect_offset_t bufferOffset,
+    ur_rect_offset_t hostOffset, ur_rect_region_t region,
+    size_t bufferRowPitch, size_t bufferSlicePitch,
+    size_t hostRowPitch, size_t hostSlicePitch,
+    void *pDst, uint32_t numEventsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+
+  UR_ASSERT(hCommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
+  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  std::scoped_lock<ur_shared_mutex> SrcLock(hBuffer->Mutex);
+
+  char *ZeHandleSrc;
+  UR_CALL(hBuffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
+                              hCommandBuffer->Device));
+  return enqueueCommandBufferMemCopyRectHelper(
+      UR_COMMAND_MEM_BUFFER_READ_RECT, hCommandBuffer, pDst, ZeHandleSrc,
+      bufferOffset, hostOffset, region, bufferRowPitch, hostRowPitch,
+      bufferSlicePitch, hostSlicePitch, numEventsInWaitList, pSyncPointWaitList,
+      pSyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(

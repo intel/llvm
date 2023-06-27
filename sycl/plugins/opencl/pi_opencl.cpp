@@ -2343,6 +2343,44 @@ pi_result piextCommandBufferMemBufferCopyRect(
   return {};
 }
 
+pi_result piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list, pi_ext_sync_point *sync_point) {
+  // Not implemented
+  return {};
+}
+
+pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
+    size_t host_row_pitch, size_t host_slice_pitch, void *ptr,
+    pi_uint32 num_sync_points_in_wait_list, const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  // Not implemented
+  return {};
+}
+
+pi_result piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list, pi_ext_sync_point *sync_point) {
+  // Not implemented
+  return {};
+}
+
+pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
+    size_t host_row_pitch, size_t host_slice_pitch, const void *ptr,
+    pi_uint32 num_sync_points_in_wait_list, const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  // Not implemented
+  return {};
+}
+
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
                                     pi_queue queue,
                                     pi_uint32 num_events_in_wait_list,
@@ -2556,6 +2594,12 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferMemBufferCopy, piextCommandBufferMemBufferCopy)
   _PI_CL(piextCommandBufferMemBufferCopyRect,
          piextCommandBufferMemBufferCopyRect)
+  _PI_CL(piextCommandBufferMemBufferRead, piextCommandBufferMemBufferRead)
+  _PI_CL(piextCommandBufferMemBufferReadRect,
+         piextCommandBufferMemBufferReadRect)
+  _PI_CL(piextCommandBufferMemBufferWrite, piextCommandBufferMemBufferWrite)
+  _PI_CL(piextCommandBufferMemBufferWriteRect,
+         piextCommandBufferMemBufferWriteRect)
   _PI_CL(piextEnqueueCommandBuffer, piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)

@@ -5640,6 +5640,44 @@ pi_result hip_piextCommandBufferMemBufferCopyRect(
   return {};
 }
 
+pi_result hip_piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list, pi_ext_sync_point *sync_point) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
+    size_t host_row_pitch, size_t host_slice_pitch, void *ptr,
+    pi_uint32 num_sync_points_in_wait_list, const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list, pi_ext_sync_point *sync_point) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
+    size_t host_row_pitch, size_t host_slice_pitch, const void *ptr,
+    pi_uint32 num_sync_points_in_wait_list, const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
 pi_result hip_piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
                                         pi_queue queue,
                                         pi_uint32 num_events_in_wait_list,
@@ -5848,6 +5886,12 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferMemBufferCopy, hip_piextCommandBufferMemBufferCopy)
   _PI_CL(piextCommandBufferMemBufferCopyRect,
          hip_piextCommandBufferMemBufferCopyRect)
+  _PI_CL(piextCommandBufferMemBufferRead, hip_piextCommandBufferMemBufferRead)
+  _PI_CL(piextCommandBufferMemBufferReadRect,
+         hip_piextCommandBufferMemBufferReadRect)
+  _PI_CL(piextCommandBufferMemBufferWrite, hip_piextCommandBufferMemBufferWrite)
+  _PI_CL(piextCommandBufferMemBufferWriteRect,
+         hip_piextCommandBufferMemBufferWriteRect)
   _PI_CL(piextEnqueueCommandBuffer, hip_piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)

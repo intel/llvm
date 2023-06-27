@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG f055b00e70eeaabb5532c1c48dc3c769df6bef57)
+  set(UNIFIED_RUNTIME_TAG 933d9cad4be0c339a8e583fc54debe6f5a0472e8)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime

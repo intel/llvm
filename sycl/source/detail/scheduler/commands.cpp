@@ -2620,7 +2620,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     AllocaCommandBase *AllocaCmdSrc = getAllocaForReq(ReqSrc);
     AllocaCommandBase *AllocaCmdDst = getAllocaForReq(ReqDst);
 
-    MemoryManager::ext_oneapi_copy_cmd_buffer(
+    MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
         MQueue->getContextImplPtr(), MCommandBuffer,
         AllocaCmdSrc->getSYCLMemObj(), AllocaCmdSrc->getMemAllocation(),
         ReqSrc->MDims, ReqSrc->MMemoryRange, ReqSrc->MAccessRange,
@@ -2629,6 +2629,35 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         ReqDst->MOffset, ReqDst->MElemSize, std::move(MSyncPointDeps),
         &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::CopyAccToPtr: {
+    CGCopy *Copy = (CGCopy *)MCommandGroup.get();
+    Requirement *Req = (Requirement *)Copy->getSrc();
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+    MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
+        AllocaCmd->getMemAllocation(), Req->MDims, Req->MMemoryRange,
+        Req->MAccessRange, Req->MOffset, Req->MElemSize, Copy->getDst(),
+        Req->MDims, Req->MAccessRange,
+        /*DstOffset=*/ {0, 0, 0}, Req->MElemSize, std::move(MSyncPointDeps),
+        &OutSyncPoint);
+
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::CopyPtrToAcc: {
+    CGCopy *Copy = (CGCopy *)MCommandGroup.get();
+    Requirement *Req = (Requirement *)(Copy->getDst());
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+    MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
+        Copy->getSrc(), Req->MDims, Req->MAccessRange,
+        /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
+        Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
+        Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
+
     return PI_SUCCESS;
   }
   default:

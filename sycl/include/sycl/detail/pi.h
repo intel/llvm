@@ -2225,6 +2225,90 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferCopyRect(
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
+/// API to append a mem buffer read command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the data to be read
+/// \param offset offset into \p buffer
+/// \param size is number of bytes to read
+/// \param dst is the pointer to the destination
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a rectangular mem buffer read command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the data to be read
+/// \param buffer_offset offset for the start of the region to read in buffer
+/// \param host_offset offset for the start of the region to be written from ptr
+/// \param region The size of the region to read
+/// \param buffer_row_pitch Row pitch for the source buffer data
+/// \param buffer_slice_pitch Slice pitch for the source buffer data
+/// \param host_row_pitch Row pitch for the destination data ptr
+/// \param host_slice_pitch Slice pitch for the destination data ptr
+/// \param ptr is the location the data will be written
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer write command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the location to write the data
+/// \param offset offset into \p buffer
+/// \param size is number of bytes to write
+/// \param ptr is the pointer to the source
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, const void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a rectangular mem buffer write command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the location to write the data
+/// \param buffer_offset offset for the start of the region to write in buffer
+/// \param host_offset offset for the start of the region to be read from ptr
+/// \param region The size of the region to write
+/// \param buffer_row_pitch Row pitch for the buffer data
+/// \param buffer_slice_pitch Slice pitch for the buffer data
+/// \param host_row_pitch Row pitch for the source data ptr
+/// \param host_slice_pitch Slice pitch for the source data ptr
+/// \param ptr is the pointer to the source
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    const void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
 /// API to submit the command-buffer to queue for execution, returns an error if
 /// command-buffer not finalized or another instance of same command-buffer
 /// currently executing.
