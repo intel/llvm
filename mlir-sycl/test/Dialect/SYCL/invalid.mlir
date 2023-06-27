@@ -347,3 +347,11 @@ func.func @test_id_constructor_wrong_sign(%arg: i32) -> memref<1x!sycl_id_1_> {
   %0 = sycl.id.constructor(%arg) : (i32) -> memref<1x!sycl_id_1_>
   func.return %0 : memref<1x!sycl_id_1_>
 }
+
+// -----
+
+func.func @math_op_invalid_type(%arg0 : i32) {
+  // expected-error @+1 {{op operand #0 must be 32-bit float or 64-bit float, but got 'i32'}}
+  %0 = sycl.math.sin %arg0 : i32
+  return
+}

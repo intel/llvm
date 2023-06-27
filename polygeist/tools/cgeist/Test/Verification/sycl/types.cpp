@@ -13,10 +13,9 @@
 // CHECK-DAG: !sycl_atomic_i32_glo = !sycl.atomic<[i32, global], (memref<?xi32, 1>)>
 // CHECK-DAG: !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
-// CHECK-DAG: !sycl_h_item_1_ = !sycl.h_item<[1], (![[ITEM_1_F:.*]], ![[ITEM_1_F]], ![[ITEM_1_F]])>
 // CHECK-DAG: !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 // CHECK-DAG: !sycl_id_2_ = !sycl.id<[2], (!sycl_array_2_)>
-// CHECK-DAG: ![[ITEM_1_F]] = !sycl.item<[1, false], (![[ITEM_BASE_1_F:.*]])>
+// CHECK-DAG: ![[ITEM_1_F:.*]] = !sycl.item<[1, false], (![[ITEM_BASE_1_F:.*]])>
 // CHECK-DAG: ![[ITEM_1_T:.*]] = !sycl.item<[1, true], (![[ITEM_BASE_1_T:.*]])>
 // CHECK-DAG: ![[ITEM_2_F:.*]] = !sycl.item<[2, false], (![[ITEM_BASE_2_F:.*]])>
 // CHECK-DAG: ![[ITEM_2_T:.*]] = !sycl.item<[2, true], (![[ITEM_BASE_2_T:.*]])>
@@ -101,11 +100,6 @@ SYCL_EXTERNAL void group_1(sycl::group<1> group) {}
 // CHECK:          %arg0: memref<?x!sycl_group_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_group_2_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void group_2(sycl::group<2> group) {}
-
-// CHECK-LABEL: func.func @_Z6h_itemN4sycl3_V16h_itemILi1EEE(
-// CHECK:          %arg0: memref<?x!sycl_h_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_h_item_1_, llvm.noundef})
-// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
-SYCL_EXTERNAL void h_item(sycl::h_item<1> h_item) {}
 
 // CHECK-LABEL: func.func @_Z4id_1N4sycl3_V12idILi1EEE(
 // CHECK:          %arg0: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef})

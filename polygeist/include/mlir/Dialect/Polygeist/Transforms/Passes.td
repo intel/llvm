@@ -10,6 +10,7 @@
 #define MLIR_DIALECT_POLYGEIST_TRANSFORMS_PASSES
 
 include "mlir/Pass/PassBase.td"
+include "mlir/Rewrite/PassUtil.td"
 
 def AffineCFG : Pass<"affine-cfg"> {
   let summary = "Replace scf.if and similar with affine.if";
@@ -185,6 +186,15 @@ def LICM : Pass<"licm"> {
   let statistics = [
     Statistic<"numOpHoisted", "num-operations-hoisted", "Number of operations hoisted">
   ];
+}
+
+def SYCLRaiseHostConstructs : Pass<"sycl-raise-host"> {
+  let summary = "Raise relevant sequences of host code to SYCL dialect operations";
+  // TODO: Description
+  let dependentDialects = ["sycl::SYCLDialect"];
+  let constructor = "mlir::polygeist::createSYCLHostRaisingPass()";
+  let options = RewritePassUtils.options;
+  // TODO: Statistics
 }
 
 def OpenMPOptPass : Pass<"openmp-opt"> {

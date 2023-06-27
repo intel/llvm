@@ -22,6 +22,7 @@
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVM.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
+#include "mlir/Conversion/SYCLToMath/SYCLToMath.h"
 #include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRV.h"
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 #include "mlir/Dialect/Async/IR/Async.h"
@@ -1619,6 +1620,7 @@ struct ConvertPolygeistToLLVMPass
 
       populateSYCLToLLVMConversionPatterns(syclImplementation, syclTarget,
                                            converter, patterns);
+      populateSYCLToMathConversionPatterns(patterns);
       populateSYCLToSPIRVConversionPatterns(converter, patterns);
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);

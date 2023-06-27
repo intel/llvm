@@ -349,6 +349,12 @@ private:
   createSYCLMethodOp(llvm::StringRef FunctionName, mlir::ValueRange Operands,
                      llvm::Optional<mlir::Type> ReturnType);
 
+  /// Attempts to map a call to \param FunctionName to a math operation in the
+  /// `sycl` dialect.
+  mlir::Operation *createSYCLMathOp(llvm::StringRef FunctionName,
+                                    mlir::ValueRange Operands,
+                                    mlir::Type ReturnType);
+
   /// Creates an instance of a SYCL grid operation replacing a call to \param
   /// Callee.
   mlir::Operation *createSYCLBuiltinOp(const clang::FunctionDecl *Callee,

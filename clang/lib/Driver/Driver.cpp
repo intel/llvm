@@ -350,9 +350,14 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
     }
 
     // Deprecated options emit a diagnostic about deprecation, but are still
-    // supported until removed.
-    if (A->getOption().hasFlag(options::Deprecated)) {
-      Diag(diag::warn_drv_deprecated_option_release) << A->getAsString(Args);
+    // supported until removed. It's possible to have a deprecated option which
+    // aliases with a non-deprecated option, so always compute the argument
+    // actually used before checking for deprecation.
+    const Arg *Used = A;
+    while (Used->getAlias())
+      Used = Used->getAlias();
+    if (Used->getOption().hasFlag(options::Deprecated)) {
+      Diag(diag::warn_drv_deprecated_option_release) << Used->getAsString(Args);
       ContainsError |= Diags.getDiagnosticLevel(
                            diag::warn_drv_deprecated_option_release,
                            SourceLocation()) > DiagnosticsEngine::Warning;

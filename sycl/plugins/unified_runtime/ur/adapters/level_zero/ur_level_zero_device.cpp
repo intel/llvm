@@ -245,9 +245,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint64_t GlobalMemSize = 0;
+    // Support to read physicalSize depends on kernel,
+    // so fallback into reading totalSize if physicalSize
+    // is not available.
     for (const auto &ZeDeviceMemoryExtProperty :
          Device->ZeDeviceMemoryProperties->second) {
       GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
+    }
+    if (GlobalMemSize == 0) {
+      for (const auto &ZeDeviceMemoryProperty :
+           Device->ZeDeviceMemoryProperties->first) {
+        GlobalMemSize += ZeDeviceMemoryProperty.totalSize;
+      }
     }
     return ReturnValue(uint64_t{GlobalMemSize});
   }
@@ -327,14 +336,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
 
     if (Device->isCCS()) {
       struct {
-        ur_device_partition_property_t Arr[2];
+        ur_device_partition_t Arr[2];
       } PartitionProperties = {
           {UR_DEVICE_PARTITION_BY_CSLICE, ur_device_partition_t(0)}};
       return ReturnValue(PartitionProperties);
     }
 
     struct {
-      ur_device_partition_property_t Arr[3];
+      ur_device_partition_t Arr[3];
     } PartitionProperties = {
         {UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
          (ur_device_partition_t)

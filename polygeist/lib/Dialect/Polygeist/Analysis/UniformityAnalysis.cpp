@@ -49,7 +49,9 @@ raw_ostream &operator<<(raw_ostream &os, const Uniformity &uniformity) {
 
 void UniformityLattice::onUpdate(DataFlowSolver *solver) const {
   Lattice::onUpdate(solver);
+
   auto value = point.get<Value>();
+
   if (Operation *op = value.getDefiningOp()) {
     if (auto branch = dyn_cast<RegionBranchOpInterface>(op)) {
       for (Value operand : branch->getOperands()) {

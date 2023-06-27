@@ -1390,7 +1390,7 @@ ur_result_t ur_queue_handle_t_::synchronize() {
       for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
         for (auto &QueueGroup : QueueMap) {
           if (Device->ImmCommandListUsed) {
-            for (auto ImmCmdList : QueueGroup.second.ImmCmdLists) {
+            for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists) {
               if (ImmCmdList == this->CommandListMap.end())
                 continue;
               // Cleanup all events from the synced command list.
@@ -1406,7 +1406,7 @@ ur_result_t ur_queue_handle_t_::synchronize() {
       for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
         for (auto &QueueGroup : QueueMap) {
           if (Device->ImmCommandListUsed) {
-            for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+            for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
               syncImmCmdList(this, ImmCmdList);
           } else {
             for (auto &ZeQueue : QueueGroup.second.ZeQueues)

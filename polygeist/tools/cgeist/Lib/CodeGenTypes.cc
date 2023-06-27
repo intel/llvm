@@ -1383,9 +1383,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       if (TypeName == "accessor" || TypeName == "accessor_common" ||
           TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
           TypeName == "array" || TypeName == "atomic" || TypeName == "group" ||
-          TypeName == "h_item" || TypeName == "half" || TypeName == "id" ||
-          TypeName == "item" || TypeName == "ItemBase" ||
-          TypeName == "kernel_handler" ||
+          TypeName == "half" || TypeName == "id" || TypeName == "item" ||
+          TypeName == "ItemBase" || TypeName == "kernel_handler" ||
           TypeName == "LocalAccessorBaseDevice" ||
           TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
           TypeName == "maximum" || TypeName == "minimum" ||
@@ -1396,7 +1395,14 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         return getSYCLType(RT, *this);
 
       assert((AllowUndefinedSYCLTypes ||
-              NamespaceKind != mlirclang::NamespaceKind::SYCL) &&
+              // Accept types nested in other namespaces, e.g. `sycl::detail`.
+              NamespaceKind != mlirclang::NamespaceKind::SYCL ||
+              // Accept types nested in other structs/classes.
+              !RD->getDeclContext()->isNamespace() ||
+              // Exception for `h_item`: SYCL-MLIR doesn't support hierarchical
+              // parallelism as a first-class concept, but it can pass through
+              // its use to the runtime.
+              TypeName == "h_item") &&
              "Found type in the sycl namespace, but not in the SYCL dialect");
     }
 

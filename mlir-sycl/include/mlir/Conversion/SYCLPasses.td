@@ -109,4 +109,19 @@ def ConvertSYCLToSPIRV : Pass<"convert-sycl-to-spirv", "ModuleOp"> {
   ];
 }
 
+//===----------------------------------------------------------------------===//
+// SYCLToMath
+//===----------------------------------------------------------------------===//
+
+def ConvertSYCLToMath : Pass<"convert-sycl-to-math", "ModuleOp"> {
+  let summary = "Convert SYCL dialect to Math dialect";
+  let description = [{
+    This pass performs a 1:1 mapping of `sycl.math.*` operations to their
+    counterparts in the Math dialect, e.g. `sycl.math.sqrt` to `math.sqrt`.
+  }];
+  let dependentDialects = [
+      "math::MathDialect"
+  ];
+}
+
 #endif // MLIR_CONVERSION_SYCLPASSES

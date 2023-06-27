@@ -201,7 +201,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     Array,
     Atomic,
     Group,
-    HItem,
     Half,
     ID,
     ItemBase,
@@ -232,7 +231,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"array", TypeEnum::Array},
       {"atomic", TypeEnum::Atomic},
       {"group", TypeEnum::Group},
-      {"h_item", TypeEnum::HItem},
       {"half", TypeEnum::Half},
       {"id", TypeEnum::ID},
       {"ItemBase", TypeEnum::ItemBase},
@@ -329,12 +327,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
       return mlir::sycl::GroupType::get(CGT.getModule()->getContext(), Dim,
-                                        Body);
-    }
-    case TypeEnum::HItem: {
-      const auto Dim =
-          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      return mlir::sycl::HItemType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
     }
     case TypeEnum::ID: {

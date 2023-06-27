@@ -94,12 +94,6 @@ def SYCL_GroupType : SYCL_Type<"Group", "group"> {
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
-def SYCL_HItemType : SYCL_Type<"HItem", "h_item"> {
-  let parameters = (ins "unsigned":$dimension,
-                        ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
-}
-
 def SYCL_HalfType : SYCL_Type<"Half", "half"> {
   let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `(` $body `)` `>`";
