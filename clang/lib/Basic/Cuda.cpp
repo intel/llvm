@@ -37,6 +37,8 @@ static const CudaVersionMapEntry CudaNameVersionMap[] = {
     CUDA_ENTRY(11, 6),
     CUDA_ENTRY(11, 7),
     CUDA_ENTRY(11, 8),
+    CUDA_ENTRY(12, 0),
+    CUDA_ENTRY(12, 1),
     {"", CudaVersion::NEW, llvm::VersionTuple(std::numeric_limits<int>::max())},
     {"unknown", CudaVersion::UNKNOWN, {}} // End of list tombstone.
 };
@@ -220,7 +222,11 @@ CudaVersion MaxVersionForCudaArch(CudaArch A) {
   case CudaArch::SM_21:
     return CudaVersion::CUDA_80;
   case CudaArch::SM_30:
-    return CudaVersion::CUDA_110;
+  case CudaArch::SM_32:
+    return CudaVersion::CUDA_102;
+  case CudaArch::SM_35:
+  case CudaArch::SM_37:
+    return CudaVersion::CUDA_118;
   default:
     return CudaVersion::NEW;
   }

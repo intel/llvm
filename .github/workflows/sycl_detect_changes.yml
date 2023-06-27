@@ -1,0 +1,52 @@
+name: Identify changed files
+
+on:
+  workflow_call:
+    outputs:
+      filters:
+        description: Matched filters
+        value: ${{ jobs.need_check.outputs.filters }}
+
+jobs:
+  need_check:
+    name: Decide which tests could be affected by the changes
+    # Github's ubuntu-* runners are slow to allocate. Use our CUDA runner since
+    # we don't use it for anything right now.
+    runs-on: cuda
+    timeout-minutes: 3
+    outputs:
+      filters: ${{ steps.changes.outputs.changes }}
+    steps:
+      - name: Check file changes
+        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50
+        id: changes
+        with:
+          filters: |
+            llvm: &llvm
+              - 'llvm/**'
+            llvm_spirv: &llvm_spirv
+              - *llvm
+              - 'llvm-spirv/**'
+            clang: &clang
+              - *llvm
+              - 'clang/**'
+            sycl_fusion: &sycl-fusion
+              - *llvm
+              - 'sycl-fusion/**'
+            xptifw: &xptifw
+              - 'xptifw/**'
+            libclc: &libclc
+              - *llvm_spirv
+              - *clang
+              - 'libclc/**'
+            sycl:
+              - *clang
+              - *sycl-fusion
+              - *llvm_spirv
+              - *xptifw
+              - *libclc
+              - 'sycl/*'
+              - 'sycl/!(test-e2e|doc)/**'
+            ci:
+              - .github/workflows/**
+              - devops/**

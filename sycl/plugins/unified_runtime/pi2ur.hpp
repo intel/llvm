@@ -48,6 +48,8 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_BUILD_PROGRAM_FAILURE;
   case UR_RESULT_ERROR_UNINITIALIZED:
     return PI_ERROR_UNINITIALIZED;
+  case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   default:
     return PI_ERROR_UNKNOWN;
   };
@@ -285,35 +287,34 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
     return Value.convertBitSet<ur_device_affinity_domain_flag_t,
                                pi_device_affinity_domain>(ConvertFunc);
   } else if (ParamName == UR_DEVICE_INFO_PARTITION_TYPE) {
-    auto ConvertFunc = [](ur_device_partition_property_t UrValue) {
-      switch (UrValue) {
-      case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
+    auto ConvertFunc = [](ur_device_partition_t UrValue) {
+      if (UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN == UrValue)
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
-      case UR_DEVICE_PARTITION_BY_CSLICE:
+      else if (UR_DEVICE_PARTITION_BY_CSLICE == UrValue)
         return PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE;
-      case (ur_device_partition_property_t)
-          UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE:
+      else if ((ur_device_partition_t)
+                   UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE == UrValue)
         return (pi_device_partition_property)
             PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE;
-      default:
-        die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
-      }
+      die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
     };
-    return Value.convertArray<ur_device_partition_property_t,
-                              pi_device_partition_property>(ConvertFunc);
-  } else if (ParamName == UR_DEVICE_INFO_PARTITION_PROPERTIES) {
-    auto ConvertFunc = [](ur_device_partition_property_t UrValue) {
+    return Value
+        .convertArray<ur_device_partition_t, pi_device_partition_property>(
+            ConvertFunc);
+  } else if (ParamName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
+    auto ConvertFunc = [](ur_device_partition_t UrValue) {
       switch (UrValue) {
       case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
       case UR_DEVICE_PARTITION_BY_CSLICE:
         return PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE;
       default:
-        die("UR_DEVICE_INFO_PARTITION_PROPERTIES: unhandled value");
+        die("UR_DEVICE_INFO_SUPPORTED_PARTITIONS: unhandled value");
       }
     };
-    return Value.convertArray<ur_device_partition_property_t,
-                              pi_device_partition_property>(ConvertFunc);
+    return Value
+        .convertArray<ur_device_partition_t, pi_device_partition_property>(
+            ConvertFunc);
   } else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
     auto ConvertFunc = [](ur_device_local_mem_type_t UrValue) {
       switch (UrValue) {
@@ -458,14 +459,16 @@ inline pi_result ur2piUSMAllocInfoValue(ur_usm_alloc_info_t ParamName,
 }
 
 // Handle mismatched PI and UR type return sizes for info queries
-inline pi_result fixupInfoValueTypes(size_t ParamValueSizeUR,
+inline pi_result fixupInfoValueTypes(size_t ParamValueSizeRetUR,
                                      size_t *ParamValueSizeRetPI,
-                                     void *ParamValue) {
-  if (ParamValueSizeUR == 1) {
+                                     size_t ParamValueSize, void *ParamValue) {
+  if (ParamValueSizeRetUR == 1 && ParamValueSize == 4) {
     // extend bool to pi_bool (uint32_t)
-    auto *ValIn = static_cast<bool *>(ParamValue);
-    auto *ValOut = static_cast<pi_bool *>(ParamValue);
-    *ValOut = static_cast<pi_bool>(*ValIn);
+    if (ParamValue) {
+      auto *ValIn = static_cast<bool *>(ParamValue);
+      auto *ValOut = static_cast<pi_bool *>(ParamValue);
+      *ValOut = static_cast<pi_bool>(*ValIn);
+    }
     if (ParamValueSizeRetPI) {
       *ParamValueSizeRetPI = sizeof(pi_bool);
     }
@@ -591,13 +594,18 @@ inline pi_result piPlatformGetInfo(pi_platform Platform,
     die("urGetContextInfo: unsuppported ParamName.");
   }
 
-  size_t SizeInOut = ParamValueSize;
+  size_t UrParamValueSizeRet;
   auto UrPlatform = reinterpret_cast<ur_platform_handle_t>(Platform);
-  HANDLE_ERRORS(urPlatformGetInfo(UrPlatform, UrParamName, SizeInOut,
-                                  ParamValue, ParamValueSizeRet));
+  HANDLE_ERRORS(urPlatformGetInfo(UrPlatform, UrParamName, ParamValueSize,
+                                  ParamValue, &UrParamValueSizeRet));
 
-  ur2piPlatformInfoValue(UrParamName, ParamValueSize, &SizeInOut, ParamValue);
-  fixupInfoValueTypes(SizeInOut, ParamValueSizeRet, ParamValue);
+  if (ParamValueSizeRet) {
+    *ParamValueSizeRet = UrParamValueSizeRet;
+  }
+  ur2piPlatformInfoValue(UrParamName, ParamValueSize, &ParamValueSize,
+                         ParamValue);
+  fixupInfoValueTypes(UrParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
+                      ParamValue);
 
   return PI_SUCCESS;
 }
@@ -609,11 +617,6 @@ inline pi_result piextPluginGetOpaqueData(void *opaque_data_param,
   return PI_ERROR_UNKNOWN;
 }
 
-// Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return '-ze-opt-disable' for frontend_option = -O0.
-// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
-// Return '-ze-opt-level=2' for frontend_option = -O3.
 inline pi_result piPluginGetBackendOption(pi_platform Platform,
                                           const char *FrontendOption,
                                           const char **PlatformOption) {
@@ -770,7 +773,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = UR_DEVICE_INFO_REFERENCE_COUNT;
     break;
   case PI_DEVICE_INFO_PARTITION_PROPERTIES:
-    InfoType = UR_DEVICE_INFO_PARTITION_PROPERTIES;
+    InfoType = UR_DEVICE_INFO_SUPPORTED_PARTITIONS;
     break;
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
     InfoType = UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN;
@@ -1010,20 +1013,28 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION;
     break;
   }
+  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    InfoType = UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
+    break;
+  }
   default:
     return PI_ERROR_UNKNOWN;
   };
 
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  size_t SizeInOut = ParamValueSize;
+  size_t UrParamValueSizeRet;
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
 
-  HANDLE_ERRORS(urDeviceGetInfo(UrDevice, InfoType, SizeInOut, ParamValue,
-                                ParamValueSizeRet));
+  HANDLE_ERRORS(urDeviceGetInfo(UrDevice, InfoType, ParamValueSize, ParamValue,
+                                &UrParamValueSizeRet));
 
-  ur2piDeviceInfoValue(InfoType, ParamValueSize, &SizeInOut, ParamValue);
-  fixupInfoValueTypes(SizeInOut, ParamValueSizeRet, ParamValue);
+  if (ParamValueSizeRet) {
+    *ParamValueSizeRet = UrParamValueSizeRet;
+  }
+  ur2piDeviceInfoValue(InfoType, ParamValueSize, &ParamValueSize, ParamValue);
+  fixupInfoValueTypes(UrParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
+                      ParamValue);
 
   return PI_SUCCESS;
 }
@@ -1069,7 +1080,7 @@ inline pi_result piDevicePartition(
   if (!Properties || !Properties[0])
     return PI_ERROR_INVALID_VALUE;
 
-  ur_device_partition_property_t Property;
+  ur_device_partition_t Property;
   switch (Properties[0]) {
   case PI_DEVICE_PARTITION_EQUALLY:
     Property = UR_DEVICE_PARTITION_EQUALLY;
@@ -1109,12 +1120,20 @@ inline pi_result piDevicePartition(
   // TODO: correctly terminate the UR properties, see:
   // https://github.com/oneapi-src/unified-runtime/issues/183
   //
-  ur_device_partition_property_t UrProperties[] = {
-      ur_device_partition_property_t(Property), Value, 0};
+  ur_device_partition_property_t UrProperty;
+  UrProperty.type = Property;
+  UrProperty.value.equally = Value;
+
+  ur_device_partition_properties_t UrProperties{
+      UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+      nullptr,
+      &UrProperty,
+      1,
+  };
 
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrSubDevices = reinterpret_cast<ur_device_handle_t *>(SubDevices);
-  HANDLE_ERRORS(urDevicePartition(UrDevice, UrProperties, NumEntries,
+  HANDLE_ERRORS(urDevicePartition(UrDevice, &UrProperties, NumEntries,
                                   UrSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }
@@ -1167,6 +1186,9 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
                     __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_AMDGCN;
+    else
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_UNKNOWN;
   }
 
   HANDLE_ERRORS(urDeviceSelectBinary(UrDevice, UrBinaries.data(), NumBinaries,
@@ -1286,10 +1308,14 @@ inline pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
   }
   }
 
+  size_t UrParamValueSizeRet;
   HANDLE_ERRORS(urContextGetInfo(hContext, ContextInfoType, ParamValueSize,
-                                 ParamValue, ParamValueSizeRet));
-  fixupInfoValueTypes(ParamValueSize, ParamValueSizeRet, ParamValue);
-
+                                 ParamValue, &UrParamValueSizeRet));
+  if (ParamValueSizeRet) {
+    *ParamValueSizeRet = UrParamValueSizeRet;
+  }
+  fixupInfoValueTypes(UrParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
+                      ParamValue);
   return PI_SUCCESS;
 }
 
@@ -1589,17 +1615,20 @@ inline pi_result piProgramCreateWithBinary(
       reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(DeviceList[0]);
 
-  std::unique_ptr<ur_program_metadata_t[]> pMetadatas(
-      new ur_program_metadata_t[NumMetadataEntries]);
-  for (unsigned i = 0; i < NumMetadataEntries; i++) {
-    HANDLE_ERRORS(mapPIMetadataToUR(&Metadata[i], &pMetadatas[i]));
-  }
-
-  ur_program_properties_t Properties;
+  ur_program_properties_t Properties = {};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
   Properties.pNext = nullptr;
   Properties.count = NumMetadataEntries;
-  Properties.pMetadatas = pMetadatas.get();
+
+  std::unique_ptr<ur_program_metadata_t[]> pMetadatas;
+  if (NumMetadataEntries) {
+    pMetadatas.reset(new ur_program_metadata_t[NumMetadataEntries]);
+    for (unsigned i = 0; i < NumMetadataEntries; i++) {
+      HANDLE_ERRORS(mapPIMetadataToUR(&Metadata[i], &pMetadatas[i]));
+    }
+
+    Properties.pMetadatas = pMetadatas.get();
+  }
 
   ur_program_handle_t *UrProgram =
       reinterpret_cast<ur_program_handle_t *>(Program);
@@ -1889,6 +1918,8 @@ inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   if (ArgValue)
     UrMemory = reinterpret_cast<ur_mem_handle_t>(*ArgValue);
 
+  ur_kernel_arg_mem_obj_properties_t Properties{};
+
   // We don't yet know the device where this kernel will next be run on.
   // Thus we can't know the actual memory allocation that needs to be used.
   // Remember the memory object being used as an argument for this kernel
@@ -1900,7 +1931,8 @@ inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   //
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, UrMemory));
+  HANDLE_ERRORS(
+      urKernelSetArgMemObj(UrKernel, ArgIndex, &Properties, UrMemory));
   return PI_SUCCESS;
 }
 
@@ -1915,11 +1947,11 @@ inline pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
   return PI_SUCCESS;
 }
 
-inline pi_result piKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
-                                       size_t arg_size, const void *arg_value) {
-  (void)arg_size;
-  auto hKernel = reinterpret_cast<ur_kernel_handle_t>(kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(hKernel, arg_index, arg_value));
+inline pi_result piKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
+                                       size_t ArgSize, const void *ArgValue) {
+  std::ignore = ArgSize;
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, ArgValue));
 
   return PI_SUCCESS;
 }
@@ -2122,9 +2154,10 @@ inline pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
   }
   // The number of registers used by the compiled kernel (device specific)
   case PI_KERNEL_GROUP_INFO_NUM_REGS: {
-    die("PI_KERNEL_GROUP_INFO_NUM_REGS in piKernelGetGroupInfo not "
-        "implemented\n");
-    break;
+    HANDLE_ERRORS(urKernelGetInfo(UrKernel, UR_KERNEL_INFO_NUM_REGS,
+                                  ParamValueSize, ParamValue,
+                                  ParamValueSizeRet));
+    return PI_SUCCESS;
   }
   default: {
     die("Unknown ParamName in piKernelGetGroupInfo");
@@ -2376,6 +2409,7 @@ inline pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags,
   }
 
   ur_buffer_properties_t UrProps{};
+  UrProps.stype = UR_STRUCTURE_TYPE_BUFFER_PROPERTIES;
   UrProps.pHost = HostPtr;
   ur_mem_handle_t *UrBuffer = reinterpret_cast<ur_mem_handle_t *>(RetMem);
   HANDLE_ERRORS(
@@ -2560,6 +2594,7 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
   }
   }
 
+  UrDesc->stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc->arraySize = ImageDesc->image_array_size;
   UrDesc->depth = ImageDesc->image_depth;
   UrDesc->height = ImageDesc->image_height;
@@ -2781,8 +2816,6 @@ inline pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_mem_handle_t *UrMem = reinterpret_cast<ur_mem_handle_t *>(Mem);
-  // TODO: Pass OwnNativeHandle to the output parameter
-  // while we get it in interface
   ur_mem_native_properties_t Properties{};
   Properties.isNativeHandleOwned = OwnNativeHandle;
   HANDLE_ERRORS(urMemBufferCreateWithNativeHandle(UrNativeMem, UrContext,
@@ -3792,6 +3825,7 @@ inline pi_result piSamplerCreate(pi_context Context,
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_sampler_desc_t UrProps{};
+  UrProps.stype = UR_STRUCTURE_TYPE_SAMPLER_DESC;
   const pi_sampler_properties *CurProperty = SamplerProperties;
   while (*CurProperty != 0) {
     switch (*CurProperty) {
@@ -3865,13 +3899,16 @@ inline pi_result piSamplerGetInfo(pi_sampler Sampler, pi_sampler_info ParamName,
     return PI_ERROR_UNKNOWN;
   }
 
-  size_t SizeInOut = ParamValueSize;
+  size_t UrParamValueSizeRet;
   auto hSampler = reinterpret_cast<ur_sampler_handle_t>(Sampler);
-  HANDLE_ERRORS(urSamplerGetInfo(hSampler, InfoType, SizeInOut, ParamValue,
-                                 ParamValueSizeRet));
+  HANDLE_ERRORS(urSamplerGetInfo(hSampler, InfoType, ParamValueSize, ParamValue,
+                                 &UrParamValueSizeRet));
+  if (ParamValueSizeRet) {
+    *ParamValueSizeRet = UrParamValueSizeRet;
+  }
   ur2piSamplerInfoValue(InfoType, ParamValueSize, &ParamValueSize, ParamValue);
-  fixupInfoValueTypes(SizeInOut, ParamValueSizeRet, ParamValue);
-
+  fixupInfoValueTypes(UrParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
+                      ParamValue);
   return PI_SUCCESS;
 }
 

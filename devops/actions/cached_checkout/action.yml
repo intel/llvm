@@ -16,6 +16,9 @@ inputs:
   default_branch:
     description: 'Name of the default branch'
     default: 'sycl'
+  merge:
+    description: 'Merge default branch after the checkout'
+    default: true
 
 runs:
   using: 'composite'
@@ -26,7 +29,7 @@ runs:
       mkdir -p ${{ inputs.cache_path }}/${{ inputs.repository }}
       cd ${{ inputs.cache_path }}/${{ inputs.repository }}
       if [ -d ./.git ]; then
-        git pull
+        git pull --prune
       else
         git clone https://github.com/${{ inputs.repository }}.git .
       fi
@@ -41,10 +44,16 @@ runs:
       ref: ${{ inputs.ref }}
       path: ${{ inputs.path }}
       fetch-depth: 0
-  - name: Merge sycl HEAD into current branch
+  - name: Setup alternates
     shell: bash
     env:
       GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
+    run: |
+      echo $GIT_ALTERNATE_OBJECT_DIRECTORIES > ${{ inputs.path }}/.git/objects/info/alternates
+  - name: Merge sycl HEAD into current branch
+    shell: bash
+    if: ${{ inputs.merge == 'true' }}
+    env:
       DEFAULT_BRANCH: ${{ inputs.default_branch }}
     run: |
       cd ${{ inputs.path }}
