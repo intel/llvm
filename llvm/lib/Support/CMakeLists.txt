@@ -129,6 +129,7 @@ add_llvm_component_library(LLVMSupport
   Allocator.cpp
   AutoConvert.cpp
   Base64.cpp
+  BalancedPartitioning.cpp
   BinaryStreamError.cpp
   BinaryStreamReader.cpp
   BinaryStreamRef.cpp
@@ -146,6 +147,7 @@ add_llvm_component_library(LLVMSupport
   Compression.cpp
   CRC.cpp
   ConvertUTF.cpp
+  ConvertEBCDIC.cpp
   ConvertUTFWrapper.cpp
   CrashRecoveryContext.cpp
   CSKYAttributes.cpp
@@ -165,6 +167,7 @@ add_llvm_component_library(LLVMSupport
   FileCollector.cpp
   FileUtilities.cpp
   FileOutputBuffer.cpp
+  FloatingPointMode.cpp
   FoldingSet.cpp
   FormattedStream.cpp
   FormatVariadic.cpp
@@ -181,7 +184,6 @@ add_llvm_component_library(LLVMSupport
   LineIterator.cpp
   Locale.cpp
   LockFileManager.cpp
-  LowLevelType.cpp
   ManagedStatic.cpp
   MathExtras.cpp
   MemAlloc.cpp
@@ -218,6 +220,7 @@ add_llvm_component_library(LLVMSupport
   StringMap.cpp
   StringSaver.cpp
   StringRef.cpp
+  SuffixTreeNode.cpp
   SuffixTree.cpp
   SystemUtils.cpp
   TarWriter.cpp

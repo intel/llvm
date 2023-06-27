@@ -76,7 +76,7 @@ let Interpretation64Bit = 1, isCodeGenOnly = 1 in {
 let isTerminator = 1, isBarrier = 1, PPC970_Unit = 7, hasSideEffects = 0 in {
   let isReturn = 1, isPredicable = 1, Uses = [LR8, RM] in
     def BLR8 : XLForm_2_ext<19, 16, 20, 0, 0, (outs), (ins), "blr", IIC_BrB,
-                            [(retflag)]>, Requires<[In64BitMode]>;
+                            [(retglue)]>, Requires<[In64BitMode]>;
   let isBranch = 1, isIndirectBranch = 1, Uses = [CTR8] in {
     let isPredicable = 1 in
       def BCTR8 : XLForm_2_ext<19, 528, 20, 0, 0, (outs), (ins), "bctr", IIC_BrB,
@@ -993,10 +993,19 @@ def POPCNTW : XForm_11<31, 378, (outs gprc:$RA), (ins gprc:$RST),
                        "popcntw $RA, $RST", IIC_IntGeneral,
                        [(set i32:$RA, (ctpop i32:$RST))]>;
 
-let isCodeGenOnly = 1 in
+let isCodeGenOnly = 1 in {
 def POPCNTB8 : XForm_11<31, 122, (outs g8rc:$RA), (ins g8rc:$RST),
                         "popcntb $RA, $RST", IIC_IntGeneral,
                         [(set i64:$RA, (int_ppc_popcntb i64:$RST))]>;
+
+def CDTBCD8 : XForm_11<31, 282, (outs g8rc:$RA), (ins g8rc:$RST),
+                       "cdtbcd $RA, $RST", IIC_IntGeneral, []>;
+def CBCDTD8 : XForm_11<31, 314, (outs g8rc:$RA), (ins g8rc:$RST),
+                       "cbcdtd $RA, $RST", IIC_IntGeneral, []>;
+
+def ADDG6S8 : XOForm_1<31, 74, 0, (outs g8rc:$RT), (ins g8rc:$RA, g8rc:$RB),
+                       "addg6s $RT, $RA, $RB", IIC_IntGeneral, []>;
+}
 
 defm DIVD  : XOForm_1rcr<31, 489, 0, (outs g8rc:$RT), (ins g8rc:$RA, g8rc:$RB),
                           "divd", "$RT, $RA, $RB", IIC_IntDivD,

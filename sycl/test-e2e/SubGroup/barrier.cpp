@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 //==---------- barrier.cpp - SYCL sub_group barrier test -------*- C++ -*---==//
 //
@@ -51,8 +49,8 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
               sgsizeacc[0] = SG.get_max_local_range()[0];
           });
     });
-    auto addacc = addbuf.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor addacc(addbuf);
+    host_accessor sgsizeacc(sgsizebuf);
 
     size_t sg_size = sgsizeacc[0];
     int WGid = -1, SGid = 0;

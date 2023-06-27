@@ -25,8 +25,10 @@ namespace detail {
 /// into a corresponding llvm::MDNodes.
 class LoopAnnotationTranslation {
 public:
-  LoopAnnotationTranslation(Operation *mlirModule, llvm::Module &llvmModule)
-      : mlirModule(mlirModule), llvmModule(llvmModule) {}
+  LoopAnnotationTranslation(ModuleTranslation &moduleTranslation,
+                            Operation *mlirModule, llvm::Module &llvmModule)
+      : moduleTranslation(moduleTranslation), mlirModule(mlirModule),
+        llvmModule(llvmModule) {}
 
   llvm::MDNode *translateLoopAnnotation(LoopAnnotationAttr attr, Operation *op);
 
@@ -39,10 +41,12 @@ public:
   llvm::MDNode *getAccessGroup(Operation *op,
                                SymbolRefAttr accessGroupRef) const;
 
-  /// Returns the LLVM metadata corresponding to a list of symbol reference to
-  /// an mlir LLVM dialect access group operation. Returns nullptr if
-  /// `accessGroupRefs` is null or empty.
-  llvm::MDNode *getAccessGroups(Operation *op, ArrayAttr accessGroupRefs) const;
+  /// Returns the LLVM metadata corresponding to the access group operations
+  /// referenced by the AccessGroupOpInterface or null if there are none.
+  llvm::MDNode *getAccessGroups(AccessGroupOpInterface op) const;
+
+  /// The ModuleTranslation owning this instance.
+  ModuleTranslation &moduleTranslation;
 
 private:
   /// Returns the LLVM metadata corresponding to a llvm loop metadata attribute.

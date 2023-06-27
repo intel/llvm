@@ -1,8 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// REQUIRES: aspect-queue_profiling
+// RUN: %{build} -o %t.out
 //
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 //==------------------- event_profiling_info.cpp ---------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -11,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Flaky with CUDA and HIP (https://github.com/intel/llvm/issues/6495).
-// UNSUPPORTED: cuda, hip
+// Fails there.
+// UNSUPPORTED: opencl && gpu && gpu-intel-pvc
 
 #include <cassert>
 #include <iostream>
@@ -41,10 +40,6 @@ bool verifyProfiling(event Event) {
 // event to complete execution.
 int main() {
   device Dev;
-  if (!Dev.has(aspect::queue_profiling)) {
-    std::cout << "Profiling is not supported, skipping the test" << std::endl;
-    return 0;
-  }
 
   const size_t Size = 10000;
   int Data[Size] = {0};

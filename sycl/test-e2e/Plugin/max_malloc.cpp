@@ -1,6 +1,6 @@
-// REQUIRES: gpu, level_zero, level_zero_dev_kit
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS=-ze-intel-greater-than-4GB-buffer-required %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: level_zero, level_zero_dev_kit
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS=-ze-intel-greater-than-4GB-buffer-required %{run} %t.out
 
 // TODO: Temporarily disabled on Linux due to failures.
 // UNSUPPORTED: linux

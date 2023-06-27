@@ -1050,9 +1050,15 @@ TEST(ParameterHints, ParamNameComment) {
     void bar() {
       foo(/*param*/42);
       foo( /* param = */ 42);
+#define X 42
+#define Y X
+#define Z(...) Y
+      foo(/*param=*/Z(a));
+      foo($macro[[Z(a)]]);
       foo(/* the answer */$param[[42]]);
     }
   )cpp",
+                       ExpectedHint{"param: ", "macro"},
                        ExpectedHint{"param: ", "param"});
 }
 
@@ -1318,6 +1324,21 @@ TEST(TypeHints, LongTypeName) {
     // Omit type hint past a certain length (currently 32)
     auto var = foo();
   )cpp");
+
+  Config Cfg;
+  Cfg.InlayHints.TypeNameLimit = 0;
+  WithContextValue WithCfg(Config::Key, std::move(Cfg));
+
+  assertTypeHints(
+      R"cpp(
+    template <typename, typename, typename>
+    struct A {};
+    struct MultipleWords {};
+    A<MultipleWords, MultipleWords, MultipleWords> foo();
+    // Should have type hint with TypeNameLimit = 0
+    auto $var[[var]] = foo();
+  )cpp",
+      ExpectedHint{": A<MultipleWords, MultipleWords, MultipleWords>", "var"});
 }
 
 TEST(TypeHints, DefaultTemplateArgs) {

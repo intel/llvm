@@ -29,6 +29,8 @@ def err_drv_invalid_arch_name : Error<
   "invalid arch name '%0'">;
 def err_drv_invalid_riscv_arch_name : Error<
   "invalid arch name '%0', %1">;
+def err_drv_invalid_riscv_cpu_name_for_target : Error<
+  "cpu '%0' does not support rv%select{32|64}1">;
 def warn_drv_invalid_arch_name_with_suggestion : Warning<
   "ignoring invalid /arch: argument '%0'; for %select{64|32}1-bit expected one of %2">,
   InGroup<UnusedCommandLineArgument>;
@@ -61,6 +63,10 @@ def err_drv_no_cuda_libdevice : Error<
   "via '--cuda-path', or pass '-nocudalib' to build without linking with "
   "libdevice">;
 
+def warn_function_fp_accuracy_already_set : Warning <
+  "floating point accuracy value of '%0' has already been assigned to "
+  "function '%1'">,
+  InGroup<DiagGroup<"fp-accuracy-already-set">>;
 def err_drv_no_rocm_device_lib : Error<
   "cannot find ROCm device library%select{| for %1|for ABI version %1}0; provide its path via "
   "'--rocm-path' or '--rocm-device-lib-path', or pass '-nogpulib' to build "
@@ -120,6 +126,12 @@ def warn_drv_unsupported_option_for_target : Warning<
 def warn_drv_unsupported_option_for_flang : Warning<
   "the argument '%0' is not supported for option '%1'. Mapping to '%1%2'">,
   InGroup<OptionIgnored>;
+def warn_drv_unsupported_diag_option_for_flang : Warning<
+  "The warning option '-%0' is not supported">,
+  InGroup<OptionIgnored>;
+def warn_drv_unsupported_option_for_processor : Warning<
+  "ignoring '%0' option as it is not currently supported for processor '%1'">,
+  InGroup<OptionIgnored>;
 
 def err_drv_invalid_thread_model_for_target : Error<
   "invalid thread model '%0' in '%1' for this target">;
@@ -133,8 +145,9 @@ def err_drv_invalid_unwindlib_name : Error<
   "invalid unwind library name in argument '%0'">;
 def err_drv_incompatible_unwindlib : Error<
   "--rtlib=libgcc requires --unwindlib=libgcc">;
-def err_drv_incompatible_options : Error<
-  "The combination of '%0' and '%1' is incompatible">;
+def err_drv_incompatible_fp_accuracy_options : Error<
+  "floating point accuracy requirements cannot be guaranteed when '-fmath-errno' "
+  "is enabled; use '-fno-math-errno' to enable floating point accuracy control">;
 def err_drv_invalid_stdlib_name : Error<
   "invalid library name in argument '%0'">;
 def err_drv_invalid_output_with_multiple_archs : Error<
@@ -236,8 +249,8 @@ def err_drv_malformed_sanitizer_coverage_ignorelist : Error<
   "malformed sanitizer coverage ignorelist: '%0'">;
 def err_drv_malformed_sanitizer_metadata_ignorelist : Error<
   "malformed sanitizer metadata ignorelist: '%0'">;
-def err_drv_unsupported_static_ubsan_darwin : Error<
-  "static UndefinedBehaviorSanitizer runtime is not supported on darwin">;
+def err_drv_unsupported_static_sanitizer_darwin : Error<
+  "static %0 runtime is not supported on darwin">;
 def err_drv_duplicate_config : Error<
   "no more than one option '--config' is allowed">;
 def err_drv_cannot_open_config_file : Error<
@@ -269,6 +282,7 @@ def warn_drv_unknown_argument_clang_cl : Warning<
 def warn_drv_unknown_argument_clang_cl_with_suggestion : Warning<
   "unknown argument ignored in clang-cl '%0'; did you mean '%1'?">,
   InGroup<UnknownArgument>;
+def err_drv_unknown_target_triple : Error<"unknown target triple '%0'">;
 
 def warn_drv_ycyu_different_arg_clang_cl : Warning<
   "support for '/Yc' and '/Yu' with different filenames not implemented yet; flags ignored">,
@@ -346,6 +360,8 @@ def err_drv_expecting_fsycl_with_sycl_opt : Error<
   "'%0' must be used in conjunction with '-fsycl' to enable offloading">;
 def err_drv_fsycl_with_c_type : Error<
   "'%0' must not be used in conjunction with '-fsycl', which expects C++ source">;
+def err_drv_fsycl_with_pch : Error<
+  "Precompiled header generation is not supported with '-fsycl'">;
 def err_drv_fsycl_unsupported_with_opt
   : Error<"'%0' is not supported with '-fsycl'">;
 def err_drv_sycl_missing_amdgpu_arch : Error<
@@ -449,6 +465,9 @@ def warn_drv_assuming_mfloat_abi_is : Warning<
 def warn_drv_unsupported_float_abi_by_lib : Warning<
   "float ABI '%0' is not supported by current library">,
   InGroup<DiagGroup<"unsupported-abi">>;
+def warn_drv_no_floating_point_registers: Warning<
+  "'%0': selected processor lacks floating point registers; flag ignored">,
+  InGroup<OptionIgnored>;
 def warn_ignoring_ftabstop_value : Warning<
   "ignoring invalid -ftabstop value '%0', using default value %1">;
 def warn_drv_overriding_flag_option : Warning<
@@ -661,6 +680,9 @@ def warn_drv_darwin_sdk_invalid_settings : Warning<
   "SDK settings were ignored as 'SDKSettings.json' could not be parsed">,
   InGroup<DiagGroup<"darwin-sdk-settings">>;
 
+def err_drv_darwin_sdk_missing_arclite : Error<
+  "SDK does not contain 'libarclite' at the path '%0'; try increasing the minimum deployment target">;
+
 def err_drv_trivial_auto_var_init_stop_after_missing_dependency : Error<
   "'-ftrivial-auto-var-init-stop-after=*' is used without "
   "'-ftrivial-auto-var-init=zero' or '-ftrivial-auto-var-init=pattern'">;
@@ -685,17 +707,14 @@ def warn_drv_libstdcxx_not_found : Warning<
   "command line to use the libc++ standard library instead">,
   InGroup<DiagGroup<"stdlibcxx-not-found">>;
 
-def warn_deperecated_fcoroutines_ts_flag : Warning<
-  "the '-fcoroutines-ts' flag is deprecated and it will be removed in Clang 17; "
-  "use '-std=c++20' or higher to use standard C++ coroutines instead">,
-  InGroup<DeprecatedExperimentalCoroutine>;
-
 def err_drv_cannot_mix_options : Error<"cannot specify '%1' along with '%0'">;
 
 def err_drv_invalid_object_mode : Error<
   "OBJECT_MODE setting %0 is not recognized and is not a valid setting">;
 
 def err_aix_unsupported_tls_model : Error<"TLS model '%0' is not yet supported on AIX">;
+def err_roptr_requires_data_sections: Error<"-mxcoff-roptr is supported only with -fdata-sections">;
+def err_roptr_cannot_build_shared: Error<"-mxcoff-roptr is not supported with -shared">;
 
 def err_invalid_cxx_abi : Error<"invalid C++ ABI name '%0'">;
 def err_unsupported_cxx_abi : Error<"C++ ABI '%0' is not supported on target triple '%1'">;
@@ -771,4 +790,7 @@ def err_drv_riscv_unsupported_with_linker_relaxation : Error<
 
 def err_drv_loongarch_invalid_mfpu_EQ : Error<
   "invalid argument '%0' to -mfpu=; must be one of: 64, 32, none, 0 (alias for none)">;
+
+def err_drv_expand_response_file : Error<
+  "failed to expand response file: %0">;
 }

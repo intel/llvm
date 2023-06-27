@@ -579,13 +579,12 @@ public:
 
   ConstString DeclContextGetScopeQualifiedName(void *opaque_decl_ctx) override;
 
-  bool DeclContextIsClassMethod(void *opaque_decl_ctx,
-                                lldb::LanguageType *language_ptr,
-                                bool *is_instance_method_ptr,
-                                ConstString *language_object_name_ptr) override;
+  bool DeclContextIsClassMethod(void *opaque_decl_ctx) override;
 
   bool DeclContextIsContainedInLookup(void *opaque_decl_ctx,
                                       void *other_opaque_decl_ctx) override;
+
+  lldb::LanguageType DeclContextGetLanguage(void *opaque_decl_ctx) override;
 
   // Clang specific clang::DeclContext functions
 
@@ -657,6 +656,8 @@ public:
                                           const size_t index) override;
 
   bool IsFunctionPointerType(lldb::opaque_compiler_type_t type) override;
+
+  bool IsMemberFunctionPointerType(lldb::opaque_compiler_type_t type) override;
 
   bool IsBlockPointerType(lldb::opaque_compiler_type_t type,
                           CompilerType *function_pointer_type_ptr) override;
@@ -876,7 +877,7 @@ public:
   // Lookup a child given a name. This function will match base class names and
   // member member names in "clang_type" only, not descendants.
   uint32_t GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
-                                   const char *name,
+                                   llvm::StringRef name,
                                    bool omit_empty_base_classes) override;
 
   // Lookup a child member given a name. This function will match member names
@@ -887,7 +888,8 @@ public:
   // so we catch all names that match a given child name, not just the first.
   size_t
   GetIndexOfChildMemberWithName(lldb::opaque_compiler_type_t type,
-                                const char *name, bool omit_empty_base_classes,
+                                llvm::StringRef name,
+                                bool omit_empty_base_classes,
                                 std::vector<uint32_t> &child_indexes) override;
 
   bool IsTemplateType(lldb::opaque_compiler_type_t type) override;
@@ -1146,6 +1148,9 @@ private:
 
   const clang::ClassTemplateSpecializationDecl *
   GetAsTemplateSpecialization(lldb::opaque_compiler_type_t type);
+
+  bool IsTypeImpl(lldb::opaque_compiler_type_t type,
+                  llvm::function_ref<bool(clang::QualType)> predicate) const;
 
   // Classes that inherit from TypeSystemClang can see and modify these
   std::string m_target_triple;

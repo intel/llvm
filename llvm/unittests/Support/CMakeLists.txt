@@ -1,4 +1,5 @@
 set(LLVM_LINK_COMPONENTS
+  ProfileData
   Support
   TargetParser
   )
@@ -14,6 +15,7 @@ add_llvm_unittest(SupportTests
   BinaryStreamTest.cpp
   BLAKE3Test.cpp
   BlockFrequencyTest.cpp
+  BalancedPartitioningTest.cpp
   BranchProbabilityTest.cpp
   CachePruningTest.cpp
   CrashRecoveryTest.cpp
@@ -22,6 +24,7 @@ add_llvm_unittest(SupportTests
   Chrono.cpp
   CommandLineTest.cpp
   CompressionTest.cpp
+  ConvertEBCDICTest.cpp
   ConvertUTFTest.cpp
   CRCTest.cpp
   CSKYAttributeParserTest.cpp
@@ -62,6 +65,7 @@ add_llvm_unittest(SupportTests
   OptimizedStructLayoutTest.cpp
   ParallelTest.cpp
   Path.cpp
+  PerThreadBumpPtrAllocatorTest.cpp
   ProcessTest.cpp
   ProgramTest.cpp
   PropertySetIOTest.cpp
@@ -69,6 +73,7 @@ add_llvm_unittest(SupportTests
   ReverseIterationTest.cpp
   ReplaceFileTest.cpp
   RISCVAttributeParserTest.cpp
+  RISCVISAInfoTest.cpp
   ScaledNumberTest.cpp
   SimpleTableTest.cpp
   ScopedPrinterTest.cpp

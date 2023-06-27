@@ -903,10 +903,5 @@ void CompressInstEmitter::run(raw_ostream &o) {
   emitCompressInstEmitter(o, EmitterType::CheckCompress);
 }
 
-namespace llvm {
-
-void EmitCompressInst(RecordKeeper &RK, raw_ostream &OS) {
-  CompressInstEmitter(RK).run(OS);
-}
-
-} // namespace llvm
+static TableGen::Emitter::OptClass<CompressInstEmitter>
+    X("gen-compress-inst-emitter", "Generate compressed instructions.");

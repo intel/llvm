@@ -857,9 +857,7 @@ void FastISelMap::printFunctionDefinitions(raw_ostream &OS) {
   // TODO: SignaturesWithConstantForms should be empty here.
 }
 
-namespace llvm {
-
-void EmitFastISel(RecordKeeper &RK, raw_ostream &OS) {
+static void EmitFastISel(RecordKeeper &RK, raw_ostream &OS) {
   CodeGenDAGPatterns CGP(RK);
   const CodeGenTarget &Target = CGP.getTargetInfo();
   emitSourceFileHeader("\"Fast\" Instruction Selector for the " +
@@ -875,4 +873,5 @@ void EmitFastISel(RecordKeeper &RK, raw_ostream &OS) {
   F.printFunctionDefinitions(OS);
 }
 
-} // End llvm namespace
+static TableGen::Emitter::Opt X("gen-fast-isel", EmitFastISel,
+                                "Generate a \"fast\" instruction selector");

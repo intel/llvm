@@ -12,9 +12,11 @@
 #include "AttributeDetail.h"
 #include "IntegerSetDetail.h"
 #include "TypeDetail.h"
+#include "mlir/IR/Action.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
@@ -23,7 +25,6 @@
 #include "mlir/IR/Location.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Types.h"
-#include "mlir/Support/DebugAction.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallString.h"
@@ -31,6 +32,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Mutex.h"
 #include "llvm/Support/RWMutex.h"
@@ -123,8 +125,10 @@ public:
   // Debugging
   //===--------------------------------------------------------------------===//
 
-  /// An action manager for use within the context.
-  DebugActionManager debugActionManager;
+  /// An action handler for handling actions that are dispatched through this
+  /// context.
+  std::function<void(function_ref<void()>, const tracing::Action &)>
+      actionHandler;
 
   //===--------------------------------------------------------------------===//
   // Diagnostics
@@ -171,11 +175,6 @@ public:
   /// destruction with the context.
   std::unique_ptr<llvm::ThreadPool> ownedThreadPool;
 
-  /// This is a list of dialects that are created referring to this context.
-  /// The MLIRContext owns the objects.
-  DenseMap<StringRef, std::unique_ptr<Dialect>> loadedDialects;
-  DialectRegistry dialectsRegistry;
-
   /// An allocator used for AbstractAttribute and AbstractType objects.
   llvm::BumpPtrAllocator abstractDialectSymbolAllocator;
 
@@ -188,6 +187,12 @@ public:
   /// This is a sorted container of registered operations for a deterministic
   /// and efficient `getRegisteredOperations` implementation.
   SmallVector<RegisteredOperationName, 0> sortedRegisteredOperations;
+
+  /// This is a list of dialects that are created referring to this context.
+  /// The MLIRContext owns the objects. These need to be declared after the
+  /// registered operations to ensure correct destruction order.
+  DenseMap<StringRef, std::unique_ptr<Dialect>> loadedDialects;
+  DialectRegistry dialectsRegistry;
 
   /// A mutex used when accessing operation information.
   llvm::sys::SmartRWMutex<true> operationInfoMutex;
@@ -211,6 +216,7 @@ public:
   Float8E4M3FNType f8E4M3FNTy;
   Float8E5M2FNUZType f8E5M2FNUZTy;
   Float8E4M3FNUZType f8E4M3FNUZTy;
+  Float8E4M3B11FNUZType f8E4M3B11FNUZTy;
   BFloat16Type bf16Ty;
   Float16Type f16Ty;
   Float32Type f32Ty;
@@ -285,6 +291,7 @@ MLIRContext::MLIRContext(const DialectRegistry &registry, Threading setting)
   impl->f8E4M3FNTy = TypeUniquer::get<Float8E4M3FNType>(this);
   impl->f8E5M2FNUZTy = TypeUniquer::get<Float8E5M2FNUZType>(this);
   impl->f8E4M3FNUZTy = TypeUniquer::get<Float8E4M3FNUZType>(this);
+  impl->f8E4M3B11FNUZTy = TypeUniquer::get<Float8E4M3B11FNUZType>(this);
   impl->bf16Ty = TypeUniquer::get<BFloat16Type>(this);
   impl->f16Ty = TypeUniquer::get<Float16Type>(this);
   impl->f32Ty = TypeUniquer::get<Float32Type>(this);
@@ -345,12 +352,21 @@ static ArrayRef<T> copyArrayRefInto(llvm::BumpPtrAllocator &allocator,
 }
 
 //===----------------------------------------------------------------------===//
-// Debugging
+// Action Handling
 //===----------------------------------------------------------------------===//
 
-DebugActionManager &MLIRContext::getDebugActionManager() {
-  return getImpl().debugActionManager;
+void MLIRContext::registerActionHandler(HandlerTy handler) {
+  getImpl().actionHandler = std::move(handler);
 }
+
+/// Dispatch the provided action to the handler if any, or just execute it.
+void MLIRContext::executeActionInternal(function_ref<void()> actionFn,
+                                        const tracing::Action &action) {
+  assert(getImpl().actionHandler);
+  getImpl().actionHandler(actionFn, action);
+}
+
+bool MLIRContext::hasActionHandler() { return (bool)getImpl().actionHandler; }
 
 //===----------------------------------------------------------------------===//
 // Diagnostic Handlers
@@ -424,9 +440,9 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
                               function_ref<std::unique_ptr<Dialect>()> ctor) {
   auto &impl = getImpl();
   // Get the correct insertion position sorted by namespace.
-  auto dialectIt = impl.loadedDialects.find(dialectNamespace);
+  auto dialectIt = impl.loadedDialects.try_emplace(dialectNamespace, nullptr);
 
-  if (dialectIt == impl.loadedDialects.end()) {
+  if (dialectIt.second) {
     LLVM_DEBUG(llvm::dbgs()
                << "Load new dialect in Context " << dialectNamespace << "\n");
 #ifndef NDEBUG
@@ -438,9 +454,11 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
           "missing `dependentDialects` in a pass for example.");
 #endif // NDEBUG
     // loadedDialects entry is initialized to nullptr, indicating that the
-    // dialect is currently being loaded.
-    std::unique_ptr<Dialect> &dialect = impl.loadedDialects[dialectNamespace];
-    dialect = ctor();
+    // dialect is currently being loaded. Re-lookup the address in
+    // loadedDialects because the table might have been rehashed by recursive
+    // dialect loading in ctor().
+    std::unique_ptr<Dialect> &dialect = impl.loadedDialects[dialectNamespace] =
+        ctor();
     assert(dialect && "dialect ctor failed");
 
     // Refresh all the identifiers dialect field, this catches cases where a
@@ -459,7 +477,7 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
   }
 
 #ifndef NDEBUG
-  if (dialectIt->second == nullptr)
+  if (dialectIt.first->second == nullptr)
     llvm::report_fatal_error(
         "Loading (and getting) a dialect (" + dialectNamespace +
         ") while the same dialect is still loading: use loadDialect instead "
@@ -467,7 +485,7 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
 #endif // NDEBUG
 
   // Abort if dialect with namespace has already been registered.
-  std::unique_ptr<Dialect> &dialect = dialectIt->second;
+  std::unique_ptr<Dialect> &dialect = dialectIt.first->second;
   if (dialect->getTypeID() != dialectID)
     llvm::report_fatal_error("a dialect with namespace '" + dialectNamespace +
                              "' has already been registered");
@@ -785,6 +803,64 @@ OperationName::UnregisteredOpModel::verifyRegionInvariants(Operation *) {
   return success();
 }
 
+std::optional<Attribute>
+OperationName::UnregisteredOpModel::getInherentAttr(Operation *op,
+                                                    StringRef name) {
+  auto dict = dyn_cast_or_null<DictionaryAttr>(getPropertiesAsAttr(op));
+  if (!dict)
+    return std::nullopt;
+  if (Attribute attr = dict.get(name))
+    return attr;
+  return std::nullopt;
+}
+void OperationName::UnregisteredOpModel::setInherentAttr(Operation *op,
+                                                         StringAttr name,
+                                                         Attribute value) {
+  auto dict = dyn_cast_or_null<DictionaryAttr>(getPropertiesAsAttr(op));
+  assert(dict);
+  NamedAttrList attrs(dict);
+  attrs.set(name, value);
+  *op->getPropertiesStorage().as<Attribute *>() =
+      attrs.getDictionary(op->getContext());
+}
+void OperationName::UnregisteredOpModel::populateInherentAttrs(
+    Operation *op, NamedAttrList &attrs) {}
+LogicalResult OperationName::UnregisteredOpModel::verifyInherentAttrs(
+    OperationName opName, NamedAttrList &attributes,
+    function_ref<InFlightDiagnostic()> getDiag) {
+  return success();
+}
+int OperationName::UnregisteredOpModel::getOpPropertyByteSize() {
+  return sizeof(Attribute);
+}
+void OperationName::UnregisteredOpModel::initProperties(
+    OperationName opName, OpaqueProperties storage, OpaqueProperties init) {
+  new (storage.as<Attribute *>()) Attribute();
+}
+void OperationName::UnregisteredOpModel::deleteProperties(
+    OpaqueProperties prop) {
+  prop.as<Attribute *>()->~Attribute();
+}
+void OperationName::UnregisteredOpModel::populateDefaultProperties(
+    OperationName opName, OpaqueProperties properties) {}
+LogicalResult OperationName::UnregisteredOpModel::setPropertiesFromAttr(
+    Operation *op, Attribute attr, InFlightDiagnostic *diag) {
+  *op->getPropertiesStorage().as<Attribute *>() = attr;
+  return success();
+}
+Attribute
+OperationName::UnregisteredOpModel::getPropertiesAsAttr(Operation *op) {
+  return *op->getPropertiesStorage().as<Attribute *>();
+}
+void OperationName::UnregisteredOpModel::copyProperties(OpaqueProperties lhs,
+                                                        OpaqueProperties rhs) {
+  *lhs.as<Attribute *>() = *rhs.as<Attribute *>();
+}
+llvm::hash_code
+OperationName::UnregisteredOpModel::hashProperties(OpaqueProperties prop) {
+  return llvm::hash_combine(*prop.as<Attribute *>());
+}
+
 //===----------------------------------------------------------------------===//
 // RegisteredOperationName
 //===----------------------------------------------------------------------===//
@@ -879,6 +955,9 @@ Float8E5M2FNUZType Float8E5M2FNUZType::get(MLIRContext *context) {
 }
 Float8E4M3FNUZType Float8E4M3FNUZType::get(MLIRContext *context) {
   return context->getImpl().f8E4M3FNUZTy;
+}
+Float8E4M3B11FNUZType Float8E4M3B11FNUZType::get(MLIRContext *context) {
+  return context->getImpl().f8E4M3B11FNUZTy;
 }
 BFloat16Type BFloat16Type::get(MLIRContext *context) {
   return context->getImpl().bf16Ty;

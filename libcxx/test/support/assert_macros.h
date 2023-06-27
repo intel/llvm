@@ -29,29 +29,38 @@
 #include <cstdio>
 #include <cstdlib>
 
+// This function prints the given arguments to standard error.
+//
+// Keeping this as a separate function is important since it provides a single point for
+// downstreams to customize how errors are printed on exotic targets, if needed.
+template <class ...Args>
+void test_eprintf(char const* fmt, Args const& ...args) {
+  std::fprintf(stderr, fmt, args...);
+}
+
 void test_log(const char* condition, const char* file, int line, const char* message) {
   const char* msg = condition ? "Assertion failure: " : "Unconditional failure:";
-  std::fprintf(stderr, "%s%s %s %d\n%s", msg, condition, file, line, message);
+  test_eprintf("%s%s %s %d\n%s", msg, condition, file, line, message);
 }
 
 template <class F>
 void test_log(const char* condition, const char* file, int line, const F& functor) {
-  std::fprintf(stderr, "Assertion failure: %s %s %d\n", condition, file, line);
+  test_eprintf("Assertion failure: %s %s %d\n", condition, file, line);
   functor();
 }
 
 template <class Arg>
-[[noreturn]] void test_fail(const char* file, int line, Arg&& arg) {
-  test_log("", file, line, std::forward<Arg>(arg));
+[[noreturn]] void test_fail(const char* file, int line, const Arg& arg) {
+  test_log("", file, line, arg);
   std::abort();
 }
 
 template <class Arg>
-void test_require(bool condition, const char* condition_str, const char* file, int line, Arg&& arg) {
+void test_require(bool condition, const char* condition_str, const char* file, int line, const Arg& arg) {
   if (condition)
     return;
 
-  test_log(condition_str, file, line, std::forward<Arg>(arg));
+  test_log(condition_str, file, line, arg);
   std::abort();
 }
 

@@ -20,12 +20,13 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "clang/Parse/Parser.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/Basic/PrettyStackTrace.h"
+#include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
@@ -789,7 +790,9 @@ class CastExpressionIdValidator final : public CorrectionCandidateCallback {
 /// [GNU]   '__builtin_choose_expr' '(' assign-expr ',' assign-expr ','
 ///                                     assign-expr ')'
 /// [GNU]   '__builtin_FILE' '(' ')'
+/// [CLANG] '__builtin_FILE_NAME' '(' ')'
 /// [GNU]   '__builtin_FUNCTION' '(' ')'
+/// [MS]    '__builtin_FUNCSIG' '(' ')'
 /// [GNU]   '__builtin_LINE' '(' ')'
 /// [CLANG] '__builtin_COLUMN' '(' ')'
 /// [GNU]   '__builtin_source_location' '(' ')'
@@ -1007,8 +1010,8 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     if (getLangOpts().CPlusPlus)
       Diag(Tok, diag::warn_cxx98_compat_nullptr);
     else
-      Diag(Tok, getLangOpts().C2x ? diag::warn_c17_compat_nullptr
-                                  : diag::ext_c_nullptr);
+      Diag(Tok, getLangOpts().C2x ? diag::warn_c2x_compat_keyword
+                                  : diag::ext_c_nullptr) << Tok.getName();
 
     Res = Actions.ActOnCXXNullPtrLiteral(ConsumeToken());
     break;
@@ -1317,7 +1320,9 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw___builtin_convertvector:
   case tok::kw___builtin_COLUMN:
   case tok::kw___builtin_FILE:
+  case tok::kw___builtin_FILE_NAME:
   case tok::kw___builtin_FUNCTION:
+  case tok::kw___builtin_FUNCSIG:
   case tok::kw___builtin_LINE:
   case tok::kw___builtin_source_location:
     if (NotPrimaryExpression)
@@ -1937,7 +1942,7 @@ ExprResult Parser::ParseSYCLBuiltinType() {
 ///         primary-expression
 ///         postfix-expression '[' expression ']'
 ///         postfix-expression '[' braced-init-list ']'
-///         postfix-expression '[' expression-list [opt] ']'  [C++2b 12.4.5]
+///         postfix-expression '[' expression-list [opt] ']'  [C++23 12.4.5]
 ///         postfix-expression '(' argument-expression-list[opt] ')'
 ///         postfix-expression '.' identifier
 ///         postfix-expression '->' identifier
@@ -2012,10 +2017,10 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
 
       // We try to parse a list of indexes in all language mode first
       // and, in we find 0 or one index, we try to parse an OpenMP array
-      // section. This allow us to support C++2b multi dimensional subscript and
+      // section. This allow us to support C++23 multi dimensional subscript and
       // OpenMp sections in the same language mode.
       if (!getLangOpts().OpenMP || Tok.isNot(tok::colon)) {
-        if (!getLangOpts().CPlusPlus2b) {
+        if (!getLangOpts().CPlusPlus23) {
           ExprResult Idx;
           if (getLangOpts().CPlusPlus11 && Tok.is(tok::l_brace)) {
             Diag(Tok, diag::warn_cxx98_compat_generalized_initializer_lists);
@@ -2584,8 +2589,11 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
                                                 RParenLoc);
   }
 
-  if (OpTok.isOneOf(tok::kw_alignof, tok::kw__Alignof))
+  if (getLangOpts().CPlusPlus &&
+      OpTok.isOneOf(tok::kw_alignof, tok::kw__Alignof))
     Diag(OpTok, diag::warn_cxx98_compat_alignof);
+  else if (getLangOpts().C2x && OpTok.is(tok::kw_alignof))
+    Diag(OpTok, diag::warn_c2x_compat_keyword) << OpTok.getName();
 
   EnterExpressionEvaluationContext Unevaluated(
       Actions, Sema::ExpressionEvaluationContext::Unevaluated,
@@ -2639,7 +2647,9 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
 ///                                     assign-expr ')'
 /// [GNU]   '__builtin_types_compatible_p' '(' type-name ',' type-name ')'
 /// [GNU]   '__builtin_FILE' '(' ')'
+/// [CLANG] '__builtin_FILE_NAME' '(' ')'
 /// [GNU]   '__builtin_FUNCTION' '(' ')'
+/// [MS]    '__builtin_FUNCSIG' '(' ')'
 /// [GNU]   '__builtin_LINE' '(' ')'
 /// [CLANG] '__builtin_COLUMN' '(' ')'
 /// [GNU]   '__builtin_source_location' '(' ')'
@@ -2874,7 +2884,9 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
   }
   case tok::kw___builtin_COLUMN:
   case tok::kw___builtin_FILE:
+  case tok::kw___builtin_FILE_NAME:
   case tok::kw___builtin_FUNCTION:
+  case tok::kw___builtin_FUNCSIG:
   case tok::kw___builtin_LINE:
   case tok::kw___builtin_source_location: {
     // Attempt to consume the r-paren.
@@ -2887,8 +2899,12 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
       switch (T) {
       case tok::kw___builtin_FILE:
         return SourceLocExpr::File;
+      case tok::kw___builtin_FILE_NAME:
+        return SourceLocExpr::FileName;
       case tok::kw___builtin_FUNCTION:
         return SourceLocExpr::Function;
+      case tok::kw___builtin_FUNCSIG:
+        return SourceLocExpr::FuncSig;
       case tok::kw___builtin_LINE:
         return SourceLocExpr::Line;
       case tok::kw___builtin_COLUMN:
@@ -3370,6 +3386,12 @@ ExprResult Parser::ParseStringLiteralExpression(bool AllowUserDefinedLiteral) {
 ///           type-name : assignment-expression
 ///           default : assignment-expression
 /// \endverbatim
+///
+/// As an extension, Clang also accepts:
+/// \verbatim
+///   generic-selection:
+///          _Generic ( type-name, generic-assoc-list )
+/// \endverbatim
 ExprResult Parser::ParseGenericSelectionExpression() {
   assert(Tok.is(tok::kw__Generic) && "_Generic keyword expected");
   if (!getLangOpts().C11)
@@ -3380,8 +3402,20 @@ ExprResult Parser::ParseGenericSelectionExpression() {
   if (T.expectAndConsume())
     return ExprError();
 
+  // We either have a controlling expression or we have a controlling type, and
+  // we need to figure out which it is.
+  TypeResult ControllingType;
   ExprResult ControllingExpr;
-  {
+  if (isTypeIdForGenericSelection()) {
+    ControllingType = ParseTypeName();
+    if (ControllingType.isInvalid()) {
+      SkipUntil(tok::r_paren, StopAtSemi);
+      return ExprError();
+    }
+    const auto *LIT = cast<LocInfoType>(ControllingType.get().get());
+    SourceLocation Loc = LIT->getTypeSourceInfo()->getTypeLoc().getBeginLoc();
+    Diag(Loc, diag::ext_generic_with_type_arg);
+  } else {
     // C11 6.5.1.1p3 "The controlling expression of a generic selection is
     // not evaluated."
     EnterExpressionEvaluationContext Unevaluated(
@@ -3446,10 +3480,13 @@ ExprResult Parser::ParseGenericSelectionExpression() {
   if (T.getCloseLocation().isInvalid())
     return ExprError();
 
-  return Actions.ActOnGenericSelectionExpr(KeyLoc, DefaultLoc,
-                                           T.getCloseLocation(),
-                                           ControllingExpr.get(),
-                                           Types, Exprs);
+  void *ExprOrTy = ControllingExpr.isUsable()
+                       ? ControllingExpr.get()
+                       : ControllingType.get().getAsOpaquePtr();
+
+  return Actions.ActOnGenericSelectionExpr(
+      KeyLoc, DefaultLoc, T.getCloseLocation(), ControllingExpr.isUsable(),
+      ExprOrTy, Types, Exprs);
 }
 
 /// Parse A C++1z fold-expression after the opening paren and optional

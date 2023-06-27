@@ -6,7 +6,9 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
-// UNSUPPORTED: libcpp-has-no-incomplete-format
+
+// This test uses std::filesystem::path, which is not always available
+// XFAIL: availability-filesystem-missing
 
 // <format>
 
@@ -107,9 +109,7 @@ void test_P0645() {
   assert_is_formattable<__uint128_t, CharT>();
 #endif
 
-  assert_is_formattable<float, CharT>();
-  assert_is_formattable<double, CharT>();
-  assert_is_formattable<long double, CharT>();
+  // floating-point types are tested in concept.formattable.float.compile.pass.cpp
 
   assert_is_formattable<std::nullptr_t, CharT>();
   assert_is_formattable<void*, CharT>();
@@ -135,12 +135,12 @@ void test_P1361() {
 
   assert_is_formattable<std::chrono::microseconds, CharT>();
 
-  assert_is_not_formattable<std::chrono::sys_time<std::chrono::microseconds>, CharT>();
+  assert_is_formattable<std::chrono::sys_time<std::chrono::microseconds>, CharT>();
   //assert_is_formattable<std::chrono::utc_time<std::chrono::microseconds>, CharT>();
   //assert_is_formattable<std::chrono::tai_time<std::chrono::microseconds>, CharT>();
   //assert_is_formattable<std::chrono::gps_time<std::chrono::microseconds>, CharT>();
-  assert_is_not_formattable<std::chrono::file_time<std::chrono::microseconds>, CharT>();
-  assert_is_not_formattable<std::chrono::local_time<std::chrono::microseconds>, CharT>();
+  assert_is_formattable<std::chrono::file_time<std::chrono::microseconds>, CharT>();
+  assert_is_formattable<std::chrono::local_time<std::chrono::microseconds>, CharT>();
 
   assert_is_formattable<std::chrono::day, CharT>();
   assert_is_formattable<std::chrono::month, CharT>();
@@ -174,7 +174,8 @@ void test_P1361() {
 // Tests for P1636 Formatters for library types
 //
 // The paper hasn't been voted in so currently all formatters are disabled.
-// TODO validate whether the test is correct after the paper has been accepted.
+// Note the paper has been abandoned, the types are kept since other papers may
+// introduce these formatters.
 template <class CharT>
 void test_P1636() {
   assert_is_not_formattable<std::basic_streambuf<CharT>, CharT>();
@@ -190,7 +191,7 @@ void test_P1636() {
     assert_is_not_formattable<std::sub_match<CharT*>, CharT>();
 #endif
 #ifndef TEST_HAS_NO_THREADS
-  assert_is_not_formattable<std::thread::id, CharT>();
+  assert_is_formattable<std::thread::id, CharT>();
 #endif
   assert_is_not_formattable<std::unique_ptr<int>, CharT>();
 }
@@ -199,6 +200,12 @@ template <class CharT, class Vector>
 void test_P2286_vector_bool() {
   assert_is_formattable<Vector, CharT>();
   assert_is_formattable<typename Vector::reference, CharT>();
+
+  // The const_reference shall be a bool.
+  // However libc++ uses a __bit_const_reference<vector> when
+  // _LIBCPP_ABI_BITSET_VECTOR_BOOL_CONST_SUBSCRIPT_RETURN_BOOL is defined.
+  assert_is_formattable<const Vector&, CharT>();
+  assert_is_formattable<typename Vector::const_reference, CharT>();
 }
 
 // Tests for P2286 Formatting ranges

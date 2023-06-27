@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
@@ -39,15 +38,17 @@ public:
   device_impl();
 
   /// Constructs a SYCL device instance using the provided raw device handle.
-  explicit device_impl(pi_native_handle, const plugin &Plugin);
+  explicit device_impl(pi_native_handle, const PluginPtr &Plugin);
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
-  explicit device_impl(RT::PiDevice Device, PlatformImplPtr Platform);
+  explicit device_impl(sycl::detail::pi::PiDevice Device,
+                       PlatformImplPtr Platform);
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
-  explicit device_impl(RT::PiDevice Device, const plugin &Plugin);
+  explicit device_impl(sycl::detail::pi::PiDevice Device,
+                       const PluginPtr &Plugin);
 
   ~device_impl();
 
@@ -62,7 +63,7 @@ public:
   /// For host device an exception is thrown
   ///
   /// \return non-constant reference to PI device
-  RT::PiDevice &getHandleRef() {
+  sycl::detail::pi::PiDevice &getHandleRef() {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
                                  PI_ERROR_INVALID_DEVICE);
@@ -75,7 +76,7 @@ public:
   /// For host device an exception is thrown
   ///
   /// \return constant reference to PI device
-  const RT::PiDevice &getHandleRef() const {
+  const sycl::detail::pi::PiDevice &getHandleRef() const {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
                                  PI_ERROR_INVALID_DEVICE);
@@ -108,7 +109,7 @@ public:
   /// Return device type
   ///
   /// \return the type of the device
-  RT::PiDeviceType get_device_type() const { return MType; }
+  sycl::detail::pi::PiDeviceType get_device_type() const { return MType; }
 
   /// Get associated SYCL platform
   ///
@@ -123,7 +124,7 @@ public:
   platform get_platform() const;
 
   /// \return the associated plugin with this device.
-  const plugin &getPlugin() const { return MPlatform->getPlugin(); }
+  const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
 
   /// Check SYCL extension support by device
   ///
@@ -198,12 +199,7 @@ public:
   /// returning the type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-  template <typename Param> typename Param::return_type get_info() const {
-    if (is_host()) {
-      return get_device_info_host<Param>();
-    }
-    return get_device_info<Param>(this->getHandleRef(), this->getPlugin());
-  }
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// Check if affinity partitioning by specified domain is supported by
   /// device
@@ -242,12 +238,24 @@ public:
   /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getCurrentDeviceTime();
 
+  /// Get the backend of this device
+  backend getBackend() const { return MPlatform->getBackend(); }
+
+  /// @brief  Get the platform impl serving this device
+  /// @return PlatformImplPtr
+  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+
+  /// Get device info string
+  std::string
+  get_device_info_string(sycl::detail::pi::PiDeviceInfo InfoCode) const;
+
 private:
-  explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
-                       PlatformImplPtr Platform, const plugin &Plugin);
-  RT::PiDevice MDevice = 0;
-  RT::PiDeviceType MType;
-  RT::PiDevice MRootDevice = nullptr;
+  explicit device_impl(pi_native_handle InteropDevice,
+                       sycl::detail::pi::PiDevice Device,
+                       PlatformImplPtr Platform, const PluginPtr &Plugin);
+  sycl::detail::pi::PiDevice MDevice = 0;
+  sycl::detail::pi::PiDeviceType MType;
+  sycl::detail::pi::PiDevice MRootDevice = nullptr;
   bool MIsHostDevice;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;

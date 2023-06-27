@@ -18,6 +18,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclFriend.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DependenceFlags.h"
@@ -46,6 +47,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/TargetParser/RISCVTargetParser.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -1486,7 +1488,13 @@ struct StripObjCKindOfTypeVisitor
 
 bool QualType::UseExcessPrecision(const ASTContext &Ctx) {
   const BuiltinType *BT = getTypePtr()->getAs<BuiltinType>();
-  if (BT) {
+  if (!BT) {
+    const VectorType *VT = getTypePtr()->getAs<VectorType>();
+    if (VT) {
+      QualType ElementType = VT->getElementType();
+      return ElementType.UseExcessPrecision(Ctx);
+    }
+  } else {
     switch (BT->getKind()) {
     case BuiltinType::Kind::Float16: {
       const TargetInfo &TI = Ctx.getTargetInfo();
@@ -1495,7 +1503,15 @@ bool QualType::UseExcessPrecision(const ASTContext &Ctx) {
               Ctx.getLangOpts().ExcessPrecisionKind::FPP_None)
         return true;
       return false;
-    }
+    } break;
+    case BuiltinType::Kind::BFloat16: {
+      const TargetInfo &TI = Ctx.getTargetInfo();
+      if (TI.hasBFloat16Type() && !TI.hasFullBFloat16Type() &&
+          Ctx.getLangOpts().getBFloat16ExcessPrecision() !=
+              Ctx.getLangOpts().ExcessPrecisionKind::FPP_None)
+        return true;
+      return false;
+    } break;
     default:
       return false;
     }
@@ -1928,6 +1944,11 @@ bool Type::hasIntegerRepresentation() const {
            (VT->getKind() >= BuiltinType::SveInt8 &&
             VT->getKind() <= BuiltinType::SveUint64);
   }
+  if (CanonicalType->isRVVVLSBuiltinType()) {
+    const auto *VT = cast<BuiltinType>(CanonicalType);
+    return (VT->getKind() >= BuiltinType::RvvInt8mf8 &&
+            VT->getKind() <= BuiltinType::RvvUint64m8);
+  }
 
   return isIntegerType();
 }
@@ -2154,8 +2175,9 @@ bool Type::isFloatingType() const {
 bool Type::hasFloatingRepresentation() const {
   if (const auto *VT = dyn_cast<VectorType>(CanonicalType))
     return VT->getElementType()->isFloatingType();
-  else
-    return isFloatingType();
+  if (const auto *MT = dyn_cast<MatrixType>(CanonicalType))
+    return MT->getElementType()->isFloatingType();
+  return isFloatingType();
 }
 
 bool Type::isRealFloatingType() const {
@@ -2176,8 +2198,7 @@ bool Type::isRealType() const {
 bool Type::isArithmeticType() const {
   if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType))
     return BT->getKind() >= BuiltinType::Bool &&
-           BT->getKind() <= BuiltinType::Ibm128 &&
-           BT->getKind() != BuiltinType::BFloat16;
+           BT->getKind() <= BuiltinType::Ibm128;
   if (const auto *ET = dyn_cast<EnumType>(CanonicalType))
     // GCC allows forward declaration of enum types (forbid by C99 6.7.2.3p2).
     // If a body isn't seen by the time we get here, return false.
@@ -2372,6 +2393,19 @@ bool Type::isSVESizelessBuiltinType() const {
   return false;
 }
 
+bool Type::isRVVSizelessBuiltinType() const {
+  if (const BuiltinType *BT = getAs<BuiltinType>()) {
+    switch (BT->getKind()) {
+#define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/RISCVVTypes.def"
+      return true;
+    default:
+      return false;
+    }
+  }
+  return false;
+}
+
 bool Type::isVLSTBuiltinType() const {
   if (const BuiltinType *BT = getAs<BuiltinType>()) {
     switch (BT->getKind()) {
@@ -2388,6 +2422,8 @@ bool Type::isVLSTBuiltinType() const {
     case BuiltinType::SveFloat64:
     case BuiltinType::SveBFloat16:
     case BuiltinType::SveBool:
+    case BuiltinType::SveBoolx2:
+    case BuiltinType::SveBoolx4:
       return true;
     default:
       return false;
@@ -2399,7 +2435,7 @@ bool Type::isVLSTBuiltinType() const {
 QualType Type::getSveEltType(const ASTContext &Ctx) const {
   assert(isVLSTBuiltinType() && "unsupported type!");
 
-  const BuiltinType *BTy = getAs<BuiltinType>();
+  const BuiltinType *BTy = castAs<BuiltinType>();
   if (BTy->getKind() == BuiltinType::SveBool)
     // Represent predicates as i8 rather than i1 to avoid any layout issues.
     // The type is bitcasted to a scalable predicate type when casting between
@@ -2407,6 +2443,28 @@ QualType Type::getSveEltType(const ASTContext &Ctx) const {
     return Ctx.UnsignedCharTy;
   else
     return Ctx.getBuiltinVectorTypeInfo(BTy).ElementType;
+}
+
+bool Type::isRVVVLSBuiltinType() const {
+  if (const BuiltinType *BT = getAs<BuiltinType>()) {
+    switch (BT->getKind()) {
+    // FIXME: Support more than LMUL 1.
+#define RVV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned, IsFP) \
+    case BuiltinType::Id: \
+      return NF == 1 && (NumEls * ElBits) == llvm::RISCV::RVVBitsPerBlock;
+#include "clang/Basic/RISCVVTypes.def"
+    default:
+      return false;
+    }
+  }
+  return false;
+}
+
+QualType Type::getRVVEltType(const ASTContext &Ctx) const {
+  assert(isRVVVLSBuiltinType() && "unsupported type!");
+
+  const BuiltinType *BTy = castAs<BuiltinType>();
+  return Ctx.getBuiltinVectorTypeInfo(BTy).ElementType;
 }
 
 bool QualType::isPODType(const ASTContext &Context) const {
@@ -2501,11 +2559,13 @@ bool QualType::isTrivialType(const ASTContext &Context) const {
     return true;
   if (const auto *RT = CanonicalType->getAs<RecordType>()) {
     if (const auto *ClassDecl = dyn_cast<CXXRecordDecl>(RT->getDecl())) {
-      // C++11 [class]p6:
-      //   A trivial class is a class that has a default constructor,
-      //   has no non-trivial default constructors, and is trivially
-      //   copyable.
-      return ClassDecl->hasDefaultConstructor() &&
+      // C++20 [class]p6:
+      //   A trivial class is a class that is trivially copyable, and
+      //     has one or more eligible default constructors such that each is
+      //     trivial.
+      // FIXME: We should merge this definition of triviality into
+      // CXXRecordDecl::isTrivial. Currently it computes the wrong thing.
+      return ClassDecl->hasTrivialDefaultConstructor() &&
              !ClassDecl->hasNonTrivialDefaultConstructor() &&
              ClassDecl->isTriviallyCopyable();
     }
@@ -2574,6 +2634,61 @@ bool QualType::isTriviallyRelocatableType(const ASTContext &Context) const {
       return false;
     }
   }
+}
+
+static bool
+HasNonDeletedDefaultedEqualityComparison(const CXXRecordDecl *Decl) {
+  if (Decl->isUnion())
+    return false;
+
+  auto IsDefaultedOperatorEqualEqual = [&](const FunctionDecl *Function) {
+    return Function->getOverloadedOperator() ==
+               OverloadedOperatorKind::OO_EqualEqual &&
+           Function->isDefaulted() && Function->getNumParams() > 0 &&
+           (Function->getParamDecl(0)->getType()->isReferenceType() ||
+            Decl->isTriviallyCopyable());
+  };
+
+  if (llvm::none_of(Decl->methods(), IsDefaultedOperatorEqualEqual) &&
+      llvm::none_of(Decl->friends(), [&](const FriendDecl *Friend) {
+        if (NamedDecl *ND = Friend->getFriendDecl()) {
+          return ND->isFunctionOrFunctionTemplate() &&
+                 IsDefaultedOperatorEqualEqual(ND->getAsFunction());
+        }
+        return false;
+      }))
+    return false;
+
+  return llvm::all_of(Decl->bases(),
+                      [](const CXXBaseSpecifier &BS) {
+                        if (const auto *RD = BS.getType()->getAsCXXRecordDecl())
+                          HasNonDeletedDefaultedEqualityComparison(RD);
+                        return true;
+                      }) &&
+         llvm::all_of(Decl->fields(), [](const FieldDecl *FD) {
+           auto Type = FD->getType();
+           if (Type->isReferenceType() || Type->isEnumeralType())
+             return false;
+           if (const auto *RD = Type->getAsCXXRecordDecl())
+             return HasNonDeletedDefaultedEqualityComparison(RD);
+           return true;
+         });
+}
+
+bool QualType::isTriviallyEqualityComparableType(
+    const ASTContext &Context) const {
+  QualType CanonicalType = getCanonicalType();
+  if (CanonicalType->isIncompleteType() || CanonicalType->isDependentType() ||
+      CanonicalType->isEnumeralType())
+    return false;
+
+  if (const auto *RD = CanonicalType->getAsCXXRecordDecl()) {
+    if (!HasNonDeletedDefaultedEqualityComparison(RD))
+      return false;
+  }
+
+  return Context.hasUniqueObjectRepresentations(
+      CanonicalType, /*CheckIfTriviallyCopyable=*/false);
 }
 
 bool QualType::isNonWeakInMRRWithObjCWeak(const ASTContext &Context) const {
@@ -3262,7 +3377,10 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
   // Fill in the exception type array if present.
   if (getExceptionSpecType() == EST_Dynamic) {
     auto &ExtraBits = *getTrailingObjects<FunctionTypeExtraBitfields>();
-    ExtraBits.NumExceptionType = epi.ExceptionSpec.Exceptions.size();
+    size_t NumExceptions = epi.ExceptionSpec.Exceptions.size();
+    assert(NumExceptions <= UINT16_MAX &&
+           "Not enough bits to encode exceptions");
+    ExtraBits.NumExceptionType = NumExceptions;
 
     assert(hasExtraBitfields() && "missing trailing extra bitfields!");
     auto *exnSlot =
@@ -3660,6 +3778,10 @@ bool AttributedType::isMSTypeSpec() const {
     return true;
   }
   llvm_unreachable("invalid attr kind");
+}
+
+bool AttributedType::isWebAssemblyFuncrefSpec() const {
+  return getAttrKind() == attr::WebAssemblyFuncref;
 }
 
 bool AttributedType::isCallingConv() const {
@@ -4575,12 +4697,19 @@ AutoType::AutoType(QualType DeducedAsType, AutoTypeKeyword Keyword,
   AutoTypeBits.Keyword = (unsigned)Keyword;
   AutoTypeBits.NumArgs = TypeConstraintArgs.size();
   this->TypeConstraintConcept = TypeConstraintConcept;
+  assert(TypeConstraintConcept || AutoTypeBits.NumArgs == 0);
   if (TypeConstraintConcept) {
     auto *ArgBuffer =
         const_cast<TemplateArgument *>(getTypeConstraintArguments().data());
     for (const TemplateArgument &Arg : TypeConstraintArgs) {
-      addDependence(
-          toSyntacticDependence(toTypeDependence(Arg.getDependence())));
+      // If we have a deduced type, our constraints never affect semantic
+      // dependence. Prior to deduction, however, our canonical type depends
+      // on the template arguments, so we are a dependent type if any of them
+      // is dependent.
+      TypeDependence ArgDependence = toTypeDependence(Arg.getDependence());
+      if (!DeducedAsType.isNull())
+        ArgDependence = toSyntacticDependence(ArgDependence);
+      addDependence(ArgDependence);
 
       new (ArgBuffer++) TemplateArgument(Arg);
     }

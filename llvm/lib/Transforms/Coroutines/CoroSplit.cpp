@@ -31,6 +31,7 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/LazyCallGraph.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Argument.h"
@@ -679,19 +680,26 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
   }
 }
 
+/// Returns all DbgVariableIntrinsic in F.
+static SmallVector<DbgVariableIntrinsic *, 8>
+collectDbgVariableIntrinsics(Function &F) {
+  SmallVector<DbgVariableIntrinsic *, 8> Intrinsics;
+  for (auto &I : instructions(F))
+    if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
+      Intrinsics.push_back(DVI);
+  return Intrinsics;
+}
+
 void CoroCloner::replaceSwiftErrorOps() {
   ::replaceSwiftErrorOps(*NewF, Shape, &VMap);
 }
 
 void CoroCloner::salvageDebugInfo() {
-  SmallVector<DbgVariableIntrinsic *, 8> Worklist;
-  SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
-  for (auto &BB : *NewF)
-    for (auto &I : BB)
-      if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
-        Worklist.push_back(DVI);
+  SmallVector<DbgVariableIntrinsic *, 8> Worklist =
+      collectDbgVariableIntrinsics(*NewF);
+  SmallDenseMap<Argument *, AllocaInst *, 4> ArgToAllocaMap;
   for (DbgVariableIntrinsic *DVI : Worklist)
-    coro::salvageDebugInfo(DbgPtrAllocaCache, DVI, Shape.OptimizeFrame);
+    coro::salvageDebugInfo(ArgToAllocaMap, DVI, Shape.OptimizeFrame);
 
   // Remove all salvaged dbg.declare intrinsics that became
   // either unreachable or stale due to the CoroSplit transformation.
@@ -1970,25 +1978,12 @@ splitCoroutine(Function &F, SmallVectorImpl<Function *> &Clones,
   // This invalidates SwiftErrorOps in the Shape.
   replaceSwiftErrorOps(F, Shape, nullptr);
 
-  // Finally, salvage the llvm.dbg.{declare,addr} in our original function that
-  // point into the coroutine frame. We only do this for the current function
-  // since the Cloner salvaged debug info for us in the new coroutine funclets.
-  SmallVector<DbgVariableIntrinsic *, 8> Worklist;
-  SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
-  for (auto &BB : F) {
-    for (auto &I : BB) {
-      if (auto *DDI = dyn_cast<DbgDeclareInst>(&I)) {
-        Worklist.push_back(DDI);
-        continue;
-      }
-      if (auto *DDI = dyn_cast<DbgAddrIntrinsic>(&I)) {
-        Worklist.push_back(DDI);
-        continue;
-      }
-    }
-  }
-  for (auto *DDI : Worklist)
-    coro::salvageDebugInfo(DbgPtrAllocaCache, DDI, Shape.OptimizeFrame);
+  // Salvage debug intrinsics that point into the coroutine frame in the
+  // original function. The Cloner has already salvaged debug info in the new
+  // coroutine funclets.
+  SmallDenseMap<Argument *, AllocaInst *, 4> ArgToAllocaMap;
+  for (auto *DDI : collectDbgVariableIntrinsics(F))
+    coro::salvageDebugInfo(ArgToAllocaMap, DDI, Shape.OptimizeFrame);
 
   return Shape;
 }
@@ -2146,10 +2141,18 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     F.setSplittedCoroutine();
 
     SmallVector<Function *, 4> Clones;
+    auto &ORE = FAM.getResult<OptimizationRemarkEmitterAnalysis>(F);
     const coro::Shape Shape =
         splitCoroutine(F, Clones, FAM.getResult<TargetIRAnalysis>(F),
                        OptimizeFrame, MaterializableCallback);
     updateCallGraphAfterCoroutineSplit(*N, Shape, Clones, C, CG, AM, UR, FAM);
+
+    ORE.emit([&]() {
+      return OptimizationRemark(DEBUG_TYPE, "CoroSplit", &F)
+             << "Split '" << ore::NV("function", F.getName())
+             << "' (frame_size=" << ore::NV("frame_size", Shape.FrameSize)
+             << ", align=" << ore::NV("align", Shape.FrameAlign.value()) << ")";
+    });
 
     if (!Shape.CoroSuspends.empty()) {
       // Run the CGSCC pipeline on the original and newly split functions.

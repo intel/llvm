@@ -1992,8 +1992,7 @@ LocalScope* CFGBuilder::createOrReuseLocalScope(LocalScope* Scope) {
   if (Scope)
     return Scope;
   llvm::BumpPtrAllocator &alloc = cfg->getAllocator();
-  return new (alloc.Allocate<LocalScope>())
-      LocalScope(BumpVectorContext(alloc), ScopePos);
+  return new (alloc) LocalScope(BumpVectorContext(alloc), ScopePos);
 }
 
 /// addLocalScopeForStmt - Add LocalScope to local scopes tree for statement
@@ -3387,8 +3386,7 @@ CFGBlock *CFGBuilder::VisitLabelStmt(LabelStmt *L) {
   if (!LabelBlock)              // This can happen when the body is empty, i.e.
     LabelBlock = createBlock(); // scopes that only contains NullStmts.
 
-  assert(LabelMap.find(L->getDecl()) == LabelMap.end() &&
-         "label already in map");
+  assert(!LabelMap.contains(L->getDecl()) && "label already in map");
   LabelMap[L->getDecl()] = JumpTarget(LabelBlock, ScopePos);
 
   // Labels partition blocks, so this is the end of the basic block we were
@@ -5215,8 +5213,7 @@ CFGBlock *CFG::createBlock() {
   bool first_block = begin() == end();
 
   // Create the block.
-  CFGBlock *Mem = getAllocator().Allocate<CFGBlock>();
-  new (Mem) CFGBlock(NumBlockIDs++, BlkBVC, this);
+  CFGBlock *Mem = new (getAllocator()) CFGBlock(NumBlockIDs++, BlkBVC, this);
   Blocks.push_back(Mem, BlkBVC);
 
   // If this is the first block, set it as the Entry and Exit.
@@ -5748,7 +5745,8 @@ static void print_elem(raw_ostream &OS, StmtPrinterHelper &Helper,
                        const CFGElement &E);
 
 void CFGElement::dumpToStream(llvm::raw_ostream &OS) const {
-  StmtPrinterHelper Helper(nullptr, {});
+  LangOptions LangOpts;
+  StmtPrinterHelper Helper(nullptr, LangOpts);
   print_elem(OS, Helper, *this);
 }
 

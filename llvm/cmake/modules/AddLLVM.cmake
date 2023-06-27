@@ -25,7 +25,9 @@ function(llvm_update_compile_flags name)
   else()
     if(LLVM_COMPILER_IS_GCC_COMPATIBLE)
       list(APPEND LLVM_COMPILE_FLAGS "-fno-exceptions")
-      if(NOT LLVM_ENABLE_UNWIND_TABLES)
+      if(LLVM_ENABLE_UNWIND_TABLES)
+        list(APPEND LLVM_COMPILE_FLAGS "-funwind-tables")
+      else()
         list(APPEND LLVM_COMPILE_FLAGS "-fno-unwind-tables")
         list(APPEND LLVM_COMPILE_FLAGS "-fno-asynchronous-unwind-tables")
       endif()
@@ -1244,10 +1246,18 @@ function(export_executable_symbols target)
     else()
       set(mangling itanium)
     endif()
+    get_host_tool_path(llvm-nm LLVM_NM llvm_nm_exe llvm_nm_target)
+    get_host_tool_path(llvm-readobj LLVM_READOBJ llvm_readobj_exe llvm_readobj_target)
     add_custom_command(OUTPUT ${exported_symbol_file}
-                       COMMAND "${Python3_EXECUTABLE}" ${LLVM_MAIN_SRC_DIR}/utils/extract_symbols.py ${LLVM_EXTRACT_SYMBOLS_FLAGS} --mangling=${mangling} ${static_libs} -o ${exported_symbol_file}
+                       COMMAND "${Python3_EXECUTABLE}"
+                         ${LLVM_MAIN_SRC_DIR}/utils/extract_symbols.py
+                         --mangling=${mangling} ${static_libs}
+                         -o ${exported_symbol_file}
+                         --nm=${llvm_nm_exe}
+                         --readobj=${llvm_readobj_exe}
                        WORKING_DIRECTORY ${LLVM_LIBRARY_OUTPUT_INTDIR}
-                       DEPENDS ${LLVM_MAIN_SRC_DIR}/utils/extract_symbols.py ${static_libs}
+                       DEPENDS ${LLVM_MAIN_SRC_DIR}/utils/extract_symbols.py
+                         ${static_libs} ${llvm_nm_target} ${llvm_readobj_target}
                        VERBATIM
                        COMMENT "Generating export list for ${target}")
     add_llvm_symbol_exports( ${target} ${exported_symbol_file} )
@@ -2047,13 +2057,19 @@ function(llvm_install_library_symlink name dest type)
   set(full_name ${CMAKE_${type}_LIBRARY_PREFIX}${name}${CMAKE_${type}_LIBRARY_SUFFIX})
   set(full_dest ${CMAKE_${type}_LIBRARY_PREFIX}${dest}${CMAKE_${type}_LIBRARY_SUFFIX})
 
+  if(LLVM_USE_SYMLINKS)
+    set(LLVM_LINK_OR_COPY create_symlink)
+  else()
+    set(LLVM_LINK_OR_COPY copy)
+  endif()
+
   set(output_dir lib${LLVM_LIBDIR_SUFFIX})
   if(WIN32 AND "${type}" STREQUAL "SHARED")
     set(output_dir "${CMAKE_INSTALL_BINDIR}")
   endif()
 
   install(SCRIPT ${INSTALL_SYMLINK}
-          CODE "install_symlink(\"${full_name}\" \"${full_dest}\" \"${output_dir}\")"
+          CODE "install_symlink(\"${full_name}\" \"${full_dest}\" \"${output_dir}\" \"${LLVM_LINK_OR_COPY}\")"
           COMPONENT ${component})
 
 endfunction()
@@ -2090,16 +2106,22 @@ function(llvm_install_symlink project name dest)
     set(full_dest llvm${CMAKE_EXECUTABLE_SUFFIX})
   endif()
 
+  if(LLVM_USE_SYMLINKS)
+    set(LLVM_LINK_OR_COPY create_symlink)
+  else()
+    set(LLVM_LINK_OR_COPY copy)
+  endif()
+
   set(output_dir "${${project}_TOOLS_INSTALL_DIR}")
 
   install(SCRIPT ${INSTALL_SYMLINK}
-          CODE "install_symlink(\"${full_name}\" \"${full_dest}\" \"${output_dir}\")"
+          CODE "install_symlink(\"${full_name}\" \"${full_dest}\" \"${output_dir}\" \"${LLVM_LINK_OR_COPY}\")"
           COMPONENT ${component})
 
   if (NOT LLVM_ENABLE_IDE AND NOT ARG_ALWAYS_GENERATE)
     add_llvm_install_targets(install-${name}
                              DEPENDS ${name} ${dest}
-                             COMPONENT ${name}
+                             COMPONENT ${component}
                              SYMLINK ${dest})
   endif()
 endfunction()
@@ -2324,7 +2346,8 @@ function(llvm_setup_rpath name)
     # FIXME: update this when there is better solution.
     set(_install_rpath "${LLVM_LIBRARY_OUTPUT_INTDIR}" "${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
   elseif(UNIX)
-    set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
+    set(_build_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
+    set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
     if(${CMAKE_SYSTEM_NAME} MATCHES "(FreeBSD|DragonFly)")
       set_property(TARGET ${name} APPEND_STRING PROPERTY
                    LINK_FLAGS " -Wl,-z,origin ")
@@ -2338,9 +2361,16 @@ function(llvm_setup_rpath name)
     return()
   endif()
 
-  # Enable BUILD_WITH_INSTALL_RPATH unless CMAKE_BUILD_RPATH is set.
+  # Enable BUILD_WITH_INSTALL_RPATH unless CMAKE_BUILD_RPATH is set and not
+  # building for macOS or AIX, as those platforms seemingly require it.
+  # On AIX, the tool chain doesn't support modifying rpaths/libpaths for XCOFF
+  # on install at the moment, so BUILD_WITH_INSTALL_RPATH is required.
   if("${CMAKE_BUILD_RPATH}" STREQUAL "")
-    set_property(TARGET ${name} PROPERTY BUILD_WITH_INSTALL_RPATH ON)
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin|AIX")
+      set_property(TARGET ${name} PROPERTY BUILD_WITH_INSTALL_RPATH ON)
+    else()
+      set_property(TARGET ${name} APPEND PROPERTY BUILD_RPATH "${_build_rpath}")
+    endif()
   endif()
 
   set_target_properties(${name} PROPERTIES
@@ -2401,10 +2431,10 @@ function(find_first_existing_vc_file path out_var)
   endif()
 endfunction()
 
-function(setup_host_tool tool_name setting_name exe_var_name target_var_name)
-  set(${setting_name}_DEFAULT "${tool_name}")
+function(get_host_tool_path tool_name setting_name exe_var_name target_var_name)
+  set(${setting_name}_DEFAULT "")
 
-  if(LLVM_USE_HOST_TOOLS AND LLVM_NATIVE_TOOL_DIR)
+  if(LLVM_NATIVE_TOOL_DIR)
     if(EXISTS "${LLVM_NATIVE_TOOL_DIR}/${tool_name}${LLVM_HOST_EXECUTABLE_SUFFIX}")
       set(${setting_name}_DEFAULT "${LLVM_NATIVE_TOOL_DIR}/${tool_name}${LLVM_HOST_EXECUTABLE_SUFFIX}")
     endif()
@@ -2413,18 +2443,25 @@ function(setup_host_tool tool_name setting_name exe_var_name target_var_name)
   set(${setting_name} "${${setting_name}_DEFAULT}" CACHE
     STRING "Host ${tool_name} executable. Saves building if cross-compiling.")
 
-  if(LLVM_USE_HOST_TOOLS)
-    if(NOT ${setting_name} STREQUAL "${tool_name}")
-      set(exe_name ${${setting_name}})
-      set(target_name ${${setting_name}})
-    else()
-      build_native_tool(${tool_name} exe_name DEPENDS ${tool_name})
-      set(target_name ${exe_name})
-    endif()
+  if(${setting_name})
+    set(exe_name ${${setting_name}})
+    set(target_name "")
+  elseif(LLVM_USE_HOST_TOOLS)
+    get_native_tool_path(${tool_name} exe_name)
+    set(target_name ${exe_name})
   else()
     set(exe_name $<TARGET_FILE:${tool_name}>)
     set(target_name ${tool_name})
   endif()
   set(${exe_var_name} "${exe_name}" CACHE STRING "")
   set(${target_var_name} "${target_name}" CACHE STRING "")
+endfunction()
+
+function(setup_host_tool tool_name setting_name exe_var_name target_var_name)
+  get_host_tool_path(${tool_name} ${setting_name} ${exe_var_name} ${target_var_name})
+  # Set up a native tool build if necessary
+  if(LLVM_USE_HOST_TOOLS AND NOT ${setting_name})
+    build_native_tool(${tool_name} exe_name DEPENDS ${tool_name})
+    add_custom_target(${target_var_name} DEPENDS ${exe_name})
+  endif()
 endfunction()

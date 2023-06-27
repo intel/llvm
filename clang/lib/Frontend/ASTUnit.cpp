@@ -785,7 +785,8 @@ void ASTUnit::ConfigureDiags(IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
 std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
     const std::string &Filename, const PCHContainerReader &PCHContainerRdr,
     WhatToLoad ToLoad, IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
-    const FileSystemOptions &FileSystemOpts, bool UseDebugInfo,
+    const FileSystemOptions &FileSystemOpts,
+    std::shared_ptr<HeaderSearchOptions> HSOpts, bool UseDebugInfo,
     bool OnlyLocalDecls, CaptureDiagsKind CaptureDiagnostics,
     bool AllowASTWithCompilerErrors, bool UserFilesAreVolatile,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS) {
@@ -810,8 +811,8 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
                                      AST->getFileManager(),
                                      UserFilesAreVolatile);
   AST->ModuleCache = new InMemoryModuleCache;
-  AST->HSOpts = std::make_shared<HeaderSearchOptions>();
-  AST->HSOpts->ModuleFormat = std::string(PCHContainerRdr.getFormat());
+  AST->HSOpts = HSOpts ? HSOpts : std::make_shared<HeaderSearchOptions>();
+  AST->HSOpts->ModuleFormat = std::string(PCHContainerRdr.getFormats().front());
   AST->HeaderInfo.reset(new HeaderSearch(AST->HSOpts,
                                          AST->getSourceManager(),
                                          AST->getDiagnostics(),
@@ -822,7 +823,6 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
   // Gather Info for preprocessor construction later on.
 
   HeaderSearch &HeaderInfo = *AST->HeaderInfo;
-  unsigned Counter;
 
   AST->PP = std::make_shared<Preprocessor>(
       AST->PPOpts, AST->getDiagnostics(), *AST->LangOpts,
@@ -846,6 +846,7 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
       /*isysroot=*/"",
       /*DisableValidationKind=*/disableValid, AllowASTWithCompilerErrors);
 
+  unsigned Counter = 0;
   AST->Reader->setListener(std::make_unique<ASTInfoCollector>(
       *AST->PP, AST->Ctx.get(), *AST->HSOpts, *AST->PPOpts, *AST->LangOpts,
       AST->TargetOpts, AST->Target, Counter));
@@ -859,7 +860,7 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
     AST->Ctx->setExternalSource(AST->Reader);
 
   switch (AST->Reader->ReadAST(Filename, serialization::MK_MainFile,
-                          SourceLocation(), ASTReader::ARR_None)) {
+                               SourceLocation(), ASTReader::ARR_None)) {
   case ASTReader::Success:
     break;
 
@@ -879,7 +880,7 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
 
   Module *M = HeaderInfo.lookupModule(AST->getLangOpts().CurrentModule);
   if (M && AST->getLangOpts().isCompilingModule() && M->isModulePurview())
-    AST->Ctx->setNamedModuleForCodeGen(M);
+    AST->Ctx->setCurrentNamedModule(M);
 
   // Create an AST consumer, even though it isn't used.
   if (ToLoad >= LoadASTOnly)
@@ -1397,7 +1398,8 @@ ASTUnit::getMainBufferWithPrecompiledPreamble(
 
     llvm::ErrorOr<PrecompiledPreamble> NewPreamble = PrecompiledPreamble::Build(
         PreambleInvocationIn, MainFileBuffer.get(), Bounds, *Diagnostics, VFS,
-        PCHContainerOps, /*StoreInMemory=*/false, Callbacks);
+        PCHContainerOps, StorePreamblesInMemory, PreambleStoragePath,
+        Callbacks);
 
     PreambleInvocationIn.getFrontendOpts().SkipFunctionBodies =
         PreviousSkipFunctionBodies;
@@ -1741,6 +1743,7 @@ ASTUnit *ASTUnit::LoadFromCommandLine(
     const char **ArgBegin, const char **ArgEnd,
     std::shared_ptr<PCHContainerOperations> PCHContainerOps,
     IntrusiveRefCntPtr<DiagnosticsEngine> Diags, StringRef ResourceFilesPath,
+    bool StorePreamblesInMemory, StringRef PreambleStoragePath,
     bool OnlyLocalDecls, CaptureDiagsKind CaptureDiagnostics,
     ArrayRef<RemappedFile> RemappedFiles, bool RemappedFilesKeepOriginalName,
     unsigned PrecompilePreambleAfterNParses, TranslationUnitKind TUKind,
@@ -1801,6 +1804,8 @@ ASTUnit *ASTUnit::LoadFromCommandLine(
     VFS = llvm::vfs::getRealFileSystem();
   VFS = createVFSFromCompilerInvocation(*CI, *Diags, VFS);
   AST->FileMgr = new FileManager(AST->FileSystemOpts, VFS);
+  AST->StorePreamblesInMemory = StorePreamblesInMemory;
+  AST->PreambleStoragePath = PreambleStoragePath;
   AST->ModuleCache = new InMemoryModuleCache;
   AST->OnlyLocalDecls = OnlyLocalDecls;
   AST->CaptureDiagnostics = CaptureDiagnostics;

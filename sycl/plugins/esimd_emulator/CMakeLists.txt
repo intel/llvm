@@ -23,7 +23,7 @@ else()
   set(LIBIGFXCMRT_EMU ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/lib/libigfxcmrt_emu${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
 
-set (DEFAULT_CM_EMU_PREBUILT_PACKAGE "https://github.com/intel/cm-cpu-emulation/releases/download/1.0.23/intel-cmemu-1.0.23.u20.04-release.x86_64.tar.xz")
+set (DEFAULT_CM_EMU_PREBUILT_PACKAGE "https://github.com/intel/cm-cpu-emulation/releases/download/1.0.31/intel-cmemu-1.0.31.u22.04-release.x86_64.tar.xz")
 set (DEFAULT_CM_EMU_SOURCE_URL "https://github.com/intel/cm-cpu-emulation.git")
 
 if ((DEFINED USE_DEFAULT_CM_EMU_SOURCE) OR (DEFINED USE_LOCAL_CM_EMU_SOURCE))
@@ -41,7 +41,7 @@ if ((DEFINED USE_DEFAULT_CM_EMU_SOURCE) OR (DEFINED USE_LOCAL_CM_EMU_SOURCE))
     message(STATUS "CM_EMU library package will be built online with source codes downloaded from ${DEFAULT_CM_EMU_SOURCE_URL}")
     ExternalProject_Add(cm-emu
       GIT_REPOSITORY    ${DEFAULT_CM_EMU_SOURCE_URL}
-      GIT_TAG           f9d167edbcb995e713d5a8
+      GIT_TAG           38f070a7e1de00d0398224
       BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
       INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
       CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr

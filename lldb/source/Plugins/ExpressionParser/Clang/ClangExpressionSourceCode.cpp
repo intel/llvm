@@ -212,7 +212,7 @@ public:
   /// Returns true iff the given expression body contained a token with the
   /// given content.
   bool hasToken(llvm::StringRef token) const {
-    return m_tokens.find(token) != m_tokens.end();
+    return m_tokens.contains(token);
   }
 };
 
@@ -274,7 +274,7 @@ TokenVerifier::TokenVerifier(std::string body) {
   LangOptions Opts;
   Opts.ObjC = true;
   Opts.DollarIdents = true;
-  Opts.CPlusPlus17 = true;
+  Opts.CPlusPlus20 = true;
   Opts.LineComment = true;
 
   Lexer lex(FID, buf->getMemBufferRef(), SM, Opts);

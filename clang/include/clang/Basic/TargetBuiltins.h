@@ -48,7 +48,18 @@ namespace clang {
   enum {
     LastNEONBuiltin = NEON::FirstTSBuiltin - 1,
 #define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE) BI##ID,
 #include "clang/Basic/BuiltinsSVE.def"
+    FirstTSBuiltin,
+  };
+  }
+
+  namespace SME {
+  enum {
+    LastSVEBuiltin = SVE::FirstTSBuiltin - 1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE) BI##ID,
+#include "clang/Basic/BuiltinsSME.def"
     FirstTSBuiltin,
   };
   }
@@ -60,6 +71,8 @@ namespace clang {
     LastNEONBuiltin = NEON::FirstTSBuiltin - 1,
     FirstSVEBuiltin = NEON::FirstTSBuiltin,
     LastSVEBuiltin = SVE::FirstTSBuiltin - 1,
+    FirstSMEBuiltin = SVE::FirstTSBuiltin,
+    LastSMEBuiltin = SME::FirstTSBuiltin - 1,
   #define BUILTIN(ID, TYPE, ATTRS) BI##ID,
   #include "clang/Basic/BuiltinsAArch64.def"
     LastTSBuiltin
@@ -289,6 +302,7 @@ namespace clang {
     bool isGatherPrefetch() const { return Flags & IsGatherPrefetch; }
     bool isReverseUSDOT() const { return Flags & ReverseUSDOT; }
     bool isReverseMergeAnyBinOp() const { return Flags & ReverseMergeAnyBinOp; }
+    bool isReverseMergeAnyAccOp() const { return Flags & ReverseMergeAnyAccOp; }
     bool isUndef() const { return Flags & IsUndef; }
     bool isTupleCreate() const { return Flags & IsTupleCreate; }
     bool isTupleGet() const { return Flags & IsTupleGet; }

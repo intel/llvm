@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 // The test verifies that basic ESIMD API works properly with
 // private memory allocated on stack.

@@ -840,29 +840,6 @@ AAManager::Result AAManager::run(Function &F, FunctionAnalysisManager &AM) {
   return R;
 }
 
-AAResults llvm::createLegacyPMAAResults(Pass &P, Function &F,
-                                        BasicAAResult &BAR) {
-  AAResults AAR(P.getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F));
-
-  // Add in our explicitly constructed BasicAA results.
-  if (!DisableBasicAA)
-    AAR.addAAResult(BAR);
-
-  // Populate the results with the other currently available AAs.
-  if (auto *WrapperPass =
-          P.getAnalysisIfAvailable<ScopedNoAliasAAWrapperPass>())
-    AAR.addAAResult(WrapperPass->getResult());
-  if (auto *WrapperPass = P.getAnalysisIfAvailable<TypeBasedAAWrapperPass>())
-    AAR.addAAResult(WrapperPass->getResult());
-  if (auto *WrapperPass = P.getAnalysisIfAvailable<GlobalsAAWrapperPass>())
-    AAR.addAAResult(WrapperPass->getResult());
-  if (auto *WrapperPass = P.getAnalysisIfAvailable<ExternalAAWrapperPass>())
-    if (WrapperPass->CB)
-      WrapperPass->CB(P, F, AAR);
-
-  return AAR;
-}
-
 bool llvm::isNoAliasCall(const Value *V) {
   if (const auto *Call = dyn_cast<CallBase>(V))
     return Call->hasRetAttr(Attribute::NoAlias);
@@ -934,15 +911,4 @@ bool llvm::isNotVisibleOnUnwind(const Value *Object,
   }
 
   return false;
-}
-
-void llvm::getAAResultsAnalysisUsage(AnalysisUsage &AU) {
-  // This function needs to be in sync with llvm::createLegacyPMAAResults -- if
-  // more alias analyses are added to llvm::createLegacyPMAAResults, they need
-  // to be added here also.
-  AU.addRequired<TargetLibraryInfoWrapperPass>();
-  AU.addUsedIfAvailable<ScopedNoAliasAAWrapperPass>();
-  AU.addUsedIfAvailable<TypeBasedAAWrapperPass>();
-  AU.addUsedIfAvailable<GlobalsAAWrapperPass>();
-  AU.addUsedIfAvailable<ExternalAAWrapperPass>();
 }

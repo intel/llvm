@@ -31,7 +31,7 @@ __ESIMD_INTRIN void __esimd_sbarrier(__ESIMD_ENS::split_barrier_action flag)
 __ESIMD_INTRIN void __esimd_wait(uint16_t value);
 #endif // __SYCL_DEVICE_ONLY__
 
-// \brief Raw sends load.
+// \brief Raw sends.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
 //
@@ -80,7 +80,7 @@ __esimd_raw_sends2(uint8_t modifier, uint8_t execSize,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// \brief Raw send load.
+// \brief Raw send.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
 //
@@ -121,7 +121,7 @@ __esimd_raw_send2(uint8_t modifier, uint8_t execSize,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// \brief Raw sends store.
+// \brief Raw sends.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
 //
@@ -161,7 +161,7 @@ __esimd_raw_sends2_noresult(uint8_t modifier, uint8_t execSize,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// \brief Raw send store.
+// \brief Raw send.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
 //
@@ -757,12 +757,8 @@ auto __esimd_emu_lsc_xatomic_offset_access_2(
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
 
       if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
-        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) {
-          Oldval[VecIdx] = __ESIMD_DNS::atomic_cmpxchg(
-              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx], src1[VecIdx]);
-        } else if constexpr (Op ==
-                             __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
-          static_assert(__ESIMD_DNS::is_fp_type<Ty>::value);
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg ||
+                      Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
           Oldval[VecIdx] = __ESIMD_DNS::atomic_cmpxchg(
               (Ty *)(BaseAddr + ByteDistance), src0[VecIdx], src1[VecIdx]);
         }

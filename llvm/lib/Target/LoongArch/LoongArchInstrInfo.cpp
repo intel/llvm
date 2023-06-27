@@ -17,6 +17,7 @@
 #include "MCTargetDesc/LoongArchMCTargetDesc.h"
 #include "MCTargetDesc/LoongArchMatInt.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
+#include "llvm/MC/MCInstBuilder.h"
 
 using namespace llvm;
 
@@ -27,6 +28,13 @@ LoongArchInstrInfo::LoongArchInstrInfo(LoongArchSubtarget &STI)
     : LoongArchGenInstrInfo(LoongArch::ADJCALLSTACKDOWN,
                             LoongArch::ADJCALLSTACKUP),
       STI(STI) {}
+
+MCInst LoongArchInstrInfo::getNop() const {
+  return MCInstBuilder(LoongArch::ANDI)
+      .addReg(LoongArch::R0)
+      .addReg(LoongArch::R0)
+      .addImm(0);
+}
 
 void LoongArchInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                      MachineBasicBlock::iterator MBBI,
@@ -73,9 +81,6 @@ void LoongArchInstrInfo::storeRegToStackSlot(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register SrcReg,
     bool IsKill, int FI, const TargetRegisterClass *RC,
     const TargetRegisterInfo *TRI, Register VReg) const {
-  DebugLoc DL;
-  if (I != MBB.end())
-    DL = I->getDebugLoc();
   MachineFunction *MF = MBB.getParent();
   MachineFrameInfo &MFI = MF->getFrameInfo();
 
@@ -97,7 +102,7 @@ void LoongArchInstrInfo::storeRegToStackSlot(
       MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOStore,
       MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
 
-  BuildMI(MBB, I, DL, get(Opcode))
+  BuildMI(MBB, I, DebugLoc(), get(Opcode))
       .addReg(SrcReg, getKillRegState(IsKill))
       .addFrameIndex(FI)
       .addImm(0)
@@ -110,9 +115,6 @@ void LoongArchInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                               const TargetRegisterClass *RC,
                                               const TargetRegisterInfo *TRI,
                                               Register VReg) const {
-  DebugLoc DL;
-  if (I != MBB.end())
-    DL = I->getDebugLoc();
   MachineFunction *MF = MBB.getParent();
   MachineFrameInfo &MFI = MF->getFrameInfo();
 
@@ -134,7 +136,7 @@ void LoongArchInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
       MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOLoad,
       MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
 
-  BuildMI(MBB, I, DL, get(Opcode), DstReg)
+  BuildMI(MBB, I, DebugLoc(), get(Opcode), DstReg)
       .addFrameIndex(FI)
       .addImm(0)
       .addMemOperand(MMO);

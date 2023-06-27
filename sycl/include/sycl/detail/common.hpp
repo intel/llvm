@@ -18,9 +18,7 @@
 #include <string>
 
 // Default signature enables the passing of user code location information to
-// public methods as a default argument. If the end-user wants to disable the
-// code location information, they must compile the code with
-// -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
+// public methods as a default argument.
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -30,12 +28,12 @@ namespace detail {
 // TODO: Align these checks with the SYCL specification when the behaviour
 // with void * is clarified.
 template <typename DataT>
-using EnableIfOutputPointerT = detail::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
+using EnableIfOutputPointerT = std::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ std::is_pointer_v<DataT>>;
 
 template <typename DataT>
-using EnableIfOutputIteratorT = detail::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
+using EnableIfOutputIteratorT = std::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer_v<DataT>>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
 #define __CODELOC_FILE_NAME __builtin_FILE()
@@ -95,29 +93,6 @@ private:
   unsigned long MLineNo;
   unsigned long MColumnNo;
 };
-
-// The C++ FE may instrument user calls with code location metadata.
-// If it does then that will appear as an extra last argument.
-// Having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-// Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
-// _CODELOCARG(&CodeLoc).
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define _CODELOCONLYPARAM(a)                                                   \
-  const detail::code_location a = detail::code_location::current()
-#define _CODELOCPARAM(a)                                                       \
-  , const detail::code_location a = detail::code_location::current()
-#define _CODELOCPARAMDEF(a) , const detail::code_location a
-
-#define _CODELOCARG(a)
-#define _CODELOCFW(a) , a
-#else
-#define _CODELOCONLYPARAM(a)
-#define _CODELOCPARAM(a)
-
-#define _CODELOCARG(a) const detail::code_location a = {}
-#define _CODELOCFW(a)
-#endif
 
 /// @brief Data type that manages the code_location information in TLS
 /// @details As new SYCL features are added, they all enable the propagation of
@@ -306,7 +281,7 @@ template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
 // must make sure the returned pointer is not captured in a field or otherwise
 // stored - i.e. must live only as on-stack value.
 template <class T>
-typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
+typename std::add_pointer_t<typename decltype(T::impl)::element_type>
 getRawSyclObjImpl(const T &SyclObject) {
   return SyclObject.impl.get();
 }

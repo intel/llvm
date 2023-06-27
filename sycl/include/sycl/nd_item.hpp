@@ -29,6 +29,10 @@ namespace detail {
 class Builder;
 }
 
+namespace ext::oneapi::experimental {
+template <int dimensions> class root_group;
+}
+
 /// Identifies an instance of the function object executing at each point in an
 /// nd_range.
 ///
@@ -121,46 +125,86 @@ public:
   template <access::mode accessMode = access::mode::read_write>
   __SYCL2020_DEPRECATED("use sycl::atomic_fence() free function instead")
   void mem_fence(
-      typename detail::enable_if_t<accessMode == access::mode::read ||
-                                       accessMode == access::mode::write ||
-                                       accessMode == access::mode::read_write,
-                                   access::fence_space>
+      typename std::enable_if_t<accessMode == access::mode::read ||
+                                    accessMode == access::mode::write ||
+                                    accessMode == access::mode::read_write,
+                                access::fence_space>
           accessSpace = access::fence_space::global_and_local) const {
     (void)accessSpace;
     Group.mem_fence();
   }
 
   template <typename dataT>
-  device_event async_work_group_copy(local_ptr<dataT> dest,
-                                     global_ptr<dataT> src,
-                                     size_t numElements) const {
+  __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
+  device_event
+      async_work_group_copy(local_ptr<dataT> dest, global_ptr<dataT> src,
+                            size_t numElements) const {
     return Group.async_work_group_copy(dest, src, numElements);
   }
 
   template <typename dataT>
-  device_event async_work_group_copy(global_ptr<dataT> dest,
-                                     local_ptr<dataT> src,
-                                     size_t numElements) const {
+  __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
+  device_event
+      async_work_group_copy(global_ptr<dataT> dest, local_ptr<dataT> src,
+                            size_t numElements) const {
     return Group.async_work_group_copy(dest, src, numElements);
   }
 
   template <typename dataT>
-  device_event async_work_group_copy(local_ptr<dataT> dest,
-                                     global_ptr<dataT> src, size_t numElements,
-                                     size_t srcStride) const {
+  __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
+  device_event
+      async_work_group_copy(local_ptr<dataT> dest, global_ptr<dataT> src,
+                            size_t numElements, size_t srcStride) const {
 
     return Group.async_work_group_copy(dest, src, numElements, srcStride);
   }
 
   template <typename dataT>
-  device_event async_work_group_copy(global_ptr<dataT> dest,
-                                     local_ptr<dataT> src, size_t numElements,
+  __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
+  device_event
+      async_work_group_copy(global_ptr<dataT> dest, local_ptr<dataT> src,
+                            size_t numElements, size_t destStride) const {
+    return Group.async_work_group_copy(dest, src, numElements, destStride);
+  }
+
+  template <typename DestDataT, typename SrcDataT>
+  device_event async_work_group_copy(decorated_local_ptr<DestDataT> dest,
+                                     decorated_global_ptr<SrcDataT> src,
+                                     size_t numElements) const {
+    return Group.async_work_group_copy(dest, src, numElements);
+  }
+
+  template <typename DestDataT, typename SrcDataT>
+  device_event async_work_group_copy(decorated_global_ptr<DestDataT> dest,
+                                     decorated_local_ptr<SrcDataT> src,
+                                     size_t numElements) const {
+    return Group.async_work_group_copy(dest, src, numElements);
+  }
+
+  template <typename DestDataT, typename SrcDataT>
+  device_event async_work_group_copy(decorated_local_ptr<DestDataT> dest,
+                                     decorated_global_ptr<SrcDataT> src,
+                                     size_t numElements,
+                                     size_t srcStride) const {
+
+    return Group.async_work_group_copy(dest, src, numElements, srcStride);
+  }
+
+  template <typename DestDataT, typename SrcDataT>
+  device_event async_work_group_copy(decorated_global_ptr<DestDataT> dest,
+                                     decorated_local_ptr<SrcDataT> src,
+                                     size_t numElements,
                                      size_t destStride) const {
     return Group.async_work_group_copy(dest, src, numElements, destStride);
   }
 
   template <typename... eventTN> void wait_for(eventTN... events) const {
     Group.wait_for(events...);
+  }
+
+  sycl::ext::oneapi::experimental::root_group<dimensions>
+  ext_oneapi_get_root_group() const {
+    return sycl::ext::oneapi::experimental::root_group<dimensions>{*this};
   }
 
   nd_item(const nd_item &rhs) = default;

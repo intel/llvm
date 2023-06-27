@@ -194,6 +194,9 @@ public:
   /// The file to log CC_PRINT_PROC_STAT_FILE output to, if enabled.
   std::string CCPrintStatReportFilename;
 
+  /// The file to log CC_PRINT_INTERNAL_STAT_FILE output to, if enabled.
+  std::string CCPrintInternalStatReportFilename;
+
   /// The file to log CC_PRINT_OPTIONS output to, if enabled.
   std::string CCPrintOptionsFilename;
 
@@ -257,6 +260,10 @@ public:
   /// Set CC_PRINT_PROC_STAT mode, which causes the driver to dump
   /// performance report to CC_PRINT_PROC_STAT_FILE or to stdout.
   unsigned CCPrintProcessStats : 1;
+
+  /// Set CC_PRINT_INTERNAL_STAT mode, which causes the driver to dump internal
+  /// performance report to CC_PRINT_INTERNAL_STAT_FILE or to stdout.
+  unsigned CCPrintInternalStats : 1;
 
   /// Pointer to the ExecuteCC1Tool function, if available.
   /// When the clangDriver lib is used through clang.exe, this provides a
@@ -634,11 +641,20 @@ public:
   /// Returns the default name for linked images (e.g., "a.out").
   const char *getDefaultImageName() const;
 
-  // Creates a temp file with $Prefix-%%%%%%.$Suffix
+  /// Creates a temp file.
+  /// 1. If \p MultipleArch is false or \p BoundArch is empty, the temp file is
+  ///    in the temporary directory with name $Prefix-%%%%%%.$Suffix.
+  /// 2. If \p MultipleArch is true and \p BoundArch is not empty,
+  ///    2a. If \p NeedUniqueDirectory is false, the temp file is in the
+  ///        temporary directory with name $Prefix-$BoundArch-%%%%%.$Suffix.
+  ///    2b. If \p NeedUniqueDirectory is true, the temp file is in a unique
+  ///        subdiretory with random name under the temporary directory, and
+  ///        the temp file itself has name $Prefix-$BoundArch.$Suffix.
   const char *CreateTempFile(Compilation &C, StringRef Prefix, StringRef Suffix,
                              bool MultipleArchs = false,
                              StringRef BoundArch = {},
-                             types::ID Type = types::TY_Nothing) const;
+                             types::ID Type = types::TY_Nothing,
+                             bool NeedUniqueDirectory = false) const;
 
   /// GetNamedOutputPath - Return the name to use for the output of
   /// the action \p JA. The result is appended to the compilation's
@@ -701,6 +717,25 @@ public:
   LTOKind getLTOMode(bool IsOffload = false) const {
     return IsOffload ? OffloadLTOMode : LTOMode;
   }
+
+  // FPGA Offload Modes.
+  enum DeviceMode {
+    UnsetDeviceMode,
+    FPGAHWMode,
+    FPGAEmulationMode
+  } OffloadCompileMode = UnsetDeviceMode;
+
+  bool IsFPGAHWMode() const { return OffloadCompileMode == FPGAHWMode; }
+
+  bool IsFPGAEmulationMode() const {
+    return OffloadCompileMode == FPGAEmulationMode;
+  }
+
+  void setOffloadCompileMode(DeviceMode ModeValue) {
+    OffloadCompileMode = ModeValue;
+  }
+
+  DeviceMode getOffloadCompileMode() { return OffloadCompileMode; }
 
 private:
 
@@ -776,13 +811,6 @@ private:
   /// Use the new offload driver for OpenMP
   bool UseNewOffloadingDriver = false;
   void setUseNewOffloadingDriver() { UseNewOffloadingDriver = true; }
-
-  /// FPGA Emulation Mode.  By default, this is true due to the fact that
-  /// an external option setting is required to target hardware.
-  bool FPGAEmulationMode = true;
-  void setFPGAEmulationMode(bool IsEmulation) {
-    FPGAEmulationMode = IsEmulation;
-  }
 
   /// The inclusion of the default SYCL device triple is dependent on either
   /// the discovery of an existing object/archive that contains the device code
@@ -869,10 +897,6 @@ public:
     return FPGATempDepFiles[FileName];
   }
 
-  /// isFPGAEmulationMode - Compilation mode is determined to be used for
-  /// FPGA Emulation.  This is only used for SYCL offloading to FPGA device.
-  bool isFPGAEmulationMode() const { return FPGAEmulationMode; };
-
   /// isSYCLDefaultTripleImplied - The default SYCL triple (spir64) has been
   /// added or should be added given proper criteria.
   bool isSYCLDefaultTripleImplied() const { return SYCLDefaultTripleImplied; };
@@ -940,6 +964,16 @@ llvm::StringRef getDriverMode(StringRef ProgName, ArrayRef<const char *> Args);
 
 /// Checks whether the value produced by getDriverMode is for CL mode.
 bool IsClangCL(StringRef DriverMode);
+
+/// Expand response files from a clang driver or cc1 invocation.
+///
+/// \param Args The arguments that will be expanded.
+/// \param ClangCLMode Whether clang is in CL mode.
+/// \param Alloc Allocator for new arguments.
+/// \param FS Filesystem to use when expanding files.
+llvm::Error expandResponseFiles(SmallVectorImpl<const char *> &Args,
+                                bool ClangCLMode, llvm::BumpPtrAllocator &Alloc,
+                                llvm::vfs::FileSystem *FS = nullptr);
 
 } // end namespace driver
 } // end namespace clang

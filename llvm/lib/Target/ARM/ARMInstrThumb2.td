@@ -1596,6 +1596,46 @@ def t2LDR_PRE_imm : t2AsmPseudo<"ldr${p}.w $Rt, $addr!",
 def t2LDR_POST_imm : t2AsmPseudo<"ldr${p}.w $Rt, $Rn, $imm",
                          (ins GPR:$Rt, addr_offset_none:$Rn, t2am_imm8_offset:$imm, pred:$p)>;
 
+// A7.7.46 LDRB (immediate) T3
+// .w suffixes; Constraints can't be used on t2InstAlias to describe
+// "$Rn =  $Rn_wb" on POST or "$addr.base = $Rn_wb" on PRE.
+def t2LDRB_OFFSET_imm : t2AsmPseudo<"ldrb${p}.w $Rt, $addr",
+                         (ins GPR:$Rt, t2addrmode_negimm8:$addr, pred:$p)>;
+def t2LDRB_PRE_imm : t2AsmPseudo<"ldrb${p}.w $Rt, $addr!",
+                         (ins GPR:$Rt, t2addrmode_imm8_pre:$addr, pred:$p)>;
+def t2LDRB_POST_imm : t2AsmPseudo<"ldrb${p}.w $Rt, $Rn, $imm",
+                         (ins GPR:$Rt, addr_offset_none:$Rn, t2am_imm8_offset:$imm, pred:$p)>;
+
+// A7.7.55 LDRH (immediate) T3
+// .w suffixes; Constraints can't be used on t2InstAlias to describe
+// "$Rn =  $Rn_wb" on POST or "$addr.base = $Rn_wb" on PRE.
+def t2LDRH_OFFSET_imm : t2AsmPseudo<"ldrh${p}.w $Rt, $addr",
+                         (ins GPR:$Rt, t2addrmode_negimm8:$addr, pred:$p)>;
+def t2LDRH_PRE_imm : t2AsmPseudo<"ldrh${p}.w $Rt, $addr!",
+                         (ins GPR:$Rt, t2addrmode_imm8_pre:$addr, pred:$p)>;
+def t2LDRH_POST_imm : t2AsmPseudo<"ldrh${p}.w $Rt, $Rn, $imm",
+                         (ins GPR:$Rt, addr_offset_none:$Rn, t2am_imm8_offset:$imm, pred:$p)>;
+
+// A7.7.59 LDRSB (immediate) T2
+// .w suffixes; Constraints can't be used on t2InstAlias to describe
+// "$Rn =  $Rn_wb" on POST or "$addr.base = $Rn_wb" on PRE.
+def t2LDRSB_OFFSET_imm : t2AsmPseudo<"ldrsb${p}.w $Rt, $addr",
+                         (ins GPR:$Rt, t2addrmode_negimm8:$addr, pred:$p)>;
+def t2LDRSB_PRE_imm : t2AsmPseudo<"ldrsb${p}.w $Rt, $addr!",
+                         (ins GPR:$Rt, t2addrmode_imm8_pre:$addr, pred:$p)>;
+def t2LDRSB_POST_imm : t2AsmPseudo<"ldrsb${p}.w $Rt, $Rn, $imm",
+                         (ins GPR:$Rt, addr_offset_none:$Rn, t2am_imm8_offset:$imm, pred:$p)>;
+
+// A7.7.63 LDRSH (immediate) T2
+// .w suffixes; Constraints can't be used on t2InstAlias to describe
+// "$Rn =  $Rn_wb" on POST or "$addr.base = $Rn_wb" on PRE.
+def t2LDRSH_OFFSET_imm : t2AsmPseudo<"ldrsh${p}.w $Rt, $addr",
+                         (ins GPR:$Rt, t2addrmode_negimm8:$addr, pred:$p)>;
+def t2LDRSH_PRE_imm : t2AsmPseudo<"ldrsh${p}.w $Rt, $addr!",
+                         (ins GPR:$Rt, t2addrmode_imm8_pre:$addr, pred:$p)>;
+def t2LDRSH_POST_imm : t2AsmPseudo<"ldrsh${p}.w $Rt, $Rn, $imm",
+                         (ins GPR:$Rt, addr_offset_none:$Rn, t2am_imm8_offset:$imm, pred:$p)>;
+
 // LDRT, LDRBT, LDRHT, LDRSBT, LDRSHT all have offset mode (PUW=0b110).
 // Ref: A8.6.57 LDR (immediate, Thumb) Encoding T4
 class T2IldT<bit signed, bits<2> type, string opc, InstrItinClass ii>
@@ -1760,6 +1800,26 @@ def t2STRH_preidx: t2PseudoInst<(outs GPRnopc:$Rn_wb),
 def t2STR_PRE_imm : t2AsmPseudo<"str${p}.w $Rt, $addr!",
   (ins GPR:$Rt, t2addrmode_imm8_pre:$addr, pred:$p)>;
 def t2STR_POST_imm : t2AsmPseudo<"str${p}.w $Rt, $Rn, $imm",
+  (ins GPR:$Rt, addr_offset_none:$Rn, t2am_imm8_offset:$imm, pred:$p)>;
+
+// A7.7.163 STRB (immediate) T3
+// .w suffixes; Constraints can't be used on t2InstAlias to describe
+// "$Rn =  $Rn_wb" on POST or "$addr.base = $Rn_wb" on PRE.
+def t2STRB_OFFSET_imm : t2AsmPseudo<"strb${p}.w $Rt, $addr",
+  (ins GPR:$Rt, t2addrmode_negimm8:$addr, pred:$p)>;
+def t2STRB_PRE_imm : t2AsmPseudo<"strb${p}.w $Rt, $addr!",
+  (ins GPR:$Rt, t2addrmode_imm8_pre:$addr, pred:$p)>;
+def t2STRB_POST_imm : t2AsmPseudo<"strb${p}.w $Rt, $Rn, $imm",
+  (ins GPR:$Rt, addr_offset_none:$Rn, t2am_imm8_offset:$imm, pred:$p)>;
+
+// A7.7.170 STRH (immediate) T3
+// .w suffixes; Constraints can't be used on t2InstAlias to describe
+// "$Rn =  $Rn_wb" on POST or "$addr.base = $Rn_wb" on PRE.
+def t2STRH_OFFSET_imm : t2AsmPseudo<"strh${p}.w $Rt, $addr",
+  (ins GPR:$Rt, t2addrmode_negimm8:$addr, pred:$p)>;
+def t2STRH_PRE_imm : t2AsmPseudo<"strh${p}.w $Rt, $addr!",
+  (ins GPR:$Rt, t2addrmode_imm8_pre:$addr, pred:$p)>;
+def t2STRH_POST_imm : t2AsmPseudo<"strh${p}.w $Rt, $Rn, $imm",
   (ins GPR:$Rt, addr_offset_none:$Rn, t2am_imm8_offset:$imm, pred:$p)>;
 
 // STRT, STRBT, STRHT all have offset mode (PUW=0b110) and are for disassembly
@@ -2747,10 +2807,10 @@ def t2RRX : T2sTwoReg<(outs rGPR:$Rd), (ins rGPR:$Rm), IIC_iMOVsi,
 }
 
 let isCodeGenOnly = 1, Defs = [CPSR] in {
-def t2MOVsrl_flag : T2TwoRegShiftImm<
+def t2MOVsrl_glue : T2TwoRegShiftImm<
                         (outs rGPR:$Rd), (ins rGPR:$Rm), IIC_iMOVsi,
                         "lsrs", ".w\t$Rd, $Rm, #1",
-                        [(set rGPR:$Rd, (ARMsrl_flag rGPR:$Rm))]>,
+                        [(set rGPR:$Rd, (ARMsrl_glue rGPR:$Rm))]>,
                         Sched<[WriteALU]> {
   let Inst{31-27} = 0b11101;
   let Inst{26-25} = 0b01;
@@ -2762,10 +2822,10 @@ def t2MOVsrl_flag : T2TwoRegShiftImm<
   let Inst{14-12} = 0b000;
   let Inst{7-6} = 0b01;
 }
-def t2MOVsra_flag : T2TwoRegShiftImm<
+def t2MOVsra_glue : T2TwoRegShiftImm<
                         (outs rGPR:$Rd), (ins rGPR:$Rm), IIC_iMOVsi,
                         "asrs", ".w\t$Rd, $Rm, #1",
-                        [(set rGPR:$Rd, (ARMsra_flag rGPR:$Rm))]>,
+                        [(set rGPR:$Rd, (ARMsra_glue rGPR:$Rm))]>,
                         Sched<[WriteALU]> {
   let Inst{31-27} = 0b11101;
   let Inst{26-25} = 0b01;
@@ -4214,7 +4274,7 @@ def t2RFEIA  : T2RFE<0b111010011001,
 let isReturn = 1, isBarrier = 1, isTerminator = 1, Defs = [PC] in
 def t2SUBS_PC_LR : T2I <(outs), (ins imm0_255:$imm), NoItinerary,
                         "subs", "\tpc, lr, $imm",
-                        [(ARMintretflag imm0_255:$imm)]>,
+                        [(ARMintretglue imm0_255:$imm)]>,
                    Requires<[IsThumb2,IsNotMClass]> {
   let Inst{31-8} = 0b111100111101111010001111;
 

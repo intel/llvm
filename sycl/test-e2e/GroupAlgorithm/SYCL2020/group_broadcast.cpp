@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 #include "support.h"
 #include <algorithm>
@@ -11,6 +9,18 @@
 #include <numeric>
 #include <sycl/sycl.hpp>
 using namespace sycl;
+
+template <typename T> bool equal(const T &a, const T &b) { return a == b; }
+
+template <typename T, int N>
+bool equal(const vec<T, N> &a, const vec<T, N> &b) {
+  for (int i = 0; i < N; i++) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
 
 template <typename kernel_name, typename InputContainer,
           typename OutputContainer>
@@ -37,9 +47,9 @@ void test(queue q, InputContainer input, OutputContainer output) {
       });
     });
   }
-  assert(output[0] == input[0]);
-  assert(output[1] == input[1 * G + 2]);
-  assert(output[2] == input[2 * G + 1]);
+  assert(equal(output[0], input[0]));
+  assert(equal(output[1], input[1 * G + 2]));
+  assert(equal(output[2], input[2 * G + 1]));
 }
 
 int main() {
@@ -69,6 +79,17 @@ int main() {
     }
     std::fill(output.begin(), output.end(), static_cast<int *>(0x0));
     test<class KernelName_NrqELzFQToOSPsRNMi>(q, input, output);
+  }
+
+  // Test vector types
+  {
+    std::array<vec<int, 4>, N> input;
+    std::array<vec<int, 4>, 3> output;
+    for (int i = 0; i < N; ++i) {
+      input[i] = vec<int, 4>{i, i, i, i};
+    }
+    std::fill(output.begin(), output.end(), vec<int, 4>{0, 0, 0, 0});
+    test<class KernelName_VectorGroupBroadcast>(q, input, output);
   }
 
   // Test user-defined type

@@ -40,13 +40,13 @@ using SelectBlockT = select_cl_scalar_integral_unsigned_t<T>;
 
 template <typename T, access::address_space Space>
 using AcceptableForGlobalLoadStore =
-    bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
-                  Space == access::address_space::global_space>;
+    std::bool_constant<!std::is_same_v<void, SelectBlockT<T>> &&
+                       Space == access::address_space::global_space>;
 
 template <typename T, access::address_space Space>
 using AcceptableForLocalLoadStore =
-    bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
-                  Space == access::address_space::local_space>;
+    std::bool_constant<!std::is_same_v<void, SelectBlockT<T>> &&
+                       Space == access::address_space::local_space>;
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename T, access::address_space Space,
@@ -645,9 +645,8 @@ struct sub_group {
                     "sycl::ext::oneapi::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
-                              __spv::Scope::Subgroup>(
-        typename sycl::detail::GroupOpTag<T>::type(), x, op);
+    return sycl::detail::calc<__spv::GroupOperation::Reduce>(
+        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
 #else
     (void)x;
     (void)op;
@@ -676,9 +675,8 @@ struct sub_group {
                     "sycl::ext::oneapi::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
-                              __spv::Scope::Subgroup>(
-        typename sycl::detail::GroupOpTag<T>::type(), x, op);
+    return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
+        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
 #else
     (void)x;
     (void)op;
@@ -715,9 +713,8 @@ struct sub_group {
                     "sycl::ext::oneapi::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<T, __spv::GroupOperation::InclusiveScan,
-                              __spv::Scope::Subgroup>(
-        typename sycl::detail::GroupOpTag<T>::type(), x, op);
+    return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
+        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
 #else
     (void)x;
     (void)op;
@@ -767,6 +764,29 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return get_local_linear_id() == 0;
 #else
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif
+  }
+
+  // Common member functions for by-value semantics
+  friend bool operator==(const sub_group &lhs, const sub_group &rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    return lhs.get_group_id() == rhs.get_group_id();
+#else
+    std::ignore = lhs;
+    std::ignore = rhs;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif
+  }
+
+  friend bool operator!=(const sub_group &lhs, const sub_group &rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    return !(lhs == rhs);
+#else
+    std::ignore = lhs;
+    std::ignore = rhs;
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
 #endif

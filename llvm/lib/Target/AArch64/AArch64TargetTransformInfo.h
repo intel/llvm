@@ -57,7 +57,8 @@ class AArch64TTIImpl : public BasicTTIImplBase<AArch64TTIImpl> {
     VECTOR_LDST_FOUR_ELEMENTS
   };
 
-  bool isWideningInstruction(Type *Ty, unsigned Opcode,
+  bool isWideningInstruction(Type *DstTy, unsigned Opcode,
+                             ArrayRef<Type *> SrcTys,
                              ArrayRef<const Value *> Args);
 
   // A helper function called by 'getVectorInstrCost'.
@@ -131,6 +132,8 @@ public:
     return ST->getVScaleForTuning();
   }
 
+  bool isVScaleKnownToBeAPowerOfTwo() const { return true; }
+
   bool shouldMaximizeVectorBandwidth(TargetTransformInfo::RegisterKind K) const;
 
   /// Try to return an estimate cost factor that can be used as a multiplier
@@ -144,7 +147,7 @@ public:
     return VF.getKnownMinValue() * ST->getVScaleForTuning();
   }
 
-  unsigned getMaxInterleaveFactor(unsigned VF);
+  unsigned getMaxInterleaveFactor(ElementCount VF);
 
   bool prefersVectorizedAddressing() const;
 
@@ -177,7 +180,7 @@ public:
                                      unsigned Index);
 
   InstructionCost getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
-                                         bool IsUnsigned,
+                                         bool IsUnsigned, FastMathFlags FMF,
                                          TTI::TargetCostKind CostKind);
 
   InstructionCost getArithmeticReductionCostSVE(unsigned Opcode,
@@ -347,17 +350,16 @@ public:
     return ST->hasSVE() ? 5 : 0;
   }
 
-  TailFoldingStyle getPreferredTailFoldingStyle() const {
+  TailFoldingStyle getPreferredTailFoldingStyle(bool IVUpdateMayOverflow) const {
     if (ST->hasSVE())
-      return TailFoldingStyle::DataAndControlFlow;
+      return IVUpdateMayOverflow
+                 ? TailFoldingStyle::DataAndControlFlowWithoutRuntimeCheck
+                 : TailFoldingStyle::DataAndControlFlow;
+
     return TailFoldingStyle::DataWithoutLaneMask;
   }
 
-  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
-                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
-                                   DominatorTree *DT,
-                                   LoopVectorizationLegality *LVL,
-                                   InterleavedAccessInfo *IAI);
+  bool preferPredicateOverEpilogue(TailFoldingInfo *TFI);
 
   bool supportsScalableVectors() const { return ST->hasSVE(); }
 
@@ -392,6 +394,15 @@ public:
   /// @}
 
   bool enableSelectOptimize() { return ST->enableSelectOptimize(); }
+
+  unsigned getStoreMinimumVF(unsigned VF, Type *ScalarMemTy,
+                             Type *ScalarValTy) const {
+    // We can vectorize store v4i8.
+    if (ScalarMemTy->isIntegerTy(8) && isPowerOf2_32(VF) && VF >= 4)
+      return 4;
+
+    return BaseT::getStoreMinimumVF(VF, ScalarMemTy, ScalarValTy);
+  }
 };
 
 } // end namespace llvm

@@ -65,6 +65,8 @@ exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
   detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
 }
 
+exception::~exception() {}
+
 const std::error_code &exception::code() const noexcept { return MErrC; }
 
 const std::error_category &exception::category() const noexcept {

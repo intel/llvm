@@ -457,6 +457,18 @@
 // RUN:   | FileCheck --check-prefix=CHECK-UBSAN-STATIC-DARWIN %s
 // CHECK-UBSAN-STATIC-DARWIN: {{.*}}error: static UndefinedBehaviorSanitizer runtime is not supported on darwin
 
+// RUN: %clang -fsanitize=address -### %s 2>&1 \
+// RUN:     --target=x86_64-apple-darwin -fuse-ld=ld -static-libsan \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-ASAN-STATIC-DARWIN %s
+// CHECK-ASAN-STATIC-DARWIN: {{.*}}error: static AddressSanitizer runtime is not supported on darwin
+
+// RUN: %clang -fsanitize=thread -### %s 2>&1 \
+// RUN:     --target=x86_64-apple-darwin -fuse-ld=ld -static-libsan \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-TSAN-STATIC-DARWIN %s
+// CHECK-TSAN-STATIC-DARWIN: {{.*}}error: static ThreadSanitizer runtime is not supported on darwin
+
 // RUN: %clang -fsanitize=address,undefined -### %s 2>&1 \
 // RUN:     --target=i386-unknown-linux -fuse-ld=ld \
 // RUN:     -resource-dir=%S/Inputs/resource_dir \
@@ -724,12 +736,16 @@
 // RUN: %clang -fsanitize=shadow-call-stack -### %s 2>&1 \
 // RUN:     --target=riscv32-unknown-elf -fuse-ld=ld \
 // RUN:   | FileCheck --check-prefix=CHECK-SHADOWCALLSTACK-ELF-RISCV32 %s
-// CHECK-SHADOWCALLSTACK-ELF-RISCV32: '-fsanitize=shadow-call-stack' only allowed with '-ffixed-x18'
+// CHECK-SHADOWCALLSTACK-ELF-RISCV32-NOT: error:
 
 // RUN: %clang -fsanitize=shadow-call-stack -### %s 2>&1 \
 // RUN:     --target=riscv64-unknown-linux -fuse-ld=ld \
 // RUN:   | FileCheck --check-prefix=CHECK-SHADOWCALLSTACK-LINUX-RISCV64 %s
-// CHECK-SHADOWCALLSTACK-LINUX-RISCV64: '-fsanitize=shadow-call-stack' only allowed with '-ffixed-x18'
+// CHECK-SHADOWCALLSTACK-LINUX-RISCV64-NOT: error:
+
+// RUN: %clang -target riscv64-linux-android -fsanitize=shadow-call-stack %s -### 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=CHECK-SHADOWCALLSTACK-ANDROID-RISCV64
+// CHECK-SHADOWCALLSTACK-ANDROID-RISCV64-NOT: error:
 
 // RUN: %clang -fsanitize=shadow-call-stack -### %s 2>&1 \
 // RUN:     --target=riscv64-unknown-fuchsia -fuse-ld=ld \
@@ -945,7 +961,6 @@
 // RUN:   | FileCheck --check-prefix=CHECK-HWASAN-X86-64-LINUX %s
 //
 // CHECK-HWASAN-X86-64-LINUX: "{{(.*[^-.0-9A-Z_a-z])?}}ld{{(.exe)?}}"
-// CHECK-HWASAN-X86-64-LINUX: "-pie"
 // CHECK-HWASAN-X86-64-LINUX-NOT: "-lc"
 // CHECK-HWASAN-X86-64-LINUX: libclang_rt.hwasan-x86_64.a"
 // CHECK-HWASAN-X86-64-LINUX-NOT: "--export-dynamic"
@@ -963,7 +978,6 @@
 // RUN:   | FileCheck --check-prefix=CHECK-SHARED-HWASAN-X86-64-LINUX %s
 //
 // CHECK-SHARED-HWASAN-X86-64-LINUX: "{{(.*[^-.0-9A-Z_a-z])?}}ld{{(.exe)?}}"
-// CHECK-SHARED-HWASAN-X86-64-LINUX: "-pie"
 // CHECK-SHARED-HWASAN-X86-64-LINUX-NOT: "-lc"
 // CHECK-SHARED-HWASAN-X86-64-LINUX: libclang_rt.hwasan-x86_64.so"
 // CHECK-SHARED-HWASAN-X86-64-LINUX-NOT: "-lpthread"
@@ -980,7 +994,6 @@
 // RUN:   | FileCheck --check-prefix=CHECK-DSO-SHARED-HWASAN-X86-64-LINUX %s
 //
 // CHECK-DSO-SHARED-HWASAN-X86-64-LINUX: "{{(.*[^-.0-9A-Z_a-z])?}}ld{{(.exe)?}}"
-// CHECK-DSO_SHARED-HWASAN-X86-64-LINUX: "-pie"
 // CHECK-DSO-SHARED-HWASAN-X86-64-LINUX-NOT: "-lc"
 // CHECK-DSO-SHARED-HWASAN-X86-64-LINUX: libclang_rt.hwasan-x86_64.so"
 // CHECK-DSO-SHARED-HWASAN-X86-64-LINUX-NOT: "-lpthread"
@@ -997,7 +1010,6 @@
 // RUN:   | FileCheck --check-prefix=CHECK-HWASAN-AARCH64-LINUX %s
 //
 // CHECK-HWASAN-AARCH64-LINUX: "{{(.*[^-.0-9A-Z_a-z])?}}ld{{(.exe)?}}"
-// CHECK-HWASAN-AARCH64-LINUX: "-pie"
 // CHECK-HWASAN-AARCH64-LINUX-NOT: "-lc"
 // CHECK-HWASAN-AARCH64-LINUX: libclang_rt.hwasan-aarch64.a"
 // CHECK-HWASAN-AARCH64-LINUX-NOT: "--export-dynamic"
@@ -1016,7 +1028,6 @@
 // RUN:   | FileCheck --check-prefix=CHECK-SHARED-HWASAN-AARCH64-LINUX %s
 //
 // CHECK-SHARED-HWASAN-AARCH64-LINUX: "{{(.*[^-.0-9A-Z_a-z])?}}ld{{(.exe)?}}"
-// CHECK-SHARED-HWASAN-AARCH64-LINUX: "-pie"
 // CHECK-SHARED-HWASAN-AARCH64-LINUX-NOT: "-lc"
 // CHECK-SHARED-HWASAN-AARCH64-LINUX: libclang_rt.hwasan-aarch64.so"
 // CHECK-SHARED-HWASAN-AARCH64-LINUX-NOT: "-lpthread"
@@ -1033,7 +1044,6 @@
 // RUN:   | FileCheck --check-prefix=CHECK-DSO-SHARED-HWASAN-AARCH64-LINUX %s
 //
 // CHECK-DSO-SHARED-HWASAN-AARCH64-LINUX: "{{(.*[^-.0-9A-Z_a-z])?}}ld{{(.exe)?}}"
-// CHECK-DSO_SHARED-HWASAN-AARCH64-LINUX: "-pie"
 // CHECK-DSO-SHARED-HWASAN-AARCH64-LINUX-NOT: "-lc"
 // CHECK-DSO-SHARED-HWASAN-AARCH64-LINUX: libclang_rt.hwasan-aarch64.so"
 // CHECK-DSO-SHARED-HWASAN-AARCH64-LINUX-NOT: "-lpthread"

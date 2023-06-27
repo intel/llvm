@@ -9,13 +9,13 @@
 #ifndef LINALG_TRANSFORM_OPS
 #define LINALG_TRANSFORM_OPS
 
+include "mlir/Dialect/Linalg/TransformOps/LinalgTransformEnums.td"
+include "mlir/Dialect/Transform/IR/TransformAttrs.td"
 include "mlir/Dialect/Transform/IR/TransformDialect.td"
 include "mlir/Dialect/Transform/IR/TransformInterfaces.td"
 include "mlir/Dialect/Transform/IR/TransformTypes.td"
-include "mlir/Dialect/PDL/IR/PDLTypes.td"
 include "mlir/Dialect/SCF/IR/DeviceMappingInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
-include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/RegionKindInterface.td"
 
@@ -25,6 +25,53 @@ def TransformParamTypeOrAnyHandle : Type<
     Or<[TransformHandleTypeInterface.predicate,
         Transform_ParamType.predicate]>,
     "transform 'param' type or any handle type">;
+
+//===----------------------------------------------------------------------===//
+// Apply...PatternsOp
+//===----------------------------------------------------------------------===//
+
+def ApplyEraseUnnecessaryInputsPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.linalg.erase_unnecessary_inputs",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Collects patterns that promote inputs to outputs and remove unused inputs of
+    `linalg.generic` ops.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
+def ApplyFoldUnitExtentDimsViaReshapesPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.linalg.fold_unit_extent_dims_via_reshapes",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Collects patterns to fold unit-extent dimensions in operands/results of
+    linalg ops on tensors via reassociative reshape ops.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
+def ApplyFoldUnitExtentDimsViaSlicesPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.linalg.fold_unit_extent_dims_via_slices",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Collects patterns to fold unit-extent dimensions in operands/results of
+    linalg ops on tensors via rank-reducing slices.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
+def ApplyTilingCanonicalizationPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.linalg.tiling_canonicalization",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Collects canonicalization patterns relevant to apply after tiling patterns.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
 
 //===----------------------------------------------------------------------===//
 // BufferizeToAllocationOp
@@ -83,8 +130,10 @@ def BufferizeToAllocationOp : Op<Transform_Dialect,
 //===----------------------------------------------------------------------===//
 
 def DecomposeOp : Op<Transform_Dialect, "structured.decompose",
-    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
-     TransformOpInterface, TransformEachOpTrait]> {
+    [FunctionalStyleTransformOpTrait, 
+     MemoryEffectsOpInterface,
+     TransformOpInterface, 
+     TransformEachOpTrait]> {
   let description = [{
     Decomposes named complex operations, such as higher-dimensional
     (depthwise) convolutions, into combinations of lower-dimensional equivalents
@@ -93,15 +142,16 @@ def DecomposeOp : Op<Transform_Dialect, "structured.decompose",
     #### Return modes
 
     This operation ignores non-Linalg ops and drops them in the return.
-    If all the operations referred to by the `target` PDLOperation decompose
+    If all the operations referred to by the `target` handle decompose
     properly, the transform succeeds. Otherwise the transform silently fails.
     The return handle points to only the subset of successfully produced
     computational operations, which can be empty.
   }];
 
-  let arguments = (ins PDL_Operation:$target);
-  let results = (outs PDL_Operation:$transformed);
-  let assemblyFormat = "$target attr-dict";
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$transformed);
+  let assemblyFormat =
+      "$target attr-dict `:` functional-type(operands, results)";
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
@@ -124,11 +174,11 @@ def FuseOp : Op<Transform_Dialect, "structured.fuse",
   }];
 
   let arguments =
-    (ins PDL_Operation:$target,
+    (ins TransformHandleTypeInterface:$target,
          DefaultValuedAttr<I64ArrayAttr, "{}">:$tile_sizes,
          DefaultValuedAttr<I64ArrayAttr, "{}">:$tile_interchange);
-  let results = (outs PDL_Operation:$transformed,
-                      Variadic<PDL_Operation>:$loops);
+  let results = (outs TransformHandleTypeInterface:$transformed,
+                      Variadic<TransformHandleTypeInterface>:$loops);
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
@@ -140,24 +190,26 @@ def FuseOp : Op<Transform_Dialect, "structured.fuse",
 
 def FuseIntoContainingOp :
     Op<Transform_Dialect, "structured.fuse_into_containing_op",
-      [DeclareOpInterfaceMethods<TransformOpInterface>,
+      [DeclareOpInterfaceMethods<TransformOpInterface,
+          ["allowsRepeatedHandleOperands"]>,
        DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
   let summary = "Fuse a producer into a containing operation.";
 
   let description = [{
     Fuses the `producer_op` into the `containing_op`.
-    Returns a handle to the fused ops.
+    Returns a handle to the fused ops and the `new_containing_op`.
 
     The producer is typically a slice of a tileable op (i.e., implements
     TilingInterface). In that case, this transform computes the accessed
-    producer slice inside of the containing op ("tile and fuse"). Otherwise,
+    producer slice inside of the containing op ("tile and fuse") and if required,
+    creates a new containing op with outputs from the fused producer. Otherwise,
     the entire producer is cloned inside the containing op ("clone and fuse").
 
     The containing op handle must be associated with exactly one payload op. The
     producer op handle may be associated with multiple payload ops. This
     transform fuses producers one-by-one, always picking an unspecified producer
     that has at least one use inside the containing op among the
-    producers.
+    producers. A producer can be listed multiple times in the handle.
 
     Note: If a producer has multiple uses inside the containing op, it is
     currently tiled and/or cloned multiple times into the containing op.
@@ -173,14 +225,16 @@ def FuseIntoContainingOp :
     containing op. I.e., "producers" that are not consumed within the containing
     op are rejected by this operation.
 
-    This operation reads and frees the producer handle.
-    This operation reads the containing op handle.
+    This operation consumes the producer handle.
+    This operation only reads the containing op handle.
   }];
 
-  let arguments = (ins PDL_Operation:$producer_op,
-                       PDL_Operation:$containing_op);
-  let results = (outs PDL_Operation:$fused_op);
-  let assemblyFormat = "$producer_op `into` $containing_op attr-dict";
+  let arguments = (ins TransformHandleTypeInterface:$producer_op,
+                       TransformHandleTypeInterface:$containing_op);
+  let results = (outs TransformHandleTypeInterface:$fused_op,
+                      TransformHandleTypeInterface:$new_containing_op);
+  let assemblyFormat = "$producer_op `into` $containing_op attr-dict "
+                       " `:` functional-type(operands, results)";
 
   let builders = [
     OpBuilder<(ins "Value":$producerOp, "Value":$containingOp)>
@@ -201,16 +255,18 @@ def GeneralizeOp : Op<Transform_Dialect, "structured.generalize",
     #### Return modes
 
     This operation ignores non-Linalg ops and drops them in the return.
-    If all the operations referred to by the `target` PDLOperation generalize
+    If all the operations referred to by the `target` handle generalize
     properly, the transform succeeds. Otherwise the transform silently fails.
     The return handle points to only the subset of successfully produced
     equivalent generic operations, which can be empty or contain the original
     ops if they were already in generic form.
   }];
 
-  let arguments = (ins PDL_Operation:$target);
-  let results = (outs PDL_Operation:$transformed);
-  let assemblyFormat = "$target attr-dict";
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$transformed);
+  let assemblyFormat =
+      "$target attr-dict `:` "
+      "custom<SemiFunctionType>(type($target), type($transformed))";
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
@@ -235,7 +291,7 @@ def InterchangeOp : Op<Transform_Dialect, "structured.interchange",
 
     This operation ignores non-linalg::Generic ops and drops them in the return.
     This operation fails if the interchange attribute is invalid.
-    If all the operations referred to by the `target` PDLOperation interchange
+    If all the operations referred to by the `target` handle interchange
     properly, the transform succeeds.
     If any interchange fails, the transform definitely fails.
     The return handle points to only the subset of successfully produced
@@ -243,14 +299,15 @@ def InterchangeOp : Op<Transform_Dialect, "structured.interchange",
   }];
 
   let arguments =
-    (ins PDL_Operation:$target,
+    (ins TransformHandleTypeInterface:$target,
          ConfinedAttr<DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">,
                       [DenseArrayNonNegative<DenseI64ArrayAttr>]>:$iterator_interchange);
-  let results = (outs PDL_Operation:$transformed);
+  let results = (outs TransformHandleTypeInterface:$transformed);
 
   let assemblyFormat = [{ 
     $target 
     (`iterator_interchange` `=` $iterator_interchange^)? attr-dict
+    `:` custom<SemiFunctionType>(type($target), type($transformed))
   }];
   let hasVerifier = 1;
 
@@ -342,14 +399,6 @@ def LowerUnPackOp : Op<Transform_Dialect, "structured.lower_unpack", [
 // MatchOp
 //===----------------------------------------------------------------------===//
 
-def MatchInterfaceEnum : I32EnumAttr<"MatchInterfaceEnum", "An interface to match",
-    [
-      I32EnumAttrCase<"LinalgOp", 0>,
-      I32EnumAttrCase<"TilingInterface", 1>
-    ]>{
-  let cppNamespace = "mlir::transform";
-}
-
 def MatchOp : Op<Transform_Dialect, "structured.match",
     [MemoryEffectsOpInterface,
      NavigationTransformOpTrait,
@@ -392,7 +441,8 @@ def MatchOp : Op<Transform_Dialect, "structured.match",
   let results = (outs TransformHandleTypeInterface:$results);
 
   let builders = [
-    OpBuilder<(ins "Value":$target, "ArrayRef<StringRef>":$opNames)>
+    OpBuilder<(ins "Value":$target, "ArrayRef<StringRef>":$opNames)>,
+    OpBuilder<(ins "TypeRange":$resultTypes, "Value":$target, "ArrayRef<StringRef>":$opNames)>
   ];
 
   let assemblyFormat = [{
@@ -555,13 +605,14 @@ def PackOp : Op<Transform_Dialect, "structured.pack", [
   }];
 
   let arguments = (ins TransformHandleTypeInterface:$target,
-                   Variadic<PDL_Operation>:$packed_sizes,
+                   Variadic<TransformHandleTypeInterface>:$packed_sizes,
                    DefaultValuedAttr<DenseI64ArrayAttr, "{}">:$static_packed_sizes);
   let results = (outs TransformHandleTypeInterface:$packed_op);
   let assemblyFormat = [{
     $target 
     `packed_sizes` `=` custom<DynamicIndexList>($packed_sizes,
-                                                $static_packed_sizes)
+                                                $static_packed_sizes,
+                                                type($packed_sizes))
     attr-dict
     `:` functional-type($target, results)
   }];
@@ -586,16 +637,29 @@ def PackGreedilyOp : Op<Transform_Dialect, "structured.pack_greedily", [
     Target a Linalg op and rewrite it into packed LinalgOp form by trying to
     infer whether a known suboperation is embedded
 
-    Different packing strategies are applied in order, when one applies
+    Different packing strategies are applied in order, when one applies 
     successfully, the transform returns:
-      1. Gemm packing: Try to infer a gemm operation embedded in the target op.
+      1. Matmul packing: Try to infer a matmul operation embedded in the target op.
          Specifically, this looks for 2 parallel dimensions that participate in
          an outer-product and 1 reduction dimension.
-         These dimensions are referred as (m, n, k) to match canonical gemm
+         These dimensions are referred as (m, n, k) to match canonical matmul
          terminology.
-         The packed sizes for (m, n, k) are specified by `gemm_packed_sizes`.
+         
+         The packed sizes for (m, n, k) are specified by `matmul_packed_sizes`
+         and the optional `matmul_padded_sizes_next_multiple_of`.
+         When an entry `matmul_packed_sizes[i]` is non-0, the corresponding 
+         dimension is packed by `matmul_packed_sizes[i]`.
+         Otherwise, the dimension is merely padded to the next multiple of
+         `matmul_padded_sizes_next_multiple_of[i]`.
+
+         `matmul_padded_sizes_next_multiple_of` is optional and is expected to
+         either be empty or of size `3`, matching the size of `matmul_packed_sizes`.
+         For each individual element of `matmul_packed_sizes` and 
+         `matmul_padded_sizes_next_multiple_of`, only one of them is allowed to
+         be non-zero.
+         
          The ordering of the packed dimensions (mm, nn, kk) is specified by the
-         `gemm_inner_dims_order` attribute.
+         `matmul_inner_dims_order` attribute.
 
     Packing occurs as follows:
       1. Find the dimensions to pack according to the strategy.
@@ -603,10 +667,15 @@ def PackGreedilyOp : Op<Transform_Dialect, "structured.pack_greedily", [
       3. An interchange transform is applied to isolate the dimensions to pack as
          the most minor indexing dimensions of the linalg.generic. The most minor
          dimensions are themselves ordered according to `inner_dims_order`.
-      4. Packing is performed by `packed_sizes` and following `inner_dims_order`.
+      4. An elementwise traversal of `matmul_packed_sizes` and
+         `matmul_padded_sizes_next_multiple_of` is performed and for each 
+         dimension `d`, either pack to `matmul_packed_sizes[d]` or pad to the
+         `matmul_padded_sizes_next_multiple_of[d]`.
+      5. Packing/padding is performed by the amounts determined in step 4. and
+         following `inner_dims_order`.
 
     By normalizing the most minor dimensions to `inner_dims_order`, the transform
-    guarantees that packing immediates generates inner dimensions in a desirable
+    guarantees that packing immediately generates inner dimensions in a desirable
     layout.
 
     Outer dimension layout permutations are not controlled by this transform op
@@ -622,25 +691,36 @@ def PackGreedilyOp : Op<Transform_Dialect, "structured.pack_greedily", [
 
   // TODO: Transform_ConcreteOpType<linalg::LinalgOp> needs interface.
   let arguments = (ins TransformHandleTypeInterface:$target,
-                   Variadic<PDL_Operation>:$gemm_packed_sizes,
-                   DefaultValuedAttr<DenseI64ArrayAttr, "{}">
-                     :$static_gemm_packed_sizes,
-                   DefaultValuedAttr<DenseI64ArrayAttr, "{}">
-                     :$gemm_inner_dims_order);
+                   Variadic<TransformHandleTypeInterface>:$matmul_packed_sizes,
+                   ConfinedAttr<DefaultValuedAttr<DenseI64ArrayAttr, "{}">,
+                                 [DenseArrayCount<3>]>:$static_matmul_packed_sizes,
+                   ConfinedAttr<DefaultValuedAttr<DenseI64ArrayAttr, "{}">,
+                                 [Attr<
+                                    Or<[DenseArrayCount<0>.predicate, 
+                                        DenseArrayCount<3>.predicate]>,
+                                        "with 0 or 3 elements"
+                                      >]>
+                                 :$matmul_padded_sizes_next_multiple_of,
+                   ConfinedAttr<DefaultValuedAttr<DenseI64ArrayAttr, "{}">,
+                                 [DenseArrayCount<3>]>:$matmul_inner_dims_order);
   let results = (outs Transform_ConcreteOpType<"linalg.generic">:$packed_op);
 
   let builders = [
     OpBuilder<(ins "Value":$target,
-                   "ArrayRef<OpFoldResult>":$mixedGemmPackedSizes,
-                   CArg<"ArrayRef<int64_t>", "{}">:$gemmDimsInnerDimsOrder)>
+                   "ArrayRef<OpFoldResult>":$mixedMatmulPackedSizes,
+                   "ArrayRef<int64_t>":$matmulPaddededSizesNextMultipleOf,
+                   CArg<"ArrayRef<int64_t>", "{}">:$matmulDimsInnerDimsOrder)>
   ];
 
   let assemblyFormat = [{
     $target
     oilist(
-      `gemm_packed_sizes` `=` custom<DynamicIndexList>($gemm_packed_sizes,
-                                                       $static_gemm_packed_sizes)
-      `gemm_inner_dims_order` `=` $gemm_inner_dims_order
+      `matmul_packed_sizes` `=` custom<DynamicIndexList>($matmul_packed_sizes,
+                                                         $static_matmul_packed_sizes,
+                                                         type($matmul_packed_sizes))
+      (`matmul_padded_sizes_next_multiple_of` `=` 
+        $matmul_padded_sizes_next_multiple_of^)?
+      `matmul_inner_dims_order` `=` $matmul_inner_dims_order
     )
     attr-dict
     `:` functional-type($target, results)
@@ -650,7 +730,7 @@ def PackGreedilyOp : Op<Transform_Dialect, "structured.pack_greedily", [
   let extraClassDeclaration = [{
     /// Returns the list of tile sizes, which may be static (Attribute) or
     /// dynamic (Value).
-    SmallVector<OpFoldResult> getMixedGemmPackedSizes();
+    SmallVector<OpFoldResult> getMixedMatmulPackedSizes();
   }];
 }
 
@@ -733,24 +813,25 @@ def PadOp : Op<Transform_Dialect, "structured.pad",
     This operation ignores non-Linalg ops and drops them in the return.
     This operation may produce a definiteFailure if the padding fails for any
     reason.
-    If all the operations referred to by the `target` PDLOperation pad
+    If all the operations referred to by the `target` handle pad
     properly, the transform succeeds. Otherwise the transform silently fails.
     The return handle points to only the subset of successfully produced
     padded operations, which can be empty.
   }];
 
   let arguments =
-    (ins PDL_Operation:$target,
+    (ins TransformHandleTypeInterface:$target,
          DefaultValuedAttr<ArrayAttr, "{}">:$padding_values,
          DefaultValuedAttr<I64ArrayAttr, "{}">:$padding_dimensions,
          DefaultValuedAttr<I64ArrayAttr, "{}">:$pack_paddings,
-         DefaultValuedAttr<I64ArrayAttr, "{}">:$hoist_paddings,
          DefaultValuedAttr<
           TypedArrayAttrBase<I64ArrayAttr, "array of arrays of i64">,
           "{}">:$transpose_paddings);
-  let results = (outs PDL_Operation:$transformed);
+  let results = (outs TransformHandleTypeInterface:$transformed);
 
-  let assemblyFormat = "$target attr-dict";
+  let assemblyFormat =
+    "$target attr-dict `:` "
+    "custom<SemiFunctionType>(type($target), type($transformed))";
   let hasVerifier = 1;
 
   let extraClassDeclaration = [{
@@ -762,8 +843,103 @@ def PadOp : Op<Transform_Dialect, "structured.pad",
 }
 
 //===----------------------------------------------------------------------===//
+// HoistPadOp
+//===----------------------------------------------------------------------===//
+
+def HoistPadBuildPackingLoopNestOp :
+    Op<Transform_Dialect,
+       "structured.hoist_pad.build_packing_loop_nest",
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+     DeclareOpInterfaceMethods<TransformOpInterface>]> {
+  let description = [{
+    Helper transform used to hoist a tensor.pad target operation. This operation
+    creates the packing loop nest required by the hoist_pad operation and makes
+    that functionality available independently.
+
+    TODO: In the future, we should consider rewriting as a tensor.pack after
+    hoisting since this abstraction is now available.
+
+    #### Return modes
+
+    This operation ignores non-tensor.pad ops and drops them in the result.
+    If any non-tensor.pad is passed, the transform emits a silenceable failure.
+
+    The return handle points to only the subset of successfully created packing
+    loop nests, which can be empty.
+  }];
+
+  // Also allow any payload operation for simpler composition. Non-tensor.pad ops
+  // will be dropped from the results.
+  let arguments =
+    (ins TransformHandleTypeInterface:$target,
+         TransformHandleTypeInterface:$loop,
+         DefaultValuedAttr<DenseI64ArrayAttr, "{}">:$transpose);
+  let results = (outs TransformHandleTypeInterface:$packing_loop);
+
+  let assemblyFormat = [{
+    $target
+    `above` $loop
+    (`,` `transpose` `by` $transpose^)?
+    attr-dict
+    `:` functional-type(operands, results)
+  }];
+  let hasVerifier = 1;
+}
+
+def HoistPadOp : Op<Transform_Dialect, "structured.hoist_pad",
+    [FunctionalStyleTransformOpTrait,
+     MemoryEffectsOpInterface,
+     TransformOpInterface,
+     TransformEachOpTrait]> {
+  let description = [{
+    Hoist the tensor.pad target operation by at most the given number of loops.
+    Optionally apply the transpose attribute to the inner dimensions.
+
+    TODO: In the future, we should consider rewriting as a tensor.pack after 
+    hoisting since this abstraction is now available.
+    TODO: Maybe also return the linalg.generic transpose created at some point.
+
+    #### Return modes
+
+    This operation ignores non-tensor.pad ops and drops them in the result.
+    If any non-tensor.pad is passed, the transform emits a silenceable failure.
+
+    If all the operations referred to by the `target` handle padproperly, the
+    transform succeeds. Otherwise the transform silently fails.
+
+    The return handle points to only the subset of successfully hoisted 
+    tensor.pad operations, which can be empty.
+  }];
+
+  // Also allow any operation for simpler composition. Non-tensor.pad ops
+  // will be dropped from the results.
+  let arguments =
+    (ins TransformHandleTypeInterface:$target,
+         I64Attr:$num_loops,
+         DefaultValuedAttr<DenseI64ArrayAttr, "{}">:$transpose);
+  let results = (outs TransformHandleTypeInterface:$transformed);
+
+  let assemblyFormat = [{
+    $target 
+    `by` $num_loops `loops` 
+    (`,` `transpose` `by` $transpose^)? 
+    attr-dict
+    `:` functional-type(operands, results)
+  }];
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::tensor::PadOp,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // PromoteOp
 //===----------------------------------------------------------------------===//
+
 
 def PromoteOp : Op<Transform_Dialect, "structured.promote",
     [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
@@ -779,22 +955,25 @@ def PromoteOp : Op<Transform_Dialect, "structured.promote",
     This operation applies to a single Linalg op that satisfies the
     `promoteSubviewsPrecondition`, otherwise it fails.
 
-    If the operations referred to by the `target` PDLOperation promote
+    If the operations referred to by the `target` handle promote
     properly, the transform succeeds.
 
     When successful, the return handle points to the $target operation that
     was modified inplace.
   }];
 
-  let arguments = (ins PDL_Operation:$target,
+  let arguments = (ins TransformHandleTypeInterface:$target,
                        DefaultValuedAttr<I64ArrayAttr, "{}">:$operands_to_promote,
                        DefaultValuedAttr<BoolArrayAttr, "{}">:$use_full_tile_buffers,
                        UnitAttr:$use_full_tiles_by_default,
                        UnitAttr:$use_alloca,
+                       OptionalAttr<DeviceMappingArrayAttr>:$mapping,
                        OptionalAttr<I64Attr>:$alignment);
-  let results = (outs PDL_Operation:$transformed);
+  let results = (outs TransformHandleTypeInterface:$transformed);
 
-  let assemblyFormat = "$target attr-dict";
+  let assemblyFormat =
+    "$target attr-dict `:`"
+    "custom<SemiFunctionType>(type($target), type($transformed))";
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
@@ -823,10 +1002,12 @@ def ReplaceOp : Op<Transform_Dialect, "structured.replace",
     This operation consumes the `target` handle.
   }];
 
-  let arguments = (ins PDL_Operation:$target);
-  let results = (outs PDL_Operation:$replacement);
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$replacement);
   let regions = (region SizedRegion<1>:$bodyRegion);
-  let assemblyFormat = "$target attr-dict-with-keyword regions";
+  let assemblyFormat =
+      "$target attr-dict-with-keyword regions `:` "
+      "custom<SemiFunctionType>(type($target), type($replacement))";
   let hasVerifier = 1;
 }
 
@@ -846,7 +1027,7 @@ def ScalarizeOp : Op<Transform_Dialect, "structured.scalarize",
     This operation ignores non-Linalg ops and drops them in the return.
     This operation produces `definiteFailure` if the scalarization fails for any
     reason.
-    If all the operations referred to by the `target` PDLOperation scalarize
+    If all the operations referred to by the `target` handle scalarize
     properly, the transform succeeds. Otherwise the transform silently fails.
 
     The return handle points to only the subset of successfully produced
@@ -860,10 +1041,12 @@ def ScalarizeOp : Op<Transform_Dialect, "structured.scalarize",
     needed.
   }];
 
-  let arguments = (ins PDL_Operation:$target);
-  let results = (outs PDL_Operation:$result);
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$result);
 
-  let assemblyFormat = "$target attr-dict";
+  let assemblyFormat = 
+    "$target attr-dict `:`"
+    "custom<SemiFunctionType>(type($target), type($result))";
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
@@ -879,9 +1062,10 @@ def ScalarizeOp : Op<Transform_Dialect, "structured.scalarize",
 
 def RewriteInDestinationPassingStyleOp : Op<
     Transform_Dialect, "structured.rewrite_in_destination_passing_style",
-    [MemoryEffectsOpInterface,
-     NavigationTransformOpTrait,
-     DeclareOpInterfaceMethods<TransformOpInterface>]> {
+    [FunctionalStyleTransformOpTrait, 
+     MemoryEffectsOpInterface,
+     TransformOpInterface, 
+     TransformEachOpTrait]> {
   let description = [{
     Rewrite a supported tensor operation that is not in destination-passing style
     into a form that is in destination-passing style.
@@ -895,13 +1079,13 @@ def RewriteInDestinationPassingStyleOp : Op<
     #### Return modes
 
     This operation ignores non-unsupported ops and drops them from the return.
-    If all the operations referred to by the `target` PDLOperation generalize
+    If all the operations referred to by the `target` handle generalize
     properly, the transform succeeds. Otherwise the transform silently fails.
     The return handle points to a subset of successfully produced operations:
-      - tensor.pad case, the returned handle points to the tensor.insert_slice.
-      - tensor.generate case, the returned handle points to the linalg.generic.
-      - tensor.from_elements case, the returned handle points to the last 
-        tensor.insert.
+      - `tensor.pad` case, the returned handle points to the tensor.insert_slice.
+      - `tensor.generate` case, the returned handle points to the linalg.generic.
+      - `tensor.from_elements` case, the returned handle points to the last 
+        `tensor.insert`.
   }];
 
   let arguments = (ins TransformHandleTypeInterface:$target);
@@ -909,6 +1093,13 @@ def RewriteInDestinationPassingStyleOp : Op<
   let assemblyFormat = [{
     $target attr-dict
     `:` functional-type($target, results)
+  }];
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation *target,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
   }];
 }
 
@@ -982,7 +1173,7 @@ def SplitReductionOp : Op<Transform_Dialect, "structured.split_reduction",
     This operation produces `definiteFailure` if the splitting fails for any
     reason.
 
-    If all the operations referred to by the `target` PDLOperation split
+    If all the operations referred to by the `target` handle split
     properly, the transform succeeds. Otherwise the transform silently fails.
     The 4 returned handles points to only the subset of successfully produced
     computational operations, which can all be empty.
@@ -1091,18 +1282,20 @@ def SplitReductionOp : Op<Transform_Dialect, "structured.split_reduction",
     ```
   }];
 
-  let arguments = (ins PDL_Operation:$target,
+  let arguments = (ins TransformHandleTypeInterface:$target,
                    DefaultValuedAttr<I64Attr, "{}">:$split_factor,
                    DefaultValuedAttr<I64Attr, "{}">:$insert_split_dimension,
                    UnitAttr:$inner_parallel,
                    UnitAttr:$use_scaling_algorithm,
                    UnitAttr:$use_alloc);
-  let results = (outs PDL_Operation:$init_or_alloc_op,
-                      PDL_Operation:$fill_op,
-                      PDL_Operation:$split_linalg_op,
-                      PDL_Operation:$combining_linalg_op);
+  let results = (outs TransformHandleTypeInterface:$init_or_alloc_op,
+                      TransformHandleTypeInterface:$fill_op,
+                      TransformHandleTypeInterface:$split_linalg_op,
+                      TransformHandleTypeInterface:$combining_linalg_op);
 
-  let assemblyFormat = "$target attr-dict";
+  let assemblyFormat = 
+      "$target attr-dict `:`"
+      "functional-type(operands, results)";
 
   let builders = [
     OpBuilder<(ins "Value":$target,
@@ -1198,12 +1391,12 @@ def TileReductionUsingScfOp : Op<Transform_Dialect, "structured.tile_reduction_u
   }];
 
   // TODO: support mixed static-dynamic (see TileToForallOp).
-  let arguments = (ins PDL_Operation:$target,
+  let arguments = (ins TransformHandleTypeInterface:$target,
                    DefaultValuedAttr<DenseI64ArrayAttr, "{}">:$tile_sizes);
-  let results = (outs PDL_Operation:$for_op,
-                      PDL_Operation:$fill_op,
-                      PDL_Operation:$split_linalg_op,
-                      PDL_Operation:$combining_linalg_op);
+  let results = (outs TransformHandleTypeInterface:$for_op,
+                      TransformHandleTypeInterface:$fill_op,
+                      TransformHandleTypeInterface:$split_linalg_op,
+                      TransformHandleTypeInterface:$combining_linalg_op);
 
   let builders = [
     OpBuilder<(ins "Value":$target,
@@ -1214,6 +1407,7 @@ def TileReductionUsingScfOp : Op<Transform_Dialect, "structured.tile_reduction_u
     $target
     `by` `tile_sizes` `=` $tile_sizes
     attr-dict
+    `:` functional-type(operands, results)
   }];
 
   let extraClassDeclaration = [{
@@ -1299,14 +1493,14 @@ def TileReductionUsingForallOp :
   }];
 
   // TODO: support mixed static-dynamic (see TileToForallOp).
-  let arguments = (ins PDL_Operation:$target,
+  let arguments = (ins TransformHandleTypeInterface:$target,
                    DefaultValuedAttr<DenseI64ArrayAttr, "{}">:$num_threads,
                    DefaultValuedAttr<DenseI64ArrayAttr, "{}">:$tile_sizes,
                    OptionalAttr<DeviceMappingArrayAttr>:$mapping);
-  let results = (outs PDL_Operation:$forall_op,
-                      PDL_Operation:$fill_op,
-                      PDL_Operation:$split_linalg_op,
-                      PDL_Operation:$combining_linalg_op);
+  let results = (outs TransformHandleTypeInterface:$forall_op,
+                      TransformHandleTypeInterface:$fill_op,
+                      TransformHandleTypeInterface:$split_linalg_op,
+                      TransformHandleTypeInterface:$combining_linalg_op);
 
   let builders = [
     OpBuilder<(ins "Value":$target,
@@ -1322,6 +1516,7 @@ def TileReductionUsingForallOp :
     (`,` `tile_sizes` `=` $tile_sizes^)?
     (`,` `mapping` `=` $mapping^)?
     attr-dict
+    `:` functional-type(operands, results)
   }];
 
   let extraClassDeclaration = [{
@@ -1381,7 +1576,8 @@ def TileOp : Op<Transform_Dialect, "structured.tile",
   let arguments = (ins TransformHandleTypeInterface:$target,
                    Variadic<TransformParamTypeOrAnyHandle>:$dynamic_sizes,
                    DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:$static_sizes,
-                   DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:$interchange);
+                   DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:$interchange,
+                   DefaultValuedOptionalAttr<BoolAttr, "false">:$last_tile_size_scalable);
   let results = (outs TransformHandleTypeInterface:$tiled_linalg_op,
                       Variadic<TransformHandleTypeInterface>:$loops);
   let builders = [
@@ -1449,7 +1645,7 @@ def TileToForallOp :
     This operation ignores ops that do not implement the TilingInterface and
     drops them in the return.
 
-    If all the operations referred to by the `target` PDLOperation tile
+    If all the operations referred to by the `target` handle tile
     successfully, the transform succeeds.
     Otherwise the transform silently fails.
 
@@ -1476,16 +1672,16 @@ def TileToForallOp :
     ```
   }];
 
-  let arguments = (ins PDL_Operation:$target,
-                   Variadic<PDL_Operation>:$num_threads,
-                   Variadic<PDL_Operation>:$tile_sizes,
-                   Optional<PDL_Operation>:$packed_num_threads,
-                   Optional<PDL_Operation>:$packed_tile_sizes,
+  let arguments = (ins TransformHandleTypeInterface:$target,
+                   Variadic<TransformHandleTypeInterface>:$num_threads,
+                   Variadic<TransformHandleTypeInterface>:$tile_sizes,
+                   Optional<TransformHandleTypeInterface>:$packed_num_threads,
+                   Optional<TransformHandleTypeInterface>:$packed_tile_sizes,
                    DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:$static_num_threads,
                    DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:$static_tile_sizes,
                    OptionalAttr<DeviceMappingArrayAttr>:$mapping);
-  let results = (outs PDL_Operation:$forall_op,
-                      PDL_Operation:$tiled_op);
+  let results = (outs TransformHandleTypeInterface:$forall_op,
+                      TransformHandleTypeInterface:$tiled_op);
 
   let builders = [
     OpBuilder<(ins "Value":$target,
@@ -1513,12 +1709,17 @@ def TileToForallOp :
   let assemblyFormat = [{
     $target oilist(
         `num_threads` custom<PackedOrDynamicIndexList>($packed_num_threads,
+                                                       type($packed_num_threads),
                                                        $num_threads,
+                                                       type($num_threads),
                                                        $static_num_threads) |
          `tile_sizes` custom<PackedOrDynamicIndexList>($packed_tile_sizes,
+                                                       type($packed_tile_sizes),
                                                        $tile_sizes,
+                                                       type($tile_sizes),
                                                        $static_tile_sizes))
     (`(` `mapping` `=` $mapping^ `)`)? attr-dict
+    `:` functional-type($target, results)
   }];
   let hasVerifier = 1;
 
@@ -1577,12 +1778,18 @@ def TileToScfForOp : Op<Transform_Dialect, "structured.tile_to_scf_for",
     produces a definite failure.
   }];
 
-  let arguments = (ins PDL_Operation:$target,
-                   Variadic<PDL_Operation>:$dynamic_sizes,
+  let arguments = (ins TransformHandleTypeInterface:$target,
+                   Variadic<TransformHandleTypeInterface>:$dynamic_sizes,
                    DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:$static_sizes,
                    DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:$interchange);
-  let results = (outs PDL_Operation:$tiled_linalg_op,
-                      Variadic<PDL_Operation>:$loops);
+  let results = (outs TransformHandleTypeInterface:$tiled_linalg_op,
+                      Variadic<TransformHandleTypeInterface>:$loops);
+  
+  let builders = [
+    OpBuilder<(ins "Value":$target,
+                   "ArrayRef<OpFoldResult>":$mixedTileSizes,
+                   CArg<"ArrayRef<int64_t>", "{}">:$interchange)>
+  ];
 
   let hasCustomAssemblyFormat = 1;
 
@@ -1626,7 +1833,7 @@ def VectorizeOp : Op<Transform_Dialect, "structured.vectorize",
       - `disable_transfer_permutation_map_lowering_patterns`: a UnitAttr to
       deactivate the rewrite of `vector.transfer` with permutation maps into
       explicit `vector.transpose` operations. This is intended to be used in
-      tests only but may be promotoed to a first class attribute in the future.
+      tests only but may be promoted to a first class attribute in the future.
 
     #### Return modes:
 
@@ -1636,14 +1843,16 @@ def VectorizeOp : Op<Transform_Dialect, "structured.vectorize",
     to be isolated from above.
   }];
 
-  let arguments = (ins PDL_Operation:$target,
+  let arguments = (ins TransformHandleTypeInterface:$target,
                    UnitAttr:$vectorize_padding,
                    UnitAttr:$vectorize_nd_extract,
                    UnitAttr:$disable_multi_reduction_to_contract_patterns,
                    UnitAttr:$disable_transfer_permutation_map_lowering_patterns);
-  let results = (outs PDL_Operation:$transformed);
+  let results = (outs TransformHandleTypeInterface:$transformed);
 
-  let assemblyFormat = "$target attr-dict";
+  let assemblyFormat = 
+      "$target attr-dict `:`"
+      "functional-type(operands, results)";
 
   let builders = [
     OpBuilder<(ins "Value":$target,
@@ -1678,13 +1887,13 @@ def MaskedVectorizeOp : Op<Transform_Dialect, "structured.masked_vectorize",
     #### Return modes:
 
     This operation produces a definite failure if the dynamic vector sizes (SSA
-    values) do not satify the constraints mentioned above. It produces a
+    values) do not satisfy the constraints mentioned above. It produces a
     silenceable failure if at least one target op is not a Linalg op or fails to
     vectorize.
   }];
 
-  let arguments = (ins PDL_Operation:$target,
-                       Variadic<PDL_Operation>:$vector_sizes,
+  let arguments = (ins TransformHandleTypeInterface:$target,
+                       Variadic<TransformHandleTypeInterface>:$vector_sizes,
                        UnitAttr:$vectorize_nd_extract,
                        DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:
                           $static_vector_sizes);
@@ -1692,8 +1901,10 @@ def MaskedVectorizeOp : Op<Transform_Dialect, "structured.masked_vectorize",
   let assemblyFormat = [{
       $target
       `vector_sizes` custom<DynamicIndexList>($vector_sizes,
-                                              $static_vector_sizes)
+                                              $static_vector_sizes,
+                                              type($vector_sizes))
       attr-dict
+      `:` type($target)
   }];
 
   let extraClassDeclaration = [{
@@ -1703,6 +1914,211 @@ def MaskedVectorizeOp : Op<Transform_Dialect, "structured.masked_vectorize",
         ::mlir::transform::TransformState &state);
 
     ::llvm::SmallVector<::mlir::OpFoldResult> getMixedVectorSizes();
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// HoistRedundantVectorTransfersOp
+//===----------------------------------------------------------------------===//
+
+def HoistRedundantVectorTransfersOp :
+  Op<Transform_Dialect, "structured.hoist_redundant_vector_transfers",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
+     TransformEachOpTrait, TransformOpInterface]> {
+  let description = [{
+    Hoist vector.transfer_read / vector.transfer_write pairs out of immediately
+    enclosing scf::ForOp iteratively, if the following conditions are true:
+       1. The 2 ops access the same memref with the same indices.
+       2. All operands are invariant under the enclosing scf::ForOp.
+       3. No uses of the memref either dominate the transfer_read or are
+       dominated by the transfer_write (i.e. no aliasing between the write and
+       the read across the loop)
+
+    WARNING: This hoisting does not model parallelism and is generally incorrect
+    when used on distributed loops with memref semantics!
+    TODO: obsolete and should be retired.
+
+    #### Return modes:
+
+    The operation always succeeds and returns a handle to the transformed
+    function op.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$transformed);
+
+  let assemblyFormat = "$target attr-dict `:` functional-type(operands, results) ";
+
+  let builders = [
+    OpBuilder<(ins "Value":$target)>,
+  ];
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::func::FuncOp target,
+         ::mlir::transform::ApplyToEachResultList &results,
+         ::mlir::transform::TransformState &state);
+   }];
+}
+
+//===----------------------------------------------------------------------===//
+// ConvertConv2DToImg2ColOp
+//===----------------------------------------------------------------------===//
+
+def ConvertConv2DToImg2ColOp : Op<Transform_Dialect,
+    "structured.convert_conv2d_to_img2col",
+    [FunctionalStyleTransformOpTrait,
+     MemoryEffectsOpInterface,
+     TransformOpInterface,
+     TransformEachOpTrait]> {
+  let description = [{
+    Convert linalg.conv_2d_xxx into linalg.generic (for img2col packing)
+    and linalg.matmul.
+
+    A convolution operation can be written as a matrix-matrix multiplication by
+    unfolding the cross-correlation between input and filter and explicitly copy
+    overlapped sliding window inputs.
+
+    Consider 2D input X with single channel input and output and 2x2 filter W:
+    ```
+    [x(0, 0)  , x(0, 1)  , ...,   x(0, n)  ]
+    [x(1, 0)  , x(1, 1)  , ...,   x(1, n)  ]
+    [.        ,  .       ,.   ,      .     ]            [w(0, 0), w(0, 1)]
+    [.        ,  .       , .  ,      .     ]    (conv)  [w(1, 0), w(1, 1)]
+    [.        ,  .       ,   .,      .     ]
+    [x(n-1, 0), x(n-1, 1), ..., x(n-1, n-1)]
+    ```
+
+    The packed input data (img2col) is a matrix with |rows| = output spatial
+    size, |columns| = filter spatial size. To compute the output Y(i, j) we need
+    to calculate the dot product between filter window at input X(x, y)) and the
+    filter which will look like the following where r.h.s is the img2col matrix
+    and l.h.s is the flattned filter:
+    ```
+    [x(0,0), x(0,1), x(1,0), x(1,1)]
+    [x(0,1), x(1,1), x(0,2), x(1,2)] (matmul) [w(0,0), w(0,1), w(1,0), w(1,1)]
+    [x(0,1), x(1,1), x(0,2), x(1,2)]
+    [   .  ,    .  ,    .  ,    .  ]
+    ```
+
+    In general for 2D case with (N, H, W, C) input and (Kh, Kw, C, D) filter
+    and output (N, Ho, Wo, D) the convolution is the following matrix-matrix
+    multiplication (Ho x Wo, Kh x Kw x C) * (Kh x Kw x C, D) for each input in
+    the N input. For the case where N > 1 its a batched matrxi-matrix
+    multplication.
+
+    Returns two handles:
+    - One on the operation that produces the img2col tensor.
+    - One on the final operation of the sequence that replaces the original
+      convolution.
+
+    #### Return modes:
+
+    Returns a definite failure if target is not isolated from above.
+    Returns a silenceable failure if the pattern application failed.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$img2col_tensor,
+                      TransformHandleTypeInterface:$transformed);
+
+  let assemblyFormat =
+    "$target attr-dict `:` functional-type($target, results)";
+
+  let builders = [
+    OpBuilder<(ins "Value":$target)>
+  ];
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::linalg::LinalgOp target,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// HoistRedundantTensorSubsetsOp
+//===----------------------------------------------------------------------===//
+
+def HoistRedundantTensorSubsetsOp :
+  Op<Transform_Dialect, "structured.hoist_redundant_tensor_subsets",
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+     TransformEachOpTrait,
+     TransformOpInterface]> {
+  let description = [{
+    Hoists supported tensor subset extract/insert operation pairs out of 
+    immediately enclosing loop iteratively, if the following conditions
+    are true:
+       1. The 2 ops access the same tensor subset.
+       2. All operands are invariant under the enclosing loop.
+    
+    The supported subset extract/insert operation pairs currently comprise:
+       - tensor.extract_slice / tensor.insert_slice
+       - vector.transfer_read / vector.transfer_write on tensors
+    
+    Only scf.for loops are currently supported.
+
+    When applied to:
+       1. an scf.for loop, hoist out of this loop only.
+       2. a non-loop op, apply hoisting to all the contained loop ops.
+
+    #### Return modes:
+
+    The operation always succeeds and returns nothing.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs);
+
+  let assemblyFormat = [{
+    $target 
+    attr-dict 
+    `:` functional-type(operands, results)
+  }];
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation *target,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// InsertSliceToCopyOp
+//===----------------------------------------------------------------------===//
+
+def InsertSliceToCopyOp :
+  Op<Transform_Dialect, "structured.insert_slice_to_copy",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
+     TransformEachOpTrait, TransformOpInterface]> {
+  let description = [{
+    Targeted rewrite of an tensor.insert_slice to linalg.copy.
+    This is useful to materialize copies explicitly before bufferization and 
+    transform them, avoiding the need to rediscover them after bufferization.
+
+    If the insert_slice source is already a linalg.copy, only return the source
+    op (i.e. do not create an additional linalg.copy op).
+
+    #### Return modes:
+
+    The operation always succeeds and returns a handle to the relevant 
+    linalg.copy op.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$transformed);
+
+  let assemblyFormat = "$target attr-dict `:` functional-type(operands, results) ";
+
+  let builders = [
+    OpBuilder<(ins "Value":$target)>,
+  ];
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation *target,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
   }];
 }
 

@@ -8,20 +8,27 @@
 
 #include "clang-include-cleaner/Analysis.h"
 #include "AnalysisInternal.h"
+#include "clang-include-cleaner/IncludeSpeller.h"
 #include "clang-include-cleaner/Record.h"
 #include "clang-include-cleaner/Types.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Format/Format.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorHandling.h"
+#include <string>
 
 namespace clang::include_cleaner {
 
@@ -33,9 +40,10 @@ void walkUsed(llvm::ArrayRef<Decl *> ASTRoots,
   tooling::stdlib::Recognizer Recognizer;
   for (auto *Root : ASTRoots) {
     walkAST(*Root, [&](SourceLocation Loc, NamedDecl &ND, RefType RT) {
-      if (!SM.isWrittenInMainFile(SM.getSpellingLoc(Loc)))
+      auto FID = SM.getFileID(SM.getSpellingLoc(Loc));
+      if (FID != SM.getMainFileID() && FID != SM.getPreambleFileID())
         return;
-      // FIXME: Most of the work done here is repetative. It might be useful to
+      // FIXME: Most of the work done here is repetitive. It might be useful to
       // have a cache/batching.
       SymbolReference SymRef{Loc, ND, RT};
       return CB(SymRef, headersForSymbol(ND, SM, PI));
@@ -49,27 +57,10 @@ void walkUsed(llvm::ArrayRef<Decl *> ASTRoots,
   }
 }
 
-static std::string spellHeader(const Header &H, HeaderSearch &HS,
-                               const FileEntry *Main) {
-  switch (H.kind()) {
-  case Header::Physical: {
-    bool IsSystem = false;
-    std::string Path = HS.suggestPathToFileForDiagnostics(
-        H.physical(), Main->tryGetRealPathName(), &IsSystem);
-    return IsSystem ? "<" + Path + ">" : "\"" + Path + "\"";
-  }
-  case Header::Standard:
-    return H.standard().name().str();
-  case Header::Verbatim:
-    return H.verbatim().str();
-  }
-  llvm_unreachable("Unknown Header kind");
-}
-
 AnalysisResults analyze(llvm::ArrayRef<Decl *> ASTRoots,
                         llvm::ArrayRef<SymbolReference> MacroRefs,
                         const Includes &Inc, const PragmaIncludes *PI,
-                        const SourceManager &SM, HeaderSearch &HS) {
+                        const SourceManager &SM, const HeaderSearch &HS) {
   const FileEntry *MainFile = SM.getFileEntryForID(SM.getMainFileID());
   llvm::DenseSet<const Include *> Used;
   llvm::StringSet<> Missing;
@@ -86,13 +77,29 @@ AnalysisResults analyze(llvm::ArrayRef<Decl *> ASTRoots,
              }
              if (!Satisfied && !Providers.empty() &&
                  Ref.RT == RefType::Explicit)
-               Missing.insert(spellHeader(Providers.front(), HS, MainFile));
+               Missing.insert(spellHeader({Providers.front(), HS, MainFile}));
            });
 
   AnalysisResults Results;
-  for (const Include &I : Inc.all())
-    if (!Used.contains(&I) && PI && !PI->shouldKeep(I.Line))
-      Results.Unused.push_back(&I);
+  for (const Include &I : Inc.all()) {
+    if (Used.contains(&I) || !I.Resolved)
+      continue;
+    if (PI) {
+      if (PI->shouldKeep(I.Line))
+        continue;
+      // Check if main file is the public interface for a private header. If so
+      // we shouldn't diagnose it as unused.
+      if (auto PHeader = PI->getPublic(I.Resolved); !PHeader.empty()) {
+        PHeader = PHeader.trim("<>\"");
+        // Since most private -> public mappings happen in a verbatim way, we
+        // check textually here. This might go wrong in presence of symlinks or
+        // header mappings. But that's not different than rest of the places.
+        if (MainFile->tryGetRealPathName().endswith(PHeader))
+          continue;
+      }
+    }
+    Results.Unused.push_back(&I);
+  }
   for (llvm::StringRef S : Missing.keys())
     Results.Missing.push_back(S.str());
   llvm::sort(Results.Missing);

@@ -263,7 +263,7 @@ let SchedRW = [Write64Bit] in {
 
 def : GCNPat<
   (i32 (DivergentUnaryFrag<sext> i16:$src)),
-  (i32 (V_BFE_I32_e64 $src, (S_MOV_B32 (i32 0)), (S_MOV_B32 (i32 0x10))))
+  (i32 (V_BFE_I32_e64 i16:$src, (i32 0), (i32 0x10)))
 >;
 
 let isReMaterializable = 1 in {
@@ -381,36 +381,43 @@ def V_INTERP_P2_F32_e64  : VOP3Interp <"v_interp_p2_f32", VOP3_INTERP>;
 def V_INTERP_MOV_F32_e64 : VOP3Interp <"v_interp_mov_f32", VOP3_INTERP_MOV>;
 } // End SubtargetPredicate = isGFX8Plus, Uses = [MODE, M0, EXEC], OtherPredicates = [isNotGFX90APlus]
 
-let Predicates = [Has16BitInsts, isGFX6GFX7GFX8GFX9] in {
-
-multiclass Ternary_i16_Pats <SDPatternOperator op1, SDPatternOperator op2,
-                             Instruction inst> {
-def : GCNPat <
-  (op2 (op1 i16:$src0, i16:$src1), i16:$src2),
-  (inst i16:$src0, i16:$src1, i16:$src2, (i1 0))
->;
-
+// Note: 16-bit instructions produce a 0 result in the high 16-bits
+// on GFX8 and GFX9 and preserve high 16 bits on GFX10+
+multiclass Arithmetic_i16_0Hi_TernaryPats <SDPatternOperator op, Instruction inst> {
+  def : GCNPat<
+    (i32 (zext (op i16:$src0, i16:$src1, i16:$src2))),
+    (inst VSrc_b16:$src0, VSrc_b16:$src1, VSrc_b16:$src2)
+  >;
 }
 
-defm: Ternary_i16_Pats<mul, add, V_MAD_U16_e64>;
-defm: Ternary_i16_Pats<mul, add, V_MAD_I16_e64>;
+let Predicates = [Has16BitInsts, isGFX8GFX9] in {
+defm : Arithmetic_i16_0Hi_TernaryPats<imad, V_MAD_U16_e64>;
+}
+
+let Predicates = [Has16BitInsts, isGFX6GFX7GFX8GFX9] in {
+
+// FIXME: Should be able to just pass imad to the instruction
+// definition pattern, but the implied clamp input interferes.
+multiclass Ternary_i16_Pats <SDPatternOperator op, Instruction inst> {
+  def : GCNPat <
+    (op i16:$src0, i16:$src1, i16:$src2),
+    (inst i16:$src0, i16:$src1, i16:$src2, (i1 0))
+  >;
+}
+
+defm: Ternary_i16_Pats<imad, V_MAD_U16_e64>;
 
 } // End Predicates = [Has16BitInsts, isGFX6GFX7GFX8GFX9]
 
-let Predicates = [Has16BitInsts, isGFX10Plus] in {
 
-multiclass Ternary_i16_Pats_gfx9<SDPatternOperator op1, SDPatternOperator op2,
-                                 Instruction inst> {
-def : GCNPat <
+class Ternary_i16_Pats_gfx9<SDPatternOperator op1, SDPatternOperator op2,
+                                 Instruction inst> : GCNPat <
   (op2 (op1 i16:$src0, i16:$src1), i16:$src2),
   (inst SRCMODS.NONE, $src0, SRCMODS.NONE, $src1, SRCMODS.NONE, $src2, DSTCLAMP.NONE)
 >;
 
-}
-
-defm: Ternary_i16_Pats_gfx9<mul, add, V_MAD_U16_gfx9_e64>;
-defm: Ternary_i16_Pats_gfx9<mul, add, V_MAD_I16_gfx9_e64>;
-
+let Predicates = [Has16BitInsts, isGFX10Plus] in {
+def: Ternary_i16_Pats_gfx9<mul, add, V_MAD_U16_gfx9_e64>;
 } // End Predicates = [Has16BitInsts, isGFX10Plus]
 
 class ThreeOpFragSDAG<SDPatternOperator op1, SDPatternOperator op2> : PatFrag<
@@ -673,11 +680,17 @@ def VOP3_PERMLANE_Profile : VOP3_Profile<VOPProfile <[i32, i32, i32, i32]>, VOP3
   let HasExtDPP = 0;
 }
 
+def opsel_i1timm : SDNodeXForm<timm, [{
+  return CurDAG->getTargetConstant(N->getZExtValue() ? SISrcMods::OP_SEL_0 : 0, SDLoc(N), MVT::i32);
+}]>;
+def gi_opsel_i1timm : GICustomOperandRenderer<"renderOpSelTImm">,
+  GISDNodeXFormEquiv<opsel_i1timm>;
+
 class PermlanePat<SDPatternOperator permlane,
   Instruction inst> : GCNPat<
   (permlane i32:$vdst_in, i32:$src0, i32:$src1, i32:$src2,
             timm:$fi, timm:$bc),
-  (inst (as_i1timm $fi), VGPR_32:$src0, (as_i1timm $bc),
+  (inst (opsel_i1timm $fi), VGPR_32:$src0, (opsel_i1timm $bc),
         SCSrc_b32:$src1, 0, SCSrc_b32:$src2, VGPR_32:$vdst_in)
 >;
 

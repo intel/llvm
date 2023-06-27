@@ -1,12 +1,9 @@
 // UNSUPPORTED: hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-builtin %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-builtin -o %t.out
+// RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fno-builtin -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
+// RUN: %if !gpu %{ %{run} %t.out %}
 
 #include <cassert>
 #include <cstdint>
@@ -69,7 +66,7 @@ USM_TEST_RES kernel_test_memcpy_usm(sycl::queue &deviceQueue) {
   if (usm_shared_dest == nullptr || usm_shared_src == nullptr)
     return USM_ALLOC_FAIL;
   // Init src usm memory
-  char *host_init_str = "abcdefghijklmnopqrstuvwxyz";
+  const char *host_init_str = "abcdefghijklmnopqrstuvwxyz";
   size_t str_len = strlen(host_init_str);
   deviceQueue
       .submit([&](sycl::handler &cgh) {
@@ -406,22 +403,23 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
                      sycl::access::target::device,
                      sycl::access::placeholder::false_t>
           dst1_acc(buffer3, cgh);
-      cgh.single_task<class KernelTestMemcpyAddrSpace>([=]() {
-        // memcpy from constant buffer to local buffer
-        memcpy(local_acc.get_pointer(), src_acc.get_pointer(), 8);
-        for (size_t idx = 0; idx < 7; ++idx)
-          local_acc[idx] += 1;
-        // memcpy from local buffer to global buffer
-        memcpy(dst_acc.get_pointer(), local_acc.get_pointer(), 8);
-        char device_buf[16];
-        // memcpy from constant buffer to private memory
-        memcpy(device_buf, src_acc.get_pointer(), 8);
-        for (size_t idx = 0; idx < 7; ++idx) {
-          device_buf[idx] += 2;
-          // memcpy from private to global buffer
-          memcpy(dst1_acc.get_pointer(), device_buf, 8);
-        }
-      });
+      cgh.parallel_for<class KernelTestMemcpyAddrSpace>(
+          sycl::nd_range<1>{16, 16}, [=](sycl::nd_item<1>) {
+            // memcpy from constant buffer to local buffer
+            memcpy(local_acc.get_pointer(), src_acc.get_pointer(), 8);
+            for (size_t idx = 0; idx < 7; ++idx)
+              local_acc[idx] += 1;
+            // memcpy from local buffer to global buffer
+            memcpy(dst_acc.get_pointer(), local_acc.get_pointer(), 8);
+            char device_buf[16];
+            // memcpy from constant buffer to private memory
+            memcpy(device_buf, src_acc.get_pointer(), 8);
+            for (size_t idx = 0; idx < 7; ++idx) {
+              device_buf[idx] += 2;
+              // memcpy from private to global buffer
+              memcpy(dst1_acc.get_pointer(), device_buf, 8);
+            }
+          });
     });
   }
 

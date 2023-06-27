@@ -1,9 +1,9 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
-// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=0 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
-// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-DISABLED %s
+// RUN: %{build}  -o %t.out
+// RUN: env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
+// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=0 ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
+// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-DISABLED %s
 
 // With events caching we should be reusing them and 9 should be enough.
 // Might require more than one if previous one hasn't been released by the time

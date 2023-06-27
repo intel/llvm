@@ -12,6 +12,7 @@
 #include "Protocol.h"
 #include "support/Context.h"
 #include "support/Logger.h"
+#include "clang/Basic/FileEntry.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -512,15 +513,12 @@ std::vector<TextEdit> replacementsToEdits(llvm::StringRef Code,
   return Edits;
 }
 
-std::optional<std::string> getCanonicalPath(const FileEntry *F,
-                                            const SourceManager &SourceMgr) {
-  if (!F)
-    return std::nullopt;
-
-  llvm::SmallString<128> FilePath = F->getName();
+std::optional<std::string> getCanonicalPath(const FileEntryRef F,
+                                            FileManager &FileMgr) {
+  llvm::SmallString<128> FilePath = F.getName();
   if (!llvm::sys::path::is_absolute(FilePath)) {
     if (auto EC =
-            SourceMgr.getFileManager().getVirtualFileSystem().makeAbsolute(
+            FileMgr.getVirtualFileSystem().makeAbsolute(
                 FilePath)) {
       elog("Could not turn relative path '{0}' to absolute: {1}", FilePath,
            EC.message());
@@ -539,10 +537,10 @@ std::optional<std::string> getCanonicalPath(const FileEntry *F,
   //
   //  The file path of Symbol is "/project/src/foo.h" instead of
   //  "/tmp/build/foo.h"
-  if (auto Dir = SourceMgr.getFileManager().getDirectory(
+  if (auto Dir = FileMgr.getDirectory(
           llvm::sys::path::parent_path(FilePath))) {
     llvm::SmallString<128> RealPath;
-    llvm::StringRef DirName = SourceMgr.getFileManager().getCanonicalName(*Dir);
+    llvm::StringRef DirName = FileMgr.getCanonicalName(*Dir);
     llvm::sys::path::append(RealPath, DirName,
                             llvm::sys::path::filename(FilePath));
     return RealPath.str().str();
@@ -794,6 +792,12 @@ llvm::SmallVector<llvm::StringRef> ancestorNamespaces(llvm::StringRef NS) {
   for (llvm::StringRef &R : Results)
     R = NS.take_front(R.end() - NS.begin());
   return Results;
+}
+
+// Checks whether \p FileName is a valid spelling of main file.
+bool isMainFile(llvm::StringRef FileName, const SourceManager &SM) {
+  auto FE = SM.getFileManager().getFile(FileName);
+  return FE && *FE == SM.getFileEntryForID(SM.getMainFileID());
 }
 
 } // namespace
@@ -1219,5 +1223,24 @@ bool isProtoFile(SourceLocation Loc, const SourceManager &SM) {
   return SM.getBufferData(FID).startswith(ProtoHeaderComment);
 }
 
+SourceLocation translatePreamblePatchLocation(SourceLocation Loc,
+                                              const SourceManager &SM) {
+  auto DefFile = SM.getFileID(Loc);
+  if (auto FE = SM.getFileEntryRefForID(DefFile)) {
+    auto IncludeLoc = SM.getIncludeLoc(DefFile);
+    // Preamble patch is included inside the builtin file.
+    if (IncludeLoc.isValid() && SM.isWrittenInBuiltinFile(IncludeLoc) &&
+        FE->getName().endswith(PreamblePatch::HeaderName)) {
+      auto Presumed = SM.getPresumedLoc(Loc);
+      // Check that line directive is pointing at main file.
+      if (Presumed.isValid() && Presumed.getFileID().isInvalid() &&
+          isMainFile(Presumed.getFilename(), SM)) {
+        Loc = SM.translateLineCol(SM.getMainFileID(), Presumed.getLine(),
+                                  Presumed.getColumn());
+      }
+    }
+  }
+  return Loc;
+}
 } // namespace clangd
 } // namespace clang

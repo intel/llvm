@@ -1,10 +1,10 @@
 // REQUIRES: level_zero
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 
-// RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out u 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-USM
-// RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out s 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-SMALL-BUF
-// RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out l 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-LARGE-BUF
+// RUN: env ZE_DEBUG=4 %{run} %t.out u 2>&1 | FileCheck %s --check-prefix CHECK-USM
+// RUN: env ZE_DEBUG=4 %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-SMALL-BUF
+// RUN: env ZE_DEBUG=4 %{run} %t.out l 2>&1 | FileCheck %s --check-prefix CHECK-LARGE-BUF
 
 #include <sycl/sycl.hpp>
 using namespace sycl;

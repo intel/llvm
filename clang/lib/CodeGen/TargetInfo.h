@@ -52,6 +52,11 @@ protected:
   // by returning true from TargetInfo::checkCallingConvention for them.
   std::unique_ptr<SwiftABIInfo> SwiftInfo;
 
+  // Returns ABI info helper for the target. This is for use by derived classes.
+  template <typename T> const T &getABIInfo() const {
+    return static_cast<const T &>(*Info);
+  }
+
 public:
   TargetCodeGenInfo(std::unique_ptr<ABIInfo> Info);
   virtual ~TargetCodeGenInfo();
@@ -199,9 +204,10 @@ public:
 
   /// Return a constant used by UBSan as a signature to identify functions
   /// possessing type information, or 0 if the platform is unsupported.
+  /// This magic number is invalid instruction encoding in many targets.
   virtual llvm::Constant *
   getUBSanFunctionSignature(CodeGen::CodeGenModule &CGM) const {
-    return nullptr;
+    return llvm::ConstantInt::get(CGM.Int32Ty, 0xc105cafe);
   }
 
   /// Determine whether a call to an unprototyped functions under
@@ -349,6 +355,11 @@ public:
   /// as 'used', and having internal linkage.
   virtual bool shouldEmitStaticExternCAliases() const { return true; }
 
+  /// \return true if annonymous zero-sized bitfields should be emitted to
+  /// correctly distinguish between struct types whose memory layout is the
+  /// same, but whose layout may differ when used as argument passed by value
+  virtual bool shouldEmitDWARFBitFieldSeparators() const { return false; }
+
   virtual void setCUDAKernelCallingConvention(const FunctionType *&FT) const {}
 
   /// Return the device-side type for the CUDA device builtin surface type.
@@ -365,6 +376,9 @@ public:
   /// Return the WebAssembly externref reference type.
   virtual llvm::Type *getWasmExternrefReferenceType() const { return nullptr; }
 
+  /// Return the WebAssembly funcref reference type.
+  virtual llvm::Type *getWasmFuncrefReferenceType() const { return nullptr; }
+
   /// Emit the device-side copy of the builtin surface type.
   virtual bool emitCUDADeviceBuiltinSurfaceDeviceCopy(CodeGenFunction &CGF,
                                                       LValue Dst,
@@ -379,6 +393,17 @@ public:
     // DO NOTHING by default.
     return false;
   }
+
+  /// Return an LLVM type that corresponds to an OpenCL type.
+  virtual llvm::Type *getOpenCLType(CodeGenModule &CGM, const Type *T) const {
+    return nullptr;
+  }
+
+protected:
+  static std::string qualifyWindowsLibrary(StringRef Lib);
+
+  void addStackProbeTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
+                                     CodeGen::CodeGenModule &CGM) const;
 };
 
 } // namespace CodeGen

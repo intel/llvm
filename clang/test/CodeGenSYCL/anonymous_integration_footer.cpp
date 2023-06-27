@@ -110,6 +110,60 @@ template class S3<2>;
 // CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
 
+namespace {
+  namespace inner {
+    template <int Val>
+    struct S3 {
+      static constexpr sycl::specialization_id a{Val};
+    };
+  }
+}
+template class inner::S3<10>;
+// CHECK-NEXT: namespace {
+// CHECK-NEXT: namespace __sycl_detail {
+// CHECK-NEXT: static constexpr decltype(inner::S3<10>::a) &__shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: return inner::S3<10>::a;
+// CHECK-NEXT: }
+// CHECK-NEXT: } // namespace __sycl_detail
+// CHECK-NEXT: } // namespace
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
+// CHECK-NEXT: namespace detail {
+// CHECK-NEXT: template<>
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: return "____ZN12_GLOBAL__N_15inner2S3ILi10EE1aE";
+// CHECK-NEXT: }
+// CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
+// CHECK-NEXT: } // namespace sycl
+
+namespace {
+  namespace inner {
+    template <int Val1, int Val2>
+    struct S4 {
+      static constexpr sycl::specialization_id a{Val1};
+    };
+  }
+}
+template class inner::S4<10, 20>;
+// CHECK-NEXT: namespace {
+// CHECK-NEXT: namespace __sycl_detail {
+// CHECK-NEXT: static constexpr decltype(inner::S4<10, 20>::a) &__shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: return inner::S4<10, 20>::a;
+// CHECK-NEXT: }
+// CHECK-NEXT: } // namespace __sycl_detail
+// CHECK-NEXT: } // namespace
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
+// CHECK-NEXT: namespace detail {
+// CHECK-NEXT: template<>
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: return "____ZN12_GLOBAL__N_15inner2S4ILi10ELi20EE1aE";
+// CHECK-NEXT: }
+// CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
+// CHECK-NEXT: } // namespace sycl
+
 namespace inner {
 constexpr sycl::specialization_id same_name{5};
 // CHECK-NEXT: namespace sycl {

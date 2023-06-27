@@ -1,6 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==- handler.cpp - SYCL handler explicit memory operations test -*- C++-*--==//
 //
@@ -254,20 +253,6 @@ template <typename T> void test_copy_ptr_acc() {
   }
   for (size_t I = 0; I < Size; ++I) {
     assert(Data[I] == Values[I]);
-  }
-
-  // Check copy from 'const void *' memory to accessor.
-  {
-    buffer<T, 1> Buffer(Size);
-    queue Queue;
-    Queue.submit([&](handler &Cgh) {
-      auto Acc = Buffer.template get_access<access::mode::discard_write>(Cgh);
-      Cgh.copy(reinterpret_cast<const void *>(Values), Acc);
-    });
-
-    auto Acc = Buffer.template get_access<access::mode::read>();
-    for (int I = 0; I < Size; ++I)
-      assert(Acc[I] == Values[I]);
   }
 
   // Check copy from memory to 0-dimensional accessor.

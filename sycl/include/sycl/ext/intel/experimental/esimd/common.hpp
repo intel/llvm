@@ -24,10 +24,6 @@ namespace ext::intel::experimental::esimd {
 /// @addtogroup sycl_esimd_core
 /// @{
 
-using argument_type
-    __SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpas_argument_type") =
-        __ESIMD_NS::xmx::dpas_argument_type;
-
 /// The scope that lsc_fence operation should apply to
 /// Supported platforms: DG2, PVC
 enum class lsc_scope : uint8_t {
@@ -199,8 +195,8 @@ constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
 template <typename T> struct lsc_expand_type {
   using type = std::conditional_t<
       sizeof(T) <= 4,
-      std::conditional_t<std::is_signed<T>::value, int32_t, uint32_t>,
-      std::conditional_t<std::is_signed<T>::value, int64_t, uint64_t>>;
+      std::conditional_t<std::is_signed_v<T>, int32_t, uint32_t>,
+      std::conditional_t<std::is_signed_v<T>, int64_t, uint64_t>>;
 };
 
 template <typename T> struct lsc_bitcast_type {
@@ -232,12 +228,11 @@ template <cache_hint Hint> class cache_hint_wrap {
   template <cache_hint...> struct is_one_of_t;
   template <cache_hint Last>
   struct is_one_of_t<Last>
-      : std::conditional<Last == Hint, std::true_type, std::false_type>::type {
-  };
+      : std::conditional_t<Last == Hint, std::true_type, std::false_type> {};
   template <cache_hint Head, cache_hint... Tail>
   struct is_one_of_t<Head, Tail...>
-      : std::conditional<Head == Hint, std::true_type,
-                         is_one_of_t<Tail...>>::type {};
+      : std::conditional_t<Head == Hint, std::true_type, is_one_of_t<Tail...>> {
+  };
 
 public:
   constexpr operator cache_hint() const { return Hint; }

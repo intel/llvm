@@ -91,7 +91,7 @@ unsigned countLeadingZeros(T Val) {
 /// Create a bitmask with the N right-most bits set to 1, and all other
 /// bits set to 0.  Only unsigned types are allowed.
 template <typename T> T maskTrailingOnes(unsigned N) {
-  static_assert(std::is_unsigned<T>::value, "Invalid type!");
+  static_assert(std::is_unsigned_v<T>, "Invalid type!");
   const unsigned Bits = CHAR_BIT * sizeof(T);
   assert(N <= Bits && "Invalid bit index");
   return N == 0 ? 0 : (T(-1) >> (Bits - N));
@@ -402,38 +402,6 @@ inline unsigned Log2_64_Ceil(uint64_t Value) {
   return 64 - llvm::countl_zero(Value - 1);
 }
 
-/// This function takes a 64-bit integer and returns the bit equivalent double.
-LLVM_DEPRECATED("use llvm::bit_cast instead", "llvm::bit_cast<double>")
-inline double BitsToDouble(uint64_t Bits) {
-  static_assert(sizeof(uint64_t) == sizeof(double), "Unexpected type sizes");
-  return llvm::bit_cast<double>(Bits);
-}
-
-/// This function takes a 32-bit integer and returns the bit equivalent float.
-LLVM_DEPRECATED("use llvm::bit_cast instead", "llvm::bit_cast<float>")
-inline float BitsToFloat(uint32_t Bits) {
-  static_assert(sizeof(uint32_t) == sizeof(float), "Unexpected type sizes");
-  return llvm::bit_cast<float>(Bits);
-}
-
-/// This function takes a double and returns the bit equivalent 64-bit integer.
-/// Note that copying doubles around changes the bits of NaNs on some hosts,
-/// notably x86, so this routine cannot be used if these bits are needed.
-LLVM_DEPRECATED("use llvm::bit_cast instead", "llvm::bit_cast<uint64_t>")
-inline uint64_t DoubleToBits(double Double) {
-  static_assert(sizeof(uint64_t) == sizeof(double), "Unexpected type sizes");
-  return llvm::bit_cast<uint64_t>(Double);
-}
-
-/// This function takes a float and returns the bit equivalent 32-bit integer.
-/// Note that copying floats around changes the bits of NaNs on some hosts,
-/// notably x86, so this routine cannot be used if these bits are needed.
-LLVM_DEPRECATED("use llvm::bit_cast instead", "llvm::bit_cast<uint32_t>")
-inline uint32_t FloatToBits(float Float) {
-  static_assert(sizeof(uint32_t) == sizeof(float), "Unexpected type sizes");
-  return llvm::bit_cast<uint32_t>(Float);
-}
-
 /// A and B are either alignments or offsets. Return the minimum alignment that
 /// may be assumed after adding the two together.
 constexpr inline uint64_t MinAlign(uint64_t A, uint64_t B) {
@@ -455,13 +423,6 @@ constexpr inline uint64_t NextPowerOf2(uint64_t A) {
   A |= (A >> 16);
   A |= (A >> 32);
   return A + 1;
-}
-
-/// Returns the power of two which is less than or equal to the given value.
-/// Essentially, it is a floor operation across the domain of powers of two.
-LLVM_DEPRECATED("use llvm::bit_floor instead", "llvm::bit_floor")
-inline uint64_t PowerOf2Floor(uint64_t A) {
-  return llvm::bit_floor(A);
 }
 
 /// Returns the power of two which is greater than or equal to the given value.
@@ -571,7 +532,7 @@ inline int64_t SignExtend64(uint64_t X, unsigned B) {
 /// Subtract two unsigned integers, X and Y, of type T and return the absolute
 /// value of the result.
 template <typename T>
-std::enable_if_t<std::is_unsigned<T>::value, T> AbsoluteDifference(T X, T Y) {
+std::enable_if_t<std::is_unsigned_v<T>, T> AbsoluteDifference(T X, T Y) {
   return X > Y ? (X - Y) : (Y - X);
 }
 
@@ -579,7 +540,7 @@ std::enable_if_t<std::is_unsigned<T>::value, T> AbsoluteDifference(T X, T Y) {
 /// maximum representable value of T on overflow.  ResultOverflowed indicates if
 /// the result is larger than the maximum representable value of type T.
 template <typename T>
-std::enable_if_t<std::is_unsigned<T>::value, T>
+std::enable_if_t<std::is_unsigned_v<T>, T>
 SaturatingAdd(T X, T Y, bool *ResultOverflowed = nullptr) {
   bool Dummy;
   bool &Overflowed = ResultOverflowed ? *ResultOverflowed : Dummy;
@@ -608,7 +569,7 @@ std::enable_if_t<std::is_unsigned_v<T>, T> SaturatingAdd(T X, T Y, T Z,
 /// maximum representable value of T on overflow.  ResultOverflowed indicates if
 /// the result is larger than the maximum representable value of type T.
 template <typename T>
-std::enable_if_t<std::is_unsigned<T>::value, T>
+std::enable_if_t<std::is_unsigned_v<T>, T>
 SaturatingMultiply(T X, T Y, bool *ResultOverflowed = nullptr) {
   bool Dummy;
   bool &Overflowed = ResultOverflowed ? *ResultOverflowed : Dummy;
@@ -654,7 +615,7 @@ SaturatingMultiply(T X, T Y, bool *ResultOverflowed = nullptr) {
 /// overflow. ResultOverflowed indicates if the result is larger than the
 /// maximum representable value of type T.
 template <typename T>
-std::enable_if_t<std::is_unsigned<T>::value, T>
+std::enable_if_t<std::is_unsigned_v<T>, T>
 SaturatingMultiplyAdd(T X, T Y, T A, bool *ResultOverflowed = nullptr) {
   bool Dummy;
   bool &Overflowed = ResultOverflowed ? *ResultOverflowed : Dummy;
@@ -673,7 +634,7 @@ extern const float huge_valf;
 /// Add two signed integers, computing the two's complement truncated result,
 /// returning true if overflow occurred.
 template <typename T>
-std::enable_if_t<std::is_signed<T>::value, T> AddOverflow(T X, T Y, T &Result) {
+std::enable_if_t<std::is_signed_v<T>, T> AddOverflow(T X, T Y, T &Result) {
 #if __has_builtin(__builtin_add_overflow)
   return __builtin_add_overflow(X, Y, &Result);
 #else
@@ -699,7 +660,7 @@ std::enable_if_t<std::is_signed<T>::value, T> AddOverflow(T X, T Y, T &Result) {
 /// Subtract two signed integers, computing the two's complement truncated
 /// result, returning true if an overflow ocurred.
 template <typename T>
-std::enable_if_t<std::is_signed<T>::value, T> SubOverflow(T X, T Y, T &Result) {
+std::enable_if_t<std::is_signed_v<T>, T> SubOverflow(T X, T Y, T &Result) {
 #if __has_builtin(__builtin_sub_overflow)
   return __builtin_sub_overflow(X, Y, &Result);
 #else
@@ -725,7 +686,7 @@ std::enable_if_t<std::is_signed<T>::value, T> SubOverflow(T X, T Y, T &Result) {
 /// Multiply two signed integers, computing the two's complement truncated
 /// result, returning true if an overflow ocurred.
 template <typename T>
-std::enable_if_t<std::is_signed<T>::value, T> MulOverflow(T X, T Y, T &Result) {
+std::enable_if_t<std::is_signed_v<T>, T> MulOverflow(T X, T Y, T &Result) {
   // Perform the unsigned multiplication on absolute values.
   using U = std::make_unsigned_t<T>;
   const U UX = X < 0 ? (0 - static_cast<U>(X)) : static_cast<U>(X);

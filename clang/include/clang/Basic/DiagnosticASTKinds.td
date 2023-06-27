@@ -65,7 +65,7 @@ def note_consteval_address_accessible : Note<
   "%select{pointer|reference}0 to a consteval declaration "
   "is not a constant expression">;
 def note_constexpr_uninitialized : Note<
-  "%select{|sub}0object of type %1 is not initialized">;
+  "subobject %0 is not initialized">;
 def note_constexpr_static_local : Note<
   "control flows through the definition of a %select{static|thread_local}0 variable">;
 def note_constexpr_subobject_declared_here : Note<
@@ -127,6 +127,8 @@ def note_constexpr_null_subobject : Note<
   "access array element of|perform pointer arithmetic on|"
   "access real component of|"
   "access imaginary component of}0 null pointer">;
+def note_constexpr_null_callee : Note<
+  "'%0' evaluates to a null function pointer">;
 def note_constexpr_function_param_value_unknown : Note<
   "function parameter %0 with unknown value cannot be used in a constant "
   "expression">;

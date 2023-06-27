@@ -97,7 +97,7 @@ struct AssemblerInvocation {
   std::string DwarfDebugFlags;
   std::string DwarfDebugProducer;
   std::string DebugCompilationDir;
-  std::map<const std::string, const std::string> DebugPrefixMap;
+  llvm::SmallVector<std::pair<std::string, std::string>, 0> DebugPrefixMap;
   llvm::DebugCompressionType CompressDebugSections =
       llvm::DebugCompressionType::None;
   std::string MainFileName;
@@ -275,8 +275,7 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
 
   for (const auto &Arg : Args.getAllArgValues(OPT_fdebug_prefix_map_EQ)) {
     auto Split = StringRef(Arg).split('=');
-    Opts.DebugPrefixMap.insert(
-        {std::string(Split.first), std::string(Split.second)});
+    Opts.DebugPrefixMap.emplace_back(Split.first, Split.second);
   }
 
   // Frontend Options
@@ -384,8 +383,8 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
       MemoryBuffer::getFileOrSTDIN(Opts.InputFile, /*IsText=*/true);
 
   if (std::error_code EC = Buffer.getError()) {
-    Error = EC.message();
-    return Diags.Report(diag::err_fe_error_reading) << Opts.InputFile;
+    return Diags.Report(diag::err_fe_error_reading)
+           << Opts.InputFile << EC.message();
   }
 
   SourceMgr SrcMgr;

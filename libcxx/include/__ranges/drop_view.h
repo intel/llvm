@@ -33,10 +33,15 @@
 #include <__ranges/size.h>
 #include <__ranges/subrange.h>
 #include <__ranges/view_interface.h>
+#include <__type_traits/conditional.h>
+#include <__type_traits/decay.h>
+#include <__type_traits/is_nothrow_constructible.h>
+#include <__type_traits/make_unsigned.h>
+#include <__type_traits/remove_cvref.h>
 #include <__utility/auto_cast.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
-#include <type_traits>
+#include <cstddef>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -66,10 +71,10 @@ namespace ranges {
     _View __base_ = _View();
 
 public:
-    drop_view() requires default_initializable<_View> = default;
+    _LIBCPP_HIDE_FROM_ABI drop_view() requires default_initializable<_View> = default;
 
     _LIBCPP_HIDE_FROM_ABI
-    constexpr drop_view(_View __base, range_difference_t<_View> __count)
+    constexpr _LIBCPP_EXPLICIT_SINCE_CXX23 drop_view(_View __base, range_difference_t<_View> __count)
       : __count_(__count)
       , __base_(std::move(__base))
     {

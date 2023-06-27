@@ -16,35 +16,54 @@
 
 namespace Fortran::runtime {
 
+enum AssignFlags {
+  NoAssignFlags = 0,
+  MaybeReallocate = 1 << 0,
+  NeedFinalization = 1 << 1,
+  CanBeDefinedAssignment = 1 << 2,
+  ComponentCanBeDefinedAssignment = 1 << 3,
+  ExplicitLengthCharacterLHS = 1 << 4,
+  PolymorphicLHS = 1 << 5
+};
+
 // Predicate: is the left-hand side of an assignment an allocated allocatable
 // that must be deallocated?
 static inline bool MustDeallocateLHS(
-    Descriptor &to, const Descriptor &from, Terminator &terminator) {
+    Descriptor &to, const Descriptor &from, Terminator &terminator, int flags) {
   // Top-level assignments to allocatable variables (*not* components)
   // may first deallocate existing content if there's about to be a
   // change in type or shape; see F'2018 10.2.1.3(3).
+  if (!(flags & MaybeReallocate)) {
+    return false;
+  }
   if (!to.IsAllocatable() || !to.IsAllocated()) {
     return false;
   }
   if (to.type() != from.type()) {
     return true;
   }
-  DescriptorAddendum *toAddendum{to.Addendum()};
-  const typeInfo::DerivedType *toDerived{
-      toAddendum ? toAddendum->derivedType() : nullptr};
-  const DescriptorAddendum *fromAddendum{from.Addendum()};
-  const typeInfo::DerivedType *fromDerived{
-      fromAddendum ? fromAddendum->derivedType() : nullptr};
-  if (toDerived != fromDerived) {
+  if (!(flags & ExplicitLengthCharacterLHS) && to.type().IsCharacter() &&
+      to.ElementBytes() != from.ElementBytes()) {
     return true;
   }
-  if (toAddendum) {
-    // Distinct LEN parameters? Deallocate
-    std::size_t lenParms{fromDerived ? fromDerived->LenParameters() : 0};
-    for (std::size_t j{0}; j < lenParms; ++j) {
-      if (toAddendum->LenParameterValue(j) !=
-          fromAddendum->LenParameterValue(j)) {
-        return true;
+  if (flags & PolymorphicLHS) {
+    DescriptorAddendum *toAddendum{to.Addendum()};
+    const typeInfo::DerivedType *toDerived{
+        toAddendum ? toAddendum->derivedType() : nullptr};
+    const DescriptorAddendum *fromAddendum{from.Addendum()};
+    const typeInfo::DerivedType *fromDerived{
+        fromAddendum ? fromAddendum->derivedType() : nullptr};
+    if (toDerived != fromDerived) {
+      return true;
+    }
+    if (fromDerived) {
+      // Distinct LEN parameters? Deallocate
+      std::size_t lenParms{fromDerived->LenParameters()};
+      for (std::size_t j{0}; j < lenParms; ++j) {
+        if (toAddendum->LenParameterValue(j) !=
+            fromAddendum->LenParameterValue(j)) {
+          return true;
+        }
       }
     }
   }
@@ -63,9 +82,11 @@ static inline bool MustDeallocateLHS(
 // Utility: allocate the allocatable left-hand side, either because it was
 // originally deallocated or because it required reallocation
 static int AllocateAssignmentLHS(
-    Descriptor &to, const Descriptor &from, Terminator &terminator) {
+    Descriptor &to, const Descriptor &from, Terminator &terminator, int flags) {
   to.raw().type = from.raw().type;
-  to.raw().elem_len = from.ElementBytes();
+  if (!(flags & ExplicitLengthCharacterLHS)) {
+    to.raw().elem_len = from.ElementBytes();
+  }
   const typeInfo::DerivedType *derived{nullptr};
   if (const DescriptorAddendum * fromAddendum{from.Addendum()}) {
     derived = fromAddendum->derivedType();
@@ -108,9 +129,9 @@ static void MaximalByteOffsetRange(
     if (extent > 0) {
       auto sm{dim.ByteStride()};
       if (sm < 0) {
-        least += extent * sm;
+        least += (extent - 1) * sm;
       } else {
-        most += extent * sm;
+        most += (extent - 1) * sm;
       }
     }
   }
@@ -178,24 +199,40 @@ static void DoScalarDefinedAssignment(const Descriptor &to,
 }
 
 static void DoElementalDefinedAssignment(const Descriptor &to,
-    const Descriptor &from, const typeInfo::SpecialBinding &special) {
+    const Descriptor &from, const typeInfo::DerivedType &derived,
+    const typeInfo::SpecialBinding &special) {
   SubscriptValue toAt[maxRank], fromAt[maxRank];
   to.GetLowerBounds(toAt);
   from.GetLowerBounds(fromAt);
   StaticDescriptor<maxRank, true, 8 /*?*/> statDesc[2];
   Descriptor &toElementDesc{statDesc[0].descriptor()};
   Descriptor &fromElementDesc{statDesc[1].descriptor()};
-  toElementDesc = to;
-  toElementDesc.raw().attribute = CFI_attribute_pointer;
-  toElementDesc.raw().rank = 0;
-  fromElementDesc = from;
-  fromElementDesc.raw().attribute = CFI_attribute_pointer;
-  fromElementDesc.raw().rank = 0;
+  toElementDesc.Establish(derived, nullptr, 0, nullptr, CFI_attribute_pointer);
+  fromElementDesc.Establish(
+      derived, nullptr, 0, nullptr, CFI_attribute_pointer);
   for (std::size_t toElements{to.Elements()}; toElements-- > 0;
        to.IncrementSubscripts(toAt), from.IncrementSubscripts(fromAt)) {
     toElementDesc.set_base_addr(to.Element<char>(toAt));
     fromElementDesc.set_base_addr(from.Element<char>(fromAt));
     DoScalarDefinedAssignment(toElementDesc, fromElementDesc, special);
+  }
+}
+
+template <typename CHAR>
+static void BlankPadCharacterAssignment(Descriptor &to, const Descriptor &from,
+    SubscriptValue toAt[], SubscriptValue fromAt[], std::size_t elements,
+    std::size_t toElementBytes, std::size_t fromElementBytes) {
+  std::size_t padding{(toElementBytes - fromElementBytes) / sizeof(CHAR)};
+  std::size_t copiedCharacters{fromElementBytes / sizeof(CHAR)};
+  for (; elements-- > 0;
+       to.IncrementSubscripts(toAt), from.IncrementSubscripts(fromAt)) {
+    CHAR *p{to.Element<CHAR>(toAt)};
+    std::memmove(
+        p, from.Element<std::add_const_t<CHAR>>(fromAt), fromElementBytes);
+    p += copiedCharacters;
+    for (auto n{padding}; n-- > 0;) {
+      *p++ = CHAR{' '};
+    }
   }
 }
 
@@ -205,33 +242,44 @@ static void DoElementalDefinedAssignment(const Descriptor &to,
 // of the capabilities of this function -- but when the LHS is allocatable,
 // the type might have a user-defined ASSIGNMENT(=), or the type might be
 // finalizable, this function should be used.
-static void Assign(Descriptor &to, const Descriptor &from,
-    Terminator &terminator, bool maybeReallocate, bool needFinalization,
-    bool canBeDefinedAssignment, bool componentCanBeDefinedAssignment) {
-  bool mustDeallocateLHS{
-      maybeReallocate && MustDeallocateLHS(to, from, terminator)};
+// When "to" is not a whole allocatable, "from" is an array, and defined
+// assignments are not used, "to" and "from" only need to have the same number
+// of elements, but their shape need not to conform (the assignment is done in
+// element sequence order). This facilitates some internal usages, like when
+// dealing with array constructors.
+static void Assign(
+    Descriptor &to, const Descriptor &from, Terminator &terminator, int flags) {
+  bool mustDeallocateLHS{MustDeallocateLHS(to, from, terminator, flags)};
   DescriptorAddendum *toAddendum{to.Addendum()};
   const typeInfo::DerivedType *toDerived{
       toAddendum ? toAddendum->derivedType() : nullptr};
-  if (canBeDefinedAssignment && toDerived) {
-    needFinalization &= !toDerived->noFinalizationNeeded();
-    // Check for a user-defined assignment type-bound procedure;
-    // see 10.2.1.4-5.  A user-defined assignment TBP defines all of
-    // the semantics, including allocatable (re)allocation and any
-    // finalization.
-    if (to.rank() == 0) {
+  if (toDerived) {
+    if (flags & CanBeDefinedAssignment) {
+      // Check for a user-defined assignment type-bound procedure;
+      // see 10.2.1.4-5.  A user-defined assignment TBP defines all of
+      // the semantics, including allocatable (re)allocation and any
+      // finalization.
+      if (to.rank() == 0) {
+        if (const auto *special{toDerived->FindSpecialBinding(
+                typeInfo::SpecialBinding::Which::ScalarAssignment)}) {
+          return DoScalarDefinedAssignment(to, from, *special);
+        }
+      }
       if (const auto *special{toDerived->FindSpecialBinding(
-              typeInfo::SpecialBinding::Which::ScalarAssignment)}) {
-        return DoScalarDefinedAssignment(to, from, *special);
+              typeInfo::SpecialBinding::Which::ElementalAssignment)}) {
+        return DoElementalDefinedAssignment(to, from, *toDerived, *special);
       }
     }
-    if (const auto *special{toDerived->FindSpecialBinding(
-            typeInfo::SpecialBinding::Which::ElementalAssignment)}) {
-      return DoElementalDefinedAssignment(to, from, *special);
+    if ((flags & NeedFinalization) && toDerived->noFinalizationNeeded()) {
+      flags &= ~NeedFinalization;
     }
   }
-  bool isSimpleMemmove{!toDerived && to.rank() == from.rank() &&
-      to.IsContiguous() && from.IsContiguous()};
+  std::size_t toElementBytes{to.ElementBytes()};
+  std::size_t fromElementBytes{from.ElementBytes()};
+  auto isSimpleMemmove{[&]() {
+    return !toDerived && to.rank() == from.rank() && to.IsContiguous() &&
+        from.IsContiguous() && toElementBytes == fromElementBytes;
+  }};
   StaticDescriptor<maxRank, true, 10 /*?*/> deferredDeallocStatDesc;
   Descriptor *deferDeallocation{nullptr};
   if (MayAlias(to, from)) {
@@ -239,29 +287,35 @@ static void Assign(Descriptor &to, const Descriptor &from,
       deferDeallocation = &deferredDeallocStatDesc.descriptor();
       std::memcpy(deferDeallocation, &to, to.SizeInBytes());
       to.set_base_addr(nullptr);
-    } else if (!isSimpleMemmove) {
+    } else if (!isSimpleMemmove()) {
       // Handle LHS/RHS aliasing by copying RHS into a temp, then
       // recursively assigning from that temp.
       auto descBytes{from.SizeInBytes()};
       StaticDescriptor<maxRank, true, 16> staticDesc;
       Descriptor &newFrom{staticDesc.descriptor()};
       std::memcpy(&newFrom, &from, descBytes);
+      // Pretend the temporary descriptor is for an ALLOCATABLE
+      // entity, otherwise, the Deallocate() below will not
+      // free the descriptor memory.
+      newFrom.raw().attribute = CFI_attribute_allocatable;
       auto stat{ReturnError(terminator, newFrom.Allocate())};
       if (stat == StatOk) {
         char *toAt{newFrom.OffsetElement()};
         std::size_t fromElements{from.Elements()};
-        std::size_t elementBytes{from.ElementBytes()};
         if (from.IsContiguous()) {
-          std::memcpy(toAt, from.OffsetElement(), fromElements * elementBytes);
+          std::memcpy(
+              toAt, from.OffsetElement(), fromElements * fromElementBytes);
         } else {
           SubscriptValue fromAt[maxRank];
           for (from.GetLowerBounds(fromAt); fromElements-- > 0;
-               toAt += elementBytes, from.IncrementSubscripts(fromAt)) {
-            std::memcpy(toAt, from.Element<char>(fromAt), elementBytes);
+               toAt += fromElementBytes, from.IncrementSubscripts(fromAt)) {
+            std::memcpy(toAt, from.Element<char>(fromAt), fromElementBytes);
           }
         }
-        Assign(to, newFrom, terminator, /*maybeReallocate=*/false,
-            needFinalization, false, componentCanBeDefinedAssignment);
+        Assign(to, newFrom, terminator,
+            flags &
+                (NeedFinalization | ComponentCanBeDefinedAssignment |
+                    ExplicitLengthCharacterLHS));
         newFrom.Deallocate();
       }
       return;
@@ -270,24 +324,25 @@ static void Assign(Descriptor &to, const Descriptor &from,
   if (to.IsAllocatable()) {
     if (mustDeallocateLHS) {
       if (deferDeallocation) {
-        if (needFinalization && toDerived) {
+        if ((flags & NeedFinalization) && toDerived) {
           Finalize(to, *toDerived);
-          needFinalization = false;
+          flags &= ~NeedFinalization;
         }
       } else {
-        to.Destroy(/*finalize=*/needFinalization);
-        needFinalization = false;
+        to.Destroy((flags & NeedFinalization) != 0);
+        flags &= ~NeedFinalization;
       }
-    } else if (to.rank() != from.rank()) {
+    } else if (to.rank() != from.rank() && !to.IsAllocated()) {
       terminator.Crash("Assign: mismatched ranks (%d != %d) in assignment to "
                        "unallocated allocatable",
           to.rank(), from.rank());
     }
     if (!to.IsAllocated()) {
-      if (AllocateAssignmentLHS(to, from, terminator) != StatOk) {
+      if (AllocateAssignmentLHS(to, from, terminator, flags) != StatOk) {
         return;
       }
-      needFinalization = false;
+      flags &= ~NeedFinalization;
+      toElementBytes = to.ElementBytes(); // may have changed
     }
   }
   SubscriptValue toAt[maxRank];
@@ -307,18 +362,17 @@ static void Assign(Descriptor &to, const Descriptor &from,
     terminator.Crash("Assign: mismatching types (to code %d != from code %d)",
         to.type().raw(), from.type().raw());
   }
-  std::size_t elementBytes{to.ElementBytes()};
-  if (elementBytes != from.ElementBytes()) {
-    terminator.Crash(
-        "Assign: mismatching element sizes (to %zd bytes != from %zd bytes)",
-        elementBytes, from.ElementBytes());
+  if (toElementBytes > fromElementBytes && !to.type().IsCharacter()) {
+    terminator.Crash("Assign: mismatching non-character element sizes (to %zd "
+                     "bytes != from %zd bytes)",
+        toElementBytes, fromElementBytes);
   }
   if (const typeInfo::DerivedType *
       updatedToDerived{toAddendum ? toAddendum->derivedType() : nullptr}) {
     // Derived type intrinsic assignment, which is componentwise and elementwise
     // for all components, including parent components (10.2.1.2-3).
     // The target is first finalized if still necessary (7.5.6.3(1))
-    if (needFinalization) {
+    if (flags & NeedFinalization) {
       Finalize(to, *updatedToDerived);
     }
     // Copy the data components (incl. the parent) first.
@@ -328,6 +382,13 @@ static void Assign(Descriptor &to, const Descriptor &from,
       const auto &comp{
           *componentDesc.ZeroBasedIndexedElement<typeInfo::Component>(
               k)}; // TODO: exploit contiguity here
+      // Use PolymorphicLHS for components so that the right things happen
+      // when the components are polymorphic; when they're not, they're both
+      // not, and their declared types will match.
+      int nestedFlags{MaybeReallocate | PolymorphicLHS};
+      if (flags & ComponentCanBeDefinedAssignment) {
+        nestedFlags |= CanBeDefinedAssignment | ComponentCanBeDefinedAssignment;
+      }
       switch (comp.genre()) {
       case typeInfo::Component::Genre::Data:
         if (comp.category() == TypeCategory::Derived) {
@@ -339,10 +400,7 @@ static void Assign(Descriptor &to, const Descriptor &from,
             comp.CreatePointerDescriptor(toCompDesc, to, terminator, toAt);
             comp.CreatePointerDescriptor(
                 fromCompDesc, from, terminator, fromAt);
-            Assign(toCompDesc, fromCompDesc, terminator,
-                /*maybeReallocate=*/true,
-                /*needFinalization=*/false, componentCanBeDefinedAssignment,
-                componentCanBeDefinedAssignment);
+            Assign(toCompDesc, fromCompDesc, terminator, nestedFlags);
           }
         } else { // Component has intrinsic type; simply copy raw bytes
           std::size_t componentByteSize{comp.SizeInBytes(to)};
@@ -386,10 +444,17 @@ static void Assign(Descriptor &to, const Descriptor &from,
             if (!fromDesc->IsAllocated()) {
               continue; // F'2018 10.2.1.3(13)(2)
             }
+
+            // F'2018 10.2.1.3(13) (2)
+            // If from is allocated, allocate to with the same type.
+            if (nestedFlags & CanBeDefinedAssignment) {
+              if (AllocateAssignmentLHS(
+                      *toDesc, *fromDesc, terminator, nestedFlags) != StatOk) {
+                return;
+              }
+            }
           }
-          Assign(*toDesc, *fromDesc, terminator, /*maybeReallocate=*/true,
-              /*needFinalization=*/false, componentCanBeDefinedAssignment,
-              componentCanBeDefinedAssignment);
+          Assign(*toDesc, *fromDesc, terminator, nestedFlags);
         }
         break;
       }
@@ -408,14 +473,33 @@ static void Assign(Descriptor &to, const Descriptor &from,
       }
     }
   } else { // intrinsic type, intrinsic assignment
-    if (isSimpleMemmove) {
-      std::memmove(
-          to.raw().base_addr, from.raw().base_addr, toElements * elementBytes);
-    } else { // elemental copies
+    if (isSimpleMemmove()) {
+      std::memmove(to.raw().base_addr, from.raw().base_addr,
+          toElements * toElementBytes);
+    } else if (toElementBytes > fromElementBytes) { // blank padding
+      switch (to.type().raw()) {
+      case CFI_type_signed_char:
+      case CFI_type_char:
+        BlankPadCharacterAssignment<char>(to, from, toAt, fromAt, toElements,
+            toElementBytes, fromElementBytes);
+        break;
+      case CFI_type_char16_t:
+        BlankPadCharacterAssignment<char16_t>(to, from, toAt, fromAt,
+            toElements, toElementBytes, fromElementBytes);
+        break;
+      case CFI_type_char32_t:
+        BlankPadCharacterAssignment<char32_t>(to, from, toAt, fromAt,
+            toElements, toElementBytes, fromElementBytes);
+        break;
+      default:
+        terminator.Crash("unexpected type code %d in blank padded Assign()",
+            to.type().raw());
+      }
+    } else { // elemental copies, possibly with character truncation
       for (std::size_t n{toElements}; n-- > 0;
            to.IncrementSubscripts(toAt), from.IncrementSubscripts(fromAt)) {
         std::memmove(to.Element<char>(toAt), from.Element<const char>(fromAt),
-            elementBytes);
+            toElementBytes);
       }
     }
   }
@@ -438,8 +522,7 @@ void DoFromSourceAssign(
            alloc.IncrementSubscripts(allocAt)) {
         Descriptor allocElement{*Descriptor::Create(*allocDerived,
             reinterpret_cast<void *>(alloc.Element<char>(allocAt)), 0)};
-        Assign(allocElement, source, terminator, /*maybeReallocate=*/false,
-            /*needFinalization=*/false, false, false);
+        Assign(allocElement, source, terminator, NoAssignFlags);
       }
     } else { // intrinsic type
       for (std::size_t n{alloc.Elements()}; n-- > 0;
@@ -449,8 +532,7 @@ void DoFromSourceAssign(
       }
     }
   } else {
-    Assign(alloc, source, terminator, /*maybeReallocate=*/false,
-        /*needFinalization=*/false, false, false);
+    Assign(alloc, source, terminator, NoAssignFlags);
   }
 }
 
@@ -461,20 +543,64 @@ void RTNAME(Assign)(Descriptor &to, const Descriptor &from,
   // All top-level defined assignments can be recognized in semantics and
   // will have been already been converted to calls, so don't check for
   // defined assignment apart from components.
-  Assign(to, from, terminator, /*maybeReallocate=*/true,
-      /*needFinalization=*/true,
-      /*canBeDefinedAssignment=*/false,
-      /*componentCanBeDefinedAssignment=*/true);
+  Assign(to, from, terminator,
+      MaybeReallocate | NeedFinalization | ComponentCanBeDefinedAssignment);
 }
 
 void RTNAME(AssignTemporary)(Descriptor &to, const Descriptor &from,
     const char *sourceFile, int sourceLine) {
   Terminator terminator{sourceFile, sourceLine};
-  Assign(to, from, terminator, /*maybeReallocate=*/false,
-      /*needFinalization=*/false,
-      /*canBeDefinedAssignment=*/false,
-      /*componentCanBeDefinedAssignment=*/false);
+  // Initialize the "to" if it is of derived type that needs initialization.
+  if (const DescriptorAddendum * addendum{to.Addendum()}) {
+    if (const auto *derived{addendum->derivedType()}) {
+      if (!derived->noInitializationNeeded()) {
+        if (ReturnError(terminator, Initialize(to, *derived, terminator)) !=
+            StatOk) {
+          return;
+        }
+      }
+    }
+  }
+
+  Assign(to, from, terminator, PolymorphicLHS);
 }
 
+void RTNAME(CopyOutAssign)(Descriptor &to, const Descriptor &from,
+    bool skipToInit, const char *sourceFile, int sourceLine) {
+  Terminator terminator{sourceFile, sourceLine};
+  // Initialize the "to" if it is of derived type that needs initialization.
+  if (!skipToInit) {
+    if (const DescriptorAddendum * addendum{to.Addendum()}) {
+      if (const auto *derived{addendum->derivedType()}) {
+        if (!derived->noInitializationNeeded()) {
+          if (ReturnError(terminator, Initialize(to, *derived, terminator)) !=
+              StatOk) {
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  // Copyout from the temporary must not cause any finalizations
+  // for LHS.
+  Assign(to, from, terminator, NoAssignFlags);
+}
+
+void RTNAME(AssignExplicitLengthCharacter)(Descriptor &to,
+    const Descriptor &from, const char *sourceFile, int sourceLine) {
+  Terminator terminator{sourceFile, sourceLine};
+  Assign(to, from, terminator,
+      MaybeReallocate | NeedFinalization | ComponentCanBeDefinedAssignment |
+          ExplicitLengthCharacterLHS);
+}
+
+void RTNAME(AssignPolymorphic)(Descriptor &to, const Descriptor &from,
+    const char *sourceFile, int sourceLine) {
+  Terminator terminator{sourceFile, sourceLine};
+  Assign(to, from, terminator,
+      MaybeReallocate | NeedFinalization | ComponentCanBeDefinedAssignment |
+          PolymorphicLHS);
+}
 } // extern "C"
 } // namespace Fortran::runtime

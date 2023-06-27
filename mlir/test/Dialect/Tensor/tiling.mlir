@@ -32,9 +32,9 @@ func.func @dynamic_pad_tensor_3_4(%input_tensor: tensor<?x?xf32>,
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pad"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 3]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pad"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 3] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -69,9 +69,9 @@ func.func @dynamic_pad_tensor_0_3(%input_tensor: tensor<?x?xf32>,
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pad"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loop = transform.structured.tile_to_scf_for %0 [0, 3]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pad"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loop = transform.structured.tile_to_scf_for %0 [0, 3] : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -103,9 +103,9 @@ func.func @static_pad_tensor_3_4(%input_tensor: tensor<7x9xf32>,
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pad"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 3]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pad"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 3] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -135,9 +135,9 @@ func.func @static_pad_tensor_0_3(%input_tensor: tensor<7x9xf32>,
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pad"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loop = transform.structured.tile_to_scf_for %0 [0, 3]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pad"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loop = transform.structured.tile_to_scf_for %0 [0, 3] : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -173,16 +173,14 @@ func.func @static_pad_tile_evenly_0_3(%input_tensor: tensor<7x9xf32>,
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pad"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loop = transform.structured.tile_to_scf_for %0 [0, 3]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pad"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loop = transform.structured.tile_to_scf_for %0 [0, 3] : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 }
 
 // -----
 
 // CHECK-DAG:   #[[MAP0:.+]] = affine_map<(d0) -> (d0 * 32)>
-// CHECK-DAG:   #[[MAP1:.+]] = affine_map<(d0) -> (d0 * -32 + 128, 64)>
-// CHECK-DAG:   #[[MAP2:.+]] = affine_map<(d0) -> (d0 * -32 + 256, 128)>
 // CHECK:       func.func @NC_to_NCnc
 // CHECK-SAME:    %[[IN:.*]]: tensor<128x256xf32>,
 // CHECK-SAME:    %[[OUT:.*]]: tensor<4x8x32x32xf32>) -> tensor<4x8x32x32xf32> {
@@ -193,10 +191,8 @@ transform.sequence failures(propagate) {
 // CHECK:         %[[RES0:.*]] = scf.for %[[N:.*]] = %[[C0]] to %[[C4]] step %[[C2]] iter_args(%[[ITER0:.*]] = %[[OUT]]) -> (tensor<4x8x32x32xf32>) {
 // CHECK:           %[[RES1:.+]] = scf.for %[[C:.*]] = %[[C0]] to %[[C8]] step %[[C4]] iter_args(%[[ITER1:.*]] = %[[ITER0]]) -> (tensor<4x8x32x32xf32>) {
 // CHECK-DAG:         %[[IN_N:.+]] = affine.apply #[[MAP0]](%[[N]])
-// CHECK-DAG:         %[[IN_N_SZ:.*]] = affine.min #[[MAP1]]
 // CHECK-DAG:         %[[IN_C:.+]] = affine.apply #[[MAP0]](%[[C]])
-// CHECK-DAG:         %[[IN_C_SZ:.*]] = affine.min #[[MAP2]]
-// CHECK:             %[[SUB_IN:.*]] = tensor.extract_slice %[[IN]][%[[IN_N]], %[[IN_C]]] [%[[IN_N_SZ]], %[[IN_C_SZ]]] [1, 1] : tensor<128x256xf32> to tensor<?x?xf32>
+// CHECK:             %[[SUB_IN:.*]] = tensor.extract_slice %[[IN]][%[[IN_N]], %[[IN_C]]] [64, 128] [1, 1] : tensor<128x256xf32> to tensor<64x128xf32>
 // CHECK:             %[[SUB_OUT:.*]] = tensor.extract_slice %[[ITER1]][%[[N]], %[[C]], 0, 0] [2, 4, 32, 32] [1, 1, 1, 1] : tensor<4x8x32x32xf32> to tensor<2x4x32x32xf32>
 // CHECK:             %[[SUB_RES:.*]] = tensor.pack
 // CHECK-SAME:          %[[SUB_IN]] inner_dims_pos = [0, 1] inner_tiles = [32, 32] into %[[SUB_OUT]]
@@ -213,15 +209,14 @@ func.func @NC_to_NCnc(%arg0: tensor<128x256xf32>, %arg1: tensor<4x8x32x32xf32>) 
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
 
 // CHECK:       #[[MAP0:.+]] = affine_map<(d0) -> (d0 * 8)>
-// CHECK:       #[[MAP1:.+]] = affine_map<(d0) -> (d0 * -8 + 256, 16)>
 // CHECK:       func.func @KC_to_CKkc
 // CHECK-SAME:    %[[IN:[A-Za-z0-9]+]]:
 // CHECK-SAME:    %[[OUT:[A-Za-z0-9]+]]:
@@ -230,9 +225,8 @@ transform.sequence failures(propagate) {
 // CHECK-DAG:     %[[C32:.+]] = arith.constant 32 : index
 // CHECK:         scf.for %[[C:.+]] = %[[C0]] to %[[C32]] step %[[C2]]
 // CHECK-DAG:         %[[IN_C:.+]] = affine.apply #[[MAP0]](%[[C]])
-// CHECK-DAG:         %[[IN_C_SZ:.+]] = affine.min #[[MAP1]](%[[C]])
 // CHECK:             %[[INPUT_SLICE:.+]] = tensor.extract_slice %[[IN]]
-// CHECK-SAME:          [0, %[[IN_C]]] [128, %[[IN_C_SZ]]]
+// CHECK-SAME:          [0, %[[IN_C]]] [128, 16]
 // CHECK:             %[[OUTPUT_SLICE:.+]] = tensor.extract_slice %{{.+}}[%[[C]], 0, 0, 0] [2, 4, 32, 8]
 // CHECK:             tensor.pack
 // CHECK-SAME:          %[[INPUT_SLICE]] outer_dims_perm = [1, 0] inner_dims_pos = [0, 1] inner_tiles = [32, 8]
@@ -243,9 +237,9 @@ func.func @KC_to_CKkc(%arg0: tensor<128x256xf32>, %arg1: tensor<32x4x32x8xf32>) 
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -278,9 +272,9 @@ func.func @pad_and_pack_static(%input: tensor<13x15xf32>, %output: tensor<2x8x8x
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -327,9 +321,9 @@ func.func @pad_and_pack_partially_dynamic(%input: tensor<?x?xf32>, %output: tens
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -381,9 +375,9 @@ func.func @pad_and_pack_fully_dynamic(%source: tensor<?x?xf32>, %dest: tensor<?x
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -428,9 +422,9 @@ func.func @NCnc_to_NC(%source: tensor<8x8x32x16xf32>, %dest: tensor<256x128xf32>
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -474,9 +468,9 @@ func.func @CKkc_to_KC(%source: tensor<32x4x32x8xf32>, %dest: tensor<128x256xf32>
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -510,9 +504,9 @@ func.func @perfect_CKkc_to_KC(%source: tensor<32x4x2x4xf32>, %dest: tensor<8x128
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -552,9 +546,9 @@ func.func @dynamic_perfect_CKkc_to_KC(%source: tensor<?x?x2x2xf32>, %dest: tenso
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [2, 4] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -587,9 +581,9 @@ func.func @perfect_NKPQk_to_NPQK(%source: tensor<1x4x6x6x2xf32>, %dest: tensor<1
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:4 = transform.structured.tile_to_scf_for %0 [1, 1, 1, 4]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:4 = transform.structured.tile_to_scf_for %0 [1, 1, 1, 4] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -613,16 +607,14 @@ func.func @fully_dynamic_unpack(%source: tensor<?x?x?x?xf32>, %dest: tensor<?x?x
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [4, 8]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.unpack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:2 = transform.structured.tile_to_scf_for %0 [4, 8] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 }
 
 // -----
 
-// CHECK-DAG: #[[MAP:.+]] = affine_map<(d0) -> (-d0 + 6, 1)>
 // CHECK-DAG: #[[MAP1:.+]] = affine_map<(d0) -> (d0 * 2)>
-// CHECK-DAG: #[[MAP2:.+]] = affine_map<(d0) -> (d0 * -2 + 8, 2)>
 // CHECK: func.func @perfect_NPQK_to_NKPQk
 // CHECK-SAME:  %[[SOURCE:.+]]: tensor<1x6x6x8xf32>,
 // CHECK-SAME:  %{{.+}}: tensor<1x4x6x6x2xf32>)
@@ -633,10 +625,7 @@ transform.sequence failures(propagate) {
 // CHECK: %{{.+}} = scf.for %[[ARG2:.+]] = %[[C0]] to %[[C4]] step %[[C1]]
 // CHECK:   %{{.+}} = scf.for %[[ARG4:.+]] = %[[C0]] to %[[C6]] step %[[C1]]
 // CHECK:     %{{.+}} = scf.for %[[ARG6:.+]] = %[[C0]] to %[[C6]] step %[[C1]]
-// CHECK:       %[[MIN_ARG4:.+]] = affine.min #[[MAP]](%[[ARG4]])
-// CHECK:       %[[MIN_ARG6:.+]] = affine.min #[[MAP]](%[[ARG6]])
 // CHECK:       %[[APPLY:.+]] = affine.apply #[[MAP1]](%[[ARG2]])
-// CHECK:       %[[MIN_ARG2:.+]] = affine.min #[[MAP2]](%[[ARG2]])
 // CHECK:       %[[SLICE_SOURCE:.+]] = tensor.extract_slice %[[SOURCE]][0, %[[ARG4]], %[[ARG6]], %[[APPLY]]]
 // CHECK:       %[[SLICE_DEST:.+]] = tensor.extract_slice %{{.+}}[0, %[[ARG2]], %[[ARG4]], %[[ARG6]], 0]
 // CHECK:       %[[PACK:.+]] = tensor.pack
@@ -652,7 +641,7 @@ func.func @perfect_NPQK_to_NKPQk(%source: tensor<1x6x6x8xf32>, %dest: tensor<1x4
 }
 
 transform.sequence failures(propagate) {
-  ^bb0(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %1, %loops:4 = transform.structured.tile_to_scf_for %0 [1, 1, 1, 1]
+  ^bb0(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["tensor.pack"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1, %loops:4 = transform.structured.tile_to_scf_for %0 [1, 1, 1, 1] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
 }

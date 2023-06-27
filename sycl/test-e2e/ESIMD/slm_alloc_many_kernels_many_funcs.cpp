@@ -1,13 +1,14 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip || esimd_emulator
+// UNSUPPORTED: esimd_emulator
 //
-// RUN: %clangxx -fsycl %s -o %t.1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.1.out
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+//
+// RUN: %{build} -o %t.1.out
+// RUN: %{run} %t.1.out
 //
 // Vary the test case by forcing inlining of the functions with slm_allocator:
-// RUN: %clangxx -fsycl -DFORCE_INLINE %s -o %t.2.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.2.out
+// RUN: %{build} -DFORCE_INLINE -o %t.2.out
+// RUN: %{run} %t.2.out
 
 // Checks validity of SLM frame offsets in case of complex call graph with two
 // kernels and 2 functions all using SLM, and one of the functions using two
@@ -201,5 +202,6 @@ int main(void) {
     }
   }
   std::cout << (err_cnt ? "FAILED\n" : "Passed\n");
+  free(arr, ctxt);
   return err_cnt ? 1 : 0;
 }

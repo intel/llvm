@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 //==---------- vector_operators.cpp - SYCL vec<> operators test ------------==//
 //
@@ -35,6 +33,7 @@ template <typename T, int N> void check_vector_size() {
   constexpr auto length = (N == 3 ? 4 : N);
   assert(Vec.size() == N);
   assert(Vec.byte_size() == sizeof(T) * length);
+  static_assert(noexcept(Vec.byte_size()));
 }
 
 int main() {

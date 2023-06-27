@@ -1,6 +1,7 @@
+// REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -fno-sycl-id-queries-fit-in-int
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out -fno-sycl-id-queries-fit-in-int
+// RUN: %{run} %t.out
 
 #include <numeric>
 #include <sycl/sycl.hpp>
@@ -31,10 +32,9 @@ void check(range<N> global, range<N> local, bool expect_fail = false) {
 int main() {
   queue q;
   device d = q.get_device();
-  id<2> max_2 = d.get_info<sycl::info::device::max_work_item_sizes<2>>();
-  check(range<2>(max_2[0], max_2[1]), range<2>(max_2[0], max_2[1]), true);
+  range<2> max_2 = d.get_info<sycl::info::device::max_work_item_sizes<2>>();
+  check(max_2, max_2, true);
 
-  id<3> max_3 = d.get_info<sycl::info::device::max_work_item_sizes<3>>();
-  check(range<3>(max_3[0], max_3[1], max_3[2]),
-        range<3>(max_3[0], max_3[1], max_3[2]), true);
+  range<3> max_3 = d.get_info<sycl::info::device::max_work_item_sizes<3>>();
+  check(max_3, max_3, true);
 }

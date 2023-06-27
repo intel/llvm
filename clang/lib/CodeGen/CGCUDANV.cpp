@@ -24,6 +24,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/ReplaceConstant.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/VirtualFileSystem.h"
 
 using namespace clang;
 using namespace CodeGen;
@@ -721,8 +722,9 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
   // handle so CUDA runtime can figure out what to call on the GPU side.
   std::unique_ptr<llvm::MemoryBuffer> CudaGpuBinary = nullptr;
   if (!CudaGpuBinaryFileName.empty()) {
-    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> CudaGpuBinaryOrErr =
-        llvm::MemoryBuffer::getFileOrSTDIN(CudaGpuBinaryFileName);
+    auto VFS = CGM.getFileSystem();
+    auto CudaGpuBinaryOrErr =
+        VFS->getBufferForFile(CudaGpuBinaryFileName, -1, false);
     if (std::error_code EC = CudaGpuBinaryOrErr.getError()) {
       CGM.getDiags().Report(diag::err_cannot_open_file)
           << CudaGpuBinaryFileName << EC.message();
@@ -1195,8 +1197,23 @@ llvm::Function *CGNVCUDARuntime::finalizeModule() {
 llvm::GlobalValue *CGNVCUDARuntime::getKernelHandle(llvm::Function *F,
                                                     GlobalDecl GD) {
   auto Loc = KernelHandles.find(F->getName());
-  if (Loc != KernelHandles.end())
-    return Loc->second;
+  if (Loc != KernelHandles.end()) {
+    auto OldHandle = Loc->second;
+    if (KernelStubs[OldHandle] == F)
+      return OldHandle;
+
+    // We've found the function name, but F itself has changed, so we need to
+    // update the references.
+    if (CGM.getLangOpts().HIP) {
+      // For HIP compilation the handle itself does not change, so we only need
+      // to update the Stub value.
+      KernelStubs[OldHandle] = F;
+      return OldHandle;
+    }
+    // For non-HIP compilation, erase the old Stub and fall-through to creating
+    // new entries.
+    KernelStubs.erase(OldHandle);
+  }
 
   if (!CGM.getLangOpts().HIP) {
     KernelHandles[F->getName()] = F;

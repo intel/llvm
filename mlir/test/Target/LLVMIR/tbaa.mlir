@@ -55,6 +55,7 @@ module {
     llvm.tbaa_type_desc @tbaa_type_desc_6 {id = "agg1_t", members = {<@tbaa_type_desc_5, 0>, <@tbaa_type_desc_5, 4>}}
     llvm.tbaa_tag @tbaa_tag_7 {access_type = @tbaa_type_desc_5, base_type = @tbaa_type_desc_6, offset = 0 : i64}
   }
+  llvm.func @foo(%arg0: !llvm.ptr)
   llvm.func @tbaa2(%arg0: !llvm.ptr, %arg1: !llvm.ptr) {
     %0 = llvm.mlir.constant(0 : i32) : i32
     %1 = llvm.mlir.constant(1 : i32) : i32
@@ -65,6 +66,18 @@ module {
     %5 = llvm.getelementptr inbounds %arg0[%0, 0] : (!llvm.ptr, i32) -> !llvm.ptr, !llvm.struct<"struct.agg1_t", (i32, i32)>
     // CHECK: store i32 %{{.*}}, ptr %{{.*}},{{.*}}!tbaa ![[STAG:[0-9]*]]
     llvm.store %4, %5 {tbaa = [@__tbaa::@tbaa_tag_7]} : i32, !llvm.ptr
+    // CHECK: atomicrmw add ptr %{{.*}}, i32 %{{.*}} !tbaa ![[STAG]]
+    %6 = llvm.atomicrmw add %5, %4 monotonic {tbaa = [@__tbaa::@tbaa_tag_7]} : !llvm.ptr, i32
+    // CHECK: cmpxchg ptr %{{.*}}, i32 %{{.*}}, i32 %{{.*}} !tbaa ![[STAG]]
+    %7 = llvm.cmpxchg %5, %6, %4 acq_rel monotonic {tbaa = [@__tbaa::@tbaa_tag_7]} : !llvm.ptr, i32
+    %8 = llvm.mlir.constant(0 : i1) : i1
+    %9 = llvm.mlir.constant(42 : i8) : i8
+    // CHECK: llvm.memcpy{{.*}} !tbaa ![[STAG]]
+    "llvm.intr.memcpy"(%arg1, %arg1, %0, %8) {tbaa = [@__tbaa::@tbaa_tag_7]} : (!llvm.ptr, !llvm.ptr, i32, i1) -> ()
+    // CHECK: llvm.memset{{.*}} !tbaa ![[STAG]]
+    "llvm.intr.memset"(%arg1, %9, %0, %8) {tbaa = [@__tbaa::@tbaa_tag_7]} : (!llvm.ptr, i8, i32, i1) -> ()
+    // CHECK: call void @foo({{.*}} !tbaa ![[STAG]]
+    llvm.call @foo(%arg1) {tbaa = [@__tbaa::@tbaa_tag_7]} : (!llvm.ptr) -> ()
     llvm.return
   }
 }

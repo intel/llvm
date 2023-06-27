@@ -131,10 +131,6 @@ DEVICE_EXTERN_C_INLINE float __devicelib_imf_fminf(float a, float b) {
   return __fmin(a, b);
 }
 
-DEVICE_EXTERN_C_INLINE float __devicelib_imf_fabsf(float x) {
-  return __fabs(x);
-}
-
 DEVICE_EXTERN_C_INLINE float __devicelib_imf_copysignf(float a, float b) {
   return __copysign(a, b);
 }

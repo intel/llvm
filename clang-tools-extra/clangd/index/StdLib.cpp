@@ -47,8 +47,8 @@ llvm::StringLiteral mandatoryHeader(Lang L) {
 
 LangStandard::Kind standardFromOpts(const LangOptions &LO) {
   if (LO.CPlusPlus) {
-    if (LO.CPlusPlus2b)
-      return LangStandard::lang_cxx2b;
+    if (LO.CPlusPlus23)
+      return LangStandard::lang_cxx23;
     if (LO.CPlusPlus20)
       return LangStandard::lang_cxx20;
     if (LO.CPlusPlus17)
@@ -314,7 +314,7 @@ std::optional<StdLibLocation> StdLibSet::add(const LangOptions &LO,
        llvm::make_range(HS.search_dir_begin(), HS.search_dir_end())) {
     switch (DL.getLookupType()) {
     case DirectoryLookup::LT_NormalDir: {
-      Path = DL.getDir()->getName();
+      Path = DL.getDirRef()->getName();
       llvm::sys::path::append(Path, ProbeHeader);
       llvm::vfs::Status Stat;
       if (!HS.getFileMgr().getNoncachedStatValue(Path, Stat) &&

@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -I . -o %t.out
+// RUN: %{run} %t.out
 
 // disabling hip because some of the binary_ops tested are not supported
 // getting undefined symbols for a handful of __spirv__ * functions.
@@ -39,10 +37,14 @@ void test(queue q, InputContainer input, OutputContainer output,
             int lid = it.get_local_id(0);
             out[0] = reduce_over_group(g, in[lid], binary_op);
             out[1] = reduce_over_group(g, in[lid], init, binary_op);
-            out[2] = joint_reduce(g, in.get_pointer(), in.get_pointer() + N,
-                                  binary_op);
-            out[3] = joint_reduce(g, in.get_pointer(), in.get_pointer() + N,
-                                  init, binary_op);
+            out[2] = joint_reduce(
+                g, in.template get_multi_ptr<access::decorated::no>(),
+                in.template get_multi_ptr<access::decorated::no>() + N,
+                binary_op);
+            out[3] = joint_reduce(
+                g, in.template get_multi_ptr<access::decorated::no>(),
+                in.template get_multi_ptr<access::decorated::no>() + N, init,
+                binary_op);
           });
     });
   }

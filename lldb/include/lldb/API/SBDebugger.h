@@ -14,6 +14,13 @@
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBPlatform.h"
 
+namespace lldb_private {
+class CommandPluginInterfaceImplementation;
+namespace python {
+class SWIGBridge;
+}
+} // namespace lldb_private
+
 namespace lldb {
 
 #ifndef SWIG
@@ -44,10 +51,6 @@ public:
   SBDebugger();
 
   SBDebugger(const lldb::SBDebugger &rhs);
-
-#ifndef SWIG
-  SBDebugger(const lldb::DebuggerSP &debugger_sp);
-#endif
 
   ~SBDebugger();
 
@@ -197,6 +200,10 @@ public:
   lldb::SBCommandInterpreter GetCommandInterpreter();
 
   void HandleCommand(const char *command);
+  
+  void RequestInterrupt();
+  void CancelInterruptRequest();
+  bool InterruptRequested();
 
   lldb::SBListener GetListener();
 
@@ -238,7 +245,7 @@ public:
 
   uint32_t GetIndexOfTarget(lldb::SBTarget target);
 
-  lldb::SBTarget FindTargetWithProcessID(pid_t pid);
+  lldb::SBTarget FindTargetWithProcessID(lldb::pid_t pid);
 
   lldb::SBTarget FindTargetWithFileAndArch(const char *filename,
                                            const char *arch);
@@ -315,6 +322,9 @@ public:
   bool EnableLog(const char *channel, const char **categories);
 
   void SetLoggingCallback(lldb::LogOutputCallback log_callback, void *baton);
+
+  void SetDestroyCallback(lldb::SBDebuggerDestroyCallback destroy_callback,
+                          void *baton);
 
   // DEPRECATED
 #ifndef SWIG
@@ -456,6 +466,12 @@ public:
   ///   The file containing the necessary information to load the trace.
   SBTrace LoadTraceFromFile(SBError &error,
                             const SBFileSpec &trace_description_file);
+
+protected:
+  friend class lldb_private::CommandPluginInterfaceImplementation;
+  friend class lldb_private::python::SWIGBridge;
+
+  SBDebugger(const lldb::DebuggerSP &debugger_sp);
 
 private:
   friend class SBCommandInterpreter;

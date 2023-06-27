@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-gen9 || gpu-intel-dg2 || gpu-intel-pvc || esimd_emulator
+// REQUIRES: gpu-intel-gen9 || gpu-intel-pvc || esimd_emulator
 
-// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks ieee_sqrt() and ieee_sqrt() with float and double types.
 

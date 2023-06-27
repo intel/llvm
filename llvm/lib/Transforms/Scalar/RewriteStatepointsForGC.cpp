@@ -695,7 +695,7 @@ static Value *findBaseDefiningValue(Value *I, DefiningValueMapTy &Cache,
 /// Returns the base defining value for this value.
 static Value *findBaseDefiningValueCached(Value *I, DefiningValueMapTy &Cache,
                                           IsKnownBaseMapTy &KnownBases) {
-  if (Cache.find(I) == Cache.end()) {
+  if (!Cache.contains(I)) {
     auto *BDV = findBaseDefiningValue(I, Cache, KnownBases);
     Cache[I] = BDV;
     LLVM_DEBUG(dbgs() << "fBDV-cached: " << I->getName() << " -> "
@@ -703,7 +703,7 @@ static Value *findBaseDefiningValueCached(Value *I, DefiningValueMapTy &Cache,
                       << KnownBases[I] << "\n");
   }
   assert(Cache[I] != nullptr);
-  assert(KnownBases.find(Cache[I]) != KnownBases.end() &&
+  assert(KnownBases.contains(Cache[I]) &&
          "Cached value must be present in known bases map");
   return Cache[I];
 }
@@ -2874,9 +2874,7 @@ static bool insertParsePoints(Function &F, DominatorTree &DT,
 
   // Do all the fixups of the original live variables to their relocated selves
   SmallVector<Value *, 128> Live;
-  for (size_t i = 0; i < Records.size(); i++) {
-    PartiallyConstructedSafepointRecord &Info = Records[i];
-
+  for (const PartiallyConstructedSafepointRecord &Info : Records) {
     // We can't simply save the live set from the original insertion.  One of
     // the live values might be the result of a call which needs a safepoint.
     // That Value* no longer exists and we need to use the new gc_result.

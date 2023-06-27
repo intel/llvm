@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // The test checks functionality of the lsc_block_load, lsc_block_store
 // with newly introduced predicate parameter.

@@ -87,7 +87,8 @@ ToolChain::ToolChain(const Driver &D, const llvm::Triple &T,
     addIfExists(getLibraryPaths(), Path);
   for (const auto &Path : getStdlibPaths())
     addIfExists(getFilePaths(), Path);
-  addIfExists(getFilePaths(), getArchSpecificLibPath());
+  for (const auto &Path : getArchSpecificLibPaths())
+    addIfExists(getFilePaths(), Path);
 }
 
 llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
@@ -416,12 +417,6 @@ Tool *ToolChain::getSPIRVTranslator() const {
   return SPIRVTranslator.get();
 }
 
-Tool *ToolChain::getSPIRCheck() const {
-  if (!SPIRCheck)
-    SPIRCheck.reset(new tools::SPIRCheck(*this));
-  return SPIRCheck.get();
-}
-
 Tool *ToolChain::getSYCLPostLink() const {
   if (!SYCLPostLink)
     SYCLPostLink.reset(new tools::SYCLPostLink(*this));
@@ -506,9 +501,6 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::SPIRVTranslatorJobClass:
     return getSPIRVTranslator();
-
-  case Action::SPIRCheckJobClass:
-    return getSPIRCheck();
 
   case Action::SYCLPostLinkJobClass:
     return getSYCLPostLink();
@@ -708,11 +700,20 @@ ToolChain::path_list ToolChain::getStdlibPaths() const {
   return Paths;
 }
 
-std::string ToolChain::getArchSpecificLibPath() const {
-  SmallString<128> Path(getDriver().ResourceDir);
-  llvm::sys::path::append(Path, "lib", getOSLibName(),
-                          llvm::Triple::getArchTypeName(getArch()));
-  return std::string(Path.str());
+ToolChain::path_list ToolChain::getArchSpecificLibPaths() const {
+  path_list Paths;
+
+  auto AddPath = [&](const ArrayRef<StringRef> &SS) {
+    SmallString<128> Path(getDriver().ResourceDir);
+    llvm::sys::path::append(Path, "lib");
+    for (auto &S : SS)
+      llvm::sys::path::append(Path, S);
+    Paths.push_back(std::string(Path.str()));
+  };
+
+  AddPath({getTriple().str()});
+  AddPath({getOSLibName(), llvm::Triple::getArchTypeName(getArch())});
+  return Paths;
 }
 
 bool ToolChain::needsProfileRT(const ArgList &Args) {
@@ -739,7 +740,8 @@ Tool *ToolChain::SelectTool(const JobAction &JA) const {
   if (D.IsFlangMode() && getDriver().ShouldUseFlangCompiler(JA)) return getFlang();
   if (getDriver().ShouldUseClangCompiler(JA)) return getClang();
   Action::ActionClass AC = JA.getKind();
-  if (AC == Action::AssembleJobClass && useIntegratedAs())
+  if (AC == Action::AssembleJobClass && useIntegratedAs() &&
+      !getTriple().isOSAIX())
     return getClangAs();
   return getTool(AC);
 }
@@ -1233,8 +1235,7 @@ SanitizerMask ToolChain::getSupportedSanitizers() const {
   // platform dependent.
 
   SanitizerMask Res =
-      (SanitizerKind::Undefined & ~SanitizerKind::Vptr &
-       ~SanitizerKind::Function) |
+      (SanitizerKind::Undefined & ~SanitizerKind::Vptr) |
       (SanitizerKind::CFI & ~SanitizerKind::CFIICall) |
       SanitizerKind::CFICastStrict | SanitizerKind::FloatDivideByZero |
       SanitizerKind::KCFI | SanitizerKind::UnsignedIntegerOverflow |

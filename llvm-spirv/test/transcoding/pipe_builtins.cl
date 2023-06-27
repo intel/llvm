@@ -7,8 +7,6 @@
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv -r %t.spv -o %t.bc
 // RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
-//
-// XFAIL: *
 
 // CHECK-SPIRV-DAG: TypePipe [[ROPipeTy:[0-9]+]] 0
 // CHECK-SPIRV-DAG: TypePipe [[WOPipeTy:[0-9]+]] 1

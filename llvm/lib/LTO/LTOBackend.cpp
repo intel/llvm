@@ -260,7 +260,7 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
 
   PassInstrumentationCallbacks PIC;
   StandardInstrumentations SI(Mod.getContext(), Conf.DebugPassManager);
-  SI.registerCallbacks(PIC, &FAM);
+  SI.registerCallbacks(PIC, &MAM);
   PassBuilder PB(TM, Conf.PTO, PGOOpt, &PIC);
 
   RegisterPassPlugins(Conf.PassPlugins, PB);
@@ -565,8 +565,6 @@ Error lto::thinBackend(const Config &Conf, unsigned Task, AddStreamFn AddStream,
   // the module, if applicable.
   Mod.setPartialSampleProfileRatio(CombinedIndex);
 
-  updatePublicTypeTestCalls(Mod, CombinedIndex.withWholeProgramVisibility());
-
   if (Conf.CodeGenOnly) {
     codegen(Conf, TM.get(), AddStream, Task, Mod, CombinedIndex);
     return finalizeOptimizationRemarks(std::move(DiagnosticOutputFile));
@@ -650,6 +648,10 @@ Error lto::thinBackend(const Config &Conf, unsigned Task, AddStreamFn AddStream,
                             ClearDSOLocalOnDeclarations);
   if (Error Err = Importer.importFunctions(Mod, ImportList).takeError())
     return Err;
+
+  // Do this after any importing so that imported code is updated.
+  updateMemProfAttributes(Mod, CombinedIndex);
+  updatePublicTypeTestCalls(Mod, CombinedIndex.withWholeProgramVisibility());
 
   if (Conf.PostImportModuleHook && !Conf.PostImportModuleHook(Task, Mod))
     return finalizeOptimizationRemarks(std::move(DiagnosticOutputFile));

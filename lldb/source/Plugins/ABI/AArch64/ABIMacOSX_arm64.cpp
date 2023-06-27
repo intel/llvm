@@ -814,18 +814,41 @@ ValueObjectSP ABIMacOSX_arm64::GetReturnValueObjectImpl(
   return return_valobj_sp;
 }
 
-lldb::addr_t ABIMacOSX_arm64::FixAddress(addr_t pc, addr_t mask) {
-  lldb::addr_t pac_sign_extension = 0x0080000000000000ULL;
-  // Darwin systems originally couldn't determine the proper value
-  // dynamically, so the most common value was hardcoded.  This has
-  // largely been cleaned up, but there are still a handful of
-  // environments that assume the default value is set to this value
-  // and there's no dynamic value to correct it.
-  // When no mask is specified, set it to 39 bits of addressing (0..38).
-  if (mask == 0) {
-    // ~((1ULL<<39)-1)
-    mask = 0xffffff8000000000;
+addr_t ABIMacOSX_arm64::FixCodeAddress(addr_t pc) {
+  addr_t pac_sign_extension = 0x0080000000000000ULL;
+  addr_t tbi_mask = 0xff80000000000000ULL;
+  addr_t mask = 0;
+
+  if (ProcessSP process_sp = GetProcessSP()) {
+    mask = process_sp->GetCodeAddressMask();
+    if (pc & pac_sign_extension) {
+      addr_t highmem_mask = process_sp->GetHighmemCodeAddressMask();
+      if (highmem_mask)
+        mask = highmem_mask;
+    }
   }
+  if (mask == 0)
+    mask = tbi_mask;
+
+  return (pc & pac_sign_extension) ? pc | mask : pc & (~mask);
+}
+
+addr_t ABIMacOSX_arm64::FixDataAddress(addr_t pc) {
+  addr_t pac_sign_extension = 0x0080000000000000ULL;
+  addr_t tbi_mask = 0xff80000000000000ULL;
+  addr_t mask = 0;
+
+  if (ProcessSP process_sp = GetProcessSP()) {
+    mask = process_sp->GetDataAddressMask();
+    if (pc & pac_sign_extension) {
+      addr_t highmem_mask = process_sp->GetHighmemDataAddressMask();
+      if (highmem_mask)
+        mask = highmem_mask;
+    }
+  }
+  if (mask == 0)
+    mask = tbi_mask;
+
   return (pc & pac_sign_extension) ? pc | mask : pc & (~mask);
 }
 

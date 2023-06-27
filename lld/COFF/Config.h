@@ -37,6 +37,8 @@ class SectionChunk;
 // Short aliases.
 static const auto AMD64 = llvm::COFF::IMAGE_FILE_MACHINE_AMD64;
 static const auto ARM64 = llvm::COFF::IMAGE_FILE_MACHINE_ARM64;
+static const auto ARM64EC = llvm::COFF::IMAGE_FILE_MACHINE_ARM64EC;
+static const auto ARM64X = llvm::COFF::IMAGE_FILE_MACHINE_ARM64X;
 static const auto ARMNT = llvm::COFF::IMAGE_FILE_MACHINE_ARMNT;
 static const auto I386 = llvm::COFF::IMAGE_FILE_MACHINE_I386;
 
@@ -96,7 +98,9 @@ enum class ICFLevel {
 // Global configuration.
 struct Configuration {
   enum ManifestKind { Default, SideBySide, Embed, No };
-  bool is64() const { return machine == AMD64 || machine == ARM64; }
+  bool is64() const {
+    return machine == AMD64 || llvm::COFF::isAnyArm64(machine);
+  }
 
   llvm::COFF::MachineTypes machine = IMAGE_FILE_MACHINE_UNKNOWN;
   size_t wordsize;
@@ -218,8 +222,16 @@ struct Configuration {
   // Used for /thinlto-index-only:
   llvm::StringRef thinLTOIndexOnlyArg;
 
-  // Used for /thinlto-object-prefix-replace:
-  std::pair<llvm::StringRef, llvm::StringRef> thinLTOPrefixReplace;
+  // Used for /thinlto-prefix-replace:
+  // Replace the prefix in paths generated for ThinLTO, replacing
+  // thinLTOPrefixReplaceOld with thinLTOPrefixReplaceNew. If
+  // thinLTOPrefixReplaceNativeObject is defined, replace the prefix of object
+  // file paths written to the response file given in the
+  // --thinlto-index-only=${response} option with
+  // thinLTOPrefixReplaceNativeObject, instead of thinLTOPrefixReplaceNew.
+  llvm::StringRef thinLTOPrefixReplaceOld;
+  llvm::StringRef thinLTOPrefixReplaceNew;
+  llvm::StringRef thinLTOPrefixReplaceNativeObject;
 
   // Used for /thinlto-object-suffix-replace:
   std::pair<llvm::StringRef, llvm::StringRef> thinLTOObjectSuffixReplace;

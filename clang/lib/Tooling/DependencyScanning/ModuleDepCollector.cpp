@@ -56,16 +56,16 @@ static std::vector<std::string> splitString(std::string S, char Separator) {
 void ModuleDepCollector::addOutputPaths(CompilerInvocation &CI,
                                         ModuleDeps &Deps) {
   CI.getFrontendOpts().OutputFile =
-      Consumer.lookupModuleOutput(Deps.ID, ModuleOutputKind::ModuleFile);
+      Controller.lookupModuleOutput(Deps.ID, ModuleOutputKind::ModuleFile);
   if (!CI.getDiagnosticOpts().DiagnosticSerializationFile.empty())
     CI.getDiagnosticOpts().DiagnosticSerializationFile =
-        Consumer.lookupModuleOutput(
+        Controller.lookupModuleOutput(
             Deps.ID, ModuleOutputKind::DiagnosticSerializationFile);
   if (!CI.getDependencyOutputOpts().OutputFile.empty()) {
-    CI.getDependencyOutputOpts().OutputFile =
-        Consumer.lookupModuleOutput(Deps.ID, ModuleOutputKind::DependencyFile);
+    CI.getDependencyOutputOpts().OutputFile = Controller.lookupModuleOutput(
+        Deps.ID, ModuleOutputKind::DependencyFile);
     CI.getDependencyOutputOpts().Targets =
-        splitString(Consumer.lookupModuleOutput(
+        splitString(Controller.lookupModuleOutput(
                         Deps.ID, ModuleOutputKind::DependencyTargets),
                     '\0');
     if (!CI.getDependencyOutputOpts().OutputFile.empty() &&
@@ -100,6 +100,8 @@ ModuleDepCollector::makeInvocationForModuleBuildWithoutOutputs(
   if (!CI.getLangOpts()->ModulesCodegen) {
     CI.getCodeGenOpts().DebugCompilationDir.clear();
     CI.getCodeGenOpts().CoverageCompilationDir.clear();
+    CI.getCodeGenOpts().CoverageDataFile.clear();
+    CI.getCodeGenOpts().CoverageNotesFile.clear();
   }
 
   // Map output paths that affect behaviour to "-" so their existence is in the
@@ -205,7 +207,7 @@ void ModuleDepCollector::addModuleFiles(
     CompilerInvocation &CI, ArrayRef<ModuleID> ClangModuleDeps) const {
   for (const ModuleID &MID : ClangModuleDeps) {
     std::string PCMPath =
-        Consumer.lookupModuleOutput(MID, ModuleOutputKind::ModuleFile);
+        Controller.lookupModuleOutput(MID, ModuleOutputKind::ModuleFile);
     if (EagerLoadModules)
       CI.getFrontendOpts().ModuleFiles.push_back(std::move(PCMPath));
     else
@@ -498,8 +500,7 @@ static void forEachSubmoduleSorted(const Module *M,
   // Submodule order depends on order of header includes for inferred submodules
   // we don't care about the exact order, so sort so that it's consistent across
   // TUs to improve sharing.
-  SmallVector<const Module *> Submodules(M->submodule_begin(),
-                                         M->submodule_end());
+  SmallVector<const Module *> Submodules(M->submodules());
   llvm::stable_sort(Submodules, [](const Module *A, const Module *B) {
     return A->Name < B->Name;
   });
@@ -577,11 +578,11 @@ void ModuleDepCollectorPP::addAffectingClangModule(
 ModuleDepCollector::ModuleDepCollector(
     std::unique_ptr<DependencyOutputOptions> Opts,
     CompilerInstance &ScanInstance, DependencyConsumer &C,
-    CompilerInvocation OriginalCI, bool OptimizeArgs, bool EagerLoadModules,
-    bool IsStdModuleP1689Format)
-    : ScanInstance(ScanInstance), Consumer(C), Opts(std::move(Opts)),
-      OriginalInvocation(std::move(OriginalCI)), OptimizeArgs(OptimizeArgs),
-      EagerLoadModules(EagerLoadModules),
+    DependencyActionController &Controller, CompilerInvocation OriginalCI,
+    bool OptimizeArgs, bool EagerLoadModules, bool IsStdModuleP1689Format)
+    : ScanInstance(ScanInstance), Consumer(C), Controller(Controller),
+      Opts(std::move(Opts)), OriginalInvocation(std::move(OriginalCI)),
+      OptimizeArgs(OptimizeArgs), EagerLoadModules(EagerLoadModules),
       IsStdModuleP1689Format(IsStdModuleP1689Format) {}
 
 void ModuleDepCollector::attachToPreprocessor(Preprocessor &PP) {

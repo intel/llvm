@@ -1,109 +1,19 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fno-builtin -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{run} %t.out
 //
 // UNSUPPORTED: cuda || hip
 
 #include <cassert>
 #include <iostream>
+#include <sycl/ext/intel/math.hpp>
 #include <sycl/sycl.hpp>
 
 namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
-
-extern "C" {
-unsigned __imf_vabs2(unsigned);
-unsigned __imf_vabs4(unsigned);
-unsigned __imf_vabsss2(unsigned);
-unsigned __imf_vabsss4(unsigned);
-unsigned __imf_vneg2(unsigned);
-unsigned __imf_vneg4(unsigned);
-unsigned __imf_vnegss2(unsigned);
-unsigned __imf_vnegss4(unsigned);
-unsigned __imf_vabsdiffs2(unsigned, unsigned);
-unsigned __imf_vabsdiffs4(unsigned, unsigned);
-unsigned __imf_vabsdiffu2(unsigned, unsigned);
-unsigned __imf_vabsdiffu4(unsigned, unsigned);
-unsigned __imf_vadd2(unsigned, unsigned);
-unsigned __imf_vadd4(unsigned, unsigned);
-unsigned __imf_vaddss2(unsigned, unsigned);
-unsigned __imf_vaddss4(unsigned, unsigned);
-unsigned __imf_vaddus2(unsigned, unsigned);
-unsigned __imf_vaddus4(unsigned, unsigned);
-unsigned __imf_vsub2(unsigned, unsigned);
-unsigned __imf_vsub4(unsigned, unsigned);
-unsigned __imf_vsubss2(unsigned, unsigned);
-unsigned __imf_vsubss4(unsigned, unsigned);
-unsigned __imf_vsubus2(unsigned, unsigned);
-unsigned __imf_vsubus4(unsigned, unsigned);
-unsigned __imf_vavgs2(unsigned, unsigned);
-unsigned __imf_vavgs4(unsigned, unsigned);
-unsigned __imf_vavgu2(unsigned, unsigned);
-unsigned __imf_vavgu4(unsigned, unsigned);
-unsigned __imf_vcmpgts2(unsigned, unsigned);
-unsigned __imf_vcmpgts4(unsigned, unsigned);
-unsigned __imf_vhaddu2(unsigned, unsigned);
-unsigned __imf_vhaddu4(unsigned, unsigned);
-unsigned __imf_vmaxs2(unsigned, unsigned);
-unsigned __imf_vmaxs4(unsigned, unsigned);
-unsigned __imf_vmaxu2(unsigned, unsigned);
-unsigned __imf_vmaxu4(unsigned, unsigned);
-unsigned __imf_vmins2(unsigned, unsigned);
-unsigned __imf_vmins4(unsigned, unsigned);
-unsigned __imf_vminu2(unsigned, unsigned);
-unsigned __imf_vminu4(unsigned, unsigned);
-unsigned __imf_vsads2(unsigned, unsigned);
-unsigned __imf_vsads4(unsigned, unsigned);
-unsigned __imf_vsadu2(unsigned, unsigned);
-unsigned __imf_vsadu4(unsigned, unsigned);
-unsigned __imf_vcmpeq2(unsigned, unsigned);
-unsigned __imf_vcmpeq4(unsigned, unsigned);
-unsigned __imf_vcmpne2(unsigned, unsigned);
-unsigned __imf_vcmpne4(unsigned, unsigned);
-unsigned __imf_vseteq2(unsigned, unsigned);
-unsigned __imf_vseteq4(unsigned, unsigned);
-unsigned __imf_vsetne2(unsigned, unsigned);
-unsigned __imf_vsetne4(unsigned, unsigned);
-unsigned __imf_vcmpges2(unsigned, unsigned);
-unsigned __imf_vcmpges4(unsigned, unsigned);
-unsigned __imf_vcmpgeu2(unsigned, unsigned);
-unsigned __imf_vcmpgeu4(unsigned, unsigned);
-unsigned __imf_vsetges2(unsigned, unsigned);
-unsigned __imf_vsetges4(unsigned, unsigned);
-unsigned __imf_vsetgeu2(unsigned, unsigned);
-unsigned __imf_vsetgeu4(unsigned, unsigned);
-unsigned __imf_vcmplts2(unsigned, unsigned);
-unsigned __imf_vcmplts4(unsigned, unsigned);
-unsigned __imf_vcmpltu2(unsigned, unsigned);
-unsigned __imf_vcmpltu4(unsigned, unsigned);
-unsigned __imf_vsetlts2(unsigned, unsigned);
-unsigned __imf_vsetlts4(unsigned, unsigned);
-unsigned __imf_vsetltu2(unsigned, unsigned);
-unsigned __imf_vsetltu4(unsigned, unsigned);
-unsigned __imf_vcmpgts2(unsigned, unsigned);
-unsigned __imf_vcmpgts4(unsigned, unsigned);
-unsigned __imf_vcmpgtu2(unsigned, unsigned);
-unsigned __imf_vcmpgtu4(unsigned, unsigned);
-unsigned __imf_vcmples2(unsigned, unsigned);
-unsigned __imf_vcmples4(unsigned, unsigned);
-unsigned __imf_vcmpleu2(unsigned, unsigned);
-unsigned __imf_vcmpleu4(unsigned, unsigned);
-unsigned __imf_vsetgts2(unsigned, unsigned);
-unsigned __imf_vsetgts4(unsigned, unsigned);
-unsigned __imf_vsetgtu2(unsigned, unsigned);
-unsigned __imf_vsetgtu4(unsigned, unsigned);
-unsigned __imf_vsetles2(unsigned, unsigned);
-unsigned __imf_vsetles4(unsigned, unsigned);
-unsigned __imf_vsetleu2(unsigned, unsigned);
-unsigned __imf_vsetleu4(unsigned, unsigned);
-}
 
 void run_vabs2_4_test(s::queue &queue) {
   bool pass = true;
@@ -126,8 +36,10 @@ void run_vabs2_4_test(s::queue &queue) {
           auto output4_acc = output4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vabs2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output2_acc[I[0]] = __imf_vabs2(input_vals[I[0]]);
-                output4_acc[I[0]] = __imf_vabs4(input_vals[I[0]]);
+                output2_acc[I[0]] =
+                    sycl::ext::intel::math::vabs2(input_vals[I[0]]);
+                output4_acc[I[0]] =
+                    sycl::ext::intel::math::vabs4(input_vals[I[0]]);
               });
         })
         .wait();
@@ -135,7 +47,8 @@ void run_vabs2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output2_vals[idx] != ref2_vals[idx]) {
-      std::cout << "__imf_vabs2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vabs2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -143,13 +56,14 @@ void run_vabs2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output4_vals[idx] != ref4_vals[idx]) {
-      std::cout << "__imf_vabs4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vabs4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vabs2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vabs2_4 test pass." << std::endl;
 }
 
 void run_vabsss2_4_test(s::queue &queue) {
@@ -173,8 +87,10 @@ void run_vabsss2_4_test(s::queue &queue) {
           auto output4_acc = output4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vabsss2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output2_acc[I[0]] = __imf_vabsss2(input_vals[I[0]]);
-                output4_acc[I[0]] = __imf_vabsss4(input_vals[I[0]]);
+                output2_acc[I[0]] =
+                    sycl::ext::intel::math::vabsss2(input_vals[I[0]]);
+                output4_acc[I[0]] =
+                    sycl::ext::intel::math::vabsss4(input_vals[I[0]]);
               });
         })
         .wait();
@@ -182,7 +98,8 @@ void run_vabsss2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output2_vals[idx] != ref2_vals[idx]) {
-      std::cout << "__imf_vabsss2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vabsss2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -190,13 +107,14 @@ void run_vabsss2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output4_vals[idx] != ref4_vals[idx]) {
-      std::cout << "__imf_vabsss4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vabsss4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vabsss2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vabsss2_4 test pass." << std::endl;
 }
 
 void run_vabsdiffsu2_4_test(s::queue &queue) {
@@ -232,14 +150,14 @@ void run_vabsdiffsu2_4_test(s::queue &queue) {
           auto output_u4_acc = output_u4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vabsdiffsu2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_s2_acc[I[0]] =
-                    __imf_vabsdiffs2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_s4_acc[I[0]] =
-                    __imf_vabsdiffs4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_u2_acc[I[0]] =
-                    __imf_vabsdiffu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_u4_acc[I[0]] =
-                    __imf_vabsdiffu4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_s2_acc[I[0]] = sycl::ext::intel::math::vabsdiffs2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_s4_acc[I[0]] = sycl::ext::intel::math::vabsdiffs4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u2_acc[I[0]] = sycl::ext::intel::math::vabsdiffu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u4_acc[I[0]] = sycl::ext::intel::math::vabsdiffu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -247,7 +165,8 @@ void run_vabsdiffsu2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_s2_vals[idx] != ref_s2_vals[idx]) {
-      std::cout << "__imf_vabsdiffs2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vabsdiffs2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -255,7 +174,8 @@ void run_vabsdiffsu2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_s4_vals[idx] != ref_s4_vals[idx]) {
-      std::cout << "__imf_vabsdiffs4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vabsdiffs4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -263,7 +183,8 @@ void run_vabsdiffsu2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u2_vals[idx] != ref_u2_vals[idx]) {
-      std::cout << "__imf_vabsdiffu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vabsdiffu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -271,13 +192,14 @@ void run_vabsdiffsu2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u4_vals[idx] != ref_u4_vals[idx]) {
-      std::cout << "__imf_vabsdiffu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vabsdiffu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vabsdiffsu_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vabsdiffsu_2_4 test pass." << std::endl;
 }
 
 void run_vadd_ss_2_4_test(s::queue &queue) {
@@ -315,14 +237,14 @@ void run_vadd_ss_2_4_test(s::queue &queue) {
           auto output_ss4_acc = output_ss4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vadd2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_u2_acc[I[0]] =
-                    __imf_vadd2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_u4_acc[I[0]] =
-                    __imf_vadd4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_ss2_acc[I[0]] =
-                    __imf_vaddss2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_ss4_acc[I[0]] =
-                    __imf_vaddss4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u2_acc[I[0]] = sycl::ext::intel::math::vadd2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u4_acc[I[0]] = sycl::ext::intel::math::vadd4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_ss2_acc[I[0]] = sycl::ext::intel::math::vaddss2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_ss4_acc[I[0]] = sycl::ext::intel::math::vaddss4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -330,7 +252,8 @@ void run_vadd_ss_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u2_vals[idx] != ref_u2_vals[idx]) {
-      std::cout << "__imf_vadd2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vadd2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -338,7 +261,8 @@ void run_vadd_ss_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u4_vals[idx] != ref_u4_vals[idx]) {
-      std::cout << "__imf_vadd4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vadd4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -346,7 +270,8 @@ void run_vadd_ss_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_ss2_vals[idx] != ref_ss2_vals[idx]) {
-      std::cout << "__imf_vaddss2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vaddss2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -354,13 +279,14 @@ void run_vadd_ss_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_ss4_vals[idx] != ref_ss4_vals[idx]) {
-      std::cout << "__imf_vaddss4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vaddss4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vadd_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vadd_2_4 test pass." << std::endl;
 }
 
 void run_vadd_us_2_4_test(s::queue &queue) {
@@ -386,10 +312,10 @@ void run_vadd_us_2_4_test(s::queue &queue) {
           auto output_u4_acc = output_u4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vaddus2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_u2_acc[I[0]] =
-                    __imf_vaddus2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_u4_acc[I[0]] =
-                    __imf_vaddus4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u2_acc[I[0]] = sycl::ext::intel::math::vaddus2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u4_acc[I[0]] = sycl::ext::intel::math::vaddus4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -397,7 +323,8 @@ void run_vadd_us_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u2_vals[idx] != ref_u2_vals[idx]) {
-      std::cout << "__imf_vaddus2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vaddus2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -405,13 +332,14 @@ void run_vadd_us_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u4_vals[idx] != ref_u4_vals[idx]) {
-      std::cout << "__imf_vaddus4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vaddus4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vaddus_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vaddus_2_4 test pass." << std::endl;
 }
 
 void run_vhaddu_2_4_test(s::queue &queue) {
@@ -437,10 +365,10 @@ void run_vhaddu_2_4_test(s::queue &queue) {
           auto output_u4_acc = output_u4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vhaddu_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_u2_acc[I[0]] =
-                    __imf_vhaddu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_u4_acc[I[0]] =
-                    __imf_vhaddu4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u2_acc[I[0]] = sycl::ext::intel::math::vhaddu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u4_acc[I[0]] = sycl::ext::intel::math::vhaddu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -448,7 +376,8 @@ void run_vhaddu_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u2_vals[idx] != ref_u2_vals[idx]) {
-      std::cout << "__imf_vhaddu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vhaddu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -456,13 +385,14 @@ void run_vhaddu_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u4_vals[idx] != ref_u4_vals[idx]) {
-      std::cout << "__imf_vhaddu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vhaddu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vhaddu_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vhaddu_2_4 test pass." << std::endl;
 }
 
 void run_vsub_ss_2_4_test(s::queue &queue) {
@@ -500,14 +430,14 @@ void run_vsub_ss_2_4_test(s::queue &queue) {
           auto output_ss4_acc = output_ss4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vsub2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_u2_acc[I[0]] =
-                    __imf_vsub2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_u4_acc[I[0]] =
-                    __imf_vsub4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_ss2_acc[I[0]] =
-                    __imf_vsubss2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_ss4_acc[I[0]] =
-                    __imf_vsubss4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u2_acc[I[0]] = sycl::ext::intel::math::vsub2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u4_acc[I[0]] = sycl::ext::intel::math::vsub4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_ss2_acc[I[0]] = sycl::ext::intel::math::vsubss2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_ss4_acc[I[0]] = sycl::ext::intel::math::vsubss4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -515,7 +445,8 @@ void run_vsub_ss_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u2_vals[idx] != ref_u2_vals[idx]) {
-      std::cout << "__imf_vsub2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsub2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -523,7 +454,8 @@ void run_vsub_ss_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u4_vals[idx] != ref_u4_vals[idx]) {
-      std::cout << "__imf_vsub4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsub4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -531,7 +463,8 @@ void run_vsub_ss_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_ss2_vals[idx] != ref_ss2_vals[idx]) {
-      std::cout << "__imf_vsubss2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsubss2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -539,13 +472,14 @@ void run_vsub_ss_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_ss4_vals[idx] != ref_ss4_vals[idx]) {
-      std::cout << "__imf_vsubss4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsubss4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vsub_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vsub_2_4 test pass." << std::endl;
 }
 
 void run_vsub_us_2_4_test(s::queue &queue) {
@@ -571,10 +505,10 @@ void run_vsub_us_2_4_test(s::queue &queue) {
           auto output_u4_acc = output_u4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vsubus2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_u2_acc[I[0]] =
-                    __imf_vsubus2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_u4_acc[I[0]] =
-                    __imf_vsubus4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u2_acc[I[0]] = sycl::ext::intel::math::vsubus2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u4_acc[I[0]] = sycl::ext::intel::math::vsubus4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -582,7 +516,8 @@ void run_vsub_us_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u2_vals[idx] != ref_u2_vals[idx]) {
-      std::cout << "__imf_vsubus2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsubus2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -590,13 +525,14 @@ void run_vsub_us_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u4_vals[idx] != ref_u4_vals[idx]) {
-      std::cout << "__imf_vsubus4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsubus4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vsubus_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vsubus_2_4 test pass." << std::endl;
 }
 
 void run_vavgs_2_4_test(s::queue &queue) {
@@ -622,10 +558,10 @@ void run_vavgs_2_4_test(s::queue &queue) {
           auto output_s4_acc = output_s4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vavgs_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_s2_acc[I[0]] =
-                    __imf_vavgs2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_s4_acc[I[0]] =
-                    __imf_vavgs4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_s2_acc[I[0]] = sycl::ext::intel::math::vavgs2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_s4_acc[I[0]] = sycl::ext::intel::math::vavgs4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -633,7 +569,8 @@ void run_vavgs_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_s2_vals[idx] != ref_s2_vals[idx]) {
-      std::cout << "__imf_vavgs2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vavgs2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -641,7 +578,8 @@ void run_vavgs_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_s4_vals[idx] != ref_s4_vals[idx]) {
-      std::cout << "__imf_vavgs4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vavgs4 failed! idx = " << idx
+                << std::endl;
       std::cout << std::hex << output_s4_vals[idx] << "  " << ref_s4_vals[idx]
                 << std::endl;
       pass = false;
@@ -649,7 +587,7 @@ void run_vavgs_2_4_test(s::queue &queue) {
     }
   }
   assert(pass);
-  std::cout << "__imf_vavgs_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vavgs_2_4 test pass." << std::endl;
 }
 
 void run_vavgu_2_4_test(s::queue &queue) {
@@ -675,10 +613,10 @@ void run_vavgu_2_4_test(s::queue &queue) {
           auto output_u4_acc = output_u4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vavgu_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_u2_acc[I[0]] =
-                    __imf_vavgu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_u4_acc[I[0]] =
-                    __imf_vavgu4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u2_acc[I[0]] = sycl::ext::intel::math::vavgu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u4_acc[I[0]] = sycl::ext::intel::math::vavgu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -686,7 +624,8 @@ void run_vavgu_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u2_vals[idx] != ref_u2_vals[idx]) {
-      std::cout << "__imf_vavgu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vavgu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -694,13 +633,14 @@ void run_vavgu_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u4_vals[idx] != ref_u4_vals[idx]) {
-      std::cout << "__imf_vavgu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vavgu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vavgu_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vavgu_2_4 test pass." << std::endl;
 }
 
 void run_vcmpgts_2_4_test(s::queue &queue) {
@@ -726,10 +666,10 @@ void run_vcmpgts_2_4_test(s::queue &queue) {
           auto output_s4_acc = output_s4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vcmpgts_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_s2_acc[I[0]] =
-                    __imf_vcmpgts2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_s4_acc[I[0]] =
-                    __imf_vcmpgts4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_s2_acc[I[0]] = sycl::ext::intel::math::vcmpgts2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_s4_acc[I[0]] = sycl::ext::intel::math::vcmpgts4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -737,7 +677,8 @@ void run_vcmpgts_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_s2_vals[idx] != ref_s2_vals[idx]) {
-      std::cout << "__imf_vcmpgts2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpgts2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -745,13 +686,14 @@ void run_vcmpgts_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_s4_vals[idx] != ref_s4_vals[idx]) {
-      std::cout << "__imf_vcmpgts4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpgts4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vcmpgts_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vcmpgts_2_4 test pass." << std::endl;
 }
 
 void run_vmaxmin_2_4_test(s::queue &queue) {
@@ -832,22 +774,22 @@ void run_vmaxmin_2_4_test(s::queue &queue) {
               min_output_u4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vmaxmin_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                max_output_s2_acc[I[0]] =
-                    __imf_vmaxs2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                max_output_s4_acc[I[0]] =
-                    __imf_vmaxs4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                max_output_u2_acc[I[0]] =
-                    __imf_vmaxu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                max_output_u4_acc[I[0]] =
-                    __imf_vmaxu4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                min_output_s2_acc[I[0]] =
-                    __imf_vmins2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                min_output_s4_acc[I[0]] =
-                    __imf_vmins4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                min_output_u2_acc[I[0]] =
-                    __imf_vminu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                min_output_u4_acc[I[0]] =
-                    __imf_vminu4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                max_output_s2_acc[I[0]] = sycl::ext::intel::math::vmaxs2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                max_output_s4_acc[I[0]] = sycl::ext::intel::math::vmaxs4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                max_output_u2_acc[I[0]] = sycl::ext::intel::math::vmaxu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                max_output_u4_acc[I[0]] = sycl::ext::intel::math::vmaxu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                min_output_s2_acc[I[0]] = sycl::ext::intel::math::vmins2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                min_output_s4_acc[I[0]] = sycl::ext::intel::math::vmins4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                min_output_u2_acc[I[0]] = sycl::ext::intel::math::vminu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                min_output_u4_acc[I[0]] = sycl::ext::intel::math::vminu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -855,7 +797,8 @@ void run_vmaxmin_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (max_output_s2_vals[idx] != max_ref_s2_vals[idx]) {
-      std::cout << "__imf_vmaxs2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vmaxs2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -863,7 +806,8 @@ void run_vmaxmin_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (max_output_s4_vals[idx] != max_ref_s4_vals[idx]) {
-      std::cout << "__imf_vmaxs4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vmaxs4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -871,7 +815,8 @@ void run_vmaxmin_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (max_output_u2_vals[idx] != max_ref_u2_vals[idx]) {
-      std::cout << "__imf_vmaxu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vmaxu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -879,7 +824,8 @@ void run_vmaxmin_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (max_output_u4_vals[idx] != max_ref_u4_vals[idx]) {
-      std::cout << "__imf_vmaxu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vmaxu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -887,7 +833,8 @@ void run_vmaxmin_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (min_output_s2_vals[idx] != min_ref_s2_vals[idx]) {
-      std::cout << "__imf_vmins2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vmins2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -895,7 +842,8 @@ void run_vmaxmin_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (min_output_s4_vals[idx] != min_ref_s4_vals[idx]) {
-      std::cout << "__imf_vmins4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vmins4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -903,7 +851,8 @@ void run_vmaxmin_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (min_output_u2_vals[idx] != min_ref_u2_vals[idx]) {
-      std::cout << "__imf_vminu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vminu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -911,13 +860,14 @@ void run_vmaxmin_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (min_output_u4_vals[idx] != min_ref_u4_vals[idx]) {
-      std::cout << "__imf_vminu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vminu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vmaxmin_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vmaxmin_2_4 test pass." << std::endl;
 }
 
 void run_vneg_2_4_test(s::queue &queue) {
@@ -941,8 +891,10 @@ void run_vneg_2_4_test(s::queue &queue) {
           auto output4_acc = output4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vneg_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output2_acc[I[0]] = __imf_vneg2(input_vals[I[0]]);
-                output4_acc[I[0]] = __imf_vneg4(input_vals[I[0]]);
+                output2_acc[I[0]] =
+                    sycl::ext::intel::math::vneg2(input_vals[I[0]]);
+                output4_acc[I[0]] =
+                    sycl::ext::intel::math::vneg4(input_vals[I[0]]);
               });
         })
         .wait();
@@ -950,7 +902,8 @@ void run_vneg_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output2_vals[idx] != ref2_vals[idx]) {
-      std::cout << "__imf_vneg2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vneg2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -958,13 +911,14 @@ void run_vneg_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output4_vals[idx] != ref4_vals[idx]) {
-      std::cout << "__imf_vneg4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vneg4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vneg_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vneg_2_4 test pass." << std::endl;
 }
 
 void run_vnegss_2_4_test(s::queue &queue) {
@@ -984,8 +938,10 @@ void run_vnegss_2_4_test(s::queue &queue) {
           auto output4_acc = output4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vnegss_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output2_acc[I[0]] = __imf_vnegss2(input_vals[I[0]]);
-                output4_acc[I[0]] = __imf_vnegss4(input_vals[I[0]]);
+                output2_acc[I[0]] =
+                    sycl::ext::intel::math::vnegss2(input_vals[I[0]]);
+                output4_acc[I[0]] =
+                    sycl::ext::intel::math::vnegss4(input_vals[I[0]]);
               });
         })
         .wait();
@@ -993,7 +949,8 @@ void run_vnegss_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output2_vals[idx] != ref2_vals[idx]) {
-      std::cout << "__imf_vnegss2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vnegss2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1001,13 +958,14 @@ void run_vnegss_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output4_vals[idx] != ref4_vals[idx]) {
-      std::cout << "__imf_vnegss4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vnegss4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vnegss_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vnegss_2_4 test pass." << std::endl;
 }
 
 void run_vsad_2_4_test(s::queue &queue) {
@@ -1043,14 +1001,14 @@ void run_vsad_2_4_test(s::queue &queue) {
           auto output_u4_acc = output_u4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vsad_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_s2_acc[I[0]] =
-                    __imf_vsads2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_s4_acc[I[0]] =
-                    __imf_vsads4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_u2_acc[I[0]] =
-                    __imf_vsadu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_u4_acc[I[0]] =
-                    __imf_vsadu4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_s2_acc[I[0]] = sycl::ext::intel::math::vsads2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_s4_acc[I[0]] = sycl::ext::intel::math::vsads4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u2_acc[I[0]] = sycl::ext::intel::math::vsadu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_u4_acc[I[0]] = sycl::ext::intel::math::vsadu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -1058,7 +1016,8 @@ void run_vsad_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_s2_vals[idx] != ref_s2_vals[idx]) {
-      std::cout << "__imf_vsads2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsads2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1066,7 +1025,8 @@ void run_vsad_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_s4_vals[idx] != ref_s4_vals[idx]) {
-      std::cout << "__imf_vsads4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsads4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1074,7 +1034,8 @@ void run_vsad_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u2_vals[idx] != ref_u2_vals[idx]) {
-      std::cout << "__imf_vsadu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsadu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1082,13 +1043,14 @@ void run_vsad_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_u4_vals[idx] != ref_u4_vals[idx]) {
-      std::cout << "__imf_vsadu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsadu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vsad_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vsad_2_4 test pass." << std::endl;
 }
 
 void run_veqne_2_4_test(s::queue &queue) {
@@ -1155,22 +1117,22 @@ void run_veqne_2_4_test(s::queue &queue) {
               output_setne4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class veqne_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_cmpeq2_acc[I[0]] =
-                    __imf_vcmpeq2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpeq4_acc[I[0]] =
-                    __imf_vcmpeq4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpne2_acc[I[0]] =
-                    __imf_vcmpne2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpne4_acc[I[0]] =
-                    __imf_vcmpne4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_seteq2_acc[I[0]] =
-                    __imf_vseteq2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_seteq4_acc[I[0]] =
-                    __imf_vseteq4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setne2_acc[I[0]] =
-                    __imf_vsetne2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setne4_acc[I[0]] =
-                    __imf_vsetne4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpeq2_acc[I[0]] = sycl::ext::intel::math::vcmpeq2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpeq4_acc[I[0]] = sycl::ext::intel::math::vcmpeq4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpne2_acc[I[0]] = sycl::ext::intel::math::vcmpne2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpne4_acc[I[0]] = sycl::ext::intel::math::vcmpne4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_seteq2_acc[I[0]] = sycl::ext::intel::math::vseteq2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_seteq4_acc[I[0]] = sycl::ext::intel::math::vseteq4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setne2_acc[I[0]] = sycl::ext::intel::math::vsetne2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setne4_acc[I[0]] = sycl::ext::intel::math::vsetne4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -1178,7 +1140,8 @@ void run_veqne_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpeq2_vals[idx] != cmpeq2_ref_vals[idx]) {
-      std::cout << "__imf_vcmpeq2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpeq2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1186,7 +1149,8 @@ void run_veqne_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpeq4_vals[idx] != cmpeq4_ref_vals[idx]) {
-      std::cout << "__imf_vcmpeq4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpeq4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1194,7 +1158,8 @@ void run_veqne_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpne2_vals[idx] != cmpne2_ref_vals[idx]) {
-      std::cout << "__imf_vcmpne2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpne2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1202,7 +1167,8 @@ void run_veqne_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpne4_vals[idx] != cmpne4_ref_vals[idx]) {
-      std::cout << "__imf_vcmpne4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpne4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1210,7 +1176,8 @@ void run_veqne_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_seteq2_vals[idx] != seteq2_ref_vals[idx]) {
-      std::cout << "__imf_vseteq2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vseteq2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1218,7 +1185,8 @@ void run_veqne_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_seteq4_vals[idx] != seteq4_ref_vals[idx]) {
-      std::cout << "__imf_vseteq4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vseteq4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1226,7 +1194,8 @@ void run_veqne_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setne2_vals[idx] != setne2_ref_vals[idx]) {
-      std::cout << "__imf_vsetne2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetne2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1234,13 +1203,14 @@ void run_veqne_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setne4_vals[idx] != setne4_ref_vals[idx]) {
-      std::cout << "__imf_vsetne4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetne4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_veqne_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::veqne_2_4 test pass." << std::endl;
 }
 
 void run_vgelt_2_4_test(s::queue &queue) {
@@ -1359,38 +1329,38 @@ void run_vgelt_2_4_test(s::queue &queue) {
               output_setltu4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vgelt_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_cmpges2_acc[I[0]] =
-                    __imf_vcmpges2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpges4_acc[I[0]] =
-                    __imf_vcmpges4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmplts2_acc[I[0]] =
-                    __imf_vcmplts2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmplts4_acc[I[0]] =
-                    __imf_vcmplts4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpgeu2_acc[I[0]] =
-                    __imf_vcmpgeu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpgeu4_acc[I[0]] =
-                    __imf_vcmpgeu4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpltu2_acc[I[0]] =
-                    __imf_vcmpltu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpltu4_acc[I[0]] =
-                    __imf_vcmpltu4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setges2_acc[I[0]] =
-                    __imf_vsetges2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setges4_acc[I[0]] =
-                    __imf_vsetges4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setlts2_acc[I[0]] =
-                    __imf_vsetlts2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setlts4_acc[I[0]] =
-                    __imf_vsetlts4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setgeu2_acc[I[0]] =
-                    __imf_vsetgeu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setgeu4_acc[I[0]] =
-                    __imf_vsetgeu4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setltu2_acc[I[0]] =
-                    __imf_vsetltu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setltu4_acc[I[0]] =
-                    __imf_vsetltu4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpges2_acc[I[0]] = sycl::ext::intel::math::vcmpges2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpges4_acc[I[0]] = sycl::ext::intel::math::vcmpges4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmplts2_acc[I[0]] = sycl::ext::intel::math::vcmplts2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmplts4_acc[I[0]] = sycl::ext::intel::math::vcmplts4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpgeu2_acc[I[0]] = sycl::ext::intel::math::vcmpgeu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpgeu4_acc[I[0]] = sycl::ext::intel::math::vcmpgeu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpltu2_acc[I[0]] = sycl::ext::intel::math::vcmpltu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpltu4_acc[I[0]] = sycl::ext::intel::math::vcmpltu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setges2_acc[I[0]] = sycl::ext::intel::math::vsetges2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setges4_acc[I[0]] = sycl::ext::intel::math::vsetges4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setlts2_acc[I[0]] = sycl::ext::intel::math::vsetlts2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setlts4_acc[I[0]] = sycl::ext::intel::math::vsetlts4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setgeu2_acc[I[0]] = sycl::ext::intel::math::vsetgeu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setgeu4_acc[I[0]] = sycl::ext::intel::math::vsetgeu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setltu2_acc[I[0]] = sycl::ext::intel::math::vsetltu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setltu4_acc[I[0]] = sycl::ext::intel::math::vsetltu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -1398,7 +1368,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpges2_vals[idx] != cmpges2_ref_vals[idx]) {
-      std::cout << "__imf_vcmpges2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpges2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1406,7 +1377,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpges4_vals[idx] != cmpges4_ref_vals[idx]) {
-      std::cout << "__imf_vcmpges4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpges4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1414,7 +1386,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmplts2_vals[idx] != cmplts2_ref_vals[idx]) {
-      std::cout << "__imf_vcmplts2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmplts2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1422,14 +1395,16 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmplts4_vals[idx] != cmplts4_ref_vals[idx]) {
-      std::cout << "__imf_vcmplts4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmplts4 failed! idx = " << idx
+                << std::endl;
       break;
     }
   }
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpgeu2_vals[idx] != cmpgeu2_ref_vals[idx]) {
-      std::cout << "__imf_vcmpgeu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpgeu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1437,7 +1412,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpgeu4_vals[idx] != cmpgeu4_ref_vals[idx]) {
-      std::cout << "__imf_vcmpgeu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpgeu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1445,7 +1421,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpltu2_vals[idx] != cmpltu2_ref_vals[idx]) {
-      std::cout << "__imf_vcmpltu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpltu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1453,7 +1430,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpltu4_vals[idx] != cmpltu4_ref_vals[idx]) {
-      std::cout << "__imf_vcmpltu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpltu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1461,7 +1439,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setges2_vals[idx] != setges2_ref_vals[idx]) {
-      std::cout << "__imf_vsetges2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetges2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1469,7 +1448,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setges4_vals[idx] != setges4_ref_vals[idx]) {
-      std::cout << "__imf_vsetges4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetges4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1477,7 +1457,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setlts2_vals[idx] != setlts2_ref_vals[idx]) {
-      std::cout << "__imf_vsetlts2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetlts2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1485,7 +1466,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setlts4_vals[idx] != setlts4_ref_vals[idx]) {
-      std::cout << "__imf_vsetlts4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetlts4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1493,7 +1475,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setgeu2_vals[idx] != setgeu2_ref_vals[idx]) {
-      std::cout << "__imf_vsetgeu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetgeu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1501,7 +1484,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setgeu4_vals[idx] != setgeu4_ref_vals[idx]) {
-      std::cout << "__imf_vsetgeu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetgeu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1509,7 +1493,8 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setltu2_vals[idx] != setltu2_ref_vals[idx]) {
-      std::cout << "__imf_vsetltu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetltu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1517,13 +1502,14 @@ void run_vgelt_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setltu4_vals[idx] != setltu4_ref_vals[idx]) {
-      std::cout << "__imf_vsetltu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetltu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vgelt_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vgelt_2_4 test pass." << std::endl;
 }
 
 void run_vgtle_2_4_test(s::queue &queue) {
@@ -1642,38 +1628,38 @@ void run_vgtle_2_4_test(s::queue &queue) {
               output_setleu4_buf.get_access<sycl_write>(cgh);
           cgh.parallel_for<class vgtle_2_4_test>(
               s::range<1>(NUM), [=](s::id<1> I) {
-                output_cmpgts2_acc[I[0]] =
-                    __imf_vcmpgts2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpgts4_acc[I[0]] =
-                    __imf_vcmpgts4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmples2_acc[I[0]] =
-                    __imf_vcmples2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmples4_acc[I[0]] =
-                    __imf_vcmples4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpgtu2_acc[I[0]] =
-                    __imf_vcmpgtu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpgtu4_acc[I[0]] =
-                    __imf_vcmpgtu4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpleu2_acc[I[0]] =
-                    __imf_vcmpleu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_cmpleu4_acc[I[0]] =
-                    __imf_vcmpleu4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setgts2_acc[I[0]] =
-                    __imf_vsetgts2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setgts4_acc[I[0]] =
-                    __imf_vsetgts4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setles2_acc[I[0]] =
-                    __imf_vsetles2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setles4_acc[I[0]] =
-                    __imf_vsetles4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setgtu2_acc[I[0]] =
-                    __imf_vsetgtu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setgtu4_acc[I[0]] =
-                    __imf_vsetgtu4(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setleu2_acc[I[0]] =
-                    __imf_vsetleu2(input_x_vals[I[0]], input_y_vals[I[0]]);
-                output_setleu4_acc[I[0]] =
-                    __imf_vsetleu4(input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpgts2_acc[I[0]] = sycl::ext::intel::math::vcmpgts2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpgts4_acc[I[0]] = sycl::ext::intel::math::vcmpgts4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmples2_acc[I[0]] = sycl::ext::intel::math::vcmples2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmples4_acc[I[0]] = sycl::ext::intel::math::vcmples4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpgtu2_acc[I[0]] = sycl::ext::intel::math::vcmpgtu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpgtu4_acc[I[0]] = sycl::ext::intel::math::vcmpgtu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpleu2_acc[I[0]] = sycl::ext::intel::math::vcmpleu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_cmpleu4_acc[I[0]] = sycl::ext::intel::math::vcmpleu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setgts2_acc[I[0]] = sycl::ext::intel::math::vsetgts2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setgts4_acc[I[0]] = sycl::ext::intel::math::vsetgts4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setles2_acc[I[0]] = sycl::ext::intel::math::vsetles2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setles4_acc[I[0]] = sycl::ext::intel::math::vsetles4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setgtu2_acc[I[0]] = sycl::ext::intel::math::vsetgtu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setgtu4_acc[I[0]] = sycl::ext::intel::math::vsetgtu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setleu2_acc[I[0]] = sycl::ext::intel::math::vsetleu2(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
+                output_setleu4_acc[I[0]] = sycl::ext::intel::math::vsetleu4(
+                    input_x_vals[I[0]], input_y_vals[I[0]]);
               });
         })
         .wait();
@@ -1681,7 +1667,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
 
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpgts2_vals[idx] != cmpgts2_ref_vals[idx]) {
-      std::cout << "__imf_vcmpgts2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpgts2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1689,7 +1676,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpgts4_vals[idx] != cmpgts4_ref_vals[idx]) {
-      std::cout << "__imf_vcmpgts4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpgts4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1697,7 +1685,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmples2_vals[idx] != cmples2_ref_vals[idx]) {
-      std::cout << "__imf_vcmples2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmples2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1705,14 +1694,16 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmples4_vals[idx] != cmples4_ref_vals[idx]) {
-      std::cout << "__imf_vcmples4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmples4 failed! idx = " << idx
+                << std::endl;
       break;
     }
   }
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpgtu2_vals[idx] != cmpgtu2_ref_vals[idx]) {
-      std::cout << "__imf_vcmpgtu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpgtu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1720,7 +1711,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpgtu4_vals[idx] != cmpgtu4_ref_vals[idx]) {
-      std::cout << "__imf_vcmpgtu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpgtu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1728,7 +1720,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpleu2_vals[idx] != cmpleu2_ref_vals[idx]) {
-      std::cout << "__imf_vcmpleu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpleu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1736,7 +1729,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_cmpleu4_vals[idx] != cmpleu4_ref_vals[idx]) {
-      std::cout << "__imf_vcmpleu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vcmpleu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1744,7 +1738,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setgts2_vals[idx] != setgts2_ref_vals[idx]) {
-      std::cout << "__imf_vsetgts2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetgts2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1752,7 +1747,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setgts4_vals[idx] != setgts4_ref_vals[idx]) {
-      std::cout << "__imf_vsetgts4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetgts4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1760,7 +1756,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setles2_vals[idx] != setles2_ref_vals[idx]) {
-      std::cout << "__imf_vsetles2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetles2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1768,7 +1765,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setles4_vals[idx] != setles4_ref_vals[idx]) {
-      std::cout << "__imf_vsetles4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetles4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1776,7 +1774,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setgtu2_vals[idx] != setgtu2_ref_vals[idx]) {
-      std::cout << "__imf_vsetgtu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetgtu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1784,7 +1783,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setgtu4_vals[idx] != setgtu4_ref_vals[idx]) {
-      std::cout << "__imf_vsetgtu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetgtu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1792,7 +1792,8 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setleu2_vals[idx] != setleu2_ref_vals[idx]) {
-      std::cout << "__imf_vsetleu2 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetleu2 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
@@ -1800,13 +1801,14 @@ void run_vgtle_2_4_test(s::queue &queue) {
   assert(pass);
   for (size_t idx = 0; idx < NUM; ++idx) {
     if (output_setleu4_vals[idx] != setleu4_ref_vals[idx]) {
-      std::cout << "__imf_vsetleu4 failed! idx = " << idx << std::endl;
+      std::cout << "sycl::ext::intel::math::vsetleu4 failed! idx = " << idx
+                << std::endl;
       pass = false;
       break;
     }
   }
   assert(pass);
-  std::cout << "__imf_vgtle_2_4 test pass." << std::endl;
+  std::cout << "sycl::ext::intel::math::vgtle_2_4 test pass." << std::endl;
 }
 
 int main(int, char **) {
@@ -1831,4 +1833,5 @@ int main(int, char **) {
   run_veqne_2_4_test(device_queue);
   run_vgelt_2_4_test(device_queue);
   run_vgtle_2_4_test(device_queue);
+  run_vavgs_2_4_test(device_queue);
 }

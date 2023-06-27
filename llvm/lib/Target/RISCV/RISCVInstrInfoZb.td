@@ -573,18 +573,16 @@ def : Pat<(and GPR:$r, BCLRIANDIMask:$i),
                  (BCLRITwoBitsMaskHigh BCLRIANDIMask:$i))>;
 } // Predicates = [HasStdExtZbs]
 
-let Predicates = [HasStdExtZbb] in {
-def : Pat<(riscv_orc_b GPR:$rs1), (ORC_B GPR:$rs1)>;
-} // Predicates = [HasStdExtZbb]
+let Predicates = [HasStdExtZbb] in
+def : PatGpr<riscv_orc_b, ORC_B>;
 
-let Predicates = [HasStdExtZbkb] in {
-def : Pat<(riscv_brev8 GPR:$rs1), (BREV8 GPR:$rs1)>;
-} // Predicates = [HasStdExtZbkb]
+let Predicates = [HasStdExtZbkb] in
+def : PatGpr<riscv_brev8, BREV8>;
 
 let Predicates = [HasStdExtZbkb, IsRV32] in {
 // We treat zip and unzip as separate instructions, so match it directly.
-def : Pat<(i32 (riscv_zip GPR:$rs1)), (ZIP_RV32 GPR:$rs1)>;
-def : Pat<(i32 (riscv_unzip GPR:$rs1)), (UNZIP_RV32 GPR:$rs1)>;
+def : PatGpr<riscv_zip, ZIP_RV32, i32>;
+def : PatGpr<riscv_unzip, UNZIP_RV32, i32>;
 } // Predicates = [HasStdExtZbkb, IsRV32]
 
 let Predicates = [HasStdExtZbb] in {
@@ -614,13 +612,11 @@ def : PatGprGpr<umin, MINU>;
 def : PatGprGpr<umax, MAXU>;
 } // Predicates = [HasStdExtZbb]
 
-let Predicates = [HasStdExtZbbOrZbkb, IsRV32] in {
-def : Pat<(i32 (bswap GPR:$rs1)), (REV8_RV32 GPR:$rs1)>;
-} // Predicates = [HasStdExtZbbOrZbkb, IsRV32]
+let Predicates = [HasStdExtZbbOrZbkb, IsRV32] in
+def : PatGpr<bswap, REV8_RV32, i32>;
 
-let Predicates = [HasStdExtZbbOrZbkb, IsRV64] in {
-def : Pat<(i64 (bswap GPR:$rs1)), (REV8_RV64 GPR:$rs1)>;
-} // Predicates = [HasStdExtZbbOrZbkb, IsRV64]
+let Predicates = [HasStdExtZbbOrZbkb, IsRV64] in
+def : PatGpr<bswap, REV8_RV64, i64>;
 
 let Predicates = [HasStdExtZbkb] in {
 def : Pat<(or (and (shl GPR:$rs2, (XLenVT 8)), 0xFFFF),
@@ -759,11 +755,11 @@ def : Pat<(i64 (add (and (shl GPR:$rs1, (i64 3)), 0x7FFFFFFFF), non_imm12:$rs2))
           (SH3ADD_UW GPR:$rs1, GPR:$rs2)>;
 
 // More complex cases use a ComplexPattern.
-def : Pat<(add sh1add_uw_op:$rs1, non_imm12:$rs2),
+def : Pat<(i64 (add sh1add_uw_op:$rs1, non_imm12:$rs2)),
           (SH1ADD_UW sh1add_uw_op:$rs1, GPR:$rs2)>;
-def : Pat<(add sh2add_uw_op:$rs1, non_imm12:$rs2),
+def : Pat<(i64 (add sh2add_uw_op:$rs1, non_imm12:$rs2)),
           (SH2ADD_UW sh2add_uw_op:$rs1, GPR:$rs2)>;
-def : Pat<(add sh3add_uw_op:$rs1, non_imm12:$rs2),
+def : Pat<(i64 (add sh3add_uw_op:$rs1, non_imm12:$rs2)),
           (SH3ADD_UW sh3add_uw_op:$rs1, GPR:$rs2)>;
 
 def : Pat<(i64 (add (and GPR:$rs1, 0xFFFFFFFE), non_imm12:$rs2)),
@@ -781,13 +777,13 @@ def : Pat<(i64 (add (and GPR:$rs1, 0x3FFFFFFFC), non_imm12:$rs2)),
 def : Pat<(i64 (add (and GPR:$rs1, 0x7FFFFFFF8), non_imm12:$rs2)),
           (SH3ADD_UW (SRLI GPR:$rs1, 3), GPR:$rs2)>;
 
-def : Pat<(mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C3LeftShiftUW:$i),
+def : Pat<(i64 (mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C3LeftShiftUW:$i)),
           (SH1ADD (SLLI_UW GPR:$r, (TrailingZeros C3LeftShiftUW:$i)),
                   (SLLI_UW GPR:$r, (TrailingZeros C3LeftShiftUW:$i)))>;
-def : Pat<(mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C5LeftShiftUW:$i),
+def : Pat<(i64 (mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C5LeftShiftUW:$i)),
           (SH2ADD (SLLI_UW GPR:$r, (TrailingZeros C5LeftShiftUW:$i)),
                   (SLLI_UW GPR:$r, (TrailingZeros C5LeftShiftUW:$i)))>;
-def : Pat<(mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C9LeftShiftUW:$i),
+def : Pat<(i64 (mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C9LeftShiftUW:$i)),
           (SH3ADD (SLLI_UW GPR:$r, (TrailingZeros C9LeftShiftUW:$i)),
                   (SLLI_UW GPR:$r, (TrailingZeros C9LeftShiftUW:$i)))>;
 } // Predicates = [HasStdExtZba, IsRV64]

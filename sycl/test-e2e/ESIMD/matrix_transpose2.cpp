@@ -5,13 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// FIXME: Investigate Windows-specific failures
-// REQUIRES: TEMPORARY_DISABLED
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
-// TODO: esimd_emulator fails due to outdated __esimd_media_ld
-// XFAIL: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// TODO: investigate sporadic esimd_emulator failures
+// UNSUPPORTED: gpu-intel-pvc || esimd_emulator
+// REQUIRES: aspect-ext_intel_legacy_image
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks matrix transpose implementation with media block read/write
 

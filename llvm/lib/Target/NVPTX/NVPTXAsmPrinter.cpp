@@ -44,6 +44,7 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/Attributes.h"
@@ -74,7 +75,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/NativeFormatting.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -91,6 +91,11 @@
 #include <vector>
 
 using namespace llvm;
+
+static cl::opt<bool>
+    LowerCtorDtor("nvptx-lower-global-ctor-dtor",
+                  cl::desc("Lower GPU ctor / dtors to globals on the device."),
+                  cl::init(false), cl::Hidden);
 
 #define DEPOTNAME "__local_depot"
 
@@ -304,10 +309,6 @@ unsigned NVPTXAsmPrinter::encodeVirtualRegister(unsigned Reg) {
       Ret = (5 << 28);
     } else if (RC == &NVPTX::Float64RegsRegClass) {
       Ret = (6 << 28);
-    } else if (RC == &NVPTX::Float16RegsRegClass) {
-      Ret = (7 << 28);
-    } else if (RC == &NVPTX::Float16x2RegsRegClass) {
-      Ret = (8 << 28);
     } else {
       report_fatal_error("Bad register class");
     }
@@ -429,7 +430,7 @@ bool NVPTXAsmPrinter::isLoopHeaderOfNoUnroll(
         if (MDNode *UnrollCountMD =
                 GetUnrollMetadata(LoopID, "llvm.loop.unroll.count")) {
           if (mdconst::extract<ConstantInt>(UnrollCountMD->getOperand(1))
-                  ->getZExtValue() == 1)
+                  ->isOne())
             return true;
         }
       }
@@ -466,7 +467,7 @@ void NVPTXAsmPrinter::emitFunctionEntryLabel() {
 
   CurrentFnSym->print(O, MAI);
 
-  emitFunctionParamList(*MF, O);
+  emitFunctionParamList(F, O);
 
   if (isKernelFunction(*F))
     emitKernelFunctionDirectives(*F, O);
@@ -700,7 +701,7 @@ static bool useFuncSeen(const Constant *C,
       const Function *caller = bb->getParent();
       if (!caller)
         continue;
-      if (seenMap.find(caller) != seenMap.end())
+      if (seenMap.contains(caller))
         return true;
     }
   }
@@ -753,7 +754,7 @@ void NVPTXAsmPrinter::emitDeclarations(const Module &M, raw_ostream &O) {
       // If a caller has already been seen, then the caller is
       // appearing in the module before the callee. so print out
       // a declaration for the callee.
-      if (seenMap.find(caller) != seenMap.end()) {
+      if (seenMap.contains(caller)) {
         emitDeclaration(&F, O);
         break;
       }
@@ -788,12 +789,14 @@ bool NVPTXAsmPrinter::doInitialization(Module &M) {
     report_fatal_error("Module has aliases, which NVPTX does not support.");
     return true; // error
   }
-  if (!isEmptyXXStructor(M.getNamedGlobal("llvm.global_ctors"))) {
+  if (!isEmptyXXStructor(M.getNamedGlobal("llvm.global_ctors")) &&
+      !LowerCtorDtor) {
     report_fatal_error(
         "Module has a nontrivial global ctor, which NVPTX does not support.");
     return true;  // error
   }
-  if (!isEmptyXXStructor(M.getNamedGlobal("llvm.global_dtors"))) {
+  if (!isEmptyXXStructor(M.getNamedGlobal("llvm.global_dtors")) &&
+      !LowerCtorDtor) {
     report_fatal_error(
         "Module has a nontrivial global dtor, which NVPTX does not support.");
     return true;  // error
@@ -1148,7 +1151,7 @@ void NVPTXAsmPrinter::printModuleLevelGV(const GlobalVariable *GVar,
       }
     }
   } else {
-    unsigned int ElementSize = 0;
+    uint64_t ElementSize = 0;
 
     // Although PTX has direct support for struct type and array type and
     // LLVM IR is very similar to PTX, the LLVM CodeGen does not support for
@@ -1441,12 +1444,6 @@ void NVPTXAsmPrinter::emitPTXGlobalVariable(const GlobalVariable *GVar,
   }
 }
 
-void NVPTXAsmPrinter::printParamName(Function::const_arg_iterator I,
-                                     int paramIndex, raw_ostream &O) {
-  getSymbol(I->getParent())->print(O, MAI);
-  O << "_param_" << paramIndex;
-}
-
 void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
   const DataLayout &DL = getDataLayout();
   const AttributeList &PAL = F->getAttributes();
@@ -1485,24 +1482,21 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
               O << "\t.param .u64 .ptr .surfref ";
             else
               O << "\t.param .surfref ";
-            CurrentFnSym->print(O, MAI);
-            O << "_param_" << paramIndex;
+            O << TLI->getParamName(F, paramIndex);
           }
           else { // Default image is read_only
             if (hasImageHandles)
               O << "\t.param .u64 .ptr .texref ";
             else
               O << "\t.param .texref ";
-            CurrentFnSym->print(O, MAI);
-            O << "_param_" << paramIndex;
+            O << TLI->getParamName(F, paramIndex);
           }
         } else {
           if (hasImageHandles)
             O << "\t.param .u64 .ptr .samplerref ";
           else
             O << "\t.param .samplerref ";
-          CurrentFnSym->print(O, MAI);
-          O << "_param_" << paramIndex;
+          O << TLI->getParamName(F, paramIndex);
         }
         continue;
       }
@@ -1524,7 +1518,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
         Align OptimalAlign = getOptimalAlignForParam(Ty);
 
         O << "\t.param .align " << OptimalAlign.value() << " .b8 ";
-        printParamName(I, paramIndex, O);
+        O << TLI->getParamName(F, paramIndex);
         O << "[" << DL.getTypeAllocSize(Ty) << "]";
 
         continue;
@@ -1563,7 +1557,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
             Align ParamAlign = I->getParamAlign().valueOrOne();
             O << ".align " << ParamAlign.value() << " ";
           }
-          printParamName(I, paramIndex, O);
+          O << TLI->getParamName(F, paramIndex);
           continue;
         }
 
@@ -1575,7 +1569,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
         else
           O << getPTXFundamentalTypeStr(Ty);
         O << " ";
-        printParamName(I, paramIndex, O);
+        O << TLI->getParamName(F, paramIndex);
         continue;
       }
       // Non-kernel function, just print .param .b<size> for ABI
@@ -1598,7 +1592,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
         O << "\t.param .b" << sz << " ";
       else
         O << "\t.reg .b" << sz << " ";
-      printParamName(I, paramIndex, O);
+      O << TLI->getParamName(F, paramIndex);
       continue;
     }
 
@@ -1619,7 +1613,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
 
       unsigned sz = DL.getTypeAllocSize(ETy);
       O << "\t.param .align " << OptimalAlign.value() << " .b8 ";
-      printParamName(I, paramIndex, O);
+      O << TLI->getParamName(F, paramIndex);
       O << "[" << sz << "]";
       continue;
     } else {
@@ -1642,7 +1636,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
           if (elemtype.isInteger())
             sz = promoteScalarArgumentSize(sz);
           O << "\t.reg .b" << sz << " ";
-          printParamName(I, paramIndex, O);
+          O << TLI->getParamName(F, paramIndex);
           if (j < je - 1)
             O << ",\n";
           ++paramIndex;
@@ -1660,17 +1654,10 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
       O << ",\n";
     O << "\t.param .align " << STI.getMaxRequiredAlignment();
     O << " .b8 ";
-    getSymbol(F)->print(O, MAI);
-    O << "_vararg[]";
+    O << TLI->getParamName(F, /* vararg */ -1) << "[]";
   }
 
   O << "\n)\n";
-}
-
-void NVPTXAsmPrinter::emitFunctionParamList(const MachineFunction &MF,
-                                            raw_ostream &O) {
-  const Function &F = MF.getFunction();
-  emitFunctionParamList(&F, O);
 }
 
 void NVPTXAsmPrinter::setAndEmitFunctionVirtualRegisters(

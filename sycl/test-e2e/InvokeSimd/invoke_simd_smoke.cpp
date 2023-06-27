@@ -2,12 +2,8 @@
 // compiles and executes correctly on GPU, where the SIMD target is a
 // ESIMD function.
 
-// TODO: enable on Windows once driver is ready
-// REQUIRES: gpu && linux
-// UNSUPPORTED: cuda || hip
-
-// RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out
-// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
+// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>

@@ -506,15 +506,15 @@ LogicalResult mlir::linalg::detail::verifyFillInterface(Operation *op) {
 /// the type of `source`.
 static Value createOrFoldDimOp(OpBuilder &b, Location loc, Value source,
                                int64_t dim) {
-  if (source.getType().isa<UnrankedMemRefType, MemRefType>())
+  if (llvm::isa<UnrankedMemRefType, MemRefType>(source.getType()))
     return b.createOrFold<memref::DimOp>(loc, source, dim);
-  if (source.getType().isa<UnrankedTensorType, RankedTensorType>())
+  if (llvm::isa<UnrankedTensorType, RankedTensorType>(source.getType()))
     return b.createOrFold<tensor::DimOp>(loc, source, dim);
   llvm_unreachable("Expected MemRefType or TensorType");
 }
 static OpFoldResult createFoldedDimOp(OpBuilder &b, Location loc, Value source,
                                       int64_t dim) {
-  auto shapedType = source.getType().cast<ShapedType>();
+  auto shapedType = llvm::cast<ShapedType>(source.getType());
   if (!shapedType.hasRank() || shapedType.isDynamicDim(dim))
     return createOrFoldDimOp(b, loc, source, dim);
   return b.getIndexAttr(shapedType.getDimSize(dim));
@@ -636,19 +636,26 @@ LinalgOp::reifyResultShapes(OpBuilder &b,
   Location loc = getOperation()->getLoc();
   IRRewriter rewriter(b);
   SmallVector<OpFoldResult> allResultDimValues =
-      makeComposedFoldedMultiResultAffineApply(
+      affine::makeComposedFoldedMultiResultAffineApply(
           rewriter, loc, resultShapesFromInputShapesMap,
           createFlatListOfOperandDims(b, loc));
   int64_t pos = 0;
   ArrayRef<AffineExpr> shapeExprs = resultShapesFromInputShapesMap.getResults();
   for (OpOperand *opOperand : getDpsInitOperands()) {
-    SmallVector<Value> shapes;
+    SmallVector<OpFoldResult> shapes;
     for (int64_t dim : llvm::seq<int64_t>(0, getRank(opOperand))) {
-      if (checkDimExpr.visit(shapeExprs[pos]))
-        shapes.push_back(createOrFoldDimOp(b, loc, opOperand->get(), dim));
-      else
-        shapes.push_back(
-            getValueOrCreateConstantIndexOp(b, loc, allResultDimValues[pos]));
+      auto shapedType = llvm::cast<ShapedType>(opOperand->get().getType());
+      if (!shapedType.isDynamicDim(dim)) {
+        // Static dim: Return IntegerAttr.
+        shapes.push_back(b.getIndexAttr(shapedType.getDimSize(dim)));
+      } else {
+        // Dynamic dim: Return Value.
+        OpFoldResult ofr =
+            checkDimExpr.visit(shapeExprs[pos])
+                ? createOrFoldDimOp(b, loc, opOperand->get(), dim)
+                : allResultDimValues[pos];
+        shapes.push_back(getValueOrCreateConstantIndexOp(b, loc, ofr));
+      }
       pos++;
     }
     reifiedReturnShapes.emplace_back(std::move(shapes));

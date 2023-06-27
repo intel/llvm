@@ -10,8 +10,8 @@
 // REQUIRES: gpu-intel-pvc
 // TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
 // UNSUPPORTED: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // 64 bit offset variant of the test - uses 64 bit offsets.
 

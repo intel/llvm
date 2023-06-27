@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 
@@ -224,11 +222,10 @@ int main() {
 
   // abs (longlong)
   {
-    using ulonglong2 = s::vec<unsigned long long, 2>;
     using longlong2 = s::vec<long long, 2>;
-    ulonglong2 r{0};
+    longlong2 r{0};
     {
-      s::buffer<ulonglong2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<longlong2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
@@ -237,8 +234,8 @@ int main() {
         });
       });
     }
-    unsigned long long r1 = r.x();
-    unsigned long long r2 = r.y();
+    long long r1 = r.x();
+    long long r2 = r.y();
     assert(r1 == 5);
     assert(r2 == 2);
   }
@@ -388,7 +385,7 @@ int main() {
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class ctzSI2>([=]() {
-          AccR[0] = s::intel::ctz(s::int2{0x7FFFFFF0, 0x7FFFFFF0});
+          AccR[0] = s::ctz(s::int2{0x7FFFFFF0, 0x7FFFFFF0});
         });
       });
     }

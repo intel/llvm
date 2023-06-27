@@ -1,9 +1,8 @@
 // RUN: %clang_analyze_cc1 %s \
 // RUN:   -analyzer-checker=core \
-// RUN:   -analyzer-checker=apiModeling.StdCLibraryFunctions \
-// RUN:   -analyzer-checker=alpha.unix.StdCLibraryFunctionArgs \
+// RUN:   -analyzer-checker=alpha.unix.StdCLibraryFunctions \
 // RUN:   -analyzer-checker=debug.StdCLibraryFunctionsTester \
-// RUN:   -analyzer-config apiModeling.StdCLibraryFunctions:DisplayLoadedSummaries=true \
+// RUN:   -analyzer-config alpha.unix.StdCLibraryFunctions:DisplayLoadedSummaries=true \
 // RUN:   -analyzer-checker=debug.ExprInspection \
 // RUN:   -analyzer-config eagerly-assume=false \
 // RUN:   -triple i686-unknown-linux \
@@ -19,7 +18,7 @@ int clang_analyzer_getExtent(void *);
 // Check NotNullConstraint assumption notes.
 int __not_null(int *);
 int test_not_null_note(int *x, int y) {
-  __not_null(x);      // expected-note{{Assuming the 1st argument to '__not_null' is not NULL}}
+  __not_null(x);      // expected-note{{Assuming that the 1st argument to '__not_null' is not NULL}}
   if (x)              // expected-note{{'x' is non-null}} \
                       // expected-note{{Taking true branch}}
     if (!y)           // expected-note{{Assuming 'y' is 0}} \
@@ -33,7 +32,7 @@ int test_not_null_note(int *x, int y) {
 // Check the RangeConstraint assumption notes.
 int __single_val_0(int);      // [0, 0]
 int test_range_constraint_note(int x, int y) {
-  __single_val_0(x);  // expected-note{{Assuming the 1st argument to '__single_val_0' is zero}}
+  __single_val_0(x);  // expected-note{{Assuming that the 1st argument to '__single_val_0' is zero}}
   return y / x;       // expected-warning{{Division by zero}} \
                       // expected-note{{Division by zero}}
 }
@@ -41,7 +40,7 @@ int test_range_constraint_note(int x, int y) {
 // Check the BufferSizeConstraint assumption notes.
 int __buf_size_arg_constraint_concrete(const void *buf); // size of buf must be >= 10
 void test_buffer_size_note(char *buf, int y) {
-  __buf_size_arg_constraint_concrete(buf); // expected-note {{Assuming the size of the 1st argument to '__buf_size_arg_constraint_concrete' is equal to or greater than 10}}
+  __buf_size_arg_constraint_concrete(buf); // expected-note {{Assuming that the 1st argument to '__buf_size_arg_constraint_concrete' is a buffer with size equal to or greater than 10}}
   clang_analyzer_eval(clang_analyzer_getExtent(buf) >= 10); // expected-warning{{TRUE}} \
                                                             // expected-note{{TRUE}}
 

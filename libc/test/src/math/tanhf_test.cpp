@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/errno/libc_errno.h"
 #include "src/math/tanhf.h"
 #include "test/UnitTest/FPMatcher.h"
 #include "test/UnitTest/Test.h"
@@ -23,7 +24,7 @@ namespace mpfr = __llvm_libc::testing::mpfr;
 DECLARE_SPECIAL_CONSTANTS(float)
 
 TEST(LlvmLibcTanhfTest, SpecialNumbers) {
-  errno = 0;
+  libc_errno = 0;
 
   EXPECT_FP_EQ(aNaN, __llvm_libc::tanhf(aNaN));
   EXPECT_MATH_ERRNO(0);
@@ -42,7 +43,7 @@ TEST(LlvmLibcTanhfTest, SpecialNumbers) {
 }
 
 TEST(LlvmLibcTanhfTest, InFloatRange) {
-  constexpr uint32_t COUNT = 1000000;
+  constexpr uint32_t COUNT = 100'000;
   constexpr uint32_t STEP = UINT32_MAX / COUNT;
   for (uint32_t i = 0, v = 0; i <= COUNT; ++i, v += STEP) {
     float x = float(FPBits(v));

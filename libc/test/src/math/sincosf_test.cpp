@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/errno/libc_errno.h"
 #include "src/math/sincosf.h"
 #include "test/UnitTest/FPMatcher.h"
 #include "test/UnitTest/Test.h"
@@ -25,7 +26,7 @@ namespace mpfr = __llvm_libc::testing::mpfr;
 DECLARE_SPECIAL_CONSTANTS(float)
 
 TEST(LlvmLibcSinCosfTest, SpecialNumbers) {
-  errno = 0;
+  libc_errno = 0;
   float sin, cos;
 
   __llvm_libc::sincosf(aNaN, &sin, &cos);
@@ -89,7 +90,7 @@ TEST(LlvmLibcSinCosfTest, SpecialNumbers) {
   }
 
 TEST(LlvmLibcSinCosfTest, InFloatRange) {
-  constexpr uint32_t COUNT = 1000000;
+  constexpr uint32_t COUNT = 1'001;
   constexpr uint32_t STEP = UINT32_MAX / COUNT;
   for (uint32_t i = 0, v = 0; i <= COUNT; ++i, v += STEP) {
     float x = float(FPBits((v)));

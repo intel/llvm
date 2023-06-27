@@ -106,8 +106,8 @@ public:
   /// @tparam To the scalar type
   /// @return this object's single element value converted to the result type.
   template <class To, class T = simd,
-            class = sycl::detail::enable_if_t<
-                (T::length == 1) && detail::is_valid_simd_elem_type_v<To>>>
+            class = std::enable_if_t<(T::length == 1) &&
+                                     detail::is_valid_simd_elem_type_v<To>>>
   operator To() const {
     __esimd_dbg_print(operator To());
     return detail::convert_scalar<To, element_type>(base_type::data()[0]);
@@ -124,6 +124,11 @@ public:
                                   Ty>)&&!detail::is_wrapper_elem_type_v<Ty1>>>
   operator sycl::ext::oneapi::experimental::simd<Ty, N1>() {
     return sycl::ext::oneapi::experimental::simd<Ty, N1>(base_type::data());
+  }
+
+  /// Copy assignment operator.
+  simd &operator=(const simd &other) noexcept {
+    return base_type::operator=(other);
   }
 
   /// Prefix increment, increments elements of this object.

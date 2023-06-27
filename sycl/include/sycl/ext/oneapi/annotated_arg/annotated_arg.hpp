@@ -28,19 +28,7 @@ namespace detail {
 template <typename T>
 struct HasSubscriptOperator
     : std::bool_constant<
-          !std::is_void<decltype(std::declval<T>().operator[](0))>::value>{};
-
-// Deduce a `properties<>` type from given variadic properties
-template <typename... Args> struct DeducedProperties {
-  using type = decltype(properties{std::declval<Args>()...});
-};
-
-// Partial specialization for deducing a `properties<>` type by forwarding the
-// given `properties<>` type
-template <typename... Args>
-struct DeducedProperties<detail::properties_t<Args...>> {
-  using type = detail::properties_t<Args...>;
-};
+          !std::is_void_v<decltype(std::declval<T>().operator[](0))>> {};
 
 } // namespace detail
 

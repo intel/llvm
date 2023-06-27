@@ -395,7 +395,7 @@ private:
     unsigned NumCaptures : 15;
 
     /// The number of explicit captures in this lambda.
-    unsigned NumExplicitCaptures : 13;
+    unsigned NumExplicitCaptures : 12;
 
     /// Has known `internal` linkage.
     unsigned HasKnownInternalLinkage : 1;
@@ -403,6 +403,10 @@ private:
     /// The number used to indicate this lambda expression for name
     /// mangling in the Itanium C++ ABI.
     unsigned ManglingNumber : 31;
+
+    /// The index of this lambda within its context declaration. This is not in
+    /// general the same as the mangling number.
+    unsigned IndexInContext;
 
     /// The declaration that provides context for this lambda, if the
     /// actual DeclContext does not suffice. This is used for lambdas that
@@ -424,7 +428,7 @@ private:
         : DefinitionData(D), DependencyKind(DK), IsGenericLambda(IsGeneric),
           CaptureDefault(CaptureDefault), NumCaptures(0),
           NumExplicitCaptures(0), HasKnownInternalLinkage(0), ManglingNumber(0),
-          MethodTyInfo(Info) {
+          IndexInContext(0), MethodTyInfo(Info) {
       IsLambda = true;
 
       // C++1z [expr.prim.lambda]p4:
@@ -1092,6 +1096,11 @@ public:
 
   unsigned capture_size() const { return getLambdaData().NumCaptures; }
 
+  const LambdaCapture *getCapture(unsigned I) const {
+    assert(isLambda() && I < capture_size() && "invalid index for capture");
+    return captures_begin() + I;
+  }
+
   using conversion_iterator = UnresolvedSetIterator;
 
   conversion_iterator conversion_begin() const {
@@ -1160,6 +1169,10 @@ public:
   ///
   /// \note This does NOT include a check for union-ness.
   bool isEmpty() const { return data().Empty; }
+  /// Marks this record as empty. This is used by DWARFASTParserClang
+  /// when parsing records with empty fields having [[no_unique_address]]
+  /// attribute
+  void markEmpty() { data().Empty = true; }
 
   void setInitMethod(bool Val) { data().HasInitMethod = Val; }
   bool hasInitMethod() const { return data().HasInitMethod; }
@@ -1763,18 +1776,31 @@ public:
   /// the declaration context suffices.
   Decl *getLambdaContextDecl() const;
 
-  /// Set the mangling number and context declaration for a lambda
-  /// class.
-  void setLambdaMangling(unsigned ManglingNumber, Decl *ContextDecl,
-                         bool HasKnownInternalLinkage = false) {
+  /// Retrieve the index of this lambda within the context declaration returned
+  /// by getLambdaContextDecl().
+  unsigned getLambdaIndexInContext() const {
     assert(isLambda() && "Not a lambda closure type!");
-    getLambdaData().ManglingNumber = ManglingNumber;
-    getLambdaData().ContextDecl = ContextDecl;
-    getLambdaData().HasKnownInternalLinkage = HasKnownInternalLinkage;
+    return getLambdaData().IndexInContext;
   }
 
-  /// Set the device side mangling number.
-  void setDeviceLambdaManglingNumber(unsigned Num) const;
+  /// Information about how a lambda is numbered within its context.
+  struct LambdaNumbering {
+    Decl *ContextDecl = nullptr;
+    unsigned IndexInContext = 0;
+    unsigned ManglingNumber = 0;
+    unsigned DeviceManglingNumber = 0;
+    bool HasKnownInternalLinkage = false;
+  };
+
+  /// Set the mangling numbers and context declaration for a lambda class.
+  void setLambdaNumbering(LambdaNumbering Numbering);
+
+  // Get the mangling numbers and context declaration for a lambda class.
+  LambdaNumbering getLambdaNumbering() const {
+    return {getLambdaContextDecl(), getLambdaIndexInContext(),
+            getLambdaManglingNumber(), getDeviceLambdaManglingNumber(),
+            hasKnownLambdaInternalLinkage()};
+  }
 
   /// Retrieve the device side mangling number.
   unsigned getDeviceLambdaManglingNumber() const;
@@ -1824,6 +1850,20 @@ public:
 
   TypeSourceInfo *getLambdaTypeInfo() const {
     return getLambdaData().MethodTyInfo;
+  }
+
+  void setLambdaTypeInfo(TypeSourceInfo *TS) {
+    assert(DefinitionData && DefinitionData->IsLambda &&
+           "setting lambda property of non-lambda class");
+    auto &DL = static_cast<LambdaDefinitionData &>(*DefinitionData);
+    DL.MethodTyInfo = TS;
+  }
+
+  void setLambdaIsGeneric(bool IsGeneric) {
+    assert(DefinitionData && DefinitionData->IsLambda &&
+           "setting lambda property of non-lambda class");
+    auto &DL = static_cast<LambdaDefinitionData &>(*DefinitionData);
+    DL.IsGenericLambda = IsGeneric;
   }
 
   // Determine whether this type is an Interface Like type for

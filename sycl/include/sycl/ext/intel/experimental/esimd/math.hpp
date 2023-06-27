@@ -496,6 +496,80 @@ imul(T &rmd, T0 src0, T1 src1) {
   return Res[0];
 }
 
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  std::pair<__ESIMD_DNS::vector_type_t<uint32_t, N>,
+            __ESIMD_DNS::vector_type_t<uint32_t, N>>
+      Result = __esimd_addc<uint32_t, N>(src0.data(), src1.data());
+
+  carry = Result.first;
+  return Result.second;
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
+     uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src1V = src1;
+  return addc(carry, src0, Src1V);
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, uint32_t src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src0V = src0;
+  return addc(carry, Src0V, src1);
+}
+
+__ESIMD_API uint32_t addc(uint32_t &carry, uint32_t src0, uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, 1> CarryV = carry;
+  __ESIMD_NS::simd<uint32_t, 1> Src0V = src0;
+  __ESIMD_NS::simd<uint32_t, 1> Src1V = src1;
+  __ESIMD_NS::simd<uint32_t, 1> Res = addc(CarryV, Src0V, Src1V);
+  carry = CarryV[0];
+  return Res[0];
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  std::pair<__ESIMD_DNS::vector_type_t<uint32_t, N>,
+            __ESIMD_DNS::vector_type_t<uint32_t, N>>
+      Result = __esimd_subb<uint32_t, N>(src0.data(), src1.data());
+
+  borrow = Result.first;
+  return Result.second;
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
+     uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src1V = src1;
+  return subb(borrow, src0, Src1V);
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, uint32_t src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src0V = src0;
+  return subb(borrow, Src0V, src1);
+}
+
+__ESIMD_API uint32_t subb(uint32_t &borrow, uint32_t src0, uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, 1> BorrowV = borrow;
+  __ESIMD_NS::simd<uint32_t, 1> Src0V = src0;
+  __ESIMD_NS::simd<uint32_t, 1> Src1V = src1;
+  __ESIMD_NS::simd<uint32_t, 1> Res = subb(BorrowV, Src0V, Src1V);
+  borrow = BorrowV[0];
+  return Res[0];
+}
+
 /// Integral quotient (vector version)
 /// @tparam T element type of the input and return vectors.
 /// @tparam SZ size of the input and returned vectors.
@@ -775,7 +849,7 @@ line(float P, float Q, __ESIMD_NS::simd<T, SZ> src1, Sat sat = {}) {
 // The only input and return types for these APIs are floats.
 // In order to be able to use the old emu code, we keep the template argument
 // for the type, although the type "T" can only be float.
-// We use enable_if to force the float type only.
+// We use std::enable_if to force the float type only.
 // If the gen is not specified we warn the programmer that they are potentially
 // using a less efficient implementation if not on GEN10 or above.
 
@@ -1044,7 +1118,7 @@ __ESIMD_API __ESIMD_NS::simd<float, SZ> lrp(__ESIMD_NS::simd<float, SZ> src0,
 // The only input and return types for these APIs are floats.
 // In order to be able to use the old emu code, we keep the template argument
 // for the type, although the type "T" can only be float.
-// We use enable_if to force the float type only.
+// We use std::enable_if to force the float type only.
 // If the gen is not specified we warn the programmer that they are potentially
 // using less efficient implementation.
 template <typename T, int SZ, typename U, typename V,
@@ -1589,143 +1663,6 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
 /// @defgroup sycl_esimd_systolic_array_api Systolic Array APIs.
 /// APIs below are used to implement dot product accumulate systolic functions
 /// @ingroup sycl_esimd
-
-/// @addtogroup sycl_esimd_systolic_array_api
-/// @{
-/// DPAS
-/// @param src0 is the source operand that represents accumulator for the dpas
-/// function
-/// @param src1 is the first source perand with data precision type specified
-/// by src1_precision.
-/// @param src2 is the second source operand with data precision type specified
-/// by src2_precision.
-/// @param sat enables/disables the saturation (off by default). Possible
-/// values: saturation_on/saturation_off.
-/// @return the vector value of DPAS computation result.
-template <argument_type src1_precision, argument_type src2_precision,
-          typename T, int systolic_depth, int repeat_count, typename T0,
-          typename T1, typename T2, int N, int N1, int N2,
-          typename Sat = __ESIMD_NS::saturation_off_tag>
-__SYCL_DEPRECATED("use sycl::ext::intel::esimd::native::dpas()")
-__ESIMD_API __ESIMD_NS::simd<T, N> dpas(
-    __ESIMD_NS::simd<T0, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-    __ESIMD_NS::simd<T2, N2> src2,
-    std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
-  auto result =
-      __ESIMD_NS::xmx::dpas<systolic_depth, repeat_count, T, T0, T1, T2,
-                            src1_precision, src2_precision>(src0, src1, src2);
-  if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
-    return result;
-  else
-    return __ESIMD_NS::saturate<T>(result);
-}
-
-/// DPAS
-/// @param src0 is the source operand that represents accumulator for the dpas
-/// function, which must have the same type as return value
-/// @param src1 is the first source perand with data precision type specified
-/// by src1_precision.
-/// @param src2 is the second source operand with data precision type specified
-/// by src2_precision.
-/// @param sat enables/disables the saturation (off by default). Possible
-/// values: saturation_on/saturation_off.
-/// @return the vector value of DPAS computation result.
-template <argument_type src1_precision, argument_type src2_precision,
-          int systolic_depth, int repeat_count, typename T, typename T1,
-          typename T2, int N, int N1, int N2,
-          typename Sat = __ESIMD_NS::saturation_off_tag>
-__SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpas()")
-__ESIMD_API __ESIMD_NS::simd<T, N> dpas(
-    __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-    __ESIMD_NS::simd<T2, N2> src2,
-    std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
-  return dpas<src1_precision, src2_precision, T, systolic_depth, repeat_count>(
-      src0, src1, src2, sat);
-}
-
-/// DPAS
-/// @param src1 is the first source perand with data precision type specified
-/// by src1_precision.
-/// @param src2 is the second source operand with data precision type specified
-/// by src2_precision.
-/// @param sat enables/disables the saturation (off by default). Possible
-/// values: saturation_on/saturation_off.
-/// @return the vector value of DPAS computation result.
-template <argument_type src1_precision, argument_type src2_precision,
-          int systolic_depth, int repeat_count, typename T, typename T1,
-          typename T2, int N, int N1, int N2,
-          typename Sat = __ESIMD_NS::saturation_off_tag>
-__SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpas()")
-__ESIMD_API __ESIMD_NS::simd<T, N> dpas(
-    __ESIMD_NS::simd<T1, N1> src1, __ESIMD_NS::simd<T2, N2> src2,
-    std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
-
-  __ESIMD_NS::simd<T, N> result =
-      __ESIMD_NS::xmx::dpas<systolic_depth, repeat_count, T, T1, T2,
-                            src1_precision, src2_precision>(src1, src2);
-
-  if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
-    return result;
-  else
-    return __ESIMD_NS::saturate<T>(result);
-}
-
-/// DPASW
-/// @param src0 is the source operand that represents accumulator for the dpas
-/// function, which must have the same type as return value.
-/// @param src1 is the first source perand with data precision type specified
-/// by src1_precision.
-/// @param src2 is the second source operand with data precision type specified
-/// by src2_precision.
-/// @param sat enables/disables the saturation (off by default). Possible
-/// values: saturation_on/saturation_off.
-/// @return the vector value of DPAS computation result.
-template <argument_type src1_precision, argument_type src2_precision,
-          int systolic_depth, int repeat_count, typename T, typename T1,
-          typename T2, int N, int N1, int N2,
-          typename Sat = __ESIMD_NS::saturation_off_tag>
-__SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpasw()")
-__ESIMD_API __ESIMD_NS::simd<T, N> dpasw(
-    __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-    __ESIMD_NS::simd<T2, N2> src2,
-    std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
-
-  __ESIMD_NS::simd<T, N> result =
-      __ESIMD_NS::xmx::dpasw<systolic_depth, repeat_count, T, T1, T2,
-                             src1_precision, src2_precision>(src0, src1, src2);
-  if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
-    return result;
-  else
-    return __ESIMD_NS::saturate<T>(result);
-}
-
-/// DPASW2
-/// @param src1 is the first source perand with data precision type specified
-/// by src1_precision.
-/// @param src2 is the second source operand with data precision type specified
-/// by src2_precision.
-/// @param sat enables/disables the saturation (off by default). Possible
-/// values: saturation_on/saturation_off.
-/// @return the vector value of DPAS computation result.
-template <argument_type src1_precision, argument_type src2_precision,
-          int systolic_depth, int repeat_count, typename T, typename T1,
-          typename T2, int N, int N1, int N2,
-          typename Sat = __ESIMD_NS::saturation_off_tag>
-__SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpasw()")
-__ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(
-    __ESIMD_NS::simd<T1, N1> src1, __ESIMD_NS::simd<T2, N2> src2,
-    std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
-
-  __ESIMD_NS::simd<T, N> result =
-      __ESIMD_NS::xmx::dpasw<systolic_depth, repeat_count, T, T1, T2,
-                             src1_precision, src2_precision>(src1, src2);
-
-  if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
-    return result;
-  else
-    return __ESIMD_NS::saturate<T>(result);
-}
-/// @} sycl_esimd_systolic_array_api
 
 /// @addtogroup sycl_esimd_logical
 /// @{

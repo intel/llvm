@@ -34,6 +34,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/FPAccuracy.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
@@ -321,7 +322,9 @@ CodeGenTypes::arrangeCXXStructorDeclaration(GlobalDecl GD) {
 
   SmallVector<CanQualType, 16> argTypes;
   SmallVector<FunctionProtoType::ExtParameterInfo, 16> paramInfos;
-  argTypes.push_back(DeriveThisType(MD->getParent(), MD));
+
+  const CXXRecordDecl *ThisType = TheCXXABI.getThisArgumentTypeForMethod(GD);
+  argTypes.push_back(DeriveThisType(ThisType, MD));
 
   bool PassParams = true;
 
@@ -1756,7 +1759,7 @@ CodeGenTypes::GetFunctionType(const CGFunctionInfo &FI) {
 
 llvm::Type *CodeGenTypes::GetFunctionTypeForVTable(GlobalDecl GD) {
   const CXXMethodDecl *MD = cast<CXXMethodDecl>(GD.getDecl());
-  const FunctionProtoType *FPT = MD->getType()->getAs<FunctionProtoType>();
+  const FunctionProtoType *FPT = MD->getType()->castAs<FunctionProtoType>();
 
   if (!isFuncTypeConvertible(FPT))
     return llvm::StructType::get(getLLVMContext());
@@ -1834,10 +1837,70 @@ static bool HasStrictReturn(const CodeGenModule &Module, QualType RetTy,
          Module.getLangOpts().Sanitize.has(SanitizerKind::Return);
 }
 
-void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
-                                                 bool HasOptnone,
-                                                 bool AttrOnCallSite,
-                                               llvm::AttrBuilder &FuncAttrs) {
+static llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracyStr) {
+  return llvm::StringSwitch<llvm::fp::FPAccuracy>(FPAccuracyStr)
+      .Case("high", llvm::fp::FPAccuracy::High)
+      .Case("medium", llvm::fp::FPAccuracy::Medium)
+      .Case("low", llvm::fp::FPAccuracy::Low)
+      .Case("sycl", llvm::fp::FPAccuracy::SYCL)
+      .Case("cuda", llvm::fp::FPAccuracy::CUDA);
+}
+
+void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
+    StringRef Name, llvm::AttrBuilder &FuncAttrs, unsigned ID,
+    const llvm::Type *FuncType) {
+  // Priority is given to to the accuracy specific to the function.
+  // So, if the command line is something like this:
+  // 'clang -fp-accuracy = high -fp-accuracy = low:[sin]'.
+  // This means, all library functions will have the accuracy 'high'
+  // except 'sin', which should have an accuracy value of 'low'.
+  // To ensure that, first check if Name has a required accuracy by visiting
+  // the 'FPAccuracyFuncMap'; if no accuracy is mapped to Name (FuncAttrs
+  // is empty), then set its accuracy from the TU's accuracy value.
+  if (!getLangOpts().FPAccuracyFuncMap.empty()) {
+    auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
+    if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
+      StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+          ID, FuncType, convertFPAccuracy(FuncMapIt->second));
+      assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
+      FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
+    }
+  }
+  if (FuncAttrs.attrs().size() == 0)
+    if (!getLangOpts().FPAccuracyVal.empty()) {
+      StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+          ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
+      assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
+      FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
+    }
+}
+
+/// Add denormal-fp-math and denormal-fp-math-f32 as appropriate for the
+/// requested denormal behavior, accounting for the overriding behavior of the
+/// -f32 case.
+static void addDenormalModeAttrs(llvm::DenormalMode FPDenormalMode,
+                                 llvm::DenormalMode FP32DenormalMode,
+                                 llvm::AttrBuilder &FuncAttrs) {
+  if (FPDenormalMode != llvm::DenormalMode::getDefault())
+    FuncAttrs.addAttribute("denormal-fp-math", FPDenormalMode.str());
+
+  if (FP32DenormalMode != FPDenormalMode && FP32DenormalMode.isValid())
+    FuncAttrs.addAttribute("denormal-fp-math-f32", FP32DenormalMode.str());
+}
+
+/// Add default attributes to a function, which have merge semantics under
+/// -mlink-builtin-bitcode and should not simply overwrite any existing
+/// attributes in the linked library.
+static void
+addMergableDefaultFunctionAttributes(const CodeGenOptions &CodeGenOpts,
+                                     llvm::AttrBuilder &FuncAttrs) {
+  addDenormalModeAttrs(CodeGenOpts.FPDenormalMode, CodeGenOpts.FP32DenormalMode,
+                       FuncAttrs);
+}
+
+void CodeGenModule::getTrivialDefaultFunctionAttributes(
+    StringRef Name, bool HasOptnone, bool AttrOnCallSite,
+    llvm::AttrBuilder &FuncAttrs) {
   // OptimizeNoneAttr takes precedence over -Os or -Oz. No warning needed.
   if (!HasOptnone) {
     if (CodeGenOpts.OptimizeSize)
@@ -1878,15 +1941,6 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
 
     if (CodeGenOpts.NullPointerIsValid)
       FuncAttrs.addAttribute(llvm::Attribute::NullPointerIsValid);
-
-    if (CodeGenOpts.FPDenormalMode != llvm::DenormalMode::getIEEE())
-      FuncAttrs.addAttribute("denormal-fp-math",
-                             CodeGenOpts.FPDenormalMode.str());
-    if (CodeGenOpts.FP32DenormalMode != CodeGenOpts.FPDenormalMode) {
-      FuncAttrs.addAttribute(
-          "denormal-fp-math-f32",
-          CodeGenOpts.FP32DenormalMode.str());
-    }
 
     if (LangOpts.getDefaultExceptionMode() == LangOptions::FPE_Ignore)
       FuncAttrs.addAttribute("no-trapping-math", "true");
@@ -1976,10 +2030,9 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
   }
 
   // TODO: NoUnwind attribute should be added for other GPU modes HIP,
-  // SYCL, OpenMP offload. AFAIK, none of them support exceptions in device
-  // code.
+  // OpenMP offload. AFAIK, neither of them support exceptions in device code.
   if ((getLangOpts().CUDA && getLangOpts().CUDAIsDevice) ||
-      getLangOpts().OpenCL) {
+      getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
     FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
   }
 
@@ -1987,6 +2040,19 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
     StringRef Var, Value;
     std::tie(Var, Value) = Attr.split('=');
     FuncAttrs.addAttribute(Var, Value);
+  }
+}
+
+void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
+                                                 bool HasOptnone,
+                                                 bool AttrOnCallSite,
+                                                 llvm::AttrBuilder &FuncAttrs) {
+  getTrivialDefaultFunctionAttributes(Name, HasOptnone, AttrOnCallSite,
+                                      FuncAttrs);
+  if (!AttrOnCallSite) {
+    // If we're just getting the default, get the default values for mergeable
+    // attributes.
+    addMergableDefaultFunctionAttributes(CodeGenOpts, FuncAttrs);
   }
 }
 
@@ -1998,8 +2064,60 @@ void CodeGenModule::addDefaultFunctionDefinitionAttributes(llvm::Function &F) {
   F.addFnAttrs(FuncAttrs);
 }
 
+/// Apply default attributes to \p F, accounting for merge semantics of
+/// attributes that should not overwrite existing attributes.
+void CodeGenModule::mergeDefaultFunctionDefinitionAttributes(
+    llvm::Function &F, bool WillInternalize) {
+  llvm::AttrBuilder FuncAttrs(F.getContext());
+  getTrivialDefaultFunctionAttributes(F.getName(), F.hasOptNone(),
+                                      /*AttrOnCallSite=*/false, FuncAttrs);
+  GetCPUAndFeaturesAttributes(GlobalDecl(), FuncAttrs);
+
+  if (!WillInternalize && F.isInterposable()) {
+    // Do not promote "dynamic" denormal-fp-math to this translation unit's
+    // setting for weak functions that won't be internalized. The user has no
+    // real control for how builtin bitcode is linked, so we shouldn't assume
+    // later copies will use a consistent mode.
+    F.addFnAttrs(FuncAttrs);
+    return;
+  }
+
+  llvm::AttributeMask AttrsToRemove;
+
+  llvm::DenormalMode DenormModeToMerge = F.getDenormalModeRaw();
+  llvm::DenormalMode DenormModeToMergeF32 = F.getDenormalModeF32Raw();
+  llvm::DenormalMode Merged =
+      CodeGenOpts.FPDenormalMode.mergeCalleeMode(DenormModeToMerge);
+  llvm::DenormalMode MergedF32 = CodeGenOpts.FP32DenormalMode;
+
+  if (DenormModeToMergeF32.isValid()) {
+    MergedF32 =
+        CodeGenOpts.FP32DenormalMode.mergeCalleeMode(DenormModeToMergeF32);
+  }
+
+  if (Merged == llvm::DenormalMode::getDefault()) {
+    AttrsToRemove.addAttribute("denormal-fp-math");
+  } else if (Merged != DenormModeToMerge) {
+    // Overwrite existing attribute
+    FuncAttrs.addAttribute("denormal-fp-math",
+                           CodeGenOpts.FPDenormalMode.str());
+  }
+
+  if (MergedF32 == llvm::DenormalMode::getDefault()) {
+    AttrsToRemove.addAttribute("denormal-fp-math-f32");
+  } else if (MergedF32 != DenormModeToMergeF32) {
+    // Overwrite existing attribute
+    FuncAttrs.addAttribute("denormal-fp-math-f32",
+                           CodeGenOpts.FP32DenormalMode.str());
+  }
+
+  F.removeFnAttrs(AttrsToRemove);
+  addDenormalModeAttrs(Merged, MergedF32, FuncAttrs);
+  F.addFnAttrs(FuncAttrs);
+}
+
 void CodeGenModule::addDefaultFunctionDefinitionAttributes(
-                                                   llvm::AttrBuilder &attrs) {
+    llvm::AttrBuilder &attrs) {
   getDefaultFunctionAttributes(/*function name*/ "", /*optnone*/ false,
                                /*for call*/ false, attrs);
   GetCPUAndFeaturesAttributes(GlobalDecl(), attrs);
@@ -2109,6 +2227,39 @@ static bool IsArgumentMaybeUndef(const Decl *TargetDecl,
   }
 
   return false;
+}
+
+/// Test if it's legal to apply nofpclass for the given parameter type and it's
+/// lowered IR type.
+static bool canApplyNoFPClass(const ABIArgInfo &AI, QualType ParamType,
+                              bool IsReturn) {
+  // Should only apply to FP types in the source, not ABI promoted.
+  if (!ParamType->hasFloatingRepresentation())
+    return false;
+
+  // The promoted-to IR type also needs to support nofpclass.
+  llvm::Type *IRTy = AI.getCoerceToType();
+  if (llvm::AttributeFuncs::isNoFPClassCompatibleType(IRTy))
+    return true;
+
+  if (llvm::StructType *ST = dyn_cast<llvm::StructType>(IRTy)) {
+    return !IsReturn && AI.getCanBeFlattened() &&
+           llvm::all_of(ST->elements(), [](llvm::Type *Ty) {
+             return llvm::AttributeFuncs::isNoFPClassCompatibleType(Ty);
+           });
+  }
+
+  return false;
+}
+
+/// Return the nofpclass mask that can be applied to floating-point parameters.
+static llvm::FPClassTest getNoFPClassTestMask(const LangOptions &LangOpts) {
+  llvm::FPClassTest Mask = llvm::fcNone;
+  if (LangOpts.NoHonorInfs)
+    Mask |= llvm::fcInf;
+  if (LangOpts.NoHonorNaNs)
+    Mask |= llvm::fcNan;
+  return Mask;
 }
 
 /// Construct the IR attribute list of a function or call.
@@ -2378,6 +2529,10 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
   case ABIArgInfo::Direct:
     if (RetAI.getInReg())
       RetAttrs.addAttribute(llvm::Attribute::InReg);
+
+    if (canApplyNoFPClass(RetAI, RetTy, true))
+      RetAttrs.addNoFPClassAttr(getNoFPClassTestMask(getLangOpts()));
+
     break;
   case ABIArgInfo::Ignore:
     break;
@@ -2516,8 +2671,10 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
       else if (AI.getInReg())
         Attrs.addAttribute(llvm::Attribute::InReg);
       Attrs.addStackAlignmentAttr(llvm::MaybeAlign(AI.getDirectAlign()));
-      break;
 
+      if (canApplyNoFPClass(AI, ParamType, false))
+        Attrs.addNoFPClassAttr(getNoFPClassTestMask(getLangOpts()));
+      break;
     case ABIArgInfo::Indirect: {
       if (AI.getInReg())
         Attrs.addAttribute(llvm::Attribute::InReg);
@@ -3040,30 +3197,51 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
       llvm::StructType *STy = dyn_cast<llvm::StructType>(ArgI.getCoerceToType());
       if (ArgI.isDirect() && ArgI.getCanBeFlattened() && STy &&
           STy->getNumElements() > 1) {
-        uint64_t SrcSize = CGM.getDataLayout().getTypeAllocSize(STy);
-        llvm::Type *DstTy = Ptr.getElementType();
-        uint64_t DstSize = CGM.getDataLayout().getTypeAllocSize(DstTy);
+        llvm::TypeSize StructSize = CGM.getDataLayout().getTypeAllocSize(STy);
+        llvm::TypeSize PtrElementSize =
+            CGM.getDataLayout().getTypeAllocSize(Ptr.getElementType());
+        if (StructSize.isScalable()) {
+          assert(STy->containsHomogeneousScalableVectorTypes() &&
+                 "ABI only supports structure with homogeneous scalable vector "
+                 "type");
+          assert(StructSize == PtrElementSize &&
+                 "Only allow non-fractional movement of structure with"
+                 "homogeneous scalable vector type");
+          assert(STy->getNumElements() == NumIRArgs);
 
-        Address AddrToStoreInto = Address::invalid();
-        if (SrcSize <= DstSize) {
-          AddrToStoreInto = Builder.CreateElementBitCast(Ptr, STy);
+          llvm::Value *LoadedStructValue = llvm::PoisonValue::get(STy);
+          for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
+            auto *AI = Fn->getArg(FirstIRArg + i);
+            AI->setName(Arg->getName() + ".coerce" + Twine(i));
+            LoadedStructValue =
+                Builder.CreateInsertValue(LoadedStructValue, AI, i);
+          }
+
+          Builder.CreateStore(LoadedStructValue, Ptr);
         } else {
-          AddrToStoreInto =
-            CreateTempAlloca(STy, Alloca.getAlignment(), "coerce");
-        }
+          uint64_t SrcSize = StructSize.getFixedValue();
+          uint64_t DstSize = PtrElementSize.getFixedValue();
 
-        assert(STy->getNumElements() == NumIRArgs);
-        for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
-          auto AI = Fn->getArg(FirstIRArg + i);
-          AI->setName(Arg->getName() + ".coerce" + Twine(i));
-          Address EltPtr = Builder.CreateStructGEP(AddrToStoreInto, i);
-          Builder.CreateStore(AI, EltPtr);
-        }
+          Address AddrToStoreInto = Address::invalid();
+          if (SrcSize <= DstSize) {
+            AddrToStoreInto = Builder.CreateElementBitCast(Ptr, STy);
+          } else {
+            AddrToStoreInto =
+                CreateTempAlloca(STy, Alloca.getAlignment(), "coerce");
+          }
 
-        if (SrcSize > DstSize) {
-          Builder.CreateMemCpy(Ptr, AddrToStoreInto, DstSize);
-        }
+          assert(STy->getNumElements() == NumIRArgs);
+          for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
+            auto AI = Fn->getArg(FirstIRArg + i);
+            AI->setName(Arg->getName() + ".coerce" + Twine(i));
+            Address EltPtr = Builder.CreateStructGEP(AddrToStoreInto, i);
+            Builder.CreateStore(AI, EltPtr);
+          }
 
+          if (SrcSize > DstSize) {
+            Builder.CreateMemCpy(Ptr, AddrToStoreInto, DstSize);
+          }
+        }
       } else {
         // Simple case, just do a coerced store of the argument into the alloca.
         assert(NumIRArgs == 1);
@@ -3348,8 +3526,9 @@ static llvm::StoreInst *findDominatingStoreToReturnValue(CodeGenFunction &CGF) {
   // single-predecessors chain from the current insertion point.
   llvm::BasicBlock *StoreBB = store->getParent();
   llvm::BasicBlock *IP = CGF.Builder.GetInsertBlock();
+  llvm::SmallPtrSet<llvm::BasicBlock *, 4> SeenBBs;
   while (IP != StoreBB) {
-    if (!(IP = IP->getSinglePredecessor()))
+    if (!SeenBBs.insert(IP).second || !(IP = IP->getSinglePredecessor()))
       return nullptr;
   }
 
@@ -4787,7 +4966,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     // the proper cpu features (and it won't cause code generation issues due to
     // function based code generation).
     if (TargetDecl->hasAttr<AlwaysInlineAttr>() &&
-        TargetDecl->hasAttr<TargetAttr>())
+        (TargetDecl->hasAttr<TargetAttr>() ||
+         (CurFuncDecl && CurFuncDecl->hasAttr<TargetAttr>())))
       checkTargetFeatures(Loc, FD);
 
     // Some architectures (such as x86-64) have the ABI changed based on
@@ -5440,6 +5620,14 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Emit the actual call/invoke instruction.
   llvm::CallBase *CI;
   if (!InvokeDest) {
+    if (!getLangOpts().FPAccuracyFuncMap.empty() ||
+        !getLangOpts().FPAccuracyVal.empty()) {
+      const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
+      assert(FD && "expecting a function");
+      CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
+      if (CI)
+        return RValue::get(CI);
+    }
     CI = Builder.CreateCall(IRFuncTy, CalleePtr, IRCallArgs, BundleList);
   } else {
     llvm::BasicBlock *Cont = createBasicBlock("invoke.cont");
@@ -5617,7 +5805,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           assert(unpaddedIndex == 0);
         Builder.CreateStore(elt, eltAddr);
       }
-      // FALLTHROUGH
       [[fallthrough]];
     }
 

@@ -7,21 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 // Separate kernel sources and host code sources
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.kernel.o %s -DINIT_KERNEL -DCALC_KERNEL
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.main.o %s -DMAIN_APP
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.kernel.o %t.main.o -o %t.fat
-// RUN: %CPU_RUN_PLACEHOLDER %t.fat
-// RUN: %GPU_RUN_PLACEHOLDER %t.fat
-// RUN: %ACC_RUN_PLACEHOLDER %t.fat
+// RUN: %{build} -c -o %t.kernel.o -DINIT_KERNEL -DCALC_KERNEL
+// RUN: %{build} -c -o %t.main.o -DMAIN_APP
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.kernel.o %t.main.o -o %t.fat
+// RUN: %{run} %t.fat
 
 // Multiple sources with kernel code
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.init.o %s -DINIT_KERNEL
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.calc.o %s -DCALC_KERNEL
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.main.o %s -DMAIN_APP
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.init.o %t.calc.o %t.main.o -o %t.fat
-// RUN: %CPU_RUN_PLACEHOLDER %t.fat
-// RUN: %GPU_RUN_PLACEHOLDER %t.fat
-// RUN: %ACC_RUN_PLACEHOLDER %t.fat
+// RUN: %{build} -c -o %t.init.o -DINIT_KERNEL
+// RUN: %{build} -c -o %t.calc.o -DCALC_KERNEL
+// RUN: %{build} -c -o %t.main.o -DMAIN_APP
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.init.o %t.calc.o %t.main.o -o %t.fat
+// RUN: %{run} %t.fat
 
 #include <sycl/sycl.hpp>
 

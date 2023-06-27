@@ -111,7 +111,8 @@ public:
     }
     if (cycleLevel_ > 0 || err) {
       context_.Say(*cycleSource_,
-          "CYCLE statement to non-innermost associated loop of an OpenMP DO construct"_err_en_US);
+          "CYCLE statement to non-innermost associated loop of an OpenMP DO "
+          "construct"_err_en_US);
     }
     return true;
   }
@@ -245,7 +246,8 @@ void OmpStructureChecker::HasInvalidDistributeNesting(
   }
   if (violation) {
     context_.Say(beginDir.source,
-        "`DISTRIBUTE` region has to be strictly nested inside `TEAMS` region."_err_en_US);
+        "`DISTRIBUTE` region has to be strictly nested inside `TEAMS` "
+        "region."_err_en_US);
   }
 }
 
@@ -270,7 +272,8 @@ void OmpStructureChecker::HasInvalidTeamsNesting(
 
   if (!allowedSet.test(dir)) {
     context_.Say(source,
-        "Only `DISTRIBUTE` or `PARALLEL` regions are allowed to be strictly nested inside `TEAMS` region."_err_en_US);
+        "Only `DISTRIBUTE` or `PARALLEL` regions are allowed to be strictly "
+        "nested inside `TEAMS` region."_err_en_US);
   }
 }
 
@@ -281,7 +284,7 @@ void OmpStructureChecker::CheckPredefinedAllocatorRestriction(
     const auto &scope{context_.FindScope(symbol->name())};
     const Scope &containingScope{GetProgramUnitContaining(scope)};
     if (!isPredefinedAllocator &&
-        (IsSave(*symbol) || commonBlock ||
+        (IsSaved(*symbol) || commonBlock ||
             containingScope.kind() == Scope::Kind::Module)) {
       context_.Say(source,
           "If list items within the ALLOCATE directive have the "
@@ -335,8 +338,10 @@ void OmpStructureChecker::CheckHintClause(
               std::get_if<Fortran::parser::OmpClause::Hint>(&ompClause->u)}) {
         std::optional<std::int64_t> hintValue = GetIntValue(hintClause->v);
         if (hintValue && *hintValue >= 0) {
-          if((*hintValue & 0xC) == 0xC /*`omp_sync_hint_nonspeculative` and `omp_lock_hint_speculative`*/ 
-                  || (*hintValue & 0x3) == 0x3 /*`omp_sync_hint_uncontended` and omp_sync_hint_contended*/ )
+          /*`omp_sync_hint_nonspeculative` and `omp_lock_hint_speculative`*/
+          if ((*hintValue & 0xC) == 0xC
+              /*`omp_sync_hint_uncontended` and omp_sync_hint_contended*/
+              || (*hintValue & 0x3) == 0x3)
             context_.Say(clause.source,
                 "Hint clause value "
                 "is not a valid OpenMP synchronization value"_err_en_US);
@@ -550,9 +555,9 @@ void OmpStructureChecker::CheckSIMDNest(const parser::OpenMPConstruct &c) {
   if (!eligibleSIMD) {
     context_.Say(parser::FindSourceLocation(c),
         "The only OpenMP constructs that can be encountered during execution "
-        "of a 'SIMD'"
-        " region are the `ATOMIC` construct, the `LOOP` construct, the `SIMD`"
-        " construct and the `ORDERED` construct with the `SIMD` clause."_err_en_US);
+        "of a 'SIMD' region are the `ATOMIC` construct, the `LOOP` construct, "
+        "the `SIMD` construct and the `ORDERED` construct with the `SIMD` "
+        "clause."_err_en_US);
   }
 }
 
@@ -707,7 +712,9 @@ void OmpStructureChecker::CheckDistLinear(
     for (auto var : indexVars) {
       const Symbol &root{GetAssociationRoot(var)};
       context_.Say(parser::FindSourceLocation(x),
-          "Variable '%s' not allowed in `LINEAR` clause, only loop iterator can be specified in `LINEAR` clause of a construct combined with `DISTRIBUTE`"_err_en_US,
+          "Variable '%s' not allowed in `LINEAR` clause, only loop iterator "
+          "can be specified in `LINEAR` clause of a construct combined with "
+          "`DISTRIBUTE`"_err_en_US,
           root.name());
     }
   }
@@ -963,20 +970,14 @@ void OmpStructureChecker::CheckThreadprivateOrDeclareTargetVar(
         common::visitors{
             [&](const parser::Designator &) {
               if (const auto *name{parser::Unwrap<parser::Name>(ompObject)}) {
-                const auto &useScope{
-                    context_.FindScope(GetContext().directiveSource)};
-                const auto &declScope{
-                    GetProgramUnitContaining(name->symbol->GetUltimate())};
-                const auto *sym =
-                    declScope.parent().FindSymbol(name->symbol->name());
-                if (sym &&
-                    (sym->has<MainProgramDetails>() ||
-                        sym->has<ModuleDetails>())) {
-                  context_.Say(name->source,
-                      "The module name or main program name cannot be in a %s "
-                      "directive"_err_en_US,
-                      ContextDirectiveAsFortran());
-                } else if (name->symbol->GetUltimate().IsSubprogram()) {
+                // The symbol is null, return early, CheckSymbolNames
+                // should have already reported the missing symbol as a
+                // diagnostic error
+                if (!name->symbol) {
+                  return;
+                }
+
+                if (name->symbol->GetUltimate().IsSubprogram()) {
                   if (GetContext().directive ==
                       llvm::omp::Directive::OMPD_threadprivate)
                     context_.Say(name->source,
@@ -1002,20 +1003,6 @@ void OmpStructureChecker::CheckThreadprivateOrDeclareTargetVar(
                       "A variable in a %s directive cannot be an element of a "
                       "common block"_err_en_US,
                       ContextDirectiveAsFortran());
-                } else if (!IsSave(*name->symbol) &&
-                    declScope.kind() != Scope::Kind::MainProgram &&
-                    declScope.kind() != Scope::Kind::Module) {
-                  context_.Say(name->source,
-                      "A variable that appears in a %s directive must be "
-                      "declared in the scope of a module or have the SAVE "
-                      "attribute, either explicitly or implicitly"_err_en_US,
-                      ContextDirectiveAsFortran());
-                } else if (useScope != declScope) {
-                  context_.Say(name->source,
-                      "The %s directive and the common block or variable in it "
-                      "must appear in the same declaration section of a "
-                      "scoping unit"_err_en_US,
-                      ContextDirectiveAsFortran());
                 } else if (FindEquivalenceSet(*name->symbol)) {
                   context_.Say(name->source,
                       "A variable in a %s directive cannot appear in an "
@@ -1028,6 +1015,41 @@ void OmpStructureChecker::CheckThreadprivateOrDeclareTargetVar(
                       "A THREADPRIVATE variable cannot appear in a %s "
                       "directive"_err_en_US,
                       ContextDirectiveAsFortran());
+                } else {
+                  const semantics::Scope &useScope{
+                      context_.FindScope(GetContext().directiveSource)};
+                  const semantics::Scope &curScope =
+                      name->symbol->GetUltimate().owner();
+                  if (!curScope.IsTopLevel()) {
+                    const semantics::Scope &declScope =
+                        GetProgramUnitContaining(curScope);
+                    const semantics::Symbol *sym{
+                        declScope.parent().FindSymbol(name->symbol->name())};
+                    if (sym &&
+                        (sym->has<MainProgramDetails>() ||
+                            sym->has<ModuleDetails>())) {
+                      context_.Say(name->source,
+                          "The module name or main program name cannot be in a "
+                          "%s "
+                          "directive"_err_en_US,
+                          ContextDirectiveAsFortran());
+                    } else if (!IsSaved(*name->symbol) &&
+                        declScope.kind() != Scope::Kind::MainProgram &&
+                        declScope.kind() != Scope::Kind::Module) {
+                      context_.Say(name->source,
+                          "A variable that appears in a %s directive must be "
+                          "declared in the scope of a module or have the SAVE "
+                          "attribute, either explicitly or "
+                          "implicitly"_err_en_US,
+                          ContextDirectiveAsFortran());
+                    } else if (useScope != declScope) {
+                      context_.Say(name->source,
+                          "The %s directive and the common block or variable "
+                          "in it must appear in the same declaration section "
+                          "of a scoping unit"_err_en_US,
+                          ContextDirectiveAsFortran());
+                    }
+                  }
                 }
               }
             },
@@ -1046,6 +1068,7 @@ void OmpStructureChecker::Enter(const parser::OpenMPThreadprivate &c) {
 void OmpStructureChecker::Leave(const parser::OpenMPThreadprivate &c) {
   const auto &dir{std::get<parser::Verbatim>(c.t)};
   const auto &objectList{std::get<parser::OmpObjectList>(c.t)};
+  CheckSymbolNames(dir.source, objectList);
   CheckIsVarPartOfAnotherVar(dir.source, objectList);
   CheckThreadprivateOrDeclareTargetVar(objectList);
   dirContext_.pop_back();
@@ -1102,20 +1125,49 @@ void OmpStructureChecker::Enter(const parser::OpenMPDeclareTargetConstruct &x) {
   }
 }
 
+void OmpStructureChecker::CheckSymbolNames(
+    const parser::CharBlock &source, const parser::OmpObjectList &objList) {
+  for (const auto &ompObject : objList.v) {
+    common::visit(
+        common::visitors{
+            [&](const parser::Designator &designator) {
+              if (const auto *name{parser::Unwrap<parser::Name>(ompObject)}) {
+                if (!name->symbol) {
+                  context_.Say(source,
+                      "The given %s directive clause has an invalid argument"_err_en_US,
+                      ContextDirectiveAsFortran());
+                }
+              }
+            },
+            [&](const parser::Name &name) {
+              if (!name.symbol) {
+                context_.Say(source,
+                    "The given %s directive clause has an invalid argument"_err_en_US,
+                    ContextDirectiveAsFortran());
+              }
+            },
+        },
+        ompObject.u);
+  }
+}
+
 void OmpStructureChecker::Leave(const parser::OpenMPDeclareTargetConstruct &x) {
   const auto &dir{std::get<parser::Verbatim>(x.t)};
   const auto &spec{std::get<parser::OmpDeclareTargetSpecifier>(x.t)};
   if (const auto *objectList{parser::Unwrap<parser::OmpObjectList>(spec.u)}) {
+    CheckSymbolNames(dir.source, *objectList);
     CheckIsVarPartOfAnotherVar(dir.source, *objectList);
     CheckThreadprivateOrDeclareTargetVar(*objectList);
   } else if (const auto *clauseList{
                  parser::Unwrap<parser::OmpClauseList>(spec.u)}) {
     for (const auto &clause : clauseList->v) {
       if (const auto *toClause{std::get_if<parser::OmpClause::To>(&clause.u)}) {
+        CheckSymbolNames(dir.source, toClause->v);
         CheckIsVarPartOfAnotherVar(dir.source, toClause->v);
         CheckThreadprivateOrDeclareTargetVar(toClause->v);
       } else if (const auto *linkClause{
                      std::get_if<parser::OmpClause::Link>(&clause.u)}) {
+        CheckSymbolNames(dir.source, linkClause->v);
         CheckIsVarPartOfAnotherVar(dir.source, linkClause->v);
         CheckThreadprivateOrDeclareTargetVar(linkClause->v);
       }
@@ -1327,7 +1379,8 @@ void OmpStructureChecker::Enter(const parser::OpenMPCriticalConstruct &x) {
       ompClause.source.NULTerminatedToString() != "hint(omp_sync_hint_none)") {
     context_.Say(dir.source,
         parser::MessageFormattedText{
-            "Hint clause other than omp_sync_hint_none cannot be specified for an unnamed CRITICAL directive"_err_en_US});
+            "Hint clause other than omp_sync_hint_none cannot be specified for "
+            "an unnamed CRITICAL directive"_err_en_US});
   }
   CheckHintClause<const parser::OmpClauseList>(&ompClause, nullptr);
 }
@@ -1586,7 +1639,8 @@ void OmpStructureChecker::CheckAtomicUpdateAssignmentStmt(
           [&](const auto &x) {
             if (!IsOperatorValid(x, var)) {
               context_.Say(expr.source,
-                  "Invalid operator in OpenMP ATOMIC (UPDATE) statement"_err_en_US);
+                  "Invalid operator in OpenMP ATOMIC (UPDATE) "
+                  "statement"_err_en_US);
             }
           },
       },
@@ -1780,9 +1834,12 @@ void OmpStructureChecker::Leave(const parser::OmpClauseList &) {
               common::visitors{
                   [&](const parser::Designator &) {
                     if (const auto *name{
-                            parser::Unwrap<parser::Name>(ompObject)})
-                      testThreadprivateVarErr(
-                          name->symbol->GetUltimate(), *name, type);
+                            parser::Unwrap<parser::Name>(ompObject)}) {
+                      if (name->symbol) {
+                        testThreadprivateVarErr(
+                            name->symbol->GetUltimate(), *name, type);
+                      }
+                    }
                   },
                   [&](const parser::Name &name) {
                     if (name.symbol) {
@@ -1922,7 +1979,8 @@ bool OmpStructureChecker::CheckReductionOperators(
                 ok = true;
               } else {
                 context_.Say(GetContext().clauseSource,
-                    "Invalid reduction identifier in REDUCTION clause."_err_en_US,
+                    "Invalid reduction identifier in REDUCTION "
+                    "clause."_err_en_US,
                     ContextDirectiveAsFortran());
               }
             }
@@ -1945,7 +2003,8 @@ bool OmpStructureChecker::CheckIntrinsicOperator(
     return true;
   case parser::DefinedOperator::IntrinsicOperator::Subtract:
     context_.Say(GetContext().clauseSource,
-        "The minus reduction operator is deprecated since OpenMP 5.2 and is not supported in the REDUCTION clause."_err_en_US,
+        "The minus reduction operator is deprecated since OpenMP 5.2 and is "
+        "not supported in the REDUCTION clause."_err_en_US,
         ContextDirectiveAsFortran());
     break;
   default:
@@ -1962,7 +2021,13 @@ void OmpStructureChecker::CheckReductionTypeList(
   CheckIntentInPointerAndDefinable(
       ompObjectList, llvm::omp::Clause::OMPC_reduction);
   CheckReductionArraySection(ompObjectList);
-  CheckMultipleAppearanceAcrossContext(ompObjectList);
+  // If this is a worksharing construct then ensure the reduction variable
+  // is not private in the parallel region that it binds to.
+  OmpDirectiveSet workshareSet{llvm::omp::Directive::OMPD_do,
+      llvm::omp::Directive::OMPD_sections, llvm::omp::Directive::OMPD_do_simd};
+  if (workshareSet.test(GetContext().directive)) {
+    CheckSharedBindingInOuterContext(ompObjectList);
+  }
 }
 
 void OmpStructureChecker::CheckIntentInPointerAndDefinable(
@@ -2007,7 +2072,7 @@ void OmpStructureChecker::CheckReductionArraySection(
   }
 }
 
-void OmpStructureChecker::CheckMultipleAppearanceAcrossContext(
+void OmpStructureChecker::CheckSharedBindingInOuterContext(
     const parser::OmpObjectList &redObjectList) {
   //  TODO: Verify the assumption here that the immediately enclosing region is
   //  the parallel region to which the worksharing construct having reduction
@@ -2030,8 +2095,7 @@ void OmpStructureChecker::CheckMultipleAppearanceAcrossContext(
                             "%s variable '%s' is %s in outer context must"
                             " be shared in the parallel regions to which any"
                             " of the worksharing regions arising from the "
-                            "worksharing"
-                            " construct bind."_err_en_US,
+                            "worksharing construct bind."_err_en_US,
                             parser::ToUpperCaseLetters(
                                 getClauseName(llvm::omp::Clause::OMPC_reduction)
                                     .str()),
@@ -2533,7 +2597,8 @@ void OmpStructureChecker::CheckArraySection(
                 if ((stride && stride != 1)) {
                   context_.Say(GetContext().clauseSource,
                       "A list item that appears in a REDUCTION clause"
-                      " should have a contiguous storage array section."_err_en_US,
+                      " should have a contiguous storage array "
+                      "section."_err_en_US,
                       ContextDirectiveAsFortran());
                   break;
                 }
@@ -2745,7 +2810,8 @@ const parser::OmpObjectList *OmpStructureChecker::GetOmpObjectList(
       parser::OmpClause::Copyin, parser::OmpClause::Firstprivate,
       parser::OmpClause::From, parser::OmpClause::Lastprivate,
       parser::OmpClause::Link, parser::OmpClause::Private,
-      parser::OmpClause::Shared, parser::OmpClause::To>;
+      parser::OmpClause::Shared, parser::OmpClause::To,
+      parser::OmpClause::UseDevicePtr, parser::OmpClause::UseDeviceAddr>;
 
   // Clauses with OmpObjectList in the tuple
   using TupleObjectListClauses = std::tuple<parser::OmpClause::Allocate,

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "InlineFunctionDeclCheck.h"
+#include "../utils/FileExtensionsUtils.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
@@ -19,28 +20,10 @@ namespace clang::tidy::llvm_libc {
 InlineFunctionDeclCheck::InlineFunctionDeclCheck(StringRef Name,
                                                  ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      RawStringHeaderFileExtensions(Options.getLocalOrGlobal(
-          "HeaderFileExtensions", utils::defaultHeaderFileExtensions())) {
-  if (!utils::parseFileExtensions(RawStringHeaderFileExtensions,
-                                  HeaderFileExtensions,
-                                  utils::defaultFileExtensionDelimiters())) {
-    this->configurationDiag("Invalid header file extension: '%0'")
-        << RawStringHeaderFileExtensions;
-  }
-}
+      HeaderFileExtensions(Context->getHeaderFileExtensions()) {}
 
 void InlineFunctionDeclCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(decl(functionDecl()).bind("func_decl"), this);
-}
-
-void InlineFunctionDeclCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "HeaderFileExtensions", RawStringHeaderFileExtensions);
-  if (!utils::parseFileExtensions(RawStringHeaderFileExtensions,
-                                  HeaderFileExtensions,
-                                  utils::defaultFileExtensionDelimiters())) {
-    this->configurationDiag("Invalid header file extension: '%0'")
-        << RawStringHeaderFileExtensions;
-  }
 }
 
 void InlineFunctionDeclCheck::check(const MatchFinder::MatchResult &Result) {
@@ -55,6 +38,12 @@ void InlineFunctionDeclCheck::check(const MatchFinder::MatchResult &Result) {
   if (!utils::isSpellingLocInHeaderFile(SrcBegin, *Result.SourceManager,
                                         HeaderFileExtensions))
     return;
+
+  // Ignore lambda functions as they are internal and implicit.
+  if (const auto *MethodDecl = dyn_cast<CXXMethodDecl>(FuncDecl)) {
+    if (MethodDecl->getParent()->isLambda())
+      return;
+  }
 
   // Check if decl starts with LIBC_INLINE
   auto Loc = FullSourceLoc(Result.SourceManager->getFileLoc(SrcBegin),

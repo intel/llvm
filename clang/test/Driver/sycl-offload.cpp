@@ -39,9 +39,8 @@
 // RUN: %clang -### -fsycl -fprofile-arcs -ftest-coverage -target x86_64-unknown-linux-gnu -c %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_TEST_COVERAGE %s
 // CHECK_TEST_COVERAGE: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}}
-// CHECK_TEST_COVERAGE-NOT: "-ftest-coverage"
-// CHECK_TEST_COVERAGE-NOT: "-fprofile-arcs"
-// CHECK_TEST_COVERAGE: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-ftest-coverage" "-fprofile-arcs"
+// CHECK_TEST_COVERAGE-NOT: "-coverage-notes-file"
+// CHECK_TEST_COVERAGE: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-coverage-notes-file"
 
 /// check for PIC for device wrap compilation when using -shared or -fPIC
 // RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -shared %s 2>&1 \
@@ -160,3 +159,16 @@
 // RUN:   %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck -check-prefixes=CHECK_BITFIELD_OPTION %s
 // CHECK_BITFIELD_OPTION: clang{{.*}} "-ffine-grained-bitfield-accesses"
 
+/// Using linker specific items at the end of the command should not fail when
+/// we are performing a non-linking compilation behavior
+// RUN: %clangxx -E -fsycl %S/Inputs/SYCL/liblin64.a \
+// RUN:          -target x86_64-unknown-linux-gnu -### 2>&1 \
+// RUN:  | FileCheck -check-prefix IGNORE_INPUT %s
+// RUN: %clangxx -c -fsycl %S/Inputs/SYCL/liblin64.a \
+// RUN:          -target x86_64-unknown-linux-gnu -### 2>&1 \
+// RUN:  | FileCheck -check-prefix IGNORE_INPUT %s
+// IGNORE_INPUT: input unused
+
+/// Check if the clang with fsycl adds C++ libraries to the link line
+//  RUN:  %clang -### -target x86_64-unknown-linux-gnu -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-FSYCL-WITH-CLANG %s
+// CHECK-FSYCL-WITH-CLANG: "-lstdc++"

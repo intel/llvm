@@ -86,9 +86,11 @@ add_mlir_library(MLIRExecutionEngine
   ${LLVM_JIT_LISTENER_LIB}
 
   LINK_LIBS PUBLIC
+  MLIRBuiltinToLLVMIRTranslation
   MLIRExecutionEngineUtils
   MLIRLLVMDialect
   MLIRLLVMToLLVMIRTranslation
+  MLIROpenMPToLLVMIRTranslation
   MLIRTargetLLVMIRExport
   )
 
@@ -167,6 +169,12 @@ if(LLVM_ENABLE_PIC)
   )
   set_property(TARGET mlir_async_runtime PROPERTY CXX_VISIBILITY_PRESET hidden)
   target_compile_definitions(mlir_async_runtime PRIVATE mlir_async_runtime_EXPORTS)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Don't export symbols from link-time dependencies, these are internal
+    # implementation details.
+    # FIXME: Add a similar fix for Windows.
+    target_link_options(mlir_async_runtime PRIVATE "-Wl,-exclude-libs,ALL")
+  endif()
 
   if(MLIR_ENABLE_CUDA_RUNNER)
     # Configure CUDA support. Using check_language first allows us to give a
@@ -181,7 +189,10 @@ if(LLVM_ENABLE_PIC)
     endif()
 
     # We need the libcuda.so library.
-    find_library(CUDA_RUNTIME_LIBRARY cuda)
+    find_library(CUDA_RUNTIME_LIBRARY cuda HINTS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} REQUIRED)
+
+    # We need the libcusparse.so library.
+    find_library(CUDA_CUSPARSE_LIBRARY cusparse HINTS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} REQUIRED)
 
     add_mlir_library(mlir_cuda_runtime
       SHARED
@@ -197,6 +208,7 @@ if(LLVM_ENABLE_PIC)
     target_link_libraries(mlir_cuda_runtime
       PRIVATE
       ${CUDA_RUNTIME_LIBRARY}
+      ${CUDA_CUSPARSE_LIBRARY}
     )
   endif()
 

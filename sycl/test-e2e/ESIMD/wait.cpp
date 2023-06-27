@@ -5,15 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
 
-// RUN: %clangxx -fsycl -fsycl-device-only -Xclang -emit-llvm -o %t.comp.ll %s
-// RUN: sycl-post-link -ir-output-only -lower-esimd -S %t.comp.ll -o %t.out.ll
-// RUN: FileCheck --input-file=%t.out.ll %s
-
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test verifies support of ext::intel::experimental::esimd::wait().
 // The function is basically a NOP. It creates explicit scoreboard dependency
@@ -37,8 +31,6 @@ bool test(sycl::queue Q, int IArg = 128) {
        simd<int, 16> A = IArg;
        simd<int, 16> B = A * A;
        iesimd::wait(B);
-       // CHECK: mul <16 x i32>
-       // CHECK: llvm.genx.dummy.mov
      }).wait();
 
     // Test case 2: check wait() with esimd::simd_view argument.
@@ -48,9 +40,6 @@ bool test(sycl::queue Q, int IArg = 128) {
        auto BView = B.select<8, 2>(0);
        BView += 2;
        iesimd::wait(BView);
-       // CHECK: mul <16 x i32>
-       // CHECK: add <8 x i32>
-       // CHECK: llvm.genx.dummy.mov
      }).wait();
 
     // Test case 3: check wait() that prevesrves one simd and lets
@@ -60,10 +49,6 @@ bool test(sycl::queue Q, int IArg = 128) {
        auto B = A * 17;
        iesimd::wait(B);
        auto C = B * 17;
-       // CHECK: mul <8 x i64>
-       // CHECK-NOT: add <8 x i64>
-       // CHECK: llvm.genx.dummy.mov
-       // CHECK-NEXT: ret void
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';

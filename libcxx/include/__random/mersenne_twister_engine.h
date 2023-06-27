@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <iosfwd>
 #include <limits>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -141,7 +140,7 @@ public:
         explicit mersenne_twister_engine(_Sseq& __q,
         typename enable_if<__is_seed_sequence<_Sseq, mersenne_twister_engine>::value>::type* = 0)
         {seed(__q);}
-    void seed(result_type __sd = default_seed);
+    _LIBCPP_HIDE_FROM_ABI void seed(result_type __sd = default_seed);
     template<class _Sseq>
         _LIBCPP_INLINE_VISIBILITY
         typename enable_if
@@ -153,7 +152,7 @@ public:
             {__seed(__q, integral_constant<unsigned, 1 + (__w - 1) / 32>());}
 
     // generating functions
-    result_type operator()();
+    _LIBCPP_HIDE_FROM_ABI result_type operator()();
     _LIBCPP_INLINE_VISIBILITY
     void discard(unsigned long long __z) {for (; __z; --__z) operator()();}
 
@@ -199,9 +198,9 @@ public:
 private:
 
     template<class _Sseq>
-        void __seed(_Sseq& __q, integral_constant<unsigned, 1>);
+    _LIBCPP_HIDE_FROM_ABI void __seed(_Sseq& __q, integral_constant<unsigned, 1>);
     template<class _Sseq>
-        void __seed(_Sseq& __q, integral_constant<unsigned, 2>);
+    _LIBCPP_HIDE_FROM_ABI void __seed(_Sseq& __q, integral_constant<unsigned, 2>);
 
     template <size_t __count>
         _LIBCPP_INLINE_VISIBILITY

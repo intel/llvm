@@ -20,11 +20,13 @@
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIROpsSupport.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
-#include "flang/Optimizer/Support/KindMapping.h"
+#include "flang/Optimizer/Dialect/Support/FIRContext.h"
+#include "flang/Optimizer/Dialect/Support/KindMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/DenseMap.h"
 #include <optional>
+#include <utility>
 
 namespace fir {
 class AbstractArrayBox;
@@ -40,18 +42,28 @@ class BoxValue;
 /// patterns.
 class FirOpBuilder : public mlir::OpBuilder, public mlir::OpBuilder::Listener {
 public:
-  explicit FirOpBuilder(mlir::Operation *op, const fir::KindMapping &kindMap)
-      : OpBuilder{op, /*listener=*/this}, kindMap{kindMap} {}
-  explicit FirOpBuilder(mlir::OpBuilder &builder,
-                        const fir::KindMapping &kindMap)
-      : OpBuilder{builder}, kindMap{kindMap} {
+  explicit FirOpBuilder(mlir::Operation *op, fir::KindMapping kindMap)
+      : OpBuilder{op, /*listener=*/this}, kindMap{std::move(kindMap)} {}
+  explicit FirOpBuilder(mlir::OpBuilder &builder, fir::KindMapping kindMap)
+      : OpBuilder(builder), OpBuilder::Listener(), kindMap{std::move(kindMap)} {
+    setListener(this);
+  }
+  explicit FirOpBuilder(mlir::OpBuilder &builder, mlir::ModuleOp mod)
+      : OpBuilder(builder), OpBuilder::Listener(),
+        kindMap{getKindMapping(mod)} {
     setListener(this);
   }
 
   // The listener self-reference has to be updated in case of copy-construction.
   FirOpBuilder(const FirOpBuilder &other)
-      : OpBuilder{other}, kindMap{other.kindMap}, fastMathFlags{
-                                                      other.fastMathFlags} {
+      : OpBuilder(other), OpBuilder::Listener(), kindMap{other.kindMap},
+        fastMathFlags{other.fastMathFlags} {
+    setListener(this);
+  }
+
+  FirOpBuilder(FirOpBuilder &&other)
+      : OpBuilder(other), OpBuilder::Listener(),
+        kindMap{std::move(other.kindMap)}, fastMathFlags{other.fastMathFlags} {
     setListener(this);
   }
 
@@ -336,7 +348,11 @@ public:
   /// Array entities are boxed with a shape and possibly a shift. Character
   /// entities are boxed with a LEN parameter.
   mlir::Value createBox(mlir::Location loc, const fir::ExtendedValue &exv,
-                        bool isPolymorphic = false);
+                        bool isPolymorphic = false, bool isAssumedType = false);
+
+  mlir::Value createBox(mlir::Location loc, mlir::Type boxType,
+                        mlir::Value addr, mlir::Value shape, mlir::Value slice,
+                        llvm::ArrayRef<mlir::Value> lengths, mlir::Value tdesc);
 
   /// Create constant i1 with value 1. if \p b is true or 0. otherwise
   mlir::Value createBool(mlir::Location loc, bool b) {
@@ -422,6 +438,10 @@ public:
                                    mlir::Value ub, mlir::Value step,
                                    mlir::Type type);
 
+  /// Create an AbsentOp of \p argTy type and handle special cases, such as
+  /// Character Procedure Tuple arguments.
+  mlir::Value genAbsentOp(mlir::Location loc, mlir::Type argTy);
+
   /// Set default FastMathFlags value for all operations
   /// supporting mlir::arith::FastMathAttr that will be created
   /// by this builder.
@@ -449,7 +469,7 @@ private:
   /// based on the current attributes setting.
   void setCommonAttributes(mlir::Operation *op) const;
 
-  const KindMapping &kindMap;
+  KindMapping kindMap;
 
   /// FastMathFlags that need to be set for operations that support
   /// mlir::arith::FastMathAttr.

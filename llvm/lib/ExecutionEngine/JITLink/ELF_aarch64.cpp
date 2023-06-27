@@ -58,6 +58,9 @@ private:
     ELFMovwAbsG1,
     ELFMovwAbsG2,
     ELFMovwAbsG3,
+    ELFTstBr14,
+    ELFCondBr19,
+    ELFAbs32,
     ELFAbs64,
     ELFPrel32,
     ELFPrel64,
@@ -98,6 +101,12 @@ private:
       return ELFMovwAbsG2;
     case ELF::R_AARCH64_MOVW_UABS_G3:
       return ELFMovwAbsG3;
+    case ELF::R_AARCH64_TSTBR14:
+      return ELFTstBr14;
+    case ELF::R_AARCH64_CONDBR19:
+      return ELFCondBr19;
+    case ELF::R_AARCH64_ABS32:
+      return ELFAbs32;
     case ELF::R_AARCH64_ABS64:
       return ELFAbs64;
     case ELF::R_AARCH64_PREL32:
@@ -284,6 +293,29 @@ private:
       Kind = aarch64::MoveWide16;
       break;
     }
+    case ELFTstBr14: {
+      uint32_t Instr = *(const ulittle32_t *)FixupContent;
+      if (!aarch64::isTestAndBranchImm14(Instr))
+        return make_error<JITLinkError>("R_AARCH64_TSTBR14 target is not a "
+                                        "test and branch instruction");
+
+      Kind = aarch64::TestAndBranch14PCRel;
+      break;
+    }
+    case ELFCondBr19: {
+      uint32_t Instr = *(const ulittle32_t *)FixupContent;
+      if (!aarch64::isCondBranchImm19(Instr) &&
+          !aarch64::isCompAndBranchImm19(Instr))
+        return make_error<JITLinkError>("R_AARCH64_CONDBR19 target is not a "
+                                        "conditional branch instruction");
+
+      Kind = aarch64::CondBranch19PCRel;
+      break;
+    }
+    case ELFAbs32: {
+      Kind = aarch64::Pointer32;
+      break;
+    }
     case ELFAbs64: {
       Kind = aarch64::Pointer64;
       break;
@@ -357,6 +389,8 @@ private:
       return "ELFMovwAbsG2";
     case ELFMovwAbsG3:
       return "ELFMovwAbsG3";
+    case ELFAbs32:
+      return "ELFAbs32";
     case ELFAbs64:
       return "ELFAbs64";
     case ELFPrel32:
@@ -382,9 +416,10 @@ private:
 
 public:
   ELFLinkGraphBuilder_aarch64(StringRef FileName,
-                              const object::ELFFile<ELFT> &Obj, Triple TT)
-      : ELFLinkGraphBuilder<ELFT>(Obj, std::move(TT), FileName,
-                                  aarch64::getEdgeKindName) {}
+                              const object::ELFFile<ELFT> &Obj, Triple TT,
+                              LinkGraph::FeatureVector Features)
+      : ELFLinkGraphBuilder<ELFT>(Obj, std::move(TT), std::move(Features),
+                                  FileName, aarch64::getEdgeKindName) {}
 };
 
 // TLS Info Builder.
@@ -532,13 +567,17 @@ createLinkGraphFromELFObject_aarch64(MemoryBufferRef ObjectBuffer) {
   if (!ELFObj)
     return ELFObj.takeError();
 
+  auto Features = (*ELFObj)->getFeatures();
+  if (!Features)
+    return Features.takeError();
+
   assert((*ELFObj)->getArch() == Triple::aarch64 &&
          "Only AArch64 (little endian) is supported for now");
 
   auto &ELFObjFile = cast<object::ELFObjectFile<object::ELF64LE>>(**ELFObj);
-  return ELFLinkGraphBuilder_aarch64<object::ELF64LE>((*ELFObj)->getFileName(),
-                                                      ELFObjFile.getELFFile(),
-                                                      (*ELFObj)->makeTriple())
+  return ELFLinkGraphBuilder_aarch64<object::ELF64LE>(
+             (*ELFObj)->getFileName(), ELFObjFile.getELFFile(),
+             (*ELFObj)->makeTriple(), Features->getFeatures())
       .buildGraph();
 }
 
@@ -552,6 +591,7 @@ void link_ELF_aarch64(std::unique_ptr<LinkGraph> G,
     Config.PrePrunePasses.push_back(EHFrameEdgeFixer(
         ".eh_frame", 8, aarch64::Pointer32, aarch64::Pointer64,
         aarch64::Delta32, aarch64::Delta64, aarch64::NegDelta32));
+    Config.PrePrunePasses.push_back(EHFrameNullTerminator(".eh_frame"));
 
     // Add a mark-live pass.
     if (auto MarkLive = Ctx->getMarkLivePass(TT))

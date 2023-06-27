@@ -29,6 +29,8 @@ public:
       : MSubmissionPrimaryQueue(std::move(SubmissionPrimaryQueue)),
         MSubmissionSecondaryQueue(std::move(SubmissionSecondaryQueue)){};
 
+  handler_impl() = default;
+
   void setStateExplicitKernelBundle() {
     if (MSubmissionState == HandlerSubmissionState::SPEC_CONST_SET_STATE)
       throw sycl::exception(
@@ -85,7 +87,20 @@ public:
   /// property.
   bool MIsDeviceImageScoped = false;
 
-  RT::PiKernelCacheConfig MKernelCacheConfig =
+  // Program scope pipe information.
+
+  // Pipe name that uniquely identifies a pipe.
+  std::string HostPipeName;
+  // Pipe host pointer, the address of its constexpr __pipe member.
+  void *HostPipePtr = nullptr;
+  // Host pipe read write operation is blocking.
+  bool HostPipeBlocking = false;
+  // The size of returned type for each read.
+  size_t HostPipeTypeSize = 0;
+  // If the pipe operation is read or write, 1 for read 0 for write.
+  bool HostPipeRead = true;
+
+  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
 };
 

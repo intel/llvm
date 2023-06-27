@@ -125,6 +125,9 @@ def do_configure(args):
             # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
             if 'NVPTX' not in llvm_targets_to_build:
                 llvm_targets_to_build += ';NVPTX'
+            # since we are building AMD libclc target we must have AMDGPU target
+            if 'AMDGPU' not in llvm_targets_to_build:
+                llvm_targets_to_build += ';AMDGPU'
             # Add both NVIDIA and AMD libclc targets
             if libclc_amd_target_names not in libclc_targets_to_build:
                 libclc_targets_to_build += libclc_amd_target_names
@@ -167,7 +170,8 @@ def do_configure(args):
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
         "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins))),
-        "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion)
+        "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion),
+        "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
 
     if args.l0_headers and args.l0_loader:

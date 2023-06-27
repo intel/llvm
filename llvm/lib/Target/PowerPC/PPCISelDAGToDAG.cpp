@@ -32,6 +32,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
@@ -53,7 +54,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -2846,9 +2846,6 @@ public:
   }
 };
 
-static bool isLogicOp(unsigned Opc) {
-  return Opc == ISD::AND || Opc == ISD::OR || Opc == ISD::XOR;
-}
 // The obvious case for wanting to keep the value in a GPR. Namely, the
 // result of the comparison is actually needed in a GPR.
 SDNode *IntegerCompareEliminator::tryEXTEND(SDNode *N) {
@@ -2858,7 +2855,7 @@ SDNode *IntegerCompareEliminator::tryEXTEND(SDNode *N) {
   SDValue WideRes;
   // If we are zero-extending the result of a logical operation on i1
   // values, we can keep the values in GPRs.
-  if (isLogicOp(N->getOperand(0).getOpcode()) &&
+  if (ISD::isBitwiseLogicOp(N->getOperand(0).getOpcode()) &&
       N->getOperand(0).getValueType() == MVT::i1 &&
       N->getOpcode() == ISD::ZERO_EXTEND)
     WideRes = computeLogicOpInGPR(N->getOperand(0));
@@ -2894,7 +2891,7 @@ SDNode *IntegerCompareEliminator::tryEXTEND(SDNode *N) {
 SDNode *IntegerCompareEliminator::tryLogicOpOfCompares(SDNode *N) {
   if (N->getValueType(0) != MVT::i1)
     return nullptr;
-  assert(isLogicOp(N->getOpcode()) &&
+  assert(ISD::isBitwiseLogicOp(N->getOpcode()) &&
          "Expected a logic operation on setcc results.");
   SDValue LoweredLogical = computeLogicOpInGPR(SDValue(N, 0));
   if (!LoweredLogical)
@@ -2974,7 +2971,7 @@ SDNode *IntegerCompareEliminator::tryLogicOpOfCompares(SDNode *N) {
 // There is also a special case that is handled (namely a complement operation
 // achieved with xor %a, -1).
 SDValue IntegerCompareEliminator::computeLogicOpInGPR(SDValue LogicOp) {
-  assert(isLogicOp(LogicOp.getOpcode()) &&
+  assert(ISD::isBitwiseLogicOp(LogicOp.getOpcode()) &&
         "Can only handle logic operations here.");
   assert(LogicOp.getValueType() == MVT::i1 &&
          "Can only handle logic operations on i1 values here.");
@@ -2999,7 +2996,7 @@ SDValue IntegerCompareEliminator::computeLogicOpInGPR(SDValue LogicOp) {
                                             PPC::RLDICL, dl, InVT, InputOp,
                                             S->getI64Imm(0, dl),
                                             S->getI64Imm(63, dl)), 0);
-    } else if (isLogicOp(OperandOpcode))
+    } else if (ISD::isBitwiseLogicOp(OperandOpcode))
       return computeLogicOpInGPR(Operand);
     return SDValue();
   };
@@ -3888,7 +3885,7 @@ static bool allUsesExtend(SDValue Compare, SelectionDAG *CurDAG) {
     if (CompareUse->getOpcode() != ISD::SIGN_EXTEND &&
         CompareUse->getOpcode() != ISD::ZERO_EXTEND &&
         CompareUse->getOpcode() != ISD::SELECT &&
-        !isLogicOp(CompareUse->getOpcode())) {
+        !ISD::isBitwiseLogicOp(CompareUse->getOpcode())) {
       OmittedForNonExtendUses++;
       return false;
     }
@@ -3997,7 +3994,7 @@ bool PPCDAGToDAGISel::tryBitPermutation(SDNode *N) {
       if (SRLConst && SRLConst->getSExtValue() == 16)
         return false;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ISD::ROTL:
   case ISD::SHL:
   case ISD::AND:
@@ -4507,9 +4504,9 @@ bool PPCDAGToDAGISel::trySETCC(SDNode *N) {
   // Force the ccreg into CR7.
   SDValue CR7Reg = CurDAG->getRegister(PPC::CR7, MVT::i32);
 
-  SDValue InFlag;  // Null incoming flag value.
+  SDValue InGlue;  // Null incoming flag value.
   CCReg = CurDAG->getCopyToReg(CurDAG->getEntryNode(), dl, CR7Reg, CCReg,
-                               InFlag).getValue(1);
+                               InGlue).getValue(1);
 
   IntCR = SDValue(CurDAG->getMachineNode(PPC::MFOCRF, dl, MVT::i32, CR7Reg,
                                          CCReg), 0);
@@ -5371,9 +5368,9 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
     return;
 
   case PPCISD::MFOCRF: {
-    SDValue InFlag = N->getOperand(1);
+    SDValue InGlue = N->getOperand(1);
     ReplaceNode(N, CurDAG->getMachineNode(PPC::MFOCRF, dl, MVT::i32,
-                                          N->getOperand(0), InFlag));
+                                          N->getOperand(0), InGlue));
     return;
   }
 
@@ -5725,21 +5722,18 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
     }
 
     // Handle the setcc cases here.  select_cc lhs, 0, 1, 0, cc
-    if (!isPPC64)
-      if (ConstantSDNode *N1C = dyn_cast<ConstantSDNode>(N->getOperand(1)))
-        if (ConstantSDNode *N2C = dyn_cast<ConstantSDNode>(N->getOperand(2)))
-          if (ConstantSDNode *N3C = dyn_cast<ConstantSDNode>(N->getOperand(3)))
-            if (N1C->isZero() && N3C->isZero() && N2C->getZExtValue() == 1ULL &&
-                CC == ISD::SETNE &&
-                // FIXME: Implement this optzn for PPC64.
-                N->getValueType(0) == MVT::i32) {
-              SDNode *Tmp =
-                CurDAG->getMachineNode(PPC::ADDIC, dl, MVT::i32, MVT::Glue,
-                                       N->getOperand(0), getI32Imm(~0U, dl));
-              CurDAG->SelectNodeTo(N, PPC::SUBFE, MVT::i32, SDValue(Tmp, 0),
-                                   N->getOperand(0), SDValue(Tmp, 1));
-              return;
-            }
+    if (!isPPC64 && isNullConstant(N->getOperand(1)) &&
+        isOneConstant(N->getOperand(2)) && isNullConstant(N->getOperand(3)) &&
+        CC == ISD::SETNE &&
+        // FIXME: Implement this optzn for PPC64.
+        N->getValueType(0) == MVT::i32) {
+      SDNode *Tmp =
+          CurDAG->getMachineNode(PPC::ADDIC, dl, MVT::i32, MVT::Glue,
+                                 N->getOperand(0), getI32Imm(~0U, dl));
+      CurDAG->SelectNodeTo(N, PPC::SUBFE, MVT::i32, SDValue(Tmp, 0),
+                           N->getOperand(0), SDValue(Tmp, 1));
+      return;
+    }
 
     SDValue CCReg = SelectCC(N->getOperand(0), N->getOperand(1), CC, dl);
 

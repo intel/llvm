@@ -71,6 +71,18 @@ void ValueObjectPrinter::Init(
 }
 
 bool ValueObjectPrinter::PrintValueObject() {
+  if (!m_orig_valobj)
+    return false;
+
+  // If the incoming ValueObject is in an error state, the best we're going to 
+  // get out of it is its type.  But if we don't even have that, just print
+  // the error and exit early.
+  if (m_orig_valobj->GetError().Fail() 
+      && !m_orig_valobj->GetCompilerType().IsValid()) {
+    m_stream->Printf("Error: '%s'", m_orig_valobj->GetError().AsCString());
+    return true;
+  }
+   
   if (!GetMostSpecializedValue() || m_valobj == nullptr)
     return false;
 
@@ -263,7 +275,7 @@ void ValueObjectPrinter::PrintDecl() {
 
   StreamString varName;
 
-  if (!m_options.m_hide_name) {
+  if (ShouldShowName()) {
     if (m_options.m_flat_output)
       m_valobj->GetExpressionPath(varName);
     else
@@ -288,9 +300,14 @@ void ValueObjectPrinter::PrintDecl() {
     ConstString type_name_cstr(typeName.GetString());
     ConstString var_name_cstr(varName.GetString());
 
+    DumpValueObjectOptions decl_print_options = m_options;
+    // Pass printing helpers an option object that indicates whether the name
+    // should be shown or hidden.
+    decl_print_options.SetHideName(!ShouldShowName());
+
     StreamString dest_stream;
     if (m_options.m_decl_printing_helper(type_name_cstr, var_name_cstr,
-                                         m_options, dest_stream)) {
+                                         decl_print_options, dest_stream)) {
       decl_printed = true;
       m_stream->PutCString(dest_stream.GetString());
     }
@@ -302,7 +319,7 @@ void ValueObjectPrinter::PrintDecl() {
       m_stream->Printf("(%s) ", typeName.GetData());
     if (!varName.Empty())
       m_stream->Printf("%s =", varName.GetData());
-    else if (!m_options.m_hide_name)
+    else if (ShouldShowName())
       m_stream->Printf(" =");
   }
 }
@@ -425,7 +442,7 @@ bool ValueObjectPrinter::PrintValueAndSummaryIfNeeded(bool &value_printed,
         if (m_options.m_hide_pointer_value &&
             IsPointerValue(m_valobj->GetCompilerType())) {
         } else {
-          if (!m_options.m_hide_name)
+          if (ShouldShowName())
             m_stream->PutChar(' ');
           m_stream->PutCString(m_value);
           value_printed = true;
@@ -433,7 +450,9 @@ bool ValueObjectPrinter::PrintValueAndSummaryIfNeeded(bool &value_printed,
       }
 
       if (m_summary.size()) {
-        m_stream->Printf(" %s", m_summary.c_str());
+        if (ShouldShowName() || value_printed)
+          m_stream->PutChar(' ');
+        m_stream->PutCString(m_summary);
         summary_printed = true;
       }
     }
@@ -447,7 +466,7 @@ bool ValueObjectPrinter::PrintObjectDescriptionIfNeeded(bool value_printed,
     // let's avoid the overly verbose no description error for a nil thing
     if (m_options.m_use_objc && !IsNil() && !IsUninitialized() &&
         (!m_options.m_pointer_as_array)) {
-      if (!m_options.m_hide_value || !m_options.m_hide_name)
+      if (!m_options.m_hide_value || ShouldShowName())
         m_stream->Printf(" ");
       const char *object_desc = nullptr;
       if (value_printed || summary_printed)
@@ -497,10 +516,12 @@ bool ValueObjectPrinter::ShouldPrintChildren(
   if (m_options.m_pointer_as_array)
     return true;
 
-  TypeSummaryImpl *entry = GetSummaryFormatter();
-
   if (m_options.m_use_objc)
     return false;
+
+  bool print_children = true;
+  if (TypeSummaryImpl *type_summary = GetSummaryFormatter())
+    print_children = type_summary->DoesPrintChildren(m_valobj);
 
   if (is_failed_description || !HasReachedMaximumDepth()) {
     // We will show children for all concrete types. We won't show pointer
@@ -519,7 +540,7 @@ bool ValueObjectPrinter::ShouldPrintChildren(
 
       const bool is_root_level = m_curr_depth == 0;
 
-      if (is_ref && is_root_level) {
+      if (is_ref && is_root_level && print_children) {
         // If this is the root object (depth is zero) that we are showing and
         // it is a reference, and no pointer depth has been supplied print out
         // what it references. Don't do this at deeper depths otherwise we can
@@ -530,7 +551,7 @@ bool ValueObjectPrinter::ShouldPrintChildren(
       return curr_ptr_depth.CanAllowExpansion();
     }
 
-    return (!entry || entry->DoesPrintChildren(m_valobj) || m_summary.empty());
+    return print_children || m_summary.empty();
   }
   return false;
 }
@@ -548,13 +569,20 @@ ValueObject *ValueObjectPrinter::GetValueObjectForChildrenGeneration() {
   return m_valobj;
 }
 
-void ValueObjectPrinter::PrintChildrenPreamble() {
+void ValueObjectPrinter::PrintChildrenPreamble(bool value_printed,
+                                               bool summary_printed) {
   if (m_options.m_flat_output) {
     if (ShouldPrintValueObject())
       m_stream->EOL();
   } else {
-    if (ShouldPrintValueObject())
-      m_stream->PutCString(IsRef() ? ": {\n" : " {\n");
+    if (ShouldPrintValueObject()) {
+      if (IsRef()) {
+        m_stream->PutCString(": ");
+      } else if (value_printed || summary_printed || ShouldShowName()) {
+        m_stream->PutChar(' ');
+      }
+      m_stream->PutCString("{\n");
+    }
     m_stream->IndentMore();
   }
 }
@@ -675,8 +703,11 @@ void ValueObjectPrinter::PrintChildren(
 
     for (size_t idx = 0; idx < num_children; ++idx) {
       if (ValueObjectSP child_sp = GenerateChild(synth_m_valobj, idx)) {
+        if (m_options.m_child_printing_decider &&
+            !m_options.m_child_printing_decider(child_sp->GetName()))
+          continue;
         if (!any_children_printed) {
-          PrintChildrenPreamble();
+          PrintChildrenPreamble(value_printed, summary_printed);
           any_children_printed = true;
         }
         PrintChild(child_sp, curr_ptr_depth);
@@ -723,14 +754,19 @@ bool ValueObjectPrinter::PrintChildrenOneLiner(bool hide_names) {
   if (num_children) {
     m_stream->PutChar('(');
 
+    bool did_print_children = false;
     for (uint32_t idx = 0; idx < num_children; ++idx) {
       lldb::ValueObjectSP child_sp(synth_m_valobj->GetChildAtIndex(idx, true));
       if (child_sp)
         child_sp = child_sp->GetQualifiedRepresentationIfAvailable(
             m_options.m_use_dynamic, m_options.m_use_synthetic);
       if (child_sp) {
-        if (idx)
+        if (m_options.m_child_printing_decider &&
+            !m_options.m_child_printing_decider(child_sp->GetName()))
+          continue;
+        if (idx && did_print_children)
           m_stream->PutCString(", ");
+        did_print_children = true;
         if (!hide_names) {
           const char *name = child_sp.get()->GetName().AsCString();
           if (name && *name) {
@@ -806,4 +842,10 @@ void ValueObjectPrinter::PrintChildrenIfNeeded(bool value_printed,
 
 bool ValueObjectPrinter::HasReachedMaximumDepth() {
   return m_curr_depth >= m_options.m_max_depth;
+}
+
+bool ValueObjectPrinter::ShouldShowName() const {
+  if (m_curr_depth == 0)
+    return !m_options.m_hide_root_name && !m_options.m_hide_name;
+  return !m_options.m_hide_name;
 }

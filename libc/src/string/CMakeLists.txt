@@ -20,6 +20,7 @@ add_header_library(
     .memory_utils.memcpy_implementation
     libc.include.stdlib
     libc.src.__support.CPP.optional
+    libc.src.__support.macros.config
 )
 
 add_entrypoint_object(
@@ -28,6 +29,16 @@ add_entrypoint_object(
     bcopy.cpp
   HDRS
     bcopy.h
+)
+
+add_entrypoint_object(
+  index
+  SRCS
+    index.cpp
+  HDRS
+    index.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -49,6 +60,16 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  memmem
+  SRCS
+    memmem.cpp
+  HDRS
+    memmem.h
+  DEPENDS
+    .memory_utils.memmem_implementation
+)
+
+add_entrypoint_object(
   memchr
   SRCS
     memchr.cpp
@@ -64,6 +85,16 @@ add_entrypoint_object(
     memrchr.cpp
   HDRS
     memrchr.h
+)
+
+add_entrypoint_object(
+  rindex
+  SRCS
+    rindex.cpp
+  HDRS
+    rindex.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -104,6 +135,18 @@ add_entrypoint_object(
     strchr.cpp
   HDRS
     strchr.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  strchrnul
+  SRCS
+    strchrnul.cpp
+  HDRS
+    strchrnul.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -176,7 +219,6 @@ add_entrypoint_object(
   DEPENDS
     .memory_utils.memcpy_implementation
     .string_utils
-    libc.include.errno
     libc.include.stdlib
     libc.src.errno.errno
 )
@@ -313,6 +355,18 @@ add_entrypoint_object(
     strrchr.cpp
   HDRS
     strrchr.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  strsep
+  SRCS
+    strsep.cpp
+  HDRS
+    strsep.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -365,6 +419,17 @@ add_entrypoint_object(
     .string_utils
 )
 
+add_entrypoint_object(
+  strxfrm
+  SRCS
+    strxfrm.cpp
+  HDRS
+    strxfrm.h
+  DEPENDS
+    .string_utils
+    .memory_utils.memcpy_implementation
+)
+
 # Helper to define a function with multiple implementations
 # - Computes flags to satisfy required/rejected features and arch,
 # - Declares an entry point,
@@ -390,7 +455,7 @@ function(add_implementation name impl_name)
     SRCS ${ADD_IMPL_SRCS}
     HDRS ${ADD_IMPL_HDRS}
     DEPENDS ${ADD_IMPL_DEPENDS}
-    COMPILE_OPTIONS ${ADD_IMPL_COMPILE_OPTIONS}
+    COMPILE_OPTIONS -O3 ${ADD_IMPL_COMPILE_OPTIONS}
   )
   get_fq_target_name(${impl_name} fq_target_name)
   set_target_properties(${fq_target_name} PROPERTIES REQUIRE_CPU_FEATURES "${ADD_IMPL_REQUIRE}")

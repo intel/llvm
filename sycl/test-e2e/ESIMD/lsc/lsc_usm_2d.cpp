@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
 
@@ -58,16 +57,16 @@ int main() {
     q.submit([&](handler &h) {
       h.parallel_for<class SimplestKernel>(
           range<1>{1}, [=](id<1> id) SYCL_ESIMD_KERNEL {
-            lsc_prefetch2d<int, Width, Height, NumBlocks, cache_hint::cached,
-                           cache_hint::uncached>(
+            lsc_prefetch_2d<int, Width, Height, NumBlocks, cache_hint::cached,
+                            cache_hint::uncached>(
                 input, (data_width * sizeof(int)) - 1, data_height - 1,
                 (data_pitch * sizeof(int)) - 1, x, y);
-            auto data = lsc_load2d<int, Width, Height, NumBlocks, false, false,
-                                   cache_hint::uncached, cache_hint::uncached>(
+            auto data = lsc_load_2d<int, Width, Height, NumBlocks, false, false,
+                                    cache_hint::uncached, cache_hint::uncached>(
                 input, (data_width * sizeof(int)) - 1, data_height - 1,
                 (data_pitch * sizeof(int)) - 1, x, y);
-            lsc_store2d<int, Width, Height, cache_hint::uncached,
-                        cache_hint::uncached>(
+            lsc_store_2d<int, Width, Height, cache_hint::uncached,
+                         cache_hint::uncached>(
                 block_store, (data_width * sizeof(int)) - 1, data_height - 1,
                 (data_pitch * sizeof(int)) - 1, x, y, data);
           });

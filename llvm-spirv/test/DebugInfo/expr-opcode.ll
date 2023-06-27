@@ -6,6 +6,13 @@
 ; RUN: llc -mtriple=%triple -dwarf-version=5 -filetype=obj -O0 < %t.rev.ll
 ; RUN: llc -mtriple=%triple -dwarf-version=4 -filetype=obj -O0 < %t.rev.ll
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.rev.ll
+; RUN: FileCheck %s --input-file %t.rev.ll
+
+; RUN: llc -mtriple=%triple -dwarf-version=5 -filetype=obj -O0 < %t.rev.ll
+; RUN: llc -mtriple=%triple -dwarf-version=4 -filetype=obj -O0 < %t.rev.ll
+
 ; CHECK: DW_OP_constu, 42
 ; CHECK: DW_OP_plus_uconst, 42
 ; CHECK: DW_OP_plus

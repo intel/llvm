@@ -1,8 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// UNSUPPORTED: hip
+// UNSUPPORTED: accelerator
 
 // This test checks the spenario of using specialization constants with an
 // 'array of array' as well as a 'stuct with an array of array' types for

@@ -47,12 +47,12 @@ int inline_decl() {
 // CHECK1-NEXT:  entry:
 // CHECK1-NEXT:    [[I:%.*]] = alloca i32, align 4
 // CHECK1-NEXT:    [[K:%.*]] = alloca i32, align 4
-// CHECK1-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB1:[0-9]+]], i32 1, ptr @.omp_outlined., ptr [[I]])
+// CHECK1-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB1:[0-9]+]], i32 1, ptr @_Z12outline_declv.omp_outlined, ptr [[I]])
 // CHECK1-NEXT:    [[TMP0:%.*]] = load i32, ptr [[K]], align 4
 // CHECK1-NEXT:    ret i32 [[TMP0]]
 //
 //
-// CHECK1-LABEL: define {{[^@]+}}@.omp_outlined.
+// CHECK1-LABEL: define {{[^@]+}}@_Z12outline_declv.omp_outlined
 // CHECK1-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[I:%.*]]) #[[ATTR1:[0-9]+]] {
 // CHECK1-NEXT:  entry:
 // CHECK1-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8
@@ -102,12 +102,12 @@ int inline_decl() {
 // CHECK1-NEXT:  entry:
 // CHECK1-NEXT:    [[I:%.*]] = alloca i32, align 4
 // CHECK1-NEXT:    [[RES:%.*]] = alloca i32, align 4
-// CHECK1-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB1]], i32 2, ptr @.omp_outlined..1, ptr [[I]], ptr [[RES]])
+// CHECK1-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB1]], i32 2, ptr @_Z11inline_declv.omp_outlined, ptr [[I]], ptr [[RES]])
 // CHECK1-NEXT:    [[TMP0:%.*]] = load i32, ptr [[RES]], align 4
 // CHECK1-NEXT:    ret i32 [[TMP0]]
 //
 //
-// CHECK1-LABEL: define {{[^@]+}}@.omp_outlined..1
+// CHECK1-LABEL: define {{[^@]+}}@_Z11inline_declv.omp_outlined
 // CHECK1-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[I:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[RES:%.*]]) #[[ATTR1]] {
 // CHECK1-NEXT:  entry:
 // CHECK1-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8
@@ -162,12 +162,12 @@ int inline_decl() {
 // CHECK2-NEXT:    [[K:%.*]] = alloca i32, align 4
 // CHECK2-NEXT:    call void @llvm.dbg.declare(metadata ptr [[I]], metadata [[META12:![0-9]+]], metadata !DIExpression()), !dbg [[DBG13:![0-9]+]]
 // CHECK2-NEXT:    call void @llvm.dbg.declare(metadata ptr [[K]], metadata [[META14:![0-9]+]], metadata !DIExpression()), !dbg [[DBG15:![0-9]+]]
-// CHECK2-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB1:[0-9]+]], i32 1, ptr @.omp_outlined., ptr [[I]]), !dbg [[DBG16:![0-9]+]]
+// CHECK2-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB1:[0-9]+]], i32 1, ptr @_Z12outline_declv.omp_outlined, ptr [[I]]), !dbg [[DBG16:![0-9]+]]
 // CHECK2-NEXT:    [[TMP0:%.*]] = load i32, ptr [[K]], align 4, !dbg [[DBG17:![0-9]+]]
 // CHECK2-NEXT:    ret i32 [[TMP0]], !dbg [[DBG18:![0-9]+]]
 //
 //
-// CHECK2-LABEL: define {{[^@]+}}@.omp_outlined._debug__
+// CHECK2-LABEL: define {{[^@]+}}@_Z12outline_declv.omp_outlined_debug__
 // CHECK2-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[I:%.*]]) #[[ATTR2:[0-9]+]] !dbg [[DBG19:![0-9]+]] {
 // CHECK2-NEXT:  entry:
 // CHECK2-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8
@@ -216,7 +216,7 @@ int inline_decl() {
 // CHECK2-NEXT:    ret void, !dbg [[DBG64:![0-9]+]]
 //
 //
-// CHECK2-LABEL: define {{[^@]+}}@.omp_outlined.
+// CHECK2-LABEL: define {{[^@]+}}@_Z12outline_declv.omp_outlined
 // CHECK2-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[I:%.*]]) #[[ATTR2]] !dbg [[DBG65:![0-9]+]] {
 // CHECK2-NEXT:  entry:
 // CHECK2-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8
@@ -232,7 +232,7 @@ int inline_decl() {
 // CHECK2-NEXT:    [[TMP1:%.*]] = load ptr, ptr [[DOTGLOBAL_TID__ADDR]], align 8, !dbg [[DBG70]]
 // CHECK2-NEXT:    [[TMP2:%.*]] = load ptr, ptr [[DOTBOUND_TID__ADDR]], align 8, !dbg [[DBG70]]
 // CHECK2-NEXT:    [[TMP3:%.*]] = load ptr, ptr [[I_ADDR]], align 8, !dbg [[DBG70]]
-// CHECK2-NEXT:    call void @.omp_outlined._debug__(ptr [[TMP1]], ptr [[TMP2]], ptr [[TMP3]]) #[[ATTR3:[0-9]+]], !dbg [[DBG70]]
+// CHECK2-NEXT:    call void @_Z12outline_declv.omp_outlined_debug__(ptr [[TMP1]], ptr [[TMP2]], ptr [[TMP3]]) #[[ATTR3:[0-9]+]], !dbg [[DBG70]]
 // CHECK2-NEXT:    ret void, !dbg [[DBG70]]
 //
 //
@@ -243,12 +243,12 @@ int inline_decl() {
 // CHECK2-NEXT:    [[RES:%.*]] = alloca i32, align 4
 // CHECK2-NEXT:    call void @llvm.dbg.declare(metadata ptr [[I]], metadata [[META74:![0-9]+]], metadata !DIExpression()), !dbg [[DBG75:![0-9]+]]
 // CHECK2-NEXT:    call void @llvm.dbg.declare(metadata ptr [[RES]], metadata [[META76:![0-9]+]], metadata !DIExpression()), !dbg [[DBG77:![0-9]+]]
-// CHECK2-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB3:[0-9]+]], i32 2, ptr @.omp_outlined..2, ptr [[I]], ptr [[RES]]), !dbg [[DBG78:![0-9]+]]
+// CHECK2-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB3:[0-9]+]], i32 2, ptr @_Z11inline_declv.omp_outlined, ptr [[I]], ptr [[RES]]), !dbg [[DBG78:![0-9]+]]
 // CHECK2-NEXT:    [[TMP0:%.*]] = load i32, ptr [[RES]], align 4, !dbg [[DBG79:![0-9]+]]
 // CHECK2-NEXT:    ret i32 [[TMP0]], !dbg [[DBG80:![0-9]+]]
 //
 //
-// CHECK2-LABEL: define {{[^@]+}}@.omp_outlined._debug__.1
+// CHECK2-LABEL: define {{[^@]+}}@_Z11inline_declv.omp_outlined_debug__
 // CHECK2-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[I:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[RES:%.*]]) #[[ATTR2]] !dbg [[DBG81:![0-9]+]] {
 // CHECK2-NEXT:  entry:
 // CHECK2-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8
@@ -301,7 +301,7 @@ int inline_decl() {
 // CHECK2-NEXT:    ret void, !dbg [[DBG121:![0-9]+]]
 //
 //
-// CHECK2-LABEL: define {{[^@]+}}@.omp_outlined..2
+// CHECK2-LABEL: define {{[^@]+}}@_Z11inline_declv.omp_outlined
 // CHECK2-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[I:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[RES:%.*]]) #[[ATTR2]] !dbg [[DBG122:![0-9]+]] {
 // CHECK2-NEXT:  entry:
 // CHECK2-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8
@@ -322,7 +322,7 @@ int inline_decl() {
 // CHECK2-NEXT:    [[TMP3:%.*]] = load ptr, ptr [[DOTBOUND_TID__ADDR]], align 8, !dbg [[DBG128]]
 // CHECK2-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[I_ADDR]], align 8, !dbg [[DBG128]]
 // CHECK2-NEXT:    [[TMP5:%.*]] = load ptr, ptr [[RES_ADDR]], align 8, !dbg [[DBG128]]
-// CHECK2-NEXT:    call void @.omp_outlined._debug__.1(ptr [[TMP2]], ptr [[TMP3]], ptr [[TMP4]], ptr [[TMP5]]) #[[ATTR3]], !dbg [[DBG128]]
+// CHECK2-NEXT:    call void @_Z11inline_declv.omp_outlined_debug__(ptr [[TMP2]], ptr [[TMP3]], ptr [[TMP4]], ptr [[TMP5]]) #[[ATTR3]], !dbg [[DBG128]]
 // CHECK2-NEXT:    ret void, !dbg [[DBG128]]
 //
 //

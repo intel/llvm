@@ -9,8 +9,8 @@
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "gtest/gtest.h"
 #include "flang/Optimizer/Builder/BoxValue.h"
+#include "flang/Optimizer/Dialect/Support/KindMapping.h"
 #include "flang/Optimizer/Support/InitFIR.h"
-#include "flang/Optimizer/Support/KindMapping.h"
 
 using namespace mlir;
 
@@ -311,7 +311,7 @@ TEST_F(FIRBuilderTest, createStringLiteral) {
   auto symbol = addrOp.getSymbol().getRootReference().getValue();
   auto global = builder.getNamedGlobal(symbol);
   EXPECT_EQ(
-      builder.createLinkOnceLinkage().getValue(), global.getLinkName().value());
+      builder.createInternalLinkage().getValue(), global.getLinkName().value());
   EXPECT_EQ(fir::CharacterType::get(builder.getContext(), 1, strValue.size()),
       global.getType());
 

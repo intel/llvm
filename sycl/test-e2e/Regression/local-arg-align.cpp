@@ -1,8 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 //
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 
 //==-- local-arg-align.cpp - Test for local argument alignmnent ------------==//
 //
@@ -34,7 +32,7 @@ int main(int argc, char *argv[]) {
      // argument first and the float4 argument second. If the two arguments are
      // simply laid out consecutively, the float4 argument will not be
      // correctly aligned.
-     h.parallel_for(1, [a, b, ares](sycl::id<1> i) {
+     h.parallel_for(sycl::nd_range<1>{1, 1}, [a, b, ares](sycl::nd_item<1>) {
        // Get the addresses of the two local buffers
        ares[0] = (size_t)&a[0];
        ares[1] = (size_t)&b[0];

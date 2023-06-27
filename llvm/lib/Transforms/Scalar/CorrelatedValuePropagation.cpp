@@ -36,11 +36,8 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
 #include <optional>
@@ -96,43 +93,6 @@ STATISTIC(NumNonNull, "Number of function pointer arguments marked non-null");
 STATISTIC(NumMinMax, "Number of llvm.[us]{min,max} intrinsics removed");
 STATISTIC(NumUDivURemsNarrowedExpanded,
           "Number of bound udiv's/urem's expanded");
-
-namespace {
-
-  class CorrelatedValuePropagation : public FunctionPass {
-  public:
-    static char ID;
-
-    CorrelatedValuePropagation(): FunctionPass(ID) {
-     initializeCorrelatedValuePropagationPass(*PassRegistry::getPassRegistry());
-    }
-
-    bool runOnFunction(Function &F) override;
-
-    void getAnalysisUsage(AnalysisUsage &AU) const override {
-      AU.addRequired<DominatorTreeWrapperPass>();
-      AU.addRequired<LazyValueInfoWrapperPass>();
-      AU.addPreserved<GlobalsAAWrapperPass>();
-      AU.addPreserved<DominatorTreeWrapperPass>();
-      AU.addPreserved<LazyValueInfoWrapperPass>();
-    }
-  };
-
-} // end anonymous namespace
-
-char CorrelatedValuePropagation::ID = 0;
-
-INITIALIZE_PASS_BEGIN(CorrelatedValuePropagation, "correlated-propagation",
-                "Value Propagation", false, false)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LazyValueInfoWrapperPass)
-INITIALIZE_PASS_END(CorrelatedValuePropagation, "correlated-propagation",
-                "Value Propagation", false, false)
-
-// Public interface to the Value Propagation pass
-Pass *llvm::createCorrelatedValuePropagationPass() {
-  return new CorrelatedValuePropagation();
-}
 
 static bool processSelect(SelectInst *S, LazyValueInfo *LVI) {
   if (S->getType()->isVectorTy()) return false;
@@ -698,7 +658,7 @@ enum class Domain { NonNegative, NonPositive, Unknown };
 static Domain getDomain(const ConstantRange &CR) {
   if (CR.isAllNonNegative())
     return Domain::NonNegative;
-  if (CR.icmp(ICmpInst::ICMP_SLE, APInt::getNullValue(CR.getBitWidth())))
+  if (CR.icmp(ICmpInst::ICMP_SLE, APInt::getZero(CR.getBitWidth())))
     return Domain::NonPositive;
   return Domain::Unknown;
 }
@@ -1219,16 +1179,6 @@ static bool runImpl(Function &F, LazyValueInfo *LVI, DominatorTree *DT,
   }
 
   return FnChanged;
-}
-
-bool CorrelatedValuePropagation::runOnFunction(Function &F) {
-  if (skipFunction(F))
-    return false;
-
-  LazyValueInfo *LVI = &getAnalysis<LazyValueInfoWrapperPass>().getLVI();
-  DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-
-  return runImpl(F, LVI, DT, getBestSimplifyQuery(*this, F));
 }
 
 PreservedAnalyses

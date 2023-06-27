@@ -114,7 +114,7 @@ public:
 
   template <typename T>
   using EnableIfNotConstIterator =
-      enable_if_t<!iterator_to_const_type_t<T>::value, T>;
+      std::enable_if_t<!iterator_to_const_type_t<T>::value, T>;
 
   buffer_impl(cl_mem MemObject, const context &SyclContext,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
@@ -146,7 +146,8 @@ public:
               std::move(Allocator)) {}
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, RT::PiEvent &OutEventToWait) override;
+                    void *HostPtr,
+                    sycl::detail::pi::PiEvent &OutEventToWait) override;
   void constructorNotification(const detail::code_location &CodeLoc,
                                void *UserObj, const void *HostObj,
                                const void *Type, uint32_t Dim,

@@ -1,7 +1,15 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: gpu
+// REQUIRES: aspect-fp16
 
-// UNSUPPORTED: cuda || hip
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %{build} %{mathflags} -o %t.out
+// RUN: %{run} %t.out
+
+// UNSUPPORTED: cuda
+
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
@@ -13,11 +21,6 @@ int main(int, char **) {
   std::cout << "Running on "
             << device_queue.get_device().get_info<sycl::info::device::name>()
             << "\n";
-
-  if (!device_queue.get_device().has(sycl::aspect::fp16)) {
-    std::cout << "Test skipped on platform without fp16 support." << std::endl;
-    return 0;
-  }
 
   {
     std::initializer_list<sycl::half> input_vals1 = {0.5f, -1.125f, 100.5f,

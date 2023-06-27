@@ -25,7 +25,8 @@ LLVM_LIBC_FUNCTION(float, acoshf, (float x)) {
 
   if (LIBC_UNLIKELY(x < 1.0f)) {
     // x < 1.
-    fputil::set_except(FE_INVALID);
+    fputil::set_errno_if_required(EDOM);
+    fputil::raise_except_if_required(FE_INVALID);
     return FPBits_t::build_quiet_nan(0);
   }
 
@@ -67,7 +68,8 @@ LLVM_LIBC_FUNCTION(float, acoshf, (float x)) {
 
   double x_d = static_cast<double>(x);
   // acosh(x) = log(x + sqrt(x^2 - 1))
-  return log_eval(x_d + fputil::sqrt(fputil::multiply_add(x_d, x_d, -1.0)));
+  return static_cast<float>(
+      log_eval(x_d + fputil::sqrt(fputil::multiply_add(x_d, x_d, -1.0))));
 }
 
 } // namespace __llvm_libc

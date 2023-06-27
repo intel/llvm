@@ -16,8 +16,10 @@ apt update && apt install -yqq \
       libffi-dev \
       libva-dev \
       libtool \
+      libdw1 \
       wget \
-      sudo
+      sudo \
+      zstd
 
 pip3 install psutil
 

@@ -26,19 +26,6 @@ class Pass;
 
 //===----------------------------------------------------------------------===//
 //
-// AlignmentFromAssumptions - Use assume intrinsics to set load/store
-// alignments.
-//
-FunctionPass *createAlignmentFromAssumptionsPass();
-
-//===----------------------------------------------------------------------===//
-//
-// SCCP - Sparse conditional constant propagation.
-//
-FunctionPass *createSCCPPass();
-
-//===----------------------------------------------------------------------===//
-//
 // RedundantDbgInstElimination - This pass removes redundant dbg intrinsics
 // without modifying the CFG of the function.  It is a FunctionPass.
 //
@@ -53,27 +40,12 @@ Pass *createRedundantDbgInstEliminationPass();
 //
 FunctionPass *createDeadCodeEliminationPass();
 
-//===----------------------------------------------------------------------===//
-//
-// DeadStoreElimination - This pass deletes stores that are post-dominated by
-// must-aliased stores and are not loaded used between the stores.
-//
-FunctionPass *createDeadStoreEliminationPass();
-
 
 //===----------------------------------------------------------------------===//
 //
 // CallSiteSplitting - This pass split call-site based on its known argument
 // values.
 FunctionPass *createCallSiteSplittingPass();
-
-//===----------------------------------------------------------------------===//
-//
-// AggressiveDCE - This pass uses the SSA based Aggressive DCE algorithm.  This
-// algorithm assumes instructions are dead until proven otherwise, which makes
-// it more successful are removing non-obviously dead instructions.
-//
-FunctionPass *createAggressiveDCEPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -96,30 +68,9 @@ Pass *createLoopGuardWideningPass();
 
 //===----------------------------------------------------------------------===//
 //
-// BitTrackingDCE - This pass uses a bit-tracking DCE algorithm in order to
-// remove computations of dead bits.
-//
-FunctionPass *createBitTrackingDCEPass();
-
-//===----------------------------------------------------------------------===//
-//
 // SROA - Replace aggregates or pieces of aggregates with scalar SSA values.
 //
 FunctionPass *createSROAPass(bool PreserveCFG = true);
-
-//===----------------------------------------------------------------------===//
-//
-// InductiveRangeCheckElimination - Transform loops to elide range checks on
-// linear functions of the induction variable.
-//
-Pass *createInductiveRangeCheckEliminationPass();
-
-//===----------------------------------------------------------------------===//
-//
-// InductionVariableSimplify - Transform induction variables in a program to all
-// use a single canonical induction variable per loop.
-//
-Pass *createIndVarSimplifyPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -178,12 +129,6 @@ Pass *createLoopRotatePass(int MaxHeaderSize = -1, bool PrepareForLTO = false);
 
 //===----------------------------------------------------------------------===//
 //
-// LoopIdiom - This pass recognizes and replaces idioms in loops.
-//
-Pass *createLoopIdiomPass();
-
-//===----------------------------------------------------------------------===//
-//
 // DemoteRegisterToMemoryPass - This pass is used to demote registers to memory
 // references. In basically undoes the PromoteMemoryToRegister pass to make cfg
 // hacking easier.
@@ -199,22 +144,6 @@ extern char &DemoteRegisterToMemoryID;
 // For example:  4 + (x + 5)  ->  x + (4 + 5)
 //
 FunctionPass *createReassociatePass();
-
-//===----------------------------------------------------------------------===//
-//
-// JumpThreading - Thread control through mult-pred/multi-succ blocks where some
-// preds always go to some succ. Thresholds other than minus one
-// override the internal BB duplication default threshold.
-//
-FunctionPass *createJumpThreadingPass(int Threshold = -1);
-
-//===----------------------------------------------------------------------===//
-//
-// DFAJumpThreading - When a switch statement inside a loop is used to
-// implement a deterministic finite automata we can jump thread the switch
-// statement reducing number of conditional jumps.
-//
-FunctionPass *createDFAJumpThreadingPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -257,44 +186,10 @@ FunctionPass *createEarlyCSEPass(bool UseMemorySSA = false);
 
 //===----------------------------------------------------------------------===//
 //
-// GVNHoist - This pass performs a simple and fast GVN pass over the dominator
-// tree to hoist common expressions from sibling branches.
-//
-FunctionPass *createGVNHoistPass();
-
-//===----------------------------------------------------------------------===//
-//
-// GVNSink - This pass uses an "inverted" value numbering to decide the
-// similarity of expressions and sinks similar expressions into successors.
-//
-FunctionPass *createGVNSinkPass();
-
-//===----------------------------------------------------------------------===//
-//
 // MergedLoadStoreMotion - This pass merges loads and stores in diamonds. Loads
 // are hoisted into the header, while stores sink into the footer.
 //
 FunctionPass *createMergedLoadStoreMotionPass(bool SplitFooterBB = false);
-
-//===----------------------------------------------------------------------===//
-//
-// GVN - This pass performs global value numbering and redundant load
-// elimination cotemporaneously.
-//
-FunctionPass *createNewGVNPass();
-
-//===----------------------------------------------------------------------===//
-//
-// DivRemPairs - Hoist/decompose integer division and remainder instructions.
-//
-FunctionPass *createDivRemPairsPass();
-
-//===----------------------------------------------------------------------===//
-//
-// MemCpyOpt - This pass performs optimizations related to eliminating memcpy
-// calls and/or combining multiple stores into memset's.
-//
-FunctionPass *createMemCpyOptPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -344,12 +239,6 @@ Pass *createLowerWidenableConditionPass();
 // MergeICmps - Merge integer comparison chains into a memcmp
 //
 Pass *createMergeICmpsLegacyPass();
-
-//===----------------------------------------------------------------------===//
-//
-// ValuePropagation - Propagate CFG-derived value information
-//
-Pass *createCorrelatedValuePropagationPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -430,12 +319,6 @@ ModulePass *createRewriteStatepointsForGCLegacyPass();
 
 //===----------------------------------------------------------------------===//
 //
-// Float2Int - Demote floats to ints where possible.
-//
-FunctionPass *createFloat2IntPass();
-
-//===----------------------------------------------------------------------===//
-//
 // NaryReassociate - Simplify n-ary operations by reassociation.
 //
 FunctionPass *createNaryReassociatePass();
@@ -445,13 +328,6 @@ FunctionPass *createNaryReassociatePass();
 // LoopDataPrefetch - Perform data prefetching in loops.
 //
 FunctionPass *createLoopDataPrefetchPass();
-
-//===----------------------------------------------------------------------===//
-//
-// LibCallsShrinkWrap - Shrink-wraps a call to function if the result is not
-// used.
-//
-FunctionPass *createLibCallsShrinkWrapPass();
 
 //===----------------------------------------------------------------------===//
 //

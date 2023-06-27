@@ -12,6 +12,7 @@
 #include "allocator_config.h"
 #include "chunk.h"
 #include "combined.h"
+#include "mem_map.h"
 
 #include <condition_variable>
 #include <memory>
@@ -92,7 +93,7 @@ template <class TypeParam> struct ScudoCombinedTest : public Test {
     Allocator = std::make_unique<AllocatorT>();
   }
   ~ScudoCombinedTest() {
-    Allocator->releaseToOS();
+    Allocator->releaseToOS(scudo::ReleaseToOS::Force);
     UseQuarantine = true;
   }
 
@@ -166,6 +167,8 @@ void ScudoCombinedTest<Config>::BasicTest(scudo::uptr SizeLog) {
       Allocator->deallocate(P, Origin, Size);
     }
   }
+
+  Allocator->printStats();
 }
 
 #define SCUDO_MAKE_BASIC_TEST(SizeLog)                                         \
@@ -412,7 +415,7 @@ SCUDO_TYPED_TEST(ScudoCombinedDeathTest, DisableMemoryTagging) {
     reinterpret_cast<char *>(P)[2048] = 0xaa;
     Allocator->deallocate(P, Origin);
 
-    Allocator->releaseToOS();
+    Allocator->releaseToOS(scudo::ReleaseToOS::Force);
   }
 }
 
@@ -454,6 +457,28 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, CacheDrain) NO_THREAD_SAFETY_ANALYSIS {
     TSD->unlock();
 }
 
+SCUDO_TYPED_TEST(ScudoCombinedTest, ForceCacheDrain) NO_THREAD_SAFETY_ANALYSIS {
+  auto *Allocator = this->Allocator.get();
+
+  std::vector<void *> V;
+  for (scudo::uptr I = 0; I < 64U; I++)
+    V.push_back(Allocator->allocate(
+        rand() % (TypeParam::Primary::SizeClassMap::MaxSize / 2U), Origin));
+  for (auto P : V)
+    Allocator->deallocate(P, Origin);
+
+  // `ForceAll` will also drain the caches.
+  Allocator->releaseToOS(scudo::ReleaseToOS::ForceAll);
+
+  bool UnlockRequired;
+  auto *TSD = Allocator->getTSDRegistry()->getTSDAndLock(&UnlockRequired);
+  EXPECT_TRUE(TSD->getCache().isEmpty());
+  EXPECT_EQ(TSD->getQuarantineCache().getSize(), 0U);
+  EXPECT_TRUE(Allocator->getQuarantine()->isEmpty());
+  if (UnlockRequired)
+    TSD->unlock();
+}
+
 SCUDO_TYPED_TEST(ScudoCombinedTest, ThreadedCombined) {
   std::mutex Mutex;
   std::condition_variable Cv;
@@ -488,18 +513,19 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, ThreadedCombined) {
   }
   for (auto &T : Threads)
     T.join();
-  Allocator->releaseToOS();
+  Allocator->releaseToOS(scudo::ReleaseToOS::Force);
 }
 
 // Test that multiple instantiations of the allocator have not messed up the
 // process's signal handlers (GWP-ASan used to do this).
 TEST(ScudoCombinedDeathTest, SKIP_ON_FUCHSIA(testSEGV)) {
   const scudo::uptr Size = 4 * scudo::getPageSizeCached();
-  scudo::MapPlatformData Data = {};
-  void *P = scudo::map(nullptr, Size, "testSEGV", MAP_NOACCESS, &Data);
-  EXPECT_NE(P, nullptr);
+  scudo::ReservedMemoryT ReservedMemory;
+  ASSERT_TRUE(ReservedMemory.create(/*Addr=*/0U, Size, "testSEGV"));
+  void *P = reinterpret_cast<void *>(ReservedMemory.getBase());
+  ASSERT_NE(P, nullptr);
   EXPECT_DEATH(memset(P, 0xaa, Size), "");
-  scudo::unmap(P, Size, UNMAP_ALL, &Data);
+  ReservedMemory.release();
 }
 
 struct DeathSizeClassConfig {
@@ -515,21 +541,29 @@ struct DeathSizeClassConfig {
 static const scudo::uptr DeathRegionSizeLog = 21U;
 struct DeathConfig {
   static const bool MaySupportMemoryTagging = false;
-
-  // Tiny allocator, its Primary only serves chunks of four sizes.
-  using SizeClassMap = scudo::FixedSizeClassMap<DeathSizeClassConfig>;
-  typedef scudo::SizeClassAllocator64<DeathConfig> Primary;
-  static const scudo::uptr PrimaryRegionSizeLog = DeathRegionSizeLog;
-  static const scudo::s32 PrimaryMinReleaseToOsIntervalMs = INT32_MIN;
-  static const scudo::s32 PrimaryMaxReleaseToOsIntervalMs = INT32_MAX;
-  typedef scudo::uptr PrimaryCompactPtrT;
-  static const scudo::uptr PrimaryCompactPtrScale = 0;
-  static const bool PrimaryEnableRandomOffset = true;
-  static const scudo::uptr PrimaryMapSizeIncrement = 1UL << 18;
-  static const scudo::uptr PrimaryGroupSizeLog = 18;
-
-  typedef scudo::MapAllocatorNoCache SecondaryCache;
   template <class A> using TSDRegistryT = scudo::TSDRegistrySharedT<A, 1U, 1U>;
+
+  struct Primary {
+    // Tiny allocator, its Primary only serves chunks of four sizes.
+    using SizeClassMap = scudo::FixedSizeClassMap<DeathSizeClassConfig>;
+    static const scudo::uptr RegionSizeLog = DeathRegionSizeLog;
+    static const scudo::s32 MinReleaseToOsIntervalMs = INT32_MIN;
+    static const scudo::s32 MaxReleaseToOsIntervalMs = INT32_MAX;
+    typedef scudo::uptr CompactPtrT;
+    static const scudo::uptr CompactPtrScale = 0;
+    static const bool EnableRandomOffset = true;
+    static const scudo::uptr MapSizeIncrement = 1UL << 18;
+    static const scudo::uptr GroupSizeLog = 18;
+  };
+  template <typename Config>
+  using PrimaryT = scudo::SizeClassAllocator64<Config>;
+
+  struct Secondary {
+    template <typename Config>
+    using CacheT = scudo::MapAllocatorNoCache<Config>;
+  };
+
+  template <typename Config> using SecondaryT = scudo::MapAllocator<Config>;
 };
 
 TEST(ScudoCombinedDeathTest, DeathCombined) {
@@ -574,13 +608,14 @@ TEST(ScudoCombinedTest, FullRegion) {
   std::vector<void *> V;
   scudo::uptr FailedAllocationsCount = 0;
   for (scudo::uptr ClassId = 1U;
-       ClassId <= DeathConfig::SizeClassMap::LargestClassId; ClassId++) {
+       ClassId <= DeathConfig::Primary::SizeClassMap::LargestClassId;
+       ClassId++) {
     const scudo::uptr Size =
-        DeathConfig::SizeClassMap::getSizeByClassId(ClassId);
+        DeathConfig::Primary::SizeClassMap::getSizeByClassId(ClassId);
     // Allocate enough to fill all of the regions above this one.
     const scudo::uptr MaxNumberOfChunks =
         ((1U << DeathRegionSizeLog) / Size) *
-        (DeathConfig::SizeClassMap::LargestClassId - ClassId + 1);
+        (DeathConfig::Primary::SizeClassMap::LargestClassId - ClassId + 1);
     void *P;
     for (scudo::uptr I = 0; I <= MaxNumberOfChunks; I++) {
       P = Allocator->allocate(Size - 64U, Origin);
@@ -601,7 +636,7 @@ TEST(ScudoCombinedTest, FullRegion) {
 // operation without issue.
 SCUDO_TYPED_TEST(ScudoCombinedTest, ReleaseToOS) {
   auto *Allocator = this->Allocator.get();
-  Allocator->releaseToOS();
+  Allocator->releaseToOS(scudo::ReleaseToOS::Force);
 }
 
 SCUDO_TYPED_TEST(ScudoCombinedTest, OddEven) {
@@ -740,7 +775,7 @@ TEST(ScudoCombinedTest, BasicTrustyConfig) {
   auto *TSD = Allocator->getTSDRegistry()->getTSDAndLock(&UnlockRequired);
   TSD->getCache().drain();
 
-  Allocator->releaseToOS();
+  Allocator->releaseToOS(scudo::ReleaseToOS::Force);
 }
 
 #endif

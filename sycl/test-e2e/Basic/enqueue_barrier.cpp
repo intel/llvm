@@ -1,11 +1,9 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // The test is failing sporadically on Windows OpenCL RTs
 // Disabling on windows until fixed
-// UNSUPPORTED: hip_amd, windows
+// UNSUPPORTED: windows
 
 #include <sycl/ext/intel/fpga_device_selector.hpp>
 #include <sycl/sycl.hpp>

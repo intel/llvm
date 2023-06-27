@@ -50,9 +50,10 @@ public:
   template <backend Backend = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh,
             typename PropertyListT = ext::oneapi::accessor_property_list<>>
-  backend_return_t<Backend, buffer<DataT, Dims>> get_native_mem(
-      const accessor<DataT, Dims, Mode, Target, IsPlh, PropertyListT> &Acc)
-      const {
+  std::enable_if_t<Target != access::target::image,
+                   backend_return_t<Backend, buffer<DataT, Dims>>>
+  get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh, PropertyListT>
+                     &Acc) const {
     static_assert(Target == access::target::device ||
                       Target == access::target::constant_buffer,
                   "The method is available only for target::device accessors");
@@ -67,6 +68,31 @@ public:
     (void)Acc;
     // we believe this won't be ever called on device side
     return backend_return_t<Backend, buffer<DataT, Dims>>{0};
+#endif
+  }
+
+  /// Receives a SYCL accessor that has been defined as a requirement for the
+  /// command group, and returns the underlying OpenCL memory object that is
+  /// used by the SYCL runtime. If the accessor passed as parameter is not part
+  /// of the command group requirements (e.g. it is an unregistered placeholder
+  /// accessor), the exception `sycl::invalid_object` is thrown
+  /// asynchronously.
+  template <backend Backend = backend::opencl, typename DataT, int Dims,
+            access::mode Mode, access::target Target, access::placeholder IsPlh>
+  backend_return_t<Backend, image<Dims>> get_native_mem(
+      const detail::image_accessor<DataT, Dims, Mode,
+                                   /*access::target::image*/ Target,
+                                   IsPlh /*, PropertyListT */> &Acc) const {
+#ifndef __SYCL_DEVICE_ONLY__
+    if (Backend != get_backend())
+      throw invalid_object_error("Incorrect backend argument was passed",
+                                 PI_ERROR_INVALID_MEM_OBJECT);
+    const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
+    return getMemImpl<Backend, Dims>(detail::getSyclObjImpl(*AccBase).get());
+#else
+    (void)Acc;
+    // we believe this won't be ever called on device side
+    return backend_return_t<Backend, image<Dims>>{0};
 #endif
   }
 
@@ -91,7 +117,9 @@ public:
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
                                  PI_ERROR_INVALID_MEM_OBJECT);
-    return reinterpret_cast<backend_return_t<Backend, queue>>(getNativeQueue());
+    int32_t NativeHandleDesc;
+    return reinterpret_cast<backend_return_t<Backend, queue>>(
+        getNativeQueue(NativeHandleDesc));
 #else
     // we believe this won't be ever called on device side
     return 0;
@@ -162,9 +190,17 @@ private:
         NativeHandles);
   }
 
+  template <backend Backend, int Dims>
+  backend_return_t<Backend, image<Dims>>
+  getMemImpl(detail::AccessorImplHost *Req) const {
+    using image_return_t = backend_return_t<Backend, image<Dims>>;
+    return reinterpret_cast<image_return_t>(getNativeMem(Req));
+  }
+
   __SYCL_EXPORT pi_native_handle
   getNativeMem(detail::AccessorImplHost *Req) const;
-  __SYCL_EXPORT pi_native_handle getNativeQueue() const;
+  __SYCL_EXPORT pi_native_handle
+  getNativeQueue(int32_t &NativeHandleDesc) const;
   __SYCL_EXPORT pi_native_handle getNativeDevice() const;
   __SYCL_EXPORT pi_native_handle getNativeContext() const;
 

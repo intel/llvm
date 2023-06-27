@@ -11,7 +11,6 @@
 #include "clang/Basic/TargetID.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Compilation.h"
-#include "clang/Driver/Distro.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
@@ -309,13 +308,10 @@ RocmInstallationDetector::getInstallationPathCandidates() {
     ROCmSearchDirs.emplace_back(D.SysRoot + "/opt/" + LatestROCm,
                                 /*StrictChecking=*/true);
 
-  Distro Dist(D.getVFS(), llvm::Triple(llvm::sys::getProcessTriple()));
-  if (Dist.IsDebian() || Dist.IsRedhat()) {
-    ROCmSearchDirs.emplace_back(D.SysRoot + "/usr/local",
-                                /*StrictChecking=*/true);
-    ROCmSearchDirs.emplace_back(D.SysRoot + "/usr",
-                                /*StrictChecking=*/true);
-  }
+  ROCmSearchDirs.emplace_back(D.SysRoot + "/usr/local",
+                              /*StrictChecking=*/true);
+  ROCmSearchDirs.emplace_back(D.SysRoot + "/usr",
+                              /*StrictChecking=*/true);
 
   DoPrintROCmSearchDirs();
   return ROCmSearchDirs;
@@ -437,7 +433,11 @@ void RocmInstallationDetector::detectHIPRuntime() {
   SmallVector<Candidate, 4> HIPSearchDirs;
   if (!HIPPathArg.empty())
     HIPSearchDirs.emplace_back(HIPPathArg.str(), /*StrictChecking=*/true);
-  else
+  else if (std::optional<std::string> HIPPathEnv =
+               llvm::sys::Process::GetEnv("HIP_PATH")) {
+    if (!HIPPathEnv->empty())
+      HIPSearchDirs.emplace_back(std::move(*HIPPathEnv));
+  } else
     HIPSearchDirs.append(getInstallationPathCandidates());
   auto &FS = D.getVFS();
 
@@ -540,6 +540,10 @@ void amdgpu::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   ArgStringList CmdArgs;
   addLinkerCompressDebugSectionsOption(getToolChain(), Args, CmdArgs);
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
+  if (C.getDriver().isUsingLTO())
+    addLTOOptions(getToolChain(), Args, CmdArgs, Output, Inputs[0],
+                  C.getDriver().getLTOMode() == LTOK_Thin);
+  CmdArgs.push_back("--no-undefined");
   CmdArgs.push_back("-shared");
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
@@ -578,8 +582,8 @@ void amdgpu::getAMDGPUTargetFeatures(const Driver &D,
                    options::OPT_mno_wavefrontsize64, false))
     Features.push_back("+wavefrontsize64");
 
-  handleTargetFeaturesGroup(
-    Args, Features, options::OPT_m_amdgpu_Features_Group);
+  handleTargetFeaturesGroup(D, Triple, Args, Features,
+                            options::OPT_m_amdgpu_Features_Group);
 }
 
 /// AMDGPU Toolchain

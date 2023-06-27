@@ -13,19 +13,43 @@
 #include <windows.h>
 #include <winreg.h>
 
-#include "win_proxy_loader.hpp"
+#include "pi_win_proxy_loader.hpp"
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace pi {
 
+void *loadOsLibrary(const std::string &LibraryPath) {
+  // Tells the system to not display the critical-error-handler message box.
+  // Instead, the system sends the error to the calling process.
+  // This is crucial for graceful handling of shared libs that can't be
+  // loaded, e.g. due to missing native run-times.
+
+  UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
+  // Exclude current directory from DLL search path
+  if (!SetDllDirectoryA("")) {
+    assert(false && "Failed to update DLL search path");
+  }
+  auto Result = (void *)LoadLibraryA(LibraryPath.c_str());
+  (void)SetErrorMode(SavedMode);
+  if (!SetDllDirectoryA(nullptr)) {
+    assert(false && "Failed to restore DLL search path");
+  }
+
+  return Result;
+}
+
 void *loadOsPluginLibrary(const std::string &PluginPath) {
-  // We fetch the preloaded plugin from the win_proxy_loader.
+  // We fetch the preloaded plugin from the pi_win_proxy_loader.
   // The proxy_loader handles any required error suppression.
   auto Result = getPreloadedPlugin(PluginPath);
 
   return Result;
+}
+
+int unloadOsLibrary(void *Library) {
+  return (int)FreeLibrary((HMODULE)Library);
 }
 
 int unloadOsPluginLibrary(void *Library) {

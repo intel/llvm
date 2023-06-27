@@ -18,6 +18,7 @@
 #include "AMDGPUTargetMachine.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIInstrInfo.h"
+#include "SIModeRegisterDefaults.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/CodeGen/MIRYamlMapping.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
@@ -215,7 +216,7 @@ struct SIMode {
 
   SIMode() = default;
 
-  SIMode(const AMDGPU::SIModeRegisterDefaults &Mode) {
+  SIMode(const SIModeRegisterDefaults &Mode) {
     IEEE = Mode.IEEE;
     DX10Clamp = Mode.DX10Clamp;
     FP32InputDenormals = Mode.FP32Denormals.Input != DenormalMode::PreserveSign;
@@ -275,6 +276,10 @@ struct SIMachineFunctionInfo final : public yaml::MachineFunctionInfo {
   bool ReturnsVoid = true;
 
   std::optional<SIArgumentInfo> ArgInfo;
+
+  unsigned PSInputAddr = 0;
+  unsigned PSInputEnable = 0;
+
   SIMode Mode;
   std::optional<FrameIndex> ScavengeFI;
   StringValue VGPRForAGPRCopy;
@@ -311,6 +316,8 @@ template <> struct MappingTraits<SIMachineFunctionInfo> {
     YamlIO.mapOptional("bytesInStackArgArea", MFI.BytesInStackArgArea, 0u);
     YamlIO.mapOptional("returnsVoid", MFI.ReturnsVoid, true);
     YamlIO.mapOptional("argumentInfo", MFI.ArgInfo);
+    YamlIO.mapOptional("psInputAddr", MFI.PSInputAddr, 0u);
+    YamlIO.mapOptional("psInputEnable", MFI.PSInputEnable, 0u);
     YamlIO.mapOptional("mode", MFI.Mode, SIMode());
     YamlIO.mapOptional("highBitsOf32BitAddress",
                        MFI.HighBitsOf32BitAddress, 0u);
@@ -359,7 +366,7 @@ class SIMachineFunctionInfo final : public AMDGPUMachineFunction {
   friend class GCNTargetMachine;
 
   // State of MODE register, assumed FP mode.
-  AMDGPU::SIModeRegisterDefaults Mode;
+  SIModeRegisterDefaults Mode;
 
   // Registers that may be reserved for spilling purposes. These may be the same
   // as the input registers.
@@ -551,9 +558,7 @@ public:
 
   void reserveWWMRegister(Register Reg) { WWMReservedRegs.insert(Reg); }
 
-  AMDGPU::SIModeRegisterDefaults getMode() const {
-    return Mode;
-  }
+  SIModeRegisterDefaults getMode() const { return Mode; }
 
   ArrayRef<SIRegisterInfo::SpilledReg>
   getSGPRSpillToVGPRLanes(int FrameIndex) const {
@@ -579,7 +584,7 @@ public:
   // Check if an entry created for \p Reg in PrologEpilogSGPRSpills. Return true
   // on success and false otherwise.
   bool hasPrologEpilogSGPRSpillEntry(Register Reg) const {
-    return PrologEpilogSGPRSpills.find(Reg) != PrologEpilogSGPRSpills.end();
+    return PrologEpilogSGPRSpills.contains(Reg);
   }
 
   // Get the scratch SGPR if allocated to save/restore \p Reg.
@@ -694,7 +699,8 @@ public:
 
   // Add system SGPRs.
   Register addWorkGroupIDX(bool HasArchitectedSGPRs) {
-    Register Reg = HasArchitectedSGPRs ? AMDGPU::TTMP9 : getNextSystemSGPR();
+    Register Reg =
+        HasArchitectedSGPRs ? (MCPhysReg)AMDGPU::TTMP9 : getNextSystemSGPR();
     ArgInfo.WorkGroupIDX = ArgDescriptor::createRegister(Reg);
     if (!HasArchitectedSGPRs)
       NumSystemSGPRs += 1;
@@ -703,7 +709,8 @@ public:
   }
 
   Register addWorkGroupIDY(bool HasArchitectedSGPRs) {
-    Register Reg = HasArchitectedSGPRs ? AMDGPU::TTMP7 : getNextSystemSGPR();
+    Register Reg =
+        HasArchitectedSGPRs ? (MCPhysReg)AMDGPU::TTMP7 : getNextSystemSGPR();
     unsigned Mask = HasArchitectedSGPRs && hasWorkGroupIDZ() ? 0xffff : ~0u;
     ArgInfo.WorkGroupIDY = ArgDescriptor::createRegister(Reg, Mask);
     if (!HasArchitectedSGPRs)
@@ -713,7 +720,8 @@ public:
   }
 
   Register addWorkGroupIDZ(bool HasArchitectedSGPRs) {
-    Register Reg = HasArchitectedSGPRs ? AMDGPU::TTMP7 : getNextSystemSGPR();
+    Register Reg =
+        HasArchitectedSGPRs ? (MCPhysReg)AMDGPU::TTMP7 : getNextSystemSGPR();
     unsigned Mask = HasArchitectedSGPRs ? 0xffff << 16 : ~0u;
     ArgInfo.WorkGroupIDZ = ArgDescriptor::createRegister(Reg, Mask);
     if (!HasArchitectedSGPRs)

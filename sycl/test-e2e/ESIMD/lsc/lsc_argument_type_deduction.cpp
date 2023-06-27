@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // The test checks that compiler is able to corrctly deduce the template
 // parameter types for lsc functions.

@@ -27,77 +27,82 @@ template <size_t Bits> struct UInt {
 
   static_assert(Bits > 0 && Bits % 64 == 0,
                 "Number of bits in UInt should be a multiple of 64.");
-  static constexpr size_t WordCount = Bits / 64;
-  uint64_t val[WordCount];
+  static constexpr size_t WORDCOUNT = Bits / 64;
+  uint64_t val[WORDCOUNT]{};
 
   static constexpr uint64_t MASK32 = 0xFFFFFFFFu;
 
   static constexpr uint64_t low(uint64_t v) { return v & MASK32; }
   static constexpr uint64_t high(uint64_t v) { return (v >> 32) & MASK32; }
 
-  constexpr UInt() {}
+  constexpr UInt() = default;
 
-  constexpr UInt(const UInt<Bits> &other) {
-    for (size_t i = 0; i < WordCount; ++i)
-      val[i] = other.val[i];
-  }
+  constexpr UInt(const UInt<Bits> &other) = default;
 
   template <size_t OtherBits> constexpr UInt(const UInt<OtherBits> &other) {
     if (OtherBits >= Bits) {
-      for (size_t i = 0; i < WordCount; ++i)
+      for (size_t i = 0; i < WORDCOUNT; ++i)
         val[i] = other[i];
     } else {
       size_t i = 0;
       for (; i < OtherBits / 64; ++i)
         val[i] = other[i];
-      for (; i < WordCount; ++i)
+      for (; i < WORDCOUNT; ++i)
         val[i] = 0;
     }
   }
 
   // Construct a UInt from a C array.
-  template <size_t N, enable_if_t<N <= WordCount, int> = 0>
+  template <size_t N, enable_if_t<N <= WORDCOUNT, int> = 0>
   constexpr UInt(const uint64_t (&nums)[N]) {
-    size_t min_wordcount = N < WordCount ? N : WordCount;
+    size_t min_wordcount = N < WORDCOUNT ? N : WORDCOUNT;
     size_t i = 0;
     for (; i < min_wordcount; ++i)
       val[i] = nums[i];
 
     // If nums doesn't completely fill val, then fill the rest with zeroes.
-    for (; i < WordCount; ++i)
+    for (; i < WORDCOUNT; ++i)
       val[i] = 0;
   }
 
   // Initialize the first word to |v| and the rest to 0.
   constexpr UInt(uint64_t v) {
     val[0] = v;
-    for (size_t i = 1; i < WordCount; ++i) {
+    for (size_t i = 1; i < WORDCOUNT; ++i) {
       val[i] = 0;
     }
   }
-  constexpr explicit UInt(const cpp::array<uint64_t, WordCount> &words) {
-    for (size_t i = 0; i < WordCount; ++i)
+  constexpr explicit UInt(const cpp::array<uint64_t, WORDCOUNT> &words) {
+    for (size_t i = 0; i < WORDCOUNT; ++i)
       val[i] = words[i];
   }
 
-  constexpr explicit operator uint64_t() const { return val[0]; }
-
-  constexpr explicit operator uint32_t() const {
-    return uint32_t(uint64_t(*this));
+  constexpr explicit operator unsigned long long() const {
+    return static_cast<unsigned long long>(val[0]);
   }
 
-  constexpr explicit operator uint8_t() const {
-    return uint8_t(uint64_t(*this));
+  constexpr explicit operator unsigned long() const {
+    return static_cast<unsigned long>(val[0]);
   }
 
-  UInt<Bits> &operator=(const UInt<Bits> &other) {
-    for (size_t i = 0; i < WordCount; ++i)
-      val[i] = other.val[i];
-    return *this;
+  constexpr explicit operator unsigned int() const {
+    return static_cast<unsigned int>(val[0]);
   }
+
+  constexpr explicit operator unsigned short() const {
+    return static_cast<unsigned short>(val[0]);
+  }
+
+  constexpr explicit operator unsigned char() const {
+    return static_cast<unsigned char>(val[0]);
+  }
+
+  constexpr explicit operator bool() const { return !is_zero(); }
+
+  UInt<Bits> &operator=(const UInt<Bits> &other) = default;
 
   constexpr bool is_zero() const {
-    for (size_t i = 0; i < WordCount; ++i) {
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
       if (val[i] != 0)
         return false;
     }
@@ -108,18 +113,30 @@ template <size_t Bits> struct UInt {
   // Returns the carry value produced by the addition operation.
   constexpr uint64_t add(const UInt<Bits> &x) {
     SumCarry<uint64_t> s{0, 0};
-    for (size_t i = 0; i < WordCount; ++i) {
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
       s = add_with_carry(val[i], x.val[i], s.carry);
       val[i] = s.sum;
     }
     return s.carry;
   }
 
-  constexpr UInt<Bits> operator+(const UInt<Bits> &other) const {
+  UInt<Bits> operator+(const UInt<Bits> &other) const {
     UInt<Bits> result;
     SumCarry<uint64_t> s{0, 0};
-    for (size_t i = 0; i < WordCount; ++i) {
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
       s = add_with_carry(val[i], other.val[i], s.carry);
+      result.val[i] = s.sum;
+    }
+    return result;
+  }
+
+  // This will only apply when initializing a variable from constant values, so
+  // it will always use the constexpr version of add_with_carry.
+  constexpr UInt<Bits> operator+(UInt<Bits> &&other) const {
+    UInt<Bits> result;
+    SumCarry<uint64_t> s{0, 0};
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
+      s = add_with_carry_const(val[i], other.val[i], s.carry);
       result.val[i] = s.sum;
     }
     return result;
@@ -134,18 +151,28 @@ template <size_t Bits> struct UInt {
   // Returns the carry value produced by the subtraction operation.
   constexpr uint64_t sub(const UInt<Bits> &x) {
     DiffBorrow<uint64_t> d{0, 0};
-    for (size_t i = 0; i < WordCount; ++i) {
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
       d = sub_with_borrow(val[i], x.val[i], d.borrow);
       val[i] = d.diff;
     }
     return d.borrow;
   }
 
-  constexpr UInt<Bits> operator-(const UInt<Bits> &other) const {
+  UInt<Bits> operator-(const UInt<Bits> &other) const {
     UInt<Bits> result;
     DiffBorrow<uint64_t> d{0, 0};
-    for (size_t i = 0; i < WordCount; ++i) {
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
       d = sub_with_borrow(val[i], other.val[i], d.borrow);
+      result.val[i] = d.diff;
+    }
+    return result;
+  }
+
+  constexpr UInt<Bits> operator-(UInt<Bits> &&other) const {
+    UInt<Bits> result;
+    DiffBorrow<uint64_t> d{0, 0};
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
+      d = sub_with_borrow_const(val[i], other.val[i], d.borrow);
       result.val[i] = d.diff;
     }
     return result;
@@ -166,7 +193,7 @@ template <size_t Bits> struct UInt {
   constexpr uint64_t mul(uint64_t x) {
     UInt<128> partial_sum(0);
     uint64_t carry = 0;
-    for (size_t i = 0; i < WordCount; ++i) {
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
       NumberPair<uint64_t> prod = full_mul(val[i], x);
       UInt<128> tmp({prod.lo, prod.hi});
       carry += partial_sum.add(tmp);
@@ -179,13 +206,13 @@ template <size_t Bits> struct UInt {
   }
 
   constexpr UInt<Bits> operator*(const UInt<Bits> &other) const {
-    if constexpr (WordCount == 1) {
+    if constexpr (WORDCOUNT == 1) {
       return {val[0] * other.val[0]};
     } else {
       UInt<Bits> result(0);
       UInt<128> partial_sum(0);
       uint64_t carry = 0;
-      for (size_t i = 0; i < WordCount; ++i) {
+      for (size_t i = 0; i < WORDCOUNT; ++i) {
         for (size_t j = 0; j <= i; j++) {
           NumberPair<uint64_t> prod = full_mul(val[j], other.val[i - j]);
           UInt<128> tmp({prod.lo, prod.hi});
@@ -206,10 +233,11 @@ template <size_t Bits> struct UInt {
     UInt<Bits + OtherBits> result(0);
     UInt<128> partial_sum(0);
     uint64_t carry = 0;
-    constexpr size_t OtherWordCount = UInt<OtherBits>::WordCount;
-    for (size_t i = 0; i <= WordCount + OtherWordCount - 2; ++i) {
-      const size_t lower_idx = i < OtherWordCount ? 0 : i - OtherWordCount + 1;
-      const size_t upper_idx = i < WordCount ? i : WordCount - 1;
+    constexpr size_t OTHER_WORDCOUNT = UInt<OtherBits>::WORDCOUNT;
+    for (size_t i = 0; i <= WORDCOUNT + OTHER_WORDCOUNT - 2; ++i) {
+      const size_t lower_idx =
+          i < OTHER_WORDCOUNT ? 0 : i - OTHER_WORDCOUNT + 1;
+      const size_t upper_idx = i < WORDCOUNT ? i : WORDCOUNT - 1;
       for (size_t j = lower_idx; j <= upper_idx; ++j) {
         NumberPair<uint64_t> prod = full_mul(val[j], other.val[i - j]);
         UInt<128> tmp({prod.lo, prod.hi});
@@ -220,7 +248,7 @@ template <size_t Bits> struct UInt {
       partial_sum.val[1] = carry;
       carry = 0;
     }
-    result.val[WordCount + OtherWordCount - 1] = partial_sum.val[0];
+    result.val[WORDCOUNT + OTHER_WORDCOUNT - 1] = partial_sum.val[0];
     return result;
   }
 
@@ -228,7 +256,7 @@ template <size_t Bits> struct UInt {
   // `Bits` least significant bits of the full product, while this function will
   // approximate `Bits` most significant bits of the full product with errors
   // bounded by:
-  //   0 <= (a.full_mul(b) >> Bits) - a.quick_mul_hi(b)) <= WordCount - 1.
+  //   0 <= (a.full_mul(b) >> Bits) - a.quick_mul_hi(b)) <= WORDCOUNT - 1.
   //
   // An example usage of this is to quickly (but less accurately) compute the
   // product of (normalized) mantissas of floating point numbers:
@@ -240,7 +268,7 @@ template <size_t Bits> struct UInt {
   //
   // Performance summary:
   //   Number of 64-bit x 64-bit -> 128-bit multiplications performed.
-  //   Bits  WordCount  ful_mul  quick_mul_hi  Error bound
+  //   Bits  WORDCOUNT  ful_mul  quick_mul_hi  Error bound
   //    128      2         4           3            1
   //    196      3         9           6            2
   //    256      4        16          10            3
@@ -249,26 +277,26 @@ template <size_t Bits> struct UInt {
     UInt<Bits> result(0);
     UInt<128> partial_sum(0);
     uint64_t carry = 0;
-    // First round of accumulation for those at WordCount - 1 in the full
+    // First round of accumulation for those at WORDCOUNT - 1 in the full
     // product.
-    for (size_t i = 0; i < WordCount; ++i) {
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
       NumberPair<uint64_t> prod =
-          full_mul(val[i], other.val[WordCount - 1 - i]);
+          full_mul(val[i], other.val[WORDCOUNT - 1 - i]);
       UInt<128> tmp({prod.lo, prod.hi});
       carry += partial_sum.add(tmp);
     }
-    for (size_t i = WordCount; i < 2 * WordCount - 1; ++i) {
+    for (size_t i = WORDCOUNT; i < 2 * WORDCOUNT - 1; ++i) {
       partial_sum.val[0] = partial_sum.val[1];
       partial_sum.val[1] = carry;
       carry = 0;
-      for (size_t j = i - WordCount + 1; j < WordCount; ++j) {
+      for (size_t j = i - WORDCOUNT + 1; j < WORDCOUNT; ++j) {
         NumberPair<uint64_t> prod = full_mul(val[j], other.val[i - j]);
         UInt<128> tmp({prod.lo, prod.hi});
         carry += partial_sum.add(tmp);
       }
-      result.val[i - WordCount] = partial_sum.val[0];
+      result.val[i - WORDCOUNT] = partial_sum.val[0];
     }
-    result.val[WordCount - 1] = partial_sum.val[1];
+    result.val[WORDCOUNT - 1] = partial_sum.val[1];
     return result;
   }
 
@@ -320,6 +348,126 @@ template <size_t Bits> struct UInt {
     return remainder;
   }
 
+  // Efficiently perform UInt / (x * 2^e), where x is a 32-bit unsigned integer,
+  // and return the remainder.
+  // The main idea is as follow:
+  //   Let q = y / (x * 2^e) be the quotient, and
+  //       r = y % (x * 2^e) be the remainder.
+  //   First, notice that:
+  //     r % (2^e) = y % (2^e),
+  // so we just need to focus on all the bits of y that is >= 2^e.
+  //   To speed up the shift-and-add steps, we only use x as the divisor, and
+  // performing 32-bit shiftings instead of bit-by-bit shiftings.
+  //   Since the remainder of each division step < x < 2^32, the computation of
+  // each step is now properly contained within uint64_t.
+  //   And finally we perform some extra alignment steps for the remaining bits.
+  constexpr optional<UInt<Bits>> div_uint32_times_pow_2(uint32_t x, size_t e) {
+    UInt<Bits> remainder(0);
+
+    if (x == 0) {
+      return nullopt;
+    }
+    if (e >= Bits) {
+      remainder = *this;
+      *this = UInt<Bits>(0);
+      return remainder;
+    }
+
+    UInt<Bits> quotient(0);
+    uint64_t x64 = static_cast<uint64_t>(x);
+    // lower64 = smallest multiple of 64 that is >= e.
+    size_t lower64 = ((e >> 6) + ((e & 63) != 0)) << 6;
+    // lower_pos is the index of the closest 64-bit chunk >= 2^e.
+    size_t lower_pos = lower64 / 64;
+    // Keep track of current remainder mod x * 2^(32*i)
+    uint64_t rem = 0;
+    // pos is the index of the current 64-bit chunk that we are processing.
+    size_t pos = WORDCOUNT;
+
+    for (size_t q_pos = WORDCOUNT - lower_pos; q_pos > 0; --q_pos) {
+      // q_pos is 1 + the index of the current 64-bit chunk of the quotient
+      // being processed.
+      // Performing the division / modulus with divisor:
+      //   x * 2^(64*q_pos - 32),
+      // i.e. using the upper 32-bit of the current 64-bit chunk.
+      rem <<= 32;
+      rem += val[--pos] >> 32;
+      uint64_t q_tmp = rem / x64;
+      rem %= x64;
+
+      // Performing the division / modulus with divisor:
+      //   x * 2^(64*(q_pos - 1)),
+      // i.e. using the lower 32-bit of the current 64-bit chunk.
+      rem <<= 32;
+      rem += val[pos] & MASK32;
+      quotient.val[q_pos - 1] = (q_tmp << 32) + rem / x64;
+      rem %= x64;
+    }
+
+    // So far, what we have is:
+    //   quotient = y / (x * 2^lower64), and
+    //        rem = (y % (x * 2^lower64)) / 2^lower64.
+    // If (lower64 > e), we will need to perform an extra adjustment of the
+    // quotient and remainder, namely:
+    //   y / (x * 2^e) = [ y / (x * 2^lower64) ] * 2^(lower64 - e) +
+    //                   + (rem * 2^(lower64 - e)) / x
+    //   (y % (x * 2^e)) / 2^e = (rem * 2^(lower64 - e)) % x
+    size_t last_shift = lower64 - e;
+
+    if (last_shift > 0) {
+      // quotient * 2^(lower64 - e)
+      quotient <<= last_shift;
+      uint64_t q_tmp = 0;
+      uint64_t d = val[--pos];
+      if (last_shift >= 32) {
+        // The shifting (rem * 2^(lower64 - e)) might overflow uint64_t, so we
+        // perform a 32-bit shift first.
+        rem <<= 32;
+        rem += d >> 32;
+        d &= MASK32;
+        q_tmp = rem / x64;
+        rem %= x64;
+        last_shift -= 32;
+      } else {
+        // Only use the upper 32-bit of the current 64-bit chunk.
+        d >>= 32;
+      }
+
+      if (last_shift > 0) {
+        rem <<= 32;
+        rem += d;
+        q_tmp <<= last_shift;
+        x64 <<= 32 - last_shift;
+        q_tmp += rem / x64;
+        rem %= x64;
+      }
+
+      quotient.val[0] += q_tmp;
+
+      if (lower64 - e <= 32) {
+        // The remainder rem * 2^(lower64 - e) might overflow to the higher
+        // 64-bit chunk.
+        if (pos < WORDCOUNT - 1) {
+          remainder[pos + 1] = rem >> 32;
+        }
+        remainder[pos] = (rem << 32) + (val[pos] & MASK32);
+      } else {
+        remainder[pos] = rem;
+      }
+
+    } else {
+      remainder[pos] = rem;
+    }
+
+    // Set the remaining lower bits of the remainder.
+    for (; pos > 0; --pos) {
+      remainder[pos - 1] = val[pos - 1];
+    }
+
+    *this = quotient;
+    return remainder;
+  }
+
   constexpr UInt<Bits> operator/(const UInt<Bits> &other) const {
     UInt<Bits> result(*this);
     result.div(other);
@@ -338,7 +486,7 @@ template <size_t Bits> struct UInt {
 
   constexpr uint64_t clz() {
     uint64_t leading_zeroes = 0;
-    for (size_t i = WordCount; i > 0; --i) {
+    for (size_t i = WORDCOUNT; i > 0; --i) {
       if (val[i - 1] == 0) {
         leading_zeroes += sizeof(uint64_t) * 8;
       } else {
@@ -370,17 +518,17 @@ template <size_t Bits> struct UInt {
 
     const size_t drop = s / 64;  // Number of words to drop
     const size_t shift = s % 64; // Bits to shift in the remaining words.
-    size_t i = WordCount;
+    size_t i = WORDCOUNT;
 
-    if (drop < WordCount) {
-      i = WordCount - 1;
+    if (drop < WORDCOUNT) {
+      i = WORDCOUNT - 1;
       if (shift > 0) {
-        for (size_t j = WordCount - 1 - drop; j > 0; --i, --j) {
+        for (size_t j = WORDCOUNT - 1 - drop; j > 0; --i, --j) {
           val[i] = (val[j] << shift) | (val[j - 1] >> (64 - shift));
         }
         val[i] = val[0] << shift;
       } else {
-        for (size_t j = WordCount - 1 - drop; j > 0; --i, --j) {
+        for (size_t j = WORDCOUNT - 1 - drop; j > 0; --i, --j) {
           val[i] = val[j];
         }
         val[i] = val[0];
@@ -427,21 +575,21 @@ template <size_t Bits> struct UInt {
 
     size_t i = 0;
 
-    if (drop < WordCount) {
+    if (drop < WORDCOUNT) {
       if (shift > 0) {
-        for (size_t j = drop; j < WordCount - 1; ++i, ++j) {
+        for (size_t j = drop; j < WORDCOUNT - 1; ++i, ++j) {
           val[i] = (val[j] >> shift) | (val[j + 1] << (64 - shift));
         }
-        val[i] = val[WordCount - 1] >> shift;
+        val[i] = val[WORDCOUNT - 1] >> shift;
         ++i;
       } else {
-        for (size_t j = drop; j < WordCount; ++i, ++j) {
+        for (size_t j = drop; j < WORDCOUNT; ++i, ++j) {
           val[i] = val[j];
         }
       }
     }
 
-    for (; i < WordCount; ++i) {
+    for (; i < WORDCOUNT; ++i) {
       val[i] = 0;
     }
   }
@@ -459,52 +607,52 @@ template <size_t Bits> struct UInt {
 
   constexpr UInt<Bits> operator&(const UInt<Bits> &other) const {
     UInt<Bits> result;
-    for (size_t i = 0; i < WordCount; ++i)
+    for (size_t i = 0; i < WORDCOUNT; ++i)
       result.val[i] = val[i] & other.val[i];
     return result;
   }
 
   constexpr UInt<Bits> &operator&=(const UInt<Bits> &other) {
-    for (size_t i = 0; i < WordCount; ++i)
+    for (size_t i = 0; i < WORDCOUNT; ++i)
       val[i] &= other.val[i];
     return *this;
   }
 
   constexpr UInt<Bits> operator|(const UInt<Bits> &other) const {
     UInt<Bits> result;
-    for (size_t i = 0; i < WordCount; ++i)
+    for (size_t i = 0; i < WORDCOUNT; ++i)
       result.val[i] = val[i] | other.val[i];
     return result;
   }
 
   constexpr UInt<Bits> &operator|=(const UInt<Bits> &other) {
-    for (size_t i = 0; i < WordCount; ++i)
+    for (size_t i = 0; i < WORDCOUNT; ++i)
       val[i] |= other.val[i];
     return *this;
   }
 
   constexpr UInt<Bits> operator^(const UInt<Bits> &other) const {
     UInt<Bits> result;
-    for (size_t i = 0; i < WordCount; ++i)
+    for (size_t i = 0; i < WORDCOUNT; ++i)
       result.val[i] = val[i] ^ other.val[i];
     return result;
   }
 
   constexpr UInt<Bits> &operator^=(const UInt<Bits> &other) {
-    for (size_t i = 0; i < WordCount; ++i)
+    for (size_t i = 0; i < WORDCOUNT; ++i)
       val[i] ^= other.val[i];
     return *this;
   }
 
   constexpr UInt<Bits> operator~() const {
     UInt<Bits> result;
-    for (size_t i = 0; i < WordCount; ++i)
+    for (size_t i = 0; i < WORDCOUNT; ++i)
       result.val[i] = ~val[i];
     return result;
   }
 
   constexpr bool operator==(const UInt<Bits> &other) const {
-    for (size_t i = 0; i < WordCount; ++i) {
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
       if (val[i] != other.val[i])
         return false;
     }
@@ -512,7 +660,7 @@ template <size_t Bits> struct UInt {
   }
 
   constexpr bool operator!=(const UInt<Bits> &other) const {
-    for (size_t i = 0; i < WordCount; ++i) {
+    for (size_t i = 0; i < WORDCOUNT; ++i) {
       if (val[i] != other.val[i])
         return true;
     }
@@ -520,7 +668,7 @@ template <size_t Bits> struct UInt {
   }
 
   constexpr bool operator>(const UInt<Bits> &other) const {
-    for (size_t i = WordCount; i > 0; --i) {
+    for (size_t i = WORDCOUNT; i > 0; --i) {
       uint64_t word = val[i - 1];
       uint64_t other_word = other.val[i - 1];
       if (word > other_word)
@@ -533,7 +681,7 @@ template <size_t Bits> struct UInt {
   }
 
   constexpr bool operator>=(const UInt<Bits> &other) const {
-    for (size_t i = WordCount; i > 0; --i) {
+    for (size_t i = WORDCOUNT; i > 0; --i) {
       uint64_t word = val[i - 1];
       uint64_t other_word = other.val[i - 1];
       if (word > other_word)
@@ -546,7 +694,7 @@ template <size_t Bits> struct UInt {
   }
 
   constexpr bool operator<(const UInt<Bits> &other) const {
-    for (size_t i = WordCount; i > 0; --i) {
+    for (size_t i = WORDCOUNT; i > 0; --i) {
       uint64_t word = val[i - 1];
       uint64_t other_word = other.val[i - 1];
       if (word > other_word)
@@ -559,7 +707,7 @@ template <size_t Bits> struct UInt {
   }
 
   constexpr bool operator<=(const UInt<Bits> &other) const {
-    for (size_t i = WordCount; i > 0; --i) {
+    for (size_t i = WORDCOUNT; i > 0; --i) {
       uint64_t word = val[i - 1];
       uint64_t other_word = other.val[i - 1];
       if (word > other_word)

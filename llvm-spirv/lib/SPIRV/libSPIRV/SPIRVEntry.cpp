@@ -84,6 +84,10 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
   static const OpToFactoryMapTy OpToFactoryMap(std::begin(Table),
                                                std::end(Table));
 
+  // TODO: To remove this when we make a switch to new version
+  if (OpCode == internal::OpTypeJointMatrixINTELv2)
+    OpCode = internal::OpTypeJointMatrixINTEL;
+
   OpToFactoryMapTy::const_iterator Loc = OpToFactoryMap.find(OpCode);
   if (Loc != OpToFactoryMap.end())
     return Loc->second();
@@ -612,6 +616,7 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
   case ExecutionModeSchedulerTargetFmaxMhzINTEL:
+  case ExecutionModeRegisterMapInterfaceINTEL:
   case ExecutionModeStreamingInterfaceINTEL:
     WordLiterals.resize(1);
     break;

@@ -57,7 +57,7 @@ public:
   ///
   /// \param Event is a valid instance of plug-in event.
   /// \param SyclContext is an instance of SYCL context.
-  event_impl(RT::PiEvent Event, const context &SyclContext);
+  event_impl(sycl::detail::pi::PiEvent Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
 
   /// Checks if this event is a SYCL host event.
@@ -115,12 +115,12 @@ public:
   /// invalid if event_impl was destroyed.
   ///
   /// \return a reference to an instance of plug-in event handle.
-  RT::PiEvent &getHandleRef();
+  sycl::detail::pi::PiEvent &getHandleRef();
   /// Returns raw interoperability event handle. Returned reference will be]
   /// invalid if event_impl was destroyed.
   ///
   /// \return a const reference to an instance of plug-in event handle.
-  const RT::PiEvent &getHandleRef() const;
+  const sycl::detail::pi::PiEvent &getHandleRef() const;
 
   /// Returns context that is associated with this event.
   ///
@@ -129,7 +129,7 @@ public:
 
   /// \return the Plugin associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const plugin &getPlugin();
+  const PluginPtr &getPlugin();
 
   /// Associate event with the context.
   ///
@@ -251,6 +251,11 @@ public:
 
   bool isContextInitialized() const noexcept { return MIsContextInitialized; }
 
+  ContextImplPtr getContextImplPtr() {
+    ensureContextInitialized();
+    return MContext;
+  }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -265,7 +270,7 @@ protected:
   void ensureContextInitialized();
   bool MIsInitialized = true;
   bool MIsContextInitialized = false;
-  RT::PiEvent MEvent = nullptr;
+  sycl::detail::pi::PiEvent MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
   ContextImplPtr MContext;
@@ -274,6 +279,7 @@ protected:
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   const bool MIsProfilingEnabled = false;
+  const bool MLimitedProfiling = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;
@@ -296,7 +302,7 @@ protected:
   std::mutex MMutex;
   std::condition_variable cv;
 
-  friend std::vector<RT::PiEvent>
+  friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,
                   std::shared_ptr<sycl::detail::context_impl> Context);
 };

@@ -1,4 +1,4 @@
-//===-- RISCVFrameLowering.cpp - RISCV Frame Information ------------------===//
+//===-- RISCVFrameLowering.cpp - RISC-V Frame Information -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the RISCV implementation of TargetFrameLowering class.
+// This file contains the RISC-V implementation of TargetFrameLowering class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -27,8 +27,8 @@
 
 using namespace llvm;
 
-// For now we use x18, a.k.a s2, as pointer to shadow call stack.
-// User should explicitly set -ffixed-x18 and not use x18 in their asm.
+// For now we use x3, a.k.a gp, as pointer to shadow call stack.
+// User should not use x3 in their asm.
 static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MI,
                             const DebugLoc &DL) {
@@ -36,7 +36,8 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
     return;
 
   const auto &STI = MF.getSubtarget<RISCVSubtarget>();
-  Register RAReg = STI.getRegisterInfo()->getRARegister();
+  const llvm::RISCVRegisterInfo *TRI = STI.getRegisterInfo();
+  Register RAReg = TRI->getRARegister();
 
   // Do not save RA to the SCS if it's not saved to the regular stack,
   // i.e. RA is not at risk of being overwritten.
@@ -47,36 +48,41 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
 
   Register SCSPReg = RISCVABI::getSCSPReg();
 
-  auto &Ctx = MF.getFunction().getContext();
-  if (!STI.isRegisterReservedByUser(SCSPReg)) {
-    Ctx.diagnose(DiagnosticInfoUnsupported{
-        MF.getFunction(), "x18 not reserved by user for Shadow Call Stack."});
-    return;
-  }
-
-  const auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
-  if (RVFI->useSaveRestoreLibCalls(MF)) {
-    Ctx.diagnose(DiagnosticInfoUnsupported{
-        MF.getFunction(),
-        "Shadow Call Stack cannot be combined with Save/Restore LibCalls."});
-    return;
-  }
-
   const RISCVInstrInfo *TII = STI.getInstrInfo();
   bool IsRV64 = STI.hasFeature(RISCV::Feature64Bit);
   int64_t SlotSize = STI.getXLen() / 8;
   // Store return address to shadow call stack
-  // s[w|d]  ra, 0(s2)
-  // addi    s2, s2, [4|8]
-  BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-      .addReg(RAReg)
-      .addReg(SCSPReg)
-      .addImm(0)
-      .setMIFlag(MachineInstr::FrameSetup);
+  // addi    gp, gp, [4|8]
+  // s[w|d]  ra, -[4|8](gp)
   BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
       .addReg(SCSPReg, RegState::Define)
       .addReg(SCSPReg)
       .addImm(SlotSize)
+      .setMIFlag(MachineInstr::FrameSetup);
+  BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+      .addReg(RAReg)
+      .addReg(SCSPReg)
+      .addImm(-SlotSize)
+      .setMIFlag(MachineInstr::FrameSetup);
+
+  // Emit a CFI instruction that causes SlotSize to be subtracted from the value
+  // of the shadow stack pointer when unwinding past this frame.
+  char DwarfSCSReg = TRI->getDwarfRegNum(SCSPReg, /*IsEH*/ true);
+  assert(DwarfSCSReg < 32 && "SCS Register should be < 32 (X3).");
+
+  char Offset = static_cast<char>(-SlotSize) & 0x7f;
+  const char CFIInst[] = {
+      dwarf::DW_CFA_val_expression,
+      DwarfSCSReg, // register
+      2,           // length
+      static_cast<char>(unsigned(dwarf::DW_OP_breg0 + DwarfSCSReg)),
+      Offset, // addend (sleb128)
+  };
+
+  unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createEscape(
+      nullptr, StringRef(CFIInst, sizeof(CFIInst))));
+  BuildMI(MBB, MI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+      .addCFIIndex(CFIIndex)
       .setMIFlag(MachineInstr::FrameSetup);
 }
 
@@ -97,27 +103,12 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
 
   Register SCSPReg = RISCVABI::getSCSPReg();
 
-  auto &Ctx = MF.getFunction().getContext();
-  if (!STI.isRegisterReservedByUser(SCSPReg)) {
-    Ctx.diagnose(DiagnosticInfoUnsupported{
-        MF.getFunction(), "x18 not reserved by user for Shadow Call Stack."});
-    return;
-  }
-
-  const auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
-  if (RVFI->useSaveRestoreLibCalls(MF)) {
-    Ctx.diagnose(DiagnosticInfoUnsupported{
-        MF.getFunction(),
-        "Shadow Call Stack cannot be combined with Save/Restore LibCalls."});
-    return;
-  }
-
   const RISCVInstrInfo *TII = STI.getInstrInfo();
   bool IsRV64 = STI.hasFeature(RISCV::Feature64Bit);
   int64_t SlotSize = STI.getXLen() / 8;
   // Load return address from shadow call stack
-  // l[w|d]  ra, -[4|8](s2)
-  // addi    s2, s2, -[4|8]
+  // l[w|d]  ra, -[4|8](gp)
+  // addi    gp, gp, -[4|8]
   BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
       .addReg(RAReg, RegState::Define)
       .addReg(SCSPReg)
@@ -128,6 +119,12 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
       .addReg(SCSPReg)
       .addImm(-SlotSize)
       .setMIFlag(MachineInstr::FrameDestroy);
+  // Restore the SCS pointer
+  unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createRestore(
+      nullptr, STI.getRegisterInfo()->getDwarfRegNum(SCSPReg, /*IsEH*/ true)));
+  BuildMI(MBB, MI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+      .addCFIIndex(CFIIndex)
+      .setMIFlags(MachineInstr::FrameDestroy);
 }
 
 // Get the ID of the libcall used for spilling and restoring callee saved

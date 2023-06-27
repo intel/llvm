@@ -1666,8 +1666,8 @@ void ARMBaseInstrInfo::expandMEMCPY(MachineBasicBlock::iterator MI) const {
   // Sort the scratch registers into ascending order.
   const TargetRegisterInfo &TRI = getRegisterInfo();
   SmallVector<unsigned, 6> ScratchRegs;
-  for(unsigned I = 5; I < MI->getNumOperands(); ++I)
-    ScratchRegs.push_back(MI->getOperand(I).getReg());
+  for (MachineOperand &MO : llvm::drop_begin(MI->operands(), 5))
+    ScratchRegs.push_back(MO.getReg());
   llvm::sort(ScratchRegs,
              [&TRI](const unsigned &Reg1, const unsigned &Reg2) -> bool {
                return TRI.getEncodingValue(Reg1) <
@@ -5869,7 +5869,8 @@ static bool isLRAvailable(const TargetRegisterInfo &TRI,
   return !Live;
 }
 
-outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
+std::optional<outliner::OutlinedFunction>
+ARMBaseInstrInfo::getOutliningCandidateInfo(
     std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
   outliner::Candidate &FirstCand = RepeatedSequenceLocs[0];
   unsigned SequenceSize =
@@ -5915,7 +5916,7 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
 
     // If the sequence doesn't have enough candidates left, then we're done.
     if (RepeatedSequenceLocs.size() < 2)
-      return outliner::OutlinedFunction();
+      return std::nullopt;
   }
 
   // We expect the majority of the outlining candidates to be in consensus with
@@ -5941,7 +5942,7 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
     RepeatedSequenceLocs.erase(RepeatedSequenceLocs.begin(), NoBTI);
 
   if (RepeatedSequenceLocs.size() < 2)
-    return outliner::OutlinedFunction();
+    return std::nullopt;
 
   // Likewise, partition the candidates according to PAC-RET enablement.
   auto NoPAC =
@@ -5958,7 +5959,7 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
     RepeatedSequenceLocs.erase(RepeatedSequenceLocs.begin(), NoPAC);
 
   if (RepeatedSequenceLocs.size() < 2)
-    return outliner::OutlinedFunction();
+    return std::nullopt;
 
   // At this point, we have only "safe" candidates to outline. Figure out
   // frame + call instruction information.

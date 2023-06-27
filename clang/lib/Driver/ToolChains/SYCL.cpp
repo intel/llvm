@@ -228,8 +228,13 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
-    if (LinkSYCLDeviceLibs)
+    if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
+      // FIXME remove this when opaque pointers are supported for SPIR-V
+      if (!this->getToolChain().getTriple().isSPIR()) {
+        Opts.push_back("-opaque-pointers");
+      }
+    }
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {
@@ -440,7 +445,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
 
   // When performing emulation compilations for FPGA AOT, we want to use
   // opencl-aot instead of aoc.
-  if (C.getDriver().isFPGAEmulationMode()) {
+  if (C.getDriver().IsFPGAEmulationMode()) {
     constructOpenCLAOTCommand(C, JA, Output, Inputs, Args);
     return;
   }
@@ -829,23 +834,30 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   DerivedArgList *DAL =
       HostTC.TranslateArgs(Args, BoundArch, DeviceOffloadKind);
 
+  bool IsNewDAL = false;
   if (!DAL) {
     DAL = new DerivedArgList(Args.getBaseArgs());
-    for (Arg *A : Args) {
-      // Filter out any options we do not want to pass along to the device
-      // compilation.
-      switch ((options::ID)A->getOption().getID()) {
-      case options::OPT_fsanitize_EQ:
-      case options::OPT_fcf_protection_EQ:
-        break;
-      default:
+    IsNewDAL = true;
+  }
+
+  for (Arg *A : Args) {
+    // Filter out any options we do not want to pass along to the device
+    // compilation.
+    auto Opt(A->getOption().getID());
+    switch (Opt) {
+    case options::OPT_fsanitize_EQ:
+    case options::OPT_fcf_protection_EQ:
+      if (!IsNewDAL)
+        DAL->eraseArg(Opt);
+      break;
+    default:
+      if (IsNewDAL)
         DAL->append(A);
-        break;
-      }
+      break;
     }
   }
   // Strip out -O0 for FPGA Hardware device compilation.
-  if (!getDriver().isFPGAEmulationMode() &&
+  if (getDriver().IsFPGAHWMode() &&
       getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
     DAL->eraseArg(options::OPT_O0);
 
@@ -948,8 +960,9 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
-  if (Args.getLastArg(options::OPT_O0))
-    BeArgs.push_back("-cl-opt-disable");
+  if (Arg *A = Args.getLastArg(options::OPT_O_Group))
+    if (A->getOption().matches(options::OPT_O0))
+      BeArgs.push_back("-cl-opt-disable");
   if (IsGen) {
     // For GEN (spir64_gen) we have implied -device settings given usage
     // of intel_gpu_ as a target.  Handle those here, and also check that no
@@ -977,6 +990,14 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
     }
+    // -ftarget-compile-fast AOT
+    if (Args.hasArg(options::OPT_ftarget_compile_fast)) {
+      BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
+    }
+  } else if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
+             Triple.isSPIR()) {
+    // -ftarget-compile-fast JIT
+    Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
   }
   if (BeArgs.empty())
     return;

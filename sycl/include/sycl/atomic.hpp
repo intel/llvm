@@ -39,11 +39,10 @@ using memory_order = sycl::memory_order;
 
 template <typename T> struct IsValidAtomicType {
   static constexpr bool value =
-      (std::is_same<T, int>::value || std::is_same<T, unsigned int>::value ||
-       std::is_same<T, long>::value || std::is_same<T, unsigned long>::value ||
-       std::is_same<T, long long>::value ||
-       std::is_same<T, unsigned long long>::value ||
-       std::is_same<T, float>::value);
+      (std::is_same_v<T, int> || std::is_same_v<T, unsigned int> ||
+       std::is_same_v<T, long> || std::is_same_v<T, unsigned long> ||
+       std::is_same_v<T, long long> || std::is_same_v<T, unsigned long long> ||
+       std::is_same_v<T, float>);
 };
 
 template <sycl::access::address_space AS> struct IsValidAtomicAddressSpace {
@@ -210,7 +209,7 @@ public:
 #ifdef __ENABLE_USM_ADDR_SPACE__
   // Create atomic in global_space with one from ext_intel_global_device_space
   template <access::address_space _Space = addressSpace,
-            typename = typename detail::enable_if_t<
+            typename = typename std::enable_if_t<
                 _Space == addressSpace &&
                 addressSpace == access::address_space::global_space>>
   atomic(const atomic<T, access::address_space::ext_intel_global_device_space>
@@ -219,7 +218,7 @@ public:
   }
 
   template <access::address_space _Space = addressSpace,
-            typename = typename detail::enable_if_t<
+            typename = typename std::enable_if_t<
                 _Space == addressSpace &&
                 addressSpace == access::address_space::global_space>>
   atomic(
@@ -235,19 +234,19 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename T2 = T>
-  detail::enable_if_t<!std::is_same<cl_float, T2>::value, T>
+  std::enable_if_t<!std::is_same<cl_float, T2>::value, T>
   load(memory_order Order = memory_order::relaxed) const {
     return __spirv_AtomicLoad(Ptr, SpirvScope,
                               detail::getSPIRVMemorySemanticsMask(Order));
   }
   template <typename T2 = T>
-  detail::enable_if_t<std::is_same<cl_float, T2>::value, T>
+  std::enable_if_t<std::is_same<cl_float, T2>::value, T>
   load(memory_order Order = memory_order::relaxed) const {
     auto *TmpPtr = reinterpret_cast<typename multi_ptr<
         cl_int, addressSpace, access::decorated::yes>::pointer>(Ptr);
     cl_int TmpVal = __spirv_AtomicLoad(
         TmpPtr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order));
-    cl_float ResVal = bit_cast<cl_float>(TmpVal);
+    cl_float ResVal = sycl::bit_cast<cl_float>(TmpVal);
     return ResVal;
   }
 #else

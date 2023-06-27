@@ -119,7 +119,7 @@ void setUnsafeStackSize(const Function &F, MachineFrameInfo &FrameInfo) {
 
   auto *MetadataName = "unsafe-stack-size";
   if (auto &N = Existing->getOperand(0)) {
-    if (cast<MDString>(N.get())->getString() == MetadataName) {
+    if (N.equalsStr(MetadataName)) {
       if (auto &Op = Existing->getOperand(1)) {
         auto Val = mdconst::extract<ConstantInt>(Op)->getZExtValue();
         FrameInfo.setUnsafeStackSize(Val);
@@ -427,8 +427,7 @@ void MachineFunction::deleteMachineInstr(MachineInstr *MI) {
   // be triggered during the implementation of support for the
   // call site info of a new architecture. If the assertion is triggered,
   // back trace will tell where to insert a call to updateCallSiteInfo().
-  assert((!MI->isCandidateForCallSiteEntry() ||
-          CallSitesInfo.find(MI) == CallSitesInfo.end()) &&
+  assert((!MI->isCandidateForCallSiteEntry() || !CallSitesInfo.contains(MI)) &&
          "Call site info was not updated!");
   // Strip it for parts. The operand array and the MI object itself are
   // independently recyclable.
@@ -1083,8 +1082,8 @@ auto MachineFunction::salvageCopySSAImpl(MachineInstr &MI)
   if (State.first.isVirtual()) {
     // Virtual register def -- we can just look up where this happens.
     MachineInstr *Inst = MRI.def_begin(State.first)->getParent();
-    for (auto &MO : Inst->operands()) {
-      if (!MO.isReg() || !MO.isDef() || MO.getReg() != State.first)
+    for (auto &MO : Inst->all_defs()) {
+      if (MO.getReg() != State.first)
         continue;
       return ApplySubregisters({Inst->getDebugInstrNum(), MO.getOperandNo()});
     }
@@ -1101,10 +1100,9 @@ auto MachineFunction::salvageCopySSAImpl(MachineInstr &MI)
   auto RMII = CurInst->getReverseIterator();
   auto PrevInstrs = make_range(RMII, CurInst->getParent()->instr_rend());
   for (auto &ToExamine : PrevInstrs) {
-    for (auto &MO : ToExamine.operands()) {
+    for (auto &MO : ToExamine.all_defs()) {
       // Test for operand that defines something aliasing RegToSeek.
-      if (!MO.isReg() || !MO.isDef() ||
-          !TRI.regsOverlap(RegToSeek, MO.getReg()))
+      if (!TRI.regsOverlap(RegToSeek, MO.getReg()))
         continue;
 
       return ApplySubregisters(

@@ -39,6 +39,7 @@
 #include "SPIRVStream.h"
 #include "SPIRVDebug.h"
 #include "SPIRVFunction.h"
+#include "SPIRVInstruction.h"
 #include "SPIRVNameMapEnum.h"
 #include "SPIRVOpCode.h"
 
@@ -143,6 +144,7 @@ SPIRV_DEF_ENCDEC(Capability)
 SPIRV_DEF_ENCDEC(Decoration)
 SPIRV_DEF_ENCDEC(OCLExtOpKind)
 SPIRV_DEF_ENCDEC(SPIRVDebugExtOpKind)
+SPIRV_DEF_ENCDEC(NonSemanticAuxDataOpKind)
 SPIRV_DEF_ENCDEC(LinkageType)
 
 // Read a string with padded 0's at the end so that they form a stream of
@@ -321,6 +323,27 @@ SPIRVDecoder::getContinuedInstructions(const spv::Op ContinuedOpCode) {
   while (OpCode == ContinuedOpCode) {
     SPIRVEntry *Entry = getEntry();
     assert(Entry && "Failed to decode entry! Invalid instruction!");
+    M.add(Entry);
+    ContinuedInst.push_back(Entry);
+    Pos = IS.tellg();
+    getWordCountAndOpCode();
+  }
+  IS.seekg(Pos); // restore position
+  return ContinuedInst;
+}
+
+std::vector<SPIRVEntry *> SPIRVDecoder::getSourceContinuedInstructions() {
+  std::vector<SPIRVEntry *> ContinuedInst;
+  std::streampos Pos = IS.tellg(); // remember position
+  getWordCountAndOpCode();
+  while (OpCode == OpExtInst) {
+    SPIRVEntry *Entry = getEntry();
+    assert(Entry && "Failed to decode entry! Invalid instruction!");
+    SPIRVExtInst *Inst = static_cast<SPIRVExtInst *>(Entry);
+    if (Inst->getExtOp() != SPIRVDebug::Instruction::SourceContinued) {
+      IS.seekg(Pos); // restore position
+      return ContinuedInst;
+    }
     M.add(Entry);
     ContinuedInst.push_back(Entry);
     Pos = IS.tellg();

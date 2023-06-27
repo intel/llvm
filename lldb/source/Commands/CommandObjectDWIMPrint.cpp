@@ -10,6 +10,8 @@
 
 #include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/DumpValueObjectOptions.h"
+#include "lldb/Expression/ExpressionVariable.h"
+#include "lldb/Expression/UserExpression.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandObject.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
@@ -32,6 +34,10 @@ CommandObjectDWIMPrint::CommandObjectDWIMPrint(CommandInterpreter &interpreter)
                        "Print a variable or expression.",
                        "dwim-print [<variable-name> | <expression>]",
                        eCommandProcessMustBePaused | eCommandTryTargetAPILock) {
+
+  CommandArgumentData var_name_arg(eArgTypeVarName, eArgRepeatPlain);
+  m_arguments.push_back({var_name_arg});
+
   m_option_group.Append(&m_format_options,
                         OptionGroupFormat::OPTION_GROUP_FORMAT |
                             OptionGroupFormat::OPTION_GROUP_GDB_FMT,
@@ -44,21 +50,34 @@ CommandObjectDWIMPrint::CommandObjectDWIMPrint(CommandInterpreter &interpreter)
 
 Options *CommandObjectDWIMPrint::GetOptions() { return &m_option_group; }
 
+void CommandObjectDWIMPrint::HandleArgumentCompletion(
+    CompletionRequest &request, OptionElementVector &opt_element_vector) {
+  lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+      GetCommandInterpreter(), lldb::eVariablePathCompletion, request, nullptr);
+}
+
 bool CommandObjectDWIMPrint::DoExecute(StringRef command,
                                        CommandReturnObject &result) {
   m_option_group.NotifyOptionParsingStarting(&m_exe_ctx);
   OptionsWithRaw args{command};
   StringRef expr = args.GetRawPart();
 
-  if (args.HasArgs()) {
-    if (!ParseOptionsAndNotify(args.GetArgs(), result, m_option_group,
-                               m_exe_ctx))
-      return false;
-  } else if (command.empty()) {
+  if (expr.empty()) {
     result.AppendErrorWithFormatv("'{0}' takes a variable or expression",
                                   m_cmd_name);
     return false;
   }
+
+  if (args.HasArgs()) {
+    if (!ParseOptionsAndNotify(args.GetArgs(), result, m_option_group,
+                               m_exe_ctx))
+      return false;
+  }
+
+  // If the user has not specified, default to disabling persistent results.
+  if (m_expr_options.suppress_persistent_result == eLazyBoolCalculate)
+    m_expr_options.suppress_persistent_result = eLazyBoolYes;
+  bool suppress_result = m_expr_options.ShouldSuppressResult(m_varobj_options);
 
   auto verbosity = GetDebugger().GetDWIMPrintVerbosity();
 
@@ -66,19 +85,26 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
   // Fallback to the dummy target, which can allow for expression evaluation.
   Target &target = target_ptr ? *target_ptr : GetDummyTarget();
 
-  const EvaluateExpressionOptions eval_options =
+  EvaluateExpressionOptions eval_options =
       m_expr_options.GetEvaluateExpressionOptions(target, m_varobj_options);
+  // This command manually removes the result variable, make sure expression
+  // evaluation doesn't do it first.
+  eval_options.SetSuppressPersistentResult(false);
 
   DumpValueObjectOptions dump_options = m_varobj_options.GetAsDumpOptions(
       m_expr_options.m_verbosity, m_format_options.GetFormat());
-  dump_options.SetHideName(eval_options.GetSuppressPersistentResult());
+  dump_options.SetHideRootName(suppress_result);
+
+  StackFrame *frame = m_exe_ctx.GetFramePtr();
 
   // First, try `expr` as the name of a frame variable.
-  if (StackFrame *frame = m_exe_ctx.GetFramePtr()) {
+  if (frame) {
     auto valobj_sp = frame->FindVariable(ConstString(expr));
     if (valobj_sp && valobj_sp->GetError().Success()) {
-      if (!eval_options.GetSuppressPersistentResult())
-        valobj_sp = valobj_sp->Persist();
+      if (!suppress_result) {
+        if (auto persisted_valobj = valobj_sp->Persist())
+          valobj_sp = persisted_valobj;
+      }
 
       if (verbosity == eDWIMPrintVerbosityFull) {
         StringRef flags;
@@ -109,7 +135,18 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
                                         expr);
       }
 
-      valobj_sp->Dump(result.GetOutputStream(), dump_options);
+      if (valobj_sp->GetError().GetError() != UserExpression::kNoResult)
+        valobj_sp->Dump(result.GetOutputStream(), dump_options);
+
+      if (suppress_result)
+        if (auto result_var_sp =
+                target.GetPersistentVariable(valobj_sp->GetName())) {
+          auto language = valobj_sp->GetPreferredDisplayLanguage();
+          if (auto *persistent_state =
+                  target.GetPersistentExpressionStateForLanguage(language))
+            persistent_state->RemovePersistentVariable(result_var_sp);
+        }
+
       result.SetStatus(eReturnStatusSuccessFinishResult);
       return true;
     } else {

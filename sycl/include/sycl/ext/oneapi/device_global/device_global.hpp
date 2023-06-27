@@ -35,8 +35,8 @@ namespace detail {
 template <typename T, typename = void>
 struct HasArrowOperator : std::false_type {};
 template <typename T>
-struct HasArrowOperator<
-    T, sycl::detail::void_t<decltype(std::declval<T>().operator->())>>
+struct HasArrowOperator<T,
+                        std::void_t<decltype(std::declval<T>().operator->())>>
     : std::true_type {};
 
 // Base class for device_global.
@@ -44,7 +44,11 @@ template <typename T, typename PropertyListT, typename = void>
 class device_global_base {
 protected:
   using pointer_t = typename decorated_global_ptr<T>::pointer;
-  pointer_t usmptr{};
+
+  // The pointer member is mutable to avoid the compiler optimizing it out when
+  // accessing const-qualified device_global variables.
+  mutable pointer_t usmptr{};
+
   pointer_t get_ptr() noexcept { return usmptr; }
   const pointer_t get_ptr() const noexcept { return usmptr; }
 
@@ -71,7 +75,7 @@ public:
 template <typename T, typename... Props>
 class device_global_base<
     T, properties_t<Props...>,
-    sycl::detail::enable_if_t<properties_t<Props...>::template has_property<
+    std::enable_if_t<properties_t<Props...>::template has_property<
         device_image_scope_key>()>> {
 protected:
   T val{};
@@ -125,11 +129,11 @@ class
 public:
   using element_type = std::remove_extent_t<T>;
 
-  static_assert(std::is_trivially_default_constructible<T>::value,
+  static_assert(std::is_trivially_default_constructible_v<T>,
                 "Type T must be trivially default constructable (until C++20 "
                 "consteval is supported and enabled.)");
 
-  static_assert(std::is_trivially_destructible<T>::value,
+  static_assert(std::is_trivially_destructible_v<T>,
                 "Type T must be trivially destructible.");
 
   static_assert(is_property_list<property_list_t>::value,
@@ -186,18 +190,18 @@ public:
 
   template <class RelayT = T>
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
-                       std::is_pointer<RelayT>::value,
-                   RelayT>
-      &operator->() noexcept {
+                       std::is_pointer_v<RelayT>,
+                   RelayT> &
+  operator->() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();
   }
 
   template <class RelayT = T>
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
-                       std::is_pointer<RelayT>::value,
-                   const RelayT>
-      &operator->() const noexcept {
+                       std::is_pointer_v<RelayT>,
+                   const RelayT> &
+  operator->() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();
   }

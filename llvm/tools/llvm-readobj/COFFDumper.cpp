@@ -344,6 +344,7 @@ const EnumEntry<COFF::MachineTypes> ImageFileMachineType[] = {
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_ARM      ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_ARM64    ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_ARM64EC  ),
+  LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_ARM64X   ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_ARMNT    ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_EBC      ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_I386     ),
@@ -544,9 +545,10 @@ const EnumEntry<COFF::DebugType> ImageDebugType[] = {
 
 static const EnumEntry<COFF::WeakExternalCharacteristics>
 WeakExternalCharacteristics[] = {
-  { "NoLibrary", COFF::IMAGE_WEAK_EXTERN_SEARCH_NOLIBRARY },
-  { "Library"  , COFF::IMAGE_WEAK_EXTERN_SEARCH_LIBRARY   },
-  { "Alias"    , COFF::IMAGE_WEAK_EXTERN_SEARCH_ALIAS     }
+  { "NoLibrary"       , COFF::IMAGE_WEAK_EXTERN_SEARCH_NOLIBRARY },
+  { "Library"         , COFF::IMAGE_WEAK_EXTERN_SEARCH_LIBRARY   },
+  { "Alias"           , COFF::IMAGE_WEAK_EXTERN_SEARCH_ALIAS     },
+  { "AntiDependency"  , COFF::IMAGE_WEAK_EXTERN_ANTI_DEPENDENCY  },
 };
 
 const EnumEntry<uint32_t> SubSectionTypes[] = {
@@ -1670,6 +1672,7 @@ void COFFDumper::printUnwindInfo() {
   }
   case COFF::IMAGE_FILE_MACHINE_ARM64:
   case COFF::IMAGE_FILE_MACHINE_ARM64EC:
+  case COFF::IMAGE_FILE_MACHINE_ARM64X:
   case COFF::IMAGE_FILE_MACHINE_ARMNT: {
     ARM::WinEH::Decoder Decoder(W, Obj->getMachine() !=
                                        COFF::IMAGE_FILE_MACHINE_ARMNT);

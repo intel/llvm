@@ -121,7 +121,7 @@ LLVM_LIBC_FUNCTION(float, sinf, (float x)) {
     double result =
         fputil::polyeval(xsq, 1.0, -0x1.55555555554c6p-3, 0x1.1111111085e65p-7,
                          -0x1.a019f70fb4d4fp-13, 0x1.718d179815e74p-19);
-    return xd * result;
+    return static_cast<float>(xd * result);
   }
 
   if (LIBC_UNLIKELY(x_abs == 0x4619'9998U)) { // x = 0x1.33333p13
@@ -135,11 +135,10 @@ LLVM_LIBC_FUNCTION(float, sinf, (float x)) {
 
   if (LIBC_UNLIKELY(x_abs >= 0x7f80'0000U)) {
     if (x_abs == 0x7f80'0000U) {
-      errno = EDOM;
-      fputil::set_except(FE_INVALID);
+      fputil::set_errno_if_required(EDOM);
+      fputil::raise_except_if_required(FE_INVALID);
     }
-    return x +
-           FPBits::build_nan(1 << (fputil::MantissaWidth<float>::VALUE - 1));
+    return x + FPBits::build_quiet_nan(0);
   }
 
   // Combine the results with the sine of sum formula:
@@ -151,8 +150,8 @@ LLVM_LIBC_FUNCTION(float, sinf, (float x)) {
 
   sincosf_eval(xd, x_abs, sin_k, cos_k, sin_y, cosm1_y);
 
-  return fputil::multiply_add(sin_y, cos_k,
-                              fputil::multiply_add(cosm1_y, sin_k, sin_k));
+  return static_cast<float>(fputil::multiply_add(
+      sin_y, cos_k, fputil::multiply_add(cosm1_y, sin_k, sin_k)));
 }
 
 } // namespace __llvm_libc

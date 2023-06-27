@@ -1,9 +1,10 @@
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
+// REQUIRES: aspect-fp16, aspect-ext_intel_legacy_image
+
+// UNSUPPORTED: cuda
 // CUDA cannot support SYCL 1.2.1 images.
-//
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==------------------ image_accessor_readwrite_half.cpp -------------------==//
 //=-image_accessor read (without sampler)& write API test for half datatype-==//
@@ -148,11 +149,6 @@ int main() {
   // Checking if default selected device supports half datatype.
   // Same device will be selected in the write/read functions.
   s::device Dev{s::default_selector_v};
-  if (!Dev.has(sycl::aspect::fp16)) {
-    std::cout << "This device doesn't support the extension cl_khr_fp16"
-              << std::endl;
-    return 0;
-  }
   // Checking only for dimension=1.
   // create image:
   char HostPtr[100];

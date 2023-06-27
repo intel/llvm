@@ -196,6 +196,7 @@
 
 ; CHECK-SPIRV: Capability FPGAMemoryAttributesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_attributes"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "{sizeinfo:4}"
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 RegisterINTEL
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "DEFAULT"
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "MLAB"
@@ -242,6 +243,7 @@ target triple = "spir"
 %struct.state = type { [8 x i32] }
 
 ; CHECK-LLVM: [[STR_NMB_SCT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:4}
+; CHECK-LLVM: [[STR_SIZEINF:@[0-9_.]+]] = {{.*}}{sizeinfo:4}
 ; CHECK-LLVM: [[STR_NMB_STE:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:8}
 ; CHECK-LLVM: [[STR_REG_SCT:@[0-9_.]+]] = {{.*}}{register:1}
 ; CHECK-LLVM: [[STR_MEM_SCT:@[0-9_.]+]] = {{.*}}{memory:MLAB}
@@ -334,7 +336,8 @@ entry:
   %0 = bitcast %struct.numbanks_st* %s to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
   ; CHECK-LLVM: %[[FLD_NMB_SCT:.*]] = getelementptr inbounds %struct.numbanks_st, %struct.numbanks_st* %{{[a-zA-Z0-9]+}}, i32 0, i32 0
-  ; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FLD_NMB_SCT]]{{.*}}[[STR_NMB_SCT]]
+  ; CHECK-LLVM: %[[PTR_NMB_SCT:.*]] = call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FLD_NMB_SCT]]{{.*}}[[STR_NMB_SCT]]
+  ; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[PTR_NMB_SCT]]{{.*}}[[STR_SIZEINF]]
   %field = getelementptr inbounds %struct.numbanks_st, %struct.numbanks_st* %s, i32 0, i32 0
   %1 = call i32* @llvm.ptr.annotation.p0i32(i32* %field, i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* null)
   store i32 0, i32* %1, align 4, !tbaa !9

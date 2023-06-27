@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.20.0)
 
 if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
   set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
@@ -11,13 +11,6 @@ include(${LLVM_COMMON_CMAKE_UTILS}/Modules/CMakePolicy.cmake
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(lld)
   set(LLD_BUILT_STANDALONE TRUE)
-  if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
-    message(WARNING
-      "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
-      "minimum version of CMake required to build LLVM will become 3.20.0, and "
-      "using an older CMake will become an error. Please upgrade your CMake to "
-      "at least 3.20.0 now to avoid issues in the future!")
-  endif()
 endif()
 
 # Must go below project(..)
@@ -75,11 +68,9 @@ if(LLD_BUILT_STANDALONE)
         set(LLVM_UTILS_PROVIDED ON)
         set(LLD_TEST_DEPS FileCheck not)
       endif()
-      set(UNITTEST_DIR ${LLVM_THIRD_PARTY_DIR}/unittest)
-      if(EXISTS ${UNITTEST_DIR}/googletest/include/gtest/gtest.h
-          AND NOT EXISTS ${LLVM_LIBRARY_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}gtest${CMAKE_STATIC_LIBRARY_SUFFIX}
-          AND EXISTS ${UNITTEST_DIR}/CMakeLists.txt)
-        add_subdirectory(${UNITTEST_DIR} third-party/unittest)
+
+      if (NOT TARGET llvm_gtest)
+        message(FATAL_ERROR "llvm-gtest not found. Please install llvm-gtest or disable tests with -DLLVM_INCLUDE_TESTS=OFF")
       endif()
     else()
       # Seek installed Lit.
@@ -107,10 +98,6 @@ if(LLD_BUILT_STANDALONE)
     else()
       set(LLVM_INCLUDE_TESTS OFF)
     endif()
-  endif()
-
-  if(LLVM_HAVE_LIBXAR)
-    set(XAR_LIB xar)
   endif()
 endif() # standalone
 

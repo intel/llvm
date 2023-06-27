@@ -20,7 +20,7 @@
 // vectorization.
 // REDEFINE: %{option} = "enable-runtime-library=false vl=4  enable-arm-sve=%ENABLE_VLA"
 // REDEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
-// REDEFINE: %lli \
+// REDEFINE: %lli_host_or_aarch64_cmd \
 // REDEFINE:   --entry-function=entry_lli \
 // REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
 // REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
@@ -31,9 +31,9 @@
 !Filename = !llvm.ptr<i8>
 
 #SparseMatrix = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ],
-  pointerBitWidth = 32,
-  indexBitWidth = 32
+  lvlTypes = [ "compressed", "compressed" ],
+  posWidth = 32,
+  crdWidth = 32
 }>
 
 #trait_sampled_dense_dense = {

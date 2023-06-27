@@ -141,19 +141,21 @@ if(WIN32)
     set(LLVM_ON_WIN32 1)
     set(LLVM_ON_UNIX 0)
   endif(CYGWIN)
-else(WIN32)
-  if(FUCHSIA OR UNIX)
-    set(LLVM_ON_WIN32 0)
-    set(LLVM_ON_UNIX 1)
-    if(APPLE OR ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-      set(LLVM_HAVE_LINK_VERSION_SCRIPT 0)
-    else()
-      set(LLVM_HAVE_LINK_VERSION_SCRIPT 1)
-    endif()
-  else(FUCHSIA OR UNIX)
-    MESSAGE(SEND_ERROR "Unable to determine platform")
-  endif(FUCHSIA OR UNIX)
-endif(WIN32)
+elseif(FUCHSIA OR UNIX)
+  set(LLVM_ON_WIN32 0)
+  set(LLVM_ON_UNIX 1)
+  if(APPLE OR ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+    set(LLVM_HAVE_LINK_VERSION_SCRIPT 0)
+  else()
+    set(LLVM_HAVE_LINK_VERSION_SCRIPT 1)
+  endif()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Generic")
+  set(LLVM_ON_WIN32 0)
+  set(LLVM_ON_UNIX 0)
+  set(LLVM_HAVE_LINK_VERSION_SCRIPT 0)
+else()
+  MESSAGE(SEND_ERROR "Unable to determine platform")
+endif()
 
 if (CMAKE_SYSTEM_NAME MATCHES "OS390")
   set(LLVM_HAVE_LINK_VERSION_SCRIPT 0)
@@ -591,6 +593,16 @@ if ( LLVM_COMPILER_IS_GCC_COMPATIBLE OR CMAKE_CXX_COMPILER_ID MATCHES "XL" )
   add_flag_if_supported("-Werror=date-time" WERROR_DATE_TIME)
   add_flag_if_supported("-Werror=unguarded-availability-new" WERROR_UNGUARDED_AVAILABILITY_NEW)
 endif( LLVM_COMPILER_IS_GCC_COMPATIBLE OR CMAKE_CXX_COMPILER_ID MATCHES "XL" )
+
+if ( LLVM_COMPILER_IS_GCC_COMPATIBLE )
+  # LLVM data structures like llvm::User and llvm::MDNode rely on
+  # the value of object storage persisting beyond the lifetime of the
+  # object (#24952).  This is not standard compliant and causes a runtime
+  # crash if LLVM is built with GCC and LTO enabled (#57740).  Until
+  # these bugs are fixed, we need to disable dead store eliminations
+  # based on object lifetime.
+  add_flag_if_supported("-fno-lifetime-dse" CMAKE_CXX_FLAGS)
+endif ( LLVM_COMPILER_IS_GCC_COMPATIBLE )
 
 # Modules enablement for GCC-compatible compilers:
 if ( LLVM_COMPILER_IS_GCC_COMPATIBLE AND LLVM_ENABLE_MODULES )
@@ -1100,7 +1112,7 @@ if (CLANG_CL AND (LLVM_BUILD_INSTRUMENTED OR LLVM_USE_SANITIZER))
   endif()
   file(TO_CMAKE_PATH "${clang_compiler_rt_file}" clang_compiler_rt_file)
   get_filename_component(clang_runtime_dir "${clang_compiler_rt_file}" DIRECTORY)
-  append("/libpath:${clang_runtime_dir}"
+  append("/libpath:\"${clang_runtime_dir}\""
     CMAKE_EXE_LINKER_FLAGS
     CMAKE_MODULE_LINKER_FLAGS
     CMAKE_SHARED_LINKER_FLAGS)

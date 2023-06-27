@@ -200,6 +200,10 @@ static cl::opt<bool>
     SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                   cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
+static cl::opt<bool> SPIRVPreserveAuxData(
+    "spirv-preserve-auxdata", cl::init(false),
+    cl::desc("Preserve all auxiliary data, such as function attributes and metadata"));
+
 static cl::opt<bool> SpecConstInfo(
     "spec-const-info",
     cl::desc("Display id of constants available for specializaion and their "
@@ -235,13 +239,37 @@ static cl::opt<SPIRV::DebugInfoEIS> DebugEIS(
         clEnumValN(SPIRV::DebugInfoEIS::OpenCL_DebugInfo_100, "ocl-100",
                    "Emit debug info compliant with the OpenCL.DebugInfo.100 "
                    "extended instruction set. This version of SPIR-V debug "
-                   "info format is compatible with the SPIRV-Tools")));
+                   "info format is compatible with the SPIRV-Tools"),
+        clEnumValN(
+            SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_100,
+            "nonsemantic-shader-100",
+            "Emit debug info compliant with the "
+            "NonSemantic.Shader.DebugInfo.100 extended instruction set. This "
+            "version of SPIR-V debug info format is compatible with the rules "
+            "regarding non-semantic instruction sets."),
+        clEnumValN(
+            SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200,
+            "nonsemantic-shader-200",
+            "Emit debug info compliant with the "
+            "NonSemantic.Shader.DebugInfo.200 extended instruction set. This "
+            "version of SPIR-V debug info format is compatible with the rules "
+            "regarding non-semantic instruction sets.")));
 
 static cl::opt<bool> SPIRVReplaceLLVMFmulAddWithOpenCLMad(
     "spirv-replace-fmuladd-with-ocl-mad",
     cl::desc("Allow replacement of llvm.fmuladd.* intrinsic with OpenCL mad "
              "instruction from OpenCL extended instruction set"),
     cl::init(true));
+
+static cl::opt<SPIRV::BuiltinFormat> SPIRVBuiltinFormat(
+    "spirv-builtin-format",
+    cl::desc("Set LLVM-IR representation of SPIR-V builtin variables:"),
+    cl::init(SPIRV::BuiltinFormat::Function),
+    cl::values(
+        clEnumValN(SPIRV::BuiltinFormat::Function, "function",
+                   "Use functions to represent SPIR-V builtin variables"),
+        clEnumValN(SPIRV::BuiltinFormat::Global, "global",
+                   "Use globals to represent SPIR-V builtin variables")));
 
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
@@ -492,8 +520,11 @@ static int parseSPVExtOption(
   //  - during SPIR-V generation, assume that any known extension is disallowed.
   //  - during conversion to/from SPIR-V text representation, assume that any
   //    known extension is allowed.
+  std::optional<bool> DefaultVal;
+  if (IsReverse)
+    DefaultVal = true;
   for (const auto &It : ExtensionNamesMap)
-    ExtensionsStatus[It.second] = IsReverse;
+    ExtensionsStatus[It.second] = DefaultVal;
 
   if (SPVExt.empty())
     return 0; // Nothing to do
@@ -685,7 +716,7 @@ int main(int Ac, char **Av) {
   SPIRV::TranslatorOpts Opts(MaxSPIRVVersion, ExtensionsStatus);
   if (BIsRepresentation.getNumOccurrences() != 0) {
     if (!IsReverse) {
-      errs() << "Note: --spirv-ocl-builtins-version option ignored as it only "
+      errs() << "Note: --spirv-target-env option ignored as it only "
                 "affects translation from SPIR-V to LLVM IR";
     } else {
       Opts.setDesiredBIsRepresentation(BIsRepresentation);
@@ -694,6 +725,15 @@ int main(int Ac, char **Av) {
 
   Opts.setFPContractMode(FPCMode);
 
+  if (SPIRVBuiltinFormat.getNumOccurrences() != 0) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-builtin-format option ignored as it only "
+                "affects translation from SPIR-V to LLVM IR";
+    } else {
+      Opts.setBuiltinFormat(SPIRVBuiltinFormat);
+    }
+  }
+
   if (SPIRVMemToReg)
     Opts.setMemToRegEnabled(SPIRVMemToReg);
   if (SPIRVGenKernelArgNameMD)
@@ -701,6 +741,14 @@ int main(int Ac, char **Av) {
   if (IsReverse && !SpecConst.empty()) {
     if (parseSpecConstOpt(SpecConst, Opts))
       return -1;
+  }
+
+  if (SPIRVPreserveAuxData) {
+    Opts.setPreserveAuxData(
+        SPIRVPreserveAuxData);
+    if (!IsReverse)
+      Opts.setAllowedToUseExtension(
+          SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
   }
 
   if (SPIRVAllowUnknownIntrinsics.getNumOccurrences() != 0) {
@@ -733,6 +781,15 @@ int main(int Ac, char **Av) {
                 "affects translation from LLVM IR to SPIR-V";
     } else {
       Opts.setDebugInfoEIS(DebugEIS);
+      if (DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
+        Opts.setAllowExtraDIExpressionsEnabled(true);
+      if (DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_100 ||
+          DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
+        Opts.setAllowedToUseExtension(
+            SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
     }
   }
 

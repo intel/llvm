@@ -1,10 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -O3 -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// L0, OpenCL, and HIP backends don't currently support
-// info::device::atomic_memory_order_capabilities
-// UNSUPPORTED: level_zero, opencl
+// RUN: %{build} -O3 -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70
+// RUN: %{run} %t.out
 
 // NOTE: Tests fetch_add for acquire and release memory ordering.
 
@@ -14,7 +9,7 @@
 using namespace sycl;
 
 template <memory_order order> void test_acquire_global() {
-  const size_t N_items = 1024;
+  const size_t N_items = 256;
   const size_t N_iters = 1000;
 
   int error = 0;
@@ -23,7 +18,7 @@ template <memory_order order> void test_acquire_global() {
   queue q;
   {
     buffer<int> error_buf(&error, 1);
-    buffer<int> val_buf(val, 1);
+    buffer<int> val_buf(val, 2);
 
     q.submit([&](handler &cgh) {
        auto error =
@@ -56,7 +51,7 @@ template <memory_order order> void test_acquire_global() {
 }
 
 template <memory_order order> void test_acquire_local() {
-  const size_t local_size = 1024;
+  const size_t local_size = 256;
   const size_t N_wgs = 16;
   const size_t global_size = local_size * N_wgs;
   const size_t N_iters = 1000;
@@ -67,7 +62,7 @@ template <memory_order order> void test_acquire_local() {
   queue q;
   {
     buffer<int> error_buf(&error, 1);
-    buffer<int> val_buf(val, 1);
+    buffer<int> val_buf(val, 2);
 
     q.submit([&](handler &cgh) {
        auto error =
@@ -105,7 +100,7 @@ template <memory_order order> void test_acquire_local() {
 }
 
 template <memory_order order> void test_release_global() {
-  const size_t N_items = 1024;
+  const size_t N_items = 256;
   const size_t N_iters = 1000;
 
   int error = 0;
@@ -114,7 +109,7 @@ template <memory_order order> void test_release_global() {
   queue q;
   {
     buffer<int> error_buf(&error, 1);
-    buffer<int> val_buf(val, 1);
+    buffer<int> val_buf(val, 2);
 
     q.submit([&](handler &cgh) {
        auto error =
@@ -147,7 +142,7 @@ template <memory_order order> void test_release_global() {
 }
 
 template <memory_order order> void test_release_local() {
-  const size_t local_size = 1024;
+  const size_t local_size = 256;
   const size_t N_wgs = 16;
   const size_t global_size = local_size * N_wgs;
   const size_t N_iters = 1000;
@@ -158,7 +153,7 @@ template <memory_order order> void test_release_local() {
   queue q;
   {
     buffer<int> error_buf(&error, 1);
-    buffer<int> val_buf(val, 1);
+    buffer<int> val_buf(val, 2);
 
     q.submit([&](handler &cgh) {
        auto error =

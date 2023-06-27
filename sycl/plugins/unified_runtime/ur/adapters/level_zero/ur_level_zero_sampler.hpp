@@ -9,6 +9,9 @@
 
 #include "ur_level_zero_common.hpp"
 
-struct _ur_sampler_handle_t : _pi_object {
-  _ur_sampler_handle_t() {}
+struct ur_sampler_handle_t_ : _ur_object {
+  ur_sampler_handle_t_(ze_sampler_handle_t Sampler) : ZeSampler{Sampler} {}
+
+  // Level Zero sampler handle.
+  ze_sampler_handle_t ZeSampler;
 };

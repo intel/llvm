@@ -1,10 +1,7 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
 // TODO online compiler check fails for esimd_emulator
 // XFAIL: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==- fmod_compatibility_test.cpp - Test for compatibility with std::fmod -==//
 //

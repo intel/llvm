@@ -36,7 +36,8 @@ LLVM_LIBC_FUNCTION(float, coshf, (float x)) {
     if (LIBC_UNLIKELY(rounding == FE_DOWNWARD || rounding == FE_TOWARDZERO))
       return FPBits(FPBits::MAX_NORMAL).get_val();
 
-    errno = ERANGE;
+    fputil::set_errno_if_required(ERANGE);
+    fputil::raise_except_if_required(FE_OVERFLOW);
 
     return x + FPBits::inf().get_val();
   }
@@ -46,7 +47,7 @@ LLVM_LIBC_FUNCTION(float, coshf, (float x)) {
   // but not too small inputs, such as |x| < 2^-2, or |x| < 2^-3.
 
   // cosh(x) = (e^x + e^(-x)) / 2.
-  return exp_pm_eval</*is_sinh*/ false>(x);
+  return static_cast<float>(exp_pm_eval</*is_sinh*/ false>(x));
 }
 
 } // namespace __llvm_libc

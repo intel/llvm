@@ -27,6 +27,7 @@ def Sint64 : Type;
 def Uint64 : Type;
 def Float : Type;
 def Ptr : Type;
+def FnPtr : Type;
 
 //===----------------------------------------------------------------------===//
 // Types transferred to the interpreter.
@@ -77,7 +78,7 @@ def AluTypeClass : TypeClass {
 }
 
 def PtrTypeClass : TypeClass {
-  let Types = [Ptr];
+  let Types = [Ptr, FnPtr];
 }
 
 def BoolTypeClass : TypeClass {
@@ -93,7 +94,7 @@ def AllTypeClass : TypeClass {
 }
 
 def ComparableTypeClass : TypeClass {
-  let Types = !listconcat(AluTypeClass.Types, [Ptr], [Float]);
+  let Types = !listconcat(AluTypeClass.Types, [Ptr], [Float], [FnPtr]);
 }
 
 class SingletonTypeClass<Type Ty> : TypeClass {
@@ -178,13 +179,16 @@ def NoRet : Opcode {}
 def Call : Opcode {
   let Args = [ArgFunction];
   let Types = [];
-  let ChangesPC = 1;
 }
 
 def CallBI : Opcode {
   let Args = [ArgFunction];
   let Types = [];
-  let ChangesPC = 1;
+}
+
+def CallPtr : Opcode {
+  let Args = [];
+  let Types = [];
 }
 
 //===----------------------------------------------------------------------===//
@@ -228,6 +232,7 @@ def Zero : Opcode {
 // [] -> [Pointer]
 def Null : Opcode {
   let Types = [PtrTypeClass];
+  let HasGroup = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -306,6 +311,9 @@ def RVOPtr : Opcode;
 def NarrowPtr : Opcode;
 // [Pointer] -> [Pointer]
 def ExpandPtr : Opcode;
+// [Pointer, Offset] -> [Pointer]
+def ArrayElemPtr : AluOpcode;
+def ArrayElemPtrPop : AluOpcode;
 
 //===----------------------------------------------------------------------===//
 // Direct field accessors
@@ -327,6 +335,8 @@ class BitFieldOpcode : Opcode {
 def GetLocal : AccessOpcode { let HasCustomEval = 1; }
 // [] -> [Pointer]
 def SetLocal : AccessOpcode { let HasCustomEval = 1; }
+
+def CheckGlobalCtor : Opcode {}
 
 // [] -> [Value]
 def GetGlobal : AccessOpcode;
@@ -443,6 +453,14 @@ def DecPtr : Opcode {
 }
 
 //===----------------------------------------------------------------------===//
+// Function pointers.
+//===----------------------------------------------------------------------===//
+def GetFnPtr : Opcode {
+  let Args = [ArgFunction];
+}
+
+
+//===----------------------------------------------------------------------===//
 // Binary operators.
 //===----------------------------------------------------------------------===//
 
@@ -481,10 +499,17 @@ def Inv: Opcode {
   let HasGroup = 1;
 }
 
+// Increment and decrement.
 def Inc: IntegerOpcode;
 def IncPop : IntegerOpcode;
 def Dec: IntegerOpcode;
 def DecPop: IntegerOpcode;
+
+// Float increment and decrement.
+def Incf: FloatOpcode;
+def IncfPop : FloatOpcode;
+def Decf: FloatOpcode;
+def DecfPop : FloatOpcode;
 
 // [Real] -> [Real]
 def Neg: Opcode {

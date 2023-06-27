@@ -102,7 +102,7 @@ for include_dir in [config.sycl_include, config.level_zero_include_dir, config.o
         sycl_host_only_options += ' -isystem %s' % include_dir
 config.substitutions.append( ('%fsycl-host-only', sycl_host_only_options) )
 
-config.substitutions.append( ('%sycl_lib', ' -lsycl6' if platform.system() == "Windows" else '-lsycl') )
+config.substitutions.append( ('%sycl_lib', ' -lsycl7' if platform.system() == "Windows" else '-lsycl') )
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 

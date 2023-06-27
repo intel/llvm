@@ -3,14 +3,7 @@
 # architecture-specific code in various subdirectories.
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-  cmake_minimum_required(VERSION 3.13.4)
-  if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
-    message(WARNING
-      "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
-      "minimum version of CMake required to build LLVM will become 3.20.0, and "
-      "using an older CMake will become an error. Please upgrade your CMake to "
-      "at least 3.20.0 now to avoid issues in the future!")
-  endif()
+  cmake_minimum_required(VERSION 3.20.0)
 
   set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
   project(CompilerRTBuiltins C ASM)
@@ -58,6 +51,7 @@ if (COMPILER_RT_STANDALONE_BUILD)
 endif()
 
 include(builtin-config-ix)
+include(CMakePushCheckState)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
   include(CompilerRTAIXUtils)
@@ -190,14 +184,11 @@ set(GENERIC_SOURCES
   umodti3.c
 )
 
-# Build BF16 files only when "__bf16" is available.
-if(COMPILER_RT_HAS_BFLOAT16 AND NOT APPLE)
-  set(GENERIC_SOURCES
-    ${GENERIC_SOURCES}
+# We only build BF16 files when "__bf16" is available.
+set(BF16_SOURCES
     truncdfbf2.c
     truncsfbf2.c
-  )
-endif()
+)
 
 # TODO: Several "tf" files (and divtc3.c, but not multc3.c) are in
 # GENERIC_SOURCES instead of here.
@@ -312,17 +303,27 @@ if (NOT MSVC)
     ${x86_ARCH_SOURCES}
     x86_64/floatdidf.c
     x86_64/floatdisf.c
-    x86_64/floatundidf.S
-    x86_64/floatundisf.S
   )
+  if (NOT WIN32)
+    set(x86_64_SOURCES
+      ${x86_64_SOURCES}
+      x86_64/floatundidf.S
+      x86_64/floatundisf.S
+    )
+  endif()
 
   if (NOT ANDROID)
     set(x86_64_SOURCES
       ${x86_64_SOURCES}
       ${x86_80_BIT_SOURCES}
       x86_64/floatdixf.c
-      x86_64/floatundixf.S
     )
+    if (NOT WIN32)
+      set(x86_64_SOURCES
+        ${x86_64_SOURCES}
+        x86_64/floatundixf.S
+      )
+    endif()
   endif()
 
   # Darwin x86_64 Haswell
@@ -607,6 +608,7 @@ set(arm64_32_SOURCES ${aarch64_SOURCES})
 set(armv6m_SOURCES ${thumb1_SOURCES})
 set(armv7m_SOURCES ${arm_SOURCES})
 set(armv7em_SOURCES ${arm_SOURCES})
+set(armv8m.base_SOURCES ${thumb1_SOURCES})
 set(armv8m.main_SOURCES ${arm_SOURCES})
 set(armv8.1m.main_SOURCES ${arm_SOURCES})
 
@@ -735,6 +737,10 @@ set(ve_SOURCES
 add_custom_target(builtins)
 set_target_properties(builtins PROPERTIES FOLDER "Compiler-RT Misc")
 
+option(COMPILER_RT_ENABLE_SOFTWARE_INT128
+  "Enable the int128 builtin routines for all targets."
+  OFF)
+
 if (APPLE)
   add_subdirectory(Darwin-excludes)
   add_subdirectory(macho_embedded)
@@ -746,8 +752,6 @@ else ()
   if (COMPILER_RT_HAS_FCF_PROTECTION_FLAG)
     append_list_if(COMPILER_RT_ENABLE_CET -fcf-protection=full BUILTIN_CFLAGS)
   endif()
-
-  append_list_if(COMPILER_RT_HAS_FLOAT16 -DCOMPILER_RT_HAS_FLOAT16 BUILTIN_CFLAGS)
 
   append_list_if(COMPILER_RT_HAS_STD_C11_FLAG -std=c11 BUILTIN_CFLAGS)
 
@@ -780,7 +784,11 @@ else ()
 
   foreach (arch ${BUILTIN_SUPPORTED_ARCH})
     if (CAN_TARGET_${arch})
+      cmake_push_check_state()
+      # TODO: we should probably make most of the checks in builtin-config depend on the target flags.
+      message(STATUS "Performing additional configure checks with target flags: ${TARGET_${arch}_CFLAGS}")
       set(BUILTIN_CFLAGS_${arch} ${BUILTIN_CFLAGS})
+      list(APPEND CMAKE_REQUIRED_FLAGS ${TARGET_${arch}_CFLAGS} ${BUILTIN_CFLAGS_${arch}})
       # For ARM archs, exclude any VFP builtins if VFP is not supported
       if (${arch} MATCHES "^(arm|armhf|armv7|armv7s|armv7k|armv7m|armv7em|armv8m.main|armv8.1m.main)$")
         string(REPLACE ";" " " _TARGET_${arch}_CFLAGS "${TARGET_${arch}_CFLAGS}")
@@ -799,6 +807,15 @@ else ()
           endif()
         endif()
       endif()
+      check_c_source_compiles("_Float16 foo(_Float16 x) { return x; }"
+                              COMPILER_RT_HAS_${arch}_FLOAT16)
+      append_list_if(COMPILER_RT_HAS_${arch}_FLOAT16 -DCOMPILER_RT_HAS_FLOAT16 BUILTIN_CFLAGS_${arch})
+      check_c_source_compiles("__bf16 foo(__bf16 x) { return x; }"
+                              COMPILER_RT_HAS_${arch}_BFLOAT16)
+      # Build BF16 files only when "__bf16" is available.
+      if(COMPILER_RT_HAS_${arch}_BFLOAT16)
+        list(APPEND ${arch}_SOURCES ${BF16_SOURCES})
+      endif()
 
       # Remove a generic C builtin when an arch-specific builtin is specified.
       filter_builtin_sources(${arch}_SOURCES ${arch})
@@ -811,7 +828,7 @@ else ()
 
       # For RISCV32, we must force enable int128 for compiling long
       # double routines.
-      if("${arch}" STREQUAL "riscv32")
+      if(COMPILER_RT_ENABLE_SOFTWARE_INT128 OR "${arch}" STREQUAL "riscv32")
         list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
 
@@ -833,6 +850,7 @@ else ()
                               DEFS ${BUILTIN_DEFS}
                               CFLAGS ${BUILTIN_CFLAGS_${arch}}
                               PARENT_TARGET builtins)
+      cmake_pop_check_state()
     endif ()
   endforeach ()
 endif ()
@@ -843,19 +861,17 @@ option(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC
 
 if(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC)
   add_custom_target(builtins-standalone-atomic)
-  set(BUILTIN_DEPS "")
   set(BUILTIN_TYPE SHARED)
   if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
     if(NOT COMPILER_RT_LIBATOMIC_LINK_FLAGS)
       get_aix_libatomic_default_link_flags(COMPILER_RT_LIBATOMIC_LINK_FLAGS
         "${CMAKE_CURRENT_SOURCE_DIR}/ppc/atomic.exp")
     endif()
-    # The compiler needs builtins to link any other binaries, so let
-    # clang_rt.atomic be built after builtins.
-    set(BUILTIN_DEPS builtins)
     # For different versions of cmake, SHARED behaves differently. For some
     # versions, we might need MODULE rather than SHARED.
     get_aix_libatomic_type(BUILTIN_TYPE)
+  else()
+    list(APPEND COMPILER_RT_LIBATOMIC_LINK_FLAGS -nodefaultlibs)
   endif()
   foreach (arch ${BUILTIN_SUPPORTED_ARCH})
     if(CAN_TARGET_${arch})
@@ -864,7 +880,7 @@ if(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC)
                               ARCHS ${arch}
                               SOURCES atomic.c
                               LINK_FLAGS ${COMPILER_RT_LIBATOMIC_LINK_FLAGS}
-                              DEPS ${BUILTIN_DEPS}
+                              DEPS builtins
                               PARENT_TARGET builtins-standalone-atomic)
     endif()
   endforeach()

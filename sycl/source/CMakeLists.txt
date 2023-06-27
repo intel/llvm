@@ -69,13 +69,13 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
-  # win_proxy_loader
+  # pi_win_proxy_loader
   if (WIN32)
-    include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/win_proxy_loader)
+    include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/pi_win_proxy_loader)
     if(WIN_DUPE)
-      target_link_libraries(${LIB_NAME} PUBLIC win_proxy_loaderd)
+      target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loaderd)
     else()
-      target_link_libraries(${LIB_NAME} PUBLIC win_proxy_loader)
+      target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loader)
     endif()
   endif()
 
@@ -165,6 +165,7 @@ set(SYCL_SOURCES
     "detail/context_impl.cpp"
     "detail/device_binary_image.cpp"
     "detail/device_filter.cpp"
+    "detail/host_pipe_map.cpp"
     "detail/device_global_map.cpp"
     "detail/device_global_map_entry.cpp"
     "detail/device_impl.cpp"
@@ -174,6 +175,7 @@ set(SYCL_SOURCES
     "detail/fusion/fusion_wrapper.cpp"
     "detail/fusion/fusion_wrapper_impl.cpp"
     "detail/global_handler.cpp"
+    "detail/graph_impl.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
@@ -183,6 +185,7 @@ set(SYCL_SOURCES
     "detail/kernel_impl.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
+    "detail/pipes.cpp"
     "detail/platform_impl.cpp"
     "detail/program_impl.cpp"
     "detail/program_manager/program_manager.cpp"

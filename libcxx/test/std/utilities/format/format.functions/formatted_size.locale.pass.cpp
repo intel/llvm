@@ -7,9 +7,10 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: no-localization
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 // TODO FMT Evaluate gcc-12 status
 // UNSUPPORTED: gcc-12
+
+// XFAIL: availability-fp_to_chars-missing
 
 // <format>
 
@@ -32,7 +33,7 @@
 auto test =
     []<class CharT, class... Args>(
         std::basic_string_view<CharT> expected, test_format_string<CharT, Args...> fmt, Args&&... args) constexpr {
-      size_t size = std::formatted_size(std::locale(), fmt, std::forward<Args>(args)...);
+      std::size_t size = std::formatted_size(std::locale(), fmt, std::forward<Args>(args)...);
       assert(size == expected.size());
     };
 

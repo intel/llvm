@@ -836,7 +836,7 @@ public:
     return getTBAAAccessInfo(AccessType);
   }
 
-  bool isTypeConstant(QualType QTy, bool ExcludeCtorDtor);
+  bool isTypeConstant(QualType QTy, bool ExcludeCtor, bool ExcludeDtor);
 
   bool isPaddedAtomicType(QualType type);
   bool isPaddedAtomicType(const AtomicType *type);
@@ -1302,6 +1302,8 @@ public:
   /// function which relies on particular fast-math attributes for correctness.
   /// It's up to you to ensure that this is safe.
   void addDefaultFunctionDefinitionAttributes(llvm::Function &F);
+  void mergeDefaultFunctionDefinitionAttributes(llvm::Function &F,
+                                                bool WillInternalize);
 
   /// Like the overload taking a `Function &`, but intended specifically
   /// for frontends that want to build on Clang's target-configuration logic.
@@ -1591,6 +1593,10 @@ public:
   /// because we'll lose all important information after each repl.
   void moveLazyEmissionStates(CodeGenModule *NewBuilder);
 
+  void getFPAccuracyFuncAttributes(StringRef Name,
+                                   llvm::AttributeList &AttrList, unsigned ID,
+                                   const llvm::Type *FuncType);
+
 private:
   llvm::Constant *GetOrCreateLLVMFunction(
       StringRef MangledName, llvm::Type *Ty, GlobalDecl D, bool ForVTable,
@@ -1749,7 +1755,7 @@ private:
 
   /// Emit the module flag metadata used to pass options controlling the
   /// the backend to LLVM.
-  void EmitBackendOptionsMetadata(const CodeGenOptions CodeGenOpts);
+  void EmitBackendOptionsMetadata(const CodeGenOptions &CodeGenOpts);
 
   /// Emits OpenCL specific Metadata e.g. OpenCL version.
   void EmitOpenCLMetadata();
@@ -1772,12 +1778,23 @@ private:
   /// function.
   void SimplifyPersonality();
 
+  /// Helper function for getDefaultFunctionAttributes. Builds a set of function
+  /// attributes which can be simply added to a function.
+  void getTrivialDefaultFunctionAttributes(StringRef Name, bool HasOptnone,
+                                           bool AttrOnCallSite,
+                                           llvm::AttrBuilder &FuncAttrs);
+
   /// Helper function for ConstructAttributeList and
   /// addDefaultFunctionDefinitionAttributes.  Builds a set of function
   /// attributes to add to a function with the given properties.
   void getDefaultFunctionAttributes(StringRef Name, bool HasOptnone,
                                     bool AttrOnCallSite,
                                     llvm::AttrBuilder &FuncAttrs);
+
+  void getDefaultFunctionFPAccuracyAttributes(StringRef Name,
+                                              llvm::AttrBuilder &FuncAttrs,
+                                              unsigned ID,
+                                              const llvm::Type *FuncType);
 
   llvm::Metadata *CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,
                                                StringRef Suffix);

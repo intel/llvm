@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==---- zero_size_local_accessor.cpp - SYCL 0-size local accessor test ----==//
 //
@@ -17,7 +15,7 @@ int main() {
   sycl::queue Q;
   Q.submit([&](sycl::handler &CGH) {
      sycl::local_accessor<uint8_t, 1> ZeroSizeLocalAcc(sycl::range<1>(0), CGH);
-     CGH.single_task([=]() {
+     CGH.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
        if (ZeroSizeLocalAcc.get_range()[0])
          ZeroSizeLocalAcc[0] = 1;
      });

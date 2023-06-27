@@ -42,10 +42,8 @@ void MachineSSAContext::appendBlockTerms(
 void MachineSSAContext::appendBlockDefs(SmallVectorImpl<Register> &defs,
                                         const MachineBasicBlock &block) {
   for (const MachineInstr &instr : block.instrs()) {
-    for (const MachineOperand &op : instr.operands()) {
-      if (op.isReg() && op.isDef())
-        defs.push_back(op.getReg());
-    }
+    for (const MachineOperand &op : instr.all_defs())
+      defs.push_back(op.getReg());
   }
 }
 
@@ -56,7 +54,7 @@ MachineBasicBlock *MachineSSAContext::getDefBlock(Register value) const {
   return RegInfo->getVRegDef(value)->getParent();
 }
 
-bool MachineSSAContext::isConstantValuePhi(const MachineInstr &Phi) {
+bool MachineSSAContext::isConstantOrUndefValuePhi(const MachineInstr &Phi) {
   return Phi.isConstantValuePHI();
 }
 

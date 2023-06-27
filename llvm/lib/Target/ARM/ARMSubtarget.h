@@ -305,8 +305,6 @@ public:
   bool GETTER() const { return ATTRIBUTE; }
 #include "ARMGenSubtargetInfo.inc"
 
-  void computeIssueWidth();
-
   /// @{
   /// These functions are obsolete, please consider adding subtarget features
   /// or properties instead of calling them.
@@ -348,7 +346,7 @@ public:
   bool useSjLjEH() const { return UseSjLjEH; }
   bool hasBaseDSP() const {
     if (isThumb())
-      return hasDSP();
+      return hasThumb2() && hasDSP();
     else
       return hasV5TEOps();
   }
@@ -391,7 +389,8 @@ public:
   }
   bool isTargetMuslAEABI() const {
     return (TargetTriple.getEnvironment() == Triple::MuslEABI ||
-            TargetTriple.getEnvironment() == Triple::MuslEABIHF) &&
+            TargetTriple.getEnvironment() == Triple::MuslEABIHF ||
+            TargetTriple.getEnvironment() == Triple::OpenHOS) &&
            !isTargetDarwin() && !isTargetWindows();
   }
 

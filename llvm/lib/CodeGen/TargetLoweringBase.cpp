@@ -28,6 +28,7 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -48,7 +49,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -724,7 +724,9 @@ TargetLoweringBase::TargetLoweringBase(const TargetMachine &tm) : TM(tm) {
   // with the Target-specific changes necessary.
   MaxAtomicSizeInBitsSupported = 1024;
 
-  MaxDivRemBitWidthSupported = llvm::IntegerType::MAX_INT_BITS;
+  // Assume that even with libcalls, no target supports wider than 128 bit
+  // division.
+  MaxDivRemBitWidthSupported = 128;
 
   MaxLargeFPConvertBitWidthSupported = llvm::IntegerType::MAX_INT_BITS;
 
@@ -819,8 +821,8 @@ void TargetLoweringBase::initActions() {
                         ISD::SMULO, ISD::UMULO},
                        VT, Expand);
 
-    // ADDCARRY operations default to expand
-    setOperationAction({ISD::ADDCARRY, ISD::SUBCARRY, ISD::SETCCCARRY,
+    // Carry-using overflow operations default to expand.
+    setOperationAction({ISD::UADDO_CARRY, ISD::USUBO_CARRY, ISD::SETCCCARRY,
                         ISD::SADDO_CARRY, ISD::SSUBO_CARRY},
                        VT, Expand);
 
@@ -873,10 +875,15 @@ void TargetLoweringBase::initActions() {
     // Named vector shuffles default to expand.
     setOperationAction(ISD::VECTOR_SPLICE, VT, Expand);
 
-    // VP_SREM/UREM default to expand.
-    // TODO: Expand all VP intrinsics.
-    setOperationAction(ISD::VP_SREM, VT, Expand);
-    setOperationAction(ISD::VP_UREM, VT, Expand);
+    // VP operations default to expand.
+#define BEGIN_REGISTER_VP_SDNODE(SDOPC, ...)                                   \
+    setOperationAction(ISD::SDOPC, VT, Expand);
+#include "llvm/IR/VPIntrinsics.def"
+
+    // FP environment operations default to expand.
+    setOperationAction(ISD::GET_FPENV, VT, Expand);
+    setOperationAction(ISD::SET_FPENV, VT, Expand);
+    setOperationAction(ISD::RESET_FPENV, VT, Expand);
   }
 
   // Most targets ignore the @llvm.prefetch intrinsic.
@@ -907,6 +914,9 @@ void TargetLoweringBase::initActions() {
   setOperationAction(ISD::DEBUGTRAP, MVT::Other, Expand);
 
   setOperationAction(ISD::UBSANTRAP, MVT::Other, Expand);
+
+  setOperationAction(ISD::GET_FPENV_MEM, MVT::Other, Expand);
+  setOperationAction(ISD::SET_FPENV_MEM, MVT::Other, Expand);
 }
 
 MVT TargetLoweringBase::getScalarShiftAmountTy(const DataLayout &DL,
@@ -1975,7 +1985,7 @@ void TargetLoweringBase::insertSSPDeclarations(Module &M) const {
                                   "__stack_chk_guard");
 
     // FreeBSD has "__stack_chk_guard" defined externally on libc.so
-    if (TM.getRelocationModel() == Reloc::Static &&
+    if (M.getDirectAccessExternalData() &&
         !TM.getTargetTriple().isWindowsGNUEnvironment() &&
         !TM.getTargetTriple().isOSFreeBSD())
       GV->setDSOLocal(true);

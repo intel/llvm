@@ -48,7 +48,7 @@ func.func @dfa1(%arg0: !fir.ref<!fir.logical<4>> {fir.bindc_name = "cond"}) {
 // CHECK-NEXT:   return
 // CHECK-NEXT: }
 
-// Check scf.if (fir.if is not considered a branch operation)
+// Check scf.if
 func.func @dfa2(%arg0: i1) {
   %a = fir.allocmem !fir.array<1xi8>
   scf.if %arg0 {
@@ -62,6 +62,54 @@ func.func @dfa2(%arg0: i1) {
 // CHECK-NEXT:  scf.if %arg0 {
 // CHECK-NEXT:    fir.freemem %[[MEM]] : !fir.heap<!fir.array<1xi8>>
 // CHECK-NEXT:  } else {
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
+// CHECK-NEXT:  }
+
+// Check freemem in both regions
+func.func @dfa3(%arg0: i1) {
+  %a = fir.allocmem !fir.array<1xi8>
+  fir.if %arg0 {
+    fir.freemem %a : !fir.heap<!fir.array<1xi8>>
+  } else {
+    fir.freemem %a : !fir.heap<!fir.array<1xi8>>
+  }
+  return
+}
+// CHECK:     func.func @dfa3(%arg0: i1) {
+// CHECK-NEXT:  %[[MEM:.*]] = fir.alloca !fir.array<1xi8>
+// CHECK-NEXT:  fir.if %arg0 {
+// CHECK-NEXT:  } else {
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
+// CHECK-NEXT:  }
+
+func.func private @dfa3a_foo(!fir.ref<!fir.array<1xi8>>) -> ()
+func.func private @dfa3a_bar(!fir.ref<!fir.array<1xi8>>) -> ()
+
+// Check freemem in both regions, with other uses
+func.func @dfa3a(%arg0: i1) {
+  %a = fir.allocmem !fir.array<1xi8>
+  fir.if %arg0 {
+    %ref = fir.convert %a : (!fir.heap<!fir.array<1xi8>>) -> !fir.ref<!fir.array<1xi8>>
+    func.call @dfa3a_foo(%ref) : (!fir.ref<!fir.array<1xi8>>) -> ()
+    fir.freemem %a : !fir.heap<!fir.array<1xi8>>
+  } else {
+    %ref = fir.convert %a : (!fir.heap<!fir.array<1xi8>>) -> !fir.ref<!fir.array<1xi8>>
+    func.call @dfa3a_bar(%ref) : (!fir.ref<!fir.array<1xi8>>) -> ()
+    fir.freemem %a : !fir.heap<!fir.array<1xi8>>
+  }
+  return
+}
+// CHECK:     func.func @dfa3a(%arg0: i1) {
+// CHECK-NEXT:  %[[MEM:.*]] = fir.alloca !fir.array<1xi8>
+// CHECK-NEXT:  %[[HEAP:.*]] = fir.convert %[[MEM]] : (!fir.ref<!fir.array<1xi8>>) -> !fir.heap<!fir.array<1xi8>>
+// CHECK-NEXT:  fir.if %arg0 {
+// CHECK-NEXT:    %[[REF:.*]] = fir.convert %[[HEAP]] : (!fir.heap<!fir.array<1xi8>>) -> !fir.ref<!fir.array<1xi8>>
+// CHECK-NEXT:    func.call @dfa3a_foo(%[[REF]])
+// CHECK-NEXT:  } else {
+// CHECK-NEXT:    %[[REF:.*]] = fir.convert %[[HEAP]] : (!fir.heap<!fir.array<1xi8>>) -> !fir.ref<!fir.array<1xi8>>
+// CHECK-NEXT:    func.call @dfa3a_bar(%[[REF]])
 // CHECK-NEXT:  }
 // CHECK-NEXT:  return
 // CHECK-NEXT:  }

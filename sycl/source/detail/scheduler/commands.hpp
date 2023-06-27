@@ -181,9 +181,10 @@ public:
       Command *Cmd, void *ObjAddr, bool IsCommand,
       std::optional<access::mode> AccMode = std::nullopt);
   /// Creates an edge event when the dependency is an event.
-  void emitEdgeEventForEventDependence(Command *Cmd, RT::PiEvent &EventAddr);
+  void emitEdgeEventForEventDependence(Command *Cmd,
+                                       sycl::detail::pi::PiEvent &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.
-  void emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr);
+  void emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr);
   /// Create a trace event of node_create type; this must be guarded by a
   /// check for xptiTraceEnabled().
   /// Post Condition: MTraceEvent will be set to the event created.
@@ -227,12 +228,12 @@ public:
 
   /// Collect PI events from EventImpls and filter out some of them in case of
   /// in order queue
-  std::vector<RT::PiEvent>
+  std::vector<sycl::detail::pi::PiEvent>
   getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
   /// Collect PI events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce pi
   /// event but has empty native handle.
-  std::vector<RT::PiEvent>
+  std::vector<sycl::detail::pi::PiEvent>
   getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
@@ -248,7 +249,7 @@ protected:
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
-                     RT::PiEvent &Event);
+                     sycl::detail::pi::PiEvent &Event);
 
   void waitForPreparedHostEvents() const;
 
@@ -289,6 +290,17 @@ public:
   // XPTI instrumentation. Copy code location details to the internal struct.
   // Memory is allocated in this method and released in destructor.
   void copySubmissionCodeLocation();
+
+  /// Clear all dependency events This should only be used if a command is about
+  /// to be deleted without being executed before that. As of now, the only
+  /// valid use case for this function is in kernel fusion, where the fused
+  /// kernel commands are replaced by the fused command without ever being
+  /// executed.
+  void clearAllDependencies() {
+    MPreparedDepsEvents.clear();
+    MPreparedHostDepsEvents.clear();
+    MDeps.clear();
+  }
 
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
@@ -585,14 +597,21 @@ private:
   void **MDstPtr = nullptr;
 };
 
+pi_int32
+enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
+                         bool blocking, void *ptr, size_t size,
+                         std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+                         sycl::detail::pi::PiEvent *OutEvent, bool read);
+
 pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
-    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
+    const std::string &KernelName,
+    std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+    sycl::detail::pi::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    RT::PiKernelCacheConfig KernelCacheConfig);
+    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig);
 
 class KernelFusionCommand;
 
@@ -637,6 +656,16 @@ private:
 
   friend class Command;
 };
+
+// For XPTI instrumentation only.
+// Method used to emit data in cases when we do not create node in graph.
+// Very close to ExecCGCommand::emitInstrumentationData content.
+void emitKernelInstrumentationData(
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
+    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    std::vector<ArgDesc> &CGArgs);
 
 class UpdateHostRequirementCommand : public Command {
 public:

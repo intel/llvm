@@ -18,7 +18,6 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
-#include "clang/AST/Designator.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprConcepts.h"
@@ -31,6 +30,8 @@
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/Basic/DiagnosticParse.h"
 #include "clang/Basic/OpenMPKinds.h"
+#include "clang/Sema/Designator.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedTemplate.h"
@@ -377,22 +378,41 @@ public:
   /// By default, this routine transforms a statement by delegating to the
   /// appropriate TransformXXXAttr function to transform a specific kind
   /// of attribute. Subclasses may override this function to transform
-  /// attributed statements using some other mechanism.
+  /// attributed statements/types using some other mechanism.
   ///
   /// \returns the transformed attribute
   const Attr *TransformAttr(const Attr *S);
 
-/// Transform the specified attribute.
-///
-/// Subclasses should override the transformation of attributes with a pragma
-/// spelling to transform expressions stored within the attribute.
-///
-/// \returns the transformed attribute.
-#define ATTR(X)
-#define PRAGMA_SPELLING_ATTR(X)                                                \
+  // Transform the given statement attribute.
+  //
+  // Delegates to the appropriate TransformXXXAttr function to transform a
+  // specific kind of statement attribute. Unlike the non-statement taking
+  // version of this, this implements all attributes, not just pragmas.
+  const Attr *TransformStmtAttr(const Stmt *OrigS, const Stmt *InstS,
+                                const Attr *A);
+
+  // Transform the specified attribute.
+  //
+  // Subclasses should override the transformation of attributes with a pragma
+  // spelling to transform expressions stored within the attribute.
+  //
+  // \returns the transformed attribute.
+#define ATTR(X)                                                                \
   const X##Attr *Transform##X##Attr(const X##Attr *R) { return R; }
-#define DEPENDENT_STMT_ATTR(X)                                                 \
-  const X##Attr *Transform##X##Attr(const X##Attr *R) { return R; }
+#include "clang/Basic/AttrList.inc"
+
+  // Transform the specified attribute.
+  //
+  // Subclasses should override the transformation of attributes to do
+  // transformation and checking of statement attributes. By default, this
+  // delegates to the non-statement taking version.
+  //
+  // \returns the transformed attribute.
+#define ATTR(X)                                                                \
+  const X##Attr *TransformStmt##X##Attr(const Stmt *, const Stmt *,            \
+                                        const X##Attr *A) {                    \
+    return getDerived().Transform##X##Attr(A);                                 \
+  }
 #include "clang/Basic/AttrList.inc"
 
   /// Transform the given expression.
@@ -2813,6 +2833,21 @@ public:
     R.addDecl(FoundDecl);
     R.resolveKind();
 
+    if (getSema().isUnevaluatedContext() && Base->isImplicitCXXThis() &&
+        isa<FieldDecl, IndirectFieldDecl, MSPropertyDecl>(Member)) {
+      if (auto *ThisClass = cast<CXXThisExpr>(Base)
+                                ->getType()
+                                ->getPointeeType()
+                                ->getAsCXXRecordDecl()) {
+        auto *Class = cast<CXXRecordDecl>(Member->getDeclContext());
+        // In unevaluated contexts, an expression supposed to be a member access
+        // might reference a member in an unrelated class.
+        if (!ThisClass->Equals(Class) && !ThisClass->isDerivedFrom(Class))
+          return getSema().BuildDeclRefExpr(Member, Member->getType(),
+                                            VK_LValue, Member->getLocation());
+      }
+    }
+
     return getSema().BuildMemberReferenceExpr(Base, BaseType, OpLoc, isArrow,
                                               SS, TemplateKWLoc,
                                               FirstQualifierInScope,
@@ -2987,7 +3022,7 @@ public:
                                    RParenLoc);
   }
 
-  /// Build a new generic selection expression.
+  /// Build a new generic selection expression with an expression predicate.
   ///
   /// By default, performs semantic analysis to build the new expression.
   /// Subclasses may override this routine to provide different behavior.
@@ -2998,7 +3033,23 @@ public:
                                          ArrayRef<TypeSourceInfo *> Types,
                                          ArrayRef<Expr *> Exprs) {
     return getSema().CreateGenericSelectionExpr(KeyLoc, DefaultLoc, RParenLoc,
+                                                /*PredicateIsExpr=*/true,
                                                 ControllingExpr, Types, Exprs);
+  }
+
+  /// Build a new generic selection expression with a type predicate.
+  ///
+  /// By default, performs semantic analysis to build the new expression.
+  /// Subclasses may override this routine to provide different behavior.
+  ExprResult RebuildGenericSelectionExpr(SourceLocation KeyLoc,
+                                         SourceLocation DefaultLoc,
+                                         SourceLocation RParenLoc,
+                                         TypeSourceInfo *ControllingType,
+                                         ArrayRef<TypeSourceInfo *> Types,
+                                         ArrayRef<Expr *> Exprs) {
+    return getSema().CreateGenericSelectionExpr(KeyLoc, DefaultLoc, RParenLoc,
+                                                /*PredicateIsExpr=*/false,
+                                                ControllingType, Types, Exprs);
   }
 
   /// Build a new overloaded operator call expression.
@@ -3147,6 +3198,13 @@ public:
                                           Expr *Sub,
                                           SourceLocation RParenLoc,
                                           bool ListInitialization) {
+    // If Sub is a ParenListExpr, then Sub is the syntatic form of a
+    // CXXParenListInitExpr. Pass its expanded arguments so that the
+    // CXXParenListInitExpr can be rebuilt.
+    if (auto *PLE = dyn_cast<ParenListExpr>(Sub))
+      return getSema().BuildCXXTypeConstructExpr(
+          TInfo, LParenLoc, MultiExprArg(PLE->getExprs(), PLE->getNumExprs()),
+          RParenLoc, ListInitialization);
     return getSema().BuildCXXTypeConstructExpr(TInfo, LParenLoc,
                                                MultiExprArg(&Sub, 1), RParenLoc,
                                                ListInitialization);
@@ -3894,16 +3952,6 @@ public:
   ExprResult RebuildEmptyCXXFoldExpr(SourceLocation EllipsisLoc,
                                      BinaryOperatorKind Operator) {
     return getSema().BuildEmptyCXXFoldExpr(EllipsisLoc, Operator);
-  }
-
-  ExprResult RebuildCXXParenListInitExpr(ArrayRef<Expr *> Args, QualType T,
-                                         unsigned NumUserSpecifiedExprs,
-                                         SourceLocation InitLoc,
-                                         SourceLocation LParenLoc,
-                                         SourceLocation RParenLoc) {
-    return CXXParenListInitExpr::Create(getSema().Context, Args, T,
-                                        NumUserSpecifiedExprs, InitLoc,
-                                        LParenLoc, RParenLoc);
   }
 
   /// Build a new atomic operation expression.
@@ -5927,7 +5975,6 @@ bool TreeTransform<Derived>::TransformFunctionTypeParams(
                                        = dyn_cast<PackExpansionType>(OldType)) {
       // We have a function parameter pack that may need to be expanded.
       QualType Pattern = Expansion->getPattern();
-      NumExpansions = Expansion->getNumExpansions();
       SmallVector<UnexpandedParameterPack, 2> Unexpanded;
       getSema().collectUnexpandedParameterPacks(Pattern, Unexpanded);
 
@@ -7567,38 +7614,51 @@ const Attr *TreeTransform<Derived>::TransformAttr(const Attr *R) {
     return R;
 
   switch (R->getKind()) {
-// Transform attributes with a pragma spelling by calling TransformXXXAttr.
-#define ATTR(X)
-#define PRAGMA_SPELLING_ATTR(X)                                                \
-  case attr::X:                                                                \
-    return getDerived().Transform##X##Attr(cast<X##Attr>(R));
-#define DEPENDENT_STMT_ATTR(X)                                                 \
+// Transform attributes by calling TransformXXXAttr.
+#define ATTR(X)                                                                \
   case attr::X:                                                                \
     return getDerived().Transform##X##Attr(cast<X##Attr>(R));
 #include "clang/Basic/AttrList.inc"
-  default:
-    return R;
   }
+  return R;
+}
+
+template <typename Derived>
+const Attr *TreeTransform<Derived>::TransformStmtAttr(const Stmt *OrigS,
+                                                      const Stmt *InstS,
+                                                      const Attr *R) {
+  if (!R)
+    return R;
+
+  switch (R->getKind()) {
+// Transform attributes by calling TransformStmtXXXAttr.
+#define ATTR(X)                                                                \
+  case attr::X:                                                                \
+    return getDerived().TransformStmt##X##Attr(OrigS, InstS, cast<X##Attr>(R));
+#include "clang/Basic/AttrList.inc"
+  }
+  return TransformAttr(R);
 }
 
 template <typename Derived>
 StmtResult
 TreeTransform<Derived>::TransformAttributedStmt(AttributedStmt *S,
                                                 StmtDiscardKind SDK) {
+  StmtResult SubStmt = getDerived().TransformStmt(S->getSubStmt(), SDK);
+  if (SubStmt.isInvalid())
+    return StmtError();
+
   bool AttrsChanged = false;
   SmallVector<const Attr *, 1> Attrs;
 
   // Visit attributes and keep track if any are transformed.
   for (const auto *I : S->getAttrs()) {
-    const Attr *R = getDerived().TransformAttr(I);
+    const Attr *R =
+        getDerived().TransformStmtAttr(S->getSubStmt(), SubStmt.get(), I);
     AttrsChanged |= (I != R);
     if (R)
       Attrs.push_back(R);
   }
-
-  StmtResult SubStmt = getDerived().TransformStmt(S->getSubStmt(), SDK);
-  if (SubStmt.isInvalid())
-    return StmtError();
 
   if (SubStmt.get() == S->getSubStmt() && !AttrsChanged)
     return S;
@@ -7977,8 +8037,7 @@ TreeTransform<Derived>::TransformMSAsmStmt(MSAsmStmt *S) {
                                        TransformedExprs, S->getEndLoc());
 }
 
-// C++ Coroutines TS
-
+// C++ Coroutines
 template<typename Derived>
 StmtResult
 TreeTransform<Derived>::TransformCoroutineBodyStmt(CoroutineBodyStmt *S) {
@@ -8085,6 +8144,13 @@ TreeTransform<Derived>::TransformCoroutineBodyStmt(CoroutineBodyStmt *S) {
     if (DeallocRes.isInvalid())
       return StmtError();
     Builder.Deallocate = DeallocRes.get();
+
+    if (auto *ResultDecl = S->getResultDecl()) {
+      StmtResult Res = getDerived().TransformStmt(ResultDecl);
+      if (Res.isInvalid())
+        return StmtError();
+      Builder.ResultDecl = Res.get();
+    }
 
     if (auto *ReturnStmt = S->getReturnStmt()) {
       StmtResult Res = getDerived().TransformStmt(ReturnStmt);
@@ -10855,9 +10921,14 @@ TreeTransform<Derived>::TransformUserDefinedLiteral(UserDefinedLiteral *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformGenericSelectionExpr(GenericSelectionExpr *E) {
-  ExprResult ControllingExpr =
-    getDerived().TransformExpr(E->getControllingExpr());
-  if (ControllingExpr.isInvalid())
+  ExprResult ControllingExpr;
+  TypeSourceInfo *ControllingType = nullptr;
+  if (E->isExprPredicate())
+    ControllingExpr = getDerived().TransformExpr(E->getControllingExpr());
+  else
+    ControllingType = getDerived().TransformType(E->getControllingType());
+
+  if (ControllingExpr.isInvalid() && !ControllingType)
     return ExprError();
 
   SmallVector<Expr *, 4> AssocExprs;
@@ -10880,12 +10951,16 @@ TreeTransform<Derived>::TransformGenericSelectionExpr(GenericSelectionExpr *E) {
     AssocExprs.push_back(AssocExpr.get());
   }
 
+  if (!ControllingType)
   return getDerived().RebuildGenericSelectionExpr(E->getGenericLoc(),
                                                   E->getDefaultLoc(),
                                                   E->getRParenLoc(),
                                                   ControllingExpr.get(),
                                                   AssocTypes,
                                                   AssocExprs);
+  return getDerived().RebuildGenericSelectionExpr(
+      E->getGenericLoc(), E->getDefaultLoc(), E->getRParenLoc(),
+      ControllingType, AssocTypes, AssocExprs);
 }
 
 template<typename Derived>
@@ -11404,7 +11479,8 @@ TreeTransform<Derived>::TransformBinaryOperator(BinaryOperator *E) {
   if (LHS.isInvalid())
     return ExprError();
 
-  ExprResult RHS = getDerived().TransformExpr(E->getRHS());
+  ExprResult RHS =
+      getDerived().TransformInitializer(E->getRHS(), /*NotCopyInit=*/false);
   if (RHS.isInvalid())
     return ExprError();
 
@@ -11662,14 +11738,14 @@ TreeTransform<Derived>::TransformDesignatedInitExpr(DesignatedInitExpr *E) {
   // transform the designators.
   SmallVector<Expr*, 4> ArrayExprs;
   bool ExprChanged = false;
-  for (const Designator &D : E->designators()) {
+  for (const DesignatedInitExpr::Designator &D : E->designators()) {
     if (D.isFieldDesignator()) {
       Desig.AddDesignator(Designator::CreateFieldDesignator(
           D.getFieldName(), D.getDotLoc(), D.getFieldLoc()));
-      if (D.getField()) {
+      if (D.getFieldDecl()) {
         FieldDecl *Field = cast_or_null<FieldDecl>(
-            getDerived().TransformDecl(D.getFieldLoc(), D.getField()));
-        if (Field != D.getField())
+            getDerived().TransformDecl(D.getFieldLoc(), D.getFieldDecl()));
+        if (Field != D.getFieldDecl())
           // Rebuild the expression when the transformed FieldDecl is
           // different to the already assigned FieldDecl.
           ExprChanged = true;
@@ -11952,7 +12028,8 @@ TreeTransform<Derived>::TransformCXXOperatorCallExpr(CXXOperatorCallExpr *E) {
 
   ExprResult Second;
   if (E->getNumArgs() == 2) {
-    Second = getDerived().TransformExpr(E->getArg(1));
+    Second =
+        getDerived().TransformInitializer(E->getArg(1), /*NotCopyInit=*/false);
     if (Second.isInvalid())
       return ExprError();
   }
@@ -13350,37 +13427,6 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
   LambdaScopeInfo *LSI = getSema().PushLambdaScope();
   Sema::FunctionScopeRAII FuncScopeCleanup(getSema());
 
-  // Transform the template parameters, and add them to the current
-  // instantiation scope. The null case is handled correctly.
-  auto TPL = getDerived().TransformTemplateParameterList(
-      E->getTemplateParameterList());
-  LSI->GLTemplateParameterList = TPL;
-
-  // Transform the type of the original lambda's call operator.
-  // The transformation MUST be done in the CurrentInstantiationScope since
-  // it introduces a mapping of the original to the newly created
-  // transformed parameters.
-  TypeSourceInfo *NewCallOpTSI = nullptr;
-  {
-    TypeSourceInfo *OldCallOpTSI = E->getCallOperator()->getTypeSourceInfo();
-    FunctionProtoTypeLoc OldCallOpFPTL =
-        OldCallOpTSI->getTypeLoc().getAs<FunctionProtoTypeLoc>();
-
-    TypeLocBuilder NewCallOpTLBuilder;
-    SmallVector<QualType, 4> ExceptionStorage;
-    TreeTransform *This = this; // Work around gcc.gnu.org/PR56135.
-    QualType NewCallOpType = TransformFunctionProtoType(
-        NewCallOpTLBuilder, OldCallOpFPTL, nullptr, Qualifiers(),
-        [&](FunctionProtoType::ExceptionSpecInfo &ESI, bool &Changed) {
-          return This->TransformExceptionSpec(OldCallOpFPTL.getBeginLoc(), ESI,
-                                              ExceptionStorage, Changed);
-        });
-    if (NewCallOpType.isNull())
-      return ExprError();
-    NewCallOpTSI = NewCallOpTLBuilder.getTypeSourceInfo(getSema().Context,
-                                                        NewCallOpType);
-  }
-
   // Create the local class that will describe the lambda.
 
   // FIXME: DependencyKind below is wrong when substituting inside a templated
@@ -13397,48 +13443,23 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
     DependencyKind = CXXRecordDecl::LDK_NeverDependent;
 
   CXXRecordDecl *OldClass = E->getLambdaClass();
-  CXXRecordDecl *Class =
-      getSema().createLambdaClosureType(E->getIntroducerRange(), NewCallOpTSI,
-                                        DependencyKind, E->getCaptureDefault());
-
+  CXXRecordDecl *Class = getSema().createLambdaClosureType(
+      E->getIntroducerRange(), /*Info=*/nullptr, DependencyKind,
+      E->getCaptureDefault());
   getDerived().transformedLocalDecl(OldClass, {Class});
 
-  std::optional<std::tuple<bool, unsigned, unsigned, Decl *>> Mangling;
-  if (getDerived().ReplacingOriginal())
-    Mangling = std::make_tuple(OldClass->hasKnownLambdaInternalLinkage(),
-                               OldClass->getLambdaManglingNumber(),
-                               OldClass->getDeviceLambdaManglingNumber(),
-                               OldClass->getLambdaContextDecl());
+  CXXMethodDecl *NewCallOperator =
+      getSema().CreateLambdaCallOperator(E->getIntroducerRange(), Class);
+  NewCallOperator->setLexicalDeclContext(getSema().CurContext);
 
-  // Build the call operator.
-  CXXMethodDecl *NewCallOperator = getSema().startLambdaDefinition(
-      Class, E->getIntroducerRange(), NewCallOpTSI,
-      E->getCallOperator()->getEndLoc(),
-      NewCallOpTSI->getTypeLoc().castAs<FunctionProtoTypeLoc>().getParams(),
-      E->getCallOperator()->getConstexprKind(),
-      E->getCallOperator()->getStorageClass(),
-      E->getCallOperator()->getTrailingRequiresClause());
-
-  LSI->CallOperator = NewCallOperator;
-
-  getDerived().transformAttrs(E->getCallOperator(), NewCallOperator);
-  getDerived().transformedLocalDecl(E->getCallOperator(), {NewCallOperator});
-
-  // Number the lambda for linkage purposes if necessary.
-  getSema().handleLambdaNumbering(Class, NewCallOperator, Mangling);
+  // Enter the scope of the lambda.
+  getSema().buildLambdaScope(LSI, NewCallOperator, E->getIntroducerRange(),
+                             E->getCaptureDefault(), E->getCaptureDefaultLoc(),
+                             E->hasExplicitParameters(), E->isMutable());
 
   // Introduce the context of the call operator.
   Sema::ContextRAII SavedContext(getSema(), NewCallOperator,
                                  /*NewThisContext*/false);
-
-  // Enter the scope of the lambda.
-  getSema().buildLambdaScope(LSI, NewCallOperator,
-                             E->getIntroducerRange(),
-                             E->getCaptureDefault(),
-                             E->getCaptureDefaultLoc(),
-                             E->hasExplicitParameters(),
-                             E->hasExplicitResultType(),
-                             E->isMutable());
 
   bool Invalid = false;
 
@@ -13479,7 +13500,8 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
         }
         VarDecl *NewVD = getSema().createLambdaInitCaptureVarDecl(
             OldVD->getLocation(), InitQualType, NewC.EllipsisLoc,
-            OldVD->getIdentifier(), OldVD->getInitStyle(), Init.get());
+            OldVD->getIdentifier(), OldVD->getInitStyle(), Init.get(),
+            getSema().CurContext);
         if (!NewVD) {
           Invalid = true;
           break;
@@ -13558,6 +13580,61 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
                                  EllipsisLoc);
   }
   getSema().finishLambdaExplicitCaptures(LSI);
+
+  // Transform the template parameters, and add them to the current
+  // instantiation scope. The null case is handled correctly.
+  auto TPL = getDerived().TransformTemplateParameterList(
+      E->getTemplateParameterList());
+  LSI->GLTemplateParameterList = TPL;
+
+  // Transform the type of the original lambda's call operator.
+  // The transformation MUST be done in the CurrentInstantiationScope since
+  // it introduces a mapping of the original to the newly created
+  // transformed parameters.
+  TypeSourceInfo *NewCallOpTSI = nullptr;
+  {
+    TypeSourceInfo *OldCallOpTSI = E->getCallOperator()->getTypeSourceInfo();
+    auto OldCallOpFPTL =
+        OldCallOpTSI->getTypeLoc().getAs<FunctionProtoTypeLoc>();
+
+    TypeLocBuilder NewCallOpTLBuilder;
+    SmallVector<QualType, 4> ExceptionStorage;
+    TreeTransform *This = this; // Work around gcc.gnu.org/PR56135.
+    QualType NewCallOpType = TransformFunctionProtoType(
+        NewCallOpTLBuilder, OldCallOpFPTL, nullptr, Qualifiers(),
+        [&](FunctionProtoType::ExceptionSpecInfo &ESI, bool &Changed) {
+          return This->TransformExceptionSpec(OldCallOpFPTL.getBeginLoc(), ESI,
+                                              ExceptionStorage, Changed);
+        });
+    if (NewCallOpType.isNull())
+      return ExprError();
+    NewCallOpTSI =
+        NewCallOpTLBuilder.getTypeSourceInfo(getSema().Context, NewCallOpType);
+  }
+
+  getSema().CompleteLambdaCallOperator(
+      NewCallOperator, E->getCallOperator()->getLocation(),
+      E->getCallOperator()->getInnerLocStart(),
+      E->getCallOperator()->getTrailingRequiresClause(), NewCallOpTSI,
+      E->getCallOperator()->getConstexprKind(),
+      E->getCallOperator()->getStorageClass(),
+      NewCallOpTSI->getTypeLoc().castAs<FunctionProtoTypeLoc>().getParams(),
+      E->hasExplicitResultType());
+
+  getDerived().transformAttrs(E->getCallOperator(), NewCallOperator);
+  getDerived().transformedLocalDecl(E->getCallOperator(), {NewCallOperator});
+
+  {
+    // Number the lambda for linkage purposes if necessary.
+    Sema::ContextRAII ManglingContext(getSema(), Class->getDeclContext());
+
+    std::optional<CXXRecordDecl::LambdaNumbering> Numbering;
+    if (getDerived().ReplacingOriginal()) {
+      Numbering = OldClass->getLambdaNumbering();
+    }
+
+    getSema().handleLambdaNumbering(Class, NewCallOperator, Numbering);
+  }
 
   // FIXME: Sema's lambda-building mechanism expects us to push an expression
   // evaluation context even if we're not transforming the function body.
@@ -14189,9 +14266,8 @@ TreeTransform<Derived>::TransformCXXParenListInitExpr(CXXParenListInitExpr *E) {
                      TransformedInits))
     return ExprError();
 
-  return getDerived().RebuildCXXParenListInitExpr(
-      TransformedInits, E->getType(), E->getUserSpecifiedInitExprs().size(),
-      E->getInitLoc(), E->getBeginLoc(), E->getEndLoc());
+  return getDerived().RebuildParenListExpr(E->getBeginLoc(), TransformedInits,
+                                           E->getEndLoc());
 }
 
 template<typename Derived>

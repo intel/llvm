@@ -179,3 +179,33 @@ define void @passthrough_combined() alignstack(16) noinline "probe-stack" "alloc
 define void @passthrough_string_only() "no-enum-attr" {
   ret void
 }
+
+// -----
+
+; CHECK-LABEL: llvm.func hidden @hidden()
+define hidden void @hidden() {
+  ret void
+}
+
+// -----
+
+; CHECK-LABEL: llvm.func protected @protected()
+define protected void @protected() {
+  ret void
+}
+
+// -----
+
+; CHECK-LABEL: @streaming_func
+; CHECK-SAME: attributes {arm_streaming}
+define void @streaming_func() "aarch64_pstate_sm_enabled" {
+  ret void
+}
+
+// -----
+
+; CHECK-LABEL: @locally_streaming_func
+; CHECK-SAME: attributes {arm_locally_streaming}
+define void @locally_streaming_func() "aarch64_pstate_sm_body" {
+  ret void
+}

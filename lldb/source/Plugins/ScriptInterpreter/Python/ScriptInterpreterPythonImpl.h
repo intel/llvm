@@ -97,6 +97,11 @@ public:
   ScriptedThreadPlanGetRunState(StructuredData::ObjectSP implementor_sp,
                                 bool &script_error) override;
 
+  bool
+  ScriptedThreadPlanGetStopDescription(StructuredData::ObjectSP implementor_sp,
+                                lldb_private::Stream *s,
+                                bool &script_error) override;
+
   StructuredData::GenericSP
   CreateScriptedBreakpointResolver(const char *class_name,
                                    const StructuredDataImpl &args_data,
@@ -188,16 +193,17 @@ public:
       lldb_private::CommandReturnObject &cmd_retobj, Status &error,
       const lldb_private::ExecutionContext &exe_ctx) override;
 
-  Status GenerateFunction(const char *signature,
-                          const StringList &input) override;
+  Status GenerateFunction(const char *signature, const StringList &input,
+                          bool is_callback) override;
 
-  Status GenerateBreakpointCommandCallbackData(
-      StringList &input,
-      std::string &output,
-      bool has_extra_args) override;
+  Status GenerateBreakpointCommandCallbackData(StringList &input,
+                                               std::string &output,
+                                               bool has_extra_args,
+                                               bool is_callback) override;
 
   bool GenerateWatchpointCommandCallbackData(StringList &input,
-                                             std::string &output) override;
+                                             std::string &output,
+                                             bool is_callback) override;
 
   bool GetScriptedSummary(const char *function_name, lldb::ValueObjectSP valobj,
                           StructuredData::ObjectSP &callee_wrapper_sp,
@@ -260,7 +266,8 @@ public:
 
   /// Set the callback body text into the callback for the breakpoint.
   Status SetBreakpointCommandCallback(BreakpointOptions &bp_options,
-                                      const char *callback_body) override;
+                                      const char *callback_body,
+                                      bool is_callback) override;
 
   Status SetBreakpointCommandCallbackFunction(
       BreakpointOptions &bp_options, const char *function_name,
@@ -274,11 +281,13 @@ public:
   Status SetBreakpointCommandCallback(BreakpointOptions &bp_options,
                                       const char *command_body_text,
                                       StructuredData::ObjectSP extra_args_sp,
-                                      bool uses_extra_args);
+                                      bool uses_extra_args,
+                                      bool is_callback);
 
   /// Set a one-liner as the callback for the watchpoint.
   void SetWatchpointCommandCallback(WatchpointOptions *wp_options,
-                                    const char *oneliner) override;
+                                    const char *user_input,
+                                    bool is_callback) override;
 
   const char *GetDictionaryName() { return m_dictionary_name.c_str(); }
 

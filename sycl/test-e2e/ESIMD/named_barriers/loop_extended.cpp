@@ -8,8 +8,8 @@
 
 // TODO: enable esimd_emulator when supported
 // REQUIRES: gpu-intel-pvc
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // First iteration has 1 barrier and 1 producer, second - 2 barriers and 2

@@ -55,13 +55,13 @@ bool event_impl::is_host() {
 
 event_impl::~event_impl() {
   if (MEvent)
-    getPlugin().call<PiApiKind::piEventRelease>(MEvent);
+    getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
 }
 
 void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
     // Wait for the native event
-    getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
+    getPlugin()->call<PiApiKind::piEventsWait>(1, &MEvent);
   } else if (MState == HES_Discarded) {
     // Waiting for the discarded event is invalid
     throw sycl::exception(
@@ -100,15 +100,17 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
-const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
-RT::PiEvent &event_impl::getHandleRef() { return MEvent; }
+const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
+  return MEvent;
+}
+sycl::detail::pi::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() {
   ensureContextInitialized();
   return MContext;
 }
 
-const plugin &event_impl::getPlugin() {
+const PluginPtr &event_impl::getPlugin() {
   ensureContextInitialized();
   return MContext->getPlugin();
 }
@@ -121,7 +123,8 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MIsContextInitialized = true;
 }
 
-event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
+event_impl::event_impl(sycl::detail::pi::PiEvent Event,
+                       const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
       MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
       MIsFlushed(true), MState(HES_Complete) {
@@ -133,10 +136,10 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
         PI_ERROR_INVALID_CONTEXT);
   }
 
-  RT::PiContext TempContext;
-  getPlugin().call<PiApiKind::piEventGetInfo>(MEvent, PI_EVENT_INFO_CONTEXT,
-                                              sizeof(RT::PiContext),
-                                              &TempContext, nullptr);
+  sycl::detail::pi::PiContext TempContext;
+  getPlugin()->call<PiApiKind::piEventGetInfo>(
+      MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
+      &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
     throw sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
@@ -147,7 +150,8 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue},
-      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled} {
+      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
+      MLimitedProfiling{MIsProfilingEnabled && Queue->isProfilingLimited()} {
   this->setContextImpl(Queue->getContextImplPtr());
 
   if (Queue->is_host()) {
@@ -177,7 +181,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   // Create a string with the event address so it
   // can be associated with other debug data
   xpti::utils::StringHelper SH;
-  Name = SH.nameWithAddress<RT::PiEvent>("event.wait", MEvent);
+  Name = SH.nameWithAddress<sycl::detail::pi::PiEvent>("event.wait", MEvent);
 
   // We can emit the wait associated with the graph if the
   // event does not have a command object or associated with
@@ -265,6 +269,13 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
+  if (MLimitedProfiling)
+    throw sycl::exception(
+        make_error_code(sycl::errc::invalid),
+        "Submit profiling information is temporarily unsupported on this "
+        "device. This is indicated by the lack of queue_profiling aspect, but, "
+        "as a temporary workaround, profiling can still be enabled to use "
+        "command_start and command_end profiling info.");
   return MSubmitTime;
 }
 
@@ -345,12 +356,12 @@ pi_native_handle event_impl::getNative() {
   if (!MIsInitialized) {
     MIsInitialized = true;
     auto TempContext = MContext.get()->getHandleRef();
-    Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
+    Plugin->call<PiApiKind::piEventCreate>(TempContext, &MEvent);
   }
-  if (Plugin.getBackend() == backend::opencl)
-    Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
+  if (MContext->getBackend() == backend::opencl)
+    Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
   pi_native_handle Handle;
-  Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
+  Plugin->call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
 
@@ -390,11 +401,11 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
 
   // Check if the task for this event has already been submitted.
   pi_event_status Status = PI_EVENT_QUEUED;
-  getPlugin().call<PiApiKind::piEventGetInfo>(
+  getPlugin()->call<PiApiKind::piEventGetInfo>(
       MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
       nullptr);
   if (Status == PI_EVENT_QUEUED) {
-    getPlugin().call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
+    getPlugin()->call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
   }
   MIsFlushed = true;
 }
@@ -416,13 +427,14 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled)
+  if (!MIsProfilingEnabled || MLimitedProfiling)
     return;
   if (QueueImplPtr Queue = MQueue.lock()) {
     try {
       MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
     } catch (feature_not_supported &e) {
-      throw sycl::exception(make_error_code(errc::profiling),
+      throw sycl::exception(
+          make_error_code(errc::profiling),
           std::string("Unable to get command group submission time: ") +
               e.what());
     }

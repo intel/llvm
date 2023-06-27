@@ -44,6 +44,7 @@ enum class PiApiKind {
 #include <sycl/detail/pi.def>
 };
 class plugin;
+using PluginPtr = std::shared_ptr<plugin>;
 
 template <sycl::backend BE>
 __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
@@ -62,7 +63,7 @@ enum TraceLevel {
 bool trace(TraceLevel level);
 
 #ifdef __SYCL_RT_OS_WINDOWS
-// these same constants are used by win_proxy_loader.dll
+// these same constants are used by pi_win_proxy_loader.dll
 // if a plugin is added here, add it there as well.
 #ifdef _MSC_VER
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
@@ -70,29 +71,29 @@ bool trace(TraceLevel level);
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
-#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "pi_unified_runtime.dll"
+#define __SYCL_UR_PLUGIN_NAME "pi_unified_runtime.dll"
 #else
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
-#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.dll"
+#define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dll"
 #endif
 #elif defined(__SYCL_RT_OS_LINUX)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.so"
-#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.so"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.so"
+#define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.so"
 #elif defined(__SYCL_RT_OS_DARWIN)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dylib"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dylib"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dylib"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dylib"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dylib"
-#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.dylib"
+#define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dylib"
 #else
 #error "Unsupported OS"
 #endif
@@ -121,6 +122,7 @@ void handleUnknownParamName(const char *functionName, T parameter) {
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
 using PiPlatform = ::pi_platform;
+using PiPlatformBackend = ::pi_platform_backend;
 using PiDevice = ::pi_device;
 using PiDeviceType = ::pi_device_type;
 using PiDeviceInfo = ::pi_device_info;
@@ -151,11 +153,20 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
                                              void *user_data);
 
-// Function to load the shared library
+// Function to load a shared library
+// Implementation is OS dependent
+void *loadOsLibrary(const std::string &Library);
+
+// Function to unload a shared library
+// Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
+int unloadOsLibrary(void *Library);
+
+// Function to load the shared plugin library
+// On Windows, this will have been pre-loaded by proxy loader.
 // Implementation is OS dependent.
 void *loadOsPluginLibrary(const std::string &Library);
 
-// Function to unload the shared library
+// Function to unload the shared plugin library
 // Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
 int unloadOsPluginLibrary(void *Library);
 
@@ -179,10 +190,10 @@ template <class To, class From> To cast(From value);
 extern std::shared_ptr<plugin> GlobalPlugin;
 
 // Performs PI one-time initialization.
-std::vector<plugin> &initialize();
+std::vector<PluginPtr> &initialize();
 
 // Get the plugin serving given backend.
-template <backend BE> __SYCL_EXPORT const plugin &getPlugin();
+template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
@@ -239,8 +250,6 @@ PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
 
 } // namespace pi
 
-namespace RT = sycl::detail::pi;
-
 // Workaround for build with GCC 5.x
 // An explicit specialization shall be declared in the namespace block.
 // Having namespace as part of template name is not supported by GCC
@@ -251,7 +260,8 @@ namespace pi {
 // operators.
 template <class To, class From> inline To cast(From value) {
   // TODO: see if more sanity checks are possible.
-  RT::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
+  sycl::detail::pi::assertion((sizeof(From) == sizeof(To)),
+                              "assert: cast failed size check");
   return (To)(value);
 }
 
@@ -272,9 +282,6 @@ template <class To, class FromE> To cast(std::vector<FromE> Values) {
 
 } // namespace pi
 } // namespace detail
-
-// For shortness of using PI from the top-level sycl files.
-namespace RT = sycl::detail::pi;
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

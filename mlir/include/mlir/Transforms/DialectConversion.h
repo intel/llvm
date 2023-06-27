@@ -223,6 +223,14 @@ public:
   /// the type to convert to on success, and a null type on failure.
   Type convertType(Type t);
 
+  /// Attempts a 1-1 type conversion, expecting the result type to be
+  /// `TargetType`. Returns the converted type cast to `TargetType` on success,
+  /// and a null type on conversion or cast failure.
+  template <typename TargetType>
+  TargetType convertType(Type t) {
+    return dyn_cast_or_null<TargetType>(convertType(t));
+  }
+
   /// Convert the given set of types, filling 'results' as necessary. This
   /// returns failure if the conversion of any of the types fails, success
   /// otherwise.
@@ -350,7 +358,7 @@ private:
     return [callback = std::forward<FnT>(callback)](
                Type type, SmallVectorImpl<Type> &results,
                ArrayRef<Type> callStack) -> std::optional<LogicalResult> {
-      T derivedType = type.dyn_cast<T>();
+      T derivedType = dyn_cast<T>(type);
       if (!derivedType)
         return std::nullopt;
       return callback(derivedType, results, callStack);
@@ -372,7 +380,7 @@ private:
     return [callback = std::forward<FnT>(callback)](
                OpBuilder &builder, Type resultType, ValueRange inputs,
                Location loc) -> std::optional<Value> {
-      if (T derivedType = resultType.dyn_cast<T>())
+      if (T derivedType = dyn_cast<T>(resultType))
         return callback(builder, derivedType, inputs, loc);
       return std::nullopt;
     };
@@ -387,8 +395,8 @@ private:
   wrapTypeAttributeConversion(FnT &&callback) {
     return [callback = std::forward<FnT>(callback)](
                Type type, Attribute attr) -> AttributeConversionResult {
-      if (T derivedType = type.dyn_cast<T>()) {
-        if (A derivedAttr = attr.dyn_cast_or_null<A>())
+      if (T derivedType = dyn_cast<T>(type)) {
+        if (A derivedAttr = dyn_cast_or_null<A>(attr))
           return callback(derivedType, derivedAttr);
       }
       return AttributeConversionResult::na();
@@ -512,15 +520,25 @@ public:
   }
   void rewrite(Operation *op, ArrayRef<Value> operands,
                ConversionPatternRewriter &rewriter) const final {
-    rewrite(cast<SourceOp>(op), OpAdaptor(operands, op->getAttrDictionary()),
+    auto sourceOp = cast<SourceOp>(op);
+    rewrite(sourceOp,
+            OpAdaptor(operands, op->getDiscardableAttrDictionary(),
+                      sourceOp.getProperties()),
             rewriter);
   }
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
-    return matchAndRewrite(cast<SourceOp>(op),
-                           OpAdaptor(operands, op->getAttrDictionary()),
-                           rewriter);
+    auto sourceOp = cast<SourceOp>(op);
+    if constexpr (SourceOp::hasProperties())
+      return matchAndRewrite(sourceOp,
+                             OpAdaptor(operands,
+                                       op->getDiscardableAttrDictionary(),
+                                       sourceOp.getProperties()),
+                             rewriter);
+    return matchAndRewrite(
+        sourceOp, OpAdaptor(operands, op->getDiscardableAttrDictionary()),
+        rewriter);
   }
 
   /// Rewrite and Match methods that operate on the SourceOp type. These must be
@@ -618,7 +636,8 @@ struct ConversionPatternRewriterImpl;
 /// This class implements a pattern rewriter for use with ConversionPatterns. It
 /// extends the base PatternRewriter and provides special conversion specific
 /// hooks.
-class ConversionPatternRewriter final : public PatternRewriter {
+class ConversionPatternRewriter final : public PatternRewriter,
+                                        public RewriterBase::Listener {
 public:
   explicit ConversionPatternRewriter(MLIRContext *ctx);
   ~ConversionPatternRewriter() override;
@@ -701,8 +720,10 @@ public:
   /// PatternRewriter hook for splitting a block into two parts.
   Block *splitBlock(Block *block, Block::iterator before) override;
 
-  /// PatternRewriter hook for merging a block into another.
-  void mergeBlocks(Block *source, Block *dest, ValueRange argValues) override;
+  /// PatternRewriter hook for inlining the ops of a block into another block.
+  void inlineBlockBefore(Block *source, Block *dest, Block::iterator before,
+                         ValueRange argValues = std::nullopt) override;
+  using PatternRewriter::inlineBlockBefore;
 
   /// PatternRewriter hook for moving blocks out of a region.
   void inlineRegionBefore(Region &region, Region &parent,
@@ -742,6 +763,9 @@ public:
   detail::ConversionPatternRewriterImpl &getImpl();
 
 private:
+  using OpBuilder::getListener;
+  using OpBuilder::setListener;
+
   std::unique_ptr<detail::ConversionPatternRewriterImpl> impl;
 };
 

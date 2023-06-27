@@ -706,12 +706,15 @@ bool AArch64ExpandPseudo::expandSetTagLoop(
       .addImm(2)
       .cloneMemRefs(MI)
       .setMIFlags(MI.getFlags());
-  BuildMI(LoopBB, DL, TII->get(AArch64::SUBXri))
+  BuildMI(LoopBB, DL, TII->get(AArch64::SUBSXri))
       .addDef(SizeReg)
       .addReg(SizeReg)
       .addImm(16 * 2)
       .addImm(0);
-  BuildMI(LoopBB, DL, TII->get(AArch64::CBNZX)).addUse(SizeReg).addMBB(LoopBB);
+  BuildMI(LoopBB, DL, TII->get(AArch64::Bcc))
+      .addImm(AArch64CC::NE)
+      .addMBB(LoopBB)
+      .addReg(AArch64::NZCV, RegState::Implicit | RegState::Kill);
 
   LoopBB->addSuccessor(LoopBB);
   LoopBB->addSuccessor(DoneBB);
@@ -1177,6 +1180,8 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
         .add(MI.getOperand(2))
         .addImm(AArch64_AM::getShifterImm(AArch64_AM::LSL, 0));
     transferImpOps(MI, MIB1, MIB1);
+    if (auto DebugNumber = MI.peekDebugInstrNum())
+      NewMI->setDebugInstrNum(DebugNumber);
     MI.eraseFromParent();
     return true;
   }

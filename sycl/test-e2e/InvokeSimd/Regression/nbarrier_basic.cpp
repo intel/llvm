@@ -1,16 +1,11 @@
-// TODO: enable on Windows once driver is ready
 // NOTE: named barrier supported only since PVC
-// REQUIRES: gpu-intel-pvc && linux
-// UNSUPPORTED: cuda || hip
+// REQUIRES: gpu-intel-pvc
 //
-// TODO: enable when Jira issue resolved, currently fail with VISALTO enable
-// XFAIL: gpu-intel-pvc
+// RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
+// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
-// RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out
-// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
-//
-// VISALTO enable run
-// RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
+// vISA LTO run
+// RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
 /*
  * Test checks basic support for named barriers in invoke_simd context.
@@ -61,7 +56,7 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(nd_item<1> *ndi) SYCL_ESIMD_FUNCTION {
     nd_item<1> *ndi) SYCL_ESIMD_FUNCTION;
 
 int main(void) {
-  auto Queue = queue{gpu_selector_v};
+  queue Queue;
   auto Device = Queue.get_device();
 
   std::cout << "Running on " << Device.get_info<sycl::info::device::name>()

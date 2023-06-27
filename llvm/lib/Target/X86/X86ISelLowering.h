@@ -126,9 +126,9 @@ namespace llvm {
     /// operand 1 is the target address.
     NT_BRIND,
 
-    /// Return with a flag operand. Operand 0 is the chain operand, operand
+    /// Return with a glue operand. Operand 0 is the chain operand, operand
     /// 1 is the number of bytes of stack to pop.
-    RET_FLAG,
+    RET_GLUE,
 
     /// Return from interrupt. Operand 0 is the number of bytes to pop.
     IRET,
@@ -1046,6 +1046,8 @@ namespace llvm {
 
     SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
+    bool preferABDSToABSWithNSW(EVT VT) const override;
+
     /// Return true if the target has native support for
     /// the specified value type and it is 'desirable' to use the type for the
     /// given node type. e.g. On x86 i16 is legal, but undesirable since i16
@@ -1124,7 +1126,7 @@ namespace llvm {
         unsigned OldShiftOpcode, unsigned NewShiftOpcode,
         SelectionDAG &DAG) const override;
 
-    bool preferScalarizeSplat(unsigned Opc) const override;
+    bool preferScalarizeSplat(SDNode *N) const override;
 
     bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                            CombineLevel Level) const override;
@@ -1350,10 +1352,10 @@ namespace llvm {
     bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
                                     EVT VT) const override;
 
-    /// Return true if it's profitable to narrow
-    /// operations of type VT1 to VT2. e.g. on x86, it's profitable to narrow
-    /// from i32 to i8 but not from i32 to i16.
-    bool isNarrowingProfitable(EVT VT1, EVT VT2) const override;
+    /// Return true if it's profitable to narrow operations of type SrcVT to
+    /// DestVT. e.g. on x86, it's profitable to narrow from i32 to i8 but not
+    /// from i32 to i16.
+    bool isNarrowingProfitable(EVT SrcVT, EVT DestVT) const override;
 
     bool shouldFoldSelectWithIdentityConstant(unsigned BinOpcode,
                                               EVT VT) const override;
@@ -1437,11 +1439,11 @@ namespace llvm {
     bool shouldFormOverflowOp(unsigned Opcode, EVT VT,
                               bool MathUsed) const override;
 
-    bool storeOfVectorConstantIsCheap(EVT MemVT, unsigned NumElem,
+    bool storeOfVectorConstantIsCheap(bool IsZero, EVT MemVT, unsigned NumElem,
                                       unsigned AddrSpace) const override {
       // If we can replace more than 2 scalar stores, there will be a reduction
       // in instructions even after we add a vector constant load.
-      return NumElem > 2;
+      return IsZero || NumElem > 2;
     }
 
     bool isLoadBitCastBeneficial(EVT LoadVT, EVT BitcastVT,
@@ -1519,6 +1521,10 @@ namespace llvm {
 
     bool supportKCFIBundles() const override { return true; }
 
+    MachineInstr *EmitKCFICheck(MachineBasicBlock &MBB,
+                                MachineBasicBlock::instr_iterator &MBBI,
+                                const TargetInstrInfo *TII) const override;
+
     bool hasStackProbeSymbol(const MachineFunction &MF) const override;
     bool hasInlineStackProbe(const MachineFunction &MF) const override;
     StringRef getStackProbeSymbolName(const MachineFunction &MF) const override;
@@ -1575,7 +1581,7 @@ namespace llvm {
       LegalFPImmediates.push_back(Imm);
     }
 
-    SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
+    SDValue LowerCallResult(SDValue Chain, SDValue InGlue,
                             CallingConv::ID CallConv, bool isVarArg,
                             const SmallVectorImpl<ISD::InputArg> &Ins,
                             const SDLoc &dl, SelectionDAG &DAG,

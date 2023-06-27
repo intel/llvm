@@ -14,12 +14,12 @@
 
 ; CHECK-SPIRV: Extension "SPV_EXT_relaxed_printf_string_address_space"
 ; CHECK-SPIRV: ExtInstImport [[#ExtInstSetId:]] "OpenCL.std"
-; CHECK-SPIRV: TypeInt [[#TypeInt8Id:]] 8 0
-; CHECK-SPIRV: TypeInt [[#TypeInt32Id:]] 32 0
-; CHECK-SPIRV: TypePointer [[#FunctionStorClassPtrTy:]] 7 [[#TypeInt8Id]]
-; CHECK-SPIRV: TypePointer [[#WGStorClassPtrTy:]] 5 [[#TypeInt8Id]]
-; CHECK-SPIRV: TypePointer [[#CrossWFStorClassPtrTy:]] 4 [[#TypeInt8Id]]
-; CHECK-SPIRV: TypePointer [[#GenericStorCalssPtrTy:]] 8 [[#TypeInt8Id]]
+; CHECK-SPIRV-DAG: TypeInt [[#TypeInt8Id:]] 8 0
+; CHECK-SPIRV-DAG: TypeInt [[#TypeInt32Id:]] 32 0
+; CHECK-SPIRV-DAG: TypePointer [[#FunctionStorClassPtrTy:]] 7 [[#TypeInt8Id]]
+; CHECK-SPIRV-DAG: TypePointer [[#WGStorClassPtrTy:]] 5 [[#TypeInt8Id]]
+; CHECK-SPIRV-DAG: TypePointer [[#CrossWFStorClassPtrTy:]] 4 [[#TypeInt8Id]]
+; CHECK-SPIRV-DAG: TypePointer [[#GenericStorCalssPtrTy:]] 8 [[#TypeInt8Id]]
 ; CHECK-SPIRV: InBoundsPtrAccessChain [[#FunctionStorClassPtrTy]] [[#GEP1:]]
 ; CHECK-SPIRV: ExtInst [[#TypeInt32Id]] [[#]] [[#ExtInstSetId:]] printf [[#GEP1]]
 ; CHECK-SPIRV: InBoundsPtrAccessChain [[#WGStorClassPtrTy]] [[#GEP2:]]

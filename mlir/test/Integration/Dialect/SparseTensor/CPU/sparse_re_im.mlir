@@ -18,7 +18,7 @@
 // Do the same run, but now with direct IR generation and, if available, VLA
 // vectorization.
 // REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
-// REDEFINE: %{run} = %lli \
+// REDEFINE: %{run} = %lli_host_or_aarch64_cmd \
 // REDEFINE:   --entry-function=entry_lli \
 // REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
 // REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
@@ -26,7 +26,7 @@
 // REDEFINE: FileCheck %s
 // RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
-#SparseVector = #sparse_tensor.encoding<{dimLevelType = ["compressed"]}>
+#SparseVector = #sparse_tensor.encoding<{lvlTypes = ["compressed"]}>
 
 #trait_op = {
   indexing_maps = [
@@ -76,8 +76,8 @@ module {
     %values = sparse_tensor.values %arg0 : tensor<?xf32, #SparseVector> to memref<?xf32>
     %0 = vector.transfer_read %values[%c0], %d0: memref<?xf32>, vector<3xf32>
     vector.print %0 : vector<3xf32>
-    %indices = sparse_tensor.indices %arg0 { dimension = 0 : index } : tensor<?xf32, #SparseVector> to memref<?xindex>
-    %1 = vector.transfer_read %indices[%c0], %c0: memref<?xindex>, vector<3xindex>
+    %coordinates = sparse_tensor.coordinates %arg0 { level = 0 : index } : tensor<?xf32, #SparseVector> to memref<?xindex>
+    %1 = vector.transfer_read %coordinates[%c0], %c0: memref<?xindex>, vector<3xindex>
     vector.print %1 : vector<3xindex>
     return
   }

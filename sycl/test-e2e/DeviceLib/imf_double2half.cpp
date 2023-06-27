@@ -1,10 +1,13 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: gpu
+// REQUIRES: aspect-fp64, aspect-fp16
 
-// RUN: %clangxx -fsycl -fno-builtin -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-//
-// UNSUPPORTED: cuda || hip
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
+// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{run} %t.out
+
+// UNSUPPORTED: cuda
 
 #include "imf_utils.hpp"
 
@@ -18,16 +21,6 @@ int main() {
   std::cout << "Running on "
             << device_queue.get_device().get_info<sycl::info::device::name>()
             << "\n";
-
-  if (!device_queue.get_device().has(sycl::aspect::fp64)) {
-    std::cout << "Test skipped on platform without fp64 support." << std::endl;
-    return 0;
-  }
-
-  if (!device_queue.get_device().has(sycl::aspect::fp16)) {
-    std::cout << "Test skipped on platform without fp16 support." << std::endl;
-    return 0;
-  }
 
   {
     std::initializer_list<uint64_t> input_vals = {

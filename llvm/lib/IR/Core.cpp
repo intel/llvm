@@ -53,10 +53,6 @@ void llvm::initializeCore(PassRegistry &Registry) {
   initializeVerifierLegacyPassPass(Registry);
 }
 
-void LLVMInitializeCore(LLVMPassRegistryRef R) {
-  initializeCore(*unwrap(R));
-}
-
 void LLVMShutdown() {
   llvm_shutdown();
 }
@@ -815,8 +811,6 @@ LLVMTypeRef LLVMScalableVectorType(LLVMTypeRef ElementType,
 
 LLVMTypeRef LLVMGetElementType(LLVMTypeRef WrappedTy) {
   auto *Ty = unwrap(WrappedTy);
-  if (auto *PTy = dyn_cast<PointerType>(Ty))
-    return wrap(PTy->getNonOpaquePointerElementType());
   if (auto *ATy = dyn_cast<ArrayType>(Ty))
     return wrap(ATy->getElementType());
   return wrap(cast<VectorType>(Ty)->getElementType());
@@ -1803,14 +1797,6 @@ LLVMValueRef LLVMConstIntCast(LLVMValueRef ConstantVal, LLVMTypeRef ToType,
 LLVMValueRef LLVMConstFPCast(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
   return wrap(ConstantExpr::getFPCast(unwrap<Constant>(ConstantVal),
                                       unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstSelect(LLVMValueRef ConstantCondition,
-                             LLVMValueRef ConstantIfTrue,
-                             LLVMValueRef ConstantIfFalse) {
-  return wrap(ConstantExpr::getSelect(unwrap<Constant>(ConstantCondition),
-                                      unwrap<Constant>(ConstantIfTrue),
-                                      unwrap<Constant>(ConstantIfFalse)));
 }
 
 LLVMValueRef LLVMConstExtractElement(LLVMValueRef VectorConstant,
@@ -3967,7 +3953,7 @@ int LLVMGetMaskValue(LLVMValueRef SVInst, unsigned Elt) {
   return I->getMaskValue(Elt);
 }
 
-int LLVMGetUndefMaskElem(void) { return UndefMaskElem; }
+int LLVMGetUndefMaskElem(void) { return PoisonMaskElem; }
 
 LLVMBool LLVMIsAtomicSingleThread(LLVMValueRef AtomicInst) {
   Value *P = unwrap(AtomicInst);
@@ -4083,12 +4069,6 @@ size_t LLVMGetBufferSize(LLVMMemoryBufferRef MemBuf) {
 
 void LLVMDisposeMemoryBuffer(LLVMMemoryBufferRef MemBuf) {
   delete unwrap(MemBuf);
-}
-
-/*===-- Pass Registry -----------------------------------------------------===*/
-
-LLVMPassRegistryRef LLVMGetGlobalPassRegistry(void) {
-  return wrap(PassRegistry::getPassRegistry());
 }
 
 /*===-- Pass Manager ------------------------------------------------------===*/

@@ -20,13 +20,12 @@ tests.
 ```
 # Configure
 cmake -G Ninja \
-        -DTEST_SUITE_SUBDIRS=SYCL \
-        -DTEST_SUITE_LIT=<path/to/llvm-lit> \
-        -DCHECK_SYCL_ALL="opencl:cpu,acc,gpu;level_zero:gpu" \
+        -DLLVM_LIT=<path/to/llvm-lit> \
+        -DSYCL_TEST_E2E_TARGETS="opencl:cpu,acc,gpu;level_zero:gpu" \
         -DCMAKE_CXX_COMPILER=<path/to/clang++> \
         -DSYCL_EXTRA_TESTS_SRC=<path/to/more/lit/tests/sources>
         ..
 
 # Build and run full list of SYCL tests
-ninja ninja check-sycl-all
+ninja check-sycl-e2e
 ```

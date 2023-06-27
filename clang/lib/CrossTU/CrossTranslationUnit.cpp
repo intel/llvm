@@ -568,7 +568,7 @@ CrossTranslationUnitContext::ASTLoader::loadFromDump(StringRef ASTDumpPath) {
   return ASTUnit::LoadFromASTFile(
       std::string(ASTDumpPath.str()),
       CI.getPCHContainerOperations()->getRawReader(), ASTUnit::LoadEverything,
-      Diags, CI.getFileSystemOpts());
+      Diags, CI.getFileSystemOpts(), CI.getHeaderSearchOptsPtr());
 }
 
 /// Load the AST from a source-file, which is supposed to be located inside the
@@ -660,7 +660,7 @@ parseInvocationList(StringRef FileContent, llvm::sys::path::Style PathStyle) {
 
     StringRef InvocationKey = NativeSourcePath;
 
-    if (InvocationList.find(InvocationKey) != InvocationList.end())
+    if (InvocationList.contains(InvocationKey))
       return llvm::make_error<IndexError>(
           index_error_code::invocation_list_ambiguous);
 

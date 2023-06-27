@@ -361,7 +361,7 @@ protected:
 
   /// Apply each ScheduleDAGMutation step in order. This allows different
   /// instances of ScheduleDAGMI to perform custom DAG postprocessing.
-  void postprocessDAG();
+  void postProcessDAG();
 
   /// Release ExitSU predecessors and setup scheduler queues.
   void initQueues(ArrayRef<SUnit*> TopRoots, ArrayRef<SUnit*> BotRoots);
@@ -722,7 +722,8 @@ public:
     Available(ID, Name+".A"), Pending(ID << LogMaxQID, Name+".P") {
     reset();
   }
-
+  SchedBoundary &operator=(const SchedBoundary &other) = delete;
+  SchedBoundary(const SchedBoundary &other) = delete;
   ~SchedBoundary();
 
   void reset();

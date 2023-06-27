@@ -79,7 +79,6 @@ public:
     OffloadPackagerJobClass,
     OffloadDepsJobClass,
     SPIRVTranslatorJobClass,
-    SPIRCheckJobClass,
     SYCLPostLinkJobClass,
     BackendCompileJobClass,
     FileTableTformJobClass,
@@ -660,9 +659,14 @@ public:
 class OffloadWrapperJobAction : public JobAction {
   void anchor() override;
 
+  bool EmbedIR;
+
 public:
   OffloadWrapperJobAction(ActionList &Inputs, types::ID Type);
-  OffloadWrapperJobAction(Action *Input, types::ID OutputType);
+  OffloadWrapperJobAction(Action *Input, types::ID OutputType,
+                          bool EmbedIR = false);
+
+  bool isEmbeddedIR() const { return EmbedIR; }
 
   static bool classof(const Action *A) {
     return A->getKind() == OffloadWrapperJobClass;
@@ -742,21 +746,6 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == SPIRVTranslatorJobClass;
-  }
-};
-
-// Provides a check of the given input file for the existence of SPIR kernel
-// code.  This is currently only used for FPGA specific tool chains and can
-// be expanded to perform other SPIR checks if needed.
-// TODO: No longer being used for FPGA (or elsewhere), cleanup needed.
-class SPIRCheckJobAction : public JobAction {
-  void anchor() override;
-
-public:
-  SPIRCheckJobAction(Action *Input, types::ID OutputType);
-
-  static bool classof(const Action *A) {
-    return A->getKind() == SPIRCheckJobClass;
   }
 };
 

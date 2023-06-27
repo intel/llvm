@@ -28,9 +28,9 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
-  RT::PiResult result = PI_SUCCESS;
+  sycl::detail::pi::PiResult result = PI_SUCCESS;
   if (!is_host())
-    getPlugin().call<PiApiKind::piQueueGetInfo>(
+    getPlugin()->call<PiApiKind::piQueueGetInfo>(
         MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
         nullptr);
   return result;
@@ -46,7 +46,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 
 static event
 prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
-                RT::PiEvent NativeEvent) {
+                sycl::detail::pi::PiEvent NativeEvent) {
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
   EventImpl->getHandleRef() = NativeEvent;
   EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
@@ -100,7 +100,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                         MLastCGType == CG::CGTYPE::CodeplayInteropTask))
       MLastEvent.wait();
 
-    RT::PiEvent NativeEvent{};
+    sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
@@ -163,7 +163,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                         MLastCGType == CG::CGTYPE::CodeplayInteropTask))
       MLastEvent.wait();
 
-    RT::PiEvent NativeEvent{};
+    sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
@@ -206,7 +206,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                         MLastCGType == CG::CGTYPE::CodeplayInteropTask))
       MLastEvent.wait();
 
-    RT::PiEvent NativeEvent{};
+    sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext),
                               &NativeEvent);
@@ -236,7 +236,7 @@ event queue_impl::memcpyToDeviceGlobal(
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext), nullptr);
+        getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -251,11 +251,10 @@ event queue_impl::memcpyToDeviceGlobal(
                         MLastCGType == CG::CGTYPE::CodeplayInteropTask))
       MLastEvent.wait();
 
-    RT::PiEvent NativeEvent{};
+    sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext),
-        &NativeEvent);
+        getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -283,7 +282,7 @@ event queue_impl::memcpyFromDeviceGlobal(
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext), nullptr);
+        getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -298,11 +297,10 @@ event queue_impl::memcpyFromDeviceGlobal(
                         MLastCGType == CG::CGTYPE::CodeplayInteropTask))
       MLastEvent.wait();
 
-    RT::PiEvent NativeEvent{};
+    sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext),
-        &NativeEvent);
+        getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -495,8 +493,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     }
   }
   if (SupportsPiFinish) {
-    const detail::plugin &Plugin = getPlugin();
-    Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
+    const PluginPtr &Plugin = getPlugin();
+    Plugin->call<detail::PiApiKind::piQueueFinish>(getHandleRef());
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
   } else {
@@ -517,12 +515,13 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 }
 
-pi_native_handle queue_impl::getNative() const {
-  const detail::plugin &Plugin = getPlugin();
-  if (Plugin.getBackend() == backend::opencl)
-    Plugin.call<PiApiKind::piQueueRetain>(MQueues[0]);
+pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
+  const PluginPtr &Plugin = getPlugin();
+  if (getContextImplPtr()->getBackend() == backend::opencl)
+    Plugin->call<PiApiKind::piQueueRetain>(MQueues[0]);
   pi_native_handle Handle{};
-  Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle);
+  Plugin->call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle,
+                                                     &NativeHandleDesc);
   return Handle;
 }
 
@@ -538,7 +537,7 @@ bool queue_impl::ext_oneapi_empty() const {
   // Check the status of the backend queue if this is not a host queue.
   if (!is_host()) {
     pi_bool IsReady = false;
-    getPlugin().call<PiApiKind::piQueueGetInfo>(
+    getPlugin()->call<PiApiKind::piQueueGetInfo>(
         MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool), &IsReady,
         nullptr);
     if (!IsReady)

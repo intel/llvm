@@ -285,7 +285,7 @@ def AdrpOperand : AsmOperandClass {
 }
 def adrplabel : Operand<i64> {
   let EncoderMethod = "getAdrLabelOpValue";
-  let PrintMethod = "printAdrpLabel";
+  let PrintMethod = "printAdrAdrpLabel";
   let ParserMatchClass = AdrpOperand;
   let OperandType = "OPERAND_PCREL";
 }
@@ -297,7 +297,9 @@ def AdrOperand : AsmOperandClass {
 }
 def adrlabel : Operand<i64> {
   let EncoderMethod = "getAdrLabelOpValue";
+  let PrintMethod = "printAdrAdrpLabel";
   let ParserMatchClass = AdrOperand;
+  let OperandType = "OPERAND_PCREL";
 }
 
 class SImmOperand<int width> : AsmOperandClass {
@@ -4671,7 +4673,7 @@ class BaseMemTagStore<bits<2> opc1, bits<2> opc2, string asm_insn,
 }
 
 multiclass MemTagStore<bits<2> opc1, string insn> {
-  def Offset :
+  def i :
     BaseMemTagStore<opc1, 0b10, insn, "\t$Rt, [$Rn, $offset]", "",
                     (outs), (ins GPR64sp:$Rt, GPR64sp:$Rn, simm9s16:$offset)>;
   def PreIndex :
@@ -4686,7 +4688,7 @@ multiclass MemTagStore<bits<2> opc1, string insn> {
                     (ins GPR64sp:$Rt, GPR64sp:$Rn, simm9s16:$offset)>;
 
   def : InstAlias<insn # "\t$Rt, [$Rn]",
-                  (!cast<Instruction>(NAME # "Offset") GPR64sp:$Rt, GPR64sp:$Rn, 0)>;
+                  (!cast<Instruction>(NAME # "i") GPR64sp:$Rt, GPR64sp:$Rn, 0)>;
 }
 
 //---
@@ -10860,19 +10862,19 @@ multiclass SIMDIndexedSQRDMLxHSDTied<bit U, bits<4> opc, string asm,
     let Inst{21} = idx{0};
   }
 
-  def i16_indexed : BaseSIMDIndexedTied<1, U, 1, 0b01, opc,
-                                        FPR16Op, FPR16Op, V128_lo,
-                                        VectorIndexH, asm, ".h", "", "", ".h",
-                                        []> {
+  def v1i16_indexed : BaseSIMDIndexedTied<1, U, 1, 0b01, opc,
+                                          FPR16Op, FPR16Op, V128_lo,
+                                          VectorIndexH, asm, ".h", "", "", ".h",
+                                          []> {
     bits<3> idx;
     let Inst{11} = idx{2};
     let Inst{21} = idx{1};
     let Inst{20} = idx{0};
   }
 
-  def i32_indexed : BaseSIMDIndexedTied<1, U, 1, 0b10, opc,
-                                        FPR32Op, FPR32Op, V128, VectorIndexS,
-                                        asm, ".s", "", "", ".s",
+  def v1i32_indexed : BaseSIMDIndexedTied<1, U, 1, 0b10, opc,
+                                          FPR32Op, FPR32Op, V128, VectorIndexS,
+                                          asm, ".s", "", "", ".s",
     [(set (i32 FPR32Op:$dst),
           (i32 (op (i32 FPR32Op:$Rd), (i32 FPR32Op:$Rn),
                    (i32 (vector_extract (v4i32 V128:$Rm),

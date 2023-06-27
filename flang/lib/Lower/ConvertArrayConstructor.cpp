@@ -14,6 +14,9 @@
 #include "flang/Lower/StatementContext.h"
 #include "flang/Lower/SymbolMap.h"
 #include "flang/Optimizer/Builder/HLFIRTools.h"
+#include "flang/Optimizer/Builder/Runtime/ArrayConstructor.h"
+#include "flang/Optimizer/Builder/Runtime/RTBuilder.h"
+#include "flang/Optimizer/Builder/TemporaryStorage.h"
 #include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Optimizer/HLFIR/HLFIROps.h"
 
@@ -54,23 +57,56 @@
 //         strategy.pushValue(ac-value);
 //       } else if (ac-value is implied-do) {
 //         strategy.startImpliedDo(lower, upper, stride);
+//         strategy.startImpliedDoScope();
 //         // lower nested values
+//         ...
+//         strategy.endImpliedDoScope();
 //       }
 //     result = strategy.finishArrayCtorLowering();
 //   ```
 
 //===----------------------------------------------------------------------===//
 //   Definition of the lowering strategies. Each lowering strategy is defined
-//   as a class that implements "pushValue", "startImpliedDo", and
-//   "finishArrayCtorLowering".
+//   as a class that implements "pushValue", "startImpliedDo" and
+//   "finishArrayCtorLowering". A strategy may optionally override
+//   "startImpliedDoScope" and "endImpliedDoScope" virtual methods
+//   of its base class StrategyBase.
 //===----------------------------------------------------------------------===//
 
 namespace {
+/// Class provides common implementation of scope push/pop methods
+/// that update StatementContext scopes and SymMap bindings.
+/// They might be overridden by the lowering strategies, e.g.
+/// see AsElementalStrategy.
+class StrategyBase {
+public:
+  StrategyBase(Fortran::lower::StatementContext &stmtCtx,
+               Fortran::lower::SymMap &symMap)
+      : stmtCtx{stmtCtx}, symMap{symMap} {};
+  virtual ~StrategyBase() = default;
+
+  virtual void startImpliedDoScope(llvm::StringRef doName,
+                                   mlir::Value indexValue) {
+    symMap.pushImpliedDoBinding(doName, indexValue);
+    stmtCtx.pushScope();
+  }
+
+  virtual void endImpliedDoScope() {
+    stmtCtx.finalizeAndPop();
+    symMap.popImpliedDoBinding();
+  }
+
+protected:
+  Fortran::lower::StatementContext &stmtCtx;
+  Fortran::lower::SymMap &symMap;
+};
+
 /// Class that implements the "inlined temp strategy" to lower array
-/// constructors. It must be further provided a CounterType class to specify how
-/// the current ac-value insertion position is tracked.
-template <typename CounterType>
-class InlinedTempStrategyImpl {
+/// constructors. It must be provided a boolean to indicate if the array
+/// constructor has any implied-do-loop.
+template <bool hasLoops>
+class InlinedTempStrategyImpl : public StrategyBase,
+                                public fir::factory::HomogeneousScalarStack {
   /// Name that will be given to the temporary allocation and hlfir.declare in
   /// the IR.
   static constexpr char tempName[] = ".tmp.arrayctor";
@@ -79,36 +115,19 @@ public:
   /// Start lowering an array constructor according to the inline strategy.
   /// The temporary is created right away.
   InlinedTempStrategyImpl(mlir::Location loc, fir::FirOpBuilder &builder,
+                          Fortran::lower::StatementContext &stmtCtx,
+                          Fortran::lower::SymMap &symMap,
                           fir::SequenceType declaredType, mlir::Value extent,
                           llvm::ArrayRef<mlir::Value> lengths)
-      : one{builder.createIntegerConstant(loc, builder.getIndexType(), 1)},
-        counter{loc, builder, one} {
-    // Allocate the temporary storage.
-    llvm::SmallVector<mlir::Value, 1> extents{extent};
-    mlir::Value tempStorage = builder.createHeapTemporary(
-        loc, declaredType, tempName, extents, lengths);
-    mlir::Value shape = builder.genShape(loc, extents);
-    temp =
-        builder
-            .create<hlfir::DeclareOp>(loc, tempStorage, tempName, shape,
-                                      lengths, fir::FortranVariableFlagsAttr{})
-            .getBase();
-  }
+      : StrategyBase{stmtCtx, symMap},
+        fir::factory::HomogeneousScalarStack{
+            loc,      builder, declaredType,
+            extent,   lengths, /*allocateOnHeap=*/true,
+            hasLoops, tempName} {}
 
   /// Push a lowered ac-value into the current insertion point and
   /// increment the insertion point.
-  void pushValue(mlir::Location loc, fir::FirOpBuilder &builder,
-                 hlfir::Entity value) {
-    assert(value.isScalar() && "cannot use inlined temp with array values");
-    mlir::Value indexValue = counter.getAndIncrementIndex(loc, builder, one);
-    hlfir::Entity tempElement = hlfir::getElementAt(
-        loc, builder, hlfir::Entity{temp}, mlir::ValueRange{indexValue});
-    // TODO: "copy" would probably be better than assign to ensure there are no
-    // side effects (user assignments, temp, lhs finalization)?
-    // This only makes a difference for derived types, so for now derived types
-    // will use the runtime strategy to avoid any bad behaviors.
-    builder.create<hlfir::AssignOp>(loc, value, tempElement);
-  }
+  using fir::factory::HomogeneousScalarStack::pushValue;
 
   /// Start a fir.do_loop with the control from an implied-do and return
   /// the loop induction variable that is the ac-do-variable value.
@@ -116,7 +135,7 @@ public:
   mlir::Value startImpliedDo(mlir::Location loc, fir::FirOpBuilder &builder,
                              mlir::Value lower, mlir::Value upper,
                              mlir::Value stride) {
-    if constexpr (!CounterType::canCountThroughLoops)
+    if constexpr (!hasLoops)
       fir::emitFatalError(loc, "array constructor lowering is inconsistent");
     auto loop = builder.create<fir::DoLoopOp>(loc, lower, upper, stride,
                                               /*unordered=*/false,
@@ -129,77 +148,21 @@ public:
   /// variables and cannot be further modified).
   hlfir::Entity finishArrayCtorLowering(mlir::Location loc,
                                         fir::FirOpBuilder &builder) {
-    // Temp is created using createHeapTemporary.
-    mlir::Value mustFree = builder.createBool(loc, true);
-    auto hlfirExpr = builder.create<hlfir::AsExprOp>(loc, temp, mustFree);
-    return hlfir::Entity{hlfirExpr};
+    return moveStackAsArrayExpr(loc, builder);
   }
-
-private:
-  mlir::Value one;
-  CounterType counter;
-  mlir::Value temp;
 };
 
-/// A simple SSA value counter to lower array constructors without any
-/// implied-do in the "inlined temp strategy".
-/// The SSA value being tracked by the counter (hence, this
-/// cannot count through loops since the SSA value in the loop becomes
-/// inaccessible after the loop).
 /// Semantic analysis expression rewrites unroll implied do loop with
-/// compile time constant bounds (even if huge). So this minimalistic
+/// compile time constant bounds (even if huge). So using a minimalistic
 /// counter greatly reduces the generated IR for simple but big array
 /// constructors [(i,i=1,constant-expr)] that are expected to be quite
 /// common.
-class ValueCounter {
-public:
-  static constexpr bool canCountThroughLoops = false;
-  ValueCounter(mlir::Location loc, fir::FirOpBuilder &builder,
-               mlir::Value initialValue) {
-    indexValue = initialValue;
-  }
-
-  mlir::Value getAndIncrementIndex(mlir::Location loc,
-                                   fir::FirOpBuilder &builder,
-                                   mlir::Value increment) {
-    mlir::Value currentValue = indexValue;
-    indexValue =
-        builder.create<mlir::arith::AddIOp>(loc, indexValue, increment);
-    return currentValue;
-  }
-
-private:
-  mlir::Value indexValue;
-};
-using LooplessInlinedTempStrategy = InlinedTempStrategyImpl<ValueCounter>;
-
+using LooplessInlinedTempStrategy = InlinedTempStrategyImpl</*hasLoops=*/false>;
 /// A generic memory based counter that can deal with all cases of
 /// "inlined temp strategy". The counter value is stored in a temp
 /// from which it is loaded, incremented, and stored every time an
 /// ac-value is pushed.
-class InMemoryCounter {
-public:
-  static constexpr bool canCountThroughLoops = true;
-  InMemoryCounter(mlir::Location loc, fir::FirOpBuilder &builder,
-                  mlir::Value initialValue) {
-    indexVar = builder.createTemporary(loc, initialValue.getType());
-    builder.create<fir::StoreOp>(loc, initialValue, indexVar);
-  }
-
-  mlir::Value getAndIncrementIndex(mlir::Location loc,
-                                   fir::FirOpBuilder &builder,
-                                   mlir::Value increment) const {
-    mlir::Value indexValue = builder.create<fir::LoadOp>(loc, indexVar);
-    indexValue =
-        builder.create<mlir::arith::AddIOp>(loc, indexValue, increment);
-    builder.create<fir::StoreOp>(loc, indexValue, indexVar);
-    return indexValue;
-  }
-
-private:
-  mlir::Value indexVar;
-};
-using InlinedTempStrategy = InlinedTempStrategyImpl<InMemoryCounter>;
+using InlinedTempStrategy = InlinedTempStrategyImpl</*hasLoops=*/true>;
 
 /// Class that implements the "as function of the indices" lowering strategy.
 /// It will lower [(scalar_expr(i), i=l,u,s)] to:
@@ -222,15 +185,17 @@ using InlinedTempStrategy = InlinedTempStrategyImpl<InMemoryCounter>;
 /// implied-do nest and wrapped in an hlfir.reshape to a rank 1 array. But this
 /// op does not exist yet, so this is left for the future if it appears
 /// profitable.
-class AsElementalStrategy {
+class AsElementalStrategy : public StrategyBase {
 public:
   /// The constructor only gathers the operands to create the hlfir.elemental.
   AsElementalStrategy(mlir::Location loc, fir::FirOpBuilder &builder,
+                      Fortran::lower::StatementContext &stmtCtx,
+                      Fortran::lower::SymMap &symMap,
                       fir::SequenceType declaredType, mlir::Value extent,
                       llvm::ArrayRef<mlir::Value> lengths)
-      : shape{builder.genShape(loc, {extent})},
-        lengthParams{lengths.begin(), lengths.end()}, exprType{getExprType(
-                                                          declaredType)} {}
+      : StrategyBase{stmtCtx, symMap}, shape{builder.genShape(loc, {extent})},
+        lengthParams{lengths.begin(), lengths.end()},
+        exprType{getExprType(declaredType)} {}
 
   static hlfir::ExprType getExprType(fir::SequenceType declaredType) {
     // Note: 7.8 point 4: the dynamic type of an array constructor is its static
@@ -269,8 +234,18 @@ public:
     if (fir::isa_trivial(elementResult.getType()))
       elementResult =
           builder.createConvert(loc, exprType.getElementType(), elementResult);
+
+    // The clean-ups associated with the implied-do body operations
+    // must be initiated before the YieldElementOp, so we have to pop the scope
+    // right now.
+    stmtCtx.finalizeAndPop();
+
     builder.create<hlfir::YieldElementOp>(loc, elementResult);
   }
+
+  // Override the default, because the context scope must be popped in
+  // pushValue().
+  virtual void endImpliedDoScope() override { symMap.popImpliedDoBinding(); }
 
   /// Return the created hlfir.elemental.
   hlfir::Entity finishArrayCtorLowering(mlir::Location loc,
@@ -285,7 +260,153 @@ private:
   hlfir::ElementalOp elementalOp{};
 };
 
-// TODO: add and implement RuntimeTempStrategy.
+/// Class that implements the "runtime temp strategy" to lower array
+/// constructors.
+class RuntimeTempStrategy : public StrategyBase {
+  /// Name that will be given to the temporary allocation and hlfir.declare in
+  /// the IR.
+  static constexpr char tempName[] = ".tmp.arrayctor";
+
+public:
+  /// Start lowering an array constructor according to the runtime strategy.
+  /// The temporary is only created if the extents and length parameters are
+  /// already known. Otherwise, the handling of the allocation (and
+  /// reallocation) is left up to the runtime.
+  /// \p extent is the pre-computed extent of the array constructor, if it could
+  /// be pre-computed. It is std::nullopt otherwise.
+  /// \p lengths are the pre-computed length parameters of the array
+  /// constructor, if they could be precomputed. \p missingLengthParameters is
+  /// set to true if the length parameters could not be precomputed.
+  RuntimeTempStrategy(mlir::Location loc, fir::FirOpBuilder &builder,
+                      Fortran::lower::StatementContext &stmtCtx,
+                      Fortran::lower::SymMap &symMap,
+                      fir::SequenceType declaredType,
+                      std::optional<mlir::Value> extent,
+                      llvm::ArrayRef<mlir::Value> lengths,
+                      bool missingLengthParameters)
+      : StrategyBase{stmtCtx, symMap},
+        arrayConstructorElementType{declaredType.getEleTy()} {
+    mlir::Type heapType = fir::HeapType::get(declaredType);
+    mlir::Type boxType = fir::BoxType::get(heapType);
+    allocatableTemp = builder.createTemporary(loc, boxType, tempName);
+    mlir::Value initialBoxValue;
+    if (extent && !missingLengthParameters) {
+      llvm::SmallVector<mlir::Value, 1> extents{*extent};
+      mlir::Value tempStorage = builder.createHeapTemporary(
+          loc, declaredType, tempName, extents, lengths);
+      mlir::Value shape = builder.genShape(loc, extents);
+      declare = builder.create<hlfir::DeclareOp>(
+          loc, tempStorage, tempName, shape, lengths,
+          fir::FortranVariableFlagsAttr{});
+      initialBoxValue =
+          builder.createBox(loc, boxType, declare->getOriginalBase(), shape,
+                            /*slice=*/mlir::Value{}, lengths, /*tdesc=*/{});
+    } else {
+      // The runtime will have to do the initial allocation.
+      // The declare operation cannot be emitted in this case since the final
+      // array constructor has not yet been allocated. Instead, the resulting
+      // temporary variable will be extracted from the allocatable descriptor
+      // after all the API calls.
+      // Prepare the initial state of the allocatable descriptor with a
+      // deallocated status and all the available knowledge about the extent
+      // and length parameters.
+      llvm::SmallVector<mlir::Value> emboxLengths(lengths.begin(),
+                                                  lengths.end());
+      if (!extent)
+        extent = builder.createIntegerConstant(loc, builder.getIndexType(), 0);
+      if (missingLengthParameters) {
+        if (declaredType.getEleTy().isa<fir::CharacterType>())
+          emboxLengths.push_back(builder.createIntegerConstant(
+              loc, builder.getCharacterLengthType(), 0));
+        else
+          TODO(loc,
+               "parametrized derived type array constructor without type-spec");
+      }
+      mlir::Value nullAddr = builder.createNullConstant(loc, heapType);
+      mlir::Value shape = builder.genShape(loc, {*extent});
+      initialBoxValue = builder.createBox(loc, boxType, nullAddr, shape,
+                                          /*slice=*/mlir::Value{}, emboxLengths,
+                                          /*tdesc=*/{});
+    }
+    builder.create<fir::StoreOp>(loc, initialBoxValue, allocatableTemp);
+    arrayConstructorVector = fir::runtime::genInitArrayConstructorVector(
+        loc, builder, allocatableTemp,
+        builder.createBool(loc, missingLengthParameters));
+  }
+
+  bool useSimplePushRuntime(hlfir::Entity value) {
+    return value.isScalar() &&
+           !arrayConstructorElementType.isa<fir::CharacterType>() &&
+           !fir::isRecordWithAllocatableMember(arrayConstructorElementType) &&
+           !fir::isRecordWithTypeParameters(arrayConstructorElementType);
+  }
+
+  /// Push a lowered ac-value into the array constructor vector using
+  /// the runtime API.
+  void pushValue(mlir::Location loc, fir::FirOpBuilder &builder,
+                 hlfir::Entity value) {
+    if (useSimplePushRuntime(value)) {
+      auto [addrExv, cleanUp] = hlfir::convertToAddress(
+          loc, builder, value, arrayConstructorElementType);
+      mlir::Value addr = fir::getBase(addrExv);
+      if (addr.getType().isa<fir::BaseBoxType>())
+        addr = builder.create<fir::BoxAddrOp>(loc, addr);
+      fir::runtime::genPushArrayConstructorSimpleScalar(
+          loc, builder, arrayConstructorVector, addr);
+      if (cleanUp)
+        (*cleanUp)();
+      return;
+    }
+    auto [boxExv, cleanUp] =
+        hlfir::convertToBox(loc, builder, value, arrayConstructorElementType);
+    fir::runtime::genPushArrayConstructorValue(
+        loc, builder, arrayConstructorVector, fir::getBase(boxExv));
+    if (cleanUp)
+      (*cleanUp)();
+  }
+
+  /// Start a fir.do_loop with the control from an implied-do and return
+  /// the loop induction variable that is the ac-do-variable value.
+  mlir::Value startImpliedDo(mlir::Location loc, fir::FirOpBuilder &builder,
+                             mlir::Value lower, mlir::Value upper,
+                             mlir::Value stride) {
+    auto loop = builder.create<fir::DoLoopOp>(loc, lower, upper, stride,
+                                              /*unordered=*/false,
+                                              /*finalCount=*/false);
+    builder.setInsertionPointToStart(loop.getBody());
+    return loop.getInductionVar();
+  }
+
+  /// Move the temporary to an hlfir.expr value (array constructors are not
+  /// variables and cannot be further modified).
+  hlfir::Entity finishArrayCtorLowering(mlir::Location loc,
+                                        fir::FirOpBuilder &builder) {
+    // Temp is created using createHeapTemporary, or allocated on the heap
+    // by the runtime.
+    mlir::Value mustFree = builder.createBool(loc, true);
+    mlir::Value temp;
+    if (declare)
+      temp = declare->getBase();
+    else
+      temp = hlfir::derefPointersAndAllocatables(
+          loc, builder, hlfir::Entity{allocatableTemp});
+    auto hlfirExpr = builder.create<hlfir::AsExprOp>(loc, temp, mustFree);
+    return hlfir::Entity{hlfirExpr};
+  }
+
+private:
+  /// Element type of the array constructor being built.
+  mlir::Type arrayConstructorElementType;
+  /// Allocatable descriptor for the storage of the array constructor being
+  /// built.
+  mlir::Value allocatableTemp;
+  /// Structure that allows the runtime API to maintain the status of
+  /// of the array constructor being built between two API calls.
+  mlir::Value arrayConstructorVector;
+  /// DeclareOp for the array constructor storage, if it was possible to
+  /// allocate it before any API calls.
+  std::optional<hlfir::DeclareOp> declare;
+};
 
 /// Wrapper class that dispatch to the selected array constructor lowering
 /// strategy and does nothing else.
@@ -318,9 +439,22 @@ public:
         implVariant);
   }
 
+  void startImpliedDoScope(llvm::StringRef doName, mlir::Value indexValue) {
+    std::visit(
+        [&](auto &impl) {
+          return impl.startImpliedDoScope(doName, indexValue);
+        },
+        implVariant);
+  }
+
+  void endImpliedDoScope() {
+    std::visit([&](auto &impl) { return impl.endImpliedDoScope(); },
+               implVariant);
+  }
+
 private:
   std::variant<InlinedTempStrategy, LooplessInlinedTempStrategy,
-               AsElementalStrategy>
+               AsElementalStrategy, RuntimeTempStrategy>
       implVariant;
 };
 } // namespace
@@ -331,6 +465,20 @@ private:
 //   pre-lowers the array constructor extent and length parameters if it can,
 //   and chooses the lowering strategy.
 //===----------------------------------------------------------------------===//
+
+/// Helper to lower a scalar extent expression (like implied-do bounds).
+static mlir::Value lowerExtentExpr(mlir::Location loc,
+                                   Fortran::lower::AbstractConverter &converter,
+                                   Fortran::lower::SymMap &symMap,
+                                   Fortran::lower::StatementContext &stmtCtx,
+                                   const Fortran::evaluate::ExtentExpr &expr) {
+  fir::FirOpBuilder &builder = converter.getFirOpBuilder();
+  mlir::IndexType idxTy = builder.getIndexType();
+  hlfir::Entity value = Fortran::lower::convertExprToHLFIR(
+      loc, converter, toEvExpr(expr), symMap, stmtCtx);
+  value = hlfir::loadTrivialScalar(loc, builder, value);
+  return builder.createConvert(loc, idxTy, value);
+}
 
 namespace {
 /// Helper class to lower the array constructor type and its length parameters.
@@ -358,7 +506,10 @@ struct LengthAndTypeCollector<Fortran::evaluate::SomeDerived> {
           &arrayCtorExpr,
       Fortran::lower::SymMap &symMap, Fortran::lower::StatementContext &stmtCtx,
       mlir::SmallVectorImpl<mlir::Value> &lengths) {
-    TODO(loc, "collect derived type and length");
+    // Array constructors cannot be unlimited polymorphic (C7113), so there must
+    // be a derived type spec available.
+    return Fortran::lower::translateDerivedTypeToFIRType(
+        converter, arrayCtorExpr.result().derivedTypeSpec());
   }
 };
 
@@ -372,7 +523,17 @@ struct LengthAndTypeCollector<Character<Kind>> {
       const Fortran::evaluate::ArrayConstructor<Character<Kind>> &arrayCtorExpr,
       Fortran::lower::SymMap &symMap, Fortran::lower::StatementContext &stmtCtx,
       mlir::SmallVectorImpl<mlir::Value> &lengths) {
-    TODO(loc, "collect character type and length");
+    llvm::SmallVector<Fortran::lower::LenParameterTy> typeLengths;
+    if (const Fortran::evaluate::ExtentExpr *lenExpr = arrayCtorExpr.LEN()) {
+      lengths.push_back(
+          lowerExtentExpr(loc, converter, symMap, stmtCtx, *lenExpr));
+      if (std::optional<std::int64_t> cstLen =
+              Fortran::evaluate::ToInt64(*lenExpr))
+        typeLengths.push_back(*cstLen);
+    }
+    return Fortran::lower::getFIRType(&converter.getMLIRContext(),
+                                      Fortran::common::TypeCategory::Character,
+                                      Kind, typeLengths);
   }
 };
 } // namespace
@@ -380,9 +541,8 @@ struct LengthAndTypeCollector<Character<Kind>> {
 /// Does the array constructor have length parameters that
 /// LengthAndTypeCollector::collect could not lower because this requires
 /// lowering an ac-value and must be delayed?
-static bool
-failedToGatherLengthParameters(mlir::Type elementType,
-                               llvm::ArrayRef<mlir::Value> lengths) {
+static bool missingLengthParameters(mlir::Type elementType,
+                                    llvm::ArrayRef<mlir::Value> lengths) {
   return (elementType.isa<fir::CharacterType>() ||
           fir::isRecordWithTypeParameters(elementType)) &&
          lengths.empty();
@@ -467,20 +627,6 @@ ArrayCtorAnalysis::ArrayCtorAnalysis(
   }
 }
 
-/// Helper to lower a scalar extent expression (like implied-do bounds).
-static mlir::Value lowerExtentExpr(mlir::Location loc,
-                                   Fortran::lower::AbstractConverter &converter,
-                                   Fortran::lower::SymMap &symMap,
-                                   Fortran::lower::StatementContext &stmtCtx,
-                                   const Fortran::evaluate::ExtentExpr &expr) {
-  fir::FirOpBuilder &builder = converter.getFirOpBuilder();
-  mlir::IndexType idxTy = builder.getIndexType();
-  hlfir::Entity value = Fortran::lower::convertExprToHLFIR(
-      loc, converter, toEvExpr(expr), symMap, stmtCtx);
-  value = hlfir::loadTrivialScalar(loc, builder, value);
-  return builder.createConvert(loc, idxTy, value);
-}
-
 /// Does \p expr contain no calls to user function?
 static bool isCallFreeExpr(const Fortran::evaluate::ExtentExpr &expr) {
   for (const Fortran::semantics::Symbol &symbol :
@@ -503,8 +649,8 @@ static ArrayCtorLoweringStrategy selectArrayCtorLoweringStrategy(
   // Try to gather the array constructor extent.
   mlir::Value extent;
   fir::SequenceType::Extent typeExtent = fir::SequenceType::getUnknownExtent();
-  auto shapeExpr =
-      Fortran::evaluate::GetShape(converter.getFoldingContext(), arrayCtorExpr);
+  auto shapeExpr = Fortran::evaluate::GetContextFreeShape(
+      converter.getFoldingContext(), arrayCtorExpr);
   if (shapeExpr && shapeExpr->size() == 1 && (*shapeExpr)[0]) {
     const Fortran::evaluate::ExtentExpr &extentExpr = *(*shapeExpr)[0];
     if (auto constantExtent = Fortran::evaluate::ToInt64(extentExpr)) {
@@ -529,26 +675,30 @@ static ArrayCtorLoweringStrategy selectArrayCtorLoweringStrategy(
   // Run an analysis of the array constructor ac-value.
   ArrayCtorAnalysis analysis(converter.getFoldingContext(), arrayCtorExpr);
   bool needToEvaluateOneExprToGetLengthParameters =
-      failedToGatherLengthParameters(elementType, lengths);
+      missingLengthParameters(elementType, lengths);
+  auto declaredType = fir::SequenceType::get({typeExtent}, elementType);
 
   // Based on what was gathered and the result of the analysis, select and
   // instantiate the right lowering strategy for the array constructor.
   if (!extent || needToEvaluateOneExprToGetLengthParameters ||
-      analysis.anyArrayExpr)
-    TODO(loc, "Lowering of array constructor requiring the runtime");
-
-  auto declaredType = fir::SequenceType::get({typeExtent}, elementType);
+      analysis.anyArrayExpr || declaredType.getEleTy().isa<fir::RecordType>())
+    return RuntimeTempStrategy(
+        loc, builder, stmtCtx, symMap, declaredType,
+        extent ? std::optional<mlir::Value>(extent) : std::nullopt, lengths,
+        needToEvaluateOneExprToGetLengthParameters);
   // Note: array constructors containing impure ac-value expr are currently not
   // rewritten to hlfir.elemental because impure expressions should be evaluated
   // in order, and hlfir.elemental currently misses a way to indicate that.
   if (analysis.isSingleImpliedDoWithOneScalarPureExpr())
-    return AsElementalStrategy(loc, builder, declaredType, extent, lengths);
+    return AsElementalStrategy(loc, builder, stmtCtx, symMap, declaredType,
+                               extent, lengths);
 
   if (analysis.anyImpliedDo)
-    return InlinedTempStrategy(loc, builder, declaredType, extent, lengths);
+    return InlinedTempStrategy(loc, builder, stmtCtx, symMap, declaredType,
+                               extent, lengths);
 
-  return LooplessInlinedTempStrategy(loc, builder, declaredType, extent,
-                                     lengths);
+  return LooplessInlinedTempStrategy(loc, builder, stmtCtx, symMap,
+                                     declaredType, extent, lengths);
 }
 
 /// Lower an ac-value expression \p expr and forward it to the selected
@@ -560,8 +710,6 @@ static void genAcValue(mlir::Location loc,
                        Fortran::lower::SymMap &symMap,
                        Fortran::lower::StatementContext &stmtCtx,
                        ArrayCtorLoweringStrategy &arrayBuilder) {
-  if (expr.Rank() != 0)
-    TODO(loc, "array constructor with array ac-value in HLFIR");
   // TODO: get rid of the toEvExpr indirection.
   fir::FirOpBuilder &builder = converter.getFirOpBuilder();
   hlfir::Entity value = Fortran::lower::convertExprToHLFIR(
@@ -590,9 +738,8 @@ static void genAcValue(mlir::Location loc,
   mlir::OpBuilder::InsertPoint insertPt = builder.saveInsertionPoint();
   mlir::Value impliedDoIndexValue =
       arrayBuilder.startImpliedDo(loc, builder, lower, upper, stride);
-  symMap.pushImpliedDoBinding(toStringRef(impledDo.name()),
-                              impliedDoIndexValue);
-  stmtCtx.pushScope();
+  arrayBuilder.startImpliedDoScope(toStringRef(impledDo.name()),
+                                   impliedDoIndexValue);
 
   for (const auto &acValue : impledDo.values())
     std::visit(
@@ -601,8 +748,7 @@ static void genAcValue(mlir::Location loc,
         },
         acValue.u);
 
-  stmtCtx.finalizeAndPop();
-  symMap.popImpliedDoBinding();
+  arrayBuilder.endImpliedDoScope();
   builder.restoreInsertionPoint(insertPt);
 }
 

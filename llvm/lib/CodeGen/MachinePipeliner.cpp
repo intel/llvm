@@ -496,7 +496,7 @@ void SwingSchedulerDAG::schedule() {
   updatePhiDependences();
   Topo.InitDAGTopologicalSorting();
   changeDependences();
-  postprocessDAG();
+  postProcessDAG();
   LLVM_DEBUG(dump());
 
   NodeSetType NodeSets;
@@ -1557,20 +1557,19 @@ static void computeLiveOuts(MachineFunction &MF, RegPressureTracker &RPTracker,
     const MachineInstr *MI = SU->getInstr();
     if (MI->isPHI())
       continue;
-    for (const MachineOperand &MO : MI->operands())
-      if (MO.isReg() && MO.isUse()) {
-        Register Reg = MO.getReg();
-        if (Reg.isVirtual())
-          Uses.insert(Reg);
-        else if (MRI.isAllocatable(Reg))
-          for (MCRegUnitIterator Units(Reg.asMCReg(), TRI); Units.isValid();
-               ++Units)
-            Uses.insert(*Units);
-      }
+    for (const MachineOperand &MO : MI->all_uses()) {
+      Register Reg = MO.getReg();
+      if (Reg.isVirtual())
+        Uses.insert(Reg);
+      else if (MRI.isAllocatable(Reg))
+        for (MCRegUnitIterator Units(Reg.asMCReg(), TRI); Units.isValid();
+             ++Units)
+          Uses.insert(*Units);
+    }
   }
   for (SUnit *SU : NS)
-    for (const MachineOperand &MO : SU->getInstr()->operands())
-      if (MO.isReg() && MO.isDef() && !MO.isDead()) {
+    for (const MachineOperand &MO : SU->getInstr()->all_defs())
+      if (!MO.isDead()) {
         Register Reg = MO.getReg();
         if (Reg.isVirtual()) {
           if (!Uses.count(Reg))
@@ -2314,7 +2313,7 @@ bool SwingSchedulerDAG::isLoopCarriedDep(SUnit *Source, const SDep &Dep,
   return (OffsetS + (int64_t)AccessSizeS < OffsetD + (int64_t)AccessSizeD);
 }
 
-void SwingSchedulerDAG::postprocessDAG() {
+void SwingSchedulerDAG::postProcessDAG() {
   for (auto &M : Mutations)
     M->apply(this);
 }
@@ -2652,10 +2651,7 @@ bool SMSchedule::isLoopCarriedDefOfUse(SwingSchedulerDAG *SSD,
   if (!isLoopCarried(SSD, *Phi))
     return false;
   unsigned LoopReg = getLoopPhiReg(*Phi, Phi->getParent());
-  for (unsigned i = 0, e = Def->getNumOperands(); i != e; ++i) {
-    MachineOperand &DMO = Def->getOperand(i);
-    if (!DMO.isReg() || !DMO.isDef())
-      continue;
+  for (MachineOperand &DMO : Def->all_defs()) {
     if (DMO.getReg() == LoopReg)
       return true;
   }

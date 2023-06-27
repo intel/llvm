@@ -10,7 +10,8 @@
 
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
-#include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
+#include "llvm/SYCLLowerIR/HostPipes.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -27,6 +28,7 @@ namespace {
 
 constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 constexpr StringRef SYCL_PIPELINED_ATTR = "sycl-pipelined";
+constexpr StringRef SYCL_REGISTER_ALLOC_MODE_ATTR = "sycl-register-alloc-mode";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
@@ -175,14 +177,15 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
 /// Tries to generate a SPIR-V execution mode metadata node from an attribute.
 /// If the attribute is unknown \c None will be returned.
 ///
-/// @param M     [in] the LLVM module.
 /// @param Attr  [in] the LLVM attribute to generate metadata for.
+/// @param F     [in] the LLVM function.
 ///
 /// @returns a pair with the name of the resulting metadata and a pointer to
 ///          the metadata node with its values if the attribute has a
 ///          corresponding SPIR-V execution mode. Otherwise \c None is returned.
 std::optional<std::pair<std::string, MDNode *>>
-attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
+attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
+  Module &M = *F.getParent();
   LLVMContext &Ctx = M.getContext();
   const DataLayout &DLayout = M.getDataLayout();
 
@@ -267,6 +270,15 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
     return std::pair<std::string, MDNode *>("ip_interface",
                                             getIpInterface("csr", Ctx, Attr));
 
+  if (AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR &&
+      !llvm::esimd::isESIMD(F)) {
+    uint32_t RegAllocModeVal = getAttributeAsInteger<uint32_t>(Attr);
+    Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(Constant::getIntegerValue(
+        Type::getInt32Ty(Ctx), APInt(32, RegAllocModeVal)))};
+    return std::pair<std::string, MDNode *>("RegisterAllocMode",
+                                            MDNode::get(Ctx, AttrMDArgs));
+  }
+
   return std::nullopt;
 }
 
@@ -343,7 +355,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                               HostAccessDecorValue, VarName));
     }
 
-    if (sycl::utils::isHostPipeVariable(GV)) {
+    if (isHostPipeVariable(GV)) {
       auto VarName = getGlobalVariableUniqueId(GV);
       MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
                                               SPIRV_HOST_ACCESS_DEFAULT_VALUE, 
@@ -420,7 +432,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
       } else if (MDNode *SPIRVMetadata =
                      attributeToDecorateMetadata(Ctx, Attribute))
         MDOps.push_back(SPIRVMetadata);
-      else if (auto NamedMetadata = attributeToExecModeMetadata(M, Attribute))
+      else if (auto NamedMetadata = attributeToExecModeMetadata(Attribute, F))
         NamedMDOps.push_back(*NamedMetadata);
     }
 

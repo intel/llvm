@@ -1166,7 +1166,7 @@ bool IsAllocatableDesignator(const Expr<SomeType> &expr) {
   // Allocatable sub-objects are not themselves allocatable (9.5.3.1 NOTE 2).
   if (const semantics::Symbol *
       sym{UnwrapWholeSymbolOrComponentOrCoarrayRef(expr)}) {
-    return semantics::IsAllocatable(*sym);
+    return semantics::IsAllocatable(sym->GetUltimate());
   }
   return false;
 }
@@ -1454,8 +1454,6 @@ bool IsSaved(const Symbol &original) {
     // 8.5.16p4
     // In main programs, implied SAVE matters only for pointer
     // initialization targets and coarrays.
-    // BLOCK DATA entities must all be in COMMON,
-    // which was checked above.
     return true;
   } else if (scopeKind == Scope::Kind::MainProgram &&
       (features.IsEnabled(common::LanguageFeature::SaveMainProgram) ||
@@ -1557,15 +1555,25 @@ bool IsBuiltinDerivedType(const DerivedTypeSpec *derived, const char *name) {
 }
 
 bool IsBuiltinCPtr(const Symbol &symbol) {
-  if (const DeclTypeSpec *declType = symbol.GetType())
-    if (const DerivedTypeSpec *derived = declType->AsDerived())
+  if (const DeclTypeSpec *declType = symbol.GetType()) {
+    if (const DerivedTypeSpec *derived = declType->AsDerived()) {
       return IsIsoCType(derived);
+    }
+  }
   return false;
 }
 
 bool IsIsoCType(const DerivedTypeSpec *derived) {
   return IsBuiltinDerivedType(derived, "c_ptr") ||
       IsBuiltinDerivedType(derived, "c_funptr");
+}
+
+bool IsEventType(const DerivedTypeSpec *derived) {
+  return IsBuiltinDerivedType(derived, "event_type");
+}
+
+bool IsLockType(const DerivedTypeSpec *derived) {
+  return IsBuiltinDerivedType(derived, "lock_type");
 }
 
 bool IsTeamType(const DerivedTypeSpec *derived) {
@@ -1577,8 +1585,7 @@ bool IsBadCoarrayType(const DerivedTypeSpec *derived) {
 }
 
 bool IsEventTypeOrLockType(const DerivedTypeSpec *derivedTypeSpec) {
-  return IsBuiltinDerivedType(derivedTypeSpec, "event_type") ||
-      IsBuiltinDerivedType(derivedTypeSpec, "lock_type");
+  return IsEventType(derivedTypeSpec) || IsLockType(derivedTypeSpec);
 }
 
 int CountLenParameters(const DerivedTypeSpec &type) {
@@ -1596,31 +1603,6 @@ int CountNonConstantLenParameters(const DerivedTypeSpec &type) {
       return true;
     }
   });
-}
-
-// Are the type parameters of type1 compile-time compatible with the
-// corresponding kind type parameters of type2?  Return true if all constant
-// valued parameters are equal.
-// Used to check assignment statements and argument passing.  See 15.5.2.4(4)
-bool AreTypeParamCompatible(const semantics::DerivedTypeSpec &type1,
-    const semantics::DerivedTypeSpec &type2) {
-  for (const auto &[name, param1] : type1.parameters()) {
-    if (semantics::MaybeIntExpr paramExpr1{param1.GetExplicit()}) {
-      if (IsConstantExpr(*paramExpr1)) {
-        const semantics::ParamValue *param2{type2.FindParameter(name)};
-        if (param2) {
-          if (semantics::MaybeIntExpr paramExpr2{param2->GetExplicit()}) {
-            if (IsConstantExpr(*paramExpr2)) {
-              if (ToInt64(*paramExpr1) != ToInt64(*paramExpr2)) {
-                return false;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return true;
 }
 
 const Symbol &GetUsedModule(const UseDetails &details) {
@@ -1682,6 +1664,21 @@ bool AreTkCompatibleTypes(const DeclTypeSpec *x, const DeclTypeSpec *y) {
     }
   }
   return false;
+}
+
+common::IgnoreTKRSet GetIgnoreTKR(const Symbol &symbol) {
+  common::IgnoreTKRSet result;
+  if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
+    result = object->ignoreTKR();
+    if (const Symbol * ownerSymbol{symbol.owner().symbol()}) {
+      if (const auto *ownerSubp{ownerSymbol->detailsIf<SubprogramDetails>()}) {
+        if (ownerSubp->defaultIgnoreTKR()) {
+          result |= common::ignoreTKRAll;
+        }
+      }
+    }
+  }
+  return result;
 }
 
 } // namespace Fortran::semantics
