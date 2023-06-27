@@ -260,7 +260,6 @@ ESIMD/regression/bit_shift_compilation_test.cpp
 ESIMD/regression/copyto_char_test.cpp
 ESIMD/regression/dgetrf.cpp
 ESIMD/regression/dgetrf_8x8.cpp
-ESIMD/regression/dgetrf_ref.cpp
 ESIMD/regression/double_conversion.cpp
 ESIMD/regression/fmod_compatibility_test.cpp
 ESIMD/regression/globals.cpp
