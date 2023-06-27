@@ -172,7 +172,8 @@ If the total amount of local memory requested (i.e., the sum of all memory
 requested by `local_accessor`, `group_local_memory`,
 `group_local_memory_for_overwrite` and `work_group_local`) exceeds a device's
 local memory capacity (as reported by `local_mem_size`) then the implementation
-must issue a diagnostic.
+must throw a synchronous `exception` with the `errc::memory_allocation` error
+code from the kernel invocation command (e.g. `parallel_for`).
 
 [source,c++]
 ----
