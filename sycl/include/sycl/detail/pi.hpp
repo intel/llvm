@@ -156,11 +156,20 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
                                              void *user_data);
 
-// Function to load the shared library
+// Function to load a shared library
+// Implementation is OS dependent
+void *loadOsLibrary(const std::string &Library);
+
+// Function to unload a shared library
+// Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
+int unloadOsLibrary(void *Library);
+
+// Function to load the shared plugin library
+// On Windows, this will have been pre-loaded by proxy loader.
 // Implementation is OS dependent.
 void *loadOsPluginLibrary(const std::string &Library);
 
-// Function to unload the shared library
+// Function to unload the shared plugin library
 // Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
 int unloadOsPluginLibrary(void *Library);
 
