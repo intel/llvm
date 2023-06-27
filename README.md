@@ -51,8 +51,8 @@ is something we are interested in expanding on.
 | Vendor test macro                                                  | Implemented           |
 | Ability to add a graph as a node of another graph (Sub-graphs)     | Implemented, with the limitations that a subgraph can only be added as a node to any parent graph once, and will not correctly execute by itself after being added as a sub-graph. |
 | Using all capabilities of USM in a graph node                      | Implemented           |
-| Extending lifetime of buffers used in a graph                      | Not implemented       |
-| Buffer taking a copy of host data when buffer is used in a graph   | Not implemented       |
+| Extending lifetime of buffers used in a graph, as defined by the "Storage Lifetimes" specification section  | Not implemented       |
+| Buffer taking a copy of underlying host data when buffer is used in a graph, as defined by the "Storage Lifetimes" specification section  | Not implemented       |
 | Executable graph `update()`                                        | Not implemented       |
 | Recording an in-order queue preserves linear dependencies          | Implemented           |
 | Using `handler::parallel_for` in a graph node                      | Implemented           |
@@ -68,8 +68,8 @@ is something we are interested in expanding on.
 | Using reductions in a graph node                                   | Not implemented       |
 | Using sycl streams in a graph node                                 | Not implemented       |
 | Thread safety of new methods                                       | Not implemented       |
-| Profiling an event returned from graph submission                  | Not implemented       |
-| Querying the state of an event returned from graph submission      | Not implemented       |
+| Profiling an event returned from graph submission with `event::get_profiling_info()`       | Not implemented       |
+| Querying the state of an event returned from graph submission with `event::get_info<info::event::command_execution_status>()`     | Not implemented       |
 | Error checking                                                     | Throwing exceptions for invalid usage is only partially implemented |
 
 ### Other Material
