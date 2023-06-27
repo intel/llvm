@@ -29,6 +29,7 @@ void test_trait() {
 }
 
 int main() {
+  static_assert(false, "");
   // test list of types
   using scalar_float = d::type_list<float>;
   static_assert(is_same<scalar_float::head, float>::value, "");
