@@ -119,6 +119,8 @@ private:
   SPIRVEntry *transDbgEnumType(const DICompositeType *ET);
   SPIRVEntry *transDbgCompositeType(const DICompositeType *CT);
   SPIRVEntry *transDbgMemberType(const DIDerivedType *MT);
+  SPIRVEntry *transDbgMemberTypeOpenCL(const DIDerivedType *MT);
+  SPIRVEntry *transDbgMemberTypeNonSemantic(const DIDerivedType *MT);
   SPIRVEntry *transDbgInheritance(const DIDerivedType *DT);
   SPIRVEntry *transDbgPtrToMember(const DIDerivedType *DT);
 

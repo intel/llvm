@@ -285,11 +285,13 @@ and not recommended to use in production environment.
     various events inside JIT generated kernels. These device libraries are
     linked in by default.
 
-**`-f[no-]sycl-link-huge-device-code`**
+**`-f[no-]sycl-link-huge-device-code`** [DEPRECATED]
 
     Place device code later in the linked binary in order to avoid precluding
     32-bit PC relative relocations between surrounding ELF sections when device
     code is larger than 2GiB. This is disabled by default.
+
+    Deprecated in favor of `-f[no-]link-huge-device-code`.
 
     NOTE: This option is currently only supported on Linux.
 
@@ -409,6 +411,10 @@ and not recommended to use in production environment.
     of 4Gb per surface.
     Also, some of Intel GPUs or GPU run-time/drivers may support only
     "stateless" memory accesses.
+
+**`-ftarget-compile-fast`** [EXPERIMENTAL]
+    Instructs the target backend to reduce compilation time, potentially
+    at the cost of runtime performance. Currently only supported on Intel GPUs.
 
 # Example: SYCL device code compilation
 

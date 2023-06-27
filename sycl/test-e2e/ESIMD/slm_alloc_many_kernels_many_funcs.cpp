@@ -1,5 +1,8 @@
 // UNSUPPORTED: esimd_emulator
 //
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+//
 // RUN: %{build} -o %t.1.out
 // RUN: %{run} %t.1.out
 //
@@ -199,5 +202,6 @@ int main(void) {
     }
   }
   std::cout << (err_cnt ? "FAILED\n" : "Passed\n");
+  free(arr, ctxt);
   return err_cnt ? 1 : 0;
 }

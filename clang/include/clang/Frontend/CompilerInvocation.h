@@ -276,6 +276,9 @@ private:
                             std::vector<std::string> &Includes,
                             DiagnosticsEngine &Diags);
 
+  static void ParseFpAccuracyArgs(LangOptions &Opts, llvm::opt::ArgList &Args,
+                                  DiagnosticsEngine &Diags);
+
   /// Generate command line options from LangOptions.
   static void GenerateLangArgs(const LangOptions &Opts,
                                SmallVectorImpl<const char *> &Args,
