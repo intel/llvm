@@ -10,14 +10,14 @@
 !sycl_item_2 = !sycl.item<[2, true], (!sycl_item_base_2)>
 !sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
 
+// COM: Check uniformity of values yielded by branch operations.
 func.func @test1(%arg0 : i1, %arg1: memref<?x!sycl_nd_item_2>)  {
   %c0_i32 = arith.constant 0 : i32  
   %true = arith.constant 1 : i1
   %c2 = arith.constant 2 : i64
-  %c3 = arith.constant 2 : i64
-  %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
+  %c3 = arith.constant 3 : i64
 
-  // %arg0 uniformity is unknown -> result uniformity also unknown.
+  // COM: %arg0 uniformity is unknown -> result uniformity also unknown.
   // CHECK: test1_v1, uniformity: unknown
   %v1 = scf.if %arg0 -> i64 {
     scf.yield %c2 : i64
@@ -25,8 +25,9 @@ func.func @test1(%arg0 : i1, %arg1: memref<?x!sycl_nd_item_2>)  {
     scf.yield %c3 : i64
   } {tag = "test1_v1"} 
 
-  // branch condition is non-uniform -> result is non-uniform.
+  // COM: branch condition is non-uniform -> result is non-uniform.
   // CHECK: test1_v2, uniformity: non-uniform  
+  %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64  
   %cond2 = arith.cmpi slt, %tx, %c2 : i64
   %v2 = scf.if %cond2 -> i64 {
     scf.yield %c2 : i64
@@ -34,7 +35,7 @@ func.func @test1(%arg0 : i1, %arg1: memref<?x!sycl_nd_item_2>)  {
     scf.yield %c3 : i64
   } {tag = "test1_v2"}
 
-  // branch condition is uniform, but yielded value is non-uniform -> result is non-uniform.
+  // COM: branch condition is uniform, but yielded value is non-uniform -> result is non-uniform.
   // CHECK: test1_v3, uniformity: non-uniform  
   %v3 = scf.if %true -> i64 {
     scf.yield %tx : i64
@@ -42,7 +43,7 @@ func.func @test1(%arg0 : i1, %arg1: memref<?x!sycl_nd_item_2>)  {
     scf.yield %c3 : i64
   } {tag = "test1_v3"} 
 
-  // branch condition is uniform, and yielded values is uniform -> result is uniform.
+  // COM: branch condition is uniform, and yielded values is uniform -> result is uniform.
   // CHECK: test1_v4, uniformity: uniform  
   %v4 = scf.if %true -> i64 {
     scf.yield %c2 : i64
@@ -52,4 +53,53 @@ func.func @test1(%arg0 : i1, %arg1: memref<?x!sycl_nd_item_2>)  {
 
   return
 }
+
+// COM: Check the uniformity for operations that load from memory.
+func.func @test2(%cond: i1, %val: i64, %arg1: memref<?x!sycl_nd_item_2>)  {
+  %alloca = memref.alloca() : memref<10xi64>
+
+  // COM: load memref arg. is uniform, index is uniform -> result is uniform.
+  // CHECK: test2_load1, uniformity: uniform  
+  %c0 = arith.constant 0 : index    
+  %load1 = memref.load %alloca[%c0] { tag = "test2_load1" } : memref<10xi64>
+
+  // COM: load memref arg. is uniform, index is non-uniform -> result is non-uniform.
+  // CHECK: test2_load2, uniformity: non-uniform
+  %c0_i32 = arith.constant 0 : i32  
+  %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
+  %tx_cast = arith.index_cast %tx : i64 to index
+  %load2 = memref.load %alloca[%tx_cast] { tag = "test2_load2" } : memref<10xi64>
+
+  // COM: load memref arg. uniformity is unknown due to store op. -> result uniformity is unknown.
+  // CHECK: test2_load3, uniformity: unknown
+  memref.store %val, %alloca[%c0]: memref<10xi64>
+  %load3 = memref.load %alloca[%c0] { tag = "test2_load3" } : memref<10xi64>
+
+  // COM: Stores in then/else blocks kill previous def. of %alloca and store uniform values.
+  %c1 = arith.constant 1 : i64
+  %c2 = arith.constant 2 : i64
+  scf.if %cond {
+    memref.store %c1, %alloca[%c0]: memref<10xi64>
+  } else {
+    memref.store %c2, %alloca[%c0]: memref<10xi64>
+  }
+  // COM: load memref arg. is uniform, index is uniform -> result is uniform.
+  // CHECK: test2_load4, uniformity: uniform
+  %load4 = memref.load %alloca[%c0] { tag = "test2_load4" }: memref<10xi64>
+
+  // COM: Store in 'then' block partially kills previous %alloca definition and store non-uniform value.
+  scf.if %cond {
+    memref.store %tx, %alloca[%c0]: memref<10xi64>
+  } else {
+    scf.yield
+  }
+  // COM: load memref arg. is non-uniform, index is uniform -> result is non-uniform.
+  // CHECK: test2_load5, uniformity: non-uniform
+  %load5 = memref.load %alloca[%c0] { tag = "test2_load5" }: memref<10xi64>
+
+
+
+  return
+}
+
 

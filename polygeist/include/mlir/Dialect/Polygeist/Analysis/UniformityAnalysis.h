@@ -15,6 +15,7 @@
 #ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_UNIFORMITYANALYSIS_H
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_UNIFORMITYANALYSIS_H
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 
 namespace mlir {
@@ -42,16 +43,16 @@ public:
   /// Whether the state is uninitialized.
   bool isUninitialized() const { return !kind.has_value(); }
 
-  /// Whether the state is [unknown | uniform | non-uniform].
-  bool isUnknown() const { return kind == Kind::Unknown; }
-  bool isUniform() const { return kind == Kind::Uniform; }
-  bool isNonUniform() const { return kind == Kind::NonUniform; }
-
   /// Get the uniformity of the value associated with this object.
   Kind getKind() const {
     assert(!isUninitialized() && "Uniformity is not initialized");
     return *kind;
   }
+
+  /// Whether the state is [unknown | uniform | non-uniform].
+  static bool isUnknown(Kind kind) { return kind == Kind::Unknown; }
+  static bool isUniform(Kind kind) { return kind == Kind::Uniform; }
+  static bool isNonUniform(Kind kind) { return kind == Kind::NonUniform; }
 
   /// Create a state where the uniformity info is uninitialized. This happens
   /// when the state hasn't been set during the analysis.
@@ -66,7 +67,7 @@ public:
   /// Create a state for \p val where the uniformity info is non-uniform.
   static Uniformity getNonUniform() { return Uniformity(Kind::NonUniform); }
 
-  /// Join two uniformity info
+  /// Join two uniformity info.
   static Uniformity join(const Uniformity &lhs, const Uniformity &rhs) {
     if (lhs.isUninitialized())
       return rhs;
@@ -74,9 +75,9 @@ public:
       return lhs;
     if (lhs == rhs)
       return lhs;
-    if (lhs.isNonUniform() && rhs.isUniform())
+    if (isNonUniform(lhs.getKind()) && isUniform(rhs.getKind()))
       return lhs;
-    if (rhs.isNonUniform() && lhs.isUniform())
+    if (isNonUniform(rhs.getKind()) && isUniform(lhs.getKind()))
       return rhs;
     return getUnknown();
   }
@@ -108,8 +109,9 @@ class UniformityAnalysis
 public:
   using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
 
-  UniformityAnalysis(DataFlowSolver &solver)
-      : SparseDataFlowAnalysis<UniformityLattice>(solver) {}
+  UniformityAnalysis(DataFlowSolver &solver, AliasAnalysis &aliasAnalysis);
+
+  LogicalResult initialize(Operation *top) override;
 
   /// At an entry point, we cannot reason about uniformity.
   void setToEntryState(UniformityLattice *lattice) override {
@@ -121,6 +123,34 @@ public:
   void visitOperation(Operation *op,
                       ArrayRef<const UniformityLattice *> operands,
                       ArrayRef<UniformityLattice *> results) override;
+
+private:
+  /// Analyze an operation \p op that has memory side effects and uniform
+  /// operands.
+  void analyzeMemoryEffects(Operation *op,
+                            ArrayRef<const UniformityLattice *> operands,
+                            ArrayRef<UniformityLattice *> results);
+
+  bool anyOfUniformityIs(ArrayRef<const UniformityLattice *> operands,
+                         Uniformity::Kind kind) {
+    return llvm::any_of(operands, [&](const UniformityLattice *lattice) {
+      return lattice->getValue().getKind() == kind;
+    });
+  }
+
+  bool anyOfUniformityIs(const ValueRange values, Uniformity::Kind kind) {
+    return llvm::any_of(values, [&](Value value) {
+      UniformityLattice *lattice = getLatticeElement(value);
+      return lattice->getValue().getKind() == kind;
+    });
+  }
+
+  void propagateAllIfChanged(ArrayRef<UniformityLattice *> results,
+                             Uniformity &&uniformity);
+  void propagateAllIfChanged(const ValueRange values, Uniformity &&uniformity);
+
+private:
+  DataFlowSolver internalSolver;
 };
 
 } // namespace polygeist
