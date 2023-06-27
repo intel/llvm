@@ -4,20 +4,20 @@
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-LargeGRF-IR --implicit-check-not='__ESIMD_kernel()'
 ; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-LargeGRF-PROP
-; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-LargeGRF-IR --implicit-check-not='__SYCL_kernel()'
-; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-SYCL-LargeGRF-PROP
-; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYCL-LargeGRF-SYM
-; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-SYCL-IR --implicit-check-not='__SYCL_kernel_large_grf()'
-; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes CHECK-SYCL-PROP
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYCL-SYM
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-SYCL-LargeGRF-IR --implicit-check-not='__SYCL_kernel()'
+; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes CHECK-SYCL-LargeGRF-PROP
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYCL-LargeGRF-SYM
+; RUN: FileCheck %s -input-file=%t_3.ll --check-prefixes CHECK-SYCL-IR --implicit-check-not='__SYCL_kernel_large_grf()'
+; RUN: FileCheck %s -input-file=%t_3.prop --check-prefixes CHECK-SYCL-PROP
+; RUN: FileCheck %s -input-file=%t_3.sym --check-prefixes CHECK-SYCL-SYM
 ; RUN: FileCheck %s -input-file=%t_esimd_1.ll --check-prefixes CHECK-ESIMD-IR --implicit-check-not='__ESIMD_large_grf_kernel()'
 ; RUN: FileCheck %s -input-file=%t_esimd_1.prop --check-prefixes CHECK-ESIMD-PROP
 ; RUN: FileCheck %s -input-file=%t_esimd_0.sym --check-prefixes CHECK-ESIMD-LargeGRF-SYM
 
 ; CHECK: [Code|Properties|Symbols]
 ; CHECK: {{.*}}_esimd_0.ll|{{.*}}_esimd_0.prop|{{.*}}_esimd_0.sym
-; CHECK: {{.*}}_esimd_1.ll|{{.*}}_esimd_1.prop|{{.*}}_esimd_1.sym
 ; CHECK: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
+; CHECK: {{.*}}_esimd_2.ll|{{.*}}_esimd_2.prop|{{.*}}_esimd_2.sym
 
 ; CHECK-ESIMD-LargeGRF-PROP: isEsimdImage=1|1
 ; CHECK-ESIMD-LargeGRF-PROP: sycl-grf-size=1|256
