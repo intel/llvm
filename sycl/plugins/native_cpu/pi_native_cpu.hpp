@@ -1,5 +1,4 @@
-//===-- pi_native_cpu.hpp - Native CPU Plugin
-//-----------------------------------------===//
+//===------ pi_native_cpu.hpp - Native CPU Plugin -------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,6 +8,8 @@
 
 #include <pi2ur.hpp>
 
+#include <ur/adapters/native_cpu/context.hpp>
+#include <ur/adapters/native_cpu/device.hpp>
 #include <ur/adapters/native_cpu/platform.hpp>
 
 struct _pi_platform : ur_platform_handle_t_ {
@@ -17,4 +18,8 @@ struct _pi_platform : ur_platform_handle_t_ {
 
 struct _pi_device : ur_device_handle_t_ {
   using ur_device_handle_t_::ur_device_handle_t_;
+};
+
+struct _pi_context : ur_context_handle_t_ {
+  using ur_context_handle_t_::ur_context_handle_t_;
 };

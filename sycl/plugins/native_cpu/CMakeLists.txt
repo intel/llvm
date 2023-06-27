@@ -1,6 +1,18 @@
 add_sycl_plugin(native_cpu
   SOURCES
-    pi_native_cpu.cpp
+    "pi_native_cpu.cpp"
+
+    "../unified_runtime/pi2ur.hpp"
+    "../unified_runtime/pi2ur.cpp"
+    "../unified_runtime/ur/ur.hpp"
+    "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/common.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/context.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/context.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/device.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/device.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/platform.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/platform.hpp"
   INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR} 
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime

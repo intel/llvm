@@ -38,10 +38,6 @@ struct _pi_mem : _pi_object {
   bool _owns_mem;
 };
 
-struct _pi_context : _pi_object {
-  _pi_device *_device;
-};
-
 struct _pi_program : _pi_object {
   _pi_context *_ctx;
   const unsigned char *_ptr;
@@ -161,80 +157,6 @@ pi_result piextPlatformGetNativeHandle(pi_platform, pi_native_handle *) {
 
 pi_result piextPlatformCreateWithNativeHandle(pi_native_handle, pi_platform *) {
   DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piContextCreate(const pi_context_properties *Properties,
-                          pi_uint32 NumDevices, const pi_device *Devices,
-                          void (*PFnNotify)(const char *ErrInfo,
-                                            const void *PrivateInfo, size_t CB,
-                                            void *UserData),
-                          void *UserData, pi_context *RetContext) {
-
-  // Todo: proper error checking
-  assert(NumDevices == 1 && Devices != nullptr);
-  _pi_context *ctx = new _pi_context();
-  ctx->_device = Devices[0];
-  *RetContext = ctx;
-  return PI_SUCCESS;
-}
-
-pi_result piContextGetInfo(pi_context, pi_context_info param_name,
-                           size_t param_value_size, void *param_value,
-                           size_t *param_value_size_ret) {
-  switch (param_name) {
-  case PI_CONTEXT_INFO_NUM_DEVICES:
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1);
-  case PI_CONTEXT_INFO_DEVICES:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   nullptr);
-  case PI_CONTEXT_INFO_REFERENCE_COUNT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   nullptr);
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
-                            true);
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
-    // 2D USM operations currently not supported.
-    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
-                            false);
-  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    // These queries should be dealt with in context_impl.cpp by calling the
-    // queries of each device separately and building the intersection set.
-    // setErrorMessage("These queries should have never come here.",
-    //               PI_ERROR_INVALID_ARG_VALUE);
-    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-  }
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-
-  return PI_ERROR_OUT_OF_RESOURCES;
-}
-
-pi_result piextContextSetExtendedDeleter(pi_context,
-                                         pi_context_extended_deleter, void *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextContextGetNativeHandle(pi_context, pi_native_handle *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextContextCreateWithNativeHandle(pi_native_handle, pi_uint32,
-                                             const pi_device *, bool,
-                                             pi_context *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piContextRetain(pi_context Context) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piContextRelease(pi_context Context) {
-  // Todo: is it fine as a no-op?
-  return PI_SUCCESS;
 }
 
 pi_result piQueueCreate(pi_context Context, pi_device Device,
@@ -365,7 +287,7 @@ pi_result piProgramGetInfo(pi_program program, pi_program_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
   case PI_PROGRAM_INFO_DEVICES:
     return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
-                        program->_ctx->_device);
+                        program->_ctx->Device);
   case PI_PROGRAM_INFO_SOURCE:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    nullptr);
@@ -1067,6 +989,15 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceGetNativeHandle, pi2ur::piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          pi2ur::piextDeviceCreateWithNativeHandle)
+  // Context
+  _PI_CL(piextContextSetExtendedDeleter, pi2ur::piextContextSetExtendedDeleter)
+  _PI_CL(piContextCreate, pi2ur::piContextCreate)
+  _PI_CL(piContextGetInfo, pi2ur::piContextGetInfo)
+  _PI_CL(piContextRetain, pi2ur::piContextRetain)
+  _PI_CL(piContextRelease, pi2ur::piContextRelease)
+  _PI_CL(piextContextGetNativeHandle, pi2ur::piextContextGetNativeHandle)
+  _PI_CL(piextContextCreateWithNativeHandle,
+         pi2ur::piextContextCreateWithNativeHandle)
 
 #undef _PI_CL
   return PI_SUCCESS;
