@@ -5705,6 +5705,94 @@ pi_result hip_piextCommandBufferMemBufferCopyRect(
   return {};
 }
 
+pi_result hip_piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)offset;
+  (void)size;
+  (void)dst;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)buffer_offset;
+  (void)host_offset;
+  (void)region;
+  (void)buffer_row_pitch;
+  (void)buffer_slice_pitch;
+  (void)host_row_pitch;
+  (void)host_slice_pitch;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)offset;
+  (void)size;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)buffer_offset;
+  (void)host_offset;
+  (void)region;
+  (void)buffer_row_pitch;
+  (void)buffer_slice_pitch;
+  (void)host_row_pitch;
+  (void)host_slice_pitch;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
 pi_result hip_piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
                                         pi_queue queue,
                                         pi_uint32 num_events_in_wait_list,

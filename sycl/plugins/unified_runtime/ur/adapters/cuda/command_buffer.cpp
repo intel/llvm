@@ -15,6 +15,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
+  (void)hContext;
+  (void)hDevice;
+  (void)pCommandBufferDesc;
+  (void)phCommandBuffer;
   sycl::detail::ur::die("Experimental Command-buffer feature is not "
                         "implemented for CUDA adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -22,6 +26,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
+  (void)hCommandBuffer;
+
   sycl::detail::ur::die("Experimental Command-buffer feature is not "
                         "implemented for CUDA adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -29,6 +35,8 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
+  (void)hCommandBuffer;
+
   sycl::detail::ur::die("Experimental Command-buffer feature is not "
                         "implemented for CUDA adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -36,6 +44,8 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
+  (void)hCommandBuffer;
+
   sycl::detail::ur::die("Experimental Command-buffer feature is not "
                         "implemented for CUDA adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -48,6 +58,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)hKernel;
+  (void)workDim;
+  (void)pGlobalWorkOffset;
+  (void)pGlobalWorkSize;
+  (void)pLocalWorkSize;
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
   sycl::detail::ur::die("Experimental Command-buffer feature is not "
                         "implemented for CUDA adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -58,6 +78,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     size_t size, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)pDst;
+  (void)pSrc;
+  (void)size;
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
   sycl::detail::ur::die("Experimental Command-buffer feature is not "
                         "implemented for CUDA adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -69,6 +97,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)hSrcMem;
+  (void)hDstMem;
+  (void)srcOffset;
+  (void)dstOffset;
+  (void)size;
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
   sycl::detail::ur::die("Experimental Command-buffer feature is not "
                         "implemented for CUDA adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -82,6 +120,115 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)hSrcMem;
+  (void)hDstMem;
+  (void)srcOrigin;
+  (void)dstOrigin;
+  (void)region;
+  (void)srcRowPitch;
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
+  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+                        "implemented for CUDA adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT
+ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
+    size_t offset, size_t size, const void *pSrc,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)hBuffer;
+  (void)offset;
+  (void)size;
+  (void)pSrc;
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
+  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+                        "implemented for CUDA adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT
+ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
+    size_t offset, size_t size, void *pDst, uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)hBuffer;
+  (void)offset;
+  (void)size;
+  (void)pDst;
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
+  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+                        "implemented for CUDA adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT
+ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
+    ur_rect_offset_t bufferOffset, ur_rect_offset_t hostOffset,
+    ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
+    size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)hBuffer;
+  (void)bufferOffset;
+  (void)hostOffset;
+  (void)region;
+  (void)bufferRowPitch;
+  (void)bufferSlicePitch;
+  (void)hostRowPitch;
+  (void)hostSlicePitch;
+  (void)pSrc;
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
+  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+                        "implemented for CUDA adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT
+ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
+    ur_rect_offset_t bufferOffset, ur_rect_offset_t hostOffset,
+    ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
+    size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)hBuffer;
+  (void)bufferOffset;
+  (void)hostOffset;
+  (void)region;
+  (void)bufferRowPitch;
+  (void)bufferSlicePitch;
+  (void)hostRowPitch;
+  (void)hostSlicePitch;
+  (void)pDst;
+
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
   sycl::detail::ur::die("Experimental Command-buffer feature is not "
                         "implemented for CUDA adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -91,6 +238,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  (void)hCommandBuffer;
+  (void)hQueue;
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+  (void)phEvent;
+
   sycl::detail::ur::die("Experimental Command-buffer feature is not "
                         "implemented for CUDA adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
