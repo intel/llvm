@@ -178,6 +178,10 @@ void mlir::test::TestProduceValueHandleToArgumentOfParentBlock::getEffects(
   transform::onlyReadsPayload(effects);
 }
 
+bool mlir::test::TestConsumeOperand::allowsRepeatedHandleOperands() {
+  return getAllowRepeatedHandles();
+}
+
 DiagnosedSilenceableFailure
 mlir::test::TestConsumeOperand::apply(transform::TransformResults &results,
                                       transform::TransformState &state) {
@@ -627,6 +631,12 @@ DiagnosedSilenceableFailure mlir::test::TestProduceNullPayloadOp::apply(
   return DiagnosedSilenceableFailure::success();
 }
 
+DiagnosedSilenceableFailure mlir::test::TestProduceEmptyPayloadOp::apply(
+    transform::TransformResults &results, transform::TransformState &state) {
+  results.set(cast<OpResult>(getOut()), {});
+  return DiagnosedSilenceableFailure::success();
+}
+
 void mlir::test::TestProduceNullParamOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   transform::producesHandle(getOut(), effects);
@@ -733,6 +743,44 @@ mlir::test::TestTrackedRewriteOp::apply(transform::TransformResults &results,
 
   emitRemark() << numIterations << " iterations";
   return DiagnosedSilenceableFailure::success();
+}
+
+namespace {
+// Test pattern to replace an operation with a new op.
+class ReplaceWithNewOp : public RewritePattern {
+public:
+  ReplaceWithNewOp(MLIRContext *context)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto newName = op->getAttrOfType<StringAttr>("replace_with_new_op");
+    if (!newName)
+      return failure();
+    Operation *newOp = rewriter.create(
+        op->getLoc(), OperationName(newName, op->getContext()).getIdentifier(),
+        op->getOperands(), op->getResultTypes());
+    rewriter.replaceOp(op, newOp->getResults());
+    return success();
+  }
+};
+
+// Test pattern to erase an operation.
+class EraseOp : public RewritePattern {
+public:
+  EraseOp(MLIRContext *context)
+      : RewritePattern("test.erase_op", /*benefit=*/1, context) {}
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
+void mlir::test::ApplyTestPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  patterns.insert<ReplaceWithNewOp, EraseOp>(patterns.getContext());
 }
 
 namespace {

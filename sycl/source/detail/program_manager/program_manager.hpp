@@ -86,17 +86,16 @@ public:
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
-  RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M,
-                                      const std::string &KernelName,
+  RTDeviceBinaryImage &getDeviceImage(const std::string &KernelName,
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-  RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
-                                      const context &Context,
+  RTDeviceBinaryImage &getDeviceImage(KernelSetId KSId, const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-  RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
-                                const context &Context, const device &Device);
+  sycl::detail::pi::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
+                                              const context &Context,
+                                              const device &Device);
   /// Creates a PI program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
   /// \param Img The device image to find a cached device code binary for or
@@ -115,7 +114,7 @@ public:
   /// \return A pair consisting of the PI program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
-  std::pair<RT::PiProgram, bool>
+  std::pair<sycl::detail::pi::PiProgram, bool>
   getOrCreatePIProgram(const RTDeviceBinaryImage &Img, const context &Context,
                        const device &Device,
                        const std::string &CompileAndLinkOptions,
@@ -133,31 +132,32 @@ public:
   ///        once the function returns.
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
-  RT::PiProgram getBuiltPIProgram(OSModuleHandle M,
-                                  const ContextImplPtr &ContextImpl,
-                                  const DeviceImplPtr &DeviceImpl,
-                                  const std::string &KernelName,
-                                  const program_impl *Prg = nullptr,
-                                  bool JITCompilationIsRequired = false);
+  sycl::detail::pi::PiProgram getBuiltPIProgram(
+      const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
+      const std::string &KernelName, const program_impl *Prg = nullptr,
+      bool JITCompilationIsRequired = false);
 
-  RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
-                                  const device &Device,
-                                  const std::string &KernelName,
-                                  const property_list &PropList,
-                                  bool JITCompilationIsRequired = false);
+  sycl::detail::pi::PiProgram
+  getBuiltPIProgram(const context &Context, const device &Device,
+                    const std::string &KernelName,
+                    const property_list &PropList,
+                    bool JITCompilationIsRequired = false);
 
-  std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *, RT::PiProgram>
-  getOrCreateKernel(OSModuleHandle M, const ContextImplPtr &ContextImpl,
+  std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
+             sycl::detail::pi::PiProgram>
+  getOrCreateKernel(const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
                     const std::string &KernelName, const program_impl *Prg);
 
-  RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
-                                         const ContextImplPtr Context);
+  sycl::detail::pi::PiProgram
+  getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
+                           const ContextImplPtr Context);
 
   void addImages(pi_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
-  static std::string getProgramBuildLog(const RT::PiProgram &Program,
-                                        const ContextImplPtr Context);
+  static std::string
+  getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
+                     const ContextImplPtr Context);
 
   /// Resolves given program to a device binary image and requests the program
   /// to flush constants the image depends on.
@@ -181,16 +181,6 @@ public:
   /// \param KernelName the name of the kernel.
   const KernelArgMask *
   getEliminatedKernelArgMask(pi::PiProgram NativePrg,
-                             const std::string &KernelName);
-
-  /// Returns the mask for eliminated kernel arguments for the requested kernel
-  /// within the native program.
-  /// \param M identifies the OS module the kernel comes from (multiple OS
-  ///        modules may have kernels with the same name).
-  /// \param NativePrg the PI program associated with the kernel.
-  /// \param KernelName the name of the kernel.
-  const KernelArgMask *
-  getEliminatedKernelArgMask(OSModuleHandle M, pi::PiProgram NativePrg,
                              const std::string &KernelName);
 
   // The function returns the unique SYCL kernel identifier associated with a
@@ -289,14 +279,15 @@ public:
                            const std::vector<device> &Devs,
                            const property_list &PropList);
 
-  std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *>
+  std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, const std::string &KernelName,
-                    const property_list &PropList, RT::PiProgram Program);
+                    const property_list &PropList,
+                    sycl::detail::pi::PiProgram Program);
 
   ProgramManager();
   ~ProgramManager() = default;
 
-  bool kernelUsesAssert(OSModuleHandle M, const std::string &KernelName) const;
+  bool kernelUsesAssert(const std::string &KernelName) const;
 
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -305,24 +296,25 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  using ProgramPtr = std::unique_ptr<remove_pointer_t<RT::PiProgram>,
-                                     decltype(&::piProgramRelease)>;
+  using ProgramPtr =
+      std::unique_ptr<remove_pointer_t<sycl::detail::pi::PiProgram>,
+                      decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string &CompileOptions,
-                   const std::string &LinkOptions, const RT::PiDevice &Device,
+                   const std::string &LinkOptions,
+                   const sycl::detail::pi::PiDevice &Device,
                    uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special
   /// cases (when reading images from file or using images with no entry info)
-  KernelSetId getKernelSetId(OSModuleHandle M,
-                             const std::string &KernelName) const;
+  KernelSetId getKernelSetId(const std::string &KernelName) const;
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
                  uint32_t SequenceID = 0) const;
 
   /// Add info on kernels using assert into cache
-  void cacheKernelUsesAssertInfo(OSModuleHandle M, RTDeviceBinaryImage &Img);
+  void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name and the OS module it's coming from, allowing
@@ -335,7 +327,7 @@ private:
   /// (m_DeviceImages). An exception is made for device images with no entry
   /// information: a special kernel set ID is used for them which is assigned
   /// to just the OS module. These kernel set ids are stored in
-  /// m_OSModuleKernelSets and device images associated with them are assumed
+  /// m_UniversalKernelSet and device images associated with them are assumed
   /// to contain all kernels coming from that OS module.
 
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
@@ -348,16 +340,14 @@ private:
                      std::unique_ptr<std::vector<RTDeviceBinaryImageUPtr>>>
       m_DeviceImages;
 
-  using StrToKSIdMap = std::unordered_map<std::string, KernelSetId>;
-  /// Maps names of kernels from a specific OS module (.exe .dll) to their set
-  /// id (the sets are disjoint).
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::unordered_map<OSModuleHandle, StrToKSIdMap> m_KernelSets;
+  std::optional<std::unordered_map<std::string, KernelSetId>> m_KernelSets;
 
   /// Keeps kernel sets for OS modules containing images without entry info.
   /// Such images are assumed to contain all kernel associated with the module.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
+  // TODO: Treat default-constructed as None and get rid of std::optional?
+  std::optional<KernelSetId> m_UniversalKernelSet;
 
   /// Maps names of kernels to their unique kernel IDs.
   /// TODO: Use std::unordered_set with transparent hash and equality functions
@@ -434,8 +424,7 @@ private:
   /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
 
-  using KernelNameWithOSModule = std::pair<std::string, OSModuleHandle>;
-  std::set<KernelNameWithOSModule> m_KernelUsesAssert;
+  std::set<std::string> m_KernelUsesAssert;
 
   // Maps between device_global identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<DeviceGlobalMapEntry>>

@@ -1,4 +1,4 @@
-#include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/ext/intel/experimental/online_compiler.hpp>
 #include <sycl/sycl.hpp>
 
 #include <iostream>

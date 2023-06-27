@@ -66,7 +66,7 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
   const property_list PropList{};
   impl = std::make_shared<detail::queue_impl>(
-      reinterpret_cast<RT::PiQueue>(clQueue),
+      reinterpret_cast<sycl::detail::pi::PiQueue>(clQueue),
       detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
@@ -84,75 +84,65 @@ bool queue::is_host() const {
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
-event queue::memset(void *Ptr, int Value,
-                    size_t Count _CODELOCPARAMDEF(&CodeLoc)) {
-  _CODELOCARG(&CodeLoc);
+event queue::memset(void *Ptr, int Value, size_t Count,
+                    const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, {});
 }
 
-event queue::memset(void *Ptr, int Value, size_t Count,
-                    event DepEvent _CODELOCPARAMDEF(&CodeLoc)) {
-  _CODELOCARG(&CodeLoc);
+event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent,
+                    const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, {DepEvent});
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count,
-                    const std::vector<event> &DepEvents
-                        _CODELOCPARAMDEF(&CodeLoc)) {
-  _CODELOCARG(&CodeLoc);
+                    const std::vector<event> &DepEvents,
+                    const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, DepEvents);
 }
 
-event queue::memcpy(void *Dest, const void *Src,
-                    size_t Count _CODELOCPARAMDEF(&CodeLoc)) {
-  _CODELOCARG(&CodeLoc);
+event queue::memcpy(void *Dest, const void *Src, size_t Count,
+                    const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, {});
 }
 
-event queue::memcpy(void *Dest, const void *Src, size_t Count,
-                    event DepEvent _CODELOCPARAMDEF(&CodeLoc)) {
-  _CODELOCARG(&CodeLoc);
+event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent,
+                    const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, {DepEvent});
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
-                    const std::vector<event> &DepEvents
-                        _CODELOCPARAMDEF(&CodeLoc)) {
-  _CODELOCARG(&CodeLoc);
+                    const std::vector<event> &DepEvents,
+                    const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, DepEvents);
 }
 
-event queue::mem_advise(const void *Ptr, size_t Length,
-                        pi_mem_advice Advice _CODELOCPARAMDEF(&CodeLoc)) {
-  _CODELOCARG(&CodeLoc);
+event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+                        const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return mem_advise(Ptr, Length, int(Advice));
 }
 
-event queue::mem_advise(const void *Ptr, size_t Length,
-                        int Advice _CODELOCPARAMDEF(&CodeLoc)) {
-  _CODELOCARG(&CodeLoc);
+event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
+                        const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {});
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
-                        event DepEvent _CODELOCPARAMDEF(&CodeLoc)) {
-  _CODELOCARG(&CodeLoc);
+                        event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {DepEvent});
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
-                        const std::vector<event> &DepEvents
-                            _CODELOCPARAMDEF(&CodeLoc)) {
-  _CODELOCARG(&CodeLoc);
+                        const std::vector<event> &DepEvents,
+                        const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents);
 }

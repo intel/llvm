@@ -48,7 +48,8 @@ LockCacheItem::~LockCacheItem() {
 }
 
 // Returns true if the specified format is either SPIRV or a native binary.
-static bool IsSupportedImageFormat(RT::PiDeviceBinaryType Format) {
+static bool
+IsSupportedImageFormat(sycl::detail::pi::PiDeviceBinaryType Format) {
   return Format == PI_DEVICE_BINARY_TYPE_SPIRV ||
          Format == PI_DEVICE_BINARY_TYPE_NATIVE;
 }
@@ -85,7 +86,7 @@ bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
 void PersistentDeviceCodeCache::putItemToDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
-    const RT::PiProgram &NativePrg) {
+    const sycl::detail::pi::PiProgram &NativePrg) {
 
   if (!isImageCached(Img))
     return;
