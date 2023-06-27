@@ -2194,21 +2194,19 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
-      if (Req->MAccessRange == range<3>({0, 0, 0}))
-        break;
       assert(getMemAllocationFunc != nullptr &&
              "We should have caught this earlier.");
 
       sycl::detail::pi::PiMem MemArg =
           (sycl::detail::pi::PiMem)getMemAllocationFunc(Req);
-      if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
-        // clSetKernelArg (corresponding to piKernelSetArg) returns an error
-        // when MemArg is null, which is the case when zero-sized buffers are
-        // handled. Below assignment provides later call to clSetKernelArg with
-        // acceptable arguments.
-        if (!MemArg)
-          MemArg = sycl::detail::pi::PiMem();
 
+      // If there is no memory argument associated with the accessor, we have an
+      // empty accessor. Backends may still require a valid memory object for
+      // these, so we use a common dummy memory object owned by the context.
+      if (!MemArg)
+        MemArg = Queue->getContextImplPtr()->getDummyMemoryHandle();
+
+      if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
         Plugin->call<PiApiKind::piKernelSetArg>(
             Kernel, NextTrueIndex, sizeof(sycl::detail::pi::PiMem), &MemArg);
       } else {

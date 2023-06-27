@@ -241,6 +241,9 @@ public:
                        const std::set<std::uintptr_t> &ImgIdentifiers,
                        const std::string &ObjectTypeName);
 
+  /// Initializes (if needed) and returns the dummy memory handle.
+  sycl::detail::pi::PiMem getDummyMemoryHandle();
+
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
 private:
@@ -304,6 +307,13 @@ private:
            std::unique_ptr<std::byte[]>>
       MDeviceGlobalUnregisteredData;
   std::mutex MDeviceGlobalUnregisteredDataMutex;
+
+  // For empty accessors the backends may still need some valid memory object
+  // passed to them. To minimize the overhead of this, a small allocation is
+  // created to be used by all zero-sized accessors. The creation of this memory
+  // is done lazily and is guarded by MDummyMemoryHandleOnceFlag.
+  sycl::detail::pi::PiMem MDummyMemoryHandle = nullptr;
+  std::once_flag MDummyMemoryHandleOnceFlag;
 };
 
 template <typename T, typename Capabilities>

@@ -131,6 +131,9 @@ context_impl::~context_impl() {
             DeviceGlobal);
     DGEntry->removeAssociatedResources(this);
   }
+  // Free the dummy memory if it has been allocated.
+  if (MDummyMemoryHandle)
+    getPlugin()->call_nocheck<PiApiKind::piMemRelease>(MDummyMemoryHandle);
   for (auto LibProg : MCachedLibPrograms) {
     assert(LibProg.second && "Null program must not be kept in the cache");
     getPlugin()->call<PiApiKind::piProgramRelease>(LibProg.second);
@@ -493,6 +496,15 @@ context_impl::getProgramForHostPipe(const device &Device,
   std::set<std::uintptr_t> ImgIdentifiers;
   ImgIdentifiers.insert(HostPipeEntry->getDevBinImage()->getImageID());
   return getProgramForDevImgs(Device, ImgIdentifiers, "host_pipe");
+}
+
+sycl::detail::pi::PiMem context_impl::getDummyMemoryHandle() {
+  std::call_once(MDummyMemoryHandleOnceFlag, [this]() {
+    getPlugin()->call<PiApiKind::piMemBufferCreate>(
+        getHandleRef(), PI_MEM_ACCESS_READ_ONLY, 1, nullptr,
+        &MDummyMemoryHandle, nullptr);
+  });
+  return MDummyMemoryHandle;
 }
 
 } // namespace detail
