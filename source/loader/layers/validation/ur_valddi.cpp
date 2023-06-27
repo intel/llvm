@@ -5459,6 +5459,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
 ) {
@@ -5474,12 +5475,17 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == hImage) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
 
-    ur_result_t result = pfnUnsampledImageHandleDestroyExp(hContext, hImage);
+    ur_result_t result =
+        pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
     return result;
 }
@@ -5489,6 +5495,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
 ) {
@@ -5504,12 +5511,17 @@ urBindlessImagesSampledImageHandleDestroyExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == hImage) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
 
-    ur_result_t result = pfnSampledImageHandleDestroyExp(hContext, hImage);
+    ur_result_t result =
+        pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
     return result;
 }
@@ -5518,6 +5530,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
 /// @brief Intercept function for urBindlessImagesImageAllocateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
@@ -5533,6 +5546,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5553,8 +5570,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
         }
     }
 
-    ur_result_t result =
-        pfnImageAllocateExp(hContext, pImageFormat, pImageDesc, phImageMem);
+    ur_result_t result = pfnImageAllocateExp(hContext, hDevice, pImageFormat,
+                                             pImageDesc, phImageMem);
 
     return result;
 }
@@ -5563,6 +5580,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 /// @brief Intercept function for urBindlessImagesImageFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem ///< [in] handle of image memory to be freed
 ) {
@@ -5577,12 +5595,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == hImageMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
 
-    ur_result_t result = pfnImageFreeExp(hContext, hImageMem);
+    ur_result_t result = pfnImageFreeExp(hContext, hDevice, hImageMem);
 
     return result;
 }
@@ -5591,6 +5613,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 /// @brief Intercept function for urBindlessImagesUnsampledImageCreateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -5609,6 +5632,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5638,7 +5665,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     }
 
     ur_result_t result = pfnUnsampledImageCreateExp(
-        hContext, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
+        hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
 
     return result;
 }
@@ -5647,6 +5674,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 /// @brief Intercept function for urBindlessImagesSampledImageCreateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -5666,6 +5694,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5699,8 +5731,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     }
 
     ur_result_t result =
-        pfnSampledImageCreateExp(hContext, hImageMem, pImageFormat, pImageDesc,
-                                 hSampler, phMem, phImage);
+        pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
+                                 pImageDesc, hSampler, phMem, phImage);
 
     return result;
 }
@@ -5708,14 +5740,26 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImageCopyExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    void *pDst,                   ///< [in] location the data will be copied to
-    void *pSrc, ///< [in] location the data will be copied from
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    void *pDst,               ///< [in] location the data will be copied to
+    void *pSrc,               ///< [in] location the data will be copied from
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_image_copy_flags_t
         imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    ur_rect_offset_t
+        srcOffset, ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
+                   ///< image
+    ur_rect_offset_t
+        dstOffset, ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
+                   ///< or 3D image
+    ur_rect_region_t
+        copyExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region to copy
+    ur_rect_region_t
+        hostExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region on the host
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -5734,7 +5778,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hContext) {
+        if (NULL == hQueue) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5764,8 +5808,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     }
 
     ur_result_t result = pfnImageCopyExp(
-        hContext, pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        hQueue, pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags, srcOffset,
+        dstOffset, copyExtent, hostExtent, numEventsInWaitList, phEventWaitList,
+        phEvent);
 
     return result;
 }
@@ -5809,6 +5854,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 /// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
@@ -5827,6 +5873,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == hImageMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -5836,8 +5886,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
         }
     }
 
-    ur_result_t result =
-        pfnMipmapGetLevelExp(hContext, hImageMem, mipmapLevel, phImageMem);
+    ur_result_t result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem,
+                                              mipmapLevel, phImageMem);
 
     return result;
 }
@@ -5846,6 +5896,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 /// @brief Intercept function for urBindlessImagesMipmapFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_device_handle_t hDevice,    ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
 ) {
     auto pfnMipmapFreeExp =
@@ -5860,12 +5911,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == hMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
 
-    ur_result_t result = pfnMipmapFreeExp(hContext, hMem);
+    ur_result_t result = pfnMipmapFreeExp(hContext, hDevice, hMem);
 
     return result;
 }
@@ -5874,6 +5929,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 /// @brief Intercept function for urBindlessImagesImportOpaqueFDExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
     uint32_t fileDescriptor,      ///< [in] the file descriptor
     ur_exp_interop_mem_handle_t
@@ -5891,13 +5947,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == phInteropMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
-    ur_result_t result =
-        pfnImportOpaqueFDExp(hContext, size, fileDescriptor, phInteropMem);
+    ur_result_t result = pfnImportOpaqueFDExp(hContext, hDevice, size,
+                                              fileDescriptor, phInteropMem);
 
     return result;
 }
@@ -5906,12 +5966,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 /// @brief Intercept function for urBindlessImagesMapExternalArrayExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_handle_t *
+    ur_exp_image_mem_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
 ) {
     auto pfnMapExternalArrayExp =
@@ -5923,6 +5984,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5948,7 +6013,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     }
 
     ur_result_t result = pfnMapExternalArrayExp(
-        hContext, pImageFormat, pImageDesc, hInteropMem, phImageMem);
+        hContext, hDevice, pImageFormat, pImageDesc, hInteropMem, phImageMem);
 
     return result;
 }
@@ -5957,6 +6022,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 /// @brief Intercept function for urBindlessImagesReleaseInteropExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
         hInteropMem ///< [in] handle of interop memory to be freed
 ) {
@@ -5972,12 +6038,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == hInteropMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
 
-    ur_result_t result = pfnReleaseInteropExp(hContext, hInteropMem);
+    ur_result_t result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
         refCountContext.decrementRefCount(hInteropMem);
@@ -5991,6 +6061,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     uint32_t fileDescriptor,      ///< [in] the file descriptor
     ur_exp_interop_semaphore_handle_t *
         phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
@@ -6008,13 +6079,17 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == phInteropSemaphoreHandle) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
     ur_result_t result = pfnImportExternalSemaphoreOpaqueFDExp(
-        hContext, fileDescriptor, phInteropSemaphoreHandle);
+        hContext, hDevice, fileDescriptor, phInteropSemaphoreHandle);
 
     return result;
 }
@@ -6023,6 +6098,7 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
 /// @brief Intercept function for urBindlessImagesDestroyExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
         hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
 ) {
@@ -6038,13 +6114,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == hInteropSemaphore) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
 
     ur_result_t result =
-        pfnDestroyExternalSemaphoreExp(hContext, hInteropSemaphore);
+        pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
 
     return result;
 }
