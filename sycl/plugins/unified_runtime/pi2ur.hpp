@@ -3195,7 +3195,7 @@ inline pi_result piextUSMImport(void *HostPtr, size_t Size,
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
 
-  HANDLE_ERRORS(urUSMImport(HostPtr, Size, UrContext));
+  HANDLE_ERRORS(urUSMImportExp(UrContext, HostPtr, Size));
   return PI_SUCCESS;
 }
 
@@ -3206,7 +3206,7 @@ inline pi_result piextUSMRelease(void *HostPtr, pi_context Context) {
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
 
-  HANDLE_ERRORS(urUSMRelease(HostPtr, UrContext));
+  HANDLE_ERRORS(urUSMReleaseExp(UrContext, HostPtr));
   return PI_SUCCESS;
 }
 

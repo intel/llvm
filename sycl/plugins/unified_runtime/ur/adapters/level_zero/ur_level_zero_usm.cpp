@@ -883,8 +883,8 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
   return Res;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMImport(void *HostPtr, size_t Size,
-                                                ur_context_handle_t Context) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
+                                                   void *HostPtr, size_t Size) {
   UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
 
   // Promote the host ptr to USM host memory.
@@ -906,8 +906,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMImport(void *HostPtr, size_t Size,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMRelease(void *HostPtr,
-                                                 ur_context_handle_t Context) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
+                                                    void *HostPtr) {
   UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
 
   // Release the imported memory.

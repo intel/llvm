@@ -647,35 +647,41 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
 // Device copy enhancement APIs, prepare_for and release_from USM.
 
-void ext::oneapi::experimental::prepare_for_device_copy(void *Ptr, size_t Size,
-                                                        const context &Ctxt) {
-  std::shared_ptr<sycl::_V1::detail::context_impl> CtxImpl =
-      sycl::_V1::detail::getSyclObjImpl(Ctxt);
+static void prepare_for_usm_device_copy(void *Ptr, size_t Size,
+                                        const context &Ctxt) {
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   pi_context PICtx = CtxImpl->getHandleRef();
   // Call the PI function
-  const sycl::_V1::detail::plugin &Plugin = CtxImpl->getPlugin();
-  Plugin.call<sycl::_V1::detail::PiApiKind::piextUSMImport>(Ptr, Size, PICtx);
+  const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
+  Plugin->call<detail::PiApiKind::piextUSMImport>(Ptr, Size, PICtx);
+}
+
+static void release_from_usm_device_copy(void *Ptr, const context &Ctxt) {
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  pi_context PICtx = CtxImpl->getHandleRef();
+  // Call the PI function
+  const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
+  Plugin->call<detail::PiApiKind::piextUSMRelease>(Ptr, PICtx);
+}
+
+void ext::oneapi::experimental::prepare_for_device_copy(void *Ptr, size_t Size,
+                                                        const context &Ctxt) {
+  prepare_for_usm_device_copy(Ptr, Size, Ctxt);
 }
 
 void ext::oneapi::experimental::prepare_for_device_copy(void *Ptr, size_t Size,
                                                         const queue &Queue) {
-  ext::oneapi::experimental::prepare_for_device_copy(Ptr, Size,
-                                                     Queue.get_context());
+  prepare_for_usm_device_copy(Ptr, Size, Queue.get_context());
 }
 
 void ext::oneapi::experimental::release_from_device_copy(void *Ptr,
                                                          const context &Ctxt) {
-  std::shared_ptr<sycl::_V1::detail::context_impl> CtxImpl =
-      sycl::_V1::detail::getSyclObjImpl(Ctxt);
-  pi_context PICtx = CtxImpl->getHandleRef();
-  // Call the PI function
-  const sycl::_V1::detail::plugin &Plugin = CtxImpl->getPlugin();
-  Plugin.call<sycl::_V1::detail::PiApiKind::piextUSMRelease>(Ptr, PICtx);
+  release_from_usm_device_copy(Ptr, Ctxt);
 }
 
 void ext::oneapi::experimental::release_from_device_copy(void *Ptr,
                                                          const queue &Queue) {
-  ext::oneapi::experimental::release_from_device_copy(Ptr, Queue.get_context());
+  release_from_usm_device_copy(Ptr, Queue.get_context());
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
