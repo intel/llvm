@@ -45,18 +45,20 @@ This extension also depends on the following other SYCL extensions:
 
 * link:../supported/sycl_ext_oneapi_accessor_properties.asciidoc[
   sycl_ext_oneapi_accessor_properties.asciidoc] as described in the <<Properties for fpga memory>> section below
+
+Below is a list of interactions with other SYCL extensions. These extensions don't hve to be implemented to support the `sycl_ext_intel_fpga_mem` extension.
+
 * link:sycl_ext_intel_fpga_datapath.asciidoc[sycl_ext_intel_fpga_datapath.asciidoc] as described in the <<Restrictions on creating fpga_mem objects>> section below
 * link:sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global.asciidoc] as described in the <<Restrictions on creating fpga_mem objects>> section below
 
 == Status
-Experimental
+Proposed
 
-This is an experimental extension specification, intended to provide early
-access to features and gather community feedback. Interfaces defined in this
-specification are implemented in {dpcpp}, but they are not finalized and may
-change incompatibly in future versions of {dpcpp} without prior notice.
-*Shipping software products should not rely on APIs defined in this
-specification.*
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized. *Shipping software products should
+not rely on APIs defined in this specification.*
 
 == Overview
 
@@ -70,7 +72,7 @@ related concepts, types, and mechanisms, and to give examples and context for th
 
 === Motivation
 `fpga_mem` is a class template templated on a type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in off-datapath memory, as opposed to in the datapath.
-`fpga_mem` enables attaching compile-time hints which configure the memory resource and may impact the performance of the design.
+`fpga_mem` enables attaching compile-time hints which configure the memory resource and may impact the performance of the design, but doesn't change functional behavior.
 
 === Example
 [source,c++]
@@ -90,7 +92,7 @@ q.single_task([=] {
 ----
 
 Above we see an example that declares `fpga_mem` variables `fm1`, `fm2`, and accesses them. 
-`fm1` creates an allocation on the device that is private to the kernel and contains an array of four `int`s that is initialized to {1, 3, 5, 7}. `fm2` creates an allocation on the device that is private to the kernel and contains an object of type `MyClass` that is default-initialized. Both variables will be implemented using the MLAB hardware resource. For more details on supported properties see below.
+`fm1` creates an allocation on the device that is private to the kernel and contains an array of four `int` types that is initialized to `{1, 3, 5, 7}`. `fm2` creates an allocation on the device that is private to the kernel and contains an object of type `MyClass` that is default-initialized. Both variables will be implemented using the MLAB hardware resource. For more details on supported properties see below.
 
 `fpga_mem` has reference wrapper-like semantics, and is implicitly convertible to the wrapped type. Of note,
 because {cpp} doesn't allow for overloading of the "dot operator", a `get()`
@@ -251,8 +253,6 @@ Available only if `sycl::is_property_key_of_v<propertyT, sycl::ext::intel::exper
 There are restrictions on how the application can create objects of type
 `fpga_mem`. Applications that violate these restrictions are ill-formed.
 
-* The `fpga_mem` variable can only have accesses from a single kernel. This happens when `device_global` is templated on a `fpga_mem` type. 
-
 * The `fpga_mem` variable cannot be templated on a `fpga_datapath` object, as this is a conflict of requirements on how the variable should be implemented, on or off the datapath. Diagnostic is required.
 
 
@@ -304,13 +304,10 @@ namespace sycl::ext::intel::experimental {
         property_value<word_size_key, std::integral_constant<elements>>;
   };
 
-  enum class port_direction_enum : std::uint16_t { uni, bi };
-
-  struct port_direction_key {
-    template <port_direction_enum Port_direction>
+  struct bi_directional_ports_key {
+    template <bool Enable>
     using value_t = property_value<
-        port_direction_key,
-        std::integral_constant<port_direction_enum, Port_direction>>;
+        bi_directional_ports_key, std::bool_constant<Enable>>;
   };
 
   struct clock_2x_key {
@@ -350,12 +347,12 @@ namespace sycl::ext::intel::experimental {
 
   template <size_t e> inline constexpr word_size_key::value_t<e> word_size;
 
-  template <port_direction_enum d>
-  inline constexpr port_direction_key::value_t<d> port_direction;
-  inline constexpr port_direction_key::value_t<port_direction_enum::uni>
-      port_direction_uni;
-  inline constexpr port_direction_key::value_t<port_direction_enum::bi>
-      port_direction_bi;
+  template <bool b>
+  inline constexpr bi_directional_ports_key::value_t<b> bi_directional_ports;
+  inline constexpr bi_directional_ports_key::value_t<false>
+      bi_directional_ports_false;
+  inline constexpr bi_directional_ports_key::value_t<true>
+      bi_directional_ports_true;
 
   template <bool b>
   inline constexpr clock_2x_key::value_t<b> clock_2x;
@@ -393,7 +390,7 @@ Specifies which FPGA memory resources to use to implement the variable.
 The following values are supported:
 
 * `mlab`: data is stored in special Adaptive Logic Modules (ALMs), called memory-logic array blocks 
-* `block_ram`: data is stored in dedicated block RAM modules, called M20K modules
+* `block_ram`: data is stored in dedicated block RAM modules
 
 // --- ROW BREAK ---
 a|
@@ -434,13 +431,13 @@ If the `stride_size` property is specified, `stride_size` must be a multiple of 
 a|
 [source,c++]
 ----
-port_direction
+bi_directional_ports
 ----
 a|
 The following values are supported:
 
-* `uni`: Specifies that a port to the memory can only service read or write requests, but not both.
-* `bi`: Specifies that a port to the memory can service both read and write requests.
+* `false`: Specifies that a port to the memory can only service read or write requests, but not both.
+* `true`: Specifies that a port to the memory can service both read and write requests.
 
 // --- ROW BREAK ---
 a|
