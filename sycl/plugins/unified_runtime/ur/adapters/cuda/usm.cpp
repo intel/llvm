@@ -24,6 +24,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     [[maybe_unused]] ur_usm_pool_handle_t pool, size_t size, void **ppMem) {
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
+                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
@@ -33,13 +36,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     Result = Err;
   }
 
-  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
-                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
-  assert(Result == UR_RESULT_SUCCESS &&
-         (!pUSMDesc || pUSMDesc->align == 0 ||
-          reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  if (Result == UR_RESULT_SUCCESS) {
+    assert((!pUSMDesc || pUSMDesc->align == 0 ||
+            reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  }
 
   return Result;
 }
@@ -65,9 +65,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
     return Err;
   }
 
-  assert(Result == UR_RESULT_SUCCESS &&
-         (!pUSMDesc || pUSMDesc->align == 0 ||
-          reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  if (Result == UR_RESULT_SUCCESS) {
+    assert((!pUSMDesc || pUSMDesc->align == 0 ||
+            reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  }
 
   return Result;
 }
@@ -94,9 +95,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     return Err;
   }
 
-  assert(Result == UR_RESULT_SUCCESS &&
-         (!pUSMDesc || pUSMDesc->align == 0 ||
-          reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  if (Result == UR_RESULT_SUCCESS) {
+    assert((!pUSMDesc || pUSMDesc->align == 0 ||
+            reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  }
 
   return Result;
 }
