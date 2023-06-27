@@ -201,5 +201,5 @@ struct ur_kernel_handle_t_ {
 
   void clearLocalSize() { Args.clearLocalSize(); }
 
-  int getRegsPerThread() const noexcept { return RegsPerThread; };
+  size_t getRegsPerThread() const noexcept { return RegsPerThread; };
 };
