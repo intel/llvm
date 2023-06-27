@@ -120,3 +120,4 @@ llvm/include/llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h @intel/dpcpp-nativecpu-pi-r
 llvm/lib/SYCLLowerIR/EmitSYCLNativeCPUHeader.cpp @intel/dpcpp-nativecpu-pi-reviewers 
 llvm/lib/SYCLLowerIR/PrepareSYCLNativeCPU.cpp @intel/dpcpp-nativecpu-pi-reviewers 
 sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-pi-reviewers
+sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-pi-reviewers
