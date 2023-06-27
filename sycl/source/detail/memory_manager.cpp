@@ -1297,7 +1297,120 @@ void MemoryManager::ext_oneapi_copy_cmd_buffer(
           DstSlicePitch, Deps.size(), Deps.data(), OutSyncPoint);
     }
   } else {
-    throw sycl::exception(sycl::errc::invalid,
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Images are not supported in Graphs");
+  }
+}
+
+void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
+    sycl::detail::ContextImplPtr Context, RT::PiExtCommandBuffer CommandBuffer,
+    SYCLMemObjI *SYCLMemObj, void *SrcMem, unsigned int DimSrc,
+    sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
+    sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
+    unsigned int DimDst, sycl::range<3> DstSize,
+    sycl::id<3> DstOffset, unsigned int DstElemSize,
+    std::vector<RT::PiExtSyncPoint> Deps, RT::PiExtSyncPoint *OutSyncPoint) {
+  assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+
+  detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
+  TermPositions SrcPos, DstPos;
+  prepTermPositions(SrcPos, DimSrc, MemType);
+  prepTermPositions(DstPos, DimDst, MemType);
+
+  size_t DstXOffBytes = DstOffset[DstPos.XTerm] * DstElemSize;
+  size_t SrcXOffBytes = SrcOffset[SrcPos.XTerm] * SrcElemSize;
+  size_t SrcAccessRangeWidthBytes = SrcAccessRange[SrcPos.XTerm] * SrcElemSize;
+  size_t DstSzWidthBytes = DstSize[DstPos.XTerm] * DstElemSize;
+  size_t SrcSzWidthBytes = SrcSize[SrcPos.XTerm] * SrcElemSize;
+
+  if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
+    if (1 == DimDst && 1 == DimSrc) {
+      Plugin->call<PiApiKind::piextCommandBufferMemBufferRead>(
+          CommandBuffer, RT::cast<RT::PiMem>(SrcMem), SrcXOffBytes,
+          SrcAccessRangeWidthBytes, DstMem + DstXOffBytes, Deps.size(),
+          Deps.data(), OutSyncPoint);
+    } else {
+      size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
+      size_t BufferSlicePitch =
+          (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[SrcPos.YTerm] : 0;
+      size_t HostRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
+      size_t HostSlicePitch =
+          (3 == DimDst) ? DstSzWidthBytes * DstSize[DstPos.YTerm] : 0;
+
+      pi_buff_rect_offset_struct BufferOffset{
+          SrcXOffBytes, SrcOffset[SrcPos.YTerm], SrcOffset[SrcPos.ZTerm]};
+      pi_buff_rect_offset_struct HostOffset{
+          DstXOffBytes, DstOffset[DstPos.YTerm], DstOffset[DstPos.ZTerm]};
+      pi_buff_rect_region_struct RectRegion{SrcAccessRangeWidthBytes,
+                                            SrcAccessRange[SrcPos.YTerm],
+                                            SrcAccessRange[SrcPos.ZTerm]};
+
+      Plugin->call<PiApiKind::piextCommandBufferMemBufferReadRect>(
+          CommandBuffer, RT::cast<RT::PiMem>(SrcMem), &BufferOffset,
+          &HostOffset, &RectRegion, BufferRowPitch, BufferSlicePitch,
+          HostRowPitch, HostSlicePitch, DstMem, Deps.size(), Deps.data(),
+          OutSyncPoint);
+    }
+  } else {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Images are not supported in Graphs");
+  }
+}
+
+void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
+    sycl::detail::ContextImplPtr Context, RT::PiExtCommandBuffer CommandBuffer,
+    SYCLMemObjI *SYCLMemObj, void *SrcMem, unsigned int DimSrc,
+    sycl::range<3> SrcSize, sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
+    unsigned int DimDst, sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
+    sycl::id<3> DstOffset, unsigned int DstElemSize,
+    std::vector<RT::PiExtSyncPoint> Deps, RT::PiExtSyncPoint *OutSyncPoint) {
+  assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+
+  detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
+  TermPositions SrcPos, DstPos;
+  prepTermPositions(SrcPos, DimSrc, MemType);
+  prepTermPositions(DstPos, DimDst, MemType);
+
+  size_t DstXOffBytes = DstOffset[DstPos.XTerm] * DstElemSize;
+  size_t SrcXOffBytes = SrcOffset[SrcPos.XTerm] * SrcElemSize;
+  size_t DstAccessRangeWidthBytes = DstAccessRange[DstPos.XTerm] * DstElemSize;
+  size_t DstSzWidthBytes = DstSize[DstPos.XTerm] * DstElemSize;
+  size_t SrcSzWidthBytes = SrcSize[SrcPos.XTerm] * SrcElemSize;
+
+  if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
+    if (1 == DimDst && 1 == DimSrc) {
+      Plugin->call<PiApiKind::piextCommandBufferMemBufferWrite>(
+          CommandBuffer, RT::cast<RT::PiMem>(DstMem), DstXOffBytes,
+          DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes, Deps.size(),
+          Deps.data(), OutSyncPoint);
+    } else {
+      size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
+      size_t BufferSlicePitch =
+          (3 == DimDst) ? DstSzWidthBytes * DstSize[DstPos.YTerm] : 0;
+      size_t HostRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
+      size_t HostSlicePitch =
+          (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[SrcPos.YTerm] : 0;
+
+      pi_buff_rect_offset_struct BufferOffset{
+          DstXOffBytes, DstOffset[DstPos.YTerm], DstOffset[DstPos.ZTerm]};
+      pi_buff_rect_offset_struct HostOffset{
+          SrcXOffBytes, SrcOffset[SrcPos.YTerm], SrcOffset[SrcPos.ZTerm]};
+      pi_buff_rect_region_struct RectRegion{DstAccessRangeWidthBytes,
+                                            DstAccessRange[DstPos.YTerm],
+                                            DstAccessRange[DstPos.ZTerm]};
+
+      Plugin->call<PiApiKind::piextCommandBufferMemBufferWriteRect>(
+          CommandBuffer, RT::cast<RT::PiMem>(DstMem), &BufferOffset,
+          &HostOffset, &RectRegion, BufferRowPitch, BufferSlicePitch,
+          HostRowPitch, HostSlicePitch, SrcMem, Deps.size(), Deps.data(),
+          OutSyncPoint);
+    }
+  } else {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Images are not supported in Graphs");
   }
 }
