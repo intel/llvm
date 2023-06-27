@@ -740,12 +740,6 @@ static Optional<Type> convertGroupType(sycl::GroupType type,
                          type.getBody(), converter);
 }
 
-/// Converts SYCL h_item type to LLVM type.
-static Optional<Type> convertHItemType(sycl::HItemType type,
-                                       LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::h_item", type.getBody(), converter);
-}
-
 /// Converts SYCL half type to LLVM type.
 static Optional<Type> convertHalfType(sycl::HalfType type,
                                       LLVMTypeConverter &converter) {
@@ -2536,9 +2530,6 @@ void mlir::dpcpp::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::GroupType type) {
     return convertGroupType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::HItemType type) {
-    return convertHItemType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::HalfType type) {
     return convertHalfType(type, typeConverter);
