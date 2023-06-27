@@ -97,9 +97,5 @@ func.func @test2(%cond: i1, %val: i64, %arg1: memref<?x!sycl_nd_item_2>)  {
   // CHECK: test2_load5, uniformity: non-uniform
   %load5 = memref.load %alloca[%c0] { tag = "test2_load5" }: memref<10xi64>
 
-
-
   return
 }
-
-
