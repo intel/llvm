@@ -11,8 +11,6 @@
 // XFAIL: esimd_emulator
 // RUN: %{build} -fno-sycl-esimd-force-stateless-mem -o %t1.out
 // RUN: %{run} %t1.out
-// RUN: %{build} -DNEW_API -fno-sycl-esimd-force-stateless-mem -o %t2.out
-// RUN: %{run} %t2.out
 
 // The test checks raw send functionality with block read/write implementation
 // on SKL. It does not work on DG1 due to send instruction incompatibility.
@@ -42,13 +40,8 @@ ESIMD_INLINE simd<T, N> dwaligned_block_read(AccessorTy acc,
   constexpr uint8_t sfid = 0x0;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numDst = 0x2;
-#ifdef NEW_API
   return experimental::esimd::raw_send(oldDst, src0, exDesc, desc, execSize,
                                        sfid, numSrc0, numDst);
-#else
-  return experimental::esimd::raw_send_load(oldDst, src0, exDesc, desc,
-                                            execSize, sfid, numSrc0, numDst);
-#endif
 }
 
 template <typename T, int N, typename AccessorTy>
@@ -64,13 +57,8 @@ ESIMD_INLINE void block_write1(AccessorTy acc, unsigned int offset,
   constexpr uint8_t sfid = 0x0;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = 0x1;
-#ifdef NEW_API
   return experimental::esimd::raw_sends(src0, data, exDesc, desc, execSize,
                                         sfid, numSrc0, numSrc1);
-#else
-  return experimental::esimd::raw_sends_store(src0, data, exDesc, desc,
-                                              execSize, sfid, numSrc0, numSrc1);
-#endif
 }
 
 template <typename T, int N, typename AccessorTy>
@@ -89,13 +77,8 @@ ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
   constexpr uint8_t execSize = 0x83;
   constexpr uint8_t sfid = 0x0;
   constexpr uint8_t numSrc0 = 0x2;
-#ifdef NEW_API
   return experimental::esimd::raw_send(src0, exDesc, desc, execSize, sfid,
                                        numSrc0);
-#else
-  return experimental::esimd::raw_send_store(src0, exDesc, desc, execSize, sfid,
-                                             numSrc0);
-#endif
 }
 
 template <typename T> int test(queue q) {
