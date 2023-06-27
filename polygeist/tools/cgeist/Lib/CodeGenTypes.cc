@@ -1396,7 +1396,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         return getSYCLType(RT, *this);
 
       assert((AllowUndefinedSYCLTypes ||
-              NamespaceKind != mlirclang::NamespaceKind::SYCL) &&
+              // Accept types nested in other namespaces, e.g. `sycl::detail`.
+              NamespaceKind != mlirclang::NamespaceKind::SYCL ||
+              // Accept types nested in other structs/classes.
+              !RD->getDeclContext()->isNamespace()) &&
              "Found type in the sycl namespace, but not in the SYCL dialect");
     }
 
