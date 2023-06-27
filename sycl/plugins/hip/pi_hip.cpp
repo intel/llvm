@@ -6007,6 +6007,12 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferMemBufferCopy, hip_piextCommandBufferMemBufferCopy)
   _PI_CL(piextCommandBufferMemBufferCopyRect,
          hip_piextCommandBufferMemBufferCopyRect)
+  _PI_CL(piextCommandBufferMemBufferRead, hip_piextCommandBufferMemBufferRead)
+  _PI_CL(piextCommandBufferMemBufferReadRect,
+         hip_piextCommandBufferMemBufferReadRect)
+  _PI_CL(piextCommandBufferMemBufferWrite, hip_piextCommandBufferMemBufferWrite)
+  _PI_CL(piextCommandBufferMemBufferWriteRect,
+         hip_piextCommandBufferMemBufferWriteRect)
   _PI_CL(piextEnqueueCommandBuffer, hip_piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)

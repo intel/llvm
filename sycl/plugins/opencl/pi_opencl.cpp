@@ -2328,6 +2328,7 @@ pi_result piextCommandBufferNDRangeKernel(
   (void)local_work_size;
   (void)num_sync_points_in_wait_list;
   (void)sync_point_wait_list;
+  (void)sync_point;
 
   // Not implemented
   return {};
@@ -2387,6 +2388,8 @@ pi_result piextCommandBufferMemBufferCopyRect(
   (void)region;
   (void)src_row_pitch;
   (void)src_slice_pitch;
+  (void)dst_row_pitch;
+  (void)dst_slice_pitch;
   (void)num_sync_points_in_wait_list;
   (void)sync_point_wait_list;
   (void)sync_point;
