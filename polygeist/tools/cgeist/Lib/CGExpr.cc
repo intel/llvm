@@ -1143,6 +1143,55 @@ MLIRScanner::createSYCLMethodOp(llvm::StringRef FunctionName,
   return cast<sycl::SYCLMethodOpInterface>(op);
 }
 
+mlir::Operation *MLIRScanner::createSYCLMathOp(llvm::StringRef FunctionName,
+                                               mlir::ValueRange Operands,
+                                               mlir::Type ReturnType) {
+  constexpr std::size_t NumMathFuncs{18};
+  // Sorted array
+  // clang-format off
+#define ADD_MATH_OP(name, opname) { #name, opname::getOperationName() }
+  constexpr std::array<std::pair<llvm::StringLiteral, llvm::StringLiteral>,
+                       NumMathFuncs>
+      MathFuncToOpNameMap{{
+          ADD_MATH_OP(ceil, sycl::SYCLCeilOp),
+          ADD_MATH_OP(copysign, sycl::SYCLCopySignOp),
+          ADD_MATH_OP(cos, sycl::SYCLCosOp),
+          ADD_MATH_OP(exp, sycl::SYCLExpOp),
+          ADD_MATH_OP(exp2, sycl::SYCLExp2Op),
+          ADD_MATH_OP(expm1, sycl::SYCLExpM1Op),
+          ADD_MATH_OP(fabs, sycl::SYCLFabsOp),
+          ADD_MATH_OP(floor, sycl::SYCLFloorOp),
+          ADD_MATH_OP(fma, sycl::SYCLFmaOp),
+          ADD_MATH_OP(log, sycl::SYCLLogOp),
+          ADD_MATH_OP(log10, sycl::SYCLLog10Op),
+          ADD_MATH_OP(log2, sycl::SYCLLog2Op),
+          ADD_MATH_OP(pow, sycl::SYCLPowOp),
+          ADD_MATH_OP(round, sycl::SYCLRoundOp),
+          ADD_MATH_OP(rsqrt, sycl::SYCLRsqrtOp),
+          ADD_MATH_OP(sin, sycl::SYCLSinOp),
+          ADD_MATH_OP(sqrt, sycl::SYCLSqrtOp),
+          ADD_MATH_OP(trunc, sycl::SYCLTruncOp)
+      }};
+#undef ADD_MATH_OP
+  // clang-format on
+
+  LLVM_DEBUG(llvm::dbgs() << "Trying to replace call to `" << FunctionName
+                          << "` with a sycl math operation.\n";);
+
+  const auto *Iter = llvm::lower_bound(
+      MathFuncToOpNameMap, FunctionName,
+      [](const auto &el, auto name) { return el.first < name; });
+  if (Iter == MathFuncToOpNameMap.end() || Iter->first != FunctionName) {
+    LLVM_DEBUG(llvm::dbgs()
+                   << FunctionName << " did not match any valid function.\n";);
+    return nullptr;
+  }
+
+  StringRef OpName(Iter->second);
+  return tryToCreateOperation(Builder, Loc, Builder.getStringAttr(OpName),
+                              Operands, /*types=*/ReturnType);
+}
+
 Operation *MLIRScanner::createSYCLBuiltinOp(const clang::FunctionDecl *Callee,
                                             Location Loc) {
   constexpr std::size_t NumNDBuiltins{7};
@@ -1241,12 +1290,17 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
       if (!isa<mlir::NoneType>(RetType))
         OptRetType = RetType;
 
-      // Attempt to create a SYCL method call first, if that fails create a
-      // generic SYCLCallOp.
+      // Attempt to create a SYCL method call first, if that fails try to create
+      // a math op, and ultimately fallback to create a generic SYCLCallOp.
       std::string Name = MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
       if (OptFuncType)
         Op = createSYCLMethodOp(Func->getNameAsString(), Args, OptRetType)
                  .value_or(nullptr);
+
+      if (!Op && OptRetType.has_value())
+        Op =
+            createSYCLMathOp(Func->getNameAsString(), Args, OptRetType.value());
+
       if (!Op)
         Op = Builder.create<mlir::sycl::SYCLCallOp>(
             Loc, OptRetType, OptFuncType, Func->getNameAsString(), Name, Args);

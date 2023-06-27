@@ -16,6 +16,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   ParallelLoopDistribute.cpp
   ParallelLower.cpp
   RaiseToAffine.cpp
+  SYCLRaiseHost.cpp
   TrivialUse.cpp
 
   ADDITIONAL_HEADER_DIRS

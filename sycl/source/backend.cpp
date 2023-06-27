@@ -104,13 +104,13 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const device *Device, bool KeepOwnership,
                                const property_list &PropList,
                                const async_handler &Handler, backend Backend) {
-  RT::PiDevice PiDevice =
+  sycl::detail::pi::PiDevice PiDevice =
       Device ? getSyclObjImpl(*Device)->getHandleRef() : nullptr;
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
   // Create PI properties from SYCL properties.
-  RT::PiQueueProperties Properties[] = {
+  sycl::detail::pi::PiQueueProperties Properties[] = {
       PI_QUEUE_FLAGS,
       queue_impl::createPiQueueProperties(
           PropList, PropList.has_property<property::queue::in_order>()

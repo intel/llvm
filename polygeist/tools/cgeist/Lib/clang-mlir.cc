@@ -644,7 +644,11 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory Scalar) {
 ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory Array, Value Idx,
                                              bool IsImplicitRefResult,
                                              bool RemoveIndex) {
-  Value Val = Array.getValue(Builder);
+  // Here we expect memref<- x memref<- x Ty>> or llvm.ptr (elem type llvm.ptr)
+  // (first case) or memref<- x Ty> (second case).
+  Value Val = isa<MemRefType, LLVM::LLVMPointerType>(Array.getElemTy())
+                  ? Array.getValue(Builder)
+                  : Array.val;
   assert(Val);
 
   if (isa<LLVM::LLVMPointerType>(Val.getType())) {

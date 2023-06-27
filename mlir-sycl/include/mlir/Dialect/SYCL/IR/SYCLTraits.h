@@ -64,6 +64,10 @@ public:
     return verifySYCLGetGroupTrait(Op);
   }
 };
+
+/// This interface marks operations that represent a SYCL math function.
+template <typename ConcreteType>
+class SYCLMathFunc : public OpTrait::TraitBase<ConcreteType, SYCLMathFunc> {};
 } // namespace sycl
 } // namespace mlir
 

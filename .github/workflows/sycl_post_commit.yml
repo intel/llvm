@@ -4,7 +4,7 @@ on:
   push:
     branches:
     - sycl
-    - test-devops-pr/**
+    - sycl-devops-pr/**
 
 jobs:
   # This job generates matrix of tests for SYCL End-to-End tests

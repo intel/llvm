@@ -4,7 +4,6 @@
 #include <sycl/sycl.hpp>
 
 // CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
-// CHECK-DAG: !sycl_accessor_1_i32_rw_l = !sycl.accessor<[1, i32, read_write, local], (!sycl_local_accessor_base_1_i32_rw)>
 // CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(memref<?xi32, 1>)>)>
 // CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl_accessor_impl_device_3_, !llvm.struct<(memref<?xf32, 1>)>)>
 // CHECK-DAG: !sycl_accessor_1_21sycl2Evec3C5Bi322C_45D2C_28vector3C4xi323E293E_rw_gb = !sycl.accessor<[1, !sycl_vec_i32_4_, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?x!sycl_vec_i32_4_, 1>)>)>
@@ -14,10 +13,9 @@
 // CHECK-DAG: !sycl_atomic_i32_glo = !sycl.atomic<[i32, global], (memref<?xi32, 1>)>
 // CHECK-DAG: !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
-// CHECK-DAG: !sycl_h_item_1_ = !sycl.h_item<[1], (![[ITEM_1_F:.*]], ![[ITEM_1_F]], ![[ITEM_1_F]])>
 // CHECK-DAG: !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 // CHECK-DAG: !sycl_id_2_ = !sycl.id<[2], (!sycl_array_2_)>
-// CHECK-DAG: ![[ITEM_1_F]] = !sycl.item<[1, false], (![[ITEM_BASE_1_F:.*]])>
+// CHECK-DAG: ![[ITEM_1_F:.*]] = !sycl.item<[1, false], (![[ITEM_BASE_1_F:.*]])>
 // CHECK-DAG: ![[ITEM_1_T:.*]] = !sycl.item<[1, true], (![[ITEM_BASE_1_T:.*]])>
 // CHECK-DAG: ![[ITEM_2_F:.*]] = !sycl.item<[2, false], (![[ITEM_BASE_2_F:.*]])>
 // CHECK-DAG: ![[ITEM_2_T:.*]] = !sycl.item<[2, true], (![[ITEM_BASE_2_T:.*]])>
@@ -59,7 +57,7 @@ SYCL_EXTERNAL void accessor_3(sycl::accessor<sycl::cl_float, 3, sycl::access::mo
 
 // COM: Local Accessor Test
 // CHECK-LABEL: func.func @_Z10accessor_4N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
-// CHECK:          %arg0: memref<?x!sycl_accessor_1_i32_rw_l> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_1_i32_rw_l, llvm.noundef}) 
+// CHECK:          %arg0: memref<?x!sycl_local_accessor_1_i32_> {llvm.align = 8 : i64, llvm.byval = !sycl_local_accessor_1_i32_, llvm.noundef}) 
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void accessor_4(sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write, sycl::access::target::local>) {}
 
@@ -102,11 +100,6 @@ SYCL_EXTERNAL void group_1(sycl::group<1> group) {}
 // CHECK:          %arg0: memref<?x!sycl_group_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_group_2_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void group_2(sycl::group<2> group) {}
-
-// CHECK-LABEL: func.func @_Z6h_itemN4sycl3_V16h_itemILi1EEE(
-// CHECK:          %arg0: memref<?x!sycl_h_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_h_item_1_, llvm.noundef})
-// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
-SYCL_EXTERNAL void h_item(sycl::h_item<1> h_item) {}
 
 // CHECK-LABEL: func.func @_Z4id_1N4sycl3_V12idILi1EEE(
 // CHECK:          %arg0: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef})

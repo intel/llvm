@@ -123,6 +123,79 @@ unsigned polygeist::getGridDimension(FunctionOpInterface func) {
       .Default([](auto) { return 0; });
 }
 
+/// Return a vector with \p gridDim entries, containing thread values
+/// corresponding to each global thread declarations in \p funcOp.
+/// For example, assuming that the thread grid dimension is two, and \p funcOp
+/// contains:
+///   %c1_i32 = arith.constant 1 : i32
+///   %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32)
+/// The result vector is [null, %ty].
+template <typename T,
+          typename = std::enable_if_t<llvm::is_one_of<
+              T, sycl::SYCLNDItemGetGlobalIDOp, sycl::SYCLItemGetIDOp>::value>>
+static SmallVector<Value> computeThreadVector(FunctionOpInterface funcOp,
+                                              unsigned gridDim,
+                                              DataFlowSolver &solver) {
+  if (gridDim == 0)
+    return {};
+
+  // Collect the operations yielding the global thread ids.
+  std::vector<T> getGlobalIdOps = getOperationsOfType<T>(funcOp).takeVector();
+  if (getGlobalIdOps.empty())
+    return {};
+
+  // Return the index value of an operation.
+  auto getIndexValue = [&](T &op) -> std::optional<APInt> {
+    TypedValue<IntegerType> idx = op.getIndex();
+    return idx ? getConstIntegerValue(idx, solver) : APInt();
+  };
+
+  // Ensure that all operations collected have known index values.
+  if (llvm::any_of(getGlobalIdOps,
+                   [&](T &op) { return !getIndexValue(op).has_value(); }))
+    return {};
+
+  // Create a map from operation index to operation result.
+  std::map<unsigned, Value> indexToGlobalOp;
+  for (T &getGlobalIdOp : getGlobalIdOps) {
+    APInt index = *getIndexValue(getGlobalIdOp);
+    indexToGlobalOp[index.getZExtValue()] = getGlobalIdOp.getResult();
+  }
+
+  // Collect the thread values/index.
+  SmallVector<Value> threadVars;
+  for (unsigned dim = 0; dim < gridDim; ++dim) {
+    auto it = indexToGlobalOp.find(dim);
+    threadVars.emplace_back(it != indexToGlobalOp.end() ? it->second : Value());
+  }
+  assert(threadVars.size() == gridDim &&
+         "Expecting size of threadVars to be same as the grid dimension");
+
+  return threadVars;
+}
+
+SmallVector<Value> polygeist::getThreadVector(FunctionOpInterface funcOp,
+                                              DataFlowSolver &solver) {
+  unsigned gridDim = getGridDimension(funcOp);
+  if (gridDim == 0)
+    return {};
+
+  // Collect global thread ids.
+  SmallVector<Value> ndItemThreadVars =
+      computeThreadVector<sycl::SYCLNDItemGetGlobalIDOp>(funcOp, gridDim,
+                                                         solver);
+  SmallVector<Value> itemThreadVars =
+      computeThreadVector<sycl::SYCLItemGetIDOp>(funcOp, gridDim, solver);
+
+  if (!ndItemThreadVars.empty() && itemThreadVars.empty())
+    return ndItemThreadVars;
+  if (!itemThreadVars.empty() && ndItemThreadVars.empty())
+    return itemThreadVars;
+
+  // Give up if we find both nditem and item thread values or none of them.
+  return {};
+}
+
 Optional<Value> polygeist::getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)
@@ -719,15 +792,6 @@ bool LoopTools::arePerfectlyNested(LoopLikeOpInterface outer,
 // VersionConditionBuilder
 //===----------------------------------------------------------------------===//
 
-static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
-                                                 unsigned index,
-                                                 OpBuilder builder,
-                                                 Location loc) {
-  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-  const auto resTy = builder.getIndexType();
-  return builder.create<sycl::SYCLRangeGetOp>(loc, resTy, range, indexOp);
-}
-
 static sycl::SYCLAccessorGetRangeOp
 createSYCLAccessorGetRangeOp(sycl::AccessorPtrValue accessor, OpBuilder builder,
                              Location loc) {
@@ -781,8 +845,10 @@ static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
   const Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
   SmallVector<Value> indexes;
   unsigned dim = accTy.getDimension();
+  Type resTy = builder.getIndexType();
   for (unsigned i = 0; i < dim; ++i) {
-    Value rangeGetOp = createSYCLRangeGetOp(range, i, builder, loc);
+    Value rangeGetOp =
+        sycl::createSYCLRangeGetOp(resTy, range, i, builder, loc);
     indexes.push_back(
         (i == dim - 1) ? rangeGetOp
                        : builder.create<arith::SubIOp>(loc, rangeGetOp, one));

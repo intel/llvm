@@ -306,3 +306,52 @@ func.func @test_vec_f80(%v: !sycl.vec<[f80, 2], (vector<2xi2>)>) {
 func.func @test_vec_nonscalar(%v: !sycl.vec<[!sycl_vec_i8_1_, 2], (vector<2x1xi8>)>) {
   return
 }
+
+// -----
+
+func.func @test_host_constructor() -> !llvm.ptr {
+// expected-error @below {{'sycl.host.constructor' op expecting a sycl type as constructed type. Got 'i32'}}
+  %0 = sycl.host.constructor() {type = i32} : () -> !llvm.ptr
+  return %0 : !llvm.ptr
+}
+
+// -----
+
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+
+func.func @test_id_constructor_index_wrong_dims(%arg0: index)
+    -> memref<1x!sycl_id_2_> {
+// expected-error @below {{'sycl.id.constructor' op expects to be passed the same number of 'index' numbers as the number of dimensions of the input: 1 vs 2}}
+  %0 = sycl.id.constructor(%arg0) : (index) -> memref<1x!sycl_id_2_>
+  func.return %0 : memref<1x!sycl_id_2_>
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+
+func.func @test_id_constructor_wrong_copy_dims(%arg: memref<?x!sycl_id_2_>)
+    -> memref<1x!sycl_id_1_> {
+// expected-error @below {{'sycl.id.constructor' op expects input and output to have the same number of dimensions: 2 vs 1}}
+  %0 = sycl.id.constructor(%arg) : (memref<?x!sycl_id_2_>) -> memref<1x!sycl_id_1_>
+  func.return %0 : memref<1x!sycl_id_1_>
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+
+func.func @test_id_constructor_wrong_sign(%arg: i32) -> memref<1x!sycl_id_1_> {
+// expected-error @below {{'sycl.id.constructor' op expects a different signature. Check documentation for details}}
+  %0 = sycl.id.constructor(%arg) : (i32) -> memref<1x!sycl_id_1_>
+  func.return %0 : memref<1x!sycl_id_1_>
+}
+
+// -----
+
+func.func @math_op_invalid_type(%arg0 : i32) {
+  // expected-error @+1 {{op operand #0 must be 32-bit float or 64-bit float, but got 'i32'}}
+  %0 = sycl.math.sin %arg0 : i32
+  return
+}

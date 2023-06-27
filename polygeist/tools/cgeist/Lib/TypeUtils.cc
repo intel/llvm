@@ -201,7 +201,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     Array,
     Atomic,
     Group,
-    HItem,
     Half,
     ID,
     ItemBase,
@@ -232,7 +231,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"array", TypeEnum::Array},
       {"atomic", TypeEnum::Atomic},
       {"group", TypeEnum::Group},
-      {"h_item", TypeEnum::HItem},
       {"half", TypeEnum::Half},
       {"id", TypeEnum::ID},
       {"ItemBase", TypeEnum::ItemBase},
@@ -287,12 +285,15 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
             return mlir::sycl::symbolizeTarget(val);
           });
 
-      // The SYCL RT specialize the accessor class for local memory accesses.
-      // That specialization is derived from a non-empty base class, so push it.
-      // TODO: we should push the non-empty base classes in a more general way.
+      // The deprecated sycl::accessor with access::target::local has the same
+      // semantics and restrictions as the sycl::local_accessor and, in the
+      // DPC++ implementation, a layout different from the regular
+      // sycl::accessor, so treat it just like a local_accessor.
       if (MemTargetMode == mlir::sycl::Target::Local) {
         assert(Body.empty());
         Body.push_back(CGT.getMLIRTypeForMem(CTS->bases_begin()->getType()));
+        return mlir::sycl::LocalAccessorType::get(CGT.getModule()->getContext(),
+                                                  Type, Dim, Body);
       }
 
       return mlir::sycl::AccessorType::get(CGT.getModule()->getContext(), Type,
@@ -326,12 +327,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
       return mlir::sycl::GroupType::get(CGT.getModule()->getContext(), Dim,
-                                        Body);
-    }
-    case TypeEnum::HItem: {
-      const auto Dim =
-          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      return mlir::sycl::HItemType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
     }
     case TypeEnum::ID: {

@@ -32,6 +32,7 @@ add_mlir_dialect_library(MLIRSYCLDialect
   MethodUtils.cpp
   SYCLAttributes.cpp
   SYCLDialect.cpp
+  SYCLHostOps.cpp
   SYCLMethodOpInterface.cpp
   SYCLOps.cpp
   SYCLTraits.cpp

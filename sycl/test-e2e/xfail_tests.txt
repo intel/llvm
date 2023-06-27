@@ -102,6 +102,7 @@ Basic/image/srgba-read.cpp
 Basic/multi_ptr.cpp
 Basic/multi_ptr_legacy_usm_addr_ext.cpp
 Basic/multi_ptr_usm_addr_ext.cpp
+Basic/sampler/sampler.cpp
 Basic/scalar_vec_access.cpp
 Basic/span.cpp
 Basic/stream/auto_flush.cpp
@@ -260,7 +261,6 @@ ESIMD/regression/bit_shift_compilation_test.cpp
 ESIMD/regression/copyto_char_test.cpp
 ESIMD/regression/dgetrf.cpp
 ESIMD/regression/dgetrf_8x8.cpp
-ESIMD/regression/dgetrf_ref.cpp
 ESIMD/regression/double_conversion.cpp
 ESIMD/regression/fmod_compatibility_test.cpp
 ESIMD/regression/globals.cpp
@@ -489,6 +489,7 @@ SubGroup/load_store.cpp
 SubGroup/shuffle.cpp
 SubGroup/sub_group_as.cpp
 SubGroup/sub_group_as_vec.cpp
+SubGroup/sub_group_by_value_semantics.cpp
 SubGroupMask/Basic.cpp
 USM/math.cpp
 USM/memops2d/copy2d_device_to_device.cpp

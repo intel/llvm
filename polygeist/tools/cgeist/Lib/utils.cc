@@ -59,6 +59,10 @@ NamespaceKind getNamespaceKind(const clang::DeclContext *DC) {
   if (!DC)
     return NamespaceKind::Other;
 
+  // Skip inline namespaces.
+  while (DC && DC->isInlineNamespace())
+    DC = DC->getParent();
+
   if (const auto *ND = dyn_cast<clang::NamespaceDecl>(DC)) {
     if (const auto *II = ND->getIdentifier()) {
       if (II->isStr("sycl"))

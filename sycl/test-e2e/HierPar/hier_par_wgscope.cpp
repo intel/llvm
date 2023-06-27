@@ -13,6 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#error FIXME: Test times-out
+
 // This test checks correctness of hierarchical kernel execution when there is
 // code and data in the work group scope.
 

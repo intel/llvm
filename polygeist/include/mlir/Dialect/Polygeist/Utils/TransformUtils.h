@@ -77,6 +77,17 @@ bool isTailCall(CallOpInterface);
 /// Return zero if it cannot identify the grid dimension.
 unsigned getGridDimension(FunctionOpInterface func);
 
+/// Return a vector containing thread values corresponding to the global
+/// thread declarations in \p funcOp. The returned vector has size equal to
+/// the thread grid dimension and is sorted based on the dimension.
+/// For example given:
+///   %c1_i32 = arith.constant 1 : i32
+///   %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32)
+/// The corresponding vector entry is %ty and the vector has size equal to 2
+/// where the first element is a null value.
+SmallVector<Value> getThreadVector(FunctionOpInterface funcOp,
+                                   DataFlowSolver &solver);
+
 /// Return the accessor used by \p op if found, and std::nullopt otherwise.
 Optional<Value> getAccessorUsedByOperation(const Operation &op);
 
