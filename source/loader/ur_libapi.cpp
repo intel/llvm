@@ -5828,11 +5828,13 @@ ur_result_t UR_APICALL urUSMPitchedAllocExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
     ) try {
@@ -5843,7 +5845,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageHandleDestroyExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnUnsampledImageHandleDestroyExp(hContext, hImage);
+    return pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -5862,11 +5864,13 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
     ) try {
@@ -5877,7 +5881,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSampledImageHandleDestroyExp(hContext, hImage);
+    return pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -5897,6 +5901,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
@@ -5909,6 +5914,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
@@ -5921,7 +5927,8 @@ ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnImageAllocateExp(hContext, pImageFormat, pImageDesc, phImageMem);
+    return pfnImageAllocateExp(hContext, hDevice, pImageFormat, pImageDesc,
+                               phImageMem);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -5940,11 +5947,13 @@ ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem ///< [in] handle of image memory to be freed
     ) try {
@@ -5954,7 +5963,7 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnImageFreeExp(hContext, hImageMem);
+    return pfnImageFreeExp(hContext, hDevice, hImageMem);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -5973,6 +5982,7 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
@@ -5987,6 +5997,7 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -6003,8 +6014,8 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnUnsampledImageCreateExp(hContext, hImageMem, pImageFormat,
-                                      pImageDesc, phMem, phImage);
+    return pfnUnsampledImageCreateExp(hContext, hDevice, hImageMem,
+                                      pImageFormat, pImageDesc, phMem, phImage);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -6023,6 +6034,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
@@ -6039,6 +6051,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -6055,7 +6068,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSampledImageCreateExp(hContext, hImageMem, pImageFormat,
+    return pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
                                     pImageDesc, hSampler, phMem, phImage);
 } catch (...) {
     return exceptionToResult(std::current_exception());
@@ -6077,7 +6090,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
 ///         + `NULL == pSrc`
@@ -6085,21 +6098,33 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///         + `NULL == pImageDesc`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    void *pDst,                   ///< [in] location the data will be copied to
-    void *pSrc, ///< [in] location the data will be copied from
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    void *pDst,               ///< [in] location the data will be copied to
+    void *pSrc,               ///< [in] location the data will be copied from
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_image_copy_flags_t
         imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    ur_rect_offset_t
+        srcOffset, ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
+                   ///< image
+    ur_rect_offset_t
+        dstOffset, ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
+                   ///< or 3D image
+    ur_rect_region_t
+        copyExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region to copy
+    ur_rect_region_t
+        hostExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region on the host
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -6117,8 +6142,9 @@ ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnImageCopyExp(hContext, pDst, pSrc, pImageFormat, pImageDesc,
-                           imageCopyFlags, numEventsInWaitList, phEventWaitList,
+    return pfnImageCopyExp(hQueue, pDst, pSrc, pImageFormat, pImageDesc,
+                           imageCopyFlags, srcOffset, dstOffset, copyExtent,
+                           hostExtent, numEventsInWaitList, phEventWaitList,
                            phEvent);
 } catch (...) {
     return exceptionToResult(std::current_exception());
@@ -6176,6 +6202,7 @@ ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phImageMem`
@@ -6183,6 +6210,7 @@ ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
@@ -6195,7 +6223,8 @@ ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnMipmapGetLevelExp(hContext, hImageMem, mipmapLevel, phImageMem);
+    return pfnMipmapGetLevelExp(hContext, hDevice, hImageMem, mipmapLevel,
+                                phImageMem);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -6214,11 +6243,13 @@ ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_device_handle_t hDevice,    ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
     ) try {
     auto pfnMipmapFreeExp =
@@ -6227,7 +6258,7 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnMipmapFreeExp(hContext, hMem);
+    return pfnMipmapFreeExp(hContext, hDevice, hMem);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -6246,6 +6277,7 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
@@ -6253,6 +6285,7 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
     uint32_t fileDescriptor,      ///< [in] the file descriptor
     ur_exp_interop_mem_handle_t
@@ -6264,7 +6297,8 @@ ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnImportOpaqueFDExp(hContext, size, fileDescriptor, phInteropMem);
+    return pfnImportOpaqueFDExp(hContext, hDevice, size, fileDescriptor,
+                                phInteropMem);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -6279,6 +6313,7 @@ ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
@@ -6293,12 +6328,13 @@ ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_handle_t *
+    ur_exp_image_mem_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
     ) try {
     auto pfnMapExternalArrayExp =
@@ -6307,7 +6343,7 @@ ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnMapExternalArrayExp(hContext, pImageFormat, pImageDesc,
+    return pfnMapExternalArrayExp(hContext, hDevice, pImageFormat, pImageDesc,
                                   hInteropMem, phImageMem);
 } catch (...) {
     return exceptionToResult(std::current_exception());
@@ -6327,11 +6363,13 @@ ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
         hInteropMem ///< [in] handle of interop memory to be freed
     ) try {
@@ -6341,7 +6379,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnReleaseInteropExp(hContext, hInteropMem);
+    return pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -6360,12 +6398,14 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phInteropSemaphoreHandle`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     uint32_t fileDescriptor,      ///< [in] the file descriptor
     ur_exp_interop_semaphore_handle_t *
         phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
@@ -6377,8 +6417,8 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnImportExternalSemaphoreOpaqueFDExp(hContext, fileDescriptor,
-                                                 phInteropSemaphoreHandle);
+    return pfnImportExternalSemaphoreOpaqueFDExp(
+        hContext, hDevice, fileDescriptor, phInteropSemaphoreHandle);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -6397,11 +6437,13 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hInteropSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
         hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
     ) try {
@@ -6412,7 +6454,7 @@ ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnDestroyExternalSemaphoreExp(hContext, hInteropSemaphore);
+    return pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }

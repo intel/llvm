@@ -590,31 +590,29 @@ class ur_device_info_v(IntEnum):
                                                     ## bindless images backed by USM
     BINDLESS_IMAGES_2D_USM_SUPPORT_EXP = 0x2002     ## [::ur_bool_t] returns true if the device supports the creation of 2D
                                                     ## bindless images backed by USM
-    BINDLESS_IMAGES_3D_USM_SUPPORT_EXP = 0x2003     ## [::ur_bool_t] returns true if the device supports the creation of 3D
-                                                    ## bindless images backed by USM
-    IMAGE_PITCH_ALIGN_EXP = 0x2004                  ## [uint32_t] returns the required alignment of the pitch between two
+    IMAGE_PITCH_ALIGN_EXP = 0x2003                  ## [uint32_t] returns the required alignment of the pitch between two
                                                     ## rows of an image in bytes
-    MAX_IMAGE_LINEAR_WIDTH_EXP = 0x2005             ## [size_t] returns the maximum linear width allowed for images allocated
+    MAX_IMAGE_LINEAR_WIDTH_EXP = 0x2004             ## [size_t] returns the maximum linear width allowed for images allocated
                                                     ## using USM
-    MAX_IMAGE_LINEAR_HEIGHT_EXP = 0x2006            ## [size_t] returns the maximum linear height allowed for images
+    MAX_IMAGE_LINEAR_HEIGHT_EXP = 0x2005            ## [size_t] returns the maximum linear height allowed for images
                                                     ## allocated using USM
-    MAX_IMAGE_LINEAR_PITCH_EXP = 0x2007             ## [size_t] returns the maximum linear pitch allowed for images allocated
+    MAX_IMAGE_LINEAR_PITCH_EXP = 0x2006             ## [size_t] returns the maximum linear pitch allowed for images allocated
                                                     ## using USM
-    MIPMAP_SUPPORT_EXP = 0x2008                     ## [::ur_bool_t] returns true if the device supports allocating mipmap
+    MIPMAP_SUPPORT_EXP = 0x2007                     ## [::ur_bool_t] returns true if the device supports allocating mipmap
                                                     ## resources
-    MIPMAP_ANISOTROPY_SUPPORT_EXP = 0x2009          ## [::ur_bool_t] returns true if the device supports sampling mipmap
+    MIPMAP_ANISOTROPY_SUPPORT_EXP = 0x2008          ## [::ur_bool_t] returns true if the device supports sampling mipmap
                                                     ## images with anisotropic filtering
-    MIPMAP_MAX_ANISOTROPY_EXP = 0x200A              ## [uint32_t] returns the maximum anisotropic ratio supported by the
+    MIPMAP_MAX_ANISOTROPY_EXP = 0x2009              ## [uint32_t] returns the maximum anisotropic ratio supported by the
                                                     ## device
-    MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP = 0x200B     ## [::ur_bool_t] returns true if the device supports using images created
+    MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP = 0x200A     ## [::ur_bool_t] returns true if the device supports using images created
                                                     ## from individual mipmap levels
-    INTEROP_MEMORY_IMPORT_SUPPORT_EXP = 0x200C      ## [::ur_bool_t] returns true if the device supports importing external
+    INTEROP_MEMORY_IMPORT_SUPPORT_EXP = 0x200B      ## [::ur_bool_t] returns true if the device supports importing external
                                                     ## memory resources
-    INTEROP_MEMORY_EXPORT_SUPPORT_EXP = 0x200D      ## [::ur_bool_t] returns true if the device supports exporting internal
+    INTEROP_MEMORY_EXPORT_SUPPORT_EXP = 0x200C      ## [::ur_bool_t] returns true if the device supports exporting internal
                                                     ## memory resources
-    INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E   ## [::ur_bool_t] returns true if the device supports importing external
+    INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200D   ## [::ur_bool_t] returns true if the device supports importing external
                                                     ## semaphore resources
-    INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F   ## [::ur_bool_t] returns true if the device supports exporting internal
+    INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200E   ## [::ur_bool_t] returns true if the device supports exporting internal
                                                     ## event resources
 
 class ur_device_info_t(c_int):
@@ -2086,7 +2084,7 @@ class ur_exp_interop_semaphore_handle_t(c_void_p):
 ###############################################################################
 ## @brief Dictates the type of memory copy.
 class ur_exp_image_copy_flags_v(IntEnum):
-    HOST_TO_DEVICE = UR_BIT(0)                      ## Host to device.
+    HOST_TO_DEVICE = UR_BIT(0)                      ## Host to device
     DEVICE_TO_HOST = UR_BIT(1)                      ## Device to host
     DEVICE_TO_DEVICE = UR_BIT(2)                    ## Device to device
 
@@ -2110,8 +2108,9 @@ class ur_exp_sampler_mip_properties_t(Structure):
                                                                         ## being 0
         ("maxMipmapLevelClamp", c_float),                               ## [in] maximum mipmap level from which we can sample, maximum value
                                                                         ## being the number of levels
-        ("maxAnistropy", c_float)                                       ## [in] anisotropic ratio used when samplling the mipmap with anisotropic
+        ("maxAnisotropy", c_float),                                     ## [in] anisotropic ratio used when samplling the mipmap with anisotropic
                                                                         ## filtering
+        ("mipFilterMode", ur_sampler_filter_mode_t)                     ## [in] mipmap filter mode used for filtering between mipmap levels
     ]
 
 ###############################################################################
@@ -3044,51 +3043,51 @@ class ur_queue_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesUnsampledImageHandleDestroyExp
 if __use_win_types:
-    _urBindlessImagesUnsampledImageHandleDestroyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
+    _urBindlessImagesUnsampledImageHandleDestroyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_handle_t )
 else:
-    _urBindlessImagesUnsampledImageHandleDestroyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
+    _urBindlessImagesUnsampledImageHandleDestroyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesSampledImageHandleDestroyExp
 if __use_win_types:
-    _urBindlessImagesSampledImageHandleDestroyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
+    _urBindlessImagesSampledImageHandleDestroyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_handle_t )
 else:
-    _urBindlessImagesSampledImageHandleDestroyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
+    _urBindlessImagesSampledImageHandleDestroyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImageAllocateExp
 if __use_win_types:
-    _urBindlessImagesImageAllocateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_exp_image_mem_handle_t) )
+    _urBindlessImagesImageAllocateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_exp_image_mem_handle_t) )
 else:
-    _urBindlessImagesImageAllocateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_exp_image_mem_handle_t) )
+    _urBindlessImagesImageAllocateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_exp_image_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImageFreeExp
 if __use_win_types:
-    _urBindlessImagesImageFreeExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+    _urBindlessImagesImageFreeExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t )
 else:
-    _urBindlessImagesImageFreeExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+    _urBindlessImagesImageFreeExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesUnsampledImageCreateExp
 if __use_win_types:
-    _urBindlessImagesUnsampledImageCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesUnsampledImageCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
 else:
-    _urBindlessImagesUnsampledImageCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesUnsampledImageCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesSampledImageCreateExp
 if __use_win_types:
-    _urBindlessImagesSampledImageCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_sampler_handle_t, POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesSampledImageCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_sampler_handle_t, POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
 else:
-    _urBindlessImagesSampledImageCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_sampler_handle_t, POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesSampledImageCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_sampler_handle_t, POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImageCopyExp
 if __use_win_types:
-    _urBindlessImagesImageCopyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_void_p, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_image_copy_flags_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urBindlessImagesImageCopyExp_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_void_p, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_image_copy_flags_t, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, ur_rect_region_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urBindlessImagesImageCopyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_void_p, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_image_copy_flags_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urBindlessImagesImageCopyExp_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_void_p, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_image_copy_flags_t, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, ur_rect_region_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImageGetInfoExp
@@ -3100,51 +3099,51 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesMipmapGetLevelExp
 if __use_win_types:
-    _urBindlessImagesMipmapGetLevelExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, c_ulong, POINTER(ur_exp_image_mem_handle_t) )
+    _urBindlessImagesMipmapGetLevelExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, c_ulong, POINTER(ur_exp_image_mem_handle_t) )
 else:
-    _urBindlessImagesMipmapGetLevelExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, c_ulong, POINTER(ur_exp_image_mem_handle_t) )
+    _urBindlessImagesMipmapGetLevelExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, c_ulong, POINTER(ur_exp_image_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesMipmapFreeExp
 if __use_win_types:
-    _urBindlessImagesMipmapFreeExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+    _urBindlessImagesMipmapFreeExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t )
 else:
-    _urBindlessImagesMipmapFreeExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+    _urBindlessImagesMipmapFreeExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImportOpaqueFDExp
 if __use_win_types:
-    _urBindlessImagesImportOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_size_t, c_ulong, POINTER(ur_exp_interop_mem_handle_t) )
+    _urBindlessImagesImportOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, c_ulong, POINTER(ur_exp_interop_mem_handle_t) )
 else:
-    _urBindlessImagesImportOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_size_t, c_ulong, POINTER(ur_exp_interop_mem_handle_t) )
+    _urBindlessImagesImportOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, c_ulong, POINTER(ur_exp_interop_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesMapExternalArrayExp
 if __use_win_types:
-    _urBindlessImagesMapExternalArrayExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_interop_mem_handle_t, POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesMapExternalArrayExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_interop_mem_handle_t, POINTER(ur_exp_image_mem_handle_t) )
 else:
-    _urBindlessImagesMapExternalArrayExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_interop_mem_handle_t, POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesMapExternalArrayExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_interop_mem_handle_t, POINTER(ur_exp_image_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesReleaseInteropExp
 if __use_win_types:
-    _urBindlessImagesReleaseInteropExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_mem_handle_t )
+    _urBindlessImagesReleaseInteropExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_interop_mem_handle_t )
 else:
-    _urBindlessImagesReleaseInteropExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_mem_handle_t )
+    _urBindlessImagesReleaseInteropExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_interop_mem_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
 if __use_win_types:
-    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_exp_interop_semaphore_handle_t) )
+    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_ulong, POINTER(ur_exp_interop_semaphore_handle_t) )
 else:
-    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_exp_interop_semaphore_handle_t) )
+    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_ulong, POINTER(ur_exp_interop_semaphore_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesDestroyExternalSemaphoreExp
 if __use_win_types:
-    _urBindlessImagesDestroyExternalSemaphoreExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_semaphore_handle_t )
+    _urBindlessImagesDestroyExternalSemaphoreExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_interop_semaphore_handle_t )
 else:
-    _urBindlessImagesDestroyExternalSemaphoreExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_semaphore_handle_t )
+    _urBindlessImagesDestroyExternalSemaphoreExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_interop_semaphore_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesWaitExternalSemaphoreExp

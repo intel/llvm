@@ -3817,6 +3817,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
     ) try {
@@ -3827,7 +3828,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         d_context.urDdiTable.BindlessImagesExp
             .pfnUnsampledImageHandleDestroyExp;
     if (nullptr != pfnUnsampledImageHandleDestroyExp) {
-        result = pfnUnsampledImageHandleDestroyExp(hContext, hImage);
+        result = pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
     } else {
         // generic implementation
     }
@@ -3842,6 +3843,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
     ) try {
@@ -3851,7 +3853,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
     auto pfnSampledImageHandleDestroyExp =
         d_context.urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
     if (nullptr != pfnSampledImageHandleDestroyExp) {
-        result = pfnSampledImageHandleDestroyExp(hContext, hImage);
+        result = pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
     } else {
         // generic implementation
     }
@@ -3865,6 +3867,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
 /// @brief Intercept function for urBindlessImagesImageAllocateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
@@ -3877,8 +3880,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     auto pfnImageAllocateExp =
         d_context.urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
     if (nullptr != pfnImageAllocateExp) {
-        result =
-            pfnImageAllocateExp(hContext, pImageFormat, pImageDesc, phImageMem);
+        result = pfnImageAllocateExp(hContext, hDevice, pImageFormat,
+                                     pImageDesc, phImageMem);
     } else {
         // generic implementation
         *phImageMem =
@@ -3894,6 +3897,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 /// @brief Intercept function for urBindlessImagesImageFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem ///< [in] handle of image memory to be freed
     ) try {
@@ -3903,7 +3907,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     auto pfnImageFreeExp =
         d_context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
     if (nullptr != pfnImageFreeExp) {
-        result = pfnImageFreeExp(hContext, hImageMem);
+        result = pfnImageFreeExp(hContext, hDevice, hImageMem);
     } else {
         // generic implementation
     }
@@ -3917,6 +3921,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 /// @brief Intercept function for urBindlessImagesUnsampledImageCreateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -3932,8 +3937,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     auto pfnUnsampledImageCreateExp =
         d_context.urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
     if (nullptr != pfnUnsampledImageCreateExp) {
-        result = pfnUnsampledImageCreateExp(hContext, hImageMem, pImageFormat,
-                                            pImageDesc, phMem, phImage);
+        result = pfnUnsampledImageCreateExp(hContext, hDevice, hImageMem,
+                                            pImageFormat, pImageDesc, phMem,
+                                            phImage);
     } else {
         // generic implementation
         *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
@@ -3950,6 +3956,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 /// @brief Intercept function for urBindlessImagesSampledImageCreateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -3966,8 +3973,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     auto pfnSampledImageCreateExp =
         d_context.urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
     if (nullptr != pfnSampledImageCreateExp) {
-        result = pfnSampledImageCreateExp(hContext, hImageMem, pImageFormat,
-                                          pImageDesc, hSampler, phMem, phImage);
+        result =
+            pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
+                                     pImageDesc, hSampler, phMem, phImage);
     } else {
         // generic implementation
         *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
@@ -3983,14 +3991,26 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImageCopyExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    void *pDst,                   ///< [in] location the data will be copied to
-    void *pSrc, ///< [in] location the data will be copied from
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    void *pDst,               ///< [in] location the data will be copied to
+    void *pSrc,               ///< [in] location the data will be copied from
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_image_copy_flags_t
         imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    ur_rect_offset_t
+        srcOffset, ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
+                   ///< image
+    ur_rect_offset_t
+        dstOffset, ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
+                   ///< or 3D image
+    ur_rect_region_t
+        copyExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region to copy
+    ur_rect_region_t
+        hostExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region on the host
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -4008,8 +4028,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     auto pfnImageCopyExp =
         d_context.urDdiTable.BindlessImagesExp.pfnImageCopyExp;
     if (nullptr != pfnImageCopyExp) {
-        result = pfnImageCopyExp(hContext, pDst, pSrc, pImageFormat, pImageDesc,
-                                 imageCopyFlags, numEventsInWaitList,
+        result = pfnImageCopyExp(hQueue, pDst, pSrc, pImageFormat, pImageDesc,
+                                 imageCopyFlags, srcOffset, dstOffset,
+                                 copyExtent, hostExtent, numEventsInWaitList,
                                  phEventWaitList, phEvent);
     } else {
         // generic implementation
@@ -4052,6 +4073,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 /// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
@@ -4064,8 +4086,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     auto pfnMipmapGetLevelExp =
         d_context.urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
     if (nullptr != pfnMipmapGetLevelExp) {
-        result =
-            pfnMipmapGetLevelExp(hContext, hImageMem, mipmapLevel, phImageMem);
+        result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem, mipmapLevel,
+                                      phImageMem);
     } else {
         // generic implementation
         *phImageMem =
@@ -4081,6 +4103,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 /// @brief Intercept function for urBindlessImagesMipmapFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_device_handle_t hDevice,    ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4089,7 +4112,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     auto pfnMipmapFreeExp =
         d_context.urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
     if (nullptr != pfnMipmapFreeExp) {
-        result = pfnMipmapFreeExp(hContext, hMem);
+        result = pfnMipmapFreeExp(hContext, hDevice, hMem);
     } else {
         // generic implementation
     }
@@ -4103,6 +4126,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 /// @brief Intercept function for urBindlessImagesImportOpaqueFDExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
     uint32_t fileDescriptor,      ///< [in] the file descriptor
     ur_exp_interop_mem_handle_t
@@ -4114,8 +4138,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     auto pfnImportOpaqueFDExp =
         d_context.urDdiTable.BindlessImagesExp.pfnImportOpaqueFDExp;
     if (nullptr != pfnImportOpaqueFDExp) {
-        result =
-            pfnImportOpaqueFDExp(hContext, size, fileDescriptor, phInteropMem);
+        result = pfnImportOpaqueFDExp(hContext, hDevice, size, fileDescriptor,
+                                      phInteropMem);
     } else {
         // generic implementation
         *phInteropMem =
@@ -4131,12 +4155,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 /// @brief Intercept function for urBindlessImagesMapExternalArrayExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_handle_t *
+    ur_exp_image_mem_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4145,11 +4170,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     auto pfnMapExternalArrayExp =
         d_context.urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
     if (nullptr != pfnMapExternalArrayExp) {
-        result = pfnMapExternalArrayExp(hContext, pImageFormat, pImageDesc,
-                                        hInteropMem, phImageMem);
+        result = pfnMapExternalArrayExp(hContext, hDevice, pImageFormat,
+                                        pImageDesc, hInteropMem, phImageMem);
     } else {
         // generic implementation
-        *phImageMem = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
+        *phImageMem =
+            reinterpret_cast<ur_exp_image_mem_handle_t>(d_context.get());
     }
 
     return result;
@@ -4161,6 +4187,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 /// @brief Intercept function for urBindlessImagesReleaseInteropExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
         hInteropMem ///< [in] handle of interop memory to be freed
     ) try {
@@ -4170,7 +4197,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     auto pfnReleaseInteropExp =
         d_context.urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
     if (nullptr != pfnReleaseInteropExp) {
-        result = pfnReleaseInteropExp(hContext, hInteropMem);
+        result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
     } else {
         // generic implementation
     }
@@ -4185,6 +4212,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     uint32_t fileDescriptor,      ///< [in] the file descriptor
     ur_exp_interop_semaphore_handle_t *
         phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
@@ -4197,7 +4225,7 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
             .pfnImportExternalSemaphoreOpaqueFDExp;
     if (nullptr != pfnImportExternalSemaphoreOpaqueFDExp) {
         result = pfnImportExternalSemaphoreOpaqueFDExp(
-            hContext, fileDescriptor, phInteropSemaphoreHandle);
+            hContext, hDevice, fileDescriptor, phInteropSemaphoreHandle);
     } else {
         // generic implementation
         *phInteropSemaphoreHandle =
@@ -4214,6 +4242,7 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
 /// @brief Intercept function for urBindlessImagesDestroyExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
         hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
     ) try {
@@ -4223,7 +4252,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     auto pfnDestroyExternalSemaphoreExp =
         d_context.urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
     if (nullptr != pfnDestroyExternalSemaphoreExp) {
-        result = pfnDestroyExternalSemaphoreExp(hContext, hInteropSemaphore);
+        result = pfnDestroyExternalSemaphoreExp(hContext, hDevice,
+                                                hInteropSemaphore);
     } else {
         // generic implementation
     }

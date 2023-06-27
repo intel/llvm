@@ -1279,18 +1279,21 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetQueueProcAddrTable_t)(
 /// @brief Function-pointer for urBindlessImagesUnsampledImageHandleDestroyExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageHandleDestroyExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesSampledImageHandleDestroyExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageHandleDestroyExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImageAllocateExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageAllocateExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     const ur_image_format_t *,
     const ur_image_desc_t *,
     ur_exp_image_mem_handle_t *);
@@ -1299,12 +1302,14 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageAllocateExp_t)(
 /// @brief Function-pointer for urBindlessImagesImageFreeExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageFreeExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesUnsampledImageCreateExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageCreateExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_mem_handle_t,
     const ur_image_format_t *,
     const ur_image_desc_t *,
@@ -1315,6 +1320,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageCreateExp_t)(
 /// @brief Function-pointer for urBindlessImagesSampledImageCreateExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageCreateExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_mem_handle_t,
     const ur_image_format_t *,
     const ur_image_desc_t *,
@@ -1325,12 +1331,16 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageCreateExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImageCopyExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageCopyExp_t)(
-    ur_context_handle_t,
+    ur_queue_handle_t,
     void *,
     void *,
     const ur_image_format_t *,
     const ur_image_desc_t *,
     ur_exp_image_copy_flags_t,
+    ur_rect_offset_t,
+    ur_rect_offset_t,
+    ur_rect_region_t,
+    ur_rect_region_t,
     uint32_t,
     const ur_event_handle_t *,
     ur_event_handle_t *);
@@ -1347,6 +1357,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageGetInfoExp_t)(
 /// @brief Function-pointer for urBindlessImagesMipmapGetLevelExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapGetLevelExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_mem_handle_t,
     uint32_t,
     ur_exp_image_mem_handle_t *);
@@ -1355,12 +1366,14 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapGetLevelExp_t)(
 /// @brief Function-pointer for urBindlessImagesMipmapFreeExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapFreeExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImportOpaqueFDExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportOpaqueFDExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     size_t,
     uint32_t,
     ur_exp_interop_mem_handle_t *);
@@ -1369,21 +1382,24 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportOpaqueFDExp_t)(
 /// @brief Function-pointer for urBindlessImagesMapExternalArrayExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMapExternalArrayExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     const ur_image_format_t *,
     const ur_image_desc_t *,
     ur_exp_interop_mem_handle_t,
-    ur_exp_image_handle_t *);
+    ur_exp_image_mem_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesReleaseInteropExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesReleaseInteropExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_interop_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportExternalSemaphoreOpaqueFDExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     uint32_t,
     ur_exp_interop_semaphore_handle_t *);
 
@@ -1391,6 +1407,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportExternalSemaphoreOpaqu
 /// @brief Function-pointer for urBindlessImagesDestroyExternalSemaphoreExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesDestroyExternalSemaphoreExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_interop_semaphore_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
