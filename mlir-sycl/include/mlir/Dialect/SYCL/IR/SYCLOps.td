@@ -1124,5 +1124,6 @@ def SYCLGroupGetLocalLinearRangeOp
 }
 
 include "mlir/Dialect/SYCL/IR/SYCLHostOps.td"
+include "mlir/Dialect/SYCL/IR/SYCLMathOps.td"
 
 #endif // SYCL_OPS
