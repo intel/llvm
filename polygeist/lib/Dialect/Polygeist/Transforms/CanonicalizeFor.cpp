@@ -453,9 +453,8 @@ struct WhileToForHelper {
       Operation *op = value.getDefiningOp();
       return op && before.isAncestor(op->getParentRegion());
     };
-    if (llvm::any_of(condOp.getArgs(), isDefinedInBeforeRegion)) {
+    if (llvm::any_of(condOp.getArgs(), isDefinedInBeforeRegion))
       return false;
-    }
 
     indVar = dyn_cast<BlockArgument>(cmpIOp.getLhs());
     Type extType = nullptr;
