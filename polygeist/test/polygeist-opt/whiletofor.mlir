@@ -37,7 +37,7 @@ module {
 func.func private @foo(i64, i32)
 
 // COM: This tests that we can convert an `scf.while` operation whose
-// COM: `scf.condition` recieves a value defined in the before block as an
+// COM: `scf.condition` receives a value defined in the before block as an
 // COM: argument to an `scf.for` operation.
 
 // CHECK-LABEL:   func.func @extsi(
