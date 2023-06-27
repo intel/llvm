@@ -184,7 +184,6 @@ USMAllocatorConfig::USMAllocatorConfig() {
   const char *UrRet = std::getenv("UR_L0_USM_ALLOCATOR");
   const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
   const char *PoolParams = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
-
   if (PoolParams != nullptr) {
     std::string Params(PoolParams);
     size_t Pos = Params.find(';');
@@ -229,7 +228,6 @@ USMAllocatorConfig::USMAllocatorConfig() {
   const char *PoolTraceVal =
       UrRetUsmAllocator ? UrRetUsmAllocator
                         : (PiRetUsmAllocator ? PiRetUsmAllocator : nullptr);
-
   int PoolTrace = 0;
   if (PoolTraceVal != nullptr) {
     PoolTrace = std::atoi(PoolTraceVal);

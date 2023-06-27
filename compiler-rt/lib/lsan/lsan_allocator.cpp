@@ -49,8 +49,11 @@ void InitializeAllocator() {
     max_malloc_size = kMaxAllowedMallocSize;
 }
 
+void AllocatorThreadStart() { allocator.InitCache(GetAllocatorCache()); }
+
 void AllocatorThreadFinish() {
   allocator.SwallowCache(GetAllocatorCache());
+  allocator.DestroyCache(GetAllocatorCache());
 }
 
 static ChunkMetadata *Metadata(const void *p) {
@@ -65,12 +68,14 @@ static void RegisterAllocation(const StackTrace &stack, void *p, uptr size) {
   m->stack_trace_id = StackDepotPut(stack);
   m->requested_size = size;
   atomic_store(reinterpret_cast<atomic_uint8_t *>(m), 1, memory_order_relaxed);
+  RunMallocHooks(p, size);
 }
 
 static void RegisterDeallocation(void *p) {
   if (!p) return;
   ChunkMetadata *m = Metadata(p);
   CHECK(m);
+  RunFreeHooks(p);
   atomic_store(reinterpret_cast<atomic_uint8_t *>(m), 0, memory_order_relaxed);
 }
 
@@ -104,7 +109,6 @@ void *Allocate(const StackTrace &stack, uptr size, uptr alignment,
   if (cleared && allocator.FromPrimary(p))
     memset(p, 0, size);
   RegisterAllocation(stack, p, size);
-  RunMallocHooks(p, size);
   return p;
 }
 
@@ -119,7 +123,6 @@ static void *Calloc(uptr nmemb, uptr size, const StackTrace &stack) {
 }
 
 void Deallocate(void *p) {
-  RunFreeHooks(p);
   RegisterDeallocation(p);
   allocator.Deallocate(GetAllocatorCache(), p);
 }
@@ -359,7 +362,7 @@ uptr __sanitizer_get_heap_size() {
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE
-uptr __sanitizer_get_free_bytes() { return 0; }
+uptr __sanitizer_get_free_bytes() { return 1; }
 
 SANITIZER_INTERFACE_ATTRIBUTE
 uptr __sanitizer_get_unmapped_bytes() { return 0; }
@@ -368,7 +371,9 @@ SANITIZER_INTERFACE_ATTRIBUTE
 uptr __sanitizer_get_estimated_allocated_size(uptr size) { return size; }
 
 SANITIZER_INTERFACE_ATTRIBUTE
-int __sanitizer_get_ownership(const void *p) { return Metadata(p) != nullptr; }
+int __sanitizer_get_ownership(const void *p) {
+  return GetMallocBegin(p) != nullptr;
+}
 
 SANITIZER_INTERFACE_ATTRIBUTE
 const void * __sanitizer_get_allocated_begin(const void *p) {
@@ -379,5 +384,8 @@ SANITIZER_INTERFACE_ATTRIBUTE
 uptr __sanitizer_get_allocated_size(const void *p) {
   return GetMallocUsableSize(p);
 }
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __sanitizer_purge_allocator() { allocator.ForceReleaseToOS(); }
 
 } // extern "C"

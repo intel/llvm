@@ -113,16 +113,6 @@ public:
       : m_Pointer(ptr) {}
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
 
-  // Implicit conversion from multi_ptr<T> to multi_ptr<const T>
-  template <typename NonConstElementType = std::remove_const_t<ElementType>,
-            typename = typename std::enable_if_t<
-                std::is_const_v<ElementType> &&
-                std::is_same_v<NonConstElementType,
-                               std::remove_const_t<ElementType>>>>
-  explicit multi_ptr(
-      multi_ptr<NonConstElementType, Space, DecorateAddress> MPtr)
-      : m_Pointer(MPtr.get_decorated()) {}
-
   // Only if Space is in
   // {global_space, ext_intel_global_device_space, generic_space}
   template <

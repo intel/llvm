@@ -102,6 +102,16 @@ template <typename DataT, int Dimensions>
 struct owner_less<local_accessor<DataT, Dimensions>>
     : public detail::owner_less_base<local_accessor<DataT, Dimensions>> {};
 
+template <typename DataT, int Dimensions, access_mode AccessMode>
+struct owner_less<host_unsampled_image_accessor<DataT, Dimensions, AccessMode>>
+    : public detail::owner_less_base<
+          host_unsampled_image_accessor<DataT, Dimensions, AccessMode>> {};
+
+template <typename DataT, int Dimensions>
+struct owner_less<host_sampled_image_accessor<DataT, Dimensions>>
+    : public detail::owner_less_base<
+          host_sampled_image_accessor<DataT, Dimensions>> {};
+
 } // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
