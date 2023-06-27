@@ -105,19 +105,3 @@ sycl/test-e2e/KernelFusion @victor-eds @Naghasan @sommerlukas
 
 # Matrix tests
 sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
-
-# Native CPU
-clang/include/clang/Basic/SYCLNativeCPUHelpers.h @intel/dpcpp-nativecpu-pi-reviewers
-clang/test/CodeGenSYCL/native_cpu_basic.cpp @intel/dpcpp-nativecpu-pi-reviewers
-clang/test/Driver/sycl-native-cpu-fsycl.cpp @intel/dpcpp-nativecpu-pi-reviewers
-clang/test/Driver/sycl-native-cpu-warn.cpp @intel/dpcpp-nativecpu-pi-reviewers
-clang/test/Driver/sycl-native-cpu.cpp @intel/dpcpp-nativecpu-pi-reviewers
-llvm/include/llvm/SYCLLowerIR/EmitSYCLNativeCPUHeader.h @intel/dpcpp-nativecpu-pi-reviewers
-llvm/include/llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h @intel/dpcpp-nativecpu-pi-reviewers
-llvm/lib/SYCLLowerIR/EmitSYCLNativeCPUHeader.cpp @intel/dpcpp-nativecpu-pi-reviewers
-llvm/lib/SYCLLowerIR/PrepareSYCLNativeCPU.cpp @intel/dpcpp-nativecpu-pi-reviewers
-sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-pi-reviewers
-sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-pi-reviewers
-sycl/plugins/native_cpu/pi_native_cpu.cpp @intel/dpcpp-native-cpu-reviewers
-sycl/test/check_device_code/native_cpu/ @intel/dpcpp-nativecpu-pi-reviewers
-sycl/test/native_cpu/ @intel/dpcpp-nativecpu-pi-reviewers
