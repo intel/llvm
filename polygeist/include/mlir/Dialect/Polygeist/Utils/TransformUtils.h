@@ -101,6 +101,9 @@ template <typename T> SetVector<T> getParentsOfType(Block &block);
 template <typename T>
 SetVector<T> getOperationsOfType(FunctionOpInterface funcOp);
 
+/// Return the condition used by \p branchOp.
+Value getCondition(RegionBranchOpInterface branchOp);
+
 //===----------------------------------------------------------------------===//
 // FunctionKernelInfo
 //===----------------------------------------------------------------------===//

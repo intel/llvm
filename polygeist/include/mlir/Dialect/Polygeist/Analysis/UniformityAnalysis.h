@@ -17,6 +17,7 @@
 
 #include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
+#include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 
 namespace mlir {
 namespace polygeist {
@@ -131,6 +132,20 @@ private:
                             ArrayRef<const UniformityLattice *> operands,
                             ArrayRef<UniformityLattice *> results);
 
+  /// Collect the branch conditions that dominate each of the modifiers \p mods.
+  SmallVector<Value>
+  collectBranchConditions(const ReachingDefinition::ModifiersTy &mods);
+
+  /// Return true if all the modifiers \p mods have operands with known uniform
+  /// that is initialized.
+  bool canComputeUniformity(const ReachingDefinition::ModifiersTy &mods);
+
+  /// Return true if any of the modifiers \p mods store a value with uniformity
+  /// equal to \p kind.
+  bool anyModifierUniformityIs(const ReachingDefinition::ModifiersTy &mods,
+                               Uniformity::Kind kind);
+
+  /// Return true if the \p operands have uniformity of the given \p kind.
   bool anyOfUniformityIs(ArrayRef<const UniformityLattice *> operands,
                          Uniformity::Kind kind) {
     return llvm::any_of(operands, [&](const UniformityLattice *lattice) {
@@ -138,6 +153,7 @@ private:
     });
   }
 
+  /// Return true if the \p values have uniformity of the given \p kind.
   bool anyOfUniformityIs(const ValueRange values, Uniformity::Kind kind) {
     return llvm::any_of(values, [&](Value value) {
       UniformityLattice *lattice = getLatticeElement(value);
@@ -145,8 +161,11 @@ private:
     });
   }
 
+  /// Propagate \p uniformity to all \p results if necessary.
   void propagateAllIfChanged(ArrayRef<UniformityLattice *> results,
                              Uniformity &&uniformity);
+
+  /// Propagate \p uniformity to all \p values  if necessary.
   void propagateAllIfChanged(const ValueRange values, Uniformity &&uniformity);
 
 private:

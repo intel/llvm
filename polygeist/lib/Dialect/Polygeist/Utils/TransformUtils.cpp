@@ -9,6 +9,7 @@
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -247,6 +248,13 @@ SetVector<T> polygeist::getOperationsOfType(FunctionOpInterface funcOp) {
   SetVector<T> res;
   funcOp->walk([&](T op) { res.insert(op); });
   return res;
+}
+
+Value polygeist::getCondition(RegionBranchOpInterface branchOp) {
+  return TypeSwitch<Operation *, Value>(branchOp)
+      .Case<arith::SelectOp, cf::CondBranchOp, scf::IfOp>(
+          [](auto branchOp) { return branchOp.getCondition(); })
+      .Default([](auto) { return nullptr; });
 }
 
 namespace mlir {
@@ -898,9 +906,9 @@ VersionConditionBuilder::createSCFCondition(OpBuilder builder, Location loc,
 }
 
 // Explicit template instantiations.
-
 template SetVector<FunctionOpInterface> getParentsOfType(Block &);
 template SetVector<LoopLikeOpInterface> getParentsOfType(Block &);
+template SetVector<RegionBranchOpInterface> getParentsOfType(Block &);
 
 template SetVector<sycl::SYCLNDItemGetGlobalIDOp>
     getOperationsOfType(FunctionOpInterface);
