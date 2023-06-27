@@ -63,11 +63,11 @@ void llvm::getSYCLDeviceRequirements(
   for (const Function *F : MD.entries()) {
     if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
       assert(MDN->getNumOperands() == 1);
-      auto value = ExtractIntegerFromMDNodeOperand(MDN, 0);
+      auto MDValue = ExtractIntegerFromMDNodeOperand(MDN, 0);
       if (!SubGroupSize)
-        SubGroupSize = value;
+        SubGroupSize = MDValue;
       else
-        assert(*SubGroupSize == value);
+        assert(*SubGroupSize == MDValue);
     }
   }
   // Do not attach reqd_sub_group_size if there is no attached metadata
