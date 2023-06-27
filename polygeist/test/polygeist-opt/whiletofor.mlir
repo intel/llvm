@@ -36,6 +36,10 @@ module {
 
 func.func private @foo(i64, i32)
 
+// COM: This tests that we can convert an `scf.while` operation whose
+// COM: `scf.condition` recieves a value defined in the before block as an
+// COM: argument to an `scf.for` operation.
+
 // CHECK-LABEL:   func.func @extsi(
 // CHECK-SAME:                     %[[VAL_0:.*]]: i64) -> i32 {
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 0 : index
