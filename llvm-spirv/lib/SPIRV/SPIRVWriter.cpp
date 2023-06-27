@@ -1196,7 +1196,7 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVFunction *BF, Function *F) {
   SmallVector<StringRef> MDNames;
   F->getContext().getMDKindNames(MDNames);
   F->getAllMetadata(AllMD);
-  for (auto MD : AllMD) {
+  for (const auto &MD : AllMD) {
     std::string MDName = MDNames[MD.first].str();
 
     // spirv.Decorations and spirv.ParameterDecorations are handled
