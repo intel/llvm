@@ -1,74 +1,99 @@
-= SYCL_INTEL_dot_accumulate
+= sycl_ext_oneapi_dot_accumulate
+
 :source-highlighter: coderay
 :coderay-linenums-mode: table
+
+// This section needs to be after the document title.
 :doctype: book
+:toc2:
+:toc: left
 :encoding: utf-8
 :lang: en
+:dpcpp: pass:[DPC++]
 
-:blank: pass:[ +]
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
 
-// Set the default source code type in this document to C,
-// for syntax highlighting purposes.
-:language: c
-
-// This is what is needed for C++, since docbook uses c++
-// and everything else uses cpp.  This doesn't work when
-// source blocks are in table cells, though, so don't use
-// C++ unless it is required.
-//:language: {basebackend@docbook:c++:cpp}
-
-== Introduction
-
-IMPORTANT: This specification is a draft.
-
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
-
-NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
-
-== Name Strings
-
-`SYCL_ONEAPI_dot_accumulate`
-
-This is a placeholder name.
 
 == Notice
 
-Copyright (c) 2020 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2020-2023 Intel Corporation.  All rights reserved.
 
-== Status
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
-Working Draft
-
-This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
-
-Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
-
-== Version
-
-Built On: {docdate} +
-Revision: 3
 
 == Contact
 
-Ben Ashbaugh, Intel (ben 'dot' ashbaugh 'at' intel 'dot' com)
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
 
 == Dependencies
 
-This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6.
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
 
 == Overview
 
-This extension adds new SYCL built-in functions that may simplify development and provide access specialized hardware instructions when a SYCL kernel needs to perform a dot product of two vectors followed by a scalar accumulation.
+This extension adds new SYCL built-in functions that may simplify development
+and provide access specialized hardware instructions when a SYCL kernel needs
+to perform a dot product of two vectors followed by a scalar accumulation.
 
-== Enabling the extension
 
-The extension is always enabled. The dot product functionality may be emulated in software or executed using hardware when suitable instructions are available.
+== Specification
 
-== Modifications of SYCL 1.2.1 specification
+=== Feature test macro
 
-=== Add to Section 4.13.6 - Geometric Functions
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_DOT_ACCUMULATE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
 
-Additionally, the following additional functions are available in the namespace `sycl::intel` on the host and device.
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== New functions to compute the dot product of vectors
+
+This extension adds the following free functions:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+int32_t dot_acc(vec<int8_t,4>  a, vec<int8_t,4>  b, int32_t c);
+int32_t dot_acc(vec<int8_t,4>  a, vec<uint8_t,4> b, int32_t c);
+int32_t dot_acc(vec<uint8_t,4> a, vec<int8_t,4>  b, int32_t c);
+int32_t dot_acc(vec<uint8_t,4> a, vec<uint8_t,4> b, int32_t c);
+
+int32_t doc_acc_4x8packed(int32_t a, int32_t b, int32_t c);
+int32_t doc_acc_4x8packed(int32_t a, uint32_t b, int32_t c);
+int32_t doc_acc_4x8packed(uint32_t a, int32_t b, int32_t c);
+int32_t doc_acc_4x8packed(uint32_t a, uint32_t b, int32_t c);
+
+} // namespace sycl::ext::oneapi
+----
 
 [cols="4a,4",options="header"]
 |====
@@ -95,56 +120,59 @@ int32_t dot_acc(vec<uint8_t,4> a,
 {blank}
 The value that is returned is equivalent to +
 {blank}
-*dot*(_a_, _b_) + _c_
+`dot(a, b) + c`
+
+|[source,c]
+----
+int32_t doc_acc_4x8packed(int32_t a,
+                          int32_t b,
+                          int32_t c)
+int32_t doc_acc_4x8packed(int32_t a,
+                          uint32_t b,
+                          int32_t c)
+int32_t doc_acc_4x8packed(uint32_t a,
+                          int32_t b,
+                          int32_t c)
+int32_t doc_acc_4x8packed(uint32_t a,
+                          uint32_t b,
+                          int32_t c);
+----
+
+|Performs a four-component integer dot product accumulate operation, where
+`a` and `b` are 32-bit integers that represent a vector of 4 8-bit elements.
+When the type of `a` or `b` is `int32_t`, it is interpreted as `vec<int8_t,4>`.
+When the type of `a` or `b` is `uint32_t`, it is interpreted as
+`vec<uint8_t,4>`.  In each case, the least significant byte is element 0, and
+the most significant byte is element 3.
 
 |====
 
-== Sample Header
+=== Deprecated functions
+
+The following functions are deprecated.  They have the same effect as the
+`doc_acc_4x8packed` overloads described above.
 
 [source,c++]
 ----
-namespace cl {
-namespace sycl {
-namespace ext {
-namespace oneapi {
-
-int32_t dot_acc(vec<int8_t,4>  a, vec<int8_t,4>  b, int32_t c);
-int32_t dot_acc(vec<int8_t,4>  a, vec<uint8_t,4> b, int32_t c);
-int32_t dot_acc(vec<uint8_t,4> a, vec<int8_t,4>  b, int32_t c);
-int32_t dot_acc(vec<uint8_t,4> a, vec<uint8_t,4> b, int32_t c);
+namespace sycl::ext::oneapi {
 
 int32_t dot_acc(int32_t a, int32_t b, int32_t c);
 int32_t dot_acc(int32_t a, uint32_t b, int32_t c);
 int32_t dot_acc(uint32_t a, int32_t b, int32_t c);
 int32_t dot_acc(uint32_t a, uint32_t b, int32_t c);
 
-} // oneapi
-} // ext
-} // sycl
-} // cl
+} // namespace sycl::ext::oneapi
 ----
+
 
 == Issues
 
-None.
-
-== Revision History
-
-[cols="5,15,15,70"]
-[grid="rows"]
-[options="header"]
-|========================================
-|Rev|Date|Author|Changes
-|1|2019-12-13|Ben Ashbaugh|*Initial draft*
-|2|2019-12-18|Ben Ashbaugh|Switched to standard C++ fixed width types.
-|3|2020-10-26|Rajiv Deodhar|Added int32 types.
-|========================================
-
-//************************************************************************
-//Other formatting suggestions:
-//
-//* Use *bold* text for host APIs, or [source] syntax highlighting.
-//* Use `mono` text for device APIs, or [source] syntax highlighting.
-//* Use `mono` text for extension names, types, or enum values.
-//* Use _italics_ for parameters.
-//************************************************************************
+* The overloads that take two unsigned vectors have a signed `c` and return a
+  signed result.  This is inconsistent with the SPIR-V primitives and the
+  OpenCL C APIs, both of which return an unsigned value in this case and expect
+  an unsigned `c`.  I think we could implement the APIs as they are using the
+  SPIR-V primitives, but the extra unsigned-to-signed conversions might
+  generate less efficient code (I haven't checked).  Is there a compelling
+  reason to keep these APIs as they are now?  If not, we could deprecate them
+  and introduce overloads that take an  unsigned `c` and return an unsigned
+  value.
