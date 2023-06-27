@@ -1,6 +1,5 @@
 // This test checks that a PCH(Precompiled Header) file is 
 // included while performing host compilation in -fsycl mode.
-// The PCH file is created without the -fsycl option.
 
 // RUN: touch %t.h
 
