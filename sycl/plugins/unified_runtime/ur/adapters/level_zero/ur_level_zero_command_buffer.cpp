@@ -590,8 +590,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,
-    ur_mem_handle_t hBuffer, size_t offset, size_t size, const void *pSrc, 
-    uint32_t numSyncPointsInWaitList, 
+    ur_mem_handle_t hBuffer, size_t offset, size_t size, const void *pSrc,
+    uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
@@ -608,7 +608,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
       UR_COMMAND_MEM_BUFFER_WRITE, hCommandBuffer,
       ZeHandleDst + offset, // dst
       pSrc,                 // src
-      size, numEventsInWaitList, pSyncPointWaitList, pSyncPoint);
+      size, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(

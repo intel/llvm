@@ -1290,7 +1290,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
     sycl::detail::ContextImplPtr Context, RT::PiExtCommandBuffer CommandBuffer,
     SYCLMemObjI *SYCLMemObj, void *SrcMem, unsigned int DimSrc,
     sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-    sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
+    sycl::id<3> SrcOffset, unsigned int SrcElemSize, char *DstMem,
     unsigned int DimDst, sycl::range<3> DstSize,
     sycl::id<3> DstOffset, unsigned int DstElemSize,
     std::vector<RT::PiExtSyncPoint> Deps, RT::PiExtSyncPoint *OutSyncPoint) {
@@ -1345,7 +1345,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
 
 void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
     sycl::detail::ContextImplPtr Context, RT::PiExtCommandBuffer CommandBuffer,
-    SYCLMemObjI *SYCLMemObj, void *SrcMem, unsigned int DimSrc,
+    SYCLMemObjI *SYCLMemObj, char *SrcMem, unsigned int DimSrc,
     sycl::range<3> SrcSize, sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
     unsigned int DimDst, sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
     sycl::id<3> DstOffset, unsigned int DstElemSize,

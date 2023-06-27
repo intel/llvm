@@ -2639,7 +2639,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
         MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
         AllocaCmd->getMemAllocation(), Req->MDims, Req->MMemoryRange,
-        Req->MAccessRange, Req->MOffset, Req->MElemSize, Copy->getDst(),
+        Req->MAccessRange, Req->MOffset, Req->MElemSize, (char *)Copy->getDst(),
         Req->MDims, Req->MAccessRange,
         /*DstOffset=*/ {0, 0, 0}, Req->MElemSize, std::move(MSyncPointDeps),
         &OutSyncPoint);
@@ -2653,7 +2653,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
 
     MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
         MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
-        Copy->getSrc(), Req->MDims, Req->MAccessRange,
+        (char *)Copy->getSrc(), Req->MDims, Req->MAccessRange,
         /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
         Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
