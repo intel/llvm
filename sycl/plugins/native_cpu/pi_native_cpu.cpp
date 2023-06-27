@@ -16,12 +16,6 @@ struct _pi_object {
   std::atomic<pi_uint32> RefCount;
 };
 
-struct _pi_device : _pi_object {
-  _pi_device(pi_platform ArgPlt) : Platform{ArgPlt} {}
-
-  pi_platform Platform;
-};
-
 struct _pi_mem : _pi_object {
   _pi_mem(size_t Size) {
     _mem = (char *)malloc(Size);
@@ -166,284 +160,6 @@ pi_result piextPlatformGetNativeHandle(pi_platform, pi_native_handle *) {
 }
 
 pi_result piextPlatformCreateWithNativeHandle(pi_native_handle, pi_platform *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
-                       pi_uint32 NumEntries, pi_device *Devices,
-                       pi_uint32 *NumDevices) {
-  if (Platform == nullptr) {
-    return PI_ERROR_INVALID_PLATFORM;
-  }
-
-  pi_uint32 DeviceCount = (DeviceType & PI_DEVICE_TYPE_CPU) ? 1 : 0;
-
-  if (NumDevices) {
-    *NumDevices = DeviceCount;
-  }
-
-  if (NumEntries == 0) {
-    /// Runtime queries number of devices
-    if (Devices != nullptr) {
-      if (PrintPiTrace) {
-        std::cerr << "Invalid Arguments for piDevicesGet\n";
-      }
-      return PI_ERROR_INVALID_VALUE;
-    }
-    return PI_SUCCESS;
-  }
-
-  if (DeviceCount == 0) {
-    /// No GPU entry to fill 'Device' array
-    return PI_SUCCESS;
-  }
-
-  if (Devices) {
-    Devices[0] = &Platform->TheDevice;
-  }
-
-  return PI_SUCCESS;
-}
-
-pi_result piDeviceRetain(pi_device Device) {
-  if (Device)
-    return PI_SUCCESS;
-  return PI_ERROR_INVALID_DEVICE;
-}
-
-pi_result piDeviceRelease(pi_device Device) {
-  if (Device)
-    return PI_SUCCESS;
-  return PI_ERROR_INVALID_DEVICE;
-}
-
-pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
-                          size_t ParamValueSize, void *ParamValue,
-                          size_t *ParamValueSizeRet) {
-  auto ReturnValueArray = [=](auto val) {
-    return getInfoArray(strlen(val) + 1, ParamValueSize, ParamValue,
-                        ParamValueSizeRet, val);
-  };
-  auto ReturnValue = [=](auto val) {
-    return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet, val);
-  };
-
-  switch (ParamName) {
-  case PI_DEVICE_INFO_TYPE:
-    return ReturnValue(PI_DEVICE_TYPE_CPU);
-  case PI_DEVICE_INFO_PARENT_DEVICE:
-    return ReturnValue(pi_device{0});
-  case PI_DEVICE_INFO_PLATFORM:
-    return ReturnValue(Device->Platform);
-  case PI_DEVICE_INFO_NAME:
-    return ReturnValueArray("SYCL Native CPU");
-  case PI_DEVICE_INFO_IMAGE_SUPPORT:
-    return ReturnValue(pi_bool{false});
-  case PI_DEVICE_INFO_DRIVER_VERSION:
-    return ReturnValueArray("0.0.0");
-  case PI_DEVICE_INFO_VENDOR:
-    return ReturnValueArray("Intel(R) Corporation");
-  case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
-    return ReturnValue(size_t{8192});
-  case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
-    return ReturnValue(size_t{8192});
-  case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
-    return ReturnValue(pi_bool{1});
-  case PI_DEVICE_INFO_EXTENSIONS:
-    // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
-    // cl_khr_fp64, cl_khr_int64_base_atomics,
-    // cl_khr_int64_extended_atomics
-    return ReturnValue("");
-  case PI_DEVICE_INFO_VERSION:
-    return ReturnValueArray("0.1");
-  case PI_DEVICE_INFO_COMPILER_AVAILABLE:
-    return ReturnValue(pi_bool{false});
-  case PI_DEVICE_INFO_LINKER_AVAILABLE:
-    return ReturnValue(pi_bool{false});
-  case PI_DEVICE_INFO_MAX_COMPUTE_UNITS:
-    return ReturnValue(pi_uint32{256});
-  case PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
-    return ReturnValue(pi_uint32{0});
-  case PI_DEVICE_INFO_PARTITION_PROPERTIES:
-    return ReturnValue(pi_device_partition_property{0});
-  case PI_DEVICE_INFO_VENDOR_ID:
-    // '0x8086' : 'Intel HD graphics vendor ID'
-    return ReturnValue(pi_uint32{0x8086});
-  case PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
-    return ReturnValue(size_t{256});
-  case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
-    // Imported from level_zero
-    return ReturnValue(pi_uint32{8});
-  case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
-  case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
-  case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
-    // Default minimum values required by the SYCL specification.
-    return ReturnValue(size_t{2048});
-  case PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
-    return ReturnValue(pi_uint32{3});
-  case PI_DEVICE_INFO_PARTITION_TYPE:
-    return ReturnValue(pi_device_partition_property{0});
-  case PI_DEVICE_INFO_OPENCL_C_VERSION:
-    return ReturnValue("");
-  case PI_DEVICE_INFO_QUEUE_PROPERTIES:
-    return ReturnValue(pi_queue_properties{});
-  case PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
-    struct {
-      size_t Arr[3];
-    } MaxGroupSize = {{256, 256, 1}};
-    return ReturnValue(MaxGroupSize);
-  }
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
-    return ReturnValue(pi_uint32{1});
-
-  // Imported from level_zero
-  case PI_DEVICE_INFO_USM_HOST_SUPPORT:
-  case PI_DEVICE_INFO_USM_DEVICE_SUPPORT:
-  case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
-  case PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
-  case PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
-    pi_uint64 Supported = 0;
-    // TODO[1.0]: how to query for USM support now?
-    if (true) {
-      // TODO: Use ze_memory_access_capabilities_t
-      Supported = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
-                  PI_USM_CONCURRENT_ACCESS | PI_USM_CONCURRENT_ATOMIC_ACCESS;
-    }
-    return ReturnValue(Supported);
-  }
-  case PI_DEVICE_INFO_ADDRESS_BITS:
-    return ReturnValue(
-        pi_uint32{sizeof(void *) * std::numeric_limits<unsigned char>::digits});
-  case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
-    return ReturnValue(pi_uint32{1000});
-  case PI_DEVICE_INFO_ENDIAN_LITTLE:
-    return ReturnValue(pi_bool{true});
-  case PI_DEVICE_INFO_AVAILABLE:
-    return ReturnValue(pi_bool{true});
-  case PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
-  case PI_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
-    /// TODO : Check
-    return ReturnValue(pi_uint32{0});
-  case PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
-    /// TODO : Check
-    return ReturnValue(size_t{0});
-  case PI_DEVICE_INFO_MAX_PARAMETER_SIZE:
-    /// TODO : Check
-    return ReturnValue(size_t{32});
-  case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
-    return ReturnValue(PI_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
-  case PI_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
-    // TODO : CHECK
-    return ReturnValue(pi_uint32{64});
-  case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
-    // TODO : CHECK
-    return ReturnValue(pi_uint64{0});
-  case PI_DEVICE_INFO_GLOBAL_MEM_SIZE:
-    // TODO : CHECK
-    return ReturnValue(pi_uint64{0});
-  case PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:
-    // TODO : CHECK
-    return ReturnValue(pi_uint64{0});
-  case PI_DEVICE_INFO_MAX_CONSTANT_ARGS:
-    // TODO : CHECK
-    return ReturnValue(pi_uint32{64});
-  case PI_DEVICE_INFO_LOCAL_MEM_TYPE:
-    // TODO : CHECK
-    return ReturnValue(PI_DEVICE_LOCAL_MEM_TYPE_LOCAL);
-  case PI_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
-    return ReturnValue(pi_bool{false});
-  case PI_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
-    // TODO : CHECK
-    return ReturnValue(size_t{0});
-  case PI_DEVICE_INFO_BUILT_IN_KERNELS:
-    // TODO : CHECK
-    return ReturnValue("");
-  case PI_DEVICE_INFO_PRINTF_BUFFER_SIZE:
-    // TODO : CHECK
-    return ReturnValue(size_t{1024});
-  case PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
-    return ReturnValue(pi_bool{false});
-  case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
-    return ReturnValue(pi_device_affinity_domain{0});
-  case PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
-    // TODO : CHECK
-    return ReturnValue(pi_uint64{0});
-  case PI_DEVICE_INFO_EXECUTION_CAPABILITIES:
-    // TODO : CHECK
-    return ReturnValue(
-        pi_device_exec_capabilities{PI_DEVICE_EXEC_CAPABILITIES_KERNEL});
-  case PI_DEVICE_INFO_PROFILE:
-    return ReturnValue("FULL_PROFILE");
-  case PI_DEVICE_INFO_REFERENCE_COUNT:
-    // TODO : CHECK
-    return ReturnValue(pi_uint32{0});
-  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE:
-    return ReturnValue(pi_bool{0});
-  case PI_DEVICE_INFO_ATOMIC_64:
-    return ReturnValue(pi_bool{0});
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
-    return ReturnValue(pi_bool{0});
-  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
-    return ReturnValue(pi_bool{0});
-  case PI_DEVICE_INFO_IMAGE_SRGB:
-    return ReturnValue(pi_bool{0});
-  case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
-    return ReturnValue(pi_uint32{1});
-  case PI_DEVICE_INFO_GPU_EU_COUNT:
-  case PI_DEVICE_INFO_PCI_ADDRESS:
-  case PI_DEVICE_INFO_GPU_SLICES:
-  case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
-  case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
-  case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
-  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D:
-  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D:
-  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
-  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-  case PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER:
-  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY:
-  case PI_DEVICE_INFO_UUID:
-  case PI_DEVICE_INFO_DEVICE_ID:
-  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE:
-  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH:
-  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
-  case PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS:
-  case PI_DEVICE_INFO_IL_VERSION:
-    return PI_ERROR_INVALID_VALUE;
-
-    // Intel-specific extensions
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
-    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
-
-  default:
-    DIE_NO_IMPLEMENTATION;
-  }
-  return PI_SUCCESS;
-}
-
-pi_result piDevicePartition(pi_device, const pi_device_partition_property *,
-                            pi_uint32, pi_device *, pi_uint32 *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextDeviceGetNativeHandle(pi_device, pi_native_handle *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextDeviceCreateWithNativeHandle(pi_native_handle, pi_platform,
-                                            pi_device *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1119,11 +835,6 @@ pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
-                                  pi_uint32 RawImgSize, pi_uint32 *ImgInd) {
-  CONTINUE_NO_IMPLEMENTATION;
-}
-
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
                                   pi_usm_migration_flags, pi_uint32,
                                   const pi_event *, pi_event *) {
@@ -1343,6 +1054,19 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Platform
   _PI_CL(piPlatformsGet, pi2ur::piPlatformsGet)
   _PI_CL(piPlatformGetInfo, pi2ur::piPlatformGetInfo)
+  // Device
+  _PI_CL(piDevicesGet, pi2ur::piDevicesGet)
+  _PI_CL(piDeviceGetInfo, pi2ur::piDeviceGetInfo)
+  _PI_CL(piDevicePartition, pi2ur::piDevicePartition)
+  _PI_CL(piDeviceRetain, pi2ur::piDeviceRetain)
+  _PI_CL(piDeviceRelease, pi2ur::piDeviceRelease)
+  _PI_CL(piextDeviceSelectBinary, pi2ur::piextDeviceSelectBinary)
+  // TODO: uncomment when program is fully ported
+  //  _PI_CL(piextGetDeviceFunctionPointer,
+  //  pi2ur::piextGetDeviceFunctionPointer)
+  _PI_CL(piextDeviceGetNativeHandle, pi2ur::piextDeviceGetNativeHandle)
+  _PI_CL(piextDeviceCreateWithNativeHandle,
+         pi2ur::piextDeviceCreateWithNativeHandle)
 
 #undef _PI_CL
   return PI_SUCCESS;

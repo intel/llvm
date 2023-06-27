@@ -14,3 +14,7 @@
 struct _pi_platform : ur_platform_handle_t_ {
   using ur_platform_handle_t_::ur_platform_handle_t_;
 };
+
+struct _pi_device : ur_device_handle_t_ {
+  using ur_device_handle_t_::ur_device_handle_t_;
+};

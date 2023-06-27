@@ -27,11 +27,11 @@
   }                                                                            \
   return UR_RESULT_SUCCESS;
 
-#define CASE_PI_UNSUPPORTED(not_supported)                                     \
+#define CASE_UR_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
     if (PrintTrace) {                                                          \
       std::cerr << std::endl                                                   \
-                << "Unsupported PI case : " << #not_supported << " in "        \
+                << "Unsupported UR case : " << #not_supported << " in "        \
                 << __FUNCTION__ << ":" << __LINE__ << "(" << __FILE__ << ")"   \
                 << std::endl;                                                  \
     }                                                                          \
