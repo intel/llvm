@@ -24,6 +24,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -3465,16 +3466,6 @@ static bool mayContainUnboundedCycle(Function &F, Attributor &A) {
 struct AAWillReturnImpl : public AAWillReturn {
   AAWillReturnImpl(const IRPosition &IRP, Attributor &A)
       : AAWillReturn(IRP, A) {}
-
-  /// See AbstractAttribute::initialize(...).
-  void initialize(Attributor &A) override {
-    AAWillReturn::initialize(A);
-
-    if (isImpliedByMustprogressAndReadonly(A, /* KnownOnly */ true)) {
-      indicateOptimisticFixpoint();
-      return;
-    }
-  }
 
   /// Check for `mustprogress` and `readonly` as they imply `willreturn`.
   bool isImpliedByMustprogressAndReadonly(Attributor &A, bool KnownOnly) {

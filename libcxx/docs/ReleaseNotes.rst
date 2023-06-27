@@ -67,6 +67,10 @@ Improvements and New Features
   in the specialization has not been implemented in libc++. This prevents the
   feature-test macro to be set.
 
+- Platforms that don't have support for a filesystem can now still take advantage of some parts of ``<filesystem>``.
+  Anything that does not rely on having an actual filesystem available will now work, such as ``std::filesystem::path``,
+  ``std::filesystem::perms`` and similar classes.
+
 Deprecations and Removals
 -------------------------
 
@@ -82,6 +86,10 @@ Deprecations and Removals
            ``stdexcept``, ``system_error``, ``type_traits``, ``typeinfo``
 
 - ``<algorithm>`` no longer includes ``<chrono>`` in any C++ version (it was previously included in C++17 and earlier).
+
+- ``<limits>`` no longer includes ``<type_traits>`` in any C++ version (it was previously included in C++20 and earlier).
+
+- ``<new>`` no longer includes ``<exception>`` or ``<type_traits>`` in any C++ version (they were previously included in C++20 and earlier).
 
 - ``<string>`` no longer includes ``<vector>`` in any C++ version (it was previously included in C++20 and earlier).
 

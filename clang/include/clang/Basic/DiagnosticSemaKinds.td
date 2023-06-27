@@ -3017,6 +3017,10 @@ def warn_attribute_ignored_no_calls_in_stmt: Warning<
   "statement">,
   InGroup<IgnoredAttributes>;
 
+def warn_attribute_ignored_non_function_pointer: Warning<
+  "%0 attribute is ignored because %1 is not a function pointer">,
+  InGroup<IgnoredAttributes>;
+
 def warn_function_attribute_ignored_in_stmt : Warning<
   "attribute is ignored on this statement as it only applies to functions; "
   "use '%0' on statements">,
@@ -11337,22 +11341,11 @@ def note_global_module_introducer_missing : Note<
 def err_export_within_anonymous_namespace : Error<
   "export declaration appears within anonymous namespace">;
 def note_anonymous_namespace : Note<"anonymous namespace begins here">;
-def ext_export_no_name_block : ExtWarn<
-  "ISO C++20 does not permit %select{an empty|a static_assert}0 declaration "
-  "to appear in an export block">, InGroup<ExportUnnamed>;
-def ext_export_no_names : ExtWarn<
-  "ISO C++20 does not permit a declaration that does not introduce any names "
-  "to be exported">, InGroup<ExportUnnamed>;
-def introduces_no_names : Error<
-  "declaration does not introduce any names to be exported">;
 def note_export : Note<"export block begins here">;
-def err_export_no_name : Error<
-  "%select{empty|static_assert|asm}0 declaration cannot be exported">;
-def ext_export_using_directive : ExtWarn<
-  "ISO C++20 does not permit using directive to be exported">,
-  InGroup<DiagGroup<"export-using-directive">>;
 def err_export_within_export : Error<
   "export declaration appears within another export declaration">;
+def err_export_anon_ns_internal : Error<
+  "anonymous namespaces cannot be exported">;
 def err_export_internal : Error<
   "declaration of %0 with internal linkage cannot be exported">;
 def err_export_using_internal : Error<
