@@ -268,7 +268,7 @@ using namespace syclex = sycl::ext::oneapi::experimental;
 ...
 
 q.parallel_for(sycl::nd_range<1>{N, M},
-  syclex::properties{syclex::work_group_local_size(1024)},
+  syclex::properties{syclex::work_group_local_size(M * sizeof(int))},
   [=](sycl::nd_item<1> it) {
   ...
 });
