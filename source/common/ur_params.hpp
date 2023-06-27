@@ -1913,10 +1913,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         os << "UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP";
         break;
 
-    case UR_DEVICE_INFO_BINDLESS_IMAGES_3D_USM_SUPPORT_EXP:
-        os << "UR_DEVICE_INFO_BINDLESS_IMAGES_3D_USM_SUPPORT_EXP";
-        break;
-
     case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
         os << "UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP";
         break;
@@ -3554,20 +3550,6 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
     } break;
 
     case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(ur_bool_t) << ")";
-            return;
-        }
-        os << (void *)(tptr) << " (";
-
-        os << *tptr;
-
-        os << ")";
-    } break;
-
-    case UR_DEVICE_INFO_BINDLESS_IMAGES_3D_USM_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
@@ -9451,9 +9433,14 @@ operator<<(std::ostream &os,
     os << (params.maxMipmapLevelClamp);
 
     os << ", ";
-    os << ".maxAnistropy = ";
+    os << ".maxAnisotropy = ";
 
-    os << (params.maxAnistropy);
+    os << (params.maxAnisotropy);
+
+    os << ", ";
+    os << ".mipFilterMode = ";
+
+    os << (params.mipFilterMode);
 
     os << "}";
     return os;
@@ -9567,6 +9554,11 @@ inline std::ostream &operator<<(
     ur_params::serializePtr(os, *(params->phContext));
 
     os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    os << ", ";
     os << ".hImage = ";
 
     ur_params::serializePtr(os, *(params->phImage));
@@ -9584,6 +9576,11 @@ inline std::ostream &operator<<(
     ur_params::serializePtr(os, *(params->phContext));
 
     os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    os << ", ";
     os << ".hImage = ";
 
     ur_params::serializePtr(os, *(params->phImage));
@@ -9598,6 +9595,11 @@ inline std::ostream &operator<<(
     os << ".hContext = ";
 
     ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
 
     os << ", ";
     os << ".pImageFormat = ";
@@ -9626,6 +9628,11 @@ operator<<(std::ostream &os,
     ur_params::serializePtr(os, *(params->phContext));
 
     os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    os << ", ";
     os << ".hImageMem = ";
 
     ur_params::serializePtr(os, *(params->phImageMem));
@@ -9641,6 +9648,11 @@ operator<<(std::ostream &os,
     os << ".hContext = ";
 
     ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
 
     os << ", ";
     os << ".hImageMem = ";
@@ -9679,6 +9691,11 @@ inline std::ostream &operator<<(
     ur_params::serializePtr(os, *(params->phContext));
 
     os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    os << ", ";
     os << ".hImageMem = ";
 
     ur_params::serializePtr(os, *(params->phImageMem));
@@ -9715,9 +9732,9 @@ inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_bindless_images_image_copy_exp_params_t *params) {
 
-    os << ".hContext = ";
+    os << ".hQueue = ";
 
-    ur_params::serializePtr(os, *(params->phContext));
+    ur_params::serializePtr(os, *(params->phQueue));
 
     os << ", ";
     os << ".pDst = ";
@@ -9744,6 +9761,26 @@ operator<<(std::ostream &os,
 
     ur_params::serializeFlag<ur_exp_image_copy_flag_t>(
         os, *(params->pimageCopyFlags));
+
+    os << ", ";
+    os << ".srcOffset = ";
+
+    os << *(params->psrcOffset);
+
+    os << ", ";
+    os << ".dstOffset = ";
+
+    os << *(params->pdstOffset);
+
+    os << ", ";
+    os << ".copyExtent = ";
+
+    os << *(params->pcopyExtent);
+
+    os << ", ";
+    os << ".hostExtent = ";
+
+    os << *(params->phostExtent);
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -9806,6 +9843,11 @@ inline std::ostream &operator<<(
     ur_params::serializePtr(os, *(params->phContext));
 
     os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    os << ", ";
     os << ".hImageMem = ";
 
     ur_params::serializePtr(os, *(params->phImageMem));
@@ -9832,6 +9874,11 @@ operator<<(std::ostream &os,
     ur_params::serializePtr(os, *(params->phContext));
 
     os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    os << ", ";
     os << ".hMem = ";
 
     ur_params::serializePtr(os, *(params->phMem));
@@ -9846,6 +9893,11 @@ inline std::ostream &operator<<(
     os << ".hContext = ";
 
     ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
 
     os << ", ";
     os << ".size = ";
@@ -9872,6 +9924,11 @@ inline std::ostream &operator<<(
     os << ".hContext = ";
 
     ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
 
     os << ", ";
     os << ".pImageFormat = ";
@@ -9905,6 +9962,11 @@ inline std::ostream &operator<<(
     ur_params::serializePtr(os, *(params->phContext));
 
     os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    os << ", ";
     os << ".hInteropMem = ";
 
     ur_params::serializePtr(os, *(params->phInteropMem));
@@ -9920,6 +9982,11 @@ operator<<(std::ostream &os, const struct
     os << ".hContext = ";
 
     ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
 
     os << ", ";
     os << ".fileDescriptor = ";
@@ -9942,6 +10009,11 @@ inline std::ostream &operator<<(
     os << ".hContext = ";
 
     ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
 
     os << ", ";
     os << ".hInteropSemaphore = ";

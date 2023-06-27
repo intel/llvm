@@ -69,7 +69,6 @@ Enums
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_IMAGES_3D_USM_SUPPORT_EXP
     * ${X}_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP
     * ${X}_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP
     * ${X}_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP
@@ -149,11 +148,16 @@ Functions
 Changelog
 --------------------------------------------------------------------------------
 
-+-----------+------------------------+
-| Revision  | Changes                |
-+===========+========================+
-| 1.0       | Initial Draft           |
-+-----------+------------------------+
++----------+---------------------------------------------------------+
+| Revision | Changes                                                 |
++==========+=========================================================+
+| 1.0      | Initial Draft                                           |
++----------+---------------------------------------------------------+
+| 2.0      || Added device parameters to UR functions.               |
+|          || Added sub-region copy paramters to image copy function.|
+|          || Removed 3D USM capabilities.                           |
+|          || Added mip filter mode.                                 |
++----------+---------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
