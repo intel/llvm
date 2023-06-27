@@ -366,8 +366,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
   {
-    std::map<StringRef, std::vector<uint32_t>> Requirements;
-    getSYCLDeviceRequirements(M, Requirements);
+    std::map<StringRef, llvm::util::PropertyValue> Requirements;
+    getSYCLDeviceRequirements(MD, Requirements);
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, Requirements);
   }
   if (MD.Props.SpecConstsMet) {
