@@ -30,7 +30,6 @@ Design Documents for the oneAPI DPC++ Compiler
    design/CompilerAndRuntimeDesign
    design/KernelParameterPassing
    design/PluginInterface
-   design/SpecializationConstants
    design/SYCL2020-SpecializationConstants
    design/KernelProgramCache
    design/GlobalObjectsInRuntime

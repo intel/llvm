@@ -38,7 +38,7 @@ constructors/destructors.
 
 == Notice
 
-Copyright (c) 2021 - 2022 Intel Corporation.  All rights reserved.
+Copyright (c) 2021 - 2023 Intel Corporation.  All rights reserved.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
@@ -46,20 +46,12 @@ used by permission by Khronos.
 
 == Status
 
-Working Draft
-
-This is a preview extension specification, intended to provide early access to
-a feature for review and community feedback. When the feature matures, this
-specification may be released as a formal extension.
-
-Because the interfaces defined by this specification are not final and are
-subject to change they are not intended to be used by shipping software
-products.
-
-== Version
-
-Built On: 2021-09-30 +
-Revision: 3
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
 
 == Contact
 
@@ -147,7 +139,7 @@ For both `dm1` and `dm2`, the `MyClass` and `int[4]` allocations on each device
 in the context associated with `Q` are zero-initialized before any
 non-initialization accesses occur.
 
-== Proposal
+== Specification
 
 === Feature test macro
 
