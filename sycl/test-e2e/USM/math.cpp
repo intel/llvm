@@ -23,9 +23,11 @@ int main() {
         float *Buf = (float *)s::malloc_shared(
             sizeof(float) * 2, myQueue.get_device(), myQueue.get_context());
         s::malloc_shared(100, myQueue.get_device(), myQueue.get_context());
+        auto pBuf =
+            s::multi_ptr<float, s::access::address_space::global_space>(Buf);
         myQueue.submit([&](s::handler &cgh) {
           cgh.single_task<class fractF1UF1>(
-              [=]() { Buf[0] = s::fract(float{1.5f}, &Buf[1]); });
+              [=]() { Buf[0] = s::fract(float{1.5f}, pBuf + 1); });
         });
         myQueue.wait();
         r = Buf[0];
@@ -40,9 +42,11 @@ int main() {
     {
       s::float2 *Buf = (s::float2 *)s::malloc_shared(
           sizeof(s::float2) * 2, myQueue.get_device(), myQueue.get_context());
+      auto pBuf =
+          s::multi_ptr<s::float2, s::access::address_space::global_space>(Buf);
       myQueue.submit([&](s::handler &cgh) {
         cgh.single_task<class fractF2UF2>([=]() {
-          Buf[0] = s::fract(s::float2{1.5f, 2.5f}, &Buf[1]);
+          Buf[0] = s::fract(s::float2{1.5f, 2.5f}, pBuf + 1);
         });
       });
       myQueue.wait();
@@ -66,10 +70,12 @@ int main() {
         s::buffer<float, 1> BufR(&r, s::range<1>(1));
         int *BufI = (int *)s::malloc_shared(
             sizeof(int) * 2, myQueue.get_device(), myQueue.get_context());
+        auto pBufI =
+            s::multi_ptr<int, s::access::address_space::global_space>(BufI);
         myQueue.submit([&](s::handler &cgh) {
           auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
           cgh.single_task<class lgamma_rF1PI1>(
-              [=]() { AccR[0] = s::lgamma_r(float{10.f}, BufI); });
+              [=]() { AccR[0] = s::lgamma_r(float{10.f}, pBufI); });
         });
         myQueue.wait();
         i = *BufI;
@@ -87,10 +93,12 @@ int main() {
         s::buffer<float, 1> BufR(&r, s::range<1>(1));
         int *BufI = (int *)s::malloc_shared(
             sizeof(int) * 2, myQueue.get_device(), myQueue.get_context());
+        auto pBufI =
+            s::multi_ptr<int, s::access::address_space::global_space>(BufI);
         myQueue.submit([&](s::handler &cgh) {
           auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
           cgh.single_task<class lgamma_rF1PI1_neg>(
-              [=]() { AccR[0] = s::lgamma_r(float{-2.4f}, BufI); });
+              [=]() { AccR[0] = s::lgamma_r(float{-2.4f}, pBufI); });
         });
         myQueue.wait();
         i = *BufI;
@@ -108,10 +116,12 @@ int main() {
         s::buffer<s::float2, 1> BufR(&r, s::range<1>(1));
         s::int2 *BufI = (s::int2 *)s::malloc_shared(
             sizeof(s::int2) * 2, myQueue.get_device(), myQueue.get_context());
+        auto pBufI =
+            s::multi_ptr<s::int2, s::access::address_space::global_space>(BufI);
         myQueue.submit([&](s::handler &cgh) {
           auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
           cgh.single_task<class lgamma_rF2PF2>([=]() {
-            AccR[0] = s::lgamma_r(s::float2{10.f, -2.4f}, BufI);
+            AccR[0] = s::lgamma_r(s::float2{10.f, -2.4f}, pBufI);
           });
         });
         myQueue.wait();
