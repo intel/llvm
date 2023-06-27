@@ -9,6 +9,7 @@
 
 #include "ur_api.h"
 #include <cstdarg>
+#include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
 
@@ -18,38 +19,128 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_SUCCESS;
 
   switch (urResult) {
-  case UR_RESULT_ERROR_UNKNOWN:
-    return PI_ERROR_UNKNOWN;
-  case UR_RESULT_ERROR_DEVICE_LOST:
-    return PI_ERROR_DEVICE_NOT_FOUND;
   case UR_RESULT_ERROR_INVALID_OPERATION:
     return PI_ERROR_INVALID_OPERATION;
-  case UR_RESULT_ERROR_INVALID_PLATFORM:
-    return PI_ERROR_INVALID_PLATFORM;
-  case UR_RESULT_ERROR_INVALID_ARGUMENT:
-    return PI_ERROR_INVALID_ARG_VALUE;
+  case UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES:
+    return PI_ERROR_INVALID_QUEUE_PROPERTIES;
+  case UR_RESULT_ERROR_INVALID_QUEUE:
+    return PI_ERROR_INVALID_QUEUE;
   case UR_RESULT_ERROR_INVALID_VALUE:
     return PI_ERROR_INVALID_VALUE;
-  case UR_RESULT_ERROR_INVALID_EVENT:
-    return PI_ERROR_INVALID_EVENT;
+  case UR_RESULT_ERROR_INVALID_CONTEXT:
+    return PI_ERROR_INVALID_CONTEXT;
+  case UR_RESULT_ERROR_INVALID_PLATFORM:
+    return PI_ERROR_INVALID_PLATFORM;
   case UR_RESULT_ERROR_INVALID_BINARY:
     return PI_ERROR_INVALID_BINARY;
-  case UR_RESULT_ERROR_INVALID_KERNEL_NAME:
-    return PI_ERROR_INVALID_KERNEL_NAME;
-  case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
-    return PI_ERROR_BUILD_PROGRAM_FAILURE;
+  case UR_RESULT_ERROR_INVALID_PROGRAM:
+    return PI_ERROR_INVALID_PROGRAM;
+  case UR_RESULT_ERROR_INVALID_SAMPLER:
+    return PI_ERROR_INVALID_SAMPLER;
+  case UR_RESULT_ERROR_INVALID_MEM_OBJECT:
+    return PI_ERROR_INVALID_MEM_OBJECT;
+  case UR_RESULT_ERROR_INVALID_EVENT:
+    return PI_ERROR_INVALID_EVENT;
+  case UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    return PI_ERROR_INVALID_EVENT_WAIT_LIST;
+  case UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET:
+    return PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET;
   case UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
     return PI_ERROR_INVALID_WORK_GROUP_SIZE;
-  case UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY:
-    return PI_ERROR_OUT_OF_RESOURCES;
-  case UR_RESULT_ERROR_OUT_OF_HOST_MEMORY:
-    return PI_ERROR_OUT_OF_HOST_MEMORY;
-  case UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
-    return PI_ERROR_BUILD_PROGRAM_FAILURE;
+  case UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE:
+    return PI_ERROR_COMPILER_NOT_AVAILABLE;
+  case UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE:
+    return PI_ERROR_PROFILING_INFO_NOT_AVAILABLE;
+  case UR_RESULT_ERROR_DEVICE_NOT_FOUND:
+    return PI_ERROR_DEVICE_NOT_FOUND;
+  case UR_RESULT_ERROR_INVALID_DEVICE:
+    return PI_ERROR_INVALID_DEVICE;
+  case UR_RESULT_ERROR_DEVICE_REQUIRES_RESET:
+  case UR_RESULT_ERROR_DEVICE_LOST:
+    return PI_ERROR_DEVICE_NOT_AVAILABLE;
+  case UR_RESULT_ERROR_DEVICE_PARTITION_FAILED:
+    return PI_ERROR_DEVICE_PARTITION_FAILED;
+  case UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT:
+    return PI_ERROR_INVALID_DEVICE_PARTITION_COUNT;
+  case UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE:
+    return PI_ERROR_INVALID_WORK_ITEM_SIZE;
+  case UR_RESULT_ERROR_INVALID_WORK_DIMENSION:
+    return PI_ERROR_INVALID_WORK_DIMENSION;
+  case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
+    return PI_ERROR_INVALID_KERNEL_ARGS;
+  case UR_RESULT_ERROR_INVALID_KERNEL:
+    return PI_ERROR_INVALID_KERNEL;
+  case UR_RESULT_ERROR_INVALID_KERNEL_NAME:
+    return PI_ERROR_INVALID_KERNEL_NAME;
+  case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX:
+    return PI_ERROR_INVALID_ARG_INDEX;
+  case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE:
+    return PI_ERROR_INVALID_ARG_SIZE;
+  case UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_INVALID_IMAGE_SIZE:
+    return PI_ERROR_INVALID_IMAGE_SIZE;
+  case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+    return PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+  case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
+    return PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
+    return PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE;
+  case UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE:
+    return PI_ERROR_INVALID_PROGRAM_EXECUTABLE;
   case UR_RESULT_ERROR_UNINITIALIZED:
     return PI_ERROR_UNINITIALIZED;
+  case UR_RESULT_ERROR_OUT_OF_HOST_MEMORY:
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+  case UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY:
+  case UR_RESULT_ERROR_OUT_OF_RESOURCES:
+    return PI_ERROR_OUT_OF_RESOURCES;
+  case UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
+    return PI_ERROR_BUILD_PROGRAM_FAILURE;
+  case UR_RESULT_ERROR_PROGRAM_LINK_FAILURE:
+    return PI_ERROR_LINK_PROGRAM_FAILURE;
+  case UR_RESULT_ERROR_UNSUPPORTED_VERSION:
+  case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
+  case UR_RESULT_ERROR_INVALID_ARGUMENT:
+  case UR_RESULT_ERROR_INVALID_NULL_HANDLE:
+  case UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE:
+  case UR_RESULT_ERROR_INVALID_NULL_POINTER:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_INVALID_SIZE:
+  case UR_RESULT_ERROR_UNSUPPORTED_SIZE:
+    return PI_ERROR_INVALID_BUFFER_SIZE;
+  case UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT:
+  case UR_RESULT_ERROR_INVALID_ENUMERATION:
+  case UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
+    return PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  case UR_RESULT_ERROR_INVALID_NATIVE_BINARY:
+    return PI_ERROR_INVALID_BINARY;
+  case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
+    return PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
+  case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
+    return PI_ERROR_INVALID_WORK_DIMENSION;
+  case UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION:
+    return PI_ERROR_INVALID_VALUE;
+
+  case UR_RESULT_ERROR_PROGRAM_UNLINKED:
+    return PI_ERROR_INVALID_PROGRAM_EXECUTABLE;
+  case UR_RESULT_ERROR_OVERLAPPING_REGIONS:
+    return PI_ERROR_MEM_COPY_OVERLAP;
+  case UR_RESULT_ERROR_INVALID_HOST_PTR:
+    return PI_ERROR_INVALID_HOST_PTR;
+  case UR_RESULT_ERROR_INVALID_USM_SIZE:
+    return PI_ERROR_INVALID_BUFFER_SIZE;
+  case UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE:
+    return PI_ERROR_OUT_OF_RESOURCES;
   case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  case UR_RESULT_ERROR_UNKNOWN:
   default:
     return PI_ERROR_UNKNOWN;
   };
@@ -253,6 +344,10 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
         return PI_QUEUE_FLAG_ON_DEVICE;
       case UR_QUEUE_FLAG_ON_DEVICE_DEFAULT:
         return PI_QUEUE_FLAG_ON_DEVICE_DEFAULT;
+      case UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM:
+        return static_cast<uint64_t>(__SYCL_PI_CUDA_SYNC_WITH_DEFAULT);
+      case UR_QUEUE_FLAG_USE_DEFAULT_STREAM:
+        return static_cast<uint64_t>(__SYCL_PI_CUDA_USE_DEFAULT_STREAM);
       default:
         die("UR_DEVICE_INFO_QUEUE_PROPERTIES: unhandled value");
       }
@@ -1014,7 +1109,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     break;
   }
   case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
-    InfoType = UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
+    InfoType = UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
     break;
   }
   default:
@@ -1380,6 +1475,10 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
     UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_LOW;
   if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)
     UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
+  if (Properties[1] & __SYCL_PI_CUDA_SYNC_WITH_DEFAULT)
+    UrProperties.flags |= UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
+  if (Properties[1] & __SYCL_PI_CUDA_USE_DEFAULT_STREAM)
+    UrProperties.flags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
 
   ur_queue_index_properties_t IndexProperties{};
   IndexProperties.stype = UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES;
@@ -1943,7 +2042,8 @@ inline pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
-  HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, ArgValue));
+  HANDLE_ERRORS(
+      urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
   return PI_SUCCESS;
 }
 
@@ -1951,7 +2051,7 @@ inline pi_result piKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                        size_t ArgSize, const void *ArgValue) {
   std::ignore = ArgSize;
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, ArgValue));
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, ArgValue));
 
   return PI_SUCCESS;
 }
@@ -2013,17 +2113,15 @@ inline pi_result piKernelSetExecInfo(pi_kernel Kernel,
     break;
   }
   case PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG: {
-    PropName = UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG;
+    PropName = UR_KERNEL_EXEC_INFO_CACHE_CONFIG;
     auto Param = (*(static_cast<const pi_kernel_cache_config *>(ParamValue)));
     if (Param == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM) {
-      PropValue =
-          static_cast<uint64_t>(UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM);
+      PropValue = static_cast<uint64_t>(UR_KERNEL_CACHE_CONFIG_LARGE_SLM);
     } else if (Param == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA) {
-      PropValue =
-          static_cast<uint64_t>(UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA);
+      PropValue = static_cast<uint64_t>(UR_KERNEL_CACHE_CONFIG_LARGE_DATA);
       break;
     } else if (Param == PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT) {
-      PropValue = static_cast<uint64_t>(UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
+      PropValue = static_cast<uint64_t>(UR_KERNEL_CACHE_CONFIG_DEFAULT);
     } else {
       die("piKernelSetExecInfo: unsupported ParamValue\n");
     }
@@ -2032,8 +2130,8 @@ inline pi_result piKernelSetExecInfo(pi_kernel Kernel,
   default:
     die("piKernelSetExecInfo: unsupported ParamName\n");
   }
-  HANDLE_ERRORS(
-      urKernelSetExecInfo(UrKernel, PropName, ParamValueSize, &PropValue));
+  HANDLE_ERRORS(urKernelSetExecInfo(UrKernel, PropName, ParamValueSize, nullptr,
+                                    &PropValue));
 
   return PI_SUCCESS;
 }
@@ -2211,7 +2309,8 @@ inline pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                           const void *ArgValue) {
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
-  HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, ArgValue));
+  HANDLE_ERRORS(
+      urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
 
   return PI_SUCCESS;
 }
@@ -3919,7 +4018,7 @@ inline pi_result piextKernelSetArgSampler(pi_kernel Kernel, pi_uint32 ArgIndex,
   ur_sampler_handle_t UrSampler =
       reinterpret_cast<ur_sampler_handle_t>(*ArgValue);
 
-  HANDLE_ERRORS(urKernelSetArgSampler(UrKernel, ArgIndex, UrSampler));
+  HANDLE_ERRORS(urKernelSetArgSampler(UrKernel, ArgIndex, nullptr, UrSampler));
 
   return PI_SUCCESS;
 }
