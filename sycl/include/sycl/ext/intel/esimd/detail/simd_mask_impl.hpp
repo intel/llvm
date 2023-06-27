@@ -132,6 +132,11 @@ public:
     return *this;
   }
 
+  /// Copy assignment operator.
+  simd_mask_impl &operator=(const simd_mask_impl &other) noexcept {
+    return base_type::operator=(other);
+  }
+
   /// Conversion to boolean. Available only when the number of elements is 1.
   /// @return true if the element is non-zero, false otherwise.
   template <class T1 = simd_mask_impl,
