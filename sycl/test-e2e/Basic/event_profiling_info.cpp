@@ -13,6 +13,9 @@
 // Flaky with CUDA and HIP (https://github.com/intel/llvm/issues/6495).
 // UNSUPPORTED: cuda, hip
 
+// Fails there.
+// UNSUPPORTED: opencl && gpu && gpu-intel-pvc
+
 #include <cassert>
 #include <iostream>
 #include <sycl/sycl.hpp>

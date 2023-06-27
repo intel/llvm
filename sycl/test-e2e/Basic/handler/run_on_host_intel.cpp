@@ -17,7 +17,7 @@
 
 template <typename SrcAccType, typename DstAccType>
 void copyAndAdd(SrcAccType SrcAcc, DstAccType DstAcc, int Var) {
-  for (int I = 0; I < (int)DstAcc.get_count(); ++I)
+  for (int I = 0; I < (int)DstAcc.size(); ++I)
     DstAcc[I] = Var + SrcAcc[I];
 }
 
@@ -38,7 +38,7 @@ int main() {
 
   sycl::host_accessor DstAcc(DstBuf, sycl::read_only);
   const int Expected = 42;
-  for (int I = 0; I < DstAcc.get_count(); ++I)
+  for (int I = 0; I < DstAcc.size(); ++I)
     if (DstAcc[I] != Expected) {
       std::cerr << "Mismatch. Elem " << I << ". Expected: " << Expected
                 << ", Got: " << DstAcc[I] << std::endl;

@@ -534,7 +534,12 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                                  (N == 1 || N == 8 || N == 16 || N == 32) &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<T, N>>
-gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
+gather(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+       simd<uint64_t, N> offsets, uint64_t glob_offset = 0,
+#else
+       simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
+#endif
        simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
@@ -567,8 +572,19 @@ template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                              (N == 1 || N == 8 || N == 16 || N == 32) &&
                              !std::is_pointer<AccessorTy>::value>
-scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
-        uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
+scatter(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+        simd<uint64_t, N> offsets,
+#else
+        simd<uint32_t, N> offsets,
+#endif
+        simd<T, N> vals,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+        uint64_t glob_offset = 0,
+#else
+        uint32_t glob_offset = 0,
+#endif
+        simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
                 vals, mask);
@@ -1633,6 +1649,16 @@ __ESIMD_API void barrier() {
 /// @{
 
 /// Declare per-work-group slm size.
+/// GPU RT/driver requires this function to be called in the beginning
+/// of the kernel using SLM. There must be only 1 call site of slm_init()
+/// per kernel.
+/// If slm_init is called from some function F called from the kernel,
+/// then inlining of F into the kernel must be managed/guaranteed.
+/// slm_init<SLMSize> can also be used together with slm_allocator() class.
+/// In such cases slm_allocator<AdditionalMem> allocates extra chunk of SLM
+/// memory and the final amount of allocated SLM may be bigger
+/// than what is requested by slm_init. See more details on
+/// slm_allocator class usage at it's declaration and ESIMD extension SPEC.
 /// @tparam SLMSize  Shared Local Memory (SLM) size
 template <uint32_t SLMSize> __ESIMD_API void slm_init() {
   __esimd_slm_init(SLMSize);
@@ -1640,7 +1666,12 @@ template <uint32_t SLMSize> __ESIMD_API void slm_init() {
 
 /// Declare per-work-group slm size. Non-constant argument version to be used
 /// with specialization constants only.
-/// @param size  Shared Local Memory (SLM) size
+/// Same restrictions are applied to this function as to it's template variant
+/// slm_init<SLMSize>().
+/// This version has an additional restriction - it cannot be used together
+//  with esimd::slm_allocator() class.
+/// @param size  Shared Local Memory (SLM) size to be allocated for each
+/// work-group of ESIMD kernel.
 __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 
 /// Gather operation over the Shared Local Memory.

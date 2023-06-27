@@ -1,3 +1,4 @@
+// REQUIRES: sg-8
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 // UNSUPPORTED: accelerator
@@ -454,8 +455,10 @@ int main() {
     }
 
     std::cout << "Test passed." << std::endl;
+    return 0;
   } catch (std::exception &E) {
     std::cout << "Test failed" << std::endl;
     std::cout << E.what() << std::endl;
+    return 1;
   }
 }

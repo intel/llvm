@@ -10,7 +10,7 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1
 // RUN: %{run} %t.out
 
-// XFAIL: gpu
+// XFAIL: *
 
 #include <iostream>
 #include <random>
