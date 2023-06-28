@@ -24,9 +24,8 @@ namespace experimental {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  annotated_ref operator op(const T &rhs) {                                    \
-    (*m_Ptr) op rhs;                                                           \
-    return *this;                                                              \
+  T operator op##=(const T &rhs) {                                    \
+    return (*m_Ptr) = (*m_Ptr) op rhs;                                                           \
   }
 
 template <typename T, typename PropertyListT = detail::empty_properties_t>
@@ -55,21 +54,24 @@ public:
 
   operator T() const { return *m_Ptr; }
 
-  annotated_ref &operator=(const T &Obj) {
-    *m_Ptr = Obj;
-    return *this;
+  T operator=(const T &Obj) {
+    return *m_Ptr = Obj;
   }
 
-  annotated_ref &operator=(const annotated_ref &) = default;
+  T operator=(const annotated_ref &Ref) {
+    return *m_Ptr = *(Ref.m_Ptr);
+  }
 
-  PROPAGATE_OP(+=)
-  PROPAGATE_OP(-=)
-  PROPAGATE_OP(*=)
-  PROPAGATE_OP(/=)
-  PROPAGATE_OP(%=)
-  PROPAGATE_OP(^=)
-  PROPAGATE_OP(&=)
-  PROPAGATE_OP(|=)
+  PROPAGATE_OP(+)
+  PROPAGATE_OP(-)
+  PROPAGATE_OP(*)
+  PROPAGATE_OP(/)
+  PROPAGATE_OP(%)
+  PROPAGATE_OP(^)
+  PROPAGATE_OP(&)
+  PROPAGATE_OP(|)
+  PROPAGATE_OP(<<)
+  PROPAGATE_OP(>>)
 };
 
 #undef PROPAGATE_OP
@@ -126,7 +128,7 @@ public:
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(annotated_ptr &) = default;
 
-  annotated_ptr(T *Ptr, const property_list_t & = properties{}) noexcept
+  explicit annotated_ptr(T *Ptr, const property_list_t & = properties{}) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
@@ -134,7 +136,7 @@ public:
   // variadic properties. The same property in `Props...` and
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
+  explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {
     static_assert(
         std::is_same<

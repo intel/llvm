@@ -262,9 +262,9 @@ class annotated_ptr {
     using reference = annotated_ref<T, PropertyListT>;
 
     annotated_ptr() noexcept;
-    annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+    explicit annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
     template<typename... PropertyValueTs>
-    annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
+    explicit annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
 
     template <typename T2, typename P> explicit annotated_ptr(
       const annotated_ptr<T2, P>&) noexcept;
@@ -336,7 +336,7 @@ underlying pointer is initialized to `nullptr`.
 a|
 [source,c++]
 ----
-annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+explicit annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
 ----
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
@@ -349,7 +349,7 @@ a|
 [source,c++]
 ----
 template<typename... PropertyValueTs>
-annotated_ptr(T *Ptr, const PropertyValueTs... props) noexcept;
+explicit annotated_ptr(T *Ptr, const PropertyValueTs... props) noexcept;
 ----
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
@@ -562,11 +562,12 @@ namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_ref {
   public:
-    annotated_ref(T*);
     annotated_ref(const annotated_ref&) = default;
     operator T() const;
-    annotated_ref& operator=(const T &);
-    annotated_ref& operator=(const annotated_ref&) = default;
+    T operator=(const T &);
+    T operator=(const annotated_ref&);
+    // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
+    T operatorOP(const T &);
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -600,7 +601,7 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-annotated_ref& operator=(const T &);
+T operator=(const T &);
 ----
 |
 Writes an object of type `T` to the location referenced by this wrapper,
@@ -610,10 +611,24 @@ applying the annotations when the object is stored to memory.
 a|
 [source,c++]
 ----
-annotated_ref& operator=(const annotated_ref&) = default;
+T operator=(const annotated_ref&);
 ----
 |
-Assign from another `annotated_ref` object.
+Writes an object of type `T` to the location referenced by this wrapper,
+applying the annotations when the object is stored to memory.
+Does not rebind the reference!
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T operatorOP(const T &);
+----
+|
+Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#|=#, [code]#^=#.
+
+Compound assignment operators. Return result by value.
+Available if the corresponding non-compound operator is available for `T``.
 
 |===
 
@@ -700,6 +715,7 @@ the alignment is set up.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
+|4|2023-06-28|Roland Schulz|API fixes: constructors and annotated_ref assignment
 |3|2022-04-05|Abhishek Tiwari|*Addressed review comments*
 |2|2022-03-07|Abhishek Tiwari|*Corrected API and updated description*
 |1|2021-11-01|Abhishek Tiwari|*Initial internal review version*
