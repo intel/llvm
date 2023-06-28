@@ -79,7 +79,7 @@ bool exception::has_context() const noexcept { return (MContext != nullptr); }
 
 context exception::get_context() const {
   if (!has_context())
-    throw invalid_object_error();
+    throw sycl::exception(sycl::errc::invalid);
 
   return *MContext;
 }
