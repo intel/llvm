@@ -40,6 +40,125 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
     marray[i] = x[i];
   return marray;
 }
+
+// Vectors need fixed-size integers instead of fundamental types.
+template <typename T, bool Signed, typename Cond = void>
+struct same_fixed_size_int;
+template <typename T>
+struct same_fixed_size_int<T, true, std::enable_if_t<sizeof(T) == 1>> {
+  using type = int8_t;
+};
+template <typename T>
+struct same_fixed_size_int<T, true, std::enable_if_t<sizeof(T) == 2>> {
+  using type = int16_t;
+};
+template <typename T>
+struct same_fixed_size_int<T, true, std::enable_if_t<sizeof(T) == 4>> {
+  using type = int32_t;
+};
+template <typename T>
+struct same_fixed_size_int<T, true, std::enable_if_t<sizeof(T) == 8>> {
+  using type = int64_t;
+};
+template <typename T>
+struct same_fixed_size_int<T, false, std::enable_if_t<sizeof(T) == 1>> {
+  using type = uint8_t;
+};
+template <typename T>
+struct same_fixed_size_int<T, false, std::enable_if_t<sizeof(T) == 2>> {
+  using type = uint16_t;
+};
+template <typename T>
+struct same_fixed_size_int<T, false, std::enable_if_t<sizeof(T) == 4>> {
+  using type = uint32_t;
+};
+template <typename T>
+struct same_fixed_size_int<T, false, std::enable_if_t<sizeof(T) == 8>> {
+  using type = uint64_t;
+};
+
+// Trait for getting an integer type of the same size as T. This propagates
+// through vec and marray.
+template <typename T, bool Signed, typename Cond = void> struct same_size_int;
+template <typename T>
+struct same_size_int<
+    T, true, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 1>> {
+  using type = signed char;
+};
+template <typename T>
+struct same_size_int<
+    T, true, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 2>> {
+  using type = signed short;
+};
+template <typename T>
+struct same_size_int<
+    T, true, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 4>> {
+  using type = signed int;
+};
+template <typename T>
+struct same_size_int<
+    T, true, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 8>> {
+  using type = signed long long;
+};
+template <typename T>
+struct same_size_int<
+    T, false, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 1>> {
+  using type = unsigned char;
+};
+template <typename T>
+struct same_size_int<
+    T, false, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 2>> {
+  using type = unsigned short;
+};
+template <typename T>
+struct same_size_int<
+    T, false, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 4>> {
+  using type = unsigned int;
+};
+template <typename T>
+struct same_size_int<
+    T, false, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 8>> {
+  using type = unsigned long long;
+};
+template <typename T, int N, bool Signed>
+struct same_size_int<vec<T, N>, Signed> {
+  // Use the fixed-size integer types.
+  using type = vec<typename same_fixed_size_int<T, Signed>::type, N>;
+};
+template <typename T, size_t N, bool Signed>
+struct same_size_int<marray<T, N>, Signed> {
+  using type = marray<typename same_size_int<T, Signed>::type, N>;
+};
+
+// Trait for getting a floating point type of the same size as T. This
+// propagates through vec and marray.
+template <typename T, typename Cond = void> struct same_size_float;
+template <typename T>
+struct same_size_float<
+    T, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 2>> {
+  using type = half;
+};
+template <typename T>
+struct same_size_float<
+    T, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 4>> {
+  using type = float;
+};
+template <typename T>
+struct same_size_float<
+    T, std::enable_if_t<!is_marray_or_vec_v<T> && sizeof(T) == 8>> {
+  using type = double;
+};
+template <typename T, int N> struct same_size_float<vec<T, N>> {
+  using type = vec<typename same_size_float<T>::type, N>;
+};
+template <typename T, size_t N> struct same_size_float<marray<T, N>> {
+  using type = marray<typename same_size_float<T>::type, N>;
+};
+
+template <typename T, bool Signed>
+using same_size_int_t = typename same_size_int<T, Signed>::type;
+template <typename T>
+using same_size_float_t = typename same_size_float<T>::type;
 } // namespace detail
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -47,6 +166,8 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
 #else
 namespace __sycl_std = __host_std;
 #endif
+
+#define __SYCL_COMMA ,
 
 #define __SYCL_DEF_BUILTIN_VEC(TYPE)                                           \
   __SYCL_BUILTIN_DEF(TYPE##2)                                                  \
@@ -63,6 +184,15 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_GEOCROSSVEC(TYPE)                                   \
   __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
   __SYCL_BUILTIN_DEF(TYPE##4)
+
+#define __SYCL_DEF_BUILTIN_GEOMARRAY(TYPE)                                     \
+  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 2>)                              \
+  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 3>)                              \
+  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 4>)
+
+#define __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(TYPE)                                \
+  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 3>)                              \
+  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 4>)
 
 #define __SYCL_DEF_BUILTIN_MARRAY(TYPE)
 
@@ -240,6 +370,7 @@ namespace __sycl_std = __host_std;
 // longlongn and long{n} have the same types, so we only include one here.
 #define __SYCL_DEF_BUILTIN_VGENINTEGER                                         \
   __SYCL_DEF_BUILTIN_CHAR_VEC                                                  \
+  __SYCL_DEF_BUILTIN_UCHAR_VEC                                                 \
   __SYCL_DEF_BUILTIN_SHORT_VEC                                                 \
   __SYCL_DEF_BUILTIN_USHORT_VEC                                                \
   __SYCL_DEF_BUILTIN_INT_VEC                                                   \
@@ -259,6 +390,9 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_FLOAT_SCALAR __SYCL_BUILTIN_DEF(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_VEC __SYCL_DEF_BUILTIN_VEC(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(float)
+#define __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSMARRAY                                \
+  __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(float)
+#define __SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY __SYCL_DEF_BUILTIN_GEOMARRAY(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSVEC                                   \
   __SYCL_DEF_BUILTIN_GEOCROSSVEC(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(float)
@@ -275,6 +409,9 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_DOUBLE_SCALAR __SYCL_BUILTIN_DEF(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_VEC __SYCL_DEF_BUILTIN_VEC(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(double)
+#define __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSMARRAY                               \
+  __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(double)
+#define __SYCL_DEF_BUILTIN_DOUBLE_GEOMARRAY __SYCL_DEF_BUILTIN_GEOMARRAY(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSVEC                                  \
   __SYCL_DEF_BUILTIN_GEOCROSSVEC(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_MARRAY __SYCL_DEF_BUILTIN_MARRAY(double)
@@ -291,6 +428,9 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_HALF_SCALAR __SYCL_BUILTIN_DEF(half)
 #define __SYCL_DEF_BUILTIN_HALF_VEC __SYCL_DEF_BUILTIN_VEC(half)
 #define __SYCL_DEF_BUILTIN_HALF_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(half)
+#define __SYCL_DEF_BUILTIN_HALF_GEOCROSSMARRAY                                 \
+  __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(half)
+#define __SYCL_DEF_BUILTIN_HALF_GEOMARRAY __SYCL_DEF_BUILTIN_GEOMARRAY(half)
 #define __SYCL_DEF_BUILTIN_HALF_GEOCROSSVEC __SYCL_DEF_BUILTIN_GEOCROSSVEC(half)
 #define __SYCL_DEF_BUILTIN_HALF_MARRAY __SYCL_DEF_BUILTIN_MARRAY(half)
 #define __SYCL_DEF_BUILTIN_HALFN                                               \
@@ -323,6 +463,17 @@ namespace __sycl_std = __host_std;
   __SYCL_DEF_BUILTIN_GENGEOFLOATD                                              \
   __SYCL_DEF_BUILTIN_GENGEOFLOATH
 
+#define __SYCL_DEF_BUILTIN_GENGEOCROSSMARRAY                                   \
+  __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSMARRAY                                      \
+  __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSMARRAY                                     \
+  __SYCL_DEF_BUILTIN_HALF_GEOCROSSMARRAY
+
+#define __SYCL_DEF_BUILTIN_GENGEOMARRAY                                        \
+  __SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY                                           \
+  __SYCL_DEF_BUILTIN_DOUBLE_GEOMARRAY                                          \
+  __SYCL_DEF_BUILTIN_HALF_GEOMARRAY
+
+// TODO: Replace with overloads.
 #define __SYCL_DEF_BUILTIN_VGENGEOCROSSFLOAT                                   \
   __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSVEC                                         \
   __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSVEC                                        \
@@ -355,6 +506,10 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_SGENTYPE                                            \
   __SYCL_DEF_BUILTIN_SGENINTEGER                                               \
   __SYCL_DEF_BUILTIN_SGENFLOAT
+
+#define __SYCL_DEF_BUILTIN_VGENTYPE                                            \
+  __SYCL_DEF_BUILTIN_VGENINTEGER                                               \
+  __SYCL_DEF_BUILTIN_VGENFLOAT
 
 #define __SYCL_DEF_BUILTIN_GENTYPE                                             \
   __SYCL_DEF_BUILTIN_GENINTEGER                                                \
@@ -2063,171 +2218,206 @@ __SYCL_DEF_BUILTIN_GENGEOFLOATF
 
 // marray geometric functions
 
-#define __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(NAME, ...)              \
-  vec<detail::marray_element_t<T>, T::size()> result_v;                        \
-  result_v = NAME(__VA_ARGS__);                                                \
-  return detail::to_marray(result_v);
-
-template <typename T>
-std::enable_if_t<detail::is_gencrossmarray<T>::value, T> cross(T p0,
-                                                               T p1) __NOEXC {
-  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(cross, detail::to_vec(p0),
-                                                 detail::to_vec(p1))
-}
-
-template <typename T>
-std::enable_if_t<detail::is_gengeomarray<T>::value, T> normalize(T p) __NOEXC {
-  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(normalize, detail::to_vec(p))
-}
-
-template <typename T>
-std::enable_if_t<detail::is_gengeomarrayfloat<T>::value, T>
-fast_normalize(T p) __NOEXC {
-  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(fast_normalize,
-                                                 detail::to_vec(p))
-}
-
-#undef __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL
-
-#define __SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(NAME)  \
-  template <typename T>                                                        \
-  std::enable_if_t<detail::is_gengeomarray<T>::value,                          \
-                   detail::marray_element_t<T>>                                \
-  NAME(T p0, T p1) __NOEXC {                                                   \
-    return NAME(detail::to_vec(p0), detail::to_vec(p1));                       \
+// cross
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE cross(TYPE p0, TYPE p1) __NOEXC {                                \
+    return detail::to_marray(cross(detail::to_vec(p0), detail::to_vec(p1)));   \
   }
+__SYCL_DEF_BUILTIN_GENGEOCROSSMARRAY
+#undef __SYCL_BUILTIN_DEF
 
-// clang-format off
-__SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(dot)
-__SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(distance)
-// clang-format on
+#undef __SYCL_DEF_BUILTIN_GENGEOCROSSMARRAY
+#undef __SYCL_DEF_BUILTIN_HALF_GEOCROSSMARRAY
+#undef __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSMARRAY
+#undef __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSMARRAY
+#undef __SYCL_DEF_BUILTIN_GEOCROSSMARRAY
 
-#undef __SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD
+// dot
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE::value_type dot(TYPE p0, TYPE p1) __NOEXC {                      \
+    return dot(detail::to_vec(p0), detail::to_vec(p1));                        \
+  }
+__SYCL_DEF_BUILTIN_GENGEOMARRAY
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T>
-std::enable_if_t<detail::is_gengeomarray<T>::value, detail::marray_element_t<T>>
-length(T p) __NOEXC {
-  return __sycl_std::__invoke_length<detail::marray_element_t<T>>(
-      detail::to_vec(p));
-}
+// distance
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE::value_type distance(TYPE p0, TYPE p1) __NOEXC {                 \
+    return distance(detail::to_vec(p0), detail::to_vec(p1));                   \
+  }
+__SYCL_DEF_BUILTIN_GENGEOMARRAY
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T>
-std::enable_if_t<detail::is_gengeomarrayfloat<T>::value,
-                 detail::marray_element_t<T>>
-fast_distance(T p0, T p1) __NOEXC {
-  return fast_distance(detail::to_vec(p0), detail::to_vec(p1));
-}
+// length
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE::value_type length(TYPE p) __NOEXC {                             \
+    return length(detail::to_vec(p));                                          \
+  }
+__SYCL_DEF_BUILTIN_GENGEOMARRAY
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T>
-std::enable_if_t<detail::is_gengeomarrayfloat<T>::value,
-                 detail::marray_element_t<T>>
-fast_length(T p) __NOEXC {
-  return fast_length(detail::to_vec(p));
-}
+// normalize
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE normalize(TYPE p) __NOEXC {                                      \
+    return detail::to_marray(normalize(detail::to_vec(p)));                    \
+  }
+__SYCL_DEF_BUILTIN_GENGEOMARRAY
+#undef __SYCL_BUILTIN_DEF
+
+// fast_distance
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline float fast_distance(TYPE p0, TYPE p1) __NOEXC {                       \
+    return fast_distance(detail::to_vec(p0), detail::to_vec(p1));              \
+  }
+__SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
+#undef __SYCL_BUILTIN_DEF
+
+// fast_normalize
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE fast_normalize(TYPE p) __NOEXC {                                 \
+    return detail::to_marray(fast_normalize(detail::to_vec(p)));               \
+  }
+__SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
+#undef __SYCL_BUILTIN_DEF
+
+// fast_length
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline float fast_length(TYPE p) __NOEXC {                                   \
+    return fast_length(detail::to_vec(p));                                     \
+  }
+__SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
+#undef __SYCL_BUILTIN_DEF
+
+#undef __SYCL_DEF_BUILTIN_GENGEOMARRAY
+#undef __SYCL_DEF_BUILTIN_HALF_GEOMARRAY
+#undef __SYCL_DEF_BUILTIN_DOUBLE_GEOMARRAY
+#undef __SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
+#undef __SYCL_DEF_BUILTIN_GEOMARRAY
 
 /* SYCL 1.2.1 ---- 4.13.7 Relational functions. -----------------------------*/
 /* SYCL 2020  ---- 4.17.9 Relational functions. -----------------------------*/
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isequal(T x, T y) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdEqual<detail::internal_rel_ret_t<T>>(x, y));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isequal(TYPE x, TYPE y) __NOEXC {      \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_FOrdEqual<detail::internal_rel_ret_t<TYPE>>(x,    \
+                                                                         y));  \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isnotequal(T x, T y) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FUnordNotEqual<detail::internal_rel_ret_t<T>>(x, y));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isnotequal(TYPE x, TYPE y) __NOEXC {   \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_FUnordNotEqual<detail::internal_rel_ret_t<TYPE>>( \
+            x, y));                                                            \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isgreater(T x, T y) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdGreaterThan<detail::internal_rel_ret_t<T>>(x,
-                                                                          y));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isgreater(TYPE x, TYPE y) __NOEXC {    \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_FOrdGreaterThan<                                  \
+            detail::internal_rel_ret_t<TYPE>>(x, y));                          \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isgreaterequal(T x, T y) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdGreaterThanEqual<detail::internal_rel_ret_t<T>>(
-          x, y));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isgreaterequal(TYPE x, TYPE y)         \
+      __NOEXC {                                                                \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_FOrdGreaterThanEqual<                             \
+            detail::internal_rel_ret_t<TYPE>>(x, y));                          \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isless(T x, T y) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdLessThan<detail::internal_rel_ret_t<T>>(x, y));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isless(TYPE x, TYPE y) __NOEXC {       \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_FOrdLessThan<detail::internal_rel_ret_t<TYPE>>(   \
+            x, y));                                                            \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> islessequal(T x, T y) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdLessThanEqual<detail::internal_rel_ret_t<T>>(x,
-                                                                            y));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> islessequal(TYPE x, TYPE y) __NOEXC {  \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_FOrdLessThanEqual<                                \
+            detail::internal_rel_ret_t<TYPE>>(x, y));                          \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> islessgreater(T x, T y) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdNotEqual<detail::internal_rel_ret_t<T>>(x, y));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> islessgreater(TYPE x, TYPE y)          \
+      __NOEXC {                                                                \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_FOrdNotEqual<detail::internal_rel_ret_t<TYPE>>(   \
+            x, y));                                                            \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isfinite(T x) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsFinite<detail::internal_rel_ret_t<T>>(x));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isfinite(TYPE x) __NOEXC {             \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_IsFinite<detail::internal_rel_ret_t<TYPE>>(x));   \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isinf(T x) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsInf<detail::internal_rel_ret_t<T>>(x));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isinf(TYPE x) __NOEXC {                \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_IsInf<detail::internal_rel_ret_t<TYPE>>(x));      \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isnan(T x) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsNan<detail::internal_rel_ret_t<T>>(x));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isnan(TYPE x) __NOEXC {                \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_IsNan<detail::internal_rel_ret_t<TYPE>>(x));      \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isnormal(T x) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsNormal<detail::internal_rel_ret_t<T>>(x));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isnormal(TYPE x) __NOEXC {             \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_IsNormal<detail::internal_rel_ret_t<TYPE>>(x));   \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isordered(T x, T y) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_Ordered<detail::internal_rel_ret_t<T>>(x, y));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isordered(TYPE x, TYPE y) __NOEXC {    \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_Ordered<detail::internal_rel_ret_t<TYPE>>(x, y)); \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> isunordered(T x, T y) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_Unordered<detail::internal_rel_ret_t<T>>(x, y));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> isunordered(TYPE x, TYPE y) __NOEXC {  \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_Unordered<detail::internal_rel_ret_t<TYPE>>(x,    \
+                                                                         y));  \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
-  return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_SignBitSet<detail::internal_rel_ret_t<T>>(x));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::common_rel_ret_t<TYPE> signbit(TYPE x) __NOEXC {              \
+    return detail::RelConverter<TYPE>::apply(                                  \
+        __sycl_std::__invoke_SignBitSet<detail::internal_rel_ret_t<TYPE>>(x)); \
+  }
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // marray relational functions
 
@@ -2269,143 +2459,107 @@ __SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isunordered)
 __SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(signbit)
 
 // bool any (sigeninteger x)
-template <typename T>
-std::enable_if_t<detail::is_sigeninteger<T>::value, bool> any(T x) __NOEXC {
-  return detail::Boolean<1>(int(detail::msbIsSet(x)));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline bool any(TYPE x) __NOEXC {                                            \
+    return detail::Boolean<1>(int(detail::msbIsSet(x)));                       \
+  }
+__SYCL_DEF_BUILTIN_SIGENINTEGER
+#undef __SYCL_BUILTIN_DEF
 
 // int any (vigeninteger x)
-template <typename T>
-std::enable_if_t<detail::is_vigeninteger<T>::value, int> any(T x) __NOEXC {
-  return detail::rel_sign_bit_test_ret_t<T>(
-      __sycl_std::__invoke_Any<detail::rel_sign_bit_test_ret_t<T>>(
-          detail::rel_sign_bit_test_arg_t<T>(x)));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline int any(TYPE x) __NOEXC {                                             \
+    return detail::rel_sign_bit_test_ret_t<TYPE>(                              \
+        __sycl_std::__invoke_Any<detail::rel_sign_bit_test_ret_t<TYPE>>(       \
+            detail::rel_sign_bit_test_arg_t<TYPE>(x)));                        \
+  }
+__SYCL_DEF_BUILTIN_VIGENINTEGER
+#undef __SYCL_BUILTIN_DEF
 
 // bool all (sigeninteger x)
-template <typename T>
-std::enable_if_t<detail::is_sigeninteger<T>::value, bool> all(T x) __NOEXC {
-  return detail::Boolean<1>(int(detail::msbIsSet(x)));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline bool all(TYPE x) __NOEXC {                                            \
+    return detail::Boolean<1>(int(detail::msbIsSet(x)));                       \
+  }
+__SYCL_DEF_BUILTIN_SIGENINTEGER
+#undef __SYCL_BUILTIN_DEF
 
 // int all (vigeninteger x)
-template <typename T>
-std::enable_if_t<detail::is_vigeninteger<T>::value, int> all(T x) __NOEXC {
-  return detail::rel_sign_bit_test_ret_t<T>(
-      __sycl_std::__invoke_All<detail::rel_sign_bit_test_ret_t<T>>(
-          detail::rel_sign_bit_test_arg_t<T>(x)));
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline int all(TYPE x) __NOEXC {                                             \
+    return detail::rel_sign_bit_test_ret_t<TYPE>(                              \
+        __sycl_std::__invoke_All<detail::rel_sign_bit_test_ret_t<TYPE>>(       \
+            detail::rel_sign_bit_test_arg_t<TYPE>(x)));                        \
+  }
+__SYCL_DEF_BUILTIN_VIGENINTEGER
+#undef __SYCL_BUILTIN_DEF
 
 // gentype bitselect (gentype a, gentype b, gentype c)
-template <typename T>
-std::enable_if_t<detail::is_gentype<T>::value, T> bitselect(T a, T b,
-                                                            T c) __NOEXC {
-  return __sycl_std::__invoke_bitselect<T>(a, b, c);
-}
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE bitselect(TYPE a, TYPE b, TYPE c) __NOEXC {                      \
+    return __sycl_std::__invoke_bitselect<TYPE>(a, b, c);                      \
+  }
+__SYCL_DEF_BUILTIN_GENTYPE
+#undef __SYCL_BUILTIN_DEF
 
 // sgentype select (sgentype a, sgentype b, bool c)
-template <typename T>
-std::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
-                                                          bool c) __NOEXC {
-  constexpr size_t SizeT = sizeof(T);
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE select(TYPE a, TYPE b, bool c) __NOEXC {                         \
+    /* sycl::select(sgentype a, sgentype b, bool c) calls OpenCL built-in      \
+     select(sgentype a, sgentype b, igentype c). This type trait makes the     \
+     proper conversion for argument c from bool to igentype, based on sgentype \
+     == T.*/                                                                   \
+    using get_select_opencl_builtin_c_arg_type =                               \
+        detail::same_size_int_t<TYPE, std::is_signed_v<TYPE>>;                 \
+                                                                               \
+    return __sycl_std::__invoke_select<TYPE>(                                  \
+        a, b, static_cast<get_select_opencl_builtin_c_arg_type>(c));           \
+  }
+__SYCL_DEF_BUILTIN_SGENTYPE
+#undef __SYCL_BUILTIN_DEF
 
-  // sycl::select(sgentype a, sgentype b, bool c) calls OpenCL built-in
-  // select(sgentype a, sgentype b, igentype c). This type trait makes the
-  // proper conversion for argument c from bool to igentype, based on sgentype
-  // == T.
-  using get_select_opencl_builtin_c_arg_type = typename std::conditional_t<
-      SizeT == 1, char,
-      std::conditional_t<
-          SizeT == 2, short,
-          std::conditional_t<
-              (detail::is_contained<
-                   T, detail::type_list<long, unsigned long>>::value &&
-               (SizeT == 4 || SizeT == 8)),
-              long, // long and ulong are 32-bit on
-                    // Windows and 64-bit on Linux
-              std::conditional_t<
-                  SizeT == 4, int,
-                  std::conditional_t<SizeT == 8, long long, void>>>>>;
+// vgentype select(vgentype a, vgentype b, vigeninteger c)
+// vgentype select(vgentype a, vgentype b, vugeninteger c)
+// Non-standard:
+// sgentype select(sgentype a, sgentype b, sigeninteger c)
+// sgentype select(sgentype a, sgentype b, sugeninteger c)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE select(TYPE a, TYPE b, detail::same_size_int_t<TYPE, true> c)    \
+      __NOEXC {                                                                \
+    return __sycl_std::__invoke_select<TYPE>(a, b, c);                         \
+  }                                                                            \
+  inline TYPE select(TYPE a, TYPE b, detail::same_size_int_t<TYPE, false> c)   \
+      __NOEXC {                                                                \
+    return __sycl_std::__invoke_select<TYPE>(a, b, c);                         \
+  }
+__SYCL_DEF_BUILTIN_VGENTYPE
+__SYCL_DEF_BUILTIN_SGENTYPE
+#undef __SYCL_BUILTIN_DEF
 
-  return __sycl_std::__invoke_select<T>(
-      a, b, static_cast<get_select_opencl_builtin_c_arg_type>(c));
-}
-
-// geninteger select (geninteger a, geninteger b, igeninteger c)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_geninteger<T>::value && detail::is_igeninteger<T2>::value, T>
-select(T a, T b, T2 c) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_select<T>(a, b, c);
-}
-
-// geninteger select (geninteger a, geninteger b, ugeninteger c)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_geninteger<T>::value && detail::is_ugeninteger<T2>::value, T>
-select(T a, T b, T2 c) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_select<T>(a, b, c);
-}
-
-// svgenfloatf select (svgenfloatf a, svgenfloatf b, genint c)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloatf<T>::value && detail::is_genint<T2>::value, T>
-select(T a, T b, T2 c) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_select<T>(a, b, c);
-}
-
-// svgenfloatf select (svgenfloatf a, svgenfloatf b, ugenint c)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloatf<T>::value && detail::is_ugenint<T2>::value, T>
-select(T a, T b, T2 c) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_select<T>(a, b, c);
-}
-
-// svgenfloatd select (svgenfloatd a, svgenfloatd b, igeninteger64 c)
-template <typename T, typename T2>
-std::enable_if_t<detail::is_svgenfloatd<T>::value &&
-                     detail::is_igeninteger64bit<T2>::value,
-                 T>
-select(T a, T b, T2 c) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_select<T>(a, b, c);
-}
-
-// svgenfloatd select (svgenfloatd a, svgenfloatd b, ugeninteger64 c)
-template <typename T, typename T2>
-std::enable_if_t<detail::is_svgenfloatd<T>::value &&
-                     detail::is_ugeninteger64bit<T2>::value,
-                 T>
-select(T a, T b, T2 c) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_select<T>(a, b, c);
-}
-
-// svgenfloath select (svgenfloath a, svgenfloath b, igeninteger16 c)
-template <typename T, typename T2>
-std::enable_if_t<detail::is_svgenfloath<T>::value &&
-                     detail::is_igeninteger16bit<T2>::value,
-                 T>
-select(T a, T b, T2 c) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_select<T>(a, b, c);
-}
-
-// svgenfloath select (svgenfloath a, svgenfloath b, ugeninteger16 c)
-template <typename T, typename T2>
-std::enable_if_t<detail::is_svgenfloath<T>::value &&
-                     detail::is_ugeninteger16bit<T2>::value,
-                 T>
-select(T a, T b, T2 c) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_select<T>(a, b, c);
-}
+// Since same_size_int_t uses long long for 64-bit as it is guaranteed to have
+// the appropriate size, we need special cases for long.
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline detail::same_size_int_t<TYPE, true> select(                           \
+      detail::same_size_int_t<TYPE, true> a,                                   \
+      detail::same_size_int_t<TYPE, true> b, TYPE c) __NOEXC {                 \
+    return __sycl_std::__invoke_select<detail::same_size_int_t<TYPE, true>>(   \
+        a, b, c);                                                              \
+  }                                                                            \
+  inline detail::same_size_int_t<TYPE, false> select(                          \
+      detail::same_size_int_t<TYPE, false> a,                                  \
+      detail::same_size_int_t<TYPE, false> b, TYPE c) __NOEXC {                \
+    return __sycl_std::__invoke_select<detail::same_size_int_t<TYPE, false>>(  \
+        a, b, c);                                                              \
+  }                                                                            \
+  inline detail::same_size_float_t<TYPE> select(                               \
+      detail::same_size_float_t<TYPE> a, detail::same_size_float_t<TYPE> b,    \
+      TYPE c) __NOEXC {                                                        \
+    return __sycl_std::__invoke_select<detail::same_size_float_t<TYPE>>(a, b,  \
+                                                                        c);    \
+  }
+__SYCL_DEF_BUILTIN_LONG_SCALAR
+__SYCL_DEF_BUILTIN_ULONG_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // other marray relational functions
 
@@ -2923,7 +3077,9 @@ std::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
 #undef __SYCL_DEF_BUILTIN_GENGEOFLOAT
 #undef __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_DEF_BUILTIN_SGENTYPE
+#undef __SYCL_DEF_BUILTIN_VGENTYPE
 #undef __SYCL_DEF_BUILTIN_GENTYPE
+#undef __SYCL_COMMA
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
@@ -3078,6 +3234,13 @@ extern __DPCPP_SYCL_EXTERNAL float __imf_invf(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fmaxf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fminf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL float __imf_copysignf(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_exp10f(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_expf(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_logf(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_log2f(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_log10f(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_powf(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_fdividef(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rd(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rn(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_ru(float x);
