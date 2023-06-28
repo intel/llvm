@@ -20,7 +20,7 @@ using namespace sycl;
 namespace esimd = sycl::ext::intel::esimd;
 namespace xmx = sycl::ext::intel::esimd::xmx;
 
-inline auto createExceptionHandler() {
+inline auto create_exception_handler() {
   return [](exception_list l) {
     for (auto ep : l) {
       try {
@@ -77,8 +77,8 @@ constexpr int M = RepeatCount;
 constexpr int K = SystolicDepth * OpsPerChannel;
 constexpr int N = ExecSize;
 
-void writeToHorizontallyPackedMatrixA(APackedType *vec, int row, int col,
-                                      APackedType value) {
+void write_to_horizontally_packed_matrix_a(APackedType *vec, int row, int col,
+                                           APackedType value) {
   constexpr int NumRows = M;
   constexpr int NumCols = K;
 
@@ -102,8 +102,8 @@ void writeToHorizontallyPackedMatrixA(APackedType *vec, int row, int col,
   vec[packed_linear_index] = target_elem;
 }
 
-APackedType readFromHorizontallyPackedMatrixA(APackedType *vec, int row,
-                                              int col) {
+APackedType read_from_horizontally_packed_matrix_a(APackedType *vec, int row,
+                                                   int col) {
   constexpr int NumRows = M;
   constexpr int NumCols = K;
 
@@ -129,8 +129,8 @@ APackedType readFromHorizontallyPackedMatrixA(APackedType *vec, int row,
   return value;
 }
 
-void writeToVerticallyPackedMatrixB(BPackedType *vec, int row, int col,
-                                    BPackedType value) {
+void write_to_vertically_packed_matrix_b(BPackedType *vec, int row, int col,
+                                         BPackedType value) {
   constexpr int NumRows = K;
   constexpr int NumCols = N;
 
@@ -151,8 +151,8 @@ void writeToVerticallyPackedMatrixB(BPackedType *vec, int row, int col,
   vec[packed_linear_index] = target_elem;
 }
 
-BPackedType readFromVerticallyPackedMatrixB(BPackedType *vvec, int row,
-                                            int col) {
+BPackedType read_from_vertically_packed_matrix_b(BPackedType *vvec, int row,
+                                                 int col) {
   constexpr int NumRows = K;
   constexpr int NumCols = N;
 
@@ -182,7 +182,7 @@ BPackedType readFromVerticallyPackedMatrixB(BPackedType *vvec, int row,
 int main() {
   unsigned n_errs = 0;
   try {
-    queue q(gpu_selector_v, createExceptionHandler());
+    queue q(gpu_selector_v, create_exception_handler());
     auto dev = q.get_device();
     std::cout << "Running on " << dev.get_info<info::device::name>()
               << std::endl;
@@ -208,8 +208,8 @@ int main() {
     for (int i = 0; i < M; i++) {
       for (int j = 0; j < K; j++) {
         value += 1;
-        writeToHorizontallyPackedMatrixA(a_packed, i, j,
-                                         static_cast<APackedType>(value));
+        write_to_horizontally_packed_matrix_a(a_packed, i, j,
+                                              static_cast<APackedType>(value));
       }
     }
 
@@ -217,8 +217,8 @@ int main() {
     for (int i = 0; i < K; i++) {
       for (int j = 0; j < N; j++) {
         int value = (i + j % 4) == 0 ? 1 : (2 + i + j) % 3;
-        writeToVerticallyPackedMatrixB(b_packed, i, j,
-                                       static_cast<BPackedType>(value));
+        write_to_vertically_packed_matrix_b(b_packed, i, j,
+                                            static_cast<BPackedType>(value));
         assert(value == (int)(static_cast<BPackedType>(value)) && "ERROR");
       }
     }
@@ -245,8 +245,8 @@ int main() {
 
         // res(i,j) = C(i,j) = A(i,*)*B(*,j))
         for (int k = 0; k < K; k++) {
-          APackedType a_val = readFromHorizontallyPackedMatrixA(a, i, k);
-          BPackedType b_val = readFromVerticallyPackedMatrixB(b, k, j);
+          APackedType a_val = read_from_horizontally_packed_matrix_a(a, i, k);
+          BPackedType b_val = read_from_vertically_packed_matrix_b(b, k, j);
           gold_res += a_val * b_val;
         }
         // res(i,j) is res[N*i + j]

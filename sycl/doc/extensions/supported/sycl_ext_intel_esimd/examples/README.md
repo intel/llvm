@@ -106,7 +106,7 @@ is to show the basic ESIMD APIs in well known examples.
     int main() {
       unsigned n_errs = 0;
       try {
-        queue q(gpu_selector_v, createExceptionHandler());
+        queue q(gpu_selector_v, create_exception_handler());
         auto dev = q.get_device();
         std::cout << "Running on " << dev.get_info<info::device::name>()
                   << std::endl;
@@ -132,8 +132,8 @@ is to show the basic ESIMD APIs in well known examples.
         for (int i = 0; i < M; i++) {
           for (int j = 0; j < K; j++) {
             value += 1;
-            writeToHorizontallyPackedMatrixA(a_packed, i, j,
-                                             static_cast<APackedType>(value));
+            write_to_horizontally_packed_matrix_a(a_packed, i, j,
+                                                  static_cast<APackedType>(value));
           }
         }
 
@@ -141,8 +141,8 @@ is to show the basic ESIMD APIs in well known examples.
         for (int i = 0; i < K; i++) {
           for (int j = 0; j < N; j++) {
             int value = (i + j % 4) == 0 ? 1 : (2 + i + j) % 3;
-            writeToVerticallyPackedMatrixB(b_packed, i, j,
-                                           static_cast<BPackedType>(value));
+            write_to_vertically_packed_matrix_b(b_packed, i, j,
+                                                static_cast<BPackedType>(value));
             assert(value == (int)(static_cast<BPackedType>(value)) && "ERROR");
           }
         }
@@ -163,4 +163,4 @@ is to show the basic ESIMD APIs in well known examples.
    }
    ```
 
-4) TODO: Add more examples here.
+6) TODO: Add more examples here.
