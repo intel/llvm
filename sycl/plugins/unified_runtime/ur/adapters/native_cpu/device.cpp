@@ -17,7 +17,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
                                                 uint32_t *pNumDevices) {
   UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  uint32_t DeviceCount = (DeviceType & UR_DEVICE_TYPE_CPU) ? 1 : 0;
+  const bool AskingForAll = DeviceType == UR_DEVICE_TYPE_ALL;
+  const bool AskingForDefault = DeviceType == UR_DEVICE_TYPE_DEFAULT;
+  const bool AskingForCPU = DeviceType == UR_DEVICE_TYPE_GPU;
+  const bool ValidDeviceType = AskingForDefault || AskingForAll || AskingForCPU;
+  uint32_t DeviceCount = ValidDeviceType ? 1 : 0;
 
   if (pNumDevices) {
     *pNumDevices = DeviceCount;
@@ -53,9 +57,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     size_t *pPropSizeRet) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
-
-  // TODO(alcpz): uncomment when context is finished (????)
-  // ScopedContext Active(hDevice->getContext());
 
   switch (propName) {
   case UR_DEVICE_INFO_TYPE:

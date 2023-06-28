@@ -49,9 +49,6 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   }
   UrReturnHelper ReturnValue(propSize, pParamValue, pSizeRet);
 
-  const ur_platform_backend_t UR_PLATFORM_BACKEND_NATIVE_CPU =
-      static_cast<ur_platform_backend_t>(UR_PLATFORM_BACKEND_HIP + 1);
-
   switch (propName) {
   case UR_PLATFORM_INFO_NAME:
     return ReturnValue("SYCL_NATIVE_CPU");
