@@ -65,8 +65,8 @@ template <> struct maximum<void> {
   auto operator()(T &&lhs, U &&rhs) const ->
       typename std::common_type<T &&, U &&>::type {
     return (std::forward<const T>(lhs) < std::forward<const U>(rhs))
-               ? std::forward<T>(rhs)
-               : std::forward<U>(lhs);
+               ? std::forward<U>(rhs)
+               : std::forward<T>(lhs);
   }
 };
 
