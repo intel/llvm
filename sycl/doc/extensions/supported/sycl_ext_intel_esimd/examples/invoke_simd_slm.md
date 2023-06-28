@@ -29,7 +29,7 @@ constexpr uint32_t GLOBAL_RANGE = LOCAL_RANGE * 2; // 2 groups.
     local_accessor<int, 1> *local_acc, uint32_t slm_byte_offset, int *in, int *out,
     simd<uint32_t, VL> global_byte_offsets) SYCL_ESIMD_FUNCTION {
   esimd::simd<uint32_t, VL> esimd_global_byte_offsets = global_byte_offsets;
-  // Modify SLM in ESIMD context.
+  // Read SLM in ESIMD context.
   auto local1 = esimd::block_load<int, VL>(*local_acc, slm_byte_offset);
   auto local2 = esimd::block_load<int, VL>(*local_acc, slm_byte_offset + 
                                                LOCAL_RANGE * sizeof(int));
