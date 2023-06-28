@@ -865,27 +865,26 @@ std::enable_if_t<detail::is_svgenfloat<T>::value, T> fmod(T x, T y) __NOEXC {
   return __sycl_std::__invoke_fmod<T>(x, y);
 }
 
+#define __SYCL_MATH_FUNCTION_BINOP_2ND_ARG_GENPTR_OVERLOAD(                    \
+    NAME, TYPE, ARGPTR_TYPE, ARGPTR)                                           \
+  template <access::address_space AddressSpace, access::decorated IsDecorated> \
+  inline TYPE NAME(TYPE x,                                                     \
+                   multi_ptr<ARGPTR_TYPE, AddressSpace, IsDecorated> ARGPTR)   \
+      __NOEXC {                                                                \
+    detail::check_vector_size<                                                 \
+        TYPE, multi_ptr<ARGPTR_TYPE, AddressSpace, IsDecorated>>();            \
+    return __sycl_std::__invoke_##NAME<TYPE>(x, ARGPTR);                       \
+  }
+
 // genfloat fract (genfloat x, genfloatptr iptr)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  template <access::address_space AddressSpace, access::decorated IsDecorated> \
-  inline TYPE fract(TYPE x, multi_ptr<TYPE, AddressSpace, IsDecorated> iptr)   \
-      __NOEXC {                                                                \
-    detail::check_vector_size<TYPE,                                            \
-                              multi_ptr<TYPE, AddressSpace, IsDecorated>>();   \
-    return __sycl_std::__invoke_fract<TYPE>(x, iptr);                          \
-  }
+  __SYCL_MATH_FUNCTION_BINOP_2ND_ARG_GENPTR_OVERLOAD(fract, TYPE, TYPE, iptr)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
 
 // svgenfloat frexp (svgenfloat x, genintptr exp)
 #define __SYCL_BUILTIN_DEF(TYPE1, TYPE2)                                       \
-  template <access::address_space AddressSpace, access::decorated IsDecorated> \
-  inline TYPE1 frexp(TYPE1 x, multi_ptr<TYPE2, AddressSpace, IsDecorated> exp) \
-      __NOEXC {                                                                \
-    detail::check_vector_size<TYPE1,                                           \
-                              multi_ptr<TYPE2, AddressSpace, IsDecorated>>();  \
-    return __sycl_std::__invoke_frexp<TYPE1>(x, exp);                          \
-  }
+  __SYCL_MATH_FUNCTION_BINOP_2ND_ARG_GENPTR_OVERLOAD(frexp, TYPE1, TYPE2, exp)
 __SYCL_DEF_BUILTIN_W_INTPTR_GEN
 #undef __SYCL_BUILTIN_DEF
 
@@ -933,13 +932,8 @@ std::enable_if_t<detail::is_svgenfloat<T>::value, T> lgamma(T x) __NOEXC {
 
 // svgenfloat lgamma_r (svgenfloat x, genintptr signp)
 #define __SYCL_BUILTIN_DEF(TYPE1, TYPE2)                                       \
-  template <access::address_space AddressSpace, access::decorated IsDecorated> \
-  inline TYPE1 lgamma_r(                                                       \
-      TYPE1 x, multi_ptr<TYPE2, AddressSpace, IsDecorated> signp) __NOEXC {    \
-    detail::check_vector_size<TYPE1,                                           \
-                              multi_ptr<TYPE2, AddressSpace, IsDecorated>>();  \
-    return __sycl_std::__invoke_lgamma_r<TYPE1>(x, signp);                     \
-  }
+  __SYCL_MATH_FUNCTION_BINOP_2ND_ARG_GENPTR_OVERLOAD(lgamma_r, TYPE1, TYPE2,   \
+                                                     signp)
 __SYCL_DEF_BUILTIN_W_INTPTR_GEN
 #undef __SYCL_BUILTIN_DEF
 
@@ -994,13 +988,7 @@ std::enable_if_t<detail::is_svgenfloat<T>::value, T> minmag(T x, T y) __NOEXC {
 
 // genfloat modf (genfloat x, genfloatptr iptr)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  template <access::address_space AddressSpace, access::decorated IsDecorated> \
-  inline TYPE modf(TYPE x, multi_ptr<TYPE, AddressSpace, IsDecorated> y)       \
-      __NOEXC {                                                                \
-    detail::check_vector_size<TYPE,                                            \
-                              multi_ptr<TYPE, AddressSpace, IsDecorated>>();   \
-    return __sycl_std::__invoke_modf<TYPE>(x, y);                              \
-  }
+  __SYCL_MATH_FUNCTION_BINOP_2ND_ARG_GENPTR_OVERLOAD(modf, TYPE, TYPE, iptr)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
 
@@ -1094,15 +1082,11 @@ std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> sin(T x) __NOEXC {
 
 // genfloat sincos (genfloat x, genfloatptr cosval)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  template <access::address_space AddressSpace, access::decorated IsDecorated> \
-  inline TYPE sincos(                                                          \
-      TYPE x, multi_ptr<TYPE, AddressSpace, IsDecorated> cosval) __NOEXC {     \
-    detail::check_vector_size<TYPE,                                            \
-                              multi_ptr<TYPE, AddressSpace, IsDecorated>>();   \
-    return __sycl_std::__invoke_sincos<TYPE>(x, cosval);                       \
-  }
+  __SYCL_MATH_FUNCTION_BINOP_2ND_ARG_GENPTR_OVERLOAD(sincos, TYPE, TYPE, cosval)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+
+#undef __SYCL_MATH_FUNCTION_BINOP_2ND_ARG_GENPTR_OVERLOAD
 
 // svgenfloat sinh (svgenfloat x)
 template <typename T>
@@ -1154,99 +1138,65 @@ std::enable_if_t<detail::is_svgenfloat<T>::value, T> trunc(T x) __NOEXC {
 
 // other marray math functions
 
-// genfloat fract (genfloat x, genfloatptr iptr)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+#define __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(                \
+    NAME, TYPE, ARGPTR_TYPE, ARGPTR, ...)                                      \
+  marray<TYPE, NElems> res;                                                    \
+  for (int j = 0; j < NElems; j++)                                             \
+    res[j] = NAME(__VA_ARGS__,                                                 \
+                  address_space_cast<AddressSpace, IsDecorated, ARGPTR_TYPE>(  \
+                      &(*ARGPTR)[j]));                                         \
+  return res;
+
+#define __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(        \
+    NAME, TYPE, ARGPTR_TYPE, ARGPTR, ...)                                      \
   template <size_t NElems, access::address_space AddressSpace,                 \
             access::decorated IsDecorated>                                     \
-  inline marray<TYPE, NElems> fract(                                           \
+  inline marray<TYPE, NElems> NAME(                                            \
       marray<TYPE, NElems> x,                                                  \
-      multi_ptr<marray<TYPE, NElems>, AddressSpace, IsDecorated> iptr)         \
-      __NOEXC {                                                                \
-    marray<TYPE, NElems> res;                                                  \
-    for (int j = 0; j < NElems; j++) {                                         \
-      res[j] = fract(                                                          \
-          x[j],                                                                \
-          address_space_cast<AddressSpace, IsDecorated, TYPE>(&(*iptr)[j]));   \
-    }                                                                          \
-    return res;                                                                \
+      multi_ptr<marray<ARGPTR_TYPE, NElems>, AddressSpace, IsDecorated>        \
+          ARGPTR) __NOEXC {                                                    \
+    __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(                    \
+        NAME, TYPE, ARGPTR_TYPE, ARGPTR, __VA_ARGS__)                          \
   }
+
+// genfloat fract (genfloat x, genfloatptr iptr)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(              \
+      fract, TYPE, TYPE, iptr, x[j])
 __SYCL_DEF_BUILTIN_GENFLOAT_MARRAY
 #undef __SYCL_BUILTIN_DEF
 
 // genfloat modf (genfloat x, genfloatptr iptr)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  template <size_t NElems, access::address_space AddressSpace,                 \
-            access::decorated IsDecorated>                                     \
-  inline marray<TYPE, NElems> modf(                                            \
-      marray<TYPE, NElems> x,                                                  \
-      multi_ptr<marray<TYPE, NElems>, AddressSpace, IsDecorated> iptr)         \
-      __NOEXC {                                                                \
-    marray<TYPE, NElems> res;                                                  \
-    for (int j = 0; j < NElems; j++) {                                         \
-      res[j] = modf(x[j], address_space_cast<AddressSpace, IsDecorated, TYPE>( \
-                              &(*iptr)[j]));                                   \
-    }                                                                          \
-    return res;                                                                \
-  }
+  __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(              \
+      modf, TYPE, TYPE, iptr, x[j])
 __SYCL_DEF_BUILTIN_GENFLOAT_MARRAY
 #undef __SYCL_BUILTIN_DEF
 
 // genfloat sincos (genfloat x, genfloatptr cosval)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  template <size_t NElems, access::address_space AddressSpace,                 \
-            access::decorated IsDecorated>                                     \
-  inline marray<TYPE, NElems> sincos(                                          \
-      marray<TYPE, NElems> x,                                                  \
-      multi_ptr<marray<TYPE, NElems>, AddressSpace, IsDecorated> cosval)       \
-      __NOEXC {                                                                \
-    marray<TYPE, NElems> res;                                                  \
-    for (int j = 0; j < NElems; j++) {                                         \
-      res[j] = sincos(                                                         \
-          x[j],                                                                \
-          address_space_cast<AddressSpace, IsDecorated, TYPE>(&(*cosval)[j])); \
-    }                                                                          \
-    return res;                                                                \
-  }
+  __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(              \
+      sincos, TYPE, TYPE, cosval, x[j])
 __SYCL_DEF_BUILTIN_GENFLOAT_MARRAY
 #undef __SYCL_BUILTIN_DEF
 
 // genfloat frexp (genfloat x, genintptr exp)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  template <size_t NElems, access::address_space AddressSpace,                 \
-            access::decorated IsDecorated>                                     \
-  inline marray<TYPE, NElems> frexp(                                           \
-      marray<TYPE, NElems> x,                                                  \
-      multi_ptr<marray<int, NElems>, AddressSpace, IsDecorated> exp) __NOEXC { \
-    marray<TYPE, NElems> res;                                                  \
-    for (int j = 0; j < NElems; j++) {                                         \
-      res[j] = frexp(x[j], address_space_cast<AddressSpace, IsDecorated, int>( \
-                               &(*exp)[j]));                                   \
-    }                                                                          \
-    return res;                                                                \
-  }
+  __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(              \
+      frexp, TYPE, int, exp, x[j])
 __SYCL_DEF_BUILTIN_GENFLOAT_MARRAY
 #undef __SYCL_BUILTIN_DEF
 
 // genfloat lgamma_r (genfloat x, genintptr signp)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  template <size_t NElems, access::address_space AddressSpace,                 \
-            access::decorated IsDecorated>                                     \
-  inline marray<TYPE, NElems> lgamma_r(                                        \
-      marray<TYPE, NElems> x,                                                  \
-      multi_ptr<marray<int, NElems>, AddressSpace, IsDecorated> signp)         \
-      __NOEXC {                                                                \
-    marray<TYPE, NElems> res;                                                  \
-    for (int j = 0; j < NElems; j++) {                                         \
-      res[j] = lgamma_r(                                                       \
-          x[j],                                                                \
-          address_space_cast<AddressSpace, IsDecorated, int>(&(*signp)[j]));   \
-    }                                                                          \
-    return res;                                                                \
-  }
+  __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(              \
+      lgamma_r, TYPE, int, signp, x[j])
 __SYCL_DEF_BUILTIN_GENFLOAT_MARRAY
 #undef __SYCL_BUILTIN_DEF
 
-// genfloat remquo (genfloat x, genfloat y,genintptr signp)
+#undef __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD
+
+// genfloat remquo (genfloat x, genfloat y, genintptr signp)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   template <size_t NElems, access::address_space AddressSpace,                 \
             access::decorated IsDecorated>                                     \
@@ -1254,16 +1204,13 @@ __SYCL_DEF_BUILTIN_GENFLOAT_MARRAY
       marray<TYPE, NElems> x, marray<TYPE, NElems> y,                          \
       multi_ptr<marray<int, NElems>, AddressSpace, IsDecorated> signp)         \
       __NOEXC {                                                                \
-    marray<TYPE, NElems> res;                                                  \
-    for (int j = 0; j < NElems; j++) {                                         \
-      res[j] = remquo(                                                         \
-          x[j], y[j],                                                          \
-          address_space_cast<AddressSpace, IsDecorated, int>(&(*signp)[j]));   \
-    }                                                                          \
-    return res;                                                                \
+    __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(remquo, TYPE, int,  \
+                                                           signp, x[j], y[j])  \
   }
 __SYCL_DEF_BUILTIN_GENFLOAT_MARRAY
 #undef __SYCL_BUILTIN_DEF
+
+#undef __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL
 
 template <typename T, size_t N>
 std::enable_if_t<detail::is_nan_type<T>::value,
