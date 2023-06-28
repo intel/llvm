@@ -98,6 +98,19 @@ test_mem_intrins(int *addr, const vec<float, 8> &xf,
     // CHECK-LABEL: store <8 x i32> %{{[a-zA-Z0-9.]+}}, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 32
   }
   {
+    uint32_t offset = 128;
+    vec<int, 8> x = __esimd_slm_block_ld<int, 8, 32>(offset);
+    // CHECK: %[[VAR_OFF1:[0-9a-zA-Z_.]+]] = inttoptr i32 %{{[a-zA-Z0-9.]+}} to ptr addrspace(3)
+    // CHECK-NEXT: load <8 x i32>, ptr addrspace(3) %[[VAR_OFF1]], align 32
+    use(x);
+  }
+  {
+    uint32_t offset = 256;
+    __esimd_slm_block_st<int, 8, 4>(offset, get8i());
+    // CHECK: %[[VAR_OFF2:[0-9a-zA-Z_.]+]] = inttoptr i32 %{{[a-zA-Z0-9.]+}} to ptr addrspace(3)
+    // CHECK-NEXT: store <8 x i32> %{{[a-zA-Z0-9.]+}}, ptr addrspace(3) %[[VAR_OFF2]], align 4
+  }
+  {
     auto x = __esimd_svm_gather<unsigned char, 8>(get8ui64(), get8ui16());
     // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i8> @llvm.genx.svm.gather.v8i8.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, i32 0, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i8> undef)
     use(x);

@@ -953,14 +953,15 @@ static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
 static void translateBlockLoad(CallInst &CI, bool IsSLM) {
   IRBuilder<> Builder(&CI);
 
-  APInt Val =
-      parseTemplateArg(CI, 2, ESIMDIntrinDesc::GenXArgConversion::TO_I64);
+  constexpr int AlignmentTemplateArgIdx = 2;
+  APInt Val = parseTemplateArg(CI, AlignmentTemplateArgIdx,
+                               ESIMDIntrinDesc::GenXArgConversion::TO_I64);
   MaybeAlign Align(Val.getZExtValue());
 
   auto Op0 = CI.getArgOperand(0);
   auto DataType = CI.getType();
   if (IsSLM) {
-    // Convert 'uint32_t' to 'addrspace(3)*' pointer.xxyy
+    // Convert 'uint32_t' to 'addrspace(3)*' pointer.
     auto PtrType = PointerType::get(DataType, 3);
     Op0 = Builder.CreateIntToPtr(Op0, PtrType);
   }
@@ -973,8 +974,9 @@ static void translateBlockLoad(CallInst &CI, bool IsSLM) {
 static void translateBlockStore(CallInst &CI, bool IsSLM) {
   IRBuilder<> Builder(&CI);
 
-  APInt Val =
-      parseTemplateArg(CI, 2, ESIMDIntrinDesc::GenXArgConversion::TO_I64);
+  constexpr int AlignmentTemplateArgIdx = 2;
+  APInt Val = parseTemplateArg(CI, AlignmentTemplateArgIdx,
+                               ESIMDIntrinDesc::GenXArgConversion::TO_I64);
   MaybeAlign Align(Val.getZExtValue());
 
   auto Op0 = CI.getArgOperand(0);
