@@ -127,17 +127,21 @@ event handler::finalize() {
   {
     // A counter is not good enough since we can have the same accessor several
     // times as arg
-    std::unordered_set<void *> accessors;
     for (const auto &arg : MArgs) {
       if (arg.MType != detail::kernel_param_kind_t::kind_accessor)
         continue;
 
-      accessors.insert(arg.MPtr);
+      detail::Requirement *AccImpl =
+          static_cast<detail::Requirement *>(arg.MPtr);
+      if (AccImpl->MIsPlaceH) {
+        auto found = std::find(CGData.MRequirements.begin(),
+                               CGData.MRequirements.end(), AccImpl);
+        if (found == CGData.MRequirements.end())
+          throw sycl::exception(make_error_code(errc::kernel_argument),
+                                "placeholder accessor must be bound by calling "
+                                "handler::require() before it can be used.");
+      }
     }
-    if (accessors.size() > CGData.MRequirements.size())
-      throw sycl::exception(make_error_code(errc::kernel_argument),
-                            "placeholder accessor must be bound by calling "
-                            "handler::require() before it can be used.");
   }
 
   const auto &type = getType();
