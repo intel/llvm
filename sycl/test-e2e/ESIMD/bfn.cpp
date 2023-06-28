@@ -58,12 +58,12 @@ template <class T, experimental::esimd::bfn_t Op> struct HostFunc;
     T operator()(T X0, T X1, T X2) {                                           \
       T res = 0;                                                               \
       for (unsigned i = 0; i < sizeof(X0) * 8; i++) {                          \
-        T mask = 0x1UL << i;                                                   \
+        T mask = T(0x1) << i;                                                  \
         res = (res & ~mask) |                                                  \
               ((static_cast<uint8_t>(FUNC_CTRL) >>                             \
-                    ((((X0 >> i) & 0x1UL)) + (((X1 >> i) & 0x1UL) << 1) +      \
-                     (((X2 >> i) & 0x1UL) << 2)) &                             \
-                0x1UL)                                                         \
+                    ((((X0 >> i) & T(0x1))) + (((X1 >> i) & T(0x1)) << 1) +    \
+                     (((X2 >> i) & T(0x1)) << 2)) &                            \
+                T(0x1))                                                        \
                << i);                                                          \
       }                                                                        \
       return res;                                                              \
