@@ -1,6 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: hip
+
 #include <sycl/sycl.hpp>
 
 int main() {
