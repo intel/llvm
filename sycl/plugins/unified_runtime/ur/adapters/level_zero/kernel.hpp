@@ -8,7 +8,7 @@
 #pragma once
 
 #include "common.hpp"
-#include "mem.hpp"
+#include "memory.hpp"
 #include <unordered_set>
 
 struct ur_kernel_handle_t_ : _ur_object {

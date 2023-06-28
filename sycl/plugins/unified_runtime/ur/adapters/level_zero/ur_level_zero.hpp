@@ -25,7 +25,7 @@
 #include "device.hpp"
 #include "event.hpp"
 #include "kernel.hpp"
-#include "mem.hpp"
+#include "memory.hpp"
 #include "platform.hpp"
 #include "program.hpp"
 #include "queue.hpp"
