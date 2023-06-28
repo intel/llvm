@@ -684,11 +684,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
 
   ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
   if (Properties) {
-    assert(Properties->stype ==
-           UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES);
     switch (Properties->memoryAccess) {
-    case 0:
-      break;
     case UR_MEM_FLAG_READ_WRITE:
       UrAccessMode = ur_mem_handle_t_::read_write;
       break;

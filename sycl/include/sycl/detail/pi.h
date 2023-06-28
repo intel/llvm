@@ -92,11 +92,13 @@
 // 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
 // 12.31 Added PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP device
 // info query.
-// 12.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
+// 13.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
 // piextQueueGetNativeHandle
+// 14.33 Added new parameter (memory object properties) to
+// piextKernelSetArgMemObj
 
-#define _PI_H_VERSION_MAJOR 13
-#define _PI_H_VERSION_MINOR 32
+#define _PI_H_VERSION_MAJOR 14
+#define _PI_H_VERSION_MINOR 33
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
