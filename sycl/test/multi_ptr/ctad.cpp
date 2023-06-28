@@ -51,6 +51,8 @@ int main() {
                                     sycl::access::decorated::legacy>;
   using localMPtr = sycl::multi_ptr<int, address_space::local_space,
                                     sycl::access::decorated::no>;
+  using legacyMPtr = sycl::multi_ptr<int, address_space::global_space,
+                                     sycl::access::decorated::legacy>;
   static_assert(std::is_same<rwDeviceCTAD, deviceMPtr>::value);
   static_assert(std::is_same<rwDeviceCTAD, globlMPtr>::value);
   static_assert(std::is_same<rwGloblCTAD, globlMPtr>::value);
@@ -63,6 +65,14 @@ int main() {
   static_assert(std::is_same<constCTAD, constMPtr>::value);
   static_assert(std::is_same<localCTAD, localMPtr>::value);
   static_assert(std::is_same<localCTADDep, localMPtr>::value);
+
+  legacyMPtr LegacytMultiPtr;
+  static_assert(
+      std::is_same_v<
+          decltype(LegacytMultiPtr.get_decorated()),
+          typename sycl::multi_ptr<int, address_space::global_space,
+                                   sycl::access::decorated::yes>::pointer>);
+  static_assert(std::is_same_v<decltype(LegacytMultiPtr.get_raw()), int *>);
 
   globlMPtr non_const_multi_ptr;
   auto constTypeMultiPtr = constTypeMPtr(non_const_multi_ptr);
