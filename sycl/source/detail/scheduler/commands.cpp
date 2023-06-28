@@ -2302,8 +2302,8 @@ static pi_result SetKernelParamsAndLaunch(
 void DispatchNativeKernel(void *Blob) {
   void **CastedBlob = (void **)Blob;
 
-  std::vector<Requirement *> *Reqs =
-      static_cast<std::vector<Requirement *> *>(CastedBlob[0]);
+  std::unordered_set<Requirement *> *Reqs =
+      static_cast<std::unordered_set<Requirement *> *>(CastedBlob[0]);
 
   std::shared_ptr<HostKernelBase> *HostKernel =
       static_cast<std::shared_ptr<HostKernelBase> *>(CastedBlob[1]);

@@ -22,8 +22,8 @@ int main() {
 
   sycl::range<1> NumOfWorkItems{Buffer1.size()};
 
-  // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID1:.*]]
   // CHECK:{{[0-9]+}}|Associate buffer|[[USERID2]]|[[BEID2:.*]]
+  // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID1:.*]]
   Queue.submit([&](sycl::handler &cgh) {
     // Get write only access to the buffer on a device.
     auto Accessor1 = Buffer1.get_access<sycl::access::mode::write>(cgh);

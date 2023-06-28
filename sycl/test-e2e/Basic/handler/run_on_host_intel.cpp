@@ -25,7 +25,7 @@ int main() {
   constexpr size_t BufSize = 4;
   int data1[BufSize] = {-1, -1, -1, -1};
   sycl::buffer<int, 1> SrcBuf(data1, sycl::range<1>{BufSize});
-  sycl::buffer<int, 1> DstBuf(sycl::range<1>{BufSize});
+  sycl::buffer<int, 1> DstBuf(data1, sycl::range<1>{BufSize});
 
   TestQueue Queue{sycl::default_selector_v};
   Queue.submit([&](sycl::handler &CGH) {
