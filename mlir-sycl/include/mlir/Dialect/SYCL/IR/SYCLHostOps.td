@@ -16,6 +16,7 @@
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/IR/BuiltinAttributes.td"
+include "mlir/IR/SymbolInterfaces.td"
 
 ////////////////////////////////////////////////////////////////////////////////
 // BASE DECLARATIONS
@@ -54,6 +55,33 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor"> {
     `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
   let hasVerifier = true;
+}
+
+def SYCLHostKernelNameOp
+    : SYCL_HostOp<"kernel_name",
+        [Symbol, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = [{
+    Operation representing a constant holding the name of a kernel, i.e., a
+    `gpu.func` with the `kernel` attribute.
+  }];
+  let arguments = (ins SymbolNameAttr:$sym_name, SymbolRefAttr:$kernel_name);
+  let assemblyFormat = [{
+    $sym_name `->` $kernel_name attr-dict
+  }];
+}
+
+def SYCLHostGetKernelOp
+    : SYCL_HostOp<"get_kernel",
+        [Pure, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = [{
+    Operation that defines a reference to a kernel, i.e., a `gpu.func` with the
+    `kernel` attribute.
+  }];
+  let arguments = (ins SymbolRefAttr:$kernel_name);
+  let results = (outs LLVM_AnyPointer:$res);
+  let assemblyFormat = [{
+    $kernel_name attr-dict `:` type($res)
+  }];
 }
 
 #endif // SYCL_HOST_OPS

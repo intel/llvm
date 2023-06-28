@@ -535,8 +535,11 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
 // MemoryAccessMatrix
 //===----------------------------------------------------------------------===//
 
-[[maybe_unused]] raw_ostream &
-mlir::polygeist::operator<<(raw_ostream &os, const MemoryAccessMatrix &matrix) {
+namespace mlir {
+namespace polygeist {
+
+[[maybe_unused]] raw_ostream &operator<<(raw_ostream &os,
+                                         const MemoryAccessMatrix &matrix) {
   for (size_t row = 0; row < matrix.getNumRows(); ++row) {
     llvm::interleave(
         matrix.getRow(row), os,
@@ -546,6 +549,9 @@ mlir::polygeist::operator<<(raw_ostream &os, const MemoryAccessMatrix &matrix) {
   }
   return os;
 }
+
+} // namespace polygeist
+} // namespace mlir
 
 MemoryAccessMatrix::MemoryAccessMatrix(size_t nRows, size_t nColumns)
     : nRows(nRows), nColumns(nColumns), data(nRows * nColumns) {}
@@ -971,13 +977,19 @@ bool MemoryAccessMatrix::hasReverseStridedOverlappedAccessPattern() const {
 // OffsetVector
 //===----------------------------------------------------------------------===//
 
-[[maybe_unused]] raw_ostream &
-mlir::polygeist::operator<<(raw_ostream &os, const OffsetVector &vector) {
+namespace mlir {
+namespace polygeist {
+
+[[maybe_unused]] raw_ostream &operator<<(raw_ostream &os,
+                                         const OffsetVector &vector) {
   llvm::interleave(
       vector.getOffsets(), os,
       [&os](const IntegerValueRange &elem) { printRange(os, elem); }, " ");
   return os << "\n";
 }
+
+} // namespace polygeist
+} // namespace mlir
 
 OffsetVector::OffsetVector(size_t nRows) : nRows(nRows), offsets(nRows) {}
 
@@ -1051,14 +1063,20 @@ bool OffsetVector::isZeroWithLastElementEqualTo(int k) const {
 // MemoryAccess
 //===----------------------------------------------------------------------===//
 
-[[maybe_unused]] raw_ostream &
-mlir::polygeist::operator<<(raw_ostream &os, const MemoryAccess &access) {
+namespace mlir {
+namespace polygeist {
+
+[[maybe_unused]] raw_ostream &operator<<(raw_ostream &os,
+                                         const MemoryAccess &access) {
   os << "--- MemoryAccess ---\n\n";
   os << "AccessMatrix:\n" << access.getAccessMatrix() << "\n";
   os << "OffsetVector:\n" << access.getOffsetVector() << "\n";
   os << "\n------------------\n";
   return os;
 }
+
+} // namespace polygeist
+} // namespace mlir
 
 MemoryAccessMatrix
 MemoryAccess::getIntraThreadAccessMatrix(unsigned numGridDimensions) const {
@@ -1310,9 +1328,8 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
   // 'expr' corresponding to the variable 'factor'.
   auto createMatrixEntry = [&](Value expr, Value factor, size_t row,
                                size_t col) -> bool {
-    assert(row >= 0 && row < accessMatrix.getNumRows() && "row out of bound");
-    assert(col >= 0 && col < accessMatrix.getNumColumns() &&
-           "col out of bound");
+    assert(row < accessMatrix.getNumRows() && "row out of bound");
+    assert(col < accessMatrix.getNumColumns() && "col out of bound");
 
     if (!usesValue(expr.getDefiningOp(), factor)) {
       LLVM_DEBUG(llvm::dbgs().indent(2) << "Doesn't use " << factor << "\n");
