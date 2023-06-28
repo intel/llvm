@@ -866,8 +866,10 @@ __SYCL_EXPORT pi_result piextProgramCreateWithNativeHandle(
 
 __SYCL_EXPORT pi_result piSamplerCreate(
     pi_context Context, const pi_sampler_properties *SamplerProperties,
+    float minMipmapLevelClamp, float maxMipmapLevelClamp, float maxAnisotropy,
     pi_sampler *RetSampler) {
-  return pi2ur::piSamplerCreate(Context, SamplerProperties, RetSampler);
+  return pi2ur::piSamplerCreate(Context, SamplerProperties, minMipmapLevelClamp,
+                                maxMipmapLevelClamp, maxAnisotropy, RetSampler);
 }
 
 __SYCL_EXPORT pi_result piSamplerGetInfo(pi_sampler Sampler,

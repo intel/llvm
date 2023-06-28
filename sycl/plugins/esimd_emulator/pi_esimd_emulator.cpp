@@ -1553,7 +1553,7 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle, pi_context, bool,
   DIE_NO_IMPLEMENTATION;
 }
 pi_result piSamplerCreate(pi_context, const pi_sampler_properties *,
-                          pi_sampler *) {
+                          const float, const float, const float, pi_sampler *) {
   DIE_NO_IMPLEMENTATION;
 }
 

@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 7e16bb37cbb12450637e595749c3617151cbe851)
+  set(UNIFIED_RUNTIME_TAG 78aebac8bc304566cf7fb1a86ae208e4b20831ae)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -140,6 +140,8 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/enqueue.cpp"
       "ur/adapters/cuda/event.cpp"
       "ur/adapters/cuda/event.hpp"
+      "ur/adapters/cuda/image.cpp"
+      "ur/adapters/cuda/image.hpp"
       "ur/adapters/cuda/kernel.cpp"
       "ur/adapters/cuda/kernel.hpp"
       "ur/adapters/cuda/memory.cpp"

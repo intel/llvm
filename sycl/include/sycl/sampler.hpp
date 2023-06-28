@@ -30,6 +30,11 @@ enum class filtering_mode : unsigned int {
   linear = PI_SAMPLER_FILTER_MODE_LINEAR
 };
 
+enum class mipmap_filtering_mode : unsigned int {
+  nearest = PI_SAMPLER_MIP_FILTER_MODE_NEAREST,
+  linear = PI_SAMPLER_MIP_FILTER_MODE_LINEAR
+};
+
 enum class coordinate_normalization_mode : unsigned int {
   normalized = 1,
   unnormalized = 0
@@ -69,6 +74,12 @@ public:
           addressing_mode addressingMode, filtering_mode filteringMode,
           const property_list &propList = {});
 
+  sampler(coordinate_normalization_mode normalizationMode,
+          addressing_mode addressingMode, filtering_mode filteringMode,
+          mipmap_filtering_mode mipmapFilteringMode, float minMipmapLevelClamp,
+          float maxMipmapLevelClamp, float maxAnisotropy,
+          const property_list &propList = {});
+
 #ifdef __SYCL_INTERNAL_API
   sampler(cl_sampler clSampler, const context &syclContext);
 #endif
@@ -102,7 +113,15 @@ public:
 
   filtering_mode get_filtering_mode() const;
 
+  mipmap_filtering_mode get_mipmap_filtering_mode() const;
+
   coordinate_normalization_mode get_coordinate_normalization_mode() const;
+
+  float get_min_mipmap_level_clamp() const;
+
+  float get_max_mipmap_level_clamp() const;
+
+  float get_max_anisotropy() const;
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__

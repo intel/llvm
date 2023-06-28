@@ -25,6 +25,21 @@ urSamplerCreate(ur_context_handle_t hContext, const ur_sampler_desc_t *pDesc,
     Sampler->Props |= UR_SAMPLER_ADDRESSING_MODE_CLAMP << 2;
   }
 
+  void *pNext = const_cast<void *>(pDesc->pNext);
+  while (pNext != nullptr) {
+    const ur_base_desc_t *BaseDesc =
+        reinterpret_cast<const ur_base_desc_t *>(pNext);
+    if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES) {
+      const ur_exp_sampler_mip_properties_t *SamplerMipProperties =
+          reinterpret_cast<const ur_exp_sampler_mip_properties_t *>(pNext);
+      Sampler->MaxMipmapLevelClamp = SamplerMipProperties->maxMipmapLevelClamp;
+      Sampler->MinMipmapLevelClamp = SamplerMipProperties->minMipmapLevelClamp;
+      Sampler->MaxAnisotropy = SamplerMipProperties->maxAnisotropy;
+      Sampler->Props |= SamplerMipProperties->mipFilterMode << 5;
+    }
+    pNext = const_cast<void *>(BaseDesc->pNext);
+  }
+
   *phSampler = Sampler.release();
   return UR_RESULT_SUCCESS;
 }

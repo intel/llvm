@@ -1112,6 +1112,66 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
     break;
   }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT: {
+    InfoType = UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT: {
+    InfoType = UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT: {
+    InfoType = UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_PITCH_ALIGN: {
+    InfoType = UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH: {
+    InfoType = UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT: {
+    InfoType = UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH: {
+    InfoType = UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT: {
+    InfoType = UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT: {
+    InfoType = UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY: {
+    InfoType = UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT: {
+    InfoType = UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT: {
+    InfoType = UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT: {
+    InfoType = UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT: {
+    InfoType = UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP;
+    break;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT: {
+    InfoType = UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP;
+    break;
+  }
   default:
     return PI_ERROR_UNKNOWN;
   };
@@ -2739,6 +2799,141 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
   UrDesc->arraySize = ImageDesc->image_array_size;
 }
 
+static void ur2piImageFormat(const ur_image_format_t *UrFormat,
+                             pi_image_format *PiFormat) {
+  switch (UrFormat->channelOrder) {
+  case UR_IMAGE_CHANNEL_ORDER_A: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_A;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_R: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_R;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RG: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RG;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RA: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RA;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RGB: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RGB;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RGBA: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RGBA;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_BGRA: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_BGRA;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_ARGB: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_ARGB;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_ABGR: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_ABGR;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_INTENSITY: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_INTENSITY;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_LUMINANCE: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_LUMINANCE;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RX: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_Rx;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RGX: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RGx;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RGBX: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RGBx;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_SRGBA: {
+    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_sRGBA;
+    break;
+  }
+  default: {
+    die("ur2piImageFormat: unsuppported channelOrder.");
+  }
+  }
+
+  switch (UrFormat->channelType) {
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_SNORM_INT8;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_SNORM_INT16;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNORM_INT8;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNORM_INT16;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_INT_101010: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_FLOAT: {
+    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_FLOAT;
+    break;
+  }
+  default: {
+    die("ur2piImageFormat: unsuppported channelType.");
+  }
+  }
+}
+
 inline pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                                   const pi_image_format *ImageFormat,
                                   const pi_image_desc *ImageDesc, void *HostPtr,
@@ -2938,6 +3133,28 @@ inline pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   ur_usm_pool_handle_t Pool{};
   HANDLE_ERRORS(
       urUSMDeviceAlloc(UrContext, UrDevice, &USMDesc, Pool, Size, ResultPtr));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextUSMPitchedAlloc(void **ResultPtr, size_t *ResultPitch,
+                                      pi_context Context, pi_device Device,
+                                      pi_usm_mem_properties *Properties,
+                                      size_t WidthInBytes, size_t Height,
+                                      unsigned int ElementSizeBytes) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  std::ignore = Properties;
+  ur_usm_desc_t USMDesc{};
+  ur_usm_pool_handle_t Pool{};
+
+  HANDLE_ERRORS(urUSMPitchedAllocExp(UrContext, UrDevice, &USMDesc, Pool,
+                                     WidthInBytes, Height, ElementSizeBytes,
+                                     ResultPtr, ResultPitch));
 
   return PI_SUCCESS;
 }
@@ -3916,6 +4133,8 @@ inline pi_result piEventRelease(pi_event Event) {
 // Sampler
 inline pi_result piSamplerCreate(pi_context Context,
                                  const pi_sampler_properties *SamplerProperties,
+                                 float MinMipmapLevelClamp,
+                                 float MaxMipmapLevelClamp, float MaxAnisotropy,
                                  pi_sampler *RetSampler) {
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -3925,6 +4144,14 @@ inline pi_result piSamplerCreate(pi_context Context,
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_sampler_desc_t UrProps{};
   UrProps.stype = UR_STRUCTURE_TYPE_SAMPLER_DESC;
+
+  ur_exp_sampler_mip_properties_t UrMipProps{};
+  UrMipProps.stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES;
+  UrMipProps.minMipmapLevelClamp = MinMipmapLevelClamp;
+  UrMipProps.maxMipmapLevelClamp = MaxMipmapLevelClamp;
+  UrMipProps.maxAnisotropy = MaxAnisotropy;
+  UrProps.pNext = &UrMipProps;
+
   const pi_sampler_properties *CurProperty = SamplerProperties;
   while (*CurProperty != 0) {
     switch (*CurProperty) {
@@ -3958,6 +4185,17 @@ inline pi_result piSamplerCreate(pi_context Context,
         UrProps.filterMode = UR_SAMPLER_FILTER_MODE_NEAREST;
       else if (CurValueFilterMode == PI_SAMPLER_FILTER_MODE_LINEAR)
         UrProps.filterMode = UR_SAMPLER_FILTER_MODE_LINEAR;
+    } break;
+
+    case PI_SAMPLER_PROPERTIES_MIP_FILTER_MODE: {
+      pi_sampler_mip_filter_mode CurValueFilterMode =
+          ur_cast<pi_sampler_mip_filter_mode>(
+              ur_cast<pi_uint32>(*(++CurProperty)));
+
+      if (CurValueFilterMode == PI_SAMPLER_MIP_FILTER_MODE_NEAREST)
+        UrMipProps.mipFilterMode = UR_SAMPLER_FILTER_MODE_NEAREST;
+      else if (CurValueFilterMode == PI_SAMPLER_MIP_FILTER_MODE_LINEAR)
+        UrMipProps.mipFilterMode = UR_SAMPLER_FILTER_MODE_LINEAR;
     } break;
 
     default:
@@ -4047,5 +4285,438 @@ inline pi_result piSamplerRelease(pi_sampler Sampler) {
 
 // Sampler
 ///////////////////////////////////////////////////////////////////////////////
+
+// Bindless Images Extension
+///////////////////////////////////////////////////////////////////////////////
+inline pi_result piextMemImageAllocate(pi_context Context, pi_device Device,
+                                       pi_image_format *ImageFormat,
+                                       pi_image_desc *ImageDesc,
+                                       pi_image_mem_handle *RetMem) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+
+  ur_image_format_t UrFormat{};
+  ur_image_desc_t UrDesc{};
+  pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
+
+  ur_exp_image_mem_handle_t *UrRetMem =
+      reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
+
+  HANDLE_ERRORS(urBindlessImagesImageAllocateExp(UrContext, UrDevice, &UrFormat,
+                                                 &UrDesc, UrRetMem));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemUnsampledImageCreate(
+    pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_mem *RetMem,
+    pi_image_handle *RetHandle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+  PI_ASSERT(RetMem, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_image_mem_handle_t UrImgMem =
+      reinterpret_cast<ur_exp_image_mem_handle_t>(ImgMem);
+
+  ur_image_format_t UrFormat{};
+  ur_image_desc_t UrDesc{};
+  pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
+
+  ur_mem_handle_t *UrRetMem = reinterpret_cast<ur_mem_handle_t *>(RetMem);
+  ur_exp_image_handle_t *UrRetHandle =
+      reinterpret_cast<ur_exp_image_handle_t *>(RetHandle);
+
+  HANDLE_ERRORS(urBindlessImagesUnsampledImageCreateExp(
+      UrContext, UrDevice, UrImgMem, &UrFormat, &UrDesc, UrRetMem,
+      UrRetHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemSampledImageCreate(
+    pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_sampler Sampler,
+    pi_mem *RetMem, pi_image_handle *RetHandle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+  PI_ASSERT(RetMem, PI_ERROR_INVALID_MEM_OBJECT);
+  PI_ASSERT(Sampler, PI_ERROR_INVALID_SAMPLER);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_image_mem_handle_t UrImgMem =
+      reinterpret_cast<ur_exp_image_mem_handle_t>(ImgMem);
+
+  ur_image_format_t UrFormat{};
+  ur_image_desc_t UrDesc{};
+  pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
+
+  ur_sampler_handle_t UrSampler =
+      reinterpret_cast<ur_sampler_handle_t>(Sampler);
+  ur_mem_handle_t *UrRetMem = reinterpret_cast<ur_mem_handle_t *>(RetMem);
+  ur_exp_image_handle_t *UrRetHandle =
+      reinterpret_cast<ur_exp_image_handle_t *>(RetHandle);
+
+  HANDLE_ERRORS(urBindlessImagesSampledImageCreateExp(
+      UrContext, UrDevice, UrImgMem, &UrFormat, &UrDesc, UrSampler, UrRetMem,
+      UrRetHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemMipmapGetLevel(pi_context Context, pi_device Device,
+                                        pi_image_mem_handle MipMem,
+                                        unsigned int Level,
+                                        pi_image_mem_handle *RetMem) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_image_mem_handle_t UrMipMem =
+      reinterpret_cast<ur_exp_image_mem_handle_t>(MipMem);
+  ur_exp_image_mem_handle_t *UrRetMem =
+      reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
+
+  HANDLE_ERRORS(urBindlessImagesMipmapGetLevelExp(UrContext, UrDevice, UrMipMem,
+                                                  Level, UrRetMem));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemImageFree(pi_context Context, pi_device Device,
+                                   pi_image_mem_handle MemoryHandle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_image_mem_handle_t UrMemoryHandle =
+      reinterpret_cast<ur_exp_image_mem_handle_t>(MemoryHandle);
+
+  HANDLE_ERRORS(
+      urBindlessImagesImageFreeExp(UrContext, UrDevice, UrMemoryHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
+                                    pi_image_mem_handle MemoryHandle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_image_mem_handle_t UrMemoryHandle =
+      reinterpret_cast<ur_exp_image_mem_handle_t>(MemoryHandle);
+
+  HANDLE_ERRORS(
+      urBindlessImagesMipmapFreeExp(UrContext, UrDevice, UrMemoryHandle));
+
+  return PI_SUCCESS;
+}
+
+static void pi2urImageCopyFlags(const pi_image_copy_flags PiFlags,
+                                ur_exp_image_copy_flags_t *UrFlags) {
+  switch (PiFlags) {
+  case PI_IMAGE_COPY_HTOD:
+    *UrFlags = UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE;
+    break;
+  case PI_IMAGE_COPY_DTOH:
+    *UrFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
+    break;
+  case PI_IMAGE_COPY_DTOD:
+    *UrFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
+    break;
+  default:
+    die("pi2urImageCopyFlags: Unsupported use case");
+  }
+}
+
+inline pi_result
+piextMemImageCopy(pi_queue Queue, void *DstPtr, void *SrcPtr,
+                  const pi_image_format *ImageFormat,
+                  const pi_image_desc *ImageDesc,
+                  const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
+                  pi_image_offset DstOffset, pi_image_region CopyExtent,
+                  pi_image_region HostExtent, pi_uint32 NumEventsInWaitList,
+                  const pi_event *EventWaitList, pi_event *Event) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+
+  ur_image_format_t UrFormat{};
+  ur_image_desc_t UrDesc{};
+  pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
+
+  ur_exp_image_copy_flags_t UrFlags;
+  pi2urImageCopyFlags(Flags, &UrFlags);
+
+  ur_rect_offset_t UrSrcOffset{SrcOffset->x, SrcOffset->y, SrcOffset->z};
+  ur_rect_offset_t UrDstOffset{DstOffset->x, DstOffset->y, DstOffset->z};
+  ur_rect_region_t UrCopyExtent{};
+  UrCopyExtent.depth = CopyExtent->depth;
+  UrCopyExtent.height = CopyExtent->height;
+  UrCopyExtent.width = CopyExtent->width;
+  ur_rect_region_t UrHostExtent{};
+  UrHostExtent.depth = HostExtent->depth;
+  UrHostExtent.height = HostExtent->height;
+  UrHostExtent.width = HostExtent->width;
+
+  const ur_event_handle_t *UrEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urBindlessImagesImageCopyExp(
+      UrQueue, DstPtr, SrcPtr, &UrFormat, &UrDesc, UrFlags, UrSrcOffset,
+      UrDstOffset, UrCopyExtent, UrHostExtent, NumEventsInWaitList,
+      UrEventWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemUnsampledImageHandleDestroy(pi_context Context,
+                                                     pi_device Device,
+                                                     pi_image_handle Handle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_image_handle_t UrHandle =
+      reinterpret_cast<ur_exp_image_handle_t>(Handle);
+
+  HANDLE_ERRORS(urBindlessImagesUnsampledImageHandleDestroyExp(
+      UrContext, UrDevice, UrHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemSampledImageHandleDestroy(pi_context Context,
+                                                   pi_device Device,
+                                                   pi_image_handle Handle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_image_handle_t UrHandle =
+      reinterpret_cast<ur_exp_image_handle_t>(Handle);
+
+  HANDLE_ERRORS(urBindlessImagesSampledImageHandleDestroyExp(
+      UrContext, UrDevice, UrHandle));
+
+  return PI_SUCCESS;
+}
+
+static void pi2urImageInfoFlags(const pi_image_info PiFlags,
+                                ur_image_info_t *UrFlags) {
+  switch (PiFlags) {
+  case PI_IMAGE_INFO_FORMAT:
+    *UrFlags = UR_IMAGE_INFO_FORMAT;
+    break;
+  case PI_IMAGE_INFO_ELEMENT_SIZE:
+    *UrFlags = UR_IMAGE_INFO_ELEMENT_SIZE;
+    break;
+  case PI_IMAGE_INFO_ROW_PITCH:
+    *UrFlags = UR_IMAGE_INFO_ROW_PITCH;
+    break;
+  case PI_IMAGE_INFO_SLICE_PITCH:
+    *UrFlags = UR_IMAGE_INFO_SLICE_PITCH;
+    break;
+  case PI_IMAGE_INFO_WIDTH:
+    *UrFlags = UR_IMAGE_INFO_WIDTH;
+    break;
+  case PI_IMAGE_INFO_HEIGHT:
+    *UrFlags = UR_IMAGE_INFO_HEIGHT;
+    break;
+  case PI_IMAGE_INFO_DEPTH:
+    *UrFlags = UR_IMAGE_INFO_DEPTH;
+    break;
+  default:
+    die("pi2urImageInfoFlags: Unsupported use case");
+  }
+}
+
+inline pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
+                                      pi_image_info ParamName, void *ParamValue,
+                                      size_t *ParamValueSizeRet) {
+  ur_exp_image_mem_handle_t UrMemHandle =
+      reinterpret_cast<ur_exp_image_mem_handle_t>(MemHandle);
+
+  ur_image_info_t UrParamName{};
+  pi2urImageInfoFlags(ParamName, &UrParamName);
+
+  HANDLE_ERRORS(urBindlessImagesImageGetInfoExp(UrMemHandle, UrParamName,
+                                                ParamValue, ParamValueSizeRet));
+
+  if (ParamName == pi_image_info::PI_IMAGE_INFO_FORMAT && ParamValue) {
+    pi_image_format PiFormat;
+    ur2piImageFormat(reinterpret_cast<ur_image_format_t *>(ParamValue),
+                     &PiFormat);
+    reinterpret_cast<pi_image_format *>(ParamValue)->image_channel_data_type =
+        PiFormat.image_channel_data_type;
+    reinterpret_cast<pi_image_format *>(ParamValue)->image_channel_order =
+        PiFormat.image_channel_order;
+    if (ParamValueSizeRet) {
+      *ParamValueSizeRet = sizeof(pi_image_format);
+    }
+  }
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
+                                        size_t Size, int FileDescriptor,
+                                        pi_interop_mem_handle *RetHandle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_interop_mem_handle_t *UrRetHandle =
+      reinterpret_cast<ur_exp_interop_mem_handle_t *>(RetHandle);
+
+  HANDLE_ERRORS(urBindlessImagesImportOpaqueFDExp(UrContext, UrDevice, Size,
+                                                  FileDescriptor, UrRetHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemMapExternalArray(pi_context Context, pi_device Device,
+                                          pi_image_format *ImageFormat,
+                                          pi_image_desc *ImageDesc,
+                                          pi_interop_mem_handle MemHandle,
+                                          pi_image_mem_handle *RetMem) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+
+  ur_image_format_t UrFormat{};
+  ur_image_desc_t UrDesc{};
+  pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
+
+  ur_exp_interop_mem_handle_t UrMemHandle =
+      reinterpret_cast<ur_exp_interop_mem_handle_t>(MemHandle);
+  ur_exp_image_mem_handle_t *UrRetMem =
+      reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
+
+  HANDLE_ERRORS(urBindlessImagesMapExternalArrayExp(
+      UrContext, UrDevice, &UrFormat, &UrDesc, UrMemHandle, UrRetMem));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextMemReleaseInterop(pi_context Context, pi_device Device,
+                                        pi_interop_mem_handle ExtMem) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_interop_mem_handle_t UrExtMem =
+      reinterpret_cast<ur_exp_interop_mem_handle_t>(ExtMem);
+
+  HANDLE_ERRORS(
+      urBindlessImagesReleaseInteropExp(UrContext, UrDevice, UrExtMem));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
+                                     int FileDescriptor,
+                                     pi_interop_semaphore_handle *RetHandle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_interop_semaphore_handle_t *UrRetHandle =
+      reinterpret_cast<ur_exp_interop_semaphore_handle_t *>(RetHandle);
+
+  HANDLE_ERRORS(urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+      UrContext, UrDevice, FileDescriptor, UrRetHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
+                              pi_interop_semaphore_handle SemHandle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_exp_interop_semaphore_handle_t UrSemHandle =
+      reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
+
+  HANDLE_ERRORS(urBindlessImagesDestroyExternalSemaphoreExp(UrContext, UrDevice,
+                                                            UrSemHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextWaitExternalSemaphore(pi_queue Queue,
+                           pi_interop_semaphore_handle SemHandle,
+                           pi_uint32 NumEventsInWaitList,
+                           const pi_event *EventWaitList, pi_event *Event) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_exp_interop_semaphore_handle_t UrSemHandle =
+      reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
+  const ur_event_handle_t *UrEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urBindlessImagesWaitExternalSemaphoreExp(
+      UrQueue, UrSemHandle, NumEventsInWaitList, UrEventWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextSignalExternalSemaphore(pi_queue Queue,
+                             pi_interop_semaphore_handle SemHandle,
+                             pi_uint32 NumEventsInWaitList,
+                             const pi_event *EventWaitList, pi_event *Event) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_exp_interop_semaphore_handle_t UrSemHandle =
+      reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
+  const ur_event_handle_t *UrEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urBindlessImagesSignalExternalSemaphoreExp(
+      UrQueue, UrSemHandle, NumEventsInWaitList, UrEventWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
 
 } // namespace pi2ur

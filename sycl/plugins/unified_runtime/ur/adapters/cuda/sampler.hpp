@@ -11,15 +11,24 @@
 /// Implementation of samplers for CUDA
 ///
 /// Sampler property layout:
-/// | 31 30 ... 6 5 |      4 3 2      |     1      |         0        |
-/// |      N/A      | addressing mode | fiter mode | normalize coords |
+/// |     <bits>     | <usage>
+/// -----------------------------------
+/// |  31 30 ... 6   | N/A
+/// |       5        | mip filter mode
+/// |     4 3 2      | addressing mode
+/// |       1        | filter mode
+/// |       0        | normalize coords
 struct ur_sampler_handle_t_ {
   std::atomic_uint32_t RefCount;
   uint32_t Props;
+  float MinMipmapLevelClamp;
+  float MaxMipmapLevelClamp;
+  float MaxAnisotropy;
   ur_context_handle_t Context;
 
   ur_sampler_handle_t_(ur_context_handle_t Context)
-      : RefCount(1), Props(0), Context(Context) {}
+      : RefCount(1), Props(0), MinMipmapLevelClamp(0.0f),
+        MaxMipmapLevelClamp(0.0f), MaxAnisotropy(0.0f), Context(Context) {}
 
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 

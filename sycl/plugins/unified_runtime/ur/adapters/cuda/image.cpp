@@ -1,0 +1,1101 @@
+//===--------- image.cpp - CUDA Adapter ------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===-----------------------------------------------------------------===//
+
+#include <cuda.h>
+
+#include "common.hpp"
+#include "context.hpp"
+#include "enqueue.hpp"
+#include "event.hpp"
+#include "image.hpp"
+#include "memory.hpp"
+#include "queue.hpp"
+#include "sampler.hpp"
+#include "ur/ur.hpp"
+#include "ur_api.h"
+
+ur_result_t urCalculateNumChannels(ur_image_channel_order_t order,
+                                   unsigned int *NumChannels) {
+  ur_result_t Err = UR_RESULT_SUCCESS;
+  switch (order) {
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_A:
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_R:
+    *NumChannels = 1;
+    break;
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RG:
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RA:
+    *NumChannels = 2;
+    break;
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGB:
+    Err = UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    break;
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGBA:
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_ARGB:
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_BGRA:
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_ABGR:
+    *NumChannels = 4;
+    break;
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RX:
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGX:
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGBX:
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_SRGBA:
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_INTENSITY:
+  case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_LUMINANCE:
+  default:
+    Err = UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    break;
+  }
+  return Err;
+}
+
+/// Convert a UR image format to a CUDA image format and
+/// get the pixel size in bytes.
+/// /param image_channel_type is the ur_image_channel_type_t.
+/// /param return_cuda_format will be set to the equivalent cuda
+/// format if not nullptr.
+/// /param return_pixel_types_size_bytes will be set to the pixel
+/// byte size if not nullptr.
+ur_result_t
+urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
+                           CUarray_format *return_cuda_format,
+                           size_t *return_pixel_types_size_bytes) {
+
+  CUarray_format cuda_format;
+  size_t PixelTypeSizeBytes;
+  ur_result_t Err = UR_RESULT_SUCCESS;
+
+  switch (image_channel_type) {
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+    cuda_format = CU_AD_FORMAT_UNORM_INT8X1;
+    PixelTypeSizeBytes = 1;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+    cuda_format = CU_AD_FORMAT_UNSIGNED_INT8;
+    PixelTypeSizeBytes = 1;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
+    cuda_format = CU_AD_FORMAT_SIGNED_INT8;
+    PixelTypeSizeBytes = 1;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+    cuda_format = CU_AD_FORMAT_UNORM_INT16X1;
+    PixelTypeSizeBytes = 2;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+    cuda_format = CU_AD_FORMAT_UNSIGNED_INT16;
+    PixelTypeSizeBytes = 2;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
+    cuda_format = CU_AD_FORMAT_SIGNED_INT16;
+    PixelTypeSizeBytes = 2;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
+    cuda_format = CU_AD_FORMAT_HALF;
+    PixelTypeSizeBytes = 2;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
+    cuda_format = CU_AD_FORMAT_UNSIGNED_INT32;
+    PixelTypeSizeBytes = 4;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
+    cuda_format = CU_AD_FORMAT_SIGNED_INT32;
+    PixelTypeSizeBytes = 4;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_FLOAT:
+    cuda_format = CU_AD_FORMAT_FLOAT;
+    PixelTypeSizeBytes = 4;
+    break;
+  default:
+    Err = UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    break;
+  }
+
+  if (return_cuda_format) {
+    *return_cuda_format = cuda_format;
+  }
+  if (return_pixel_types_size_bytes) {
+    *return_pixel_types_size_bytes = PixelTypeSizeBytes;
+  }
+  return Err;
+}
+
+ur_result_t
+cudaToUrImageChannelFormat(CUarray_format cuda_format,
+                           ur_image_channel_type_t *return_image_channel_type) {
+  assert(return_image_channel_type);
+  ur_result_t Err = UR_RESULT_SUCCESS;
+
+  switch (cuda_format) {
+  case CU_AD_FORMAT_UNSIGNED_INT8:
+    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
+    break;
+  case CU_AD_FORMAT_UNSIGNED_INT16:
+    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
+    break;
+  case CU_AD_FORMAT_UNSIGNED_INT32:
+    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
+    break;
+  case CU_AD_FORMAT_SIGNED_INT8:
+    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
+    break;
+  case CU_AD_FORMAT_SIGNED_INT16:
+    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
+    break;
+  case CU_AD_FORMAT_SIGNED_INT32:
+    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
+    break;
+  case CU_AD_FORMAT_HALF:
+    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
+    break;
+  case CU_AD_FORMAT_FLOAT:
+    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_FLOAT;
+    break;
+  case CU_AD_FORMAT_UNORM_INT8X1:
+    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_UNORM_INT8;
+    break;
+  case CU_AD_FORMAT_UNORM_INT16X1:
+    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_UNORM_INT16;
+    break;
+  default:
+    Err = UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    break;
+  }
+
+  return Err;
+}
+
+ur_result_t urTextureCreate(ur_context_handle_t hContext,
+                            ur_sampler_handle_t hSampler,
+                            const ur_image_desc_t *pImageDesc,
+                            CUDA_RESOURCE_DESC ResourceDesc,
+                            ur_exp_image_handle_t *phRetImage) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(phRetImage, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  try {
+    /// pi_sampler_properties
+    /// |     <bits>     | <usage>
+    /// -----------------------------------
+    /// |  31 30 ... 6   | N/A
+    /// |       5        | mip filter mode
+    /// |     4 3 2      | addressing mode
+    /// |       1        | filter mode
+    /// |       0        | normalize coords
+    CUDA_TEXTURE_DESC ImageTexDesc = {};
+    CUaddress_mode AddrMode;
+    uint32_t AddrModeProp = ((hSampler->Props >> 2) & 7);
+    if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE -
+                         UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+      AddrMode = CU_TR_ADDRESS_MODE_CLAMP;
+    } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP -
+                                UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+      AddrMode = CU_TR_ADDRESS_MODE_BORDER;
+    } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_REPEAT -
+                                UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+      AddrMode = CU_TR_ADDRESS_MODE_WRAP;
+    } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT -
+                                UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+      AddrMode = CU_TR_ADDRESS_MODE_MIRROR;
+    }
+    CUfilter_mode FilterMode;
+    uint32_t FilterModeProp = ((hSampler->Props >> 1) & 1);
+    FilterMode =
+        FilterModeProp ? CU_TR_FILTER_MODE_LINEAR : CU_TR_FILTER_MODE_POINT;
+    ImageTexDesc.filterMode = FilterMode;
+
+    // Mipmap attributes
+    CUfilter_mode MipFilterMode;
+    uint32_t MipFilterModeProp = ((hSampler->Props >> 5) & 1);
+    MipFilterMode =
+        MipFilterModeProp ? CU_TR_FILTER_MODE_LINEAR : CU_TR_FILTER_MODE_POINT;
+    ImageTexDesc.mipmapFilterMode = MipFilterMode;
+    ImageTexDesc.maxMipmapLevelClamp = hSampler->MaxMipmapLevelClamp;
+    ImageTexDesc.minMipmapLevelClamp = hSampler->MinMipmapLevelClamp;
+    ImageTexDesc.maxAnisotropy = hSampler->MaxAnisotropy;
+
+    // The address modes can interfere with other dimensionsenqueueEventsWait
+    // e.g. 1D texture sampling can be interfered with when setting other
+    // dimension address modes despite their nonexistence
+    ImageTexDesc.addressMode[0] = AddrMode; // 1D
+    ImageTexDesc.addressMode[1] =
+        pImageDesc->height > 0 ? AddrMode : ImageTexDesc.addressMode[1]; // 2D
+    ImageTexDesc.addressMode[2] =
+        pImageDesc->depth > 0 ? AddrMode : ImageTexDesc.addressMode[2]; // 3D
+
+    // flags takes the normalized coordinates setting -- unnormalized is default
+    ImageTexDesc.flags = (hSampler->Props & 1) ? CU_TRSF_NORMALIZED_COORDINATES
+                                               : ImageTexDesc.flags;
+
+    // CUDA default promotes 8-bit and 16-bit integers to float between [0,1]
+    // This flag prevents this behaviour
+    ImageTexDesc.flags |= CU_TRSF_READ_AS_INTEGER;
+
+    CUtexObject Texture;
+    RetErr = UR_CHECK_ERROR(
+        cuTexObjectCreate(&Texture, &ResourceDesc, &ImageTexDesc, nullptr));
+    *phRetImage = (ur_exp_image_handle_t)Texture;
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
+    size_t widthInBytes, size_t height, size_t elementSizeBytes, void **ppMem,
+    size_t *pResultPitch) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pResultPitch, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  std::ignore = pUSMDesc;
+  std::ignore = pool;
+
+  assert(widthInBytes > 0);
+  assert(height > 0);
+  assert(elementSizeBytes > 0);
+
+  // elementSizeBytes can only take on values of 4, 8, or 16
+  // small data types need to be minimised to 4
+  if (elementSizeBytes < 4) {
+    elementSizeBytes = 4;
+  }
+  assert(elementSizeBytes == 4 || elementSizeBytes == 8 ||
+         elementSizeBytes == 16);
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  try {
+    ScopedContext Active(hDevice->getContext());
+    Result =
+        UR_CHECK_ERROR(cuMemAllocPitch((CUdeviceptr *)ppMem, pResultPitch,
+                                       widthInBytes, height, elementSizeBytes));
+  } catch (ur_result_t error) {
+    Result = error;
+  }
+
+  return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesUnsampledImageHandleDestroyExp(ur_context_handle_t hContext,
+                                               ur_device_handle_t hDevice,
+                                               ur_exp_image_handle_t hImage) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+  RetErr = UR_CHECK_ERROR(cuSurfObjectDestroy((CUsurfObject)hImage));
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesSampledImageHandleDestroyExp(ur_context_handle_t hContext,
+                                             ur_device_handle_t hDevice,
+                                             ur_exp_image_handle_t hImage) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+  RetErr = UR_CHECK_ERROR(cuTexObjectDestroy((CUtexObject)hImage));
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
+    ur_exp_image_mem_handle_t *phImageMem) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(phImageMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  // Populate descriptor
+  CUDA_ARRAY3D_DESCRIPTOR array_desc = {};
+
+  RetErr = urCalculateNumChannels(pImageFormat->channelOrder,
+                                  &array_desc.NumChannels);
+  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::ur::die("urBindlessImagesImageAllocateExp given "
+                          "unsupported channelType");
+  }
+
+  RetErr = urToCudaImageChannelFormat(pImageFormat->channelType,
+                                      &array_desc.Format, nullptr);
+  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::ur::die("urBindlessImagesImageAllocateExp given "
+                          "unsupported channelType");
+  }
+
+  array_desc.Flags = 0; // No flags required
+  array_desc.Width = pImageDesc->width;
+  if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+    array_desc.Height = 0;
+    array_desc.Depth = 0;
+  } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+    array_desc.Height = pImageDesc->height;
+    array_desc.Depth = 0;
+  } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+    array_desc.Height = pImageDesc->height;
+    array_desc.Depth = pImageDesc->depth;
+  }
+
+  ScopedContext Active(hDevice->getContext());
+
+  // Allocate a cuArray
+  if (pImageDesc->numMipLevel == 1) {
+    CUarray ImageArray;
+
+    try {
+      RetErr = UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &array_desc));
+      *phImageMem = (ur_exp_image_mem_handle_t)ImageArray;
+    } catch (ur_result_t Err) {
+      cuArrayDestroy(ImageArray);
+      return Err;
+    } catch (...) {
+      cuArrayDestroy(ImageArray);
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
+  } else // Allocate a cuMipmappedArray
+  {
+    CUmipmappedArray mip_array;
+    array_desc.Flags = CUDA_ARRAY3D_SURFACE_LDST;
+
+    try {
+      RetErr = UR_CHECK_ERROR(cuMipmappedArrayCreate(&mip_array, &array_desc,
+                                                     pImageDesc->numMipLevel));
+      *phImageMem = (ur_exp_image_mem_handle_t)mip_array;
+    } catch (ur_result_t Err) {
+      cuMipmappedArrayDestroy(mip_array);
+      return Err;
+    } catch (...) {
+      cuMipmappedArrayDestroy(mip_array);
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
+  }
+
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_image_mem_handle_t hImageMem) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  ScopedContext Active(hDevice->getContext());
+  try {
+    RetErr = UR_CHECK_ERROR(cuArrayDestroy((CUarray)hImageMem));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
+    const ur_image_desc_t *pImageDesc, ur_mem_handle_t *phMem,
+    ur_exp_image_handle_t *phImage) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(phImage, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  unsigned int NumChannels = 0;
+  RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
+  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::ur::die("urBindlessImagesUnsampledImageCreateExp given "
+                          "unsupported channelType");
+  }
+
+  CUarray_format format;
+  size_t PixelTypeSizeBytes;
+  RetErr = urToCudaImageChannelFormat(pImageFormat->channelType, &format,
+                                      &PixelTypeSizeBytes);
+  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::ur::die("urBindlessImagesUnsampledImageCreateExp given "
+                          "unsupported channelType");
+  }
+
+  try {
+
+    ScopedContext Active(hDevice->getContext());
+
+    CUDA_RESOURCE_DESC image_res_desc = {};
+
+    // We have a CUarray
+    image_res_desc.resType = CU_RESOURCE_TYPE_ARRAY;
+    image_res_desc.res.array.hArray = (CUarray)hImageMem;
+
+    // We create surfaces in the unsampled images case as it conforms to how
+    // CUDA deals with unsampled images
+    CUsurfObject surface;
+    RetErr = UR_CHECK_ERROR(cuSurfObjectCreate(&surface, &image_res_desc));
+    *phImage = (ur_exp_image_handle_t)surface;
+
+    auto urMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+        hContext, (CUarray)hImageMem, surface, pImageDesc->type});
+
+    if (urMemObj == nullptr) {
+      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    *phMem = urMemObj.release();
+
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
+    const ur_image_desc_t *pImageDesc, ur_sampler_handle_t hSampler,
+    ur_mem_handle_t *phMem, ur_exp_image_handle_t *phImage) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(phImage, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+  ScopedContext Active(hDevice->getContext());
+
+  unsigned int NumChannels = 0;
+  RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
+  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::ur::die("urBindlessImagesSampledImageCreateExp given "
+                          "unsupported channelOrder");
+  }
+
+  CUarray_format format;
+  size_t PixelTypeSizeBytes;
+  RetErr = urToCudaImageChannelFormat(pImageFormat->channelType, &format,
+                                      &PixelTypeSizeBytes);
+  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::ur::die("urBindlessImagesSampledImageCreateExp given "
+                          "unsupported channelType");
+  }
+
+  try {
+    CUDA_RESOURCE_DESC image_res_desc = {};
+
+    unsigned int mem_type;
+    // If this function doesn't return successfully, we assume that hImageMem is
+    // a CUarray or CUmipmappedArray If this function returns successfully, we
+    // check whether hImageMem is device memory (even managed memory isn't
+    // considered shared)
+    CUresult Err = cuPointerGetAttribute(
+        &mem_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)hImageMem);
+    if (Err != CUDA_SUCCESS) {
+      // We have a CUarray
+      if (pImageDesc->numMipLevel == 1) {
+        image_res_desc.resType = CU_RESOURCE_TYPE_ARRAY;
+        image_res_desc.res.array.hArray = (CUarray)hImageMem;
+      }
+      // We have a CUmipmappedArray
+      else {
+        image_res_desc.resType = CU_RESOURCE_TYPE_MIPMAPPED_ARRAY;
+        image_res_desc.res.mipmap.hMipmappedArray = (CUmipmappedArray)hImageMem;
+      }
+    } else if (mem_type == CU_MEMORYTYPE_DEVICE) {
+      // We have a USM pointer
+      if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+        image_res_desc.resType = CU_RESOURCE_TYPE_LINEAR;
+        image_res_desc.res.linear.devPtr = (CUdeviceptr)hImageMem;
+        image_res_desc.res.linear.format = format;
+        image_res_desc.res.linear.numChannels = NumChannels;
+        image_res_desc.res.linear.sizeInBytes =
+            pImageDesc->width * PixelTypeSizeBytes * NumChannels;
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+        image_res_desc.resType = CU_RESOURCE_TYPE_PITCH2D;
+        image_res_desc.res.pitch2D.devPtr = (CUdeviceptr)hImageMem;
+        image_res_desc.res.pitch2D.format = format;
+        image_res_desc.res.pitch2D.numChannels = NumChannels;
+        image_res_desc.res.pitch2D.width = pImageDesc->width;
+        image_res_desc.res.pitch2D.height = pImageDesc->height;
+        image_res_desc.res.pitch2D.pitchInBytes = pImageDesc->rowPitch;
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+        sycl::detail::ur::die("urBindlessImagesSampledImageCreateExp cannot "
+                              "create 3D image from USM");
+      }
+    } else {
+      sycl::detail::ur::die(
+          "urBindlessImagesSampledImageCreateExp unknown image memory type");
+    }
+
+    RetErr = urTextureCreate(hContext, hSampler, pImageDesc, image_res_desc,
+                             phImage);
+
+    auto urMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+        hContext, (CUarray)hImageMem, (CUtexObject)*phImage, hSampler,
+        pImageDesc->type});
+
+    if (urMemObj == nullptr) {
+      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    *phMem = urMemObj.release();
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
+    ur_queue_handle_t hQueue, void *pDst, void *pSrc,
+    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
+    ur_exp_image_copy_flags_t imageCopyFlags, ur_rect_offset_t srcOffset,
+    ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,
+    ur_rect_region_t hostExtent, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  unsigned int NumChannels = 0;
+  size_t PixelTypeSizeBytes = 0;
+
+  RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
+  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::ur::die(
+        "urBindlessImagesImageCopyExp given unsupported channelOrder");
+  }
+
+  // We need to get this now in bytes for calculating the total image size later
+  RetErr = urToCudaImageChannelFormat(pImageFormat->channelType, nullptr,
+                                      &PixelTypeSizeBytes);
+  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::ur::die(
+        "urBindlessImagesImageCopyExp given unsupported channelType");
+  }
+
+  size_t PixelSizeBytes = PixelTypeSizeBytes * NumChannels;
+
+  try {
+    ScopedContext Active(hQueue->getContext());
+    CUstream Stream = hQueue->getNextTransferStream();
+    RetErr =
+        enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
+    // We have to use a different copy function for each image dimensionality
+
+    if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
+      if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+        size_t CopyExtentBytes = PixelSizeBytes * copyExtent.width;
+        char *SrcWithOffset = (char *)pSrc + (srcOffset.x * PixelSizeBytes);
+        RetErr = UR_CHECK_ERROR(
+            cuMemcpyHtoAAsync((CUarray)pDst, dstOffset.x * PixelSizeBytes,
+                              (void *)SrcWithOffset, CopyExtentBytes, Stream));
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+        CUDA_MEMCPY2D cpy_desc = {};
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.srcHost = pSrc;
+        cpy_desc.srcXInBytes = srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcY = srcOffset.y;
+        cpy_desc.dstXInBytes = dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstY = dstOffset.y;
+        cpy_desc.srcPitch = hostExtent.width * PixelSizeBytes;
+        if (pImageDesc->rowPitch == 0) {
+          cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+          cpy_desc.dstArray = (CUarray)pDst;
+        } else {
+          // Pitched memory
+          cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_DEVICE;
+          cpy_desc.dstDevice = (CUdeviceptr)pDst;
+          cpy_desc.dstPitch = pImageDesc->rowPitch;
+        }
+        cpy_desc.WidthInBytes = PixelSizeBytes * copyExtent.width;
+        cpy_desc.Height = copyExtent.height;
+        RetErr = UR_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, Stream));
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+        CUDA_MEMCPY3D cpy_desc = {};
+        cpy_desc.srcXInBytes = srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcY = srcOffset.y;
+        cpy_desc.srcZ = srcOffset.z;
+        cpy_desc.dstXInBytes = dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstY = dstOffset.y;
+        cpy_desc.dstZ = dstOffset.z;
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.srcHost = pSrc;
+        cpy_desc.srcPitch = hostExtent.width * PixelSizeBytes;
+        cpy_desc.srcHeight = hostExtent.height;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.dstArray = (CUarray)pDst;
+        cpy_desc.WidthInBytes = PixelSizeBytes * copyExtent.width;
+        cpy_desc.Height = copyExtent.height;
+        cpy_desc.Depth = copyExtent.depth;
+        RetErr = UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
+      }
+    } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+      if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+        size_t CopyExtentBytes = PixelSizeBytes * copyExtent.width;
+        size_t src_offset_bytes = PixelSizeBytes * srcOffset.x;
+        void *dst_with_offset =
+            (void *)((char *)pDst + (PixelSizeBytes * dstOffset.x));
+        RetErr = UR_CHECK_ERROR(
+            cuMemcpyAtoHAsync(dst_with_offset, (CUarray)pSrc, src_offset_bytes,
+                              CopyExtentBytes, Stream));
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+        CUDA_MEMCPY2D cpy_desc = {};
+        cpy_desc.srcXInBytes = srcOffset.x;
+        cpy_desc.srcY = srcOffset.y;
+        cpy_desc.dstXInBytes = dstOffset.x;
+        cpy_desc.dstY = dstOffset.y;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.dstHost = pDst;
+        if (pImageDesc->rowPitch == 0) {
+          cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+          cpy_desc.srcArray = (CUarray)pSrc;
+        } else {
+          // Pitched memory
+          cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_DEVICE;
+          cpy_desc.srcPitch = pImageDesc->rowPitch;
+          cpy_desc.srcDevice = (CUdeviceptr)pSrc;
+        }
+        cpy_desc.WidthInBytes = PixelSizeBytes * copyExtent.width;
+        cpy_desc.Height = copyExtent.height;
+        RetErr = UR_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, Stream));
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+        CUDA_MEMCPY3D cpy_desc = {};
+        cpy_desc.srcXInBytes = srcOffset.x;
+        cpy_desc.srcY = srcOffset.y;
+        cpy_desc.srcZ = srcOffset.z;
+        cpy_desc.dstXInBytes = dstOffset.x;
+        cpy_desc.dstY = dstOffset.y;
+        cpy_desc.dstZ = dstOffset.z;
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.srcArray = (CUarray)pSrc;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.dstHost = pDst;
+        cpy_desc.WidthInBytes = PixelSizeBytes * copyExtent.width;
+        cpy_desc.Height = copyExtent.height;
+        cpy_desc.Depth = copyExtent.depth;
+        RetErr = UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
+      }
+    } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) {
+      /// TODO: implemet device to device copy
+    } else {
+      sycl::detail::ur::die("urBindlessImagesImageCopyExp given unsupported "
+                            "image copy imageCopyFlags");
+    }
+
+    if (phEvent) {
+      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
+                                                     hQueue, Stream);
+      NewEvent->record();
+      *phEvent = NewEvent;
+    }
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
+    ur_exp_image_mem_handle_t hImageMem, ur_image_info_t propName,
+    void *pPropValue, size_t *pPropSizeRet) {
+  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  CUDA_ARRAY3D_DESCRIPTOR ArrayDesc;
+  ur_result_t RetErr =
+      UR_CHECK_ERROR(cuArray3DGetDescriptor(&ArrayDesc, (CUarray)hImageMem));
+  switch (propName) {
+  case UR_IMAGE_INFO_WIDTH:
+    if (pPropValue)
+      *(size_t *)pPropValue = ArrayDesc.Width;
+    if (pPropSizeRet)
+      *pPropSizeRet = sizeof(size_t);
+    break;
+  case UR_IMAGE_INFO_HEIGHT:
+    if (pPropValue)
+      *(size_t *)pPropValue = ArrayDesc.Height;
+    if (pPropSizeRet)
+      *pPropSizeRet = sizeof(size_t);
+    break;
+  case UR_IMAGE_INFO_DEPTH:
+    if (pPropValue)
+      *(size_t *)pPropValue = ArrayDesc.Depth;
+    if (pPropSizeRet)
+      *pPropSizeRet = sizeof(size_t);
+    break;
+  case UR_IMAGE_INFO_FORMAT:
+    ur_image_channel_type_t ChannelType;
+    ur_image_channel_order_t ChannelOrder;
+    RetErr = cudaToUrImageChannelFormat(ArrayDesc.Format, &ChannelType);
+    // CUDA does not have a notion of channel "order" in the same way that
+    // SYCL 1.2.1 does.
+    switch (ArrayDesc.NumChannels) {
+    case 1:
+      ChannelOrder = UR_IMAGE_CHANNEL_ORDER_R;
+      break;
+    case 2:
+      ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RG;
+      break;
+    case 4:
+      ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA;
+      break;
+    }
+    if (pPropValue) {
+      ((ur_image_format_t *)pPropValue)->channelType = ChannelType;
+      ((ur_image_format_t *)pPropValue)->channelOrder = ChannelOrder;
+    }
+    if (pPropSizeRet)
+      *pPropSizeRet = sizeof(ur_image_format_t);
+    break;
+  default:
+    RetErr = UR_RESULT_ERROR_INVALID_VALUE;
+    break;
+  }
+
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_image_mem_handle_t hImageMem, uint32_t mipmapLevel,
+    ur_exp_image_mem_handle_t *phImageMem) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(phImageMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext Active(hDevice->getContext());
+    CUarray ImageArray;
+    RetErr = UR_CHECK_ERROR(cuMipmappedArrayGetLevel(
+        &ImageArray, (CUmipmappedArray)hImageMem, mipmapLevel));
+    *phImageMem = (ur_exp_image_mem_handle_t)ImageArray;
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_image_mem_handle_t hMem) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  ScopedContext Active(hDevice->getContext());
+  try {
+    RetErr = UR_CHECK_ERROR(cuMipmappedArrayDestroy((CUmipmappedArray)hMem));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
+    uint32_t fileDescriptor, ur_exp_interop_mem_handle_t *phInteropMem) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(phInteropMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext Active(hDevice->getContext());
+
+    CUDA_EXTERNAL_MEMORY_HANDLE_DESC extMemDesc = {};
+    extMemDesc.handle.fd = fileDescriptor;
+    extMemDesc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
+    extMemDesc.size = size;
+
+    CUexternalMemory extMem;
+    UR_CHECK_ERROR(cuImportExternalMemory(&extMem, &extMemDesc));
+    *phInteropMem = (ur_exp_interop_mem_handle_t)extMem;
+
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
+    ur_exp_interop_mem_handle_t hInteropMem,
+    ur_exp_image_mem_handle_t *phImageMem) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(hInteropMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(phImageMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  unsigned int NumChannels = 0;
+  RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
+  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::ur::die("cuda_piextMemMapExternalArray given "
+                          "unsupported channelOrder\n");
+  }
+
+  CUarray_format format;
+  RetErr =
+      urToCudaImageChannelFormat(pImageFormat->channelType, &format, nullptr);
+  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::ur::die("cuda_piextMemMapExternalArray given "
+                          "unsupported channelType\n");
+  }
+
+  try {
+    ScopedContext Active(hDevice->getContext());
+
+    CUDA_ARRAY3D_DESCRIPTOR ArrayDesc = {};
+    ArrayDesc.Width = pImageDesc->width;
+    ArrayDesc.Height = pImageDesc->height;
+    ArrayDesc.Depth = pImageDesc->depth;
+    ArrayDesc.NumChannels = NumChannels;
+    ArrayDesc.Format = format;
+
+    CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC mipmapDesc = {};
+    mipmapDesc.numLevels = 1;
+    mipmapDesc.arrayDesc = ArrayDesc;
+
+    CUmipmappedArray memMipMap;
+    RetErr = UR_CHECK_ERROR(cuExternalMemoryGetMappedMipmappedArray(
+        &memMipMap, (CUexternalMemory)hInteropMem, &mipmapDesc));
+
+    CUarray memArray;
+    RetErr = UR_CHECK_ERROR(cuMipmappedArrayGetLevel(&memArray, memMipMap, 0));
+
+    *phImageMem = (ur_exp_image_mem_handle_t)memArray;
+
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_interop_mem_handle_t hInteropMem) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(hInteropMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext Active(hDevice->getContext());
+    RetErr =
+        UR_CHECK_ERROR(cuDestroyExternalMemory((CUexternalMemory)hInteropMem));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    uint32_t fileDescriptor,
+    ur_exp_interop_semaphore_handle_t *phInteropSemaphoreHandle) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(phInteropSemaphoreHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext Active(hDevice->getContext());
+
+    CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC ext_sem_desc = {};
+    ext_sem_desc.handle.fd = fileDescriptor;
+    ext_sem_desc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
+
+    CUexternalSemaphore semaphore;
+    RetErr =
+        UR_CHECK_ERROR(cuImportExternalSemaphore(&semaphore, &ext_sem_desc));
+
+    *phInteropSemaphoreHandle = (ur_exp_interop_semaphore_handle_t)semaphore;
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_interop_semaphore_handle_t hInteropSemaphore) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(hInteropSemaphore, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext Active(hDevice->getContext());
+    RetErr = UR_CHECK_ERROR(
+        cuDestroyExternalSemaphore((CUexternalSemaphore)hInteropSemaphore));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hSemaphore, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext Active(hQueue->getContext());
+    CUstream Stream = hQueue->getNextTransferStream();
+
+    RetErr =
+        enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
+
+    CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS SemWaitParams = {};
+
+    // Wait for one external semaphore
+    RetErr = UR_CHECK_ERROR(cuWaitExternalSemaphoresAsync(
+        (CUexternalSemaphore *)&hSemaphore, &SemWaitParams, 1 /* numExtSems */,
+        Stream));
+
+    if (phEvent) {
+      auto NewEvent = ur_event_handle_t_::makeNative(
+          UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP, hQueue, Stream);
+      NewEvent->record();
+      *phEvent = NewEvent;
+    }
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return RetErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hSemaphore, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext Active(hQueue->getContext());
+    CUstream Stream = hQueue->getNextTransferStream();
+
+    RetErr =
+        enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
+
+    CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS SemSignalParams = {};
+
+    // Signal one external semaphore
+    RetErr = UR_CHECK_ERROR(cuSignalExternalSemaphoresAsync(
+        (CUexternalSemaphore *)&hSemaphore, &SemSignalParams,
+        1 /* numExtSems */, Stream));
+
+    if (phEvent) {
+      auto NewEvent = ur_event_handle_t_::makeNative(
+          UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP, hQueue, Stream);
+      NewEvent->record();
+      *phEvent = NewEvent;
+    }
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return RetErr;
+}
