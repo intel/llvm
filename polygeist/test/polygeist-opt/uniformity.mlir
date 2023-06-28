@@ -85,10 +85,10 @@ func.func @test2(%cond: i1, %val: i64, %arg1: memref<?x!sycl_nd_item_2>)  {
   // COM: has unknown uniformity.
   scf.if %cond {
     %c1 = arith.constant 1 : i64
-    memref.store %c1, %alloca[%c0]: memref<10xi64>
+    memref.store %c1, %alloca[%c0] : memref<10xi64>
   } else {
     %c2 = arith.constant 2 : i64    
-    memref.store %c2, %alloca[%c0]: memref<10xi64>
+    memref.store %c2, %alloca[%c0] : memref<10xi64>
   }
   // CHECK: test2_load5, uniformity: unknown
   %load5 = memref.load %alloca[%c0] { tag = "test2_load5" } : memref<10xi64>
@@ -96,15 +96,24 @@ func.func @test2(%cond: i1, %val: i64, %arg1: memref<?x!sycl_nd_item_2>)  {
   // COM: the branch condition is non-uniform, so the value yielded by the scf.if is also non-uniform.
   %c0_i64 = arith.constant 0 : i64
   %cond1 = arith.cmpi sgt, %tx, %c0_i64 : i64
-  %alloca1 = scf.if %cond1 -> memref<10xi64> {
-    %alloca1 = memref.alloca() : memref<10xi64>
+  %alloca1 = memref.alloca() : memref<10xi64> 
+  %alloca2 = scf.if %cond1 -> memref<10xi64> {
     scf.yield %alloca1 : memref<10xi64>
   } else {
-    %alloca2 = memref.alloca() : memref<10xi64>
-    scf.yield %alloca2 : memref<10xi64>    
+    %alloca2a = memref.alloca() : memref<10xi64>
+    scf.yield %alloca2a : memref<10xi64>
   }
   // CHECK: test2_load6, uniformity: non-uniform
-  %load6 = memref.load %alloca1[%c0] { tag = "test2_load6" } : memref<10xi64>
+  %load6 = memref.load %alloca2[%c0] { tag = "test2_load6" } : memref<10xi64>
+
+  // COM: Store a uniform value (%c4) through a memref (%alloca2) that is non-uniform and load it back 
+  // COM: via an another memref (%alloca1) which in itself is uniform. The result should be non-uniform 
+  // COM: because the potential reaching def. of %alloca1 (the store operation) is storing through a 
+  // COM: non-uniform value.
+  %c4 = arith.constant 4 : i64
+  memref.store %c4, %alloca2[%c0] : memref<10xi64>
+  // CHECK: test2_load7, uniformity: non-uniform
+  %load7 = memref.load %alloca1[%c0] { tag = "test2_load7" } : memref<10xi64>
 
   return
 }

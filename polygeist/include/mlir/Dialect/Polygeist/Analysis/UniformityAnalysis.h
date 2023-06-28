@@ -137,19 +137,37 @@ private:
                             ArrayRef<UniformityLattice *> results);
 
   /// Collect the branch conditions that dominate each of the modifiers \p mods.
-  SmallVector<Value>
+  SetVector<Value>
   collectBranchConditions(const ReachingDefinition::ModifiersTy &mods);
 
   /// Return true if all the modifiers \p mods have operands with known uniform
-  /// that is initialized.
-  bool canComputeUniformity(const ReachingDefinition::ModifiersTy &mods);
+  /// that is initialized. The \p op argument is the operation the modifiers
+  /// are for.
+  bool canComputeUniformity(const ReachingDefinition::ModifiersTy &mods,
+                            Operation *op);
 
   /// Return true if any of the modifiers \p mods store a value with uniformity
   /// equal to \p kind.
   bool anyModifierUniformityIs(const ReachingDefinition::ModifiersTy &mods,
                                Uniformity::Kind kind);
 
-  /// Return true if the \p operands have uniformity of the given \p kind.
+  /// Return true is any of the \p operands uniformity is uninitialized.
+  bool
+  anyOfUniformityIsUninitialized(ArrayRef<const UniformityLattice *> operands) {
+    return llvm::any_of(operands, [&](const UniformityLattice *lattice) {
+      return lattice->getValue().isUninitialized();
+    });
+  }
+
+  /// Return true is any of the \p values uniformity is uninitialized.
+  bool anyOfUniformityIsUninitialized(const ValueRange values) {
+    return llvm::any_of(values, [&](Value value) {
+      UniformityLattice *lattice = getLatticeElement(value);
+      return lattice->getValue().isUninitialized();
+    });
+  }
+
+  /// Return true if any of the \p operands has uniformity of the given \p kind.
   bool anyOfUniformityIs(ArrayRef<const UniformityLattice *> operands,
                          Uniformity::Kind kind) {
     return llvm::any_of(operands, [&](const UniformityLattice *lattice) {
@@ -157,7 +175,7 @@ private:
     });
   }
 
-  /// Return true if the \p values have uniformity of the given \p kind.
+  /// Return true if any of the \p values has uniformity of the given \p kind.
   bool anyOfUniformityIs(const ValueRange values, Uniformity::Kind kind) {
     return llvm::any_of(values, [&](Value value) {
       UniformityLattice *lattice = getLatticeElement(value);
