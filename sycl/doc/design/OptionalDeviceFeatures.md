@@ -913,211 +913,253 @@ aspects in the array.
 
 ### Changes specific to AOT mode
 
-In AOT mode, for each AOT target specified by the `-fsycl-targets` command
-line option, DPC++ normally invokes the AOT compiler for each device IR module
-resulting from the sycl-post-link tool.  For example, this is the `ocloc`
-command for Intel Graphics AOT target and the `opencl-aot` command for the x86 AOT
-target with SPIR-V as the input, or other specific tools for the PTX target
-with LLVM IR bitcode input.  This causes a problem, though, for IR modules that
-use optional features because these commands could fail if they attempt to
-compile IR using an optional feature that is not supported by the target
-device.  We therefore need some way to avoid calling these commands in these
-cases.
+Additional changes are required that are specific to the AOT compilation mode.
+The problem is that the tools we use to perform the AOT compilation (e.g.
+`ocloc` or `opencl-aot`) fail if the input SPIR-V module uses features that
+are incompatible with the target device.  Therefore, we must avoid calling
+these tools for SPIR-V modules that contain features that are incompatible
+with the device for which we are compiling.
 
-The overall design is as follows.  The DPC++ installation includes a
-configuration file that has one entry for each device that it supports.  Each
-entry contains the set of aspects that the device supports and the set of
-sub-group sizes that it supports.  DPC++ then consults this configuration
-file to decide whether to invoke a particular AOT compiler on each device IR
-module, using the information from the module's "SYCL/device requirements"
-property set.
+#### New target names
+
+The first step of the solution allows the compiler to know which devices are
+the AOT targets.  Currently, the compiler does not know this because the target
+device names are passed directly to the underlying tool (e.g. `ocloc`).  For
+example, a typical AOT compilation for an Intel GPU device currently looks like
+this:
+
+```
+$ clang++ -fsycl -fsycl-targets=spir64_gen -Xs "-device pvc,dg1" ...
+```
+
+Here, the user requests AOT compilation for Intel GPU devices via
+`-fsycl-targets=spir64_gen` and specifies the actual device names through
+`-Xs "-device pvc,dg1"`.  The `-device pvc,dg1` option, however, is passed
+verbatim to the `ocloc` tool without being parsed by the DPC++ compiler
+driver.  As a result, DPC++ doesn't know the specific target devices.
+
+To solve this, we expand the legal target names that are accepted by the
+`-fsycl-targets` command line option.  The exact target names are defined in
+a configuration file (described next), but the previous example now looks like
+this:
+
+```
+$ clang++ -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg1 ...
+```
+
+DPC++ now knows the exact devices that are the target of the AOT compilation
+because the compiler driver does parse the `-fsycl-targets` option.  The new
+syntax is also easier for users because they specify the target names through
+a single switch rather than a combination of `-fsycl-targets` and
+`-Xs "-device"`.
 
 #### Device configuration file
 
-The configuration file uses a simple YAML format where each top-level key is
-a name of a device architecture. There are sub-keys under each device for
-the supported aspects and sub-group sizes.  For example:
+DPC++ also needs to know the set of optional features that are supported by
+each AOT target device.  For example, we need to know the set of aspects and
+sub-group sizes that each device supports.  This information is provided by
+a configuration file, which has its own [specification][8].  As noted above,
+the configuration file contains the target names that are accepted by the
+compiler driver as parameters to the `-fsycl-targets` option.  It also
+contains a list of the aspects, sub-group sizes, and other features that
+are supported by each target.
+
+There is also a way for the user to define their own configuration file, which
+allows users to compile for devices that have not yet be released to the
+public.
+
+[8]: <DeviceConfigFile.md>
+
+#### Expanded command line options to the post link tool
+
+The `sycl-post-link` tool will be responsible for generating different output
+for each target device (described next).  In order to do this, the compiler
+driver needs to pass separate `-o` options for each target device.  Currently,
+the `sycl-post-link` tool is invoked like this:
 
 ```
-intel_gpu_12_0_0:
-  aspects: [1, 2, 3]
-  may_support_other_aspects: false
-  sub-group-sizes: [8, 16]
-intel_gpu_icl:
-  aspects: [2, 3]
-  may_support_other_aspects: false
-  sub-group-sizes: [8, 16]
-x86_64_avx512:
-  aspects: [1, 2, 3, 9, 11]
-  may_support_other_aspects: false
-  sub-group-sizes: [8, 32]
+$ sycl-post-link [other options] -o=output.table input.bc
 ```
 
-The device entries have an optional `may_support_other_aspects` sub-key
-specifying if a given target may be supported by devices that support aspects
-not in the `aspects` list. This is used by the [DeviceAspectTraitDesign.md][10]
-design.
+The input file (e.g. "input.bc") contains the LLVM IR input.  The `-o` option
+provides the name of the output "file table" (e.g. "output.table") that the
+`sycl-post-link` tool generates.
 
-The values of the aspects in this configuration file can be the numerical
-values from the `enum class aspect` enumeration or the enum identifier itself.
+As detailed below, we want to generate a separate output file table for each
+compilation target, so the driver needs to invoke `sycl-post-link` with several
+`-o` options like this:
 
-One advantage to encoding this information in a textual configuration file is
-that customers can update the file if necessary.  This could be useful, for
-example, if a new device is released before there is a new DPC++ release.  In
-fact, the DPC++ driver supports a command line option which allows the user
-to select an alternate configuration file.
-
-**TODO**:
-* Define location of the default device configuration file.
-
-[10]: <DeviceAspectTraitDesign.md>
-
-#### New features in clang compilation driver and tools
-
-NOTE: the term *device binary image* used to refer to a device
-code form consumable by the DPC++ runtime library. Earlier device code forms are
-referred to as *device code module* or *device IR module*. In case of AOT,
-device binary image is a natively compiled binary, and IR module - either a
-SPIR-V or LLVM IR bitcode module.
-
-##### Overview
-
-After the `sycl-post-link` performs necessary aspect usage analysis and splits
-the incoming monolithic device code module into pieces - smaller device code
-modules - it outputs a file table as a result. Each row in the table corresponds
-to an individual output module, and each element of a row is a name of a file
-containing necessary information about the module, such as the code itself, and
-its properties.
-
-At the action graph building stage for each requested AOT compilation target -
-SPIR-V-based (such as Intel Graphics targets) and/or non-SPIR-V-based (such as
-PTX) - the driver adds an `aspect-filter` action which filters out input file
-table rows with device code modules using features unsupported on current
-target. Then the output table goes as input into the AOT stage, and the prior
-filtering guarantees that the AOT compiler will not encounter device code it
-can't compile. In the extreme case when all device code
-modules use unsupported aspects, the input file table will be empty. The picture
-below illustrates the action graph built by the clang driver along with file
-lists and tables generated and consumed by various nodes of the graph. The
-example set of targets used for the illustration is 4 targets
-
-- spir64 (runtime JITted SPIR-V)
-- AOT targets
-    - non-SPIR-V based
-        - ptx64 (PTX)
-    - SPIR-V based
-        - intel_gpu_12_0_0 (Intel Graphics)
-        - x86_64_avx512 (AVX512)
-
-![Device SPIRV translation and AOT compilation](images/DeviceLinkAOTAndWrap.svg)
-
-##### Aspect filter tool
-
-This tool transforms an input file table by removing rows with device code files
-that use features unsupported for the target architecture given as tool's
-argument.
-
-*Name*:
-
-- `sycl-aspect-filter`, located next to other tools like `file-table-tform`
-
-*Input*:
-
-- file table, normally coming out of `sycl-post-link` or `file-table-tform`
-  tools
-
-*Command line arguments*:
-
-- `-target=<target>` target device architecture to filter for
-- `-device-config-file=<path>` path to the device configuration file
-
-*Output*:
-
-- the input file table filtered as needed
-
-In more details, the tool performs the following actions:
-
-1) Checks if the input file table contains "Properties" column. If not, copies
-   the input file table to output and exits without error.
-1) Reads in the device configuration file and finds some entry `E` corresponding
-   to the architecture given on the command line. If there is no such entry -
-   reports an error and exits.
-1) For each row in the input file table:
-
-   - Load the properties file from the "Properties" column.
-   - Check if the `SYCL/device requirements` property set exists.
-   - If not, copy the current row to the output file table and go the next row.
-   - If it does exist, all of the following checks are performed.  If they all
-     pass, the row is copied to the output file table, otherwise it is skipped.
-     Either way, it advances to the next row.
-      - If there is an "aspect" property, check if entry `E.aspects` contains
-        all of the aspects listed in the property.  If any are missing, the
-        check fails.
-      - If there is a "reqd\_sub\_group\_size" property, check if entry
-        `E.sub-group-sizes` contains all of the sub-group sizes listed in the
-        property.  If any are missing, the check fails.
-      - If there is a "fixed\_target" property, check if `E.aspects` contains
-        at least one of the aspects from the property.  If it does not, the
-        check fails.  (The "fixed\_target" property lists the corresponding
-        aspect for each target device.  The `E.aspects` list will only contain
-        this aspect if `E` corresponds to that target.)
-
-##### Configuration file location and driver option
-
-A default device configuration file is present in DPC++ build. Users may override it using the
-`-fsycl-device-config-file=<path>` compiler command line option.
-Exact location of the file and final name of the compiler option is TBD.
-
-##### AOT target identification
-
-There are several user-visible places in the SDK where SYCL device target
-architectures need to be identified:
-
-- `-fsycl-targets` option
-- a device configuration file entry
-- `-target` option of the `sycl-aspect-filter` tool
-- a new SYCL enumeration named `architecture`
-
-The following table lists these target names:
-
-| name                 | has `architecture` enum | description                            |
------------------------|-------------------------|----------------------------------------|
-| ptx64                | no                      | Generic 64-bit PTX target architecture |
-| spir64               | no                      | Generic 64-bit SPIR-V target           |
-| x86\_64              | yes                     | Generic 64-bit x86 architecture        |
-| intel\_gpu\_\<name\> | yes                     | Intel graphics architecture \<name\>   |
-
-The "name" column in this table lists the possible target names.  Since not all
-targets have a corresponding enumerator in the `architecture` enumeration, the
-second column tells when there is such an enumerator.  The last row in this
-table corresponds to all of the architecture names listed in the
-[sycl\_ext\_oneapi\_device\_architecture][8] extension whose name starts with
-`intel_gpu_`.
-
-[8]: <../extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc>
-
-TODO: This table needs to be filled out for the CPU variants supported by the
-`opencl-aot` tool (avx512, avx2, avx, sse4.2) and for the FPGA targets.  We
-also need to figure out how CUDA fits in here.
-
-Example of clang compilation invocation with 2 AOT targets and generic SPIR-V:
 ```
-clang++ -fsycl -fsycl-targets=spir64,intel_gpu_12_0_0,ptx64 ...
+$ sycl-post-link [other options] -o=output-spirv.table \
+  -o=intel_gpu_pvc,output-pvc.table -o=intel_gpu_dg1,output-dg1.table input.bc
 ```
+
+Unless the user requested to omit SPIR-V from the final executable, the driver
+passes a `-o` option with no device name as shown above
+(`-o=output-spirv.table`).  The driver also passes a `-o` option with a device
+name for each target in the `-fsycl-targets` list (e.g.
+`-o=intel_gpu_pvc,output-pvc.table`).
+
+#### New filtering pass in the post link tool
+
+When `sycl-post-link` sees one of the new `-o` options with the device name, it
+performs a final filtering pass on the IR modules it generates.  To understand
+this filtering, consider the content of the generated file table:
+
+```
+[Code|Properties|Symbols]
+mod1.bc|mod1.prop|mod1.sym
+mod2.bc|mod2.prop|mod2.sym
+mod3.bc|mod3.prop|mod3.sym
+```
+
+After the header line, there is one line for each IR module that the
+`sycl-post-link` tool generates.
+
+To implement the final filtering pass, the `sycl-post-link` tool uses the
+configuration file to determine the features (e.g. aspects or sub-group sizes)
+that are supported by a target device.  If any IR module uses an incompatible
+feature, the corresponding row in the table is changed to use an empty IR
+module instead.  To illustrate, let's assume that
+`-o=intel_gpu_pvc,output-pvc.table` is passed and that module "mod2.bc" uses
+features that are incompatible with PVC.  The generated table file
+"output-pvc.table" would look like this:
+
+```
+[Code|Properties|Symbols]
+mod1.bc|mod1.prop|mod1.sym
+empty.bc|mod2.prop|mod2.sym
+mod3.bc|mod3.prop|mod3.sym
+```
+
+Notice how the incompatible IR module "mod2.bc" has been replaced with an empty
+IR module "empty.bc".  The other entries on this row ("mod2.prop" and
+"mod2.sym") are unchanged.  It's important to preserve the original properties,
+so that the runtime can diagnose an error if the application mistakenly tries
+to submit a kernel from this IR module to a device that does not support the
+features it uses.
+
+#### AOT compilation and offload wrapping
+
+Currently, the compiler driver invokes the AOT compilation tool (e.g. `ocloc`
+or `opencl-aot`) once for each IR module in the table file that is generated
+by `sycl-post-link`.  When AOT compiling for multiple devices, the driver
+invokes the tool once, passing several target names (e.g.
+`ocloc -device pvc,dg1`).
+
+With the new design, the driver invokes the AOT compilation tool once for each
+IR module in each of the generated file tables.  Each invocation of the tool
+compiles for just a single target device.  To illustrate, let's assume DPC++
+was invoked with `-fsycl-targets=intel_gpu_pvc,intel_gpu_dg1`.  In this case,
+`sycl-post-link` generates two file tables: one for PVC and one for DG1.  The
+driver invokes `ocloc -device pvc` once for each IR module in the PVC file
+table, and it invokes `ocloc -device dg1` once for each IR module in the DG1
+file table.
+
+The driver also passes `-exclude_ir` to `ocloc` in order to prevent it from
+embedding a redundant IR module in each of the ocloc output files.  These
+backup IR modules are unnecessary because DPC++ stores a SPIR-V module in the
+host executable (unless the user specifically requested not to generate
+SPIR-V).
+
+The driver also invokes `clang-offload-wrapper` to wrap the native offload
+modules for inclusion in the host executable.  Currently, the driver passes
+`-target=spir64` when not doing AOT compilation (i.e. when generating SPIR-V
+for the target code), and it passes `-target=spir64_gen` when doing AOT
+compilation.  The target name `spir64_gen` indicates that the offload bundle
+is native code that can run on any Intel GPU.
+
+With the new design, the driver still uses `-target=spir64` to identify a
+SPIR-V offload bundle, however it must use a more specific device name for
+native offload bundles.  We use the same target names accepted by
+`-fsycl-targets`.  For example, if DPC++ is invoked with
+`-fsycl-targets=intel_gpu_pvc,intel_gpu_dg1`, then the driver invokes
+`clang-offload-wrapper` twice, once with `-target=intel_gpu_pvc` and once with
+`-target=intel_gpu_dg1`.
+
+As noted earlier, the user may specify a custom configuration file to compile
+for an Intel GPU device that has not yet been publicly released.  When this
+happens, the configuration file causes the driver to pass
+`clang-offload-wrapper` an option of the form `-target=intel_gpu_XXX` where the
+"XXX" represents the Intel GMDID of the device.
+
+**TODO**: We are considering moving away from the `-fsycl-targets` option and
+using the clang option `--offload-arch` instead.  If we do this, the target
+device names might change too in order to align with the naming style used by
+other offload architectures.  I presume we want to use the same strings for
+both `--offload-arch` and for the `-target` option to `clang-offload-wrapper`.
+Therefore, the target names presented above might change.
+
+**TODO**: The handling of the SPIR-V offload bundle requires some more thought.
+In the current design, there are two different types of SPIR-V modules, which
+are not exactly the same.
+
+If the user compiles with `-fsycl-targets=spir64` (which is the default), the
+device compiler is invoked with `-triple spir64-unknown-unknown`, and the
+generated IR is converted to SPIR-V.  This type of SPIR-V module is wrapped
+into the host executable via `clang-offload-wrapper -target=spir64` (i.e. the
+offload bundle has type "spir64").
+
+However, if the user AOT compiles for an Intel GPU with
+`-fsycl-targets=spir64_gen`, the device compiler is invoked with
+`-triple spir64_gen-unknown-unknown`, which is a different triple from the case
+above.  This IR is also converted to SPIR-V and then sent to the `ocloc` tool.
+The `ocloc` tool compiles the SPIR-V to native code but also embeds the SPIR-V
+into the ocloc output.  This SPIR-V is used by the device driver if the
+application is run on a GPU device that does not match any of the AOT targets.
+
+In the new design, `ocloc` does not embed SPIR-V in its output because we
+invoke it with `-exclude_ir`.  Instead, DPC++ is responsible for embedding the
+SPIR-V in the host executable, but should that SPIR-V be generated with the
+triple `spir64-unknown-unknown` or the triple `spir64_gen-unknown-unknown`?
+We could generate both, but that seems wasteful.  If we generate the SPIR-V
+with `spir64-unknown-unknown`, does that mean we need to run the device
+compiler twice, once with `spir64_gen-unknown-unknown` (to generate SPIR-V that
+is fed to `ocloc`) and once with `spir64-unknown-unknown` (to generate SPIR-V
+that is embedded in the host executable)?  This also seems wasteful because
+it requires running the device compiler twice whenever the user AOT compiles
+for an Intel GPU.
+
+An ideal solution would be to always generate SPIR-V using the triple
+`spir64-unknown-unknown`, and use this SPIR-V as input to both `ocloc` and
+`opencl-aot`.  This would allow us to run the device compiler just once even if
+the user AOT compiles for both Intel GPU and CPU.  However, this means that the
+SPIR-V is generated using a different triple than we use today.  It's unclear
+what ramification this has.
+
 
 ### Changes to the DPC++ runtime
 
-The DPC++ runtime must be changed to check if a kernel uses any optional
-features that the device does not support.  If this happens, the runtime must
-raise a synchronous `errc::kernel_not_supported` exception.
+#### Identifying a compatible offload bundle
 
-When the application submits a kernel to a device, the runtime identifies all
+Since the user may AOT compile for several different offload targets, the
+runtime must determine which offload bundles are compatible with the queue's
+device.  If the device is an Intel GPU, the runtime uses either
+[`ze_device_ip_version_ext_t`][9] (on Level Zero) or
+[`CL_DEVICE_IP_VERSION_INTEL`][10] (on OpenCL) to get the GMDID of the
+device.  This GMDID value can be mapped to any of the Intel GPU target names
+that are used for AOT compiled offload bundles.
+
+If the runtime doesn't find an AOT compiled offload bundle, it searches for a
+SPIR-V bundle using the offload target name "spir64".
+
+[9]: <https://spec.oneapi.io/level-zero/latest/core/api.html#ze-device-ip-version-ext-t>
+[10]: <https://registry.khronos.org/OpenCL/extensions/intel/cl_intel_device_attribute_query.html>
+
+#### Raising an exception when features are incompatible
+
+The runtime must also check to see if a kernel uses any optional features that
+the device does not support.  If this happens, the runtime must raise a
+synchronous `errc::kernel_not_supported` exception.
+
+After the runtime finds the correct offload bundle as described above, it finds
+the device image in that offload bundle which defines the kernel.  If
+[Device Code Dynamic Linking][4] is supported, the runtime also identifies all
 the other device images that export device functions which are needed by the
-kernel as described in [Device Code Dynamic Linking][4].  Before the runtime
-actually links these images together, it compares each image's
-"SYCL/device requirements" against the features provided by the target
-device.  If any of the following checks fail, the runtime throws
-`errc::kernel_not_supported`:
+kernel as described in that design document.  Before the runtime links these
+images together, it compares each image's "SYCL/device requirements" against
+the features provided by the target device.  If any of the following checks
+fail, the runtime throws `errc::kernel_not_supported`:
 
 * The "fixed\_target" property exists, and the device is not one of the target
   devices listed in the property, or
@@ -1170,7 +1212,7 @@ point accuracy level for math functions provided by user using -ffp-accuracy opt
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 
-As described above under ["Changes to DPC++ headers"][9], we need to decorate
+As described above under ["Changes to DPC++ headers"][11], we need to decorate
 any SYCL type representing an optional device feature with the
 `[[sycl_detail::uses_aspects()]]` attribute.  This is somewhat tricky for
 `atomic_ref`, though, because it is only an optional feature when specialized
@@ -1178,7 +1220,7 @@ for a 8-byte type.  However, we can accomplish this by using partial
 specialization techniques.  The following code snippet demonstrates (best read
 from bottom to top):
 
-[9]: <#changes-to-dpc-headers>
+[11]: <#changes-to-dpc-headers>
 
 ```
 namespace sycl {
