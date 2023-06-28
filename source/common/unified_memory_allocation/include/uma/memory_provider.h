@@ -140,6 +140,16 @@ umaMemoryProviderPurgeForce(uma_memory_provider_handle_t hProvider, void *ptr,
 /// \param ppName [out] pointer to a string containing name of the provider
 const char *umaMemoryProviderGetName(uma_memory_provider_handle_t hProvider);
 
+/// \brief Retrieve handle to the last memory provider that returned status other
+///        than UMA_RESULT_SUCCESS on the calling thread.
+///
+/// \details Handle to the memory provider is stored in  the thread local
+///          storage. The handle is updated every time a memory provider
+///          returns status other than UMA_RESULT_SUCCESS.
+///
+/// \return Handle to the memory provider
+uma_memory_provider_handle_t umaGetLastFailedMemoryProvider();
+
 #ifdef __cplusplus
 }
 #endif
