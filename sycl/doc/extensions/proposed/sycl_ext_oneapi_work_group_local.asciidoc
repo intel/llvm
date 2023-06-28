@@ -60,7 +60,7 @@ not rely on APIs defined in this specification.*
 
 This extension defines a `sycl::ext::oneapi::experimental::work_group_local`
 class template with behavior inspired by the {cpp} `thread_local` keyword
-and the CUDA `__shared__` keyword.
+and the CUDA `+__shared__+` keyword.
 
 `work_group_local` variables can be allocated at global or function scope,
 lifting many of the restrictions in the existing
