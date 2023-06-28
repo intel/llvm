@@ -2293,8 +2293,10 @@ public:
                 (AccessTarget_ == access::target::host_buffer) ||
                 (AccessTarget_ == access::target::host_task) ||
                 (AccessTarget_ == access::target::device)>>
-  std::add_pointer_t<value_type> get_pointer() const noexcept {
-    return getPointerAdjusted();
+  __SYCL2020_DEPRECATED(
+      "accessor::get_pointer() is deprecated, please use get_multi_ptr()")
+  accessor_ptr<access::decorated::legacy> get_pointer() const noexcept {
+    return accessor_ptr<access::decorated::legacy>(getPointerAdjusted());
   }
 
   template <access::target AccessTarget_ = AccessTarget,
@@ -3063,8 +3065,11 @@ public:
     return const_reverse_iterator(begin());
   }
 
-  std::add_pointer_t<value_type> get_pointer() const noexcept {
-    return std::add_pointer_t<value_type>(local_acc::getQualifiedPtr());
+  __SYCL2020_DEPRECATED(
+      "local_accessor::get_pointer() is deprecated, please use get_multi_ptr()")
+  accessor_ptr<access::decorated::legacy> get_pointer() const noexcept {
+    return accessor_ptr<access::decorated::legacy>(
+        local_acc::getQualifiedPtr());
   }
 
   template <access::decorated IsDecorated>

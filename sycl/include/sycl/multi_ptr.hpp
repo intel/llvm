@@ -774,9 +774,8 @@ public:
            Space == access::address_space::ext_intel_global_device_space)>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
-                Accessor) {
-    m_Pointer = detail::cast_AS<pointer_t>(Accessor.get_pointer());
-  }
+                Accessor)
+      : m_Pointer(Accessor.get_pointer().get_decorated()) {}
 
   // Only if Space == local_space || generic_space
   template <
