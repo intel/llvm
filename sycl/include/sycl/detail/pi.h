@@ -1724,7 +1724,7 @@ using pi_mem_obj_access = _pi_mem_obj_access;
 typedef uint32_t pi_mem_access_flag;
 
 typedef enum {
-  PI_KERNEL_ARG_MEM_OBJ_ACCESS = 29,
+  PI_KERNEL_ARG_MEM_OBJ_ACCESS = 27,
   PI_ENUM_FORCE_UINT32 = 0x7fffffff
 } _pi_mem_obj_property_type;
 using pi_mem_obj_property_type = _pi_mem_obj_property_type;
