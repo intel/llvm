@@ -159,39 +159,6 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle, pi_platform *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piQueueCreate(pi_context Context, pi_device Device,
-                        pi_queue_properties Properties, pi_queue *Queue) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piQueueGetInfo(pi_queue, pi_queue_info, size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piQueueRetain(pi_queue Queue) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piQueueRelease(pi_queue Queue) {
-  // Todo: is it fine as a no-op?
-  return PI_SUCCESS;
-}
-
-pi_result piQueueFinish(pi_queue) {
-  // Todo: is it fine as a no-op?
-  return PI_SUCCESS;
-}
-
-pi_result piQueueFlush(pi_queue) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *, int32_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextQueueCreateWithNativeHandle(pi_native_handle, int32_t,
-                                           pi_context, pi_device, bool,
-                                           pi_queue_properties *, pi_queue *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
                             const pi_mem_properties *properties) {
@@ -966,9 +933,6 @@ pi_result piTearDown(void *) {
 }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
-#define _PI_API(api)                                                           \
-  (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
-#include <sycl/detail/pi.def>
 
 #define _PI_CL(pi_api, native_cpu_api)                                         \
   (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&native_cpu_api);
@@ -998,6 +962,121 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextContextGetNativeHandle, pi2ur::piextContextGetNativeHandle)
   _PI_CL(piextContextCreateWithNativeHandle,
          pi2ur::piextContextCreateWithNativeHandle)
+  // Queue
+  _PI_CL(piQueueCreate, pi2ur::piQueueCreate)
+  _PI_CL(piextQueueCreate, pi2ur::piextQueueCreate)
+  _PI_CL(piQueueGetInfo, pi2ur::piQueueGetInfo)
+  _PI_CL(piQueueFinish, pi2ur::piQueueFinish)
+  _PI_CL(piQueueFlush, pi2ur::piQueueFlush)
+  _PI_CL(piQueueRetain, pi2ur::piQueueRetain)
+  _PI_CL(piQueueRelease, pi2ur::piQueueRelease)
+  _PI_CL(piextQueueGetNativeHandle, pi2ur::piextQueueGetNativeHandle)
+  _PI_CL(piextQueueCreateWithNativeHandle,
+         pi2ur::piextQueueCreateWithNativeHandle)
+
+  // Memory
+  _PI_CL(piMemBufferCreate, piMemBufferCreate)
+  _PI_CL(piMemImageCreate, piMemImageCreate)
+  _PI_CL(piMemGetInfo, piMemGetInfo)
+  _PI_CL(piMemImageGetInfo, piMemImageGetInfo)
+  _PI_CL(piMemRetain, piMemRetain)
+  _PI_CL(piMemRelease, piMemRelease)
+  _PI_CL(piMemBufferPartition, piMemBufferPartition)
+  _PI_CL(piextMemGetNativeHandle, piextMemGetNativeHandle)
+  _PI_CL(piextMemCreateWithNativeHandle, piextMemCreateWithNativeHandle)
+
+  // Program
+  _PI_CL(piProgramCreate, piProgramCreate)
+  _PI_CL(piclProgramCreateWithSource, piclProgramCreateWithSource)
+  _PI_CL(piProgramCreateWithBinary, piProgramCreateWithBinary)
+  _PI_CL(piProgramGetInfo, piProgramGetInfo)
+  _PI_CL(piProgramCompile, piProgramCompile)
+  _PI_CL(piProgramBuild, piProgramBuild)
+  _PI_CL(piProgramLink, piProgramLink)
+  _PI_CL(piProgramGetBuildInfo, piProgramGetBuildInfo)
+  _PI_CL(piProgramRetain, piProgramRetain)
+  _PI_CL(piProgramRelease, piProgramRelease)
+  _PI_CL(piextProgramGetNativeHandle, piextProgramGetNativeHandle)
+  _PI_CL(piextProgramCreateWithNativeHandle, piextProgramCreateWithNativeHandle)
+  _PI_CL(piextProgramSetSpecializationConstant,
+         piextProgramSetSpecializationConstant)
+  // Kernel
+  _PI_CL(piKernelCreate, piKernelCreate)
+  _PI_CL(piKernelSetArg, piKernelSetArg)
+  _PI_CL(piKernelGetInfo, piKernelGetInfo)
+  _PI_CL(piKernelGetGroupInfo, piKernelGetGroupInfo)
+  _PI_CL(piKernelGetSubGroupInfo, piKernelGetSubGroupInfo)
+  _PI_CL(piKernelRetain, piKernelRetain)
+  _PI_CL(piKernelRelease, piKernelRelease)
+  _PI_CL(piextKernelGetNativeHandle, piextKernelGetNativeHandle)
+  _PI_CL(piKernelSetExecInfo, piKernelSetExecInfo)
+  _PI_CL(piextKernelSetArgPointer, piextKernelSetArgPointer)
+  _PI_CL(piextKernelCreateWithNativeHandle, piextKernelCreateWithNativeHandle)
+
+  // Event
+  _PI_CL(piEventCreate, piEventCreate)
+  _PI_CL(piEventGetInfo, piEventGetInfo)
+  _PI_CL(piEventGetProfilingInfo, piEventGetProfilingInfo)
+  _PI_CL(piEventsWait, piEventsWait)
+  _PI_CL(piEventSetCallback, piEventSetCallback)
+  _PI_CL(piEventSetStatus, piEventSetStatus)
+  _PI_CL(piEventRetain, piEventRetain)
+  _PI_CL(piEventRelease, piEventRelease)
+  _PI_CL(piextEventGetNativeHandle, piextEventGetNativeHandle)
+  _PI_CL(piextEventCreateWithNativeHandle, piextEventCreateWithNativeHandle)
+  // Sampler
+  _PI_CL(piSamplerCreate, piSamplerCreate)
+  _PI_CL(piSamplerGetInfo, piSamplerGetInfo)
+  _PI_CL(piSamplerRetain, piSamplerRetain)
+  _PI_CL(piSamplerRelease, piSamplerRelease)
+  // Queue commands
+  _PI_CL(piEnqueueKernelLaunch, piEnqueueKernelLaunch)
+  _PI_CL(piEnqueueNativeKernel, piEnqueueNativeKernel)
+  _PI_CL(piEnqueueEventsWait, piEnqueueEventsWait)
+  _PI_CL(piEnqueueEventsWaitWithBarrier, piEnqueueEventsWaitWithBarrier)
+  _PI_CL(piEnqueueMemBufferRead, piEnqueueMemBufferRead)
+  _PI_CL(piEnqueueMemBufferReadRect, piEnqueueMemBufferReadRect)
+  _PI_CL(piEnqueueMemBufferWrite, piEnqueueMemBufferWrite)
+  _PI_CL(piEnqueueMemBufferWriteRect, piEnqueueMemBufferWriteRect)
+  _PI_CL(piEnqueueMemBufferCopy, piEnqueueMemBufferCopy)
+  _PI_CL(piEnqueueMemBufferCopyRect, piEnqueueMemBufferCopyRect)
+  _PI_CL(piEnqueueMemBufferFill, piEnqueueMemBufferFill)
+  _PI_CL(piEnqueueMemImageRead, piEnqueueMemImageRead)
+  _PI_CL(piEnqueueMemImageWrite, piEnqueueMemImageWrite)
+  _PI_CL(piEnqueueMemImageCopy, piEnqueueMemImageCopy)
+  _PI_CL(piEnqueueMemImageFill, piEnqueueMemImageFill)
+  _PI_CL(piEnqueueMemBufferMap, piEnqueueMemBufferMap)
+  _PI_CL(piEnqueueMemUnmap, piEnqueueMemUnmap)
+
+  // USM
+  _PI_CL(piextUSMHostAlloc, piextUSMHostAlloc)
+  _PI_CL(piextUSMDeviceAlloc, piextUSMDeviceAlloc)
+  _PI_CL(piextUSMSharedAlloc, piextUSMSharedAlloc)
+  _PI_CL(piextUSMFree, piextUSMFree)
+  _PI_CL(piextUSMEnqueueMemset, piextUSMEnqueueMemset)
+  _PI_CL(piextUSMEnqueueMemcpy, piextUSMEnqueueMemcpy)
+  _PI_CL(piextUSMEnqueuePrefetch, piextUSMEnqueuePrefetch)
+  _PI_CL(piextUSMEnqueueMemAdvise, piextUSMEnqueueMemAdvise)
+  _PI_CL(piextUSMEnqueueFill2D, piextUSMEnqueueFill2D)
+  _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
+  _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
+  _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
+  // Device global variable
+  _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
+         piextEnqueueDeviceGlobalVariableWrite)
+  _PI_CL(piextEnqueueDeviceGlobalVariableRead,
+         piextEnqueueDeviceGlobalVariableRead)
+
+  // Host Pipe
+  _PI_CL(piextEnqueueReadHostPipe, piextEnqueueReadHostPipe)
+  _PI_CL(piextEnqueueWriteHostPipe, piextEnqueueWriteHostPipe)
+
+  _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
+  _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
+  _PI_CL(piPluginGetLastError, piPluginGetLastError)
+  _PI_CL(piTearDown, piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOption, piPluginGetBackendOption)
 
 #undef _PI_CL
   return PI_SUCCESS;

@@ -243,8 +243,14 @@ if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/ur.cpp"
       "ur/ur.hpp"
       "ur/adapters/native_cpu/common.hpp"
+      "ur/adapters/native_cpu/context.cpp"
+      "ur/adapters/native_cpu/context.hpp"
+      "ur/adapters/native_cpu/device.cpp"
+      "ur/adapters/native_cpu/device.hpp"
       "ur/adapters/native_cpu/platform.cpp"
       "ur/adapters/native_cpu/platform.hpp"
+      "ur/adapters/native_cpu/queue.cpp"
+      "ur/adapters/native_cpu/queue.hpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES

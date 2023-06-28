@@ -11,6 +11,7 @@
 #include <ur/adapters/native_cpu/context.hpp>
 #include <ur/adapters/native_cpu/device.hpp>
 #include <ur/adapters/native_cpu/platform.hpp>
+#include <ur/adapters/native_cpu/queue.hpp>
 
 struct _pi_platform : ur_platform_handle_t_ {
   using ur_platform_handle_t_::ur_platform_handle_t_;
@@ -22,4 +23,8 @@ struct _pi_device : ur_device_handle_t_ {
 
 struct _pi_context : ur_context_handle_t_ {
   using ur_context_handle_t_::ur_context_handle_t_;
+};
+
+struct _pi_queue : ur_queue_handle_t_ {
+  using ur_queue_handle_t_::ur_queue_handle_t_;
 };
