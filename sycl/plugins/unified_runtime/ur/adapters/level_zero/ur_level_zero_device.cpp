@@ -336,14 +336,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
 
     if (Device->isCCS()) {
       struct {
-        ur_device_partition_property_t Arr[2];
+        ur_device_partition_t Arr[2];
       } PartitionProperties = {
           {UR_DEVICE_PARTITION_BY_CSLICE, ur_device_partition_t(0)}};
       return ReturnValue(PartitionProperties);
     }
 
     struct {
-      ur_device_partition_property_t Arr[3];
+      ur_device_partition_t Arr[3];
     } PartitionProperties = {
         {UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
          (ur_device_partition_t)
