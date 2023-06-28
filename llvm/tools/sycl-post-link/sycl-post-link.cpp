@@ -210,6 +210,12 @@ cl::opt<bool> DeviceGlobals{
     cl::desc("Lower and generate information about device global variables"),
     cl::cat(PostLinkCat)};
 
+cl::opt<bool> GenerateDeviceImageWithDefaultSpecConsts{
+    "generate-device-image-default-spec-consts",
+    cl::desc("Generate device image which contains specialization constants "
+             "replaced by default values"),
+    cl::cat(PostLinkCat)};
+
 struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
@@ -540,6 +546,15 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   auto HostPipePropertyMap = collectHostPipeProperties(M);
   if (!HostPipePropertyMap.empty()) {
     PropSet.add(PropSetRegTy::SYCL_HOST_PIPES, HostPipePropertyMap);
+  }
+
+  if (MD.isSpecConstantDefault()) {
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"defaultSpecConstants", 1});
+    const std::optional<std::string> &OriginalImageName =
+        MD.tryGetOriginalImageName();
+    assert(OriginalImageName.has_value() && "Original image name must be set");
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
+        {"originalImage", StringRef(*OriginalImageName)});
   }
 
   std::error_code EC;
@@ -891,6 +906,35 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   return Result;
 }
 
+/// Function generates a copy of ModuleDesc where all uses of specialization
+/// constants are replaced by default values. New module then is splitted by
+/// esimd.
+/// If module doesn't contain spec constants then empty vector is returned.
+SmallVector<module_split::ModuleDesc, 2>
+generateModuleDescWithDefaultSpecConstants(const module_split::ModuleDesc &MD,
+                                           bool &Modified,
+                                           bool &SplitOccurred) {
+  std::unique_ptr<Module> GeneratedDevImage =
+      generateDeviceImageWithDefaultSpecConstants(MD.getModule());
+  SmallVector<module_split::ModuleDesc, 2> Res;
+  if (!GeneratedDevImage)
+    return Res;
+
+  // TODO: generated dev images are being kept in RAM which is bad.
+  module_split::ModuleDesc MD2 =
+      module_split::CreateModuleDescWithDefaultSpecConstants(
+          std::move(GeneratedDevImage));
+  Res = handleESIMD(std::move(MD2), Modified, SplitOccurred);
+  return Res;
+}
+
+std::string getDeviceImageName(const module_split::ModuleDesc &MD, unsigned ID,
+                               const std::string &OutIRFileName) {
+  StringRef Suffix = getModuleSuffix(MD);
+  StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
+  return makeResultFileName(FileExt, ID, Suffix);
+}
+
 std::unique_ptr<util::SimpleTable>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
@@ -972,6 +1016,11 @@ processInputModule(std::unique_ptr<Module> M) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
+    SmallVector<module_split::ModuleDesc, 2> MMsWithDefaultSpecConsts;
+    if (GenerateDeviceImageWithDefaultSpecConsts)
+      MMsWithDefaultSpecConsts = generateModuleDescWithDefaultSpecConstants(
+          MDesc, Modified, SplitOccurred);
+
     SmallVector<module_split::ModuleDesc, 2> MMs =
         handleESIMD(std::move(MDesc), Modified, SplitOccurred);
     assert(MMs.size() && "at least one module is expected after ESIMD split");
@@ -1000,6 +1049,18 @@ processInputModule(std::unique_ptr<Module> M) {
     }
 
     ++ID;
+
+    if (!MMsWithDefaultSpecConsts.empty()) {
+      for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
+        module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
+        IrMD.setOriginalImageName(
+            getDeviceImageName(MMs[i], ID - 1, OutIRFileName));
+        IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
+        addTableRow(*Table, T);
+      }
+
+      ++ID;
+    }
   }
   return Table;
 }

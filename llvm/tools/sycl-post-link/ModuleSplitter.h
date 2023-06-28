@@ -107,8 +107,12 @@ class ModuleDesc {
   EntryPointGroup EntryPoints;
   bool IsTopLevel = false;
 
+  // Name of the original device image from which this MD was generated from.
+  std::optional<std::string> OriginalImageName;
+
 public:
   struct Properties {
+    bool IsSpecConstantDefault = false;
     bool SpecConstsMet = false;
   };
   std::string Name = "";
@@ -183,11 +187,19 @@ public:
   // Cleans up module IR - removes dead globals, debug info etc.
   void cleanup();
 
+  bool isSpecConstantDefault() const;
+  void setSpecConstantDefault(bool Value);
+
+  void setOriginalImageName(const std::string &Name);
+  const std::optional<std::string> &tryGetOriginalImageName() const;
+
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
   void dump() const;
 #endif // NDEBUG
 };
+
+ModuleDesc CreateModuleDescWithDefaultSpecConstants(std::unique_ptr<Module> M);
 
 // Module split support interface.
 // It gets a module (in a form of module descriptor, to get additional info) and

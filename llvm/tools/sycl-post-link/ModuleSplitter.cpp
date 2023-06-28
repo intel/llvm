@@ -562,6 +562,28 @@ void ModuleDesc::cleanup() {
   MPM.run(*M, MAM);
 }
 
+bool ModuleDesc::isSpecConstantDefault() const {
+  return Props.IsSpecConstantDefault;
+}
+
+void ModuleDesc::setSpecConstantDefault(bool Value) {
+  Props.IsSpecConstantDefault = Value;
+}
+
+void ModuleDesc::setOriginalImageName(const std::string &Name) {
+  OriginalImageName = Name;
+}
+
+const std::optional<std::string> &ModuleDesc::tryGetOriginalImageName() const {
+  return OriginalImageName;
+}
+
+ModuleDesc CreateModuleDescWithDefaultSpecConstants(std::unique_ptr<Module> M) {
+  ModuleDesc NewMD(std::move(M));
+  NewMD.setSpecConstantDefault(true);
+  return NewMD;
+}
+
 #ifndef NDEBUG
 void ModuleDesc::verifyESIMDProperty() const {
   if (EntryPoints.Props.HasESIMD == SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
@@ -627,6 +649,16 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
       Functions.insert(F);
     }
   });
+}
+
+void EntryPointGroup::rebuild(const Module &M) {
+  std::vector<std::string> Names;
+  for (const Function &F : M.functions()) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    Functions.insert(const_cast<Function *>(&F));
+  }
 }
 
 namespace {

@@ -19,6 +19,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 
+#include <memory>
 #include <vector>
 
 namespace llvm {
@@ -69,5 +70,8 @@ public:
 private:
   bool SetValAtRT;
 };
+
+std::unique_ptr<Module>
+generateDeviceImageWithDefaultSpecConstants(const Module &M);
 
 } // namespace llvm

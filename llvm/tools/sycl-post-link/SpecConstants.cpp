@@ -14,10 +14,15 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+
+#include <memory>
+#include <vector>
 
 using namespace llvm;
 
@@ -913,4 +918,65 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
   }
 
   return true;
+}
+
+void replaceSpecConstsWithDefaultValue(const Module &M,
+                                       const std::vector<CallInst *> &CIs) {
+  const DataLayout &DL = M.getDataLayout();
+  for (CallInst *CI : CIs) {
+    Value *Dst = CI->getArgOperand(0);
+    Value *Src = CI->getArgOperand(2);
+    Align DstAlign = DL.getABITypeAlign(Dst->getType());
+    Align SrcAlign = DL.getABITypeAlign(Src->getType());
+    Type *StructureType =
+        Src->stripPointerCasts()->getType()->getContainedType(0);
+    uint64_t SpecConstSize = DL.getTypeAllocSize(StructureType);
+
+    IRBuilder B(CI);
+    B.CreateMemCpy(Dst, DstAlign, Src, SrcAlign, SpecConstSize);
+    CI->removeFromParent();
+    CI->deleteValue();
+  }
+}
+
+static bool checkModuleContainsSpecConsts(const Module &M) {
+  for (const Function &F : M.functions()) {
+    if (F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
+        F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+      return true;
+  }
+
+  return false;
+}
+
+/// Function generates a copy of Module and replaces all spec constant uses
+/// memcpy intrinsic.
+/// If the module doesn't contain spec constants then nullptr is returned.
+std::unique_ptr<Module>
+llvm::generateDeviceImageWithDefaultSpecConstants(const Module &M) {
+  if (!checkModuleContainsSpecConsts(M))
+    return nullptr;
+
+  std::unique_ptr<Module> M2 = CloneModule(M);
+  std::vector<Function *> SpecConstDeclarations;
+  std::vector<CallInst *> CIs;
+  for (Function &F : M2->functions()) {
+    if (!F.isDeclaration())
+      continue;
+
+    if (!F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
+        !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+      continue;
+
+    SpecConstDeclarations.push_back(&F);
+    for (User *U : F.users())
+      if (auto *CI = dyn_cast<CallInst>(U))
+        CIs.push_back(CI);
+  }
+
+  replaceSpecConstsWithDefaultValue(*M2, CIs);
+  for (Function *F : SpecConstDeclarations)
+    F->removeFromParent();
+
+  return std::move(M2);
 }
