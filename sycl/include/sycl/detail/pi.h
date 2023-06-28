@@ -95,6 +95,7 @@
 // 13.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
 // piextQueueGetNativeHandle
 // 13.33 Added command-buffer extension methods
+
 #define _PI_H_VERSION_MAJOR 13
 #define _PI_H_VERSION_MINOR 33
 
@@ -2310,8 +2311,8 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
     pi_ext_sync_point *sync_point);
 
 /// API to submit the command-buffer to queue for execution, returns an error if
-/// command-buffer not finalized or another instance of same command-buffer
-/// currently executing.
+/// the command-buffer is not finalized or another instance of the same
+/// command-buffer is currently executing.
 /// \param command_buffer The command-buffer to be submitted.
 /// \param queue The PI queue to submit on.
 /// \param num_events_in_wait_list The number of events that this execution

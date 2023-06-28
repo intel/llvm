@@ -4065,6 +4065,7 @@ piextCommandBufferCreate(pi_context Context, pi_device Device,
 
   HANDLE_ERRORS(
       urCommandBufferCreateExp(UrContext, UrDevice, UrDesc, UrCommandBuffer));
+
   return PI_SUCCESS;
 }
 
