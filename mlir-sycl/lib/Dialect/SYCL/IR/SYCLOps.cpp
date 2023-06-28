@@ -259,5 +259,26 @@ LogicalResult SYCLIDConstructorOp::verify() {
       "expects a different signature. Check documentation for details");
 }
 
+static LogicalResult verifyReferencesKernel(SymbolUserOpInterface user,
+                                            SymbolTableCollection &symbolTable,
+                                            SymbolRefAttr symbol) {
+  auto kernel =
+      symbolTable.lookupNearestSymbolFrom<gpu::GPUFuncOp>(user, symbol);
+  if (!kernel || !kernel.isKernel())
+    return user->emitOpError("'")
+           << symbol << "' does not reference a valid kernel";
+  return success();
+}
+
+LogicalResult
+SYCLHostKernelNameOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
+}
+
+LogicalResult
+SYCLHostGetKernelOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
+}
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"
