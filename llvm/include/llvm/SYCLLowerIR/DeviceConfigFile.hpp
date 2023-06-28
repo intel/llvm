@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-class llvm::StringRef;
+class StringRef;
 
 namespace DeviceConfigFile {
 
