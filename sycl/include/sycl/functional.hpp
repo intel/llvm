@@ -38,7 +38,7 @@ template <> struct logical_or<void> : std::logical_or<void> {};
 
 template <typename T = void> struct minimum {
   T operator()(const T &lhs, const T &rhs) const {
-    return (lhs > rhs) ? rhs : lhs;
+    return (rhs < lhs) ? rhs : lhs;
   }
 };
 
@@ -47,9 +47,9 @@ template <> struct minimum<void> {
   template <typename T, typename U>
   auto operator()(T &&lhs, U &&rhs) const ->
       typename std::common_type<T &&, U &&>::type {
-    return (std::forward<const T>(lhs) > std::forward<const U>(rhs))
-               ? std::forward<T>(rhs)
-               : std::forward<U>(lhs);
+    return (std::forward<const U>(rhs) < std::forward<const T>(lhs))
+               ? std::forward<U>(rhs)
+               : std::forward<T>(lhs);
   }
 };
 

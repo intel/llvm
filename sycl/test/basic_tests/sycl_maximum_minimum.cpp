@@ -16,12 +16,14 @@ int main() {
 
   assert(((std::max(f1, f2) == sycl::maximum{}(f1, f2)) &&
           "sycl::maximum result is wrong"));
-  // assert(((double)((std::max(f2,f1))) == (double)(sycl::maximum{}(f2,f1))) &&
-  // "sycl::maximum result is wrong"); //==> differnet nan type
+  assert(((std::isnan((std::max(f2, f1)))) &&
+          (std::isnan(sycl::maximum{}(f2, f1)))) &&
+         "sycl::maximum result is wrong");
   assert(((std::min(f1, f2) == sycl::minimum{}(f1, f2)) &&
           "sycl::minimum result is wrong"));
-  // assert(((double)((std::min(f2,f1))) == (double)(sycl::minimum{}(f1,f2))) &&
-  // "sycl::minimum result is wrong"); //==> differnet nan type
+  assert(((std::isnan((std::min(f2, f1)))) &&
+          (std::isnan(sycl::minimum{}(f2, f1)))) &&
+         "sycl::minimum result is wrong");
 
   return 0;
 }
