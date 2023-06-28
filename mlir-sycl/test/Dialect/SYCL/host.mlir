@@ -19,3 +19,19 @@ func.func @test_host_constructor_args(%arg0: !llvm.ptr, %arg1: !llvm.ptr) -> !ll
   %0 = sycl.host.constructor(%arg0, %arg1) {type = !sycl_accessor_2_i32_r_gb} : (!llvm.ptr, !llvm.ptr) -> !llvm.ptr
   return %0 : !llvm.ptr
 }
+
+gpu.module @kernels {
+  gpu.func @k0() kernel {
+    gpu.return
+  }
+}
+
+// CHECK-LABEL:  sycl.host.kernel_name @kernel_ref -> @kernels::@k0
+sycl.host.kernel_name @kernel_ref -> @kernels::@k0
+
+// CHECK-LABEL:  func.func @f() -> !llvm.ptr {
+// CHECK-NEXT:     %0 = sycl.host.get_kernel @kernels::@k0 : !llvm.ptr
+func.func @f() -> !llvm.ptr {
+  %0 = sycl.host.get_kernel @kernels::@k0 : !llvm.ptr
+  func.return %0 : !llvm.ptr
+}

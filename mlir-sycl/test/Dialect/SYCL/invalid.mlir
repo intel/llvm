@@ -355,3 +355,16 @@ func.func @math_op_invalid_type(%arg0 : i32) {
   %0 = sycl.math.sin %arg0 : i32
   return
 }
+
+// -----
+
+// expected-error @below {{'sycl.host.kernel_name' op '@kernels::@k0' does not reference a valid kernel}}
+sycl.host.kernel_name @kernel_ref -> @kernels::@k0
+
+// -----
+
+func.func @f() -> !llvm.ptr {
+  // expected-error @below {{'sycl.host.get_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  %0 = sycl.host.get_kernel @kernels::@k0 : !llvm.ptr
+  func.return %0 : !llvm.ptr
+}
