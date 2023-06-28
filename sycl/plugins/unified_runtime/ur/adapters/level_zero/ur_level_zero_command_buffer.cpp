@@ -259,14 +259,12 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
   std::vector<ze_event_handle_t> ZeEventList;
-  ur_result_t Res = getEventsFromSyncPoints(CommandBuffer->SyncPoints,
-                                            NumSyncPointsInWaitList,
-                                            SyncPointWaitList, ZeEventList);
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer->SyncPoints,
+                                  NumSyncPointsInWaitList, SyncPointWaitList,
+                                  ZeEventList));
 
   ur_event_handle_t LaunchEvent;
-  Res = EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent);
-  if (Res)
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
   LaunchEvent->CommandType = CommandType;
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
@@ -326,14 +324,12 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
                                         Width,      Height,     Depth};
 
   std::vector<ze_event_handle_t> ZeEventList;
-  ur_result_t Res = getEventsFromSyncPoints(CommandBuffer->SyncPoints,
-                                            NumSyncPointsInWaitList,
-                                            SyncPointWaitList, ZeEventList);
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer->SyncPoints,
+                                  NumSyncPointsInWaitList, SyncPointWaitList,
+                                  ZeEventList));
 
   ur_event_handle_t LaunchEvent;
-  Res = EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent);
-  if (Res)
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
   LaunchEvent->CommandType = CommandType;
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
@@ -394,14 +390,12 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
   CommandBuffer->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
   if (!CommandBuffer->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
@@ -411,7 +405,6 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
   // We need to append signal that will indicate that command-buffer has
   // finished executing.
   ZE2UR_CALL(
@@ -429,14 +422,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
-  UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_KERNEL);
-  UR_ASSERT((WorkDim > 0) && (WorkDim < 4),
-            UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(
       Kernel->Mutex, Kernel->Program->Mutex);
+
   if (GlobalWorkOffset != NULL) {
     if (!CommandBuffer->Context->getPlatform()
              ->ZeDriverGlobalOffsetExtensionFound) {
@@ -466,27 +455,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3];
 
-  auto result = calculateKernelWorkDimensions(
-      Kernel, CommandBuffer->Device, ZeThreadGroupDimensions, WG, WorkDim,
-      GlobalWorkSize, LocalWorkSize);
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
+  UR_CALL(calculateKernelWorkDimensions(Kernel, CommandBuffer->Device,
+                                        ZeThreadGroupDimensions, WG, WorkDim,
+                                        GlobalWorkSize, LocalWorkSize));
 
   ZE2UR_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
   std::vector<ze_event_handle_t> ZeEventList;
-  ur_result_t Res = getEventsFromSyncPoints(CommandBuffer->SyncPoints,
-                                            NumSyncPointsInWaitList,
-                                            SyncPointWaitList, ZeEventList);
-  if (Res) {
-    return Res;
-  }
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer->SyncPoints,
+                                  NumSyncPointsInWaitList, SyncPointWaitList,
+                                  ZeEventList));
   ur_event_handle_t LaunchEvent;
-  Res = EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent);
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
   LaunchEvent->CommandType = UR_COMMAND_KERNEL_LAUNCH;
-  if (Res)
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
 
   LaunchEvent->CommandData = (void *)Kernel;
   // Increment the reference count of the Kernel and indicate that the Kernel
@@ -500,7 +481,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
               &ZeThreadGroupDimensions, LaunchEvent->ZeEvent,
               ZeEventList.size(), ZeEventList.data()));
 
-  urPrint("calling zeCommandListAppendLauncKernel() with"
+  urPrint("calling zeCommandListAppendLaunchKernel() with"
           "  ZeEvent %#lx\n",
           ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
@@ -515,11 +496,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
-  if (!Dst) {
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
   return enqueueCommandBufferMemCopyHelper(
       UR_COMMAND_USM_MEMCPY, CommandBuffer, Dst, Src, Size,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
@@ -533,8 +509,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
   (void)SrcOffset;
   (void)DstOffset;
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
-  UR_ASSERT(SrcMem && DstMem, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   auto SrcBuffer = ur_cast<ur_mem_handle_t>(SrcMem);
   auto DstBuffer = ur_cast<ur_mem_handle_t>(DstMem);
@@ -563,9 +537,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
-  UR_ASSERT(SrcMem && DstMem, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-
   auto SrcBuffer = ur_cast<ur_mem_handle_t>(SrcMem);
   auto DstBuffer = ur_cast<ur_mem_handle_t>(DstMem);
 
@@ -592,10 +563,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
-  UR_ASSERT(Buffer, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-
   std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
@@ -617,10 +584,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
-  UR_ASSERT(Buffer, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-
   std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
@@ -638,10 +601,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     size_t Offset, size_t Size, void *Dst, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
-  UR_ASSERT(Buffer, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-
   std::scoped_lock<ur_shared_mutex> SrcLock(Buffer->Mutex);
 
   char *ZeHandleSrc = nullptr;
@@ -660,10 +619,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
-  UR_ASSERT(Buffer, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-
   std::scoped_lock<ur_shared_mutex> SrcLock(Buffer->Mutex);
 
   char *ZeHandleSrc;
@@ -680,8 +635,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t Queue,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *Event) {
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP);
-
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
   // Use compute engine rather than copy engine
   const auto UseCopyEngine = false;
@@ -713,13 +666,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   ur_command_list_ptr_t WaitCommandList{};
   if (NumEventsInWaitList) {
     _ur_ze_event_list_t TmpWaitList;
-    if (auto Res = TmpWaitList.createAndRetainUrZeEventList(
-            NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
-      return Res;
+    UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
+        NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
-    if (auto Res = Queue->Context->getAvailableCommandList(
-            Queue, WaitCommandList, false, false))
-      return Res;
+    UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
+                                                    false, false))
 
     // Update the WaitList of the Wait Event
     // Events are appended to the WaitList if the WaitList is not empty
@@ -733,9 +684,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
                 CommandBuffer->WaitEvent->WaitList.Length,
                 CommandBuffer->WaitEvent->WaitList.ZeEventList));
   } else {
-    if (auto Res = Queue->Context->getAvailableCommandList(
-            Queue, WaitCommandList, false, false))
-      return Res;
+    UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
+                                                    false, false));
 
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
@@ -746,14 +696,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // Create a command-list to signal RetEvent on completion
   ur_command_list_ptr_t SignalCommandList{};
   if (Event) {
-    if (auto Res = Queue->Context->getAvailableCommandList(
-            Queue, SignalCommandList, false, false))
-      return Res;
+    UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
+                                                    false, false));
 
-    if (auto Res = createEventAndAssociateQueue(
-            Queue, &RetEvent, UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
-            SignalCommandList, false))
-      return Res;
+    UR_CALL(createEventAndAssociateQueue(Queue, &RetEvent,
+                                         UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
+                                         SignalCommandList, false));
 
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (SignalCommandList->first, RetEvent->ZeEvent, 1,
@@ -761,14 +709,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   }
 
   // Execution our command-lists asynchronously
-  if (auto Res = Queue->executeCommandList(WaitCommandList, false, false))
-    return Res;
-
-  if (auto Res = Queue->executeCommandList(CommandListPtr, false, false))
-    return Res;
-
-  if (auto Res = Queue->executeCommandList(SignalCommandList, false, false))
-    return Res;
+  UR_CALL(Queue->executeCommandList(WaitCommandList, false, false));
+  UR_CALL(Queue->executeCommandList(CommandListPtr, false, false));
+  UR_CALL(Queue->executeCommandList(SignalCommandList, false, false));
 
   if (Event) {
     *Event = RetEvent;
