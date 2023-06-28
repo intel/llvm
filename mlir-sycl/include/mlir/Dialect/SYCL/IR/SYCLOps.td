@@ -162,11 +162,13 @@ class SYCL3DGridOp<string mnemonic, list<Trait> traits = []>
   let assemblyFormat = "attr-dict `:` type($result)";
 }
 
-class SYCL3DIDGridOp<string mnemonic> : SYCL3DGridOp<mnemonic> {
+class SYCL3DIDGridOp<string mnemonic, list<Trait> traits = []> 
+    : SYCL3DGridOp<mnemonic, traits> {
   let results = (outs SYCL_IDType:$result);
 }
 
-class SYCL3DRangeGridOp<string mnemonic> : SYCL3DGridOp<mnemonic> {
+class SYCL3DRangeGridOp<string mnemonic, list<Trait> traits = []> 
+    : SYCL3DGridOp<mnemonic, traits> {
   let results = (outs SYCL_RangeType:$result);
 }
 
@@ -179,7 +181,7 @@ def SYCLNumWorkItemsOp : SYCL3DRangeGridOp<"num_work_items"> {
   }];
 }
 
-def SYCLGlobalIDOp : SYCL3DIDGridOp<"global_id"> {
+def SYCLGlobalIDOp : SYCL3DIDGridOp<"global_id", [ResultsNonUniform]> {
   let summary = "Retrieve the global ID of the item.";
   let description = [{
     This operation returns the global ID of the item in the index space. If the
@@ -188,7 +190,7 @@ def SYCLGlobalIDOp : SYCL3DIDGridOp<"global_id"> {
   }];
 }
 
-def SYCLLocalIDOp : SYCL3DIDGridOp<"local_id"> {
+def SYCLLocalIDOp : SYCL3DIDGridOp<"local_id", [ResultsNonUniform]> {
   let summary = "Retrieve the local ID of the item.";
   let description = [{
     This operation returns the local ID of the item within the work-group. If
@@ -227,7 +229,7 @@ def SYCLWorkGroupSizeOp : SYCL3DRangeGridOp<"work_group_size"> {
   }];
 }
 
-def SYCLWorkGroupIDOp : SYCL3DIDGridOp<"work_group_id"> {
+def SYCLWorkGroupIDOp : SYCL3DIDGridOp<"work_group_id", [ResultsNonUniform]> {
   let summary = "Retrieve the ID of the work-group.";
   let description = [{
     This operation returns the ID of the work-group. If the optional argument is
@@ -256,14 +258,14 @@ def SYCLSubGroupSizeOp : SYCL1DGridOp<"sub_group_size"> {
   }];
 }
 
-def SYCLSubGroupIDOp : SYCL1DGridOp<"sub_group_id"> {
+def SYCLSubGroupIDOp : SYCL1DGridOp<"sub_group_id", [ResultsNonUniform]> {
   let summary = "Retrieve the ID of the sub-group.";
   let description = [{
     This operation returns the ID of the sub-group.
   }];
 }
 
-def SYCLSubGroupLocalIDOp : SYCL1DGridOp<"sub_group_local_id"> {
+def SYCLSubGroupLocalIDOp : SYCL1DGridOp<"sub_group_local_id", [ResultsNonUniform]> {
   let summary = "Retrieve the local ID of the sub-group.";
   let description = [{
     This operation returns the local ID of the sub-group.
@@ -852,7 +854,8 @@ def SYCLNDItemGetGroupOp
 
 def SYCLNDItemGetGroupLinearIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_group_linear_id", "NdItemType",
-                                ["get_group_linear_id"]> {
+                                ["get_group_linear_id"],
+                                [ResultsNonUniform]> {
   let summary = "Call to nd_item::get_group_linear_id";
   let description = [{
     This operation represents a call to the nd_item::get_group_linear_id function.
@@ -954,7 +957,7 @@ def SYCLNDItemGetNdRangeOp
 def SYCLGroupGetGroupIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_group_id", "GroupType",
                                 ["get_group_id", "operator[]"],
-                                [SYCLGetID]> {
+                                [SYCLGetID, ResultsNonUniform]> {
   let summary = "Call to group::get_group_id/operator[]";
   let description = [{
     This operation represents a call to the group::get_group_id/operator[] functions.
@@ -975,7 +978,7 @@ def SYCLGroupGetGroupIDOp
 def SYCLGroupGetLocalIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_local_id", "GroupType",
                                 ["get_local_id"],
-                                [SYCLGetID]> {
+                                [SYCLGetID,  ResultsNonUniform]> {
   let summary = "Call to group::get_local_id";
   let description = [{
     This operation represents a call to the group::get_local_id function.
@@ -1056,7 +1059,8 @@ def SYCLGroupGetMaxLocalRangeOp
 
 def SYCLGroupGetGroupLinearIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_group_linear_id", "GroupType",
-                                ["get_group_linear_id"]> {
+                                ["get_group_linear_id"],
+                                [ResultsNonUniform]> {
   let summary = "Call to group::get_group_linear_id";
   let description = [{
     This operation represents a call to the group::get_group_linear_id function.
@@ -1075,7 +1079,8 @@ def SYCLGroupGetGroupLinearIDOp
 
 def SYCLGroupGetLocalLinearIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_local_linear_id", "GroupType",
-                                ["get_local_linear_id"]> {
+                                ["get_local_linear_id"],
+                                [ResultsNonUniform]> {
   let summary = "Call to group::get_local_linear_id";
   let description = [{
     This operation represents a call to the group::get_local_linear_id function.

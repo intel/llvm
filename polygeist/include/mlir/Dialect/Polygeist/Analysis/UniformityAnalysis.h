@@ -169,7 +169,7 @@ private:
   void propagateAllIfChanged(ArrayRef<UniformityLattice *> results,
                              Uniformity &&uniformity);
 
-  /// Propagate \p uniformity to all \p values  if necessary.
+  /// Propagate \p uniformity to all \p values if necessary.
   void propagateAllIfChanged(const ValueRange values, Uniformity &&uniformity);
 
 private:

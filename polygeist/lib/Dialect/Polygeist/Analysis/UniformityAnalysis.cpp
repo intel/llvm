@@ -79,7 +79,7 @@ void Uniformity::print(raw_ostream &os) const { os << *this; }
 UniformityAnalysis::UniformityAnalysis(DataFlowSolver &solver,
                                        AliasAnalysis &aliasAnalysis)
     : SparseDataFlowAnalysis<UniformityLattice>(solver) {
-  // Load the reaching definition analysis (and the analysis it depends on).
+  // Load the reaching definition analysis (and the analyses it depends on).
   // Reaching definition information are required by this analysis to reason
   // about the uniformity of values loaded from memory.
   internalSolver.load<DeadCodeAnalysis>();
