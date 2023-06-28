@@ -28,9 +28,6 @@ jobs:
   build:
     name: Build + LIT
     runs-on: [Windows, build]
-    strategy:
-      matrix:
-        include: ${{ fromJSON(inputs.lts_matrix) }}
     # TODO use cached checkout
     steps:
     - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
