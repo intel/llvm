@@ -272,30 +272,56 @@ urDeviceRelease(ur_device_handle_t hDevice) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urDevicePartition(ur_device_handle_t hDevice,
-                  const ur_device_partition_property_t *pProperties,
-                  uint32_t NumDevices, ur_device_handle_t *phSubDevices,
-                  uint32_t *pNumDevicesRet){DIE_NO_IMPLEMENTATION}
+UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
+    ur_device_handle_t hDevice,
+    const ur_device_partition_property_t *pProperties, uint32_t NumDevices,
+    ur_device_handle_t *phSubDevices, uint32_t *pNumDevicesRet) {
+  std::ignore = hDevice;
+  std::ignore = NumDevices;
+  std::ignore = pProperties;
+  std::ignore = phSubDevices;
+  std::ignore = pNumDevicesRet;
 
-UR_APIEXPORT ur_result_t UR_APICALL
-    urDeviceGetNativeHandle(ur_device_handle_t hDevice,
-                            ur_native_handle_t *phNativeDevice){
-        DIE_NO_IMPLEMENTATION}
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
+    ur_device_handle_t hDevice, ur_native_handle_t *phNativeDevice) {
+  std::ignore = hDevice;
+  std::ignore = phNativeDevice;
+
+  DIE_NO_IMPLEMENTATION
+}
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
     const ur_device_native_properties_t *pProperties,
-    ur_device_handle_t *phDevice){DIE_NO_IMPLEMENTATION}
+    ur_device_handle_t *phDevice) {
+  std::ignore = hNativeDevice;
+  std::ignore = hPlatform;
+  std::ignore = pProperties;
+  std::ignore = phDevice;
 
-UR_APIEXPORT ur_result_t UR_APICALL
-    urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
-                                uint64_t *pDeviceTimestamp,
-                                uint64_t *pHostTimestamp){DIE_NO_IMPLEMENTATION}
+  DIE_NO_IMPLEMENTATION;
+}
 
-UR_APIEXPORT ur_result_t UR_APICALL
-    urDeviceSelectBinary(ur_device_handle_t hDevice,
-                         const ur_device_binary_t *pBinaries,
-                         uint32_t NumBinaries, uint32_t *pSelectedBinary) {
-  CONTINUE_NO_IMPLEMENTATION
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
+    ur_device_handle_t hDevice, uint64_t *pDeviceTimestamp,
+    uint64_t *pHostTimestamp) {
+  std::ignore = hDevice;
+  std::ignore = pDeviceTimestamp;
+  std::ignore = pHostTimestamp;
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
+    ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
+    uint32_t NumBinaries, uint32_t *pSelectedBinary) {
+  std::ignore = hDevice;
+  std::ignore = pBinaries;
+  std::ignore = NumBinaries;
+  std::ignore = pSelectedBinary;
+
+  CONTINUE_NO_IMPLEMENTATION;
 }
