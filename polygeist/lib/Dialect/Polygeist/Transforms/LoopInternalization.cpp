@@ -790,6 +790,7 @@ operator<<(raw_ostream &os, const MemorySelector::AccessKind &accessKind) {
   case MemorySelector::AccessKind::ReadWrite:
     return os << "read-write";
   }
+  llvm_unreachable("Unexpected MemorySelector::AccessKind");
 }
 
 [[maybe_unused]] raw_ostream &
