@@ -529,7 +529,16 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   DebugInstCache[DebugInst] = CT;
   SmallVector<llvm::Metadata *, 8> EltTys;
   for (size_t I = FirstMemberIdx; I < Ops.size(); ++I) {
-    EltTys.push_back(transDebugInst(BM->get<SPIRVExtInst>(Ops[I])));
+    auto *MemberInst = BM->get<SPIRVExtInst>(Ops[I]);
+    if (MemberInst->getExtOp() == SPIRVDebug::TypeMember) {
+      auto *SPVMemberInst = BM->get<SPIRVExtInst>(Ops[I]);
+      DINode *MemberMD =
+          transTypeMember(SPVMemberInst, DebugInst, cast<DIScope>(CT));
+      EltTys.push_back(MemberMD);
+      DebugInstCache[SPVMemberInst] = MemberMD;
+    } else {
+      EltTys.emplace_back(transDebugInst(BM->get<SPIRVExtInst>(Ops[I])));
+    }
   }
   DINodeArray Elements = getDIBuilder(DebugInst).getOrCreateArray(EltTys);
   getDIBuilder(DebugInst).replaceArrays(CT, Elements);
@@ -611,8 +620,18 @@ SPIRVToLLVMDbgTran::transTypeString(const SPIRVExtInst *DebugInst) {
                            0 /*AlignInBits*/, Encoding);
 }
 
-DINode *SPIRVToLLVMDbgTran::transTypeMember(const SPIRVExtInst *DebugInst) {
-  using namespace SPIRVDebug::Operand::TypeMember;
+DINode *SPIRVToLLVMDbgTran::transTypeMember(const SPIRVExtInst *DebugInst,
+                                            const SPIRVExtInst *ParentInst,
+                                            DIScope *Scope) {
+  if (isNonSemanticDebugInfo(DebugInst->getExtSetKind()))
+    // In NonSemantic spec TypeMember doesn't have Scope parameter
+    return transTypeMemberNonSemantic(DebugInst, ParentInst, Scope);
+  return transTypeMemberOpenCL(DebugInst);
+}
+
+DINode *
+SPIRVToLLVMDbgTran::transTypeMemberOpenCL(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::TypeMember::OpenCL;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
 
@@ -652,6 +671,54 @@ DINode *SPIRVToLLVMDbgTran::transTypeMember(const SPIRVExtInst *DebugInst) {
   return getDIBuilder(DebugInst).createMemberType(Scope, Name, File, LineNo,
                                                   Size, Alignment, OffsetInBits,
                                                   Flags, BaseType);
+}
+
+DINode *
+SPIRVToLLVMDbgTran::transTypeMemberNonSemantic(const SPIRVExtInst *DebugInst,
+                                               const SPIRVExtInst *ParentInst,
+                                               DIScope *Scope) {
+  if (!Scope)
+    // Will be translated later when processing TypeMember's parent
+    return nullptr;
+  using namespace SPIRVDebug::Operand::TypeMember::NonSemantic;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+
+  DIFile *File = getFile(Ops[SourceIdx]);
+  SPIRVWord LineNo =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
+  StringRef Name = getString(Ops[NameIdx]);
+  DIType *BaseType =
+      transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[TypeIdx]));
+  uint64_t OffsetInBits =
+      BM->get<SPIRVConstant>(Ops[OffsetIdx])->getZExtIntValue();
+  SPIRVWord SPIRVFlags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
+  DINode::DIFlags Flags = DINode::FlagZero;
+  if ((SPIRVDebug::FlagAccess & SPIRVFlags) == SPIRVDebug::FlagIsPublic) {
+    Flags |= DINode::FlagPublic;
+  } else if (SPIRVFlags & SPIRVDebug::FlagIsProtected) {
+    Flags |= DINode::FlagProtected;
+  } else if (SPIRVFlags & SPIRVDebug::FlagIsPrivate) {
+    Flags |= DINode::FlagPrivate;
+  }
+  if (SPIRVFlags & SPIRVDebug::FlagIsStaticMember)
+    Flags |= DINode::FlagStaticMember;
+
+  if (Flags & DINode::FlagStaticMember && Ops.size() > MinOperandCount) {
+    SPIRVValue *ConstVal = BM->get<SPIRVValue>(Ops[ValueIdx]);
+    assert(isConstantOpCode(ConstVal->getOpCode()) &&
+           "Static member must be a constant");
+    llvm::Value *Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
+    return getDIBuilder(DebugInst).createStaticMemberType(
+        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val));
+  }
+  uint64_t Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
+  uint64_t Alignment = 0;
+
+  return getDIBuilder(ParentInst)
+      .createMemberType(Scope, Name, File, LineNo, Size, Alignment,
+                        OffsetInBits, Flags, BaseType);
 }
 
 DINode *SPIRVToLLVMDbgTran::transTypeEnum(const SPIRVExtInst *DebugInst) {
@@ -1505,18 +1572,25 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
   std::optional<DIFile::ChecksumInfo<StringRef>> CS;
   SPIRVWord StrIdx = SourceArgs[TextIdx];
   if (Source->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
-    if (!getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumKind]) &&
-        !getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumValue])) {
-      llvm::DIFile::ChecksumKind Kind = SPIRV::DbgChecksumKindMap::rmap(
-          static_cast<SPIRVDebug::FileChecksumKind>(
-              BM->get<SPIRVConstant>(SourceArgs[ChecksumKind])
-                  ->getZExtIntValue()));
-      StringRef Checksum = getString(SourceArgs[ChecksumValue]);
-      size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
-      CS.emplace(Kind, Checksum.substr(0, ChecksumEndPos));
+    if (SourceArgs.size() >= MaxOperandCount - 1) {
+      // 2 optional parameters are ChecksumKind and ChecksumValue - they should
+      // go together
+      if (!getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumKind]) &&
+          !getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumValue])) {
+        llvm::DIFile::ChecksumKind Kind = SPIRV::DbgChecksumKindMap::rmap(
+            static_cast<SPIRVDebug::FileChecksumKind>(
+                BM->get<SPIRVConstant>(SourceArgs[ChecksumKind])
+                    ->getZExtIntValue()));
+        StringRef Checksum = getString(SourceArgs[ChecksumValue]);
+        size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
+        CS.emplace(Kind, Checksum.substr(0, ChecksumEndPos));
+      }
     }
 
-    if (SourceArgs.size() == MaxOperandCount)
+    // Among optional parameters - text is always the last one (either 1st or
+    // 3rd)
+    if (SourceArgs.size() == MaxOperandCount ||
+        SourceArgs.size() == MaxOperandCount - 2)
       StrIdx = SourceArgs[TextNonSemIdx];
     else
       StrIdx = SPIRVID_INVALID;

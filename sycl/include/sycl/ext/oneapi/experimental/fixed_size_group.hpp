@@ -112,10 +112,22 @@ public:
   }
 
 protected:
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  sub_group_mask Mask;
+#endif
+
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  fixed_size_group(ext::oneapi::sub_group_mask mask) : Mask(mask) {}
+#else
   fixed_size_group() {}
+#endif
 
   friend fixed_size_group<PartitionSize, ParentGroup>
   get_fixed_size_group<PartitionSize, ParentGroup>(ParentGroup g);
+
+  friend sub_group_mask
+  sycl::detail::GetMask<fixed_size_group<PartitionSize, ParentGroup>>(
+      fixed_size_group<PartitionSize, ParentGroup> Group);
 };
 
 template <size_t PartitionSize, typename Group>
@@ -125,7 +137,20 @@ inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
 get_fixed_size_group(Group group) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  uint32_t loc_id = group.get_local_linear_id();
+  uint32_t loc_size = group.get_local_linear_range();
+  uint32_t bits = PartitionSize == 32
+                      ? 0xffffffff
+                      : ((1 << PartitionSize) - 1)
+                            << ((loc_id / PartitionSize) * PartitionSize);
+
+  return fixed_size_group<PartitionSize, sycl::sub_group>(
+      sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
+          bits, loc_size));
+#else
   return fixed_size_group<PartitionSize, sycl::sub_group>();
+#endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
@@ -137,6 +162,13 @@ struct is_user_constructed_group<fixed_size_group<PartitionSize, ParentGroup>>
     : std::true_type {};
 
 } // namespace ext::oneapi::experimental
+
+namespace detail {
+template <size_t PartitionSize, typename ParentGroup>
+struct is_fixed_size_group<
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>>
+    : std::true_type {};
+} // namespace detail
 
 template <size_t PartitionSize, typename ParentGroup>
 struct is_group<

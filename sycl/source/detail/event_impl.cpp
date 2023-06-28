@@ -100,8 +100,10 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
-const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
-RT::PiEvent &event_impl::getHandleRef() { return MEvent; }
+const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
+  return MEvent;
+}
+sycl::detail::pi::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() {
   ensureContextInitialized();
@@ -121,27 +123,28 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MIsContextInitialized = true;
 }
 
-event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
+event_impl::event_impl(sycl::detail::pi::PiEvent Event,
+                       const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
       MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
       MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw sycl::invalid_parameter_error(
-        "The syclContext must match the OpenCL context associated with the "
-        "clEvent.",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "The syclContext must match the OpenCL context "
+                          "associated with the clEvent. " +
+                              codeToString(PI_ERROR_INVALID_CONTEXT));
   }
 
-  RT::PiContext TempContext;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(MEvent, PI_EVENT_INFO_CONTEXT,
-                                               sizeof(RT::PiContext),
-                                               &TempContext, nullptr);
+  sycl::detail::pi::PiContext TempContext;
+  getPlugin()->call<PiApiKind::piEventGetInfo>(
+      MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
+      &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw sycl::invalid_parameter_error(
-        "The syclContext must match the OpenCL context associated with the "
-        "clEvent.",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "The syclContext must match the OpenCL context "
+                          "associated with the clEvent. " +
+                              codeToString(PI_ERROR_INVALID_CONTEXT));
   }
 }
 
@@ -157,7 +160,9 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
-        throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Out of host memory " +
+                                  codeToString(PI_ERROR_OUT_OF_HOST_MEMORY));
     }
     return;
   }
@@ -178,7 +183,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   // Create a string with the event address so it
   // can be associated with other debug data
   xpti::utils::StringHelper SH;
-  Name = SH.nameWithAddress<RT::PiEvent>("event.wait", MEvent);
+  Name = SH.nameWithAddress<sycl::detail::pi::PiEvent>("event.wait", MEvent);
 
   // We can emit the wait associated with the graph if the
   // event does not have a command object or associated with
@@ -287,8 +292,10 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling info is not available. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -302,8 +309,10 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling info is not available. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getEndTime();
 }
 

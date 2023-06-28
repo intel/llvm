@@ -15,6 +15,7 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
@@ -92,7 +93,7 @@ template <typename T>
 using native_op_list =
     type_list<sycl::plus<T>, sycl::bit_or<T>, sycl::bit_xor<T>,
               sycl::bit_and<T>, sycl::maximum<T>, sycl::minimum<T>,
-              sycl::multiplies<T>>;
+              sycl::multiplies<T>, sycl::logical_or<T>, sycl::logical_and<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
@@ -142,6 +143,19 @@ using is_plus_or_multiplies_if_complex = std::integral_constant<
     bool, (is_complex<T>::value ? (is_plus<T, BinaryOperation>::value ||
                                    is_multiplies<T, BinaryOperation>::value)
                                 : std::true_type::value)>;
+
+// used to transform a vector op to a scalar op;
+// e.g. sycl::plus<std::vec<T, N>> to sycl::plus<T>
+template <typename T> struct get_scalar_binary_op;
+
+template <template <typename> typename F, typename T, int n>
+struct get_scalar_binary_op<F<sycl::vec<T, n>>> {
+  using type = F<T>;
+};
+
+template <template <typename> typename F> struct get_scalar_binary_op<F<void>> {
+  using type = F<void>;
+};
 
 // ---- identity_for_ga_op
 //   the group algorithms support std::complex, limited to sycl::plus operation
@@ -200,13 +214,21 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 reduce_over_group(Group g, T x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
   static_assert(
-      std::is_same_v<decltype(binary_op(x, x)), T> ||
-          (std::is_same_v<T, half> &&
-           std::is_same_v<decltype(binary_op(x, x)), float>),
+      std::is_same_v<decltype(binary_op(x, x)), T>,
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    sycl::vec<unsigned, 4> MemberMask =
+        sycl::detail::ExtractMask(sycl::detail::GetMask(g));
+#if (__SYCL_CUDA_ARCH__ >= 800)
+    return detail::masked_reduction_cuda_sm80(g, x, binary_op, MemberMask[0]);
+#else
+    return detail::masked_reduction_cuda_shfls(g, x, binary_op, MemberMask[0]);
+#endif
+  }
+#endif
   return sycl::detail::calc<__spv::GroupOperation::Reduce>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
@@ -239,24 +261,21 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
 #endif
 }
 
-template <typename Group, typename T, int N, class BinaryOperation>
-std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> &&
-     detail::is_vector_arithmetic_or_complex<sycl::vec<T, N>>::value &&
-     detail::is_native_op<sycl::vec<T, N>, BinaryOperation>::value),
-    sycl::vec<T, N>>
-reduce_over_group(Group g, sycl::vec<T, N> x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
+template <typename Group, typename T, class BinaryOperation>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
+reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   static_assert(
-      std::is_same_v<decltype(binary_op(x[0], x[0])),
-                     typename sycl::vec<T, N>::element_type> ||
-          (std::is_same_v<sycl::vec<T, N>, half> &&
-           std::is_same_v<decltype(binary_op(x[0], x[0])), float>),
+      std::is_same_v<decltype(binary_op(x, x)), T>,
       "Result type of binary_op must match reduction accumulation type.");
-  sycl::vec<T, N> result;
-
-  detail::loop<N>(
-      [&](size_t s) { result[s] = reduce_over_group(g, x[s], binary_op); });
+  T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
+  detail::loop<x.size()>([&](size_t s) {
+    result[s] = reduce_over_group(g, x[s], scalar_binary_op);
+  });
   return result;
 }
 
@@ -272,11 +291,8 @@ std::enable_if_t<
      std::is_convertible_v<V, T>),
     T>
 reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
   static_assert(
-      std::is_same_v<decltype(binary_op(init, x)), T> ||
-          (std::is_same_v<T, half> &&
-           std::is_same_v<decltype(binary_op(init, x)), float>),
+      std::is_same_v<decltype(binary_op(init, x)), T>,
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   return binary_op(init, reduce_over_group(g, T(x), binary_op));
@@ -295,17 +311,16 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
   static_assert(
-      std::is_same_v<decltype(binary_op(init[0], x[0])),
-                     typename T::element_type> ||
-          (std::is_same_v<T, half> &&
-           std::is_same_v<decltype(binary_op(init[0], x[0])), float>),
+      std::is_same_v<decltype(binary_op(init, x)), T>,
       "Result type of binary_op must match reduction accumulation type.");
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
 #ifdef __SYCL_DEVICE_ONLY__
   T result = init;
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = binary_op(init[s], reduce_over_group(g, x[s], binary_op));
+    result[s] =
+        scalar_binary_op(init[s], reduce_over_group(g, x[s], scalar_binary_op));
   }
   return result;
 #else
@@ -326,11 +341,8 @@ std::enable_if_t<
      detail::is_native_op<T, BinaryOperation>::value),
     T>
 joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
   static_assert(
-      std::is_same_v<decltype(binary_op(init, *first)), T> ||
-          (std::is_same_v<T, half> &&
-           std::is_same_v<decltype(binary_op(init, *first)), float>),
+      std::is_same_v<decltype(binary_op(init, *first)), T>,
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   T partial = detail::identity_for_ga_op<T, BinaryOperation>();
@@ -375,6 +387,12 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 any_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_any_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAny(g, pred);
 #else
   (void)g;
@@ -415,6 +433,12 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 all_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAll(g, pred);
 #else
   (void)g;
@@ -455,6 +479,12 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 none_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                !pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAll(g, !pred);
 #else
   (void)g;
@@ -573,6 +603,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                  T>
 group_broadcast(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    auto LocalId = detail::IdToMaskPosition(g, local_id);
+    return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0],
+                                    x, LocalId, 31);
+  }
+#endif
   return sycl::detail::spirv::GroupBroadcast(g, x, local_id);
 #else
   (void)g;
@@ -630,12 +667,16 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(x, x)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(x, x)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return detail::masked_scan_cuda_shfls<__spv::GroupOperation::ExclusiveScan>(
+        g, x, binary_op,
+        sycl::detail::ExtractMask(sycl::detail::GetMask(g))[0]);
+  }
+#endif
   return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
@@ -674,15 +715,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(x[0], x[0])),
-                               typename T::element_type> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(x[0], x[0])), float>),
+  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
   T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = exclusive_scan_over_group(g, x[s], binary_op);
+    result[s] = exclusive_scan_over_group(g, x[s], scalar_binary_op);
   }
   return result;
 }
@@ -697,15 +736,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init[0], x[0])),
-                               typename T::element_type> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init[0], x[0])), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
   T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = exclusive_scan_over_group(g, x[s], init[s], binary_op);
+    result[s] = exclusive_scan_over_group(g, x[s], init[s], scalar_binary_op);
   }
   return result;
 }
@@ -720,10 +757,7 @@ std::enable_if_t<
      std::is_convertible_v<V, T>),
     T>
 exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init, x)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init, x)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type local_linear_id =
@@ -760,10 +794,7 @@ std::enable_if_t<
     OutPtr>
 joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                      BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init, *first)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init, *first)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, *first)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
@@ -815,14 +846,9 @@ std::enable_if_t<
     OutPtr>
 joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(
-      std::is_same_v<decltype(binary_op(*first, *first)),
-                     typename detail::remove_pointer<OutPtr>::type> ||
-          (std::is_same_v<typename detail::remove_pointer<OutPtr>::type,
-                          half> &&
-           std::is_same_v<decltype(binary_op(*first, *first)), float>),
-      "Result type of binary_op must match scan accumulation type.");
+  static_assert(std::is_same_v<decltype(binary_op(*first, *first)),
+                               typename detail::remove_pointer<OutPtr>::type>,
+                "Result type of binary_op must match scan accumulation type.");
   using T = typename detail::remove_pointer<OutPtr>::type;
   T init = detail::identity_for_ga_op<T, BinaryOperation>();
   return joint_exclusive_scan(g, first, last, result, init, binary_op);
@@ -838,15 +864,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(x[0], x[0])),
-                               typename T::element_type> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(x[0], x[0])), float>),
+  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
   T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = inclusive_scan_over_group(g, x[s], binary_op);
+    result[s] = inclusive_scan_over_group(g, x[s], scalar_binary_op);
   }
   return result;
 }
@@ -859,12 +883,16 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(x, x)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(x, x)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return detail::masked_scan_cuda_shfls<__spv::GroupOperation::InclusiveScan>(
+        g, x, binary_op,
+        sycl::detail::ExtractMask(sycl::detail::GetMask(g))[0]);
+  }
+#endif
   return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
@@ -908,10 +936,7 @@ std::enable_if_t<
      std::is_convertible_v<V, T>),
     T>
 inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init, x)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init, x)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   T y = x;
@@ -934,14 +959,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init[0], x[0])), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init[0], x[0])), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
   T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = inclusive_scan_over_group(g, x[s], binary_op, init[s]);
+    result[s] = inclusive_scan_over_group(g, x[s], scalar_binary_op, init[s]);
   }
   return result;
 }
@@ -962,10 +986,7 @@ std::enable_if_t<
     OutPtr>
 joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op, T init) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init, *first)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init, *first)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, *first)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
@@ -1014,14 +1035,9 @@ std::enable_if_t<
     OutPtr>
 joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(
-      std::is_same_v<decltype(binary_op(*first, *first)),
-                     typename detail::remove_pointer<OutPtr>::type> ||
-          (std::is_same_v<typename detail::remove_pointer<OutPtr>::type,
-                          half> &&
-           std::is_same_v<decltype(binary_op(*first, *first)), float>),
-      "Result type of binary_op must match scan accumulation type.");
+  static_assert(std::is_same_v<decltype(binary_op(*first, *first)),
+                               typename detail::remove_pointer<OutPtr>::type>,
+                "Result type of binary_op must match scan accumulation type.");
 
   using T = typename detail::remove_pointer<OutPtr>::type;
   T init = detail::identity_for_ga_op<T, BinaryOperation>();
