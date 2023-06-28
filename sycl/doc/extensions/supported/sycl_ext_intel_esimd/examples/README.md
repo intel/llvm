@@ -112,4 +112,4 @@ is to show the basic ESIMD APIs in well known examples.
        })
     ```
 
-5) TODO: Add more examples here.
+6) TODO: Add more examples here.
