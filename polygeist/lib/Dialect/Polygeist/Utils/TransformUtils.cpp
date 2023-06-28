@@ -250,11 +250,15 @@ SetVector<T> polygeist::getOperationsOfType(FunctionOpInterface funcOp) {
   return res;
 }
 
-Value polygeist::getCondition(RegionBranchOpInterface branchOp) {
-  return TypeSwitch<Operation *, Value>(branchOp)
-      .Case<arith::SelectOp, cf::CondBranchOp, scf::IfOp>(
-          [](auto branchOp) { return branchOp.getCondition(); })
-      .Default([](auto) { return nullptr; });
+Value polygeist::getCondition(Operation *op) {
+  return TypeSwitch<Operation *, Value>(op)
+      .Case<arith::SelectOp, LLVM::SelectOp, cf::CondBranchOp, LLVM::CondBrOp,
+            scf::IfOp>([](auto branchOp) { return branchOp.getCondition(); })
+      .Default([](auto *op) {
+        llvm::errs() << "op: " << *op << "\n";
+        llvm_unreachable("Unhandled operation");
+        return nullptr;
+      });
 }
 
 namespace mlir {

@@ -91,7 +91,20 @@ func.func @test2(%cond: i1, %val: i64, %arg1: memref<?x!sycl_nd_item_2>)  {
     memref.store %c2, %alloca[%c0]: memref<10xi64>
   }
   // CHECK: test2_load5, uniformity: unknown
-  %load5 = memref.load %alloca[%c0] { tag = "test2_load5" }: memref<10xi64>
+  %load5 = memref.load %alloca[%c0] { tag = "test2_load5" } : memref<10xi64>
+
+  // COM: the branch condition is non-uniform, so the value yielded by the scf.if is also non-uniform.
+  %c0_i64 = arith.constant 0 : i64
+  %cond1 = arith.cmpi sgt, %tx, %c0_i64 : i64
+  %alloca1 = scf.if %cond1 -> memref<10xi64> {
+    %alloca1 = memref.alloca() : memref<10xi64>
+    scf.yield %alloca1 : memref<10xi64>
+  } else {
+    %alloca2 = memref.alloca() : memref<10xi64>
+    scf.yield %alloca2 : memref<10xi64>    
+  }
+  // CHECK: test2_load6, uniformity: non-uniform
+  %load6 = memref.load %alloca1[%c0] { tag = "test2_load6" } : memref<10xi64>
 
   return
 }

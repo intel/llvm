@@ -55,6 +55,10 @@ public:
   static bool isUniform(Kind kind) { return kind == Kind::Uniform; }
   static bool isNonUniform(Kind kind) { return kind == Kind::NonUniform; }
 
+  bool isUnknown() const { return Uniformity::isUnknown(getKind()); }
+  bool isUniform() const { return Uniformity::isUniform(getKind()); }
+  bool isNonUniform() const { return Uniformity::isNonUniform(getKind()); }
+
   /// Create a state where the uniformity info is uninitialized. This happens
   /// when the state hasn't been set during the analysis.
   static Uniformity getUninitialized() { return Uniformity(); }
@@ -76,9 +80,9 @@ public:
       return lhs;
     if (lhs == rhs)
       return lhs;
-    if (isNonUniform(lhs.getKind()) && isUniform(rhs.getKind()))
+    if (lhs.isNonUniform() && rhs.isUniform())
       return lhs;
-    if (isNonUniform(rhs.getKind()) && isUniform(lhs.getKind()))
+    if (rhs.isNonUniform() && lhs.isUniform())
       return rhs;
     return getUnknown();
   }

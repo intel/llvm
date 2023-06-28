@@ -229,7 +229,8 @@ void UniformityAnalysis::analyzeMemoryEffects(
     }
     if (anyOfUniformityIs(branchConditions, Uniformity::Kind::NonUniform)) {
       LLVM_DEBUG(llvm::dbgs().indent(2) << "Branch condition non-uniform\n");
-      return propagateAllIfChanged(op->getResults(), Uniformity::getUnknown());
+      return propagateAllIfChanged(op->getResults(),
+                                   Uniformity::getNonUniform());
     }
 
     // If we can't yet compute the mods/pMods operands uniformity, bail out.
@@ -288,8 +289,9 @@ bool UniformityAnalysis::canComputeUniformity(
               getLatticeElement(storeOp.getValueToStore());
           return !lattice->getValue().isUninitialized();
         })
-        .Default([](auto) {
-          llvm_unreachable("Unhandled operation kind");
+        .Default([](auto *op) {
+          llvm::errs() << "op: " << *op << "\n";
+          llvm_unreachable("Unhandled operation");
           return false;
         });
   });
@@ -314,9 +316,9 @@ bool UniformityAnalysis::anyModifierUniformityIs(
                  "Expecting 'storeVal' uniformity to be initialized");
           return lattice->getValue().getKind() == kind;
         })
-        .Default([](auto op) {
+        .Default([](auto *op) {
           llvm::errs() << "op: " << *op << "\n";
-          llvm_unreachable("Unhandled operation type");
+          llvm_unreachable("Unhandled operation");
           return false;
         });
   });
