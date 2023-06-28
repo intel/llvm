@@ -24,7 +24,7 @@ $_Z3barIiET_S0_ = comdat any
 ; CHECK-TU0-NOT: define dso_local spir_kernel void @{{.*}}TU0_kernel0{{.*}}
 ; CHECK-TU0-TXT-NOT: {{.*}}TU0_kernel0{{.*}}
 
-; CHECK-TU1: call spir_func void @{{.*}}foo{{.*}}()
+; CHECK-TU1: call spir_func void @{{.*}}foov{{.*}}()
 
 define dso_local spir_kernel void @_ZTSZ4mainE11TU0_kernel0() #0 {
 entry:
@@ -32,8 +32,8 @@ entry:
   ret void
 }
 
-; CHECK-TU1: define internal spir_func void @{{.*}}foo{{.*}}()
-; CHECK-TU0-NOT: define {{.*}} spir_func void @{{.*}}foo{{.*}}()
+; CHECK-TU1: define dso_local spir_func void @{{.*}}foov{{.*}}()
+; CHECK-TU0-NOT: define {{.*}} spir_func void @{{.*}}foov{{.*}}()
 
 ; CHECK-TU1: call spir_func i32 @{{.*}}bar{{.*}}(i32 1)
 

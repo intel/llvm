@@ -132,10 +132,15 @@ bool isESIMDFunction(const Function &F) {
 }
 
 // Predicate for Internalize pass.
+// Functions with the C++ level attribute "intel::device_indirectly_callable"
+// are annotated with the "referenced-indirectly" attribute.  These functions
+// cannot be optimized out due to reachability analysis or by any other
+// optimization.
 bool mustPreserveGV(const GlobalValue &GV) {
   if (const Function *F = dyn_cast<Function>(&GV))
     return F->getCallingConv() == CallingConv::SPIR_KERNEL ||
-           F->isDeclaration() || F->hasFnAttribute("sycl-module-id");
+           F->hasFnAttribute("referenced-indirectly") || F->isDeclaration() ||
+           F->hasFnAttribute("sycl-module-id");
 
   GV.removeDeadConstantUsers();
   return !GV.use_empty();
