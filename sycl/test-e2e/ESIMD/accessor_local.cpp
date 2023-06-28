@@ -4,6 +4,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// TODO: Enable the test when GPU driver is ready/fixed.
+// XFAIL: gpu && windows
+
 // This test verifies usage of local_accessor methods operator[]
 // and get_pointer().
 
