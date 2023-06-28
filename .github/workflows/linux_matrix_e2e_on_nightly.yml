@@ -25,6 +25,7 @@ jobs:
             extra_cmake_args: -DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"
             extra_image_opts: --device=/dev/kfd
             target_devices: all
+            reset_gpu: false
 
           - name: Intel
             runner: '["Linux", "gen9"]'
@@ -32,6 +33,7 @@ jobs:
             extra_cmake_args:
             extra_image_opts: -u 1001
             target_devices: all
+            reset_gpu: true
 
           - name: ESIMD Emu
             runner: '["Linux", "x86-cpu"]'
@@ -39,6 +41,7 @@ jobs:
             extra_cmake_args:
             extra_image_opts: -u 1001
             target_devices: ext_intel_esimd_emulator:gpu
+            reset_gpu: false
     uses: ./.github/workflows/linux_single_e2e_on_nightly.yml
     with:
       name: ${{ matrix.name }}
@@ -48,6 +51,7 @@ jobs:
       extra_image_opts: ${{ matrix.extra_image_opts }}
       target_devices: ${{ matrix.target_devices }}
       ref: ${{ inputs.ref }}
+      reset_gpu: ${{ matrix.reset_gpu }}
 
   aws_start:
     name: AWS Start
@@ -69,6 +73,7 @@ jobs:
       extra_image_opts: --gpus all
       target_devices: all
       ref: ${{ inputs.ref }}
+      reset_gpu: false
 
   aws_stop:
     name: AWS Stop
