@@ -93,8 +93,9 @@ public:
   RTDeviceBinaryImage &getDeviceImage(KernelSetId KSId, const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-  RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
-                                const context &Context, const device &Device);
+  sycl::detail::pi::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
+                                              const context &Context,
+                                              const device &Device);
   /// Creates a PI program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
   /// \param Img The device image to find a cached device code binary for or
@@ -113,7 +114,7 @@ public:
   /// \return A pair consisting of the PI program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
-  std::pair<RT::PiProgram, bool>
+  std::pair<sycl::detail::pi::PiProgram, bool>
   getOrCreatePIProgram(const RTDeviceBinaryImage &Img, const context &Context,
                        const device &Device,
                        const std::string &CompileAndLinkOptions,
@@ -131,29 +132,32 @@ public:
   ///        once the function returns.
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
-  RT::PiProgram getBuiltPIProgram(const ContextImplPtr &ContextImpl,
-                                  const DeviceImplPtr &DeviceImpl,
-                                  const std::string &KernelName,
-                                  const program_impl *Prg = nullptr,
-                                  bool JITCompilationIsRequired = false);
+  sycl::detail::pi::PiProgram getBuiltPIProgram(
+      const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
+      const std::string &KernelName, const program_impl *Prg = nullptr,
+      bool JITCompilationIsRequired = false);
 
-  RT::PiProgram getBuiltPIProgram(const context &Context, const device &Device,
-                                  const std::string &KernelName,
-                                  const property_list &PropList,
-                                  bool JITCompilationIsRequired = false);
+  sycl::detail::pi::PiProgram
+  getBuiltPIProgram(const context &Context, const device &Device,
+                    const std::string &KernelName,
+                    const property_list &PropList,
+                    bool JITCompilationIsRequired = false);
 
-  std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *, RT::PiProgram>
+  std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
+             sycl::detail::pi::PiProgram>
   getOrCreateKernel(const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
                     const std::string &KernelName, const program_impl *Prg);
 
-  RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
-                                         const ContextImplPtr Context);
+  sycl::detail::pi::PiProgram
+  getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
+                           const ContextImplPtr Context);
 
   void addImages(pi_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
-  static std::string getProgramBuildLog(const RT::PiProgram &Program,
-                                        const ContextImplPtr Context);
+  static std::string
+  getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
+                     const ContextImplPtr Context);
 
   /// Resolves given program to a device binary image and requests the program
   /// to flush constants the image depends on.
@@ -275,9 +279,10 @@ public:
                            const std::vector<device> &Devs,
                            const property_list &PropList);
 
-  std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *>
+  std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, const std::string &KernelName,
-                    const property_list &PropList, RT::PiProgram Program);
+                    const property_list &PropList,
+                    sycl::detail::pi::PiProgram Program);
 
   ProgramManager();
   ~ProgramManager() = default;
@@ -291,11 +296,13 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  using ProgramPtr = std::unique_ptr<remove_pointer_t<RT::PiProgram>,
-                                     decltype(&::piProgramRelease)>;
+  using ProgramPtr =
+      std::unique_ptr<remove_pointer_t<sycl::detail::pi::PiProgram>,
+                      decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string &CompileOptions,
-                   const std::string &LinkOptions, const RT::PiDevice &Device,
+                   const std::string &LinkOptions,
+                   const sycl::detail::pi::PiDevice &Device,
                    uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;

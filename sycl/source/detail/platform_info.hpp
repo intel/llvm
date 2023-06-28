@@ -18,9 +18,10 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-inline std::string get_platform_info_string_impl(RT::PiPlatform Plt,
-                                                 const PluginPtr &Plugin,
-                                                 pi_platform_info PiCode) {
+inline std::string
+get_platform_info_string_impl(sycl::detail::pi::PiPlatform Plt,
+                              const PluginPtr &Plugin,
+                              pi_platform_info PiCode) {
   size_t ResultSize;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin->call<PiApiKind::piPlatformGetInfo>(Plt, PiCode, 0, nullptr,
@@ -39,7 +40,7 @@ template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, std::string>::value,
     std::string>::type
-get_platform_info(RT::PiPlatform Plt, const PluginPtr &Plugin) {
+get_platform_info(sycl::detail::pi::PiPlatform Plt, const PluginPtr &Plugin) {
   static_assert(is_platform_info_desc<Param>::value,
                 "Invalid platform information descriptor");
   return get_platform_info_string_impl(Plt, Plugin,
@@ -49,7 +50,7 @@ get_platform_info(RT::PiPlatform Plt, const PluginPtr &Plugin) {
 template <typename Param>
 typename std::enable_if<std::is_same<Param, info::platform::extensions>::value,
                         std::vector<std::string>>::type
-get_platform_info(RT::PiPlatform Plt, const PluginPtr &Plugin) {
+get_platform_info(sycl::detail::pi::PiPlatform Plt, const PluginPtr &Plugin) {
   static_assert(is_platform_info_desc<Param>::value,
                 "Invalid platform information descriptor");
   std::string Result = get_platform_info_string_impl(

@@ -22,7 +22,7 @@ namespace detail {
 struct OwnedPiEvent {
   OwnedPiEvent(const PluginPtr &Plugin)
       : MEvent{std::nullopt}, MPlugin{Plugin} {}
-  OwnedPiEvent(RT::PiEvent Event, const PluginPtr &Plugin,
+  OwnedPiEvent(sycl::detail::pi::PiEvent Event, const PluginPtr &Plugin,
                bool TakeOwnership = false)
       : MEvent(Event), MPlugin(Plugin) {
     // If it is not instructed to take ownership, retain the event to share
@@ -47,18 +47,18 @@ struct OwnedPiEvent {
 
   operator bool() { return MEvent.has_value(); }
 
-  RT::PiEvent GetEvent() { return *MEvent; }
+  sycl::detail::pi::PiEvent GetEvent() { return *MEvent; }
 
   // Transfers the ownership of the event to the caller. The destructor will
   // no longer release the event.
-  RT::PiEvent TransferOwnership() {
-    RT::PiEvent Event = *MEvent;
+  sycl::detail::pi::PiEvent TransferOwnership() {
+    sycl::detail::pi::PiEvent Event = *MEvent;
     MEvent = std::nullopt;
     return Event;
   }
 
 private:
-  std::optional<RT::PiEvent> MEvent;
+  std::optional<sycl::detail::pi::PiEvent> MEvent;
   const PluginPtr &MPlugin;
 };
 
