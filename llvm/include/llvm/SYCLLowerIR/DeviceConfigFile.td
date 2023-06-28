@@ -69,6 +69,10 @@ def TargetTable : DynamicTable {
   string TypeOf_subGroupSizes = "list<int>";
 }
 
+// TargetInfo is a cpp struct defined in DeviceConfigFile.hpp. Both the fields
+// and the name must match those in DeviceConfigFile.hpp. Thus, any
+// modification to this definition in this file must be mirrored in
+// DeviceConfigFile.hpp.
 class TargetInfo<string targetName, list<Aspect> aspectList, list<int> subGroupSizesList, string toolchain = "", string options = "", bit maySupportOtherAspects_init = 0> {
   string DeviceId = targetName;
   bits<1> maySupportOtherAspects = maySupportOtherAspects_init;
@@ -99,10 +103,7 @@ def : TargetInfo<"__TestDeprecatedAspectList",
     AspectUsm_restricted_shared_allocations, AspectHost],
     []>;
 
-def : TargetInfo<"TargetA", [AspectCpu, AspectAtomic64], [8, 16], "ocloc", "devA", 1>;
-def : TargetInfo<"TargetB", [AspectGpu, AspectFp16], [8, 16], "ocloc", "devB">;
-def : TargetInfo<"TargetC", [AspectEmulated, AspectImage], [8, 16], "ocloc", "devC">;
-def : TargetInfo<"TargetD", [AspectCpu, AspectFp64, AspectHost_debuggable], [8, 16], "ocloc", "devD", 1>;
-defvar AspectList = [AspectCpu] # AllUSMAspects;
-def : TargetInfo<"Test", AspectList, []>;
-def : TargetInfo<"Test2", [AspectCpu] # AllUSMAspects, []>;
+// Examples of how to use a combination of explicitly specified values + predefined lists
+//defvar AspectList = [AspectCpu] # AllUSMAspects;
+//def : TargetInfo<"Test", AspectList, []>;
+//def : TargetInfo<"Test2", [AspectCpu] # AllUSMAspects, []>;
