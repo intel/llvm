@@ -16,6 +16,7 @@
 #include "CGObjCRuntime.h"
 #include "CGOpenCLRuntime.h"
 #include "CGRecordLayout.h"
+#include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
 #include "ConstantEmitter.h"
@@ -513,12 +514,17 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
   // TODO: Replace AttrList with a single attribute. The call can only have a
   // single FPAccuracy attribute.
   llvm::AttributeList AttrList;
+  // "sycl_used_aspects" metadata associated with the call.
+  SmallVector<llvm::Metadata *, 4> AspectsMD;
   // sincos() doesn't return a value, but it still has a type associated with
   // it that corresponds to the operand type.
   CGF.CGM.getFPAccuracyFuncAttributes(
-      Name, AttrList, ID,
+      Name, AttrList, AspectsMD, ID,
       Name == "sincos" ? Args[0]->getType() : FPBuiltinF->getReturnType());
   CI->setAttributes(AttrList);
+  if (!AspectsMD.empty())
+    CI->setMetadata("sycl_used_aspects",
+                    llvm::MDNode::get(CGF.CGM.getLLVMContext(), AspectsMD));
   return CI;
 }
 

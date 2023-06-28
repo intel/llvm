@@ -17,6 +17,7 @@
 #include "CGCXXABI.h"
 #include "CGCleanup.h"
 #include "CGRecordLayout.h"
+#include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
 #include "TargetInfo.h"
@@ -1846,8 +1847,18 @@ static llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracyStr) {
       .Case("cuda", llvm::fp::FPAccuracy::CUDA);
 }
 
+static int32_t convertFPAccuracyToAspect(StringRef FPAccuracyStr) {
+  return llvm::StringSwitch<int32_t>(FPAccuracyStr)
+      .Case("high", SYCLInternalAspect::fp_intrinsic_accuracy_high)
+      .Case("medium", SYCLInternalAspect::fp_intrinsic_accuracy_medium)
+      .Case("low", SYCLInternalAspect::fp_intrinsic_accuracy_low)
+      .Case("sycl", SYCLInternalAspect::fp_intrinsic_accuracy_sycl)
+      .Case("cuda", SYCLInternalAspect::fp_intrinsic_accuracy_cuda);
+}
+
 void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
-    StringRef Name, llvm::AttrBuilder &FuncAttrs, unsigned ID,
+    StringRef Name, llvm::AttrBuilder &FuncAttrs,
+    SmallVector<llvm::Metadata *, 4> &MDs, unsigned ID,
     const llvm::Type *FuncType) {
   // Priority is given to to the accuracy specific to the function.
   // So, if the command line is something like this:
@@ -1864,6 +1875,9 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
           ID, FuncType, convertFPAccuracy(FuncMapIt->second));
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
+      if (getLangOpts().SYCLIsDevice)
+        MDs.push_back(llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+            Int32Ty, convertFPAccuracyToAspect(FuncMapIt->second))));
     }
   }
   if (FuncAttrs.attrs().size() == 0)
@@ -1872,6 +1886,9 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
           ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
+      if (getLangOpts().SYCLIsDevice)
+        MDs.push_back(llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+            Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal))));
     }
 }
 
