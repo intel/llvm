@@ -2583,8 +2583,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
     // released before the host task completes.
     std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 3);
 
-    std::vector<Requirement *> *CopyReqs =
-        new std::vector<Requirement *>(HostTask->getRequirements());
+    std::unordered_set<Requirement *> *CopyReqs =
+        new std::unordered_set<Requirement *>(HostTask->getRequirements());
 
     // Create a shared_ptr on the heap so that the reference count is
     // incremented until the DispatchNativeKernel() callback is run, which
@@ -2826,7 +2826,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
       // available if a user asks for them inside the interop task scope
-      const std::vector<Requirement *> &HandlerReq =
+      const std::unordered_set<Requirement *> &HandlerReq =
           HostTask->getRequirements();
       auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
         const std::vector<AllocaCommandBase *> &AllocaCmds =
