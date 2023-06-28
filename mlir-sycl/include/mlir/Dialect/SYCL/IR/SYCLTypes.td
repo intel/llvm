@@ -68,6 +68,16 @@ def SYCL_AccessorType
       "`<` `[` $dimension `,` $type `,` ` ` $accessMode `,` ` ` $targetMode `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_BufferType : SYCL_Type<"Buffer", "buffer"> {
+  let summary = "SYCL Buffer";
+  let description = [{ Shared array of one, two or three dimensions,
+                        accessed through accessors.}];
+  let parameters = (ins "::mlir::Type":$type,
+                        "unsigned":$dimension);
+  let assemblyFormat = 
+      "`<` `[` $dimension `,` $type `]` `>`";
+}
+
 def SYCL_AccessorSubscriptType :
     SYCL_Type<"AccessorSubscript", "accessor_subscript"> {
   let parameters = (ins "int":$currentDimension,

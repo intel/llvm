@@ -70,8 +70,9 @@ unsigned getDimensions(Type type) {
   if (auto memRefTy = dyn_cast<MemRefType>(type))
     type = memRefTy.getElementType();
   return TypeSwitch<Type, unsigned>(type)
-      .Case<AccessorType, GroupType, IDType, ItemType, NdItemType, NdRangeType,
-            RangeType>([](auto type) { return type.getDimension(); });
+      .Case<AccessorType, BufferType, GroupType, IDType, ItemType, NdItemType,
+            NdRangeType, RangeType>(
+          [](auto type) { return type.getDimension(); });
 }
 
 template <typename T> bool isPtrOf(Type type) {
