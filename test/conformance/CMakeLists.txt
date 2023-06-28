@@ -54,6 +54,7 @@ add_subdirectory(usm)
 add_subdirectory(event)
 add_subdirectory(queue)
 add_subdirectory(sampler)
+add_subdirectory(virtual_memory)
 
 if(DEFINED UR_DPCXX)
     add_custom_target(generate_device_binaries)
