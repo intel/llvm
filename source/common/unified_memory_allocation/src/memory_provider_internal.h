@@ -18,6 +18,7 @@ extern "C" {
 #endif
 
 void *umaMemoryProviderGetPriv(uma_memory_provider_handle_t hProvider);
+uma_memory_provider_handle_t *umaGetLastFailedMemoryProviderPtr();
 
 #ifdef __cplusplus
 }

@@ -81,7 +81,9 @@ struct proxy_pool : public pool_base {
 
         memset(ptr, 0, num * size);
 
-        EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
+        if (ptr) {
+            EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
+        }
         return ptr;
     }
     void *realloc(void *ptr, size_t size) noexcept {
@@ -91,7 +93,9 @@ struct proxy_pool : public pool_base {
     void *aligned_malloc(size_t size, size_t alignment) noexcept {
         void *ptr;
         auto ret = umaMemoryProviderAlloc(provider, size, alignment, &ptr);
-        EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
+        if (ptr) {
+            EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
+        }
         return ptr;
     }
     size_t malloc_usable_size(void *ptr) noexcept {

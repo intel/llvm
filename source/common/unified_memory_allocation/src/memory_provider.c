@@ -51,15 +51,29 @@ void umaMemoryProviderDestroy(uma_memory_provider_handle_t hProvider) {
     free(hProvider);
 }
 
+static void
+checkErrorAndSetLastProvider(enum uma_result_t result,
+                             uma_memory_provider_handle_t hProvider) {
+    if (result != UMA_RESULT_SUCCESS) {
+        *umaGetLastFailedMemoryProviderPtr() = hProvider;
+    }
+}
+
 enum uma_result_t umaMemoryProviderAlloc(uma_memory_provider_handle_t hProvider,
                                          size_t size, size_t alignment,
                                          void **ptr) {
-    return hProvider->ops.alloc(hProvider->provider_priv, size, alignment, ptr);
+    enum uma_result_t res =
+        hProvider->ops.alloc(hProvider->provider_priv, size, alignment, ptr);
+    checkErrorAndSetLastProvider(res, hProvider);
+    return res;
 }
 
 enum uma_result_t umaMemoryProviderFree(uma_memory_provider_handle_t hProvider,
                                         void *ptr, size_t size) {
-    return hProvider->ops.free(hProvider->provider_priv, ptr, size);
+    enum uma_result_t res =
+        hProvider->ops.free(hProvider->provider_priv, ptr, size);
+    checkErrorAndSetLastProvider(res, hProvider);
+    return res;
 }
 
 void umaMemoryProviderGetLastNativeError(uma_memory_provider_handle_t hProvider,
@@ -76,29 +90,43 @@ void *umaMemoryProviderGetPriv(uma_memory_provider_handle_t hProvider) {
 enum uma_result_t
 umaMemoryProviderGetRecommendedPageSize(uma_memory_provider_handle_t hProvider,
                                         size_t size, size_t *pageSize) {
-    return hProvider->ops.get_recommended_page_size(hProvider->provider_priv,
-                                                    size, pageSize);
+    enum uma_result_t res = hProvider->ops.get_recommended_page_size(
+        hProvider->provider_priv, size, pageSize);
+    checkErrorAndSetLastProvider(res, hProvider);
+    return res;
 }
 
 enum uma_result_t
 umaMemoryProviderGetMinPageSize(uma_memory_provider_handle_t hProvider,
                                 void *ptr, size_t *pageSize) {
-    return hProvider->ops.get_min_page_size(hProvider->provider_priv, ptr,
-                                            pageSize);
+    enum uma_result_t res = hProvider->ops.get_min_page_size(
+        hProvider->provider_priv, ptr, pageSize);
+    checkErrorAndSetLastProvider(res, hProvider);
+    return res;
 }
 
 enum uma_result_t
 umaMemoryProviderPurgeLazy(uma_memory_provider_handle_t hProvider, void *ptr,
                            size_t size) {
-    return hProvider->ops.purge_lazy(hProvider->provider_priv, ptr, size);
+    enum uma_result_t res =
+        hProvider->ops.purge_lazy(hProvider->provider_priv, ptr, size);
+    checkErrorAndSetLastProvider(res, hProvider);
+    return res;
 }
 
 enum uma_result_t
 umaMemoryProviderPurgeForce(uma_memory_provider_handle_t hProvider, void *ptr,
                             size_t size) {
-    return hProvider->ops.purge_force(hProvider->provider_priv, ptr, size);
+    enum uma_result_t res =
+        hProvider->ops.purge_force(hProvider->provider_priv, ptr, size);
+    checkErrorAndSetLastProvider(res, hProvider);
+    return res;
 }
 
 const char *umaMemoryProviderGetName(uma_memory_provider_handle_t hProvider) {
     return hProvider->ops.get_name(hProvider->provider_priv);
+}
+
+uma_memory_provider_handle_t umaGetLastFailedMemoryProvider() {
+    return *umaGetLastFailedMemoryProviderPtr();
 }
