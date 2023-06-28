@@ -231,14 +231,28 @@ ur_result_t calculateKernelWorkDimensions(
   return UR_RESULT_SUCCESS;
 }
 
-/// Helper function to take a list of ur_exp_command_buffer_sync_point_ts and
-/// fill the provided vector with the associated ZeEvents
+/// Helper function for finding the Level Zero events associated with the
+/// commands in a command-buffer, each event is pointed to by a sync-point in
+/// the wait list.
+///
+/// @param[in] CommandBuffer to lookup the L0 events from.
+/// @param[in] NumSyncPointsInWaitList Length of \p SyncPointWaitList.
+/// @param[in] SyncPointWaitList List of sync points in \p CommandBuffer
+/// to find the L0 events for.
+/// @param[out] ZeEventList Return parameter for the L0 events associated with
+/// each sync-point in \p SyncPointWaitList.
+///
+/// @return UR_RESULT_SUCCESS or an error code on failure
 static ur_result_t getEventsFromSyncPoints(
-    const std::unordered_map<ur_exp_command_buffer_sync_point_t,
-                             ur_event_handle_t> &SyncPoints,
+    const ur_exp_command_buffer_handle_t &CommandBuffer,
     size_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     std::vector<ze_event_handle_t> &ZeEventList) {
+  // Map of ur_exp_command_buffer_sync_point_t to ur_event_handle_t defining
+  // the event associated with each sync-point
+  auto SyncPoints = CommandBuffer->SyncPoints;
+
+  // For each sync-point add associated L0 event to the return list.
   for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
     if (auto EventHandle = SyncPoints.find(SyncPointWaitList[i]);
         EventHandle != SyncPoints.end()) {
@@ -259,9 +273,8 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
   std::vector<ze_event_handle_t> ZeEventList;
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer->SyncPoints,
-                                  NumSyncPointsInWaitList, SyncPointWaitList,
-                                  ZeEventList));
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                  SyncPointWaitList, ZeEventList));
 
   ur_event_handle_t LaunchEvent;
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
@@ -324,9 +337,8 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
                                         Width,      Height,     Depth};
 
   std::vector<ze_event_handle_t> ZeEventList;
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer->SyncPoints,
-                                  NumSyncPointsInWaitList, SyncPointWaitList,
-                                  ZeEventList));
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                  SyncPointWaitList, ZeEventList));
 
   ur_event_handle_t LaunchEvent;
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
@@ -462,9 +474,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   ZE2UR_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
   std::vector<ze_event_handle_t> ZeEventList;
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer->SyncPoints,
-                                  NumSyncPointsInWaitList, SyncPointWaitList,
-                                  ZeEventList));
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                  SyncPointWaitList, ZeEventList));
   ur_event_handle_t LaunchEvent;
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
   LaunchEvent->CommandType = UR_COMMAND_KERNEL_LAUNCH;
