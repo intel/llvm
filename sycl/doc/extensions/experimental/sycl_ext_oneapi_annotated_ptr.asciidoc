@@ -562,7 +562,7 @@ namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_ref {
   public:
-    annotated_ref(const annotated_ref&) = default;
+    annotated_ref(const annotated_ref&) = delete;
     operator T() const;
     T operator=(const T &) const;
     T operator=(const annotated_ref&) const;
@@ -582,10 +582,10 @@ Member Functions are described in the table below
 a|
 [source,c++]
 ----
-annotated_ref(const annotated_ref&) = default;
+annotated_ref(const annotated_ref&) = delete;
 ----
 |
-Compiler generated copy constructor.
+No copy constructor.
 
 // --- ROW BREAK ---
 a|

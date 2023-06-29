@@ -50,7 +50,7 @@ private:
   annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
 public:
-  annotated_ref(const annotated_ref &) = default;
+  annotated_ref(const annotated_ref &) = delete;
 
   operator T() const { return *m_Ptr; }
 
