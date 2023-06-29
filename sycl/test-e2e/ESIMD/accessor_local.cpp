@@ -1,11 +1,11 @@
-// local_accessors are not supported in esimd_emulator yet.
-// UNSUPPORTED: esimd_emulator
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: gpu
+// TODO: GPU driver on Windows requires a fix/update.
+// XFAIL: windows
+
+// esimd_emulator does not yet support local accessors
+// UNSUPPORTED: esimd_emulator
 
 // This test verifies usage of local_accessor methods operator[]
 // and get_pointer().

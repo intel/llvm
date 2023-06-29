@@ -29,7 +29,10 @@ struct register_alloc_mode_key {
 };
 
 template <register_alloc_mode_enum Mode>
-inline constexpr register_alloc_mode_key::value_t<Mode> register_alloc_mode;
+inline constexpr register_alloc_mode_key::value_t<Mode> register_alloc_mode
+    __SYCL_DEPRECATED("register_alloc_mode is deprecated, "
+                      "use sycl::ext::intel::experimental::grf_size or "
+                      "sycl::ext::intel::experimental::grf_size_automatic");
 } // namespace detail
 
 namespace ext::oneapi::experimental {

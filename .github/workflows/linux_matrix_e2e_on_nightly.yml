@@ -24,7 +24,7 @@ jobs:
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build
             extra_cmake_args: -DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"
             extra_image_opts: --device=/dev/kfd
-            target_devices: all
+            target_devices: ext_oneapi_hip:gpu
             reset_gpu: false
 
           - name: Intel
@@ -32,7 +32,7 @@ jobs:
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
             extra_cmake_args:
             extra_image_opts: -u 1001
-            target_devices: all
+            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
             reset_gpu: true
 
           - name: ESIMD Emu
