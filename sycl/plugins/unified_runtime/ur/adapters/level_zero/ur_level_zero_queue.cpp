@@ -29,7 +29,7 @@ ur_result_t CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue,
                                        bool QueueLocked, bool QueueSynced,
                                        ur_event_handle_t CompletedEvent) {
   // Handle only immediate command lists here.
-  if (!UrQueue || !UrQueue->Device->ImmCommandListUsed)
+  if (!UrQueue || !UrQueue->UsingImmCmdLists)
     return UR_RESULT_SUCCESS;
 
   ur_event_handle_t_ *UrCompletedEvent =
@@ -102,7 +102,7 @@ ur_result_t CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue,
 ur_result_t resetCommandLists(ur_queue_handle_t Queue) {
   // Handle immediate command lists here, they don't need to be reset and we
   // only need to cleanup events.
-  if (Queue->Device->ImmCommandListUsed) {
+  if (Queue->UsingImmCmdLists) {
     UR_CALL(CleanupEventsInImmCmdLists(Queue, true /*locked*/));
     return UR_RESULT_SUCCESS;
   }
@@ -192,7 +192,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
       // because immediate command lists are not associated with level zero
       // queue. Conservatively return false in this case because last event is
       // discarded and we can't check its status.
-      if (Queue->Device->ImmCommandListUsed)
+      if (Queue->UsingImmCmdLists)
         return ReturnValue(false);
     }
 
@@ -207,7 +207,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
     for (const auto &QueueMap :
          {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID}) {
       for (const auto &QueueGroup : QueueMap) {
-        if (Queue->Device->ImmCommandListUsed) {
+        if (Queue->UsingImmCmdLists) {
           // Immediate command lists are not associated with any Level Zero
           // queue, that's why we have to check status of events in each
           // immediate command list. Start checking from the end and exit early
@@ -342,7 +342,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
                                 uint32_t RepeatCount) -> ur_result_t {
       ur_command_list_ptr_t CommandList;
       while (RepeatCount--) {
-        if (Q->Device->ImmCommandListUsed) {
+        if (Q->UsingImmCmdLists) {
           CommandList = Q->getQueueGroup(UseCopyEngine).getImmCmdList();
         } else {
           // Heuristically create some number of regular command-list to reuse.
@@ -620,7 +620,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
     ur_queue_handle_t UrQueue ///< [in] handle of the queue to be finished.
 ) {
-  if (UrQueue->Device->ImmCommandListUsed) {
+  if (UrQueue->UsingImmCmdLists) {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<ur_shared_mutex> Lock(UrQueue->Mutex);
 
@@ -677,7 +677,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
   // Reset signalled command lists and return them back to the cache of
   // available command lists. Events in the immediate command lists are cleaned
   // up in synchronize().
-  if (!UrQueue->Device->ImmCommandListUsed) {
+  if (!UrQueue->UsingImmCmdLists) {
     std::unique_lock<ur_shared_mutex> Lock(UrQueue->Mutex);
     resetCommandLists(UrQueue);
   }
@@ -932,7 +932,7 @@ ur_queue_handle_t_::ur_queue_handle_t_(
       CopyQueueGroup.NextIndex = CopyQueueGroup.LowerIndex;
       // Create space to hold immediate commandlists corresponding to the
       // ZeQueues
-      if (Device->ImmCommandListUsed) {
+      if (UsingImmCmdLists) {
         CopyQueueGroup.ImmCmdLists = std::vector<ur_command_list_ptr_t>(
             CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
       }
@@ -1040,7 +1040,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
 
   this->LastUsedCommandList = CommandList;
 
-  if (!Device->ImmCommandListUsed) {
+  if (!UsingImmCmdLists) {
     // Batch if allowed to, but don't batch if we know there are no kernels
     // from this queue that are currently executing.  This is intended to get
     // kernels started as soon as possible when there are no kernels from this
@@ -1093,7 +1093,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
     CaptureIndirectAccesses();
   }
 
-  if (!Device->ImmCommandListUsed) {
+  if (!UsingImmCmdLists) {
     // In this mode all inner-batch events have device visibility only,
     // and we want the last command in the batch to signal a host-visible
     // event that anybody waiting for any event in the batch will
@@ -1204,7 +1204,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
 
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (UrL0Serialize & UrL0SerializeBlock) != 0) {
-    if (Device->ImmCommandListUsed) {
+    if (UsingImmCmdLists) {
       synchronize();
     } else {
       // Wait until command lists attached to the command queue are executed.
@@ -1404,7 +1404,7 @@ ur_result_t ur_queue_handle_t_::synchronize() {
       // so they can be reused later
       for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
         for (auto &QueueGroup : QueueMap) {
-          if (Device->ImmCommandListUsed) {
+          if (UsingImmCmdLists) {
             for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists) {
               if (ImmCmdList == this->CommandListMap.end())
                 continue;
@@ -1420,7 +1420,7 @@ ur_result_t ur_queue_handle_t_::synchronize() {
       // Otherwise sync all L0 queues/immediate command-lists.
       for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
         for (auto &QueueGroup : QueueMap) {
-          if (Device->ImmCommandListUsed) {
+          if (UsingImmCmdLists) {
             for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
               syncImmCmdList(this, ImmCmdList);
           } else {
@@ -1694,7 +1694,7 @@ ur_command_list_ptr_t
 ur_queue_handle_t_::eventOpenCommandList(ur_event_handle_t Event) {
   using IsCopy = bool;
 
-  if (Device->ImmCommandListUsed) {
+  if (UsingImmCmdLists) {
     // When using immediate commandlists there are no open command lists.
     return CommandListMap.end();
   }

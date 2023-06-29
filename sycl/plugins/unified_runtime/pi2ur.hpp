@@ -1452,7 +1452,9 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
                 PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
                 PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS |
                 PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW |
-                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)),
+                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH |
+                PI_EXT_ONEAPI_QUEUE_FLAG_SUBMISSION_BATCHED |
+                PI_EXT_ONEAPI_QUEUE_FLAG_SUBMISSION_IMMEDIATE)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);

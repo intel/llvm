@@ -113,7 +113,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     }
   }
 
-  if (!Queue->Device->ImmCommandListUsed) {
+  if (!Queue->UsingImmCmdLists) {
     std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
   }
@@ -268,7 +268,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     for (auto &QueueGroup : QueueMap) {
       bool UseCopyEngine =
           QueueGroup.second.Type != ur_queue_handle_t_::queue_type::Compute;
-      if (Queue->Device->ImmCommandListUsed) {
+      if (Queue->UsingImmCmdLists) {
         // If immediate command lists are being used, each will act as their own
         // queue, so we must insert a barrier into each.
         for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
@@ -585,7 +585,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
         }
       }
       if (auto Q = Event->UrQueue) {
-        if (Q->Device->ImmCommandListUsed && Q->isInOrderQueue())
+        if (Q->UsingImmCmdLists && Q->isInOrderQueue())
           // Use information about waited event to cleanup completed events in
           // the in-order queue.
           CleanupEventsInImmCmdLists(
@@ -1027,7 +1027,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
   this->UrEventList = nullptr;
 
   if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
-    if (CurQueue->Device->ImmCommandListUsed) {
+    if (CurQueue->UsingImmCmdLists) {
       if (ReuseDiscardedEvents && CurQueue->isDiscardEvents()) {
         // If queue is in-order with discarded events and if
         // new command list is different from the last used command list then

@@ -1,4 +1,4 @@
-// R EQUIRES: gpu, level_zero
+// REQUIRES: gpu, level_zero
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env ZE_DEBUG=4 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 0 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
 // RUN: env ZE_DEBUG=4 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 1 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
@@ -26,9 +26,9 @@ int main(int argc, char *argv[]) {
   }
   property_list P;
   if (Immediate)
-    P = ext::oneapi::level_zero::property::queue::immediate_submission();
+    P = ext::oneapi::property::queue::immediate_submission();
   else
-    P = ext::oneapi::level_zero::property::queue::batched_submission();
+    P = ext::oneapi::property::queue::batched_submission();
 
   // CHECK-STD: zeCommandListCreateImmediate = 1
   // CHECK-IMM: zeCommandListCreateImmediate = 2
