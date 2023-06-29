@@ -11,20 +11,20 @@ target_include_directories(ur_common INTERFACE
     ${CMAKE_SOURCE_DIR}/include
 )
 
-add_subdirectory(unified_memory_allocation)
-add_subdirectory(uma_pools)
-target_link_libraries(ur_common INTERFACE unified_memory_allocation disjoint_pool ${CMAKE_DL_LIBS} ${PROJECT_NAME}::headers)
+add_subdirectory(unified_malloc_framework)
+add_subdirectory(umf_pools)
+target_link_libraries(ur_common INTERFACE unified_malloc_framework disjoint_pool ${CMAKE_DL_LIBS} ${PROJECT_NAME}::headers)
 
 if(WIN32)
     target_sources(ur_common
         INTERFACE
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/ur_lib_loader.cpp
-            uma_helpers.hpp ur_pool_manager.hpp
+            umf_helpers.hpp ur_pool_manager.hpp
     )
 else()
     target_sources(ur_common
         INTERFACE
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/ur_lib_loader.cpp
-            uma_helpers.hpp ur_pool_manager.hpp
+            umf_helpers.hpp ur_pool_manager.hpp
     )
 endif()
