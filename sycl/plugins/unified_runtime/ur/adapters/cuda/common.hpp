@@ -8,7 +8,6 @@
 #pragma once
 
 #include <cuda.h>
-#include <sycl/detail/defines.hpp>
 #include <ur/ur.hpp>
 
 ur_result_t mapErrorUR(CUresult Result);
@@ -37,8 +36,6 @@ extern thread_local char ErrorMessage[MaxMessageSize];
                                       ur_result_t ErrorCode);
 
 /// ------ Error handling, matching OpenCL plugin semantics.
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace ur {
 
@@ -55,5 +52,3 @@ void assertion(bool Condition, const char *Message = nullptr);
 
 } // namespace ur
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
