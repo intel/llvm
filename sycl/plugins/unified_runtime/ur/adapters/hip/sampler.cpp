@@ -67,7 +67,7 @@ ur_result_t urSamplerRetain(ur_sampler_handle_t hSampler) {
 ur_result_t urSamplerRelease(ur_sampler_handle_t hSampler) {
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  sycl::detail::ur::assertion(
+  detail::ur::assertion(
       hSampler->getReferenceCount() != 0,
       "Reference count overflow detected in urSamplerRelease.");
 

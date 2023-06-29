@@ -59,8 +59,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
     // error for which it is unclear if the function that reported it succeeded
     // or not. Either way, the state of the program is compromised and likely
     // unrecoverable.
-    sycl::detail::ur::die(
-        "Unrecoverable program state reached in urMemRelease");
+    detail::ur::die("Unrecoverable program state reached in urMemRelease");
   }
 
   return UR_RESULT_SUCCESS;

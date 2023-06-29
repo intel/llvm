@@ -29,7 +29,7 @@ static size_t imageElementByteSize(hipArray_Format ArrayFormat) {
   case HIP_AD_FORMAT_FLOAT:
     return 4;
   default:
-    sycl::detail::ur::die("Invalid image format.");
+    detail::ur::die("Invalid image format.");
   }
   return 0;
 }

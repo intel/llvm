@@ -70,17 +70,17 @@ std::string getHipVersionString() {
   return Stream.str();
 }
 
-void sycl::detail::ur::die(const char *pMessage) {
+void detail::ur::die(const char *pMessage) {
   std::cerr << "ur_die: " << pMessage << std::endl;
   std::terminate();
 }
 
-void sycl::detail::ur::assertion(bool Condition, const char *pMessage) {
+void detail::ur::assertion(bool Condition, const char *pMessage) {
   if (!Condition)
     die(pMessage);
 }
 
-void sycl::detail::ur::hipPrint(const char *pMessage) {
+void detail::ur::hipPrint(const char *pMessage) {
   std::cerr << "ur_print: " << pMessage << std::endl;
 }
 

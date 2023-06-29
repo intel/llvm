@@ -8,7 +8,6 @@
 #pragma once
 
 #include <hip/hip_runtime.h>
-#include <sycl/detail/defines.hpp>
 #include <ur/ur.hpp>
 
 // Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
@@ -85,8 +84,6 @@ extern thread_local char ErrorMessage[MaxMessageSize];
                                       ur_result_t ErrorCode);
 
 /// ------ Error handling, matching OpenCL plugin semantics.
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace ur {
 
@@ -103,8 +100,6 @@ void assertion(bool Condition, const char *pMessage = nullptr);
 
 } // namespace ur
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
 
 /// RAII object that calls the reference count release function on the held UR
 /// object on destruction.
@@ -162,8 +157,7 @@ public:
         // HIP error for which it is unclear if the function that reported it
         // succeeded or not. Either way, the state of the program is compromised
         // and likely unrecoverable.
-        sycl::detail::ur::die(
-            "Unrecoverable program state reached in piMemRelease");
+        detail::ur::die("Unrecoverable program state reached in piMemRelease");
       }
     }
   }
