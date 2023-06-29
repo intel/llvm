@@ -1399,10 +1399,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
               NamespaceKind != mlirclang::NamespaceKind::SYCL ||
               // Accept types nested in other structs/classes.
               !RD->getDeclContext()->isNamespace() ||
-              // Exception for `h_item`: SYCL-MLIR doesn't support hierarchical
-              // parallelism as a first-class concept, but it can pass through
-              // its use to the runtime.
-              TypeName == "h_item") &&
+              // Exceptions for `h_item` and `private_memory`: SYCL-MLIR doesn't
+              // support hierarchical parallelism as a first-class concept, but
+              // it can pass through its use to the runtime.
+              TypeName == "h_item" || TypeName == "private_memory") &&
              "Found type in the sycl namespace, but not in the SYCL dialect");
     }
 
