@@ -33,6 +33,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
+#include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
@@ -1309,8 +1310,8 @@ int main(int argc, char **argv) {
   const Location Loc = Builder.getUnknownLoc();
   mlir::OwningOpRef<mlir::ModuleOp> Module(mlir::ModuleOp::create(Loc));
   Builder.setInsertionPointToEnd(Module->getBody());
-  auto DeviceModule = Builder.create<mlir::gpu::GPUModuleOp>(
-      Loc, MLIRASTConsumer::DeviceModuleName);
+  auto DeviceModule =
+      Builder.create<mlir::gpu::GPUModuleOp>(Loc, DeviceModuleName);
 
   llvm::DataLayout DL("");
   llvm::Triple Triple;

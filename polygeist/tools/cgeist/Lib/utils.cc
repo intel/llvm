@@ -13,6 +13,7 @@
 
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
@@ -78,8 +79,7 @@ NamespaceKind getNamespaceKind(const clang::DeclContext *DC) {
 }
 
 gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
-  return cast<gpu::GPUModuleOp>(
-      Module.lookupSymbol(MLIRASTConsumer::DeviceModuleName));
+  return cast<gpu::GPUModuleOp>(Module.lookupSymbol(DeviceModuleName));
 }
 
 void setInsertionPoint(OpBuilder &Builder, InsertionContext FuncContext,

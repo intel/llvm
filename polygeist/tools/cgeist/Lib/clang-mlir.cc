@@ -61,8 +61,6 @@ static llvm::cl::opt<bool>
     EnableAttributes("enable-attributes", llvm::cl::init(false),
                      llvm::cl::desc("Enable setting of attributes"));
 
-constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
-
 /******************************************************************************/
 /*                               MLIRScanner                                  */
 /******************************************************************************/
