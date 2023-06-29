@@ -134,9 +134,9 @@ event handler::finalize() {
       detail::Requirement *AccImpl =
           static_cast<detail::Requirement *>(arg.MPtr);
       if (AccImpl->MIsPlaceH) {
-        auto found = std::find(CGData.MRequirements.begin(),
-                               CGData.MRequirements.end(), AccImpl);
-        if (found == CGData.MRequirements.end())
+        auto It = std::find(CGData.MRequirements.begin(),
+                            CGData.MRequirements.end(), AccImpl);
+        if (It == CGData.MRequirements.end())
           throw sycl::exception(make_error_code(errc::kernel_argument),
                                 "placeholder accessor must be bound by calling "
                                 "handler::require() before it can be used.");
