@@ -807,7 +807,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 #endif
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
-  case UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+  case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
     // Maximum number of 32-bit registers available to a thread block.
     // Note: This number is shared by all thread blocks simultaneously resident
     // on a multiprocessor.

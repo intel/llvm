@@ -43,6 +43,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_usm_desc_t *pUSMDesc, [[maybe_unused]] ur_usm_pool_handle_t pool,
     size_t size, void **ppMem) {
+  std::ignore = hDevice;
 
   UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
                           ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
@@ -69,6 +70,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_usm_desc_t *pUSMDesc, [[maybe_unused]] ur_usm_pool_handle_t pool,
     size_t size, void **ppMem) {
+  std::ignore = hDevice;
 
   UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
                           ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
