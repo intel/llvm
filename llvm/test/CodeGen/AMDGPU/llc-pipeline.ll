@@ -189,6 +189,9 @@
 ; GCN-O1-NEXT:        Function Alias Analysis Results
 ; GCN-O1-NEXT:    Lower OpenCL enqueued blocks
 ; GCN-O1-NEXT:    Lower uses of LDS variables from non-kernel functions
+; GCN-O1-NEXT:    AMDGPU Attributor
+; GCN-O1-NEXT:      FunctionPass Manager
+; GCN-O1-NEXT:        Cycle Info Analysis
 ; GCN-O1-NEXT:    FunctionPass Manager
 ; GCN-O1-NEXT:      Infer address spaces
 ; GCN-O1-NEXT:      Expand Atomic instructions
@@ -232,9 +235,6 @@
 ; GCN-O1-NEXT:    FunctionPass Manager
 ; GCN-O1-NEXT:      FPBuiltin Function Selection
 ; GCN-O1-NEXT:    AMDGPU Remove Incompatible Functions
-; GCN-O1-NEXT:    AMDGPU Attributor
-; GCN-O1-NEXT:      FunctionPass Manager
-; GCN-O1-NEXT:        Cycle Info Analysis
 ; GCN-O1-NEXT:    CallGraph Construction
 ; GCN-O1-NEXT:    Call Graph SCC Pass Manager
 ; GCN-O1-NEXT:      AMDGPU Annotate Kernel Features
@@ -469,6 +469,9 @@
 ; GCN-O1-OPTS-NEXT:        Function Alias Analysis Results
 ; GCN-O1-OPTS-NEXT:    Lower OpenCL enqueued blocks
 ; GCN-O1-OPTS-NEXT:    Lower uses of LDS variables from non-kernel functions
+; GCN-O1-OPTS-NEXT:    AMDGPU Attributor
+; GCN-O1-OPTS-NEXT:      FunctionPass Manager
+; GCN-O1-OPTS-NEXT:        Cycle Info Analysis
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
 ; GCN-O1-OPTS-NEXT:      Infer address spaces
 ; GCN-O1-OPTS-NEXT:      Expand Atomic instructions
@@ -520,9 +523,6 @@
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
 ; GCN-O1-OPTS-NEXT:      FPBuiltin Function Selection
 ; GCN-O1-OPTS-NEXT:    AMDGPU Remove Incompatible Functions
-; GCN-O1-OPTS-NEXT:    AMDGPU Attributor
-; GCN-O1-OPTS-NEXT:      FunctionPass Manager
-; GCN-O1-OPTS-NEXT:        Cycle Info Analysis
 ; GCN-O1-OPTS-NEXT:    CallGraph Construction
 ; GCN-O1-OPTS-NEXT:    Call Graph SCC Pass Manager
 ; GCN-O1-OPTS-NEXT:      AMDGPU Annotate Kernel Features
@@ -771,6 +771,9 @@
 ; GCN-O2-NEXT:        Function Alias Analysis Results
 ; GCN-O2-NEXT:    Lower OpenCL enqueued blocks
 ; GCN-O2-NEXT:    Lower uses of LDS variables from non-kernel functions
+; GCN-O2-NEXT:    AMDGPU Attributor
+; GCN-O2-NEXT:      FunctionPass Manager
+; GCN-O2-NEXT:        Cycle Info Analysis
 ; GCN-O2-NEXT:    FunctionPass Manager
 ; GCN-O2-NEXT:      Infer address spaces
 ; GCN-O2-NEXT:      Expand Atomic instructions
@@ -830,9 +833,6 @@
 ; GCN-O2-NEXT:    FunctionPass Manager
 ; GCN-O2-NEXT:      FPBuiltin Function Selection
 ; GCN-O2-NEXT:    AMDGPU Remove Incompatible Functions
-; GCN-O2-NEXT:    AMDGPU Attributor
-; GCN-O2-NEXT:      FunctionPass Manager
-; GCN-O2-NEXT:        Cycle Info Analysis
 ; GCN-O2-NEXT:    CallGraph Construction
 ; GCN-O2-NEXT:    Call Graph SCC Pass Manager
 ; GCN-O2-NEXT:      AMDGPU Annotate Kernel Features
@@ -1083,6 +1083,9 @@
 ; GCN-O3-NEXT:        Function Alias Analysis Results
 ; GCN-O3-NEXT:    Lower OpenCL enqueued blocks
 ; GCN-O3-NEXT:    Lower uses of LDS variables from non-kernel functions
+; GCN-O3-NEXT:    AMDGPU Attributor
+; GCN-O3-NEXT:      FunctionPass Manager
+; GCN-O3-NEXT:        Cycle Info Analysis
 ; GCN-O3-NEXT:    FunctionPass Manager
 ; GCN-O3-NEXT:      Infer address spaces
 ; GCN-O3-NEXT:      Expand Atomic instructions
@@ -1154,9 +1157,6 @@
 ; GCN-O3-NEXT:    FunctionPass Manager
 ; GCN-O3-NEXT:      FPBuiltin Function Selection
 ; GCN-O3-NEXT:    AMDGPU Remove Incompatible Functions
-; GCN-O3-NEXT:    AMDGPU Attributor
-; GCN-O3-NEXT:      FunctionPass Manager
-; GCN-O3-NEXT:        Cycle Info Analysis
 ; GCN-O3-NEXT:    CallGraph Construction
 ; GCN-O3-NEXT:    Call Graph SCC Pass Manager
 ; GCN-O3-NEXT:      AMDGPU Annotate Kernel Features
