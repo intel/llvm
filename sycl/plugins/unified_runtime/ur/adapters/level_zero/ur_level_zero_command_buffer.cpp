@@ -11,32 +11,32 @@
 
 /* Command-buffer Extension
 
-   The UR interface for submitting a UR command-buffer takes a list
-   of events to wait on, and an event representing the completion of
-   that particular submission of the command-buffer.
+  The UR interface for submitting a UR command-buffer takes a list
+  of events to wait on, and returns an event representing the completion of
+  that particular submission of the command-buffer.
 
-   However, in `zeCommandQueueExecuteCommandLists` there are no parameters to
-   take a waitlist and also the only sync primitive returned is to block on
-   host.
+  However, in `zeCommandQueueExecuteCommandLists` there are no parameters to
+  take a waitlist and also the only sync primitive returned is to block on
+  host.
 
-   In order to get the UR command-buffer enqueue semantics we want with L0
-   this adapter adds extra commands to the L0 command-list representing a
-   UR command-buffer.
+  In order to get the UR command-buffer enqueue semantics we want with L0
+  this adapter adds extra commands to the L0 command-list representing a
+  UR command-buffer.
 
-   Prefix - Commands added to the start of the L0 command-list by L0 adapter.
-   Suffix - Commands added to the end of the L0 command-list by L0 adapter.
+  Prefix - Commands added to the start of the L0 command-list by L0 adapter.
+  Suffix - Commands added to the end of the L0 command-list by L0 adapter.
 
-   These extra commands operate on L0 event synchronisation primitives used by
-   the command-list to interact with the external UR wait-list and UR return
-   event required for the enqueue interface.
+  These extra commands operate on L0 event synchronisation primitives used by
+  the command-list to interact with the external UR wait-list and UR return
+  event required for the enqueue interface.
 
-   The `ur_exp_command_buffer_handle_t` class for this adapter contains a
+  The `ur_exp_command_buffer_handle_t` class for this adapter contains a
   SignalEvent which signals the completion of the command-list in the suffix,
   and is reset in the prefix. This signal is detected by a new UR return event
   created on UR command-buffer enqueue.
 
-   There is also a WaitEvent used by the `ur_exp_command_buffer_handle_t` class
-   in the prefix to wait on any dependencies passed in the enqueue wait-list.
+  There is also a WaitEvent used by the `ur_exp_command_buffer_handle_t` class
+  in the prefix to wait on any dependencies passed in the enqueue wait-list.
 
   ┌──────────┬────────────────────────────────────────────────┬─────────┐
   │  Prefix  │ Commands added to UR command-buffer by UR user │ Suffix  │
@@ -66,6 +66,21 @@
   ┌─────────────────────────────────────────────────────────────┐
   │Barrier on `CB` SignalEvent that signals `RE` when completed │
   └─────────────────────────────────────────────────────────────┘
+
+Drawbacks
+---------
+
+There are two drawbacks to this approach:
+
+1. We use 3x the command-list resources, if there are many UR command-buffers
+in flight, this may exhaust L0 driver resources.
+
+2. Each command list is submitted individually with a
+`ur_queue_handle_t_::executeCommandList` call which introduces serialization in
+the submission pipeline that is heavier than having a barrier or a
+waitForEvents on the same list. Resulting in additional latency when executing
+graphs.
+
 */
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
@@ -720,6 +735,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   }
 
   // Execution our command-lists asynchronously
+  // TODO Look using a single `zeCommandQueueExecuteCommandLists()` call
+  // passing all three command-lists, rather than individual calls which
+  // introduces latency.
   UR_CALL(Queue->executeCommandList(WaitCommandList, false, false));
   UR_CALL(Queue->executeCommandList(CommandListPtr, false, false));
   UR_CALL(Queue->executeCommandList(SignalCommandList, false, false));
