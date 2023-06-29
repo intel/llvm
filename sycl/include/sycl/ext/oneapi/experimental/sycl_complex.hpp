@@ -66,8 +66,8 @@ template <> struct __numeric_type<void> {
 };
 
 template <class _A1, class _A2 = void, class _A3 = void,
-          bool = __numeric_type<_A1>::value &&__numeric_type<_A2>::value
-              &&__numeric_type<_A3>::value>
+          bool = __numeric_type<_A1>::value && __numeric_type<_A2>::value &&
+                 __numeric_type<_A3>::value>
 class __promote_imp {
 public:
   static const bool value = false;
@@ -1037,13 +1037,16 @@ public:
                    static_cast<marray_data_t<ComplexDataT>>(arg)),
                std::make_index_sequence<NumElements>()} {}
 
-  template <typename... ArgTN,
-            typename = std::enable_if_t<sycl::detail::AllSuitableArgTypes<ArgTN...>::value &&
-                                        sycl::detail::GetMArrayArgsSize<
-                                            ArgTN...>::value == NumElements>>
+  template <
+      typename... ArgTN,
+      typename = std::enable_if_t<
+          sycl::detail::AllSuitableArgTypes<ArgTN...>::value &&
+          sycl::detail::GetMArrayArgsSize<ArgTN...>::value == NumElements>>
   constexpr marray(const ArgTN &...Args)
-      : marray{sycl::detail::MArrayArgArrayCreator<ComplexDataT, ArgTN...>::Create(Args...),
-               std::make_index_sequence<NumElements>()} {}
+      : marray{
+            sycl::detail::MArrayArgArrayCreator<ComplexDataT, ArgTN...>::Create(
+                Args...),
+            std::make_index_sequence<NumElements>()} {}
 
   constexpr marray(const marray<ComplexDataT, NumElements> &rhs) = default;
   constexpr marray(marray<ComplexDataT, NumElements> &&rhs) = default;

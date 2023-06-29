@@ -44,12 +44,14 @@ template <typename T, typename... Ts> struct GetMArrayArgsSize<T, Ts...> {
 template <typename DataT, typename T>
 struct IsSuitableArgType : std::is_convertible<T, DataT> {};
 template <typename DataT, typename T, size_t N>
-struct IsSuitableArgType<DataT, marray<T, N>> : std::is_convertible<T, DataT> {};
+struct IsSuitableArgType<DataT, marray<T, N>> : std::is_convertible<T, DataT> {
+};
 
 // Trait for computing the conjunction of of IsSuitableArgType. The empty type
 // list will trivially evaluate to true.
 template <typename DataT, typename... ArgTN>
-struct AllSuitableArgTypes : std::conjunction<IsSuitableArgType<DataT, ArgTN>...> {};
+struct AllSuitableArgTypes
+    : std::conjunction<IsSuitableArgType<DataT, ArgTN>...> {};
 
 // Utility trait for creating an std::array from an marray argument.
 template <typename DataT, typename T, std::size_t... Is>
@@ -139,7 +141,9 @@ public:
   // subscript operator
   reference operator[](std::size_t index) { return MData[index]; }
 
-  constexpr const_reference operator[](std::size_t index) const { return MData[index]; }
+  constexpr const_reference operator[](std::size_t index) const {
+    return MData[index];
+  }
 
   marray &operator=(const marray<Type, NumElements> &Rhs) = default;
 
