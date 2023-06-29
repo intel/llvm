@@ -24,9 +24,7 @@
 #include <llvm/ADT/Optional.h>
 #endif
 
-#if (LLVM_VERSION_MAJOR >= 16)
 #include <optional>
-#endif
 
 namespace multi_llvm {
 
@@ -63,6 +61,13 @@ class Optional : public llvm::Optional<T> {
 
   inline constexpr bool has_value() const {
     return llvm::Optional<T>::hasValue();
+  }
+
+  // Provide implicit conversions to the future proof std::optional.
+  inline constexpr operator std::optional<T>() const {
+    return llvm::Optional<T>::hasValue()
+               ? std::optional<T>(llvm::Optional<T>::getValue())
+               : std::nullopt;
   }
 };
 
