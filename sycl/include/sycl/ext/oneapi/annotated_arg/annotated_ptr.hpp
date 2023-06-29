@@ -24,7 +24,7 @@ namespace experimental {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  T operator op##=(const T &rhs) {                                    \
+  T operator op##=(const T &rhs) const {                                    \
     return (*m_Ptr) = (*m_Ptr) op rhs;                                                           \
   }
 
@@ -47,18 +47,18 @@ private:
           detail::PropertyMetaInfo<Props>::value...)]]
 #endif
       ;
+  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
 public:
-  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
   annotated_ref(const annotated_ref &) = default;
 
   operator T() const { return *m_Ptr; }
 
-  T operator=(const T &Obj) {
+  T operator=(const T &Obj) const {
     return *m_Ptr = Obj;
   }
 
-  T operator=(const annotated_ref &Ref) {
+  T operator=(const annotated_ref &Ref) const {
     return *m_Ptr = *(Ref.m_Ptr);
   }
 
@@ -72,6 +72,8 @@ public:
   PROPAGATE_OP(|)
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
+
+  friend class annotated_ptr<T, detail::properties_t<Props...>>;
 };
 
 #undef PROPAGATE_OP

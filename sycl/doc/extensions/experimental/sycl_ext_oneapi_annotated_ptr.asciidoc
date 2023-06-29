@@ -564,10 +564,10 @@ class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = default;
     operator T() const;
-    T operator=(const T &);
-    T operator=(const annotated_ref&);
+    T operator=(const T &) const;
+    T operator=(const annotated_ref&) const;
     // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
-    T operatorOP(const T &);
+    T operatorOP(const T &) const;
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
