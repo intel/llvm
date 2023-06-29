@@ -876,7 +876,7 @@ supported parameter combination is specified in the following table.
 |16 |16 |16 .6+| sm_72
 |8 |32 |16
 |32 |8 |16
-.3+|uint8_t  .3+|int32_t
+.3+|`matrix_type::uint8`  .3+|`matrix_type::int32`
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
