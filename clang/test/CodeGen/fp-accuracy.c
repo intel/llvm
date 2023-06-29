@@ -30,9 +30,6 @@
 // RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK-DEFAULT %s
 
-// Disabled due to https://github.com/intel/llvm/issues/9934
-// UNSUPPORTED: system-linux
-
 #ifdef SPIR
 // This is a declaration when compiling with -fsycl to avoid
 // the compilation error "function with no prototype cannot use
