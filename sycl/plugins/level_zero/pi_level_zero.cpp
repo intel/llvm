@@ -370,9 +370,10 @@ pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex, size_t ArgSize,
 
 // Special version of piKernelSetArg to accept pi_mem.
 pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
+                                  const pi_mem_obj_property *ArgProperties,
                                   const pi_mem *ArgValue) {
-
-  return pi2ur::piextKernelSetArgMemObj(Kernel, ArgIndex, ArgValue);
+  return pi2ur::piextKernelSetArgMemObj(Kernel, ArgIndex, ArgProperties,
+                                        ArgValue);
 }
 
 // Special version of piKernelSetArg to accept pi_sampler.

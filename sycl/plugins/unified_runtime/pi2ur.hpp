@@ -2003,8 +2003,10 @@ inline pi_result piextGetDeviceFunctionPointer(pi_device Device,
 }
 
 // Special version of piKernelSetArg to accept pi_mem.
-inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
-                                         const pi_mem *ArgValue) {
+inline pi_result
+piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
+                        const pi_mem_obj_property *ArgProperties,
+                        const pi_mem *ArgValue) {
 
   // TODO: the better way would probably be to add a new PI API for
   // extracting native PI object from PI handle, and have SYCL
@@ -2017,21 +2019,43 @@ inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   if (ArgValue)
     UrMemory = reinterpret_cast<ur_mem_handle_t>(*ArgValue);
 
-  ur_kernel_arg_mem_obj_properties_t Properties{};
-
   // We don't yet know the device where this kernel will next be run on.
   // Thus we can't know the actual memory allocation that needs to be used.
   // Remember the memory object being used as an argument for this kernel
   // to process it later when the device is known (at the kernel enqueue).
   //
-  // TODO: for now we have to conservatively assume the access as read-write.
-  //       Improve that by passing SYCL buffer accessor type into
-  //       piextKernelSetArgMemObj.
-  //
-
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(
-      urKernelSetArgMemObj(UrKernel, ArgIndex, &Properties, UrMemory));
+  // the only applicable type, just ignore anything else
+  if (ArgProperties && ArgProperties->type == PI_KERNEL_ARG_MEM_OBJ_ACCESS) {
+    // following structure layout checks to be replaced with
+    // std::is_layout_compatible after move to C++20
+    static_assert(sizeof(pi_mem_obj_property) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t));
+    static_assert(sizeof(pi_mem_obj_property::type) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t::stype));
+    static_assert(sizeof(pi_mem_obj_property::pNext) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t::pNext));
+    static_assert(sizeof(pi_mem_obj_property::mem_access) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t::memoryAccess));
+
+    static_assert(uint32_t(PI_ACCESS_READ_WRITE) ==
+                  uint32_t(UR_MEM_FLAG_READ_WRITE));
+    static_assert(uint32_t(PI_ACCESS_READ_ONLY) ==
+                  uint32_t(UR_MEM_FLAG_READ_ONLY));
+    static_assert(uint32_t(PI_ACCESS_WRITE_ONLY) ==
+                  uint32_t(UR_MEM_FLAG_WRITE_ONLY));
+    static_assert(uint32_t(PI_KERNEL_ARG_MEM_OBJ_ACCESS) ==
+                  uint32_t(UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES));
+
+    const ur_kernel_arg_mem_obj_properties_t *UrMemProperties =
+        reinterpret_cast<const ur_kernel_arg_mem_obj_properties_t *>(
+            ArgProperties);
+    HANDLE_ERRORS(
+        urKernelSetArgMemObj(UrKernel, ArgIndex, UrMemProperties, UrMemory));
+  } else {
+    HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, nullptr, UrMemory));
+  }
+
   return PI_SUCCESS;
 }
 
