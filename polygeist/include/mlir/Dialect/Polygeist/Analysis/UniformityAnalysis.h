@@ -129,6 +129,13 @@ public:
                       ArrayRef<const UniformityLattice *> operands,
                       ArrayRef<UniformityLattice *> results) override;
 
+  /// Visit block arguments or operation results of an operation with region
+  /// control-flow for which values are not defined by region control-flow.
+  void visitNonControlFlowArguments(Operation *op,
+                                    const RegionSuccessor &successor,
+                                    ArrayRef<UniformityLattice *> argLattices,
+                                    unsigned firstIndex) override;
+
 private:
   /// Analyze an operation \p op that has memory side effects and uniform
   /// operands.

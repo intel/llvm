@@ -35,7 +35,6 @@ struct TestUniformityAnalysisPass
 
     DataFlowSolver solver;
     solver.load<DeadCodeAnalysis>();
-    solver.load<SparseConstantPropagation>();
     solver.load<UniformityAnalysis>(aliasAnalysis);
 
     Operation *op = getOperation();
