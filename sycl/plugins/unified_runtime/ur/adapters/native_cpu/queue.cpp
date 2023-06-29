@@ -32,9 +32,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   std::ignore = hContext;
   std::ignore = hDevice;
   std::ignore = pProperties;
-  std::ignore = phQueue;
 
-  DIE_NO_IMPLEMENTATION;
+  auto Queue = new ur_queue_handle_t_();
+  *phQueue = Queue;
+
+  CONTINUE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
@@ -44,8 +46,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  std::ignore = hQueue;
   // TODO: is this fine as no-op?
+  delete hQueue;
   return UR_RESULT_SUCCESS;
 }
 

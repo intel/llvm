@@ -41,7 +41,7 @@ urContextRetain(ur_context_handle_t hContext) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
   // TODO: is it fine as a no-op?
-  std::ignore = hContext;
+  std::unique_ptr<ur_context_handle_t_> Context{hContext};
   return UR_RESULT_SUCCESS;
 }
 
