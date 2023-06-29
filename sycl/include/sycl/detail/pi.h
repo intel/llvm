@@ -92,11 +92,13 @@
 // 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
 // 12.31 Added PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP device
 // info query.
-// 12.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
+// 13.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
 // piextQueueGetNativeHandle
+// 14.33 Added new parameter (memory object properties) to
+// piextKernelSetArgMemObj
 
-#define _PI_H_VERSION_MAJOR 13
-#define _PI_H_VERSION_MINOR 32
+#define _PI_H_VERSION_MAJOR 14
+#define _PI_H_VERSION_MINOR 33
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1709,13 +1711,38 @@ __SYCL_EXPORT pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                           const pi_event *event_wait_list,
                                           pi_event *event);
 
+#ifndef PI_BIT
+#define PI_BIT(_i) (1 << _i)
+#endif // PI_BIT
+
+typedef enum {
+  PI_ACCESS_READ_WRITE = PI_BIT(0),
+  PI_ACCESS_WRITE_ONLY = PI_BIT(1),
+  PI_ACCESS_READ_ONLY = PI_BIT(2)
+} _pi_mem_obj_access;
+using pi_mem_obj_access = _pi_mem_obj_access;
+typedef uint32_t pi_mem_access_flag;
+
+typedef enum {
+  PI_KERNEL_ARG_MEM_OBJ_ACCESS = 27,
+  PI_ENUM_FORCE_UINT32 = 0x7fffffff
+} _pi_mem_obj_property_type;
+using pi_mem_obj_property_type = _pi_mem_obj_property_type;
+
+typedef struct {
+  pi_mem_obj_property_type type;
+  void *pNext;
+  pi_mem_access_flag mem_access;
+} _pi_mem_obj_property;
+using pi_mem_obj_property = _pi_mem_obj_property;
+
 // Extension to allow backends to process a PI memory object before adding it
 // as an argument for a kernel.
 // Note: This is needed by the CUDA backend to extract the device pointer to
 // the memory as the kernels uses it rather than the PI object itself.
-__SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel kernel,
-                                                pi_uint32 arg_index,
-                                                const pi_mem *arg_value);
+__SYCL_EXPORT pi_result piextKernelSetArgMemObj(
+    pi_kernel kernel, pi_uint32 arg_index,
+    const pi_mem_obj_property *arg_properties, const pi_mem *arg_value);
 
 // Extension to allow backends to process a PI sampler object before adding it
 // as an argument for a kernel.

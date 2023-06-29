@@ -36,7 +36,7 @@ set(SYCL_MAJOR_VERSION 7)
 set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
 
-set(SYCL_DEV_ABI_VERSION 3)
+set(SYCL_DEV_ABI_VERSION 5)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()
@@ -303,7 +303,6 @@ add_custom_target(sycl-compiler
           llc
           llvm-ar
           llvm-foreach
-          llvm-no-spir-kernel
           llvm-spirv
           llvm-link
           llvm-objcopy
@@ -391,7 +390,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      llc
      llvm-ar
      llvm-foreach
-     llvm-no-spir-kernel
      llvm-spirv
      llvm-link
      llvm-objcopy

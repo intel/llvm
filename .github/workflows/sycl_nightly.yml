@@ -11,6 +11,7 @@ on:
 
 jobs:
   test_matrix:
+    if: github.repository == 'intel/llvm'
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
@@ -24,7 +25,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default-2204
-      build_configure_extra_args: ''
+      build_configure_extra_args: '--hip --cuda --enable-esimd-emulator'
 
   ubuntu2204_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'

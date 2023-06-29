@@ -13,5 +13,6 @@ add_mlir_dialect_library(MLIRTensorTransformOps
   MLIRSCFDialect
   MLIRTensorDialect
   MLIRTensorTransforms
+  MLIRTensorUtils
   MLIRTransformDialect
 )
