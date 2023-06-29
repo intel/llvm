@@ -625,10 +625,10 @@ a|
 T operatorOP(const T &);
 ----
 |
-Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#|=#, [code]#^=#.
+Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
 
 Compound assignment operators. Return result by value.
-Available if the corresponding non-compound operator is available for `T``.
+Available if the corresponding non-compound operator is available for `T`.
 
 |===
 
