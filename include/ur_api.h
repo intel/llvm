@@ -3291,6 +3291,8 @@ typedef struct ur_physical_mem_properties_t {
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPhysicalMem`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + If size is not a multiple of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
 UR_APIEXPORT ur_result_t UR_APICALL
 urPhysicalMemCreate(
     ur_context_handle_t hContext,                    ///< [in] handle of the context object.
