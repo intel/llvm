@@ -318,11 +318,14 @@ class ur_name_handle_t(c_void_p):
   - `desc` will be used as the enum's description comment
   - `name` must be a unique ISO-C standard identifier, start with `$` tag, be snake_case and end with `_t`
   - `name` that endswith `_flags_t` will be used to create bitfields
-* An enum may take the following optional scalar fields: {`class`, `condition`, `ordinal`, `version`, `typed_etors`}
+* An enum may take the following optional scalar fields: {`class`, `condition`, `ordinal`, `version`, `typed_etors`, `extend`}
   - `class` will be used to scope the enum declaration within the specified C++ class
   - `condition` will be used as a C/C++ preprocessor `#if` conditional expression
   - `ordinal` will be used to override the default order (in which they appear) the enum appears within its section; `default="1000"`
   - `version` will be used to define the minimum API version in which the enum will appear; `default="1.0"` This will also affect the order in which the enum appears within its section and class.
+  - `extend` will be used to extend an existing enum with additional `etors`, 
+  usually used to implement experimental features. `type` *must* refer to an 
+  exiting enum and each `etor` must include a unique `value`.
   - `typed_etors` boolean value that will be used to determine whether the enum's values have associated types.
 * An enum requires the following sequence of mappings: {`etors`}
   - An etor requires the following scalar fields: {`name`, `desc`}

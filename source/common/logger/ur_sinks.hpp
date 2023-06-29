@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef UR_SINKS_HPP
 #define UR_SINKS_HPP 1
@@ -51,6 +53,7 @@ class Sink {
     std::string logger_name;
     bool skip_prefix;
     std::mutex output_mutex;
+    const char *error_prefix = "Log message syntax error: ";
 
     void format(std::ostringstream &buffer, const char *fmt) {
         while (*fmt != '\0') {
@@ -62,15 +65,16 @@ class Sink {
                 if (*(++fmt) == '{') {
                     buffer << *fmt++;
                 } else {
-                    throw std::runtime_error(
-                        "No arguments provided and braces not escaped!");
+                    std::cerr
+                        << error_prefix
+                        << "No arguments provided and braces not escaped!";
                 }
             } else if (*fmt == '}') {
                 if (*(++fmt) == '}') {
                     buffer << *fmt++;
                 } else {
-                    throw std::runtime_error(
-                        "Closing curly brace not escaped!");
+                    std::cerr << error_prefix
+                              << "Closing curly brace not escaped!";
                 }
             }
         }
@@ -90,7 +94,8 @@ class Sink {
                 if (*(++fmt) == '{') {
                     buffer << *fmt++;
                 } else if (*fmt != '}') {
-                    throw std::runtime_error("Only empty braces are allowed!");
+                    std::cerr << error_prefix
+                              << "Only empty braces are allowed!";
                 } else {
                     buffer << arg;
                     arg_printed = true;
@@ -99,8 +104,8 @@ class Sink {
                 if (*(++fmt) == '}') {
                     buffer << *fmt++;
                 } else {
-                    throw std::runtime_error(
-                        "Closing curly brace not escaped!");
+                    std::cerr << error_prefix
+                              << "Closing curly brace not escaped!";
                 }
             }
         }

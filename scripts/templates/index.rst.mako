@@ -14,4 +14,5 @@
    core/INTRO.rst
    core/PROG.rst
    core/CONTRIB.rst
+   exp-features.rst
    api.rst

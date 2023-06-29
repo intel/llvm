@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 #include <vector>
@@ -123,7 +125,8 @@ TEST_P(urEnqueueUSMMemcpyTest, NonBlocking) {
  */
 TEST_P(urEnqueueUSMMemcpyTest, WaitForDependencies) {
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, device_dst, device_src,
-                                      sizeof(int), 1, &memset_event, nullptr));
+                                      allocation_size, 1, &memset_event,
+                                      nullptr));
     ASSERT_TRUE(memsetHasFinished());
     ASSERT_NO_FATAL_FAILURE(verifyData());
 }

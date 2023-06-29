@@ -2,7 +2,9 @@
  *
  * Copyright (C) 2023 Intel Corporation
  *
- * SPDX-License-Identifier: MIT
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
 
@@ -29,65 +31,68 @@ using provider_unique_handle_t =
     std::unique_ptr<uma_memory_provider_t,
                     std::function<void(uma_memory_provider_handle_t)>>;
 
+#define UMA_ASSIGN_OP(ops, type, func, default_return)                         \
+    ops.func = [](void *obj, auto... args) {                                   \
+        try {                                                                  \
+            return reinterpret_cast<type *>(obj)->func(args...);               \
+        } catch (...) {                                                        \
+            return default_return;                                             \
+        }                                                                      \
+    }
+
+#define UMA_ASSIGN_OP_NORETURN(ops, type, func)                                \
+    ops.func = [](void *obj, auto... args) {                                   \
+        try {                                                                  \
+            return reinterpret_cast<type *>(obj)->func(args...);               \
+        } catch (...) {                                                        \
+        }                                                                      \
+    }
+
 /// @brief creates UMA memory provider based on given T type.
 /// T should implement all functions defined by
 /// uma_memory_provider_ops_t, except for finalize (it is
 /// replaced by dtor). All arguments passed to this function are
-/// forwarded to T::initialize(). All functions of T
-/// should be noexcept.
+/// forwarded to T::initialize().
 template <typename T, typename... Args>
 auto memoryProviderMakeUnique(Args &&...args) {
     uma_memory_provider_ops_t ops;
     auto argsTuple = std::make_tuple(std::forward<Args>(args)...);
-    static_assert(
-        noexcept(std::declval<T>().initialize(std::forward<Args>(args)...)));
 
     ops.version = UMA_VERSION_CURRENT;
     ops.initialize = [](void *params, void **obj) {
         auto *tuple = reinterpret_cast<decltype(argsTuple) *>(params);
-        auto provider = new T;
-        *obj = provider;
-        auto ret = std::apply(
-            &T::initialize, std::tuple_cat(std::make_tuple(provider), *tuple));
-        if (ret != UMA_RESULT_SUCCESS) {
-            delete provider;
+        T *provider;
+        try {
+            provider = new T;
+        } catch (...) {
+            return UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY;
         }
-        return ret;
+
+        *obj = provider;
+
+        try {
+            auto ret =
+                std::apply(&T::initialize,
+                           std::tuple_cat(std::make_tuple(provider), *tuple));
+            if (ret != UMA_RESULT_SUCCESS) {
+                delete provider;
+            }
+            return ret;
+        } catch (...) {
+            delete provider;
+            return UMA_RESULT_ERROR_UNKNOWN;
+        }
     };
     ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
-    ops.alloc = [](void *obj, auto... args) {
-        static_assert(noexcept(reinterpret_cast<T *>(obj)->alloc(args...)));
-        return reinterpret_cast<T *>(obj)->alloc(args...);
-    };
-    ops.free = [](void *obj, auto... args) {
-        static_assert(noexcept(reinterpret_cast<T *>(obj)->free(args...)));
-        return reinterpret_cast<T *>(obj)->free(args...);
-    };
-    ops.get_last_result = [](void *obj, auto... args) {
-        static_assert(
-            noexcept(reinterpret_cast<T *>(obj)->get_last_result(args...)));
-        return reinterpret_cast<T *>(obj)->get_last_result(args...);
-    };
-    ops.get_recommended_page_size = [](void *obj, auto... args) {
-        static_assert(noexcept(
-            reinterpret_cast<T *>(obj)->get_recommended_page_size(args...)));
-        return reinterpret_cast<T *>(obj)->get_recommended_page_size(args...);
-    };
-    ops.get_min_page_size = [](void *obj, auto... args) {
-        static_assert(
-            noexcept(reinterpret_cast<T *>(obj)->get_min_page_size(args...)));
-        return reinterpret_cast<T *>(obj)->get_min_page_size(args...);
-    };
-    ops.purge_lazy = [](void *obj, auto... args) {
-        static_assert(
-            noexcept(reinterpret_cast<T *>(obj)->purge_lazy(args...)));
-        return reinterpret_cast<T *>(obj)->purge_lazy(args...);
-    };
-    ops.purge_force = [](void *obj, auto... args) {
-        static_assert(
-            noexcept(reinterpret_cast<T *>(obj)->purge_force(args...)));
-        return reinterpret_cast<T *>(obj)->purge_force(args...);
-    };
+
+    UMA_ASSIGN_OP(ops, T, alloc, UMA_RESULT_ERROR_UNKNOWN);
+    UMA_ASSIGN_OP(ops, T, free, UMA_RESULT_ERROR_UNKNOWN);
+    UMA_ASSIGN_OP(ops, T, get_last_result, UMA_RESULT_ERROR_UNKNOWN);
+    UMA_ASSIGN_OP(ops, T, get_recommended_page_size, UMA_RESULT_ERROR_UNKNOWN);
+    UMA_ASSIGN_OP(ops, T, get_min_page_size, UMA_RESULT_ERROR_UNKNOWN);
+    UMA_ASSIGN_OP(ops, T, purge_lazy, UMA_RESULT_ERROR_UNKNOWN);
+    UMA_ASSIGN_OP(ops, T, purge_force, UMA_RESULT_ERROR_UNKNOWN);
+    UMA_ASSIGN_OP_NORETURN(ops, T, get_name);
 
     uma_memory_provider_handle_t hProvider = nullptr;
     auto ret = umaMemoryProviderCreate(&ops, &argsTuple, &hProvider);
@@ -99,63 +104,50 @@ auto memoryProviderMakeUnique(Args &&...args) {
 /// T should implement all functions defined by
 /// uma_memory_provider_ops_t, except for finalize (it is
 /// replaced by dtor). All arguments passed to this function are
-/// forwarded to T::initialize(). All functions of T
-/// should be noexcept.
+/// forwarded to T::initialize().
 template <typename T, typename... Args>
 auto poolMakeUnique(uma_memory_provider_handle_t *providers,
                     size_t numProviders, Args &&...args) {
     uma_memory_pool_ops_t ops;
     auto argsTuple = std::make_tuple(std::forward<Args>(args)...);
-    static_assert(noexcept(std::declval<T>().initialize(
-        providers, numProviders, std::forward<Args>(args)...)));
 
     ops.version = UMA_VERSION_CURRENT;
     ops.initialize = [](uma_memory_provider_handle_t *providers,
                         size_t numProviders, void *params, void **obj) {
         auto *tuple = reinterpret_cast<decltype(argsTuple) *>(params);
-        auto pool = new T;
-        *obj = pool;
-        auto ret = std::apply(
-            &T::initialize,
-            std::tuple_cat(std::make_tuple(pool, providers, numProviders),
-                           *tuple));
-        if (ret != UMA_RESULT_SUCCESS) {
-            delete pool;
+        T *pool;
+
+        try {
+            pool = new T;
+        } catch (...) {
+            return UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY;
         }
-        return ret;
+
+        *obj = pool;
+
+        try {
+            auto ret = std::apply(
+                &T::initialize,
+                std::tuple_cat(std::make_tuple(pool, providers, numProviders),
+                               *tuple));
+            if (ret != UMA_RESULT_SUCCESS) {
+                delete pool;
+            }
+            return ret;
+        } catch (...) {
+            delete pool;
+            return UMA_RESULT_ERROR_UNKNOWN;
+        }
     };
     ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
-    ops.malloc = [](void *obj, auto... args) {
-        static_assert(noexcept(reinterpret_cast<T *>(obj)->malloc(args...)));
-        return reinterpret_cast<T *>(obj)->malloc(args...);
-    };
-    ops.calloc = [](void *obj, auto... args) {
-        static_assert(noexcept(reinterpret_cast<T *>(obj)->calloc(args...)));
-        return reinterpret_cast<T *>(obj)->calloc(args...);
-    };
-    ops.aligned_malloc = [](void *obj, auto... args) {
-        static_assert(
-            noexcept(reinterpret_cast<T *>(obj)->aligned_malloc(args...)));
-        return reinterpret_cast<T *>(obj)->aligned_malloc(args...);
-    };
-    ops.realloc = [](void *obj, auto... args) {
-        static_assert(noexcept(reinterpret_cast<T *>(obj)->realloc(args...)));
-        return reinterpret_cast<T *>(obj)->realloc(args...);
-    };
-    ops.malloc_usable_size = [](void *obj, auto... args) {
-        static_assert(
-            noexcept(reinterpret_cast<T *>(obj)->malloc_usable_size(args...)));
-        return reinterpret_cast<T *>(obj)->malloc_usable_size(args...);
-    };
-    ops.free = [](void *obj, auto... args) {
-        static_assert(noexcept(reinterpret_cast<T *>(obj)->free(args...)));
-        reinterpret_cast<T *>(obj)->free(args...);
-    };
-    ops.get_last_result = [](void *obj, auto... args) {
-        static_assert(
-            noexcept(reinterpret_cast<T *>(obj)->get_last_result(args...)));
-        return reinterpret_cast<T *>(obj)->get_last_result(args...);
-    };
+
+    UMA_ASSIGN_OP(ops, T, malloc, ((void *)nullptr));
+    UMA_ASSIGN_OP(ops, T, calloc, ((void *)nullptr));
+    UMA_ASSIGN_OP(ops, T, aligned_malloc, ((void *)nullptr));
+    UMA_ASSIGN_OP(ops, T, realloc, ((void *)nullptr));
+    UMA_ASSIGN_OP(ops, T, malloc_usable_size, ((size_t)0));
+    UMA_ASSIGN_OP_NORETURN(ops, T, free);
+    UMA_ASSIGN_OP(ops, T, get_last_result, UMA_RESULT_ERROR_UNKNOWN);
 
     uma_memory_pool_handle_t hPool = nullptr;
     auto ret = umaPoolCreate(&ops, providers, numProviders, &argsTuple, &hPool);

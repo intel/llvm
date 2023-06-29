@@ -1,7 +1,9 @@
 #
 # Copyright (C) 2022 Intel Corporation
 #
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition
 #
@@ -34,6 +36,13 @@ returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_NAME:
         - "If `pKernelName` wasn't found in `hProgram`."
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xKernelSetArgValue."
+class: $xKernel
+name: $x_kernel_arg_value_properties_t
+base: $x_base_properties_t
+members: []
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Set kernel argument to a value."
 class: $xKernel
@@ -51,12 +60,22 @@ params:
     - type: "size_t"
       name: argSize
       desc: "[in] size of argument type"
+    - type: "const $x_kernel_arg_value_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to value properties."
     - type: "const void*"
       name: pArgValue
       desc: "[in] argument value represented as matching arg type."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xKernelSetArgLocal."
+class: $xKernel
+name: $x_kernel_arg_local_properties_t
+base: $x_base_properties_t
+members: []
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set kernel argument to a local buffer."
@@ -75,6 +94,9 @@ params:
     - type: "size_t"
       name: argSize
       desc: "[in] size of the local buffer to be allocated by the runtime"
+    - type: "const $x_kernel_arg_local_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to local buffer properties."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
@@ -190,6 +212,18 @@ params:
       name: "pPropSizeRet"
       desc: |
             [out][optional] pointer to the actual size in bytes of data being queried by propName.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_KERNEL
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query work Group information about a Kernel object"
@@ -278,6 +312,13 @@ params:
       name: hKernel
       desc: "[in] handle for the Kernel to release"
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xKernelSetArgPointer."
+class: $xKernel
+name: $x_kernel_arg_pointer_properties_t
+base: $x_base_properties_t
+members: []
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Set a USM pointer as the argument value of a Kernel."
 class: $xKernel
@@ -294,12 +335,22 @@ params:
     - type: "uint32_t"
       name: argIndex
       desc: "[in] argument index in range [0, num args - 1]"
+    - type: "const $x_kernel_arg_pointer_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to USM pointer properties."
     - type: "const void*"
       name: pArgValue
-      desc: "[in][optional] SVM pointer to memory location holding the argument value. If null then argument value is considered null."
+      desc: "[in][optional] USM pointer to memory location holding the argument value. If null then argument value is considered null."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xKernelSetExecInfo."
+class: $xKernel
+name: $x_kernel_exec_info_properties_t
+base: $x_base_properties_t
+members: []
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set additional Kernel execution attributes."
@@ -320,9 +371,19 @@ params:
     - type: "size_t"
       name: propSize
       desc: "[in] size in byte the attribute value"
+    - type: "const $x_kernel_exec_info_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to execution info properties."
     - type: "const void*"
       name: pPropValue
       desc: "[in][typename(propName, propSize)] pointer to memory location holding the property value."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xKernelSetArgSampler."
+class: $xKernel
+name: $x_kernel_arg_sampler_properties_t
+base: $x_base_properties_t
+members: []
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set a Sampler object as the argument value of a Kernel."
@@ -338,11 +399,24 @@ params:
     - type: "uint32_t"
       name: argIndex
       desc: "[in] argument index in range [0, num args - 1]"
+    - type: "const $x_kernel_arg_sampler_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to sampler properties."
     - type: "$x_sampler_handle_t"
       name: hArgValue
       desc: "[in] handle of Sampler object."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xKernelSetArgMemObj."
+class: $xKernel
+name: $x_kernel_arg_mem_obj_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_mem_flags_t
+      name: memoryAccess
+      desc: "[in] Memory access flag. Allowed values are: $X_MEM_FLAG_READ_WRITE, $X_MEM_FLAG_WRITE_ONLY, $X_MEM_FLAG_READ_ONLY."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set a Memory object as the argument value of a Kernel."
@@ -358,9 +432,12 @@ params:
     - type: "uint32_t"
       name: argIndex
       desc: "[in] argument index in range [0, num args - 1]"
+    - type: "const $x_kernel_arg_mem_obj_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to Memory object properties."
     - type: "$x_mem_handle_t"
       name: hArgValue
-      desc: "[in] handle of Memory object."
+      desc: "[in][optional] handle of Memory object."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 --- #--------------------------------------------------------------------------

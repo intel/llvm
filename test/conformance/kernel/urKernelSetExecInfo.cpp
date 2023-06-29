@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 
@@ -10,7 +12,7 @@ TEST_P(urKernelSetExecInfoTest, SuccessIndirectAccess) {
     bool property_value = false;
     ASSERT_SUCCESS(
         urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
-                            sizeof(property_value), &property_value));
+                            sizeof(property_value), nullptr, &property_value));
 }
 
 TEST_P(urKernelSetExecInfoTest, InvalidNullHandleKernel) {
@@ -18,28 +20,28 @@ TEST_P(urKernelSetExecInfoTest, InvalidNullHandleKernel) {
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_HANDLE,
         urKernelSetExecInfo(nullptr, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
-                            sizeof(property_value), &property_value));
+                            sizeof(property_value), nullptr, &property_value));
 }
 
 TEST_P(urKernelSetExecInfoTest, InvalidEnumeration) {
     bool property_value = false;
     ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urKernelSetExecInfo(nullptr, UR_KERNEL_EXEC_INFO_FORCE_UINT32,
-                            sizeof(property_value), &property_value));
+        UR_RESULT_ERROR_INVALID_ENUMERATION,
+        urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_FORCE_UINT32,
+                            sizeof(property_value), nullptr, &property_value));
 }
 
 TEST_P(urKernelSetExecInfoTest, InvalidNullPointerPropValue) {
     bool property_value = false;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_POINTER,
-        urKernelSetExecInfo(nullptr, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
-                            sizeof(property_value), nullptr));
+        urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
+                            sizeof(property_value), nullptr, nullptr));
 }
 
 struct urKernelSetExecInfoUSMPointersTest : uur::urKernelTest {
     void SetUp() {
-        kernel_name = "fill";
+        program_name = "fill";
         UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
     }
 
@@ -56,7 +58,7 @@ struct urKernelSetExecInfoUSMPointersTest : uur::urKernelTest {
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetExecInfoUSMPointersTest);
 
 TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessHost) {
-    bool host_supported = false;
+    ur_device_usm_access_capability_flags_t host_supported = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, host_supported));
     if (!host_supported) {
         GTEST_SKIP() << "Host USM is not supported.";
@@ -68,11 +70,11 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessHost) {
     void *pointers[] = {allocation};
 
     ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_PTRS,
-                                       sizeof(pointers), pointers));
+                                       sizeof(pointers), nullptr, pointers));
 }
 
 TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessDevice) {
-    bool device_supported = false;
+    ur_device_usm_access_capability_flags_t device_supported = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_supported));
     if (!device_supported) {
         GTEST_SKIP() << "Device USM is not supported.";
@@ -84,11 +86,11 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessDevice) {
     void *pointers[] = {allocation};
 
     ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_PTRS,
-                                       sizeof(pointers), pointers));
+                                       sizeof(pointers), nullptr, pointers));
 }
 
 TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessShared) {
-    bool shared_supported = false;
+    ur_device_usm_access_capability_flags_t shared_supported = 0;
     ASSERT_SUCCESS(
         uur::GetDeviceUSMSingleSharedSupport(device, shared_supported));
     if (!shared_supported) {
@@ -101,7 +103,7 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessShared) {
     void *pointers[] = {allocation};
 
     ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_PTRS,
-                                       sizeof(pointers), pointers));
+                                       sizeof(pointers), nullptr, pointers));
 }
 
 using urKernelSetExecInfoCacheConfigTest =
@@ -116,6 +118,6 @@ UUR_TEST_SUITE_P(urKernelSetExecInfoCacheConfigTest,
 TEST_P(urKernelSetExecInfoCacheConfigTest, Success) {
     auto property_value = getParam();
     ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_CACHE_CONFIG,
-                                       sizeof(property_value),
+                                       sizeof(property_value), nullptr,
                                        &property_value));
 }

@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <fstream>
 #include <sstream>
@@ -7,16 +9,6 @@
 
 #include "fixtures.hpp"
 #include "logger/ur_logger_details.hpp"
-
-//////////////////////////////////////////////////////////////////////////////
-TEST(LoggerFailure, NullSinkOneParam) {
-    ASSERT_THROW(logger::Logger(nullptr), std::invalid_argument);
-}
-
-TEST(LoggerFailure, NullSinkTwoParams) {
-    ASSERT_THROW(logger::Logger(logger::Level::ERR, nullptr),
-                 std::invalid_argument);
-}
 
 //////////////////////////////////////////////////////////////////////////////
 TEST_F(DefaultLoggerWithFileSink, DefaultLevelNoOutput) {
@@ -119,6 +111,12 @@ TEST_F(UniquePtrLoggerWithFilesink, NestedFilePath) {
 
     logger->warning("Test message: {}", "success");
     test_msg << test_msg_prefix << "[WARNING]: Test message: success\n";
+}
+
+TEST_F(UniquePtrLoggerWithFilesinkFail, NullSink) {
+    logger = std::make_unique<logger::Logger>(logger::Level::INFO, nullptr);
+    logger->info("This should not be printed: {}", 42);
+    test_msg.clear();
 }
 
 //////////////////////////////////////////////////////////////////////////////

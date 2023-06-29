@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 # Copyright (C) 2023 Intel Corporation
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import argparse
-import subprocess
+import subprocess  # nosec B404
 import os
 import sys
 
@@ -131,8 +133,14 @@ if force_load:
 if args.debug:
     print(env)
 
-result = subprocess.run(config['command'], env=env)
-if args.debug:
-    print(result)
+if config['command']:
+    # The core functionality is to pass the user's command,
+    # and it is the user's responsibility to pass secure parameters.
+    result = subprocess.run(config['command'], env=env)  # nosec B603
+    if args.debug:
+        print(result)
+    exit(result.returncode)
+else:
+    parser.print_help()
+    sys.exit("\n Error: Missing command to run.")
 
-exit(result.returncode)

@@ -11,7 +11,9 @@ from templates import helper as th
  *
  * Copyright (C) 2022-2023 Intel Corporation
  *
- * SPDX-License-Identifier: MIT
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ${name}.hpp
  *
@@ -20,6 +22,7 @@ from templates import helper as th
 #define UR_LOADER_LDRDDI_H 1
 
 #include "${x}_object.hpp"
+#include "${x}_singleton.hpp"
 
 namespace ur_loader
 {

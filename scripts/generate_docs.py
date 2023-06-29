@@ -1,7 +1,9 @@
 """
  Copyright (C) 2022 Intel Corporation
 
- SPDX-License-Identifier: MIT
+ Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ See LICENSE.TXT
+ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
 import os
@@ -73,6 +75,7 @@ def _make_ref(symbol, symbol_type, meta):
             ref = ":ref:`" + ref + " <" + target.replace("_", "-") + ">`"
         else:
             print("%s(%s) : error : enum symbol not found for etor %s"%(fin, iline+1, symbol))
+            raise Exception()
     elif not re.match("function", symbol_type):
         ref = ":ref:`" + ref.replace("_", "-") + "`"
     else:
@@ -89,6 +92,8 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
     code_block = False
 
     print("Generating %s..."%fout)
+
+    error = False
 
     outlines = []
     for iline, line in enumerate(util.textRead(fin)):
@@ -114,6 +119,7 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
 
         if re.match(RE_INVALID_TAG_FORMAT, line):
             print("%s(%s) : error : invalid %s tag used"%(fin, iline+1, re.sub(RE_INVALID_TAG_FORMAT, r"\1", line)))
+            error = True
 
         newline = line # new line will contain proper tags for reStructuredText if needed.
         if re.match(RE_PROPER_TAG_FORMAT, line):
@@ -126,6 +132,7 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
                     symbol_type = _find_symbol_type(symbol, meta)
                     if not symbol_type:
                         print("%s(%s) : error : symbol '%s' not found"%(fin, iline+1, symbol))
+                        error = True
                         continue
 
                     if code_block and 'function' == symbol_type:
@@ -134,6 +141,7 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
                         if len(words) != len(meta['function'][symbol]['params']):
                             print("%s(%s) : error : %s parameter count mismatch - %s actual vs. %s expected"%(fin, iline+1, symbol, len(words), len(meta['function'][symbol]['params'])))
                             print("line = %s"%line)
+                            error = True
 
                     ref = _make_ref(symbol, symbol_type, meta)
                     if ref:
@@ -154,6 +162,9 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
             newline += line
 
         outlines.append(newline)
+
+    if error:
+        raise Exception('Error during reStructuredText generation.')
 
     util.writelines(os.path.abspath(fout), outlines)
 
@@ -192,18 +203,6 @@ def generate_rst(docpath, section, namespace, tags, ver, rev, specs, meta):
             meta=meta,
             specs=specs)
 
-
-"""
-Entry-point:
-    generate reference JSON file
-"""
-def generate_ref(dstpath, ref):
-    refpath = os.path.join(dstpath, "ref")
-    util.removePath(refpath)
-    util.makePath(refpath)
-
-    util.jsonWrite(os.path.join(refpath, "level_zero.json"), ref)
-
 """
 Entry-point:
     generate doxygen xml and setup source path.
@@ -220,7 +219,7 @@ def generate_common(dstpath, sections, ver, rev):
 
     # Generate sphinx configuration file with version.
     loc = 0
-    for fn in ["conf.py", "index.rst", "api.rst"]:
+    for fn in ["conf.py", "index.rst", "api.rst", "exp-features.rst"]:
         loc += util.makoWrite(
             "./templates/%s.mako" % fn,
             os.path.join(sourcepath, fn),
@@ -246,9 +245,12 @@ def generate_html(dstpath):
     sourcepath = os.path.join(dstpath, "source")
 
     print("Generating HTML...")
-    cmdline = "sphinx-build -M html %s ../docs"%sourcepath
-    print(cmdline)
-    os.system(cmdline)
+    result = subprocess.run(["sphinx-build", "-M", "html", sourcepath, "../docs" ], stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        print("sphinx-build returned non-zero error code.")
+        print("--- output ---")
+        print(result.stderr.read().decode())
+        raise Exception("Failed to generate html documentation.")
 
 """
 Entry-point:
@@ -258,9 +260,12 @@ def generate_pdf(dstpath):
     sourcepath = os.path.join(dstpath, "source")
 
     print("Generating PDF...")
-    cmdline = "sphinx-build -b pdf %s ../docs/latex"%sourcepath
-    print(cmdline)
-    os.system(cmdline)
+    result = subprocess.run(["sphinx-build", "-b", "pdf", sourcepath, "../docs/latex"], stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        print("sphinx-build returned non-zero error code.")
+        print("--- output ---")
+        print(result.stderr.read().decode())
+        raise Exception("Failed to generate pdf documentation.")
 
 """
 Entry-point:

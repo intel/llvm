@@ -41,6 +41,7 @@ needs_sphinx = '1.8'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.autosectionlabel',
     'sphinx.ext.doctest',
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
@@ -51,6 +52,10 @@ extensions = [
     'rst2pdf.pdfbuilder',
     'breathe'
 ]
+
+# Configure sphinx.ext.autosectionlabel to require the document prefix when
+# cross-referencing document sections.
+autosectionlabel_prefix_document = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

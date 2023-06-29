@@ -1,5 +1,7 @@
 // Copyright (C) 2022-2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef UR_CONFORMANCE_INCLUDE_ENVIRONMENT_H_INCLUDED
 #define UR_CONFORMANCE_INCLUDE_ENVIRONMENT_H_INCLUDED
@@ -52,7 +54,8 @@ struct KernelsEnvironment : DevicesEnvironment {
         std::string kernel_directory;
     };
 
-    KernelsEnvironment(int argc, char **argv, std::string kernels_default_dir);
+    KernelsEnvironment(int argc, char **argv,
+                       const std::string &kernels_default_dir);
     virtual ~KernelsEnvironment() override = default;
 
     virtual void SetUp() override;
@@ -61,11 +64,13 @@ struct KernelsEnvironment : DevicesEnvironment {
     void LoadSource(const std::string &kernel_name, uint32_t device_index,
                     std::shared_ptr<std::vector<char>> &binary_out);
 
+    std::vector<std::string> GetEntryPointNames(std::string program);
+
     static KernelsEnvironment *instance;
 
   private:
     KernelOptions parseKernelOptions(int argc, char **argv,
-                                     std::string kernels_default_dir);
+                                     const std::string &kernels_default_dir);
     std::string getKernelSourcePath(const std::string &kernel_name,
                                     uint32_t device_index);
     std::string getSupportedILPostfix(uint32_t device_index);

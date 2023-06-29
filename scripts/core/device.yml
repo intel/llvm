@@ -1,7 +1,9 @@
 #
 # Copyright (C) 2022 Intel Corporation
 #
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition
 #
@@ -300,8 +302,8 @@ etors:
       desc: "[$x_bool_t] prefer user synchronization when sharing object with other API"
     - name: PARENT_DEVICE
       desc: "[$x_device_handle_t] return parent device handle"
-    - name: PARTITION_PROPERTIES
-      desc: "[$x_device_partition_property_t[]] Returns an array of partition types supported by the device"
+    - name: SUPPORTED_PARTITIONS
+      desc: "[$x_device_partition_t[]] Returns an array of partition types supported by the device"
     - name: PARTITION_MAX_SUB_DEVICES
       desc: "[uint32_t] maximum number of sub-devices when the device is partitioned"
     - name: PARTITION_AFFINITY_DOMAIN
@@ -368,9 +370,7 @@ etors:
     - name: KERNEL_SET_SPECIALIZATION_CONSTANTS
       desc: "[$x_bool_t] support the $xKernelSetSpecializationConstants entry point"
     - name: MEMORY_BUS_WIDTH
-      desc: |
-            [$x_bool_t] Return 1 if the device doesn't have a notion of a "queue index". Otherwise,
-            return the number of queue indices that are available for this device.
+      desc: "[uint32_t] return the width in bits of the memory bus interface of the device."
     - name: MAX_WORK_GROUPS_3D
       desc: "[size_t[3]] return max 3D work groups"
     - name: ASYNC_BARRIER
@@ -378,9 +378,11 @@ etors:
     - name: MEM_CHANNEL_SUPPORT
       desc: "[$x_bool_t] return true if specifying memory channels is supported"
     - name: HOST_PIPE_READ_WRITE_SUPPORTED
-      desc: "[$x_bool_t] Return true if the device supports enqueing commands to read and write pipes from the host."
+      desc: "[$x_bool_t] Return true if the device supports enqueueing commands to read and write pipes from the host."
     - name: MAX_REGISTERS_PER_WORK_GROUP
       desc: "[uint32_t] The maximum number of registers available per block."
+    - name: IP_VERSION
+      desc: "[uint32_t] The device IP version. The meaning of the device IP version is implementation-defined, but newer devices should have a higher version than older devices."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
@@ -409,15 +411,23 @@ params:
       desc: |
             [out][optional][typename(propName, propSize)] array of bytes holding the info.
             If propSize is not equal to or greater than the real number of bytes needed to return the info
-            then the $X_RESULT_ERROR_INVALID_VALUE error is returned and pPropValue is not used.
+            then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
       name: pPropSizeRet
       desc: |
             [out][optional] pointer to the actual size in bytes of the queried propName.
 returns:
-    - $X_RESULT_ERROR_INVALID_ENUMERATION:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
         - "If `propName` is not supported by the adapter."
-    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Makes a reference of the device handle indicating it's in use until paired $xDeviceRelease is called"
@@ -458,10 +468,34 @@ params:
       desc: |
             [in] handle of the device to release.
 --- #--------------------------------------------------------------------------
-type: typedef
-desc: "Device partition property type"
-name: $x_device_partition_property_t
-value: intptr_t
+type: enum
+desc: "Device affinity domain"
+class: $xDevice
+name: $x_device_affinity_domain_flags_t
+etors:
+    - name: NUMA
+      desc: "Split the device into sub devices comprised of compute units that share a NUMA node."
+      value: "$X_BIT(0)"
+    - name: L4_CACHE
+      desc: "Split the device into sub devices comprised of compute units that share a level 4 data cache."
+      value: "$X_BIT(1)"
+    - name: L3_CACHE
+      desc: "Split the device into sub devices comprised of compute units that share a level 3 data cache."
+      value: "$X_BIT(2)"
+    - name: L2_CACHE
+      desc: "Split the device into sub devices comprised of compute units that share a level 2 data cache."
+      value: "$X_BIT(3)"
+    - name: L1_CACHE
+      desc: "Split the device into sub devices comprised of compute units that share a level 1 data cache."
+      value: "$X_BIT(4)"
+    - name: NEXT_PARTITIONABLE
+      desc: |
+            Split the device along the next partitionable affinity domain. 
+            The implementation shall find the first level along which the device
+            or sub device may be further subdivided in the order: 
+            $X_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE, 
+            and partition the device into sub devices comprised of compute units that share memory subsystems at this level.
+      value: "$X_BIT(5)"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Partition Properties"
@@ -473,15 +507,52 @@ etors:
     - name: BY_COUNTS
       desc: "Partition by counts"
       value: "0x1087"
-    - name: BY_COUNTS_LIST_END
-      desc: "End of by counts list"
-      value: "0x0"
     - name: BY_AFFINITY_DOMAIN
       desc: "Partition by affinity domain"
       value: "0x1088"
     - name: BY_CSLICE
       desc: "Partition by c-slice"
       value: "0x1089"
+--- #--------------------------------------------------------------------------
+type: union
+desc: "Device partition value."
+name: $x_device_partition_value_t
+class: $xDevice
+members:
+    - type: uint32_t
+      name: equally
+      desc: "[in] Number of compute units per sub-device when partitioning with $X_DEVICE_PARTITION_EQUALLY."
+    - type: uint32_t
+      name: count
+      desc: "[in] Number of compute units in a sub-device when partitioning with $X_DEVICE_PARTITION_BY_COUNTS."
+    - type: $x_device_affinity_domain_flags_t
+      name: affinity_domain
+      desc: "[in] The affinity domain to partition for when partitioning with $UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Device partition property"
+name: $x_device_partition_property_t
+class: $xDevice
+members:
+    - type: $x_device_partition_t
+      name: type
+      desc: "[in] The partitioning type to be used."
+    - type: $x_device_partition_value_t
+      name: value
+      desc: "[in] The paritioning value."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Device Partition Properties"
+name: $x_device_partition_properties_t
+class: $xDevice
+base: $x_base_properties_t
+members:
+    - type: const $x_device_partition_property_t*
+      name: pProperties
+      desc: "[in] Pointer to the beginning of the properties array."
+    - type: size_t
+      name: PropCount
+      desc: "[in] The length of properties pointed to by `pProperties`."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Partition the device into sub-devices"
@@ -501,10 +572,10 @@ params:
       name: hDevice
       desc: |
             [in] handle of the device to partition.
-    - type: const $x_device_partition_property_t*
+    - type: "const $x_device_partition_properties_t*"
       name: pProperties
       desc: |
-            [in] null-terminated array of <$_device_partition_t enum, value> pairs.
+            [in] Device partition properties.
     - type: "uint32_t"
       name: NumDevices
       desc: |
@@ -622,35 +693,6 @@ etors:
     - name: NATIVE_KERNEL
       desc: "Support native kernel execution"
       value: "$X_BIT(1)"
---- #--------------------------------------------------------------------------
-type: enum
-desc: "Device affinity domain"
-class: $xDevice
-name: $x_device_affinity_domain_flags_t
-etors:
-    - name: NUMA
-      desc: "Split the device into sub devices comprised of compute units that share a NUMA node."
-      value: "$X_BIT(0)"
-    - name: L4_CACHE
-      desc: "Split the device into sub devices comprised of compute units that share a level 4 data cache."
-      value: "$X_BIT(1)"
-    - name: L3_CACHE
-      desc: "Split the device into sub devices comprised of compute units that share a level 3 data cache."
-      value: "$X_BIT(2)"
-    - name: L2_CACHE
-      desc: "Split the device into sub devices comprised of compute units that share a level 2 data cache."
-      value: "$X_BIT(3)"
-    - name: L1_CACHE
-      desc: "Split the device into sub devices comprised of compute units that share a level 1 data cache."
-      value: "$X_BIT(4)"
-    - name: NEXT_PARTITIONABLE
-      desc: |
-            Split the device along the next partitionable affinity domain. 
-            The implementation shall find the first level along which the device
-            or sub device may be further subdivided in the order: 
-            $X_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE, 
-            and partition the device into sub devices comprised of compute units that share memory subsystems at this level.
-      value: "$X_BIT(5)"
 --- #--------------------------------------------------------------------------
 type: class
 desc: "C++ wrapper for a device"

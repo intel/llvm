@@ -1,7 +1,9 @@
 """
  Copyright (C) 2022 Intel Corporation
 
- SPDX-License-Identifier: MIT
+ Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ See LICENSE.TXT
+ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
 import os
@@ -166,7 +168,7 @@ def makoWrite(inpath, outpath, **args):
         line = "%s: %s" % (str(traceback.error.__class__.__name__), traceback.error)
         makoErrorList.append(line)
         print(line)
-        return 0
+        raise
 
 def makoFileListWrite(outpath):
     jsonWrite(outpath, makoFileList)
@@ -188,6 +190,6 @@ def writelines(fout, lines):
 
 def to_snake_case(str):
     f = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', str)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', f).upper()
+    return re.sub('([a-z])([A-Z0-9])', r'\1_\2', f)
 
 # END OF FILE

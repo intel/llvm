@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "helpers.h"
 #include <uur/fixtures.h>
@@ -36,13 +38,13 @@ struct urEnqueueUSMMemcpy2DTestWithParam
     }
 
     void TearDown() override {
-        uur::urQueueTestWithParam<uur::TestParameters2D>::TearDown();
         if (pSrc) {
             ASSERT_SUCCESS(urUSMFree(context, pSrc));
         }
         if (pDst) {
             ASSERT_SUCCESS(urUSMFree(context, pDst));
         }
+        uur::urQueueTestWithParam<uur::TestParameters2D>::TearDown();
     }
 
     void verifyMemcpySucceeded() {

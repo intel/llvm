@@ -2,7 +2,9 @@
  *
  * Copyright (C) 2019-2022 Intel Corporation
  *
- * SPDX-License-Identifier: MIT
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_nullddi.cpp
  *
@@ -98,7 +100,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
     ///< returned and pPlatformInfo is not used.
     size_t *
-        pSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -106,7 +108,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     auto pfnGetInfo = d_context.urDdiTable.Platform.pfnGetInfo;
     if (nullptr != pfnGetInfo) {
         result =
-            pfnGetInfo(hPlatform, propName, propSize, pPropValue, pSizeRet);
+            pfnGetInfo(hPlatform, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
     }
@@ -217,19 +219,22 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urGetLastResult
-__urdlllocal ur_result_t UR_APICALL urGetLastResult(
+/// @brief Intercept function for urPlatformGetLastError
+__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
     const char **
-        ppMessage ///< [out] pointer to a string containing adapter specific result in string
-                  ///< representation.
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetLastResult = d_context.urDdiTable.Global.pfnGetLastResult;
-    if (nullptr != pfnGetLastResult) {
-        result = pfnGetLastResult(hPlatform, ppMessage);
+    auto pfnGetLastError = d_context.urDdiTable.Platform.pfnGetLastError;
+    if (nullptr != pfnGetLastError) {
+        result = pfnGetLastError(hPlatform, ppMessage, pError);
     } else {
         // generic implementation
     }
@@ -287,7 +292,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
                     ///< the info.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return the info
-    ///< then the ::UR_RESULT_ERROR_INVALID_VALUE error is returned and
+    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
@@ -353,8 +358,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
 /// @brief Intercept function for urDevicePartition
 __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     ur_device_handle_t hDevice, ///< [in] handle of the device to partition.
-    const ur_device_partition_property_t *
-        pProperties, ///< [in] null-terminated array of <$_device_partition_t enum, value> pairs.
+    const ur_device_partition_properties_t
+        *pProperties,    ///< [in] Device partition properties.
     uint32_t NumDevices, ///< [in] the number of sub-devices.
     ur_device_handle_t *
         phSubDevices, ///< [out][optional][range(0, NumDevices)] array of handle of devices.
@@ -1019,9 +1024,10 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     size_t
         propSize, ///< [in] size in bytes of the sampler property value provided
     void *
-        pPropValue, ///< [out][typename(propName, propSize)] value of the sampler property
+        pPropValue, ///< [out][typename(propName, propSize)][optional] value of the sampler
+                    ///< property
     size_t *
-        pPropSizeRet ///< [out] size in bytes returned in sampler property value
+        pPropSizeRet ///< [out][optional] size in bytes returned in sampler property value
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -1299,9 +1305,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
     size_t propSize, ///< [in] size in bytes of the pool property value provided
     void *
-        pPropValue, ///< [out][typename(propName, propSize)] value of the pool property
-    size_t
-        *pPropSizeRet ///< [out] size in bytes returned in pool property value
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the pool
+                    ///< property
+    size_t *
+        pPropSizeRet ///< [out][optional] size in bytes returned in pool property value
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -1310,6 +1317,277 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     if (nullptr != pfnPoolGetInfo) {
         result =
             pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemGranularityGetInfo
+__urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    ur_device_handle_t
+        hDevice, ///< [in][optional] is the device to get the granularity from, if the
+    ///< device is null then the granularity is suitable for all devices in context.
+    ur_virtual_mem_granularity_info_t
+        propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnGranularityGetInfo =
+        d_context.urDdiTable.VirtualMem.pfnGranularityGetInfo;
+    if (nullptr != pfnGranularityGetInfo) {
+        result = pfnGranularityGetInfo(hContext, hDevice, propName, propSize,
+                                       pPropValue, pPropSizeRet);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemReserve
+__urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    const void *
+        pStart, ///< [in][optional] pointer to the start of the virtual memory region to
+    ///< reserve, specifying a null value causes the implementation to select a
+    ///< start address.
+    size_t
+        size, ///< [in] size in bytes of the virtual address range to reserve.
+    void **
+        ppStart ///< [out] pointer to the returned address at the start of reserved virtual
+                ///< memory range.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnReserve = d_context.urDdiTable.VirtualMem.pfnReserve;
+    if (nullptr != pfnReserve) {
+        result = pfnReserve(hContext, pStart, size, ppStart);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemFree
+__urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    const void *
+        pStart, ///< [in] pointer to the start of the virtual memory range to free.
+    size_t size ///< [in] size in bytes of the virtual memory range to free.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnFree = d_context.urDdiTable.VirtualMem.pfnFree;
+    if (nullptr != pfnFree) {
+        result = pfnFree(hContext, pStart, size);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemMap
+__urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void
+        *pStart, ///< [in] pointer to the start of the virtual memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range to map.
+    ur_physical_mem_handle_t
+        hPhysicalMem, ///< [in] handle of the physical memory to map pStart to.
+    size_t
+        offset, ///< [in] offset in bytes into the physical memory to map pStart to.
+    ur_virtual_mem_access_flags_t
+        flags ///< [in] access flags for the physical memory mapping.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnMap = d_context.urDdiTable.VirtualMem.pfnMap;
+    if (nullptr != pfnMap) {
+        result = pfnMap(hContext, pStart, size, hPhysicalMem, offset, flags);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemUnmap
+__urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void *
+        pStart, ///< [in] pointer to the start of the mapped virtual memory range
+    size_t size ///< [in] size in bytes of the virtual memory range.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnUnmap = d_context.urDdiTable.VirtualMem.pfnUnmap;
+    if (nullptr != pfnUnmap) {
+        result = pfnUnmap(hContext, pStart, size);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemSetAccess
+__urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void
+        *pStart, ///< [in] pointer to the start of the virtual memory range.
+    size_t size, ///< [in] size in bytes of the virutal memory range.
+    ur_virtual_mem_access_flags_t
+        flags ///< [in] access flags to set for the mapped virtual memory range.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnSetAccess = d_context.urDdiTable.VirtualMem.pfnSetAccess;
+    if (nullptr != pfnSetAccess) {
+        result = pfnSetAccess(hContext, pStart, size, flags);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urVirtualMemGetInfo
+__urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
+    ur_context_handle_t hContext, ///< [in] handle to the context object.
+    const void
+        *pStart, ///< [in] pointer to the start of the virtual memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range.
+    ur_virtual_mem_info_t propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnGetInfo = d_context.urDdiTable.VirtualMem.pfnGetInfo;
+    if (nullptr != pfnGetInfo) {
+        result = pfnGetInfo(hContext, pStart, size, propName, propSize,
+                            pPropValue, pPropSizeRet);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemCreate
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object.
+    size_t
+        size, ///< [in] size in bytes of phyisical memory to allocate, must be a multiple
+              ///< of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
+    const ur_physical_mem_properties_t *
+        pProperties, ///< [in][optional] pointer to physical memory creation properties.
+    ur_physical_mem_handle_t *
+        phPhysicalMem ///< [out] pointer to handle of physical memory object created.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnCreate = d_context.urDdiTable.PhysicalMem.pfnCreate;
+    if (nullptr != pfnCreate) {
+        result = pfnCreate(hContext, hDevice, size, pProperties, phPhysicalMem);
+    } else {
+        // generic implementation
+        *phPhysicalMem =
+            reinterpret_cast<ur_physical_mem_handle_t>(d_context.get());
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemRetain
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
+    ur_physical_mem_handle_t
+        hPhysicalMem ///< [in] handle of the physical memory object to retain.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnRetain = d_context.urDdiTable.PhysicalMem.pfnRetain;
+    if (nullptr != pfnRetain) {
+        result = pfnRetain(hPhysicalMem);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemRelease
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
+    ur_physical_mem_handle_t
+        hPhysicalMem ///< [in] handle of the physical memory object to release.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnRelease = d_context.urDdiTable.PhysicalMem.pfnRelease;
+    if (nullptr != pfnRelease) {
+        result = pfnRelease(hPhysicalMem);
     } else {
         // generic implementation
     }
@@ -1696,6 +1974,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t argSize,    ///< [in] size of argument type
+    const ur_kernel_arg_value_properties_t
+        *pProperties, ///< [in][optional] pointer to value properties.
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
     ) try {
@@ -1704,7 +1984,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnSetArgValue = d_context.urDdiTable.Kernel.pfnSetArgValue;
     if (nullptr != pfnSetArgValue) {
-        result = pfnSetArgValue(hKernel, argIndex, argSize, pArgValue);
+        result =
+            pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
     } else {
         // generic implementation
     }
@@ -1720,14 +2001,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t
-        argSize ///< [in] size of the local buffer to be allocated by the runtime
+        argSize, ///< [in] size of the local buffer to be allocated by the runtime
+    const ur_kernel_arg_local_properties_t
+        *pProperties ///< [in][optional] pointer to local buffer properties.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnSetArgLocal = d_context.urDdiTable.Kernel.pfnSetArgLocal;
     if (nullptr != pfnSetArgLocal) {
-        result = pfnSetArgLocal(hKernel, argIndex, argSize);
+        result = pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
     } else {
         // generic implementation
     }
@@ -1877,8 +2160,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_pointer_properties_t
+        *pProperties, ///< [in][optional] pointer to USM pointer properties.
     const void *
-        pArgValue ///< [in][optional] SVM pointer to memory location holding the argument
+        pArgValue ///< [in][optional] USM pointer to memory location holding the argument
                   ///< value. If null then argument value is considered null.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1886,7 +2171,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnSetArgPointer = d_context.urDdiTable.Kernel.pfnSetArgPointer;
     if (nullptr != pfnSetArgPointer) {
-        result = pfnSetArgPointer(hKernel, argIndex, pArgValue);
+        result = pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
     } else {
         // generic implementation
     }
@@ -1902,6 +2187,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
     ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
     size_t propSize,                ///< [in] size in byte the attribute value
+    const ur_kernel_exec_info_properties_t
+        *pProperties, ///< [in][optional] pointer to execution info properties.
     const void *
         pPropValue ///< [in][typename(propName, propSize)] pointer to memory location holding
                    ///< the property value.
@@ -1911,7 +2198,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnSetExecInfo = d_context.urDdiTable.Kernel.pfnSetExecInfo;
     if (nullptr != pfnSetExecInfo) {
-        result = pfnSetExecInfo(hKernel, propName, propSize, pPropValue);
+        result = pfnSetExecInfo(hKernel, propName, propSize, pProperties,
+                                pPropValue);
     } else {
         // generic implementation
     }
@@ -1926,6 +2214,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_sampler_properties_t
+        *pProperties, ///< [in][optional] pointer to sampler properties.
     ur_sampler_handle_t hArgValue ///< [in] handle of Sampler object.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1933,7 +2223,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnSetArgSampler = d_context.urDdiTable.Kernel.pfnSetArgSampler;
     if (nullptr != pfnSetArgSampler) {
-        result = pfnSetArgSampler(hKernel, argIndex, hArgValue);
+        result = pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
     } else {
         // generic implementation
     }
@@ -1948,14 +2238,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
-    ur_mem_handle_t hArgValue ///< [in] handle of Memory object.
+    const ur_kernel_arg_mem_obj_properties_t
+        *pProperties, ///< [in][optional] pointer to Memory object properties.
+    ur_mem_handle_t hArgValue ///< [in][optional] handle of Memory object.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnSetArgMemObj = d_context.urDdiTable.Kernel.pfnSetArgMemObj;
     if (nullptr != pfnSetArgMemObj) {
-        result = pfnSetArgMemObj(hKernel, argIndex, hArgValue);
+        result = pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
     } else {
         // generic implementation
     }
@@ -3486,6 +3778,936 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     return exceptionToResult(std::current_exception());
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPitchedAllocExp
+__urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    const ur_usm_desc_t *
+        pUSMDesc, ///< [in][optional] Pointer to USM memory allocation descriptor.
+    ur_usm_pool_handle_t
+        pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
+    size_t
+        widthInBytes, ///< [in] width in bytes of the USM memory object to be allocated
+    size_t height, ///< [in] height of the USM memory object to be allocated
+    size_t
+        elementSizeBytes, ///< [in] size in bytes of an element in the allocation
+    void **ppMem,         ///< [out] pointer to USM shared memory object
+    size_t *pResultPitch  ///< [out] pitch of the allocation
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnPitchedAllocExp = d_context.urDdiTable.USMExp.pfnPitchedAllocExp;
+    if (nullptr != pfnPitchedAllocExp) {
+        result =
+            pfnPitchedAllocExp(hContext, hDevice, pUSMDesc, pool, widthInBytes,
+                               height, elementSizeBytes, ppMem, pResultPitch);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesUnsampledImageHandleDestroyExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesUnsampledImageHandleDestroyExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_handle_t
+        hImage ///< [in] pointer to handle of image object to destroy
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnUnsampledImageHandleDestroyExp =
+        d_context.urDdiTable.BindlessImagesExp
+            .pfnUnsampledImageHandleDestroyExp;
+    if (nullptr != pfnUnsampledImageHandleDestroyExp) {
+        result = pfnUnsampledImageHandleDestroyExp(hContext, hImage);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSampledImageHandleDestroyExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesSampledImageHandleDestroyExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_handle_t
+        hImage ///< [in] pointer to handle of image object to destroy
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnSampledImageHandleDestroyExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
+    if (nullptr != pfnSampledImageHandleDestroyExp) {
+        result = pfnSampledImageHandleDestroyExp(hContext, hImage);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImageAllocateExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_exp_image_mem_handle_t
+        *phImageMem ///< [out] pointer to handle of image memory allocated
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnImageAllocateExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
+    if (nullptr != pfnImageAllocateExp) {
+        result =
+            pfnImageAllocateExp(hContext, pImageFormat, pImageDesc, phImageMem);
+    } else {
+        // generic implementation
+        *phImageMem =
+            reinterpret_cast<ur_exp_image_mem_handle_t>(d_context.get());
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImageFreeExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem ///< [in] handle of image memory to be freed
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnImageFreeExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
+    if (nullptr != pfnImageFreeExp) {
+        result = pfnImageFreeExp(hContext, hImageMem);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesUnsampledImageCreateExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem, ///< [in] handle to memory from which to create the image
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
+    ur_exp_image_handle_t
+        *phImage ///< [out] pointer to handle of image object created
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnUnsampledImageCreateExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
+    if (nullptr != pfnUnsampledImageCreateExp) {
+        result = pfnUnsampledImageCreateExp(hContext, hImageMem, pImageFormat,
+                                            pImageDesc, phMem, phImage);
+    } else {
+        // generic implementation
+        *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
+
+        *phImage = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSampledImageCreateExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem, ///< [in] handle to memory from which to create the image
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
+    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
+    ur_exp_image_handle_t
+        *phImage ///< [out] pointer to handle of image object created
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnSampledImageCreateExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
+    if (nullptr != pfnSampledImageCreateExp) {
+        result = pfnSampledImageCreateExp(hContext, hImageMem, pImageFormat,
+                                          pImageDesc, hSampler, phMem, phImage);
+    } else {
+        // generic implementation
+        *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
+
+        *phImage = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImageCopyExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pDst,                   ///< [in] location the data will be copied to
+    void *pSrc, ///< [in] location the data will be copied from
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_exp_image_copy_flags_t
+        imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command instance.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnImageCopyExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnImageCopyExp;
+    if (nullptr != pfnImageCopyExp) {
+        result = pfnImageCopyExp(hContext, pDst, pSrc, pImageFormat, pImageDesc,
+                                 imageCopyFlags, numEventsInWaitList,
+                                 phEventWaitList, phEvent);
+    } else {
+        // generic implementation
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+        }
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImageGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
+    ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
+    ur_image_info_t propName,            ///< [in] queried info name
+    void *pPropValue,    ///< [out][optional] returned query value
+    size_t *pPropSizeRet ///< [out][optional] returned query value size
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnImageGetInfoExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
+    if (nullptr != pfnImageGetInfoExp) {
+        result =
+            pfnImageGetInfoExp(hImageMem, propName, pPropValue, pPropSizeRet);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem,        ///< [in] memory handle to the mipmap image
+    uint32_t mipmapLevel, ///< [in] requested level of the mipmap
+    ur_exp_image_mem_handle_t
+        *phImageMem ///< [out] returning memory handle to the individual image
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnMipmapGetLevelExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
+    if (nullptr != pfnMipmapGetLevelExp) {
+        result =
+            pfnMipmapGetLevelExp(hContext, hImageMem, mipmapLevel, phImageMem);
+    } else {
+        // generic implementation
+        *phImageMem =
+            reinterpret_cast<ur_exp_image_mem_handle_t>(d_context.get());
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesMipmapFreeExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
+    ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnMipmapFreeExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
+    if (nullptr != pfnMipmapFreeExp) {
+        result = pfnMipmapFreeExp(hContext, hMem);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImportOpaqueFDExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    size_t size,                  ///< [in] size of the external memory
+    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_mem_handle_t
+        *phInteropMem ///< [out] interop memory handle to the external memory
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnImportOpaqueFDExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnImportOpaqueFDExp;
+    if (nullptr != pfnImportOpaqueFDExp) {
+        result =
+            pfnImportOpaqueFDExp(hContext, size, fileDescriptor, phInteropMem);
+    } else {
+        // generic implementation
+        *phInteropMem =
+            reinterpret_cast<ur_exp_interop_mem_handle_t>(d_context.get());
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesMapExternalArrayExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_exp_interop_mem_handle_t
+        hInteropMem, ///< [in] interop memory handle to the external memory
+    ur_exp_image_handle_t *
+        phImageMem ///< [out] image memory handle to the externally allocated memory
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnMapExternalArrayExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
+    if (nullptr != pfnMapExternalArrayExp) {
+        result = pfnMapExternalArrayExp(hContext, pImageFormat, pImageDesc,
+                                        hInteropMem, phImageMem);
+    } else {
+        // generic implementation
+        *phImageMem = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesReleaseInteropExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_interop_mem_handle_t
+        hInteropMem ///< [in] handle of interop memory to be freed
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnReleaseInteropExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
+    if (nullptr != pfnReleaseInteropExp) {
+        result = pfnReleaseInteropExp(hContext, hInteropMem);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_semaphore_handle_t *
+        phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnImportExternalSemaphoreOpaqueFDExp =
+        d_context.urDdiTable.BindlessImagesExp
+            .pfnImportExternalSemaphoreOpaqueFDExp;
+    if (nullptr != pfnImportExternalSemaphoreOpaqueFDExp) {
+        result = pfnImportExternalSemaphoreOpaqueFDExp(
+            hContext, fileDescriptor, phInteropSemaphoreHandle);
+    } else {
+        // generic implementation
+        *phInteropSemaphoreHandle =
+            reinterpret_cast<ur_exp_interop_semaphore_handle_t>(
+                d_context.get());
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesDestroyExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_interop_semaphore_handle_t
+        hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnDestroyExternalSemaphoreExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
+    if (nullptr != pfnDestroyExternalSemaphoreExp) {
+        result = pfnDestroyExternalSemaphoreExp(hContext, hInteropSemaphore);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesWaitExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_interop_semaphore_handle_t
+        hSemaphore,               ///< [in] interop semaphore handle
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command instance.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnWaitExternalSemaphoreExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnWaitExternalSemaphoreExp;
+    if (nullptr != pfnWaitExternalSemaphoreExp) {
+        result = pfnWaitExternalSemaphoreExp(
+            hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
+    } else {
+        // generic implementation
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+        }
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSignalExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_interop_semaphore_handle_t
+        hSemaphore,               ///< [in] interop semaphore handle
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command instance.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnSignalExternalSemaphoreExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnSignalExternalSemaphoreExp;
+    if (nullptr != pfnSignalExternalSemaphoreExp) {
+        result = pfnSignalExternalSemaphoreExp(
+            hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
+    } else {
+        // generic implementation
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+        }
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferCreateExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    const ur_exp_command_buffer_desc_t
+        *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
+    ur_exp_command_buffer_handle_t
+        *phCommandBuffer ///< [out] pointer to Command-Buffer handle
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnCreateExp = d_context.urDdiTable.CommandBufferExp.pfnCreateExp;
+    if (nullptr != pfnCreateExp) {
+        result = pfnCreateExp(hContext, hDevice, pCommandBufferDesc,
+                              phCommandBuffer);
+    } else {
+        // generic implementation
+        *phCommandBuffer =
+            reinterpret_cast<ur_exp_command_buffer_handle_t>(d_context.get());
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferRetainExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnRetainExp = d_context.urDdiTable.CommandBufferExp.pfnRetainExp;
+    if (nullptr != pfnRetainExp) {
+        result = pfnRetainExp(hCommandBuffer);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferReleaseExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnReleaseExp = d_context.urDdiTable.CommandBufferExp.pfnReleaseExp;
+    if (nullptr != pfnReleaseExp) {
+        result = pfnReleaseExp(hCommandBuffer);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferFinalizeExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnFinalizeExp = d_context.urDdiTable.CommandBufferExp.pfnFinalizeExp;
+    if (nullptr != pfnFinalizeExp) {
+        result = pfnFinalizeExp(hCommandBuffer);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendKernelLaunchExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,         ///< [in] handle of the command-buffer object
+    ur_kernel_handle_t hKernel, ///< [in] kernel to append
+    uint32_t workDim,           ///< [in] dimension of the kernel execution
+    const size_t
+        *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
+    const size_t *
+        pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
+    const size_t
+        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAppendKernelLaunchExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
+    if (nullptr != pfnAppendKernelLaunchExp) {
+        result = pfnAppendKernelLaunchExp(
+            hCommandBuffer, hKernel, workDim, pGlobalWorkOffset,
+            pGlobalWorkSize, pLocalWorkSize, numSyncPointsInWaitList,
+            pSyncPointWaitList, pSyncPoint);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMemcpyUSMExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer, ///< [in] handle of the command-buffer object.
+    void *pDst,         ///< [in] Location the data will be copied to.
+    const void *pSrc,   ///< [in] The data to be copied.
+    size_t size,        ///< [in] The number of bytes to copy
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAppendMemcpyUSMExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendMemcpyUSMExp;
+    if (nullptr != pfnAppendMemcpyUSMExp) {
+        result = pfnAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
+                                       numSyncPointsInWaitList,
+                                       pSyncPointWaitList, pSyncPoint);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferCopyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
+    size_t srcOffset,        ///< [in] Offset into the source memory.
+    size_t dstOffset,        ///< [in] Offset into the destination memory
+    size_t size,             ///< [in] The number of bytes to be copied.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAppendMembufferCopyExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyExp;
+    if (nullptr != pfnAppendMembufferCopyExp) {
+        result = pfnAppendMembufferCopyExp(
+            hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
+            numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
+    ur_rect_offset_t
+        srcOrigin, ///< [in] Origin for the region of data to be copied from the source.
+    ur_rect_offset_t
+        dstOrigin, ///< [in] Origin for the region of data to be copied to in the destination.
+    ur_rect_region_t
+        region, ///< [in] The extents describing the region to be copied.
+    size_t srcRowPitch,   ///< [in] Row pitch of the source memory.
+    size_t srcSlicePitch, ///< [in] Slice pitch of the source memory.
+    size_t dstRowPitch,   ///< [in] Row pitch of the destination memory.
+    size_t dstSlicePitch, ///< [in] Slice pitch of the destination memory.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAppendMembufferCopyRectExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyRectExp;
+    if (nullptr != pfnAppendMembufferCopyRectExp) {
+        result = pfnAppendMembufferCopyRectExp(
+            hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
+            srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
+            numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferEnqueueExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer, ///< [in] handle of the command-buffer object.
+    ur_queue_handle_t
+        hQueue, ///< [in] the queue to submit this command-buffer for execution.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command-buffer execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    ///< events.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command-buffer execution instance.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnEnqueueExp = d_context.urDdiTable.CommandBufferExp.pfnEnqueueExp;
+    if (nullptr != pfnEnqueueExp) {
+        result = pfnEnqueueExp(hCommandBuffer, hQueue, numEventsInWaitList,
+                               phEventWaitList, phEvent);
+    } else {
+        // generic implementation
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+        }
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMImportExp
+__urdlllocal ur_result_t UR_APICALL urUSMImportExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pMem,                   ///< [in] pointer to host memory object
+    size_t size ///< [in] size in bytes of the host memory object to be imported
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnImportExp = d_context.urDdiTable.USMExp.pfnImportExp;
+    if (nullptr != pfnImportExp) {
+        result = pfnImportExp(hContext, pMem, size);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMReleaseExp
+__urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pMem                    ///< [in] pointer to host memory object
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnReleaseExp = d_context.urDdiTable.USMExp.pfnReleaseExp;
+    if (nullptr != pfnReleaseExp) {
+        result = pfnReleaseExp(hContext, pMem);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PEnablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
+    ur_device_handle_t
+        commandDevice,            ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice ///< [in] handle of the peer device object
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnEnablePeerAccessExp =
+        d_context.urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
+    if (nullptr != pfnEnablePeerAccessExp) {
+        result = pfnEnablePeerAccessExp(commandDevice, peerDevice);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PDisablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
+    ur_device_handle_t
+        commandDevice,            ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice ///< [in] handle of the peer device object
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnDisablePeerAccessExp =
+        d_context.urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
+    if (nullptr != pfnDisablePeerAccessExp) {
+        result = pfnDisablePeerAccessExp(commandDevice, peerDevice);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PPeerAccessGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
+    ur_device_handle_t
+        commandDevice,             ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice, ///< [in] handle of the peer device object
+    ur_exp_peer_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If propSize is not equal to or greater than the real number of bytes
+    ///< needed to return the info
+    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    ///< pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnPeerAccessGetInfoExp =
+        d_context.urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
+    if (nullptr != pfnPeerAccessGetInfoExp) {
+        result = pfnPeerAccessGetInfoExp(commandDevice, peerDevice, propName,
+                                         propSize, pPropValue, pPropSizeRet);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
 } // namespace driver
 
 #if defined(__cplusplus)
@@ -3517,9 +4739,128 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
     pDdiTable->pfnInit = driver::urInit;
 
-    pDdiTable->pfnGetLastResult = driver::urGetLastResult;
-
     pDdiTable->pfnTearDown = driver::urTearDown;
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's BindlessImagesExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_bindless_images_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+    ) try {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (driver::d_context.version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    pDdiTable->pfnUnsampledImageHandleDestroyExp =
+        driver::urBindlessImagesUnsampledImageHandleDestroyExp;
+
+    pDdiTable->pfnSampledImageHandleDestroyExp =
+        driver::urBindlessImagesSampledImageHandleDestroyExp;
+
+    pDdiTable->pfnImageAllocateExp = driver::urBindlessImagesImageAllocateExp;
+
+    pDdiTable->pfnImageFreeExp = driver::urBindlessImagesImageFreeExp;
+
+    pDdiTable->pfnUnsampledImageCreateExp =
+        driver::urBindlessImagesUnsampledImageCreateExp;
+
+    pDdiTable->pfnSampledImageCreateExp =
+        driver::urBindlessImagesSampledImageCreateExp;
+
+    pDdiTable->pfnImageCopyExp = driver::urBindlessImagesImageCopyExp;
+
+    pDdiTable->pfnImageGetInfoExp = driver::urBindlessImagesImageGetInfoExp;
+
+    pDdiTable->pfnMipmapGetLevelExp = driver::urBindlessImagesMipmapGetLevelExp;
+
+    pDdiTable->pfnMipmapFreeExp = driver::urBindlessImagesMipmapFreeExp;
+
+    pDdiTable->pfnImportOpaqueFDExp = driver::urBindlessImagesImportOpaqueFDExp;
+
+    pDdiTable->pfnMapExternalArrayExp =
+        driver::urBindlessImagesMapExternalArrayExp;
+
+    pDdiTable->pfnReleaseInteropExp = driver::urBindlessImagesReleaseInteropExp;
+
+    pDdiTable->pfnImportExternalSemaphoreOpaqueFDExp =
+        driver::urBindlessImagesImportExternalSemaphoreOpaqueFDExp;
+
+    pDdiTable->pfnDestroyExternalSemaphoreExp =
+        driver::urBindlessImagesDestroyExternalSemaphoreExp;
+
+    pDdiTable->pfnWaitExternalSemaphoreExp =
+        driver::urBindlessImagesWaitExternalSemaphoreExp;
+
+    pDdiTable->pfnSignalExternalSemaphoreExp =
+        driver::urBindlessImagesSignalExternalSemaphoreExp;
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's CommandBufferExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_command_buffer_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+    ) try {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (driver::d_context.version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    pDdiTable->pfnCreateExp = driver::urCommandBufferCreateExp;
+
+    pDdiTable->pfnRetainExp = driver::urCommandBufferRetainExp;
+
+    pDdiTable->pfnReleaseExp = driver::urCommandBufferReleaseExp;
+
+    pDdiTable->pfnFinalizeExp = driver::urCommandBufferFinalizeExp;
+
+    pDdiTable->pfnAppendKernelLaunchExp =
+        driver::urCommandBufferAppendKernelLaunchExp;
+
+    pDdiTable->pfnAppendMemcpyUSMExp =
+        driver::urCommandBufferAppendMemcpyUSMExp;
+
+    pDdiTable->pfnAppendMembufferCopyExp =
+        driver::urCommandBufferAppendMembufferCopyExp;
+
+    pDdiTable->pfnAppendMembufferCopyRectExp =
+        driver::urCommandBufferAppendMembufferCopyRectExp;
+
+    pDdiTable->pfnEnqueueExp = driver::urCommandBufferEnqueueExp;
 
     return result;
 } catch (...) {
@@ -3806,6 +5147,40 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's PhysicalMem table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_physical_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+    ) try {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (driver::d_context.version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    pDdiTable->pfnCreate = driver::urPhysicalMemCreate;
+
+    pDdiTable->pfnRetain = driver::urPhysicalMemRetain;
+
+    pDdiTable->pfnRelease = driver::urPhysicalMemRelease;
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Platform table
 ///        with current process' addresses
 ///
@@ -3836,6 +5211,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
 
     pDdiTable->pfnCreateWithNativeHandle =
         driver::urPlatformCreateWithNativeHandle;
+
+    pDdiTable->pfnGetLastError = driver::urPlatformGetLastError;
 
     pDdiTable->pfnGetApiVersion = driver::urPlatformGetApiVersion;
 
@@ -4028,6 +5405,116 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
     pDdiTable->pfnPoolRelease = driver::urUSMPoolRelease;
 
     pDdiTable->pfnPoolGetInfo = driver::urUSMPoolGetInfo;
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's USMExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_usm_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+    ) try {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (driver::d_context.version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    pDdiTable->pfnPitchedAllocExp = driver::urUSMPitchedAllocExp;
+
+    pDdiTable->pfnImportExp = driver::urUSMImportExp;
+
+    pDdiTable->pfnReleaseExp = driver::urUSMReleaseExp;
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's UsmP2PExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_usm_p2p_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+    ) try {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (driver::d_context.version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    pDdiTable->pfnEnablePeerAccessExp = driver::urUsmP2PEnablePeerAccessExp;
+
+    pDdiTable->pfnDisablePeerAccessExp = driver::urUsmP2PDisablePeerAccessExp;
+
+    pDdiTable->pfnPeerAccessGetInfoExp = driver::urUsmP2PPeerAccessGetInfoExp;
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's VirtualMem table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_virtual_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+    ) try {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (driver::d_context.version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    pDdiTable->pfnGranularityGetInfo = driver::urVirtualMemGranularityGetInfo;
+
+    pDdiTable->pfnReserve = driver::urVirtualMemReserve;
+
+    pDdiTable->pfnFree = driver::urVirtualMemFree;
+
+    pDdiTable->pfnMap = driver::urVirtualMemMap;
+
+    pDdiTable->pfnUnmap = driver::urVirtualMemUnmap;
+
+    pDdiTable->pfnSetAccess = driver::urVirtualMemSetAccess;
+
+    pDdiTable->pfnGetInfo = driver::urVirtualMemGetInfo;
 
     return result;
 } catch (...) {

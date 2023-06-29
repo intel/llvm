@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <map>
 #include <uur/fixtures.h>
 
@@ -70,4 +72,32 @@ TEST_P(urContextGetInfoTest, InvalidEnumeration) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urContextGetInfo(context, UR_CONTEXT_INFO_FORCE_UINT32,
                                       sizeof(uint32_t), &nDevices, nullptr));
+}
+
+TEST_P(urContextGetInfoTest, InvalidSizePropSize) {
+    uint32_t nDevices = 0;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                     urContextGetInfo(context, UR_CONTEXT_INFO_NUM_DEVICES, 0,
+                                      &nDevices, nullptr));
+}
+
+TEST_P(urContextGetInfoTest, InvalidSizePropSizeSmall) {
+    uint32_t nDevices = 0;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                     urContextGetInfo(context, UR_CONTEXT_INFO_NUM_DEVICES,
+                                      sizeof(nDevices) - 1, &nDevices,
+                                      nullptr));
+}
+
+TEST_P(urContextGetInfoTest, InvalidNullPointerPropValue) {
+    uint32_t nDevices = 0;
+    ASSERT_EQ_RESULT(urContextGetInfo(context, UR_CONTEXT_INFO_NUM_DEVICES,
+                                      sizeof(nDevices), nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_P(urContextGetInfoTest, InvalidNullPointerPropSizeRet) {
+    ASSERT_EQ_RESULT(urContextGetInfo(context, UR_CONTEXT_INFO_NUM_DEVICES, 0,
+                                      nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }

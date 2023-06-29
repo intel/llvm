@@ -2,7 +2,9 @@
  *
  * Copyright (C) 2023 Intel Corporation
  *
- * SPDX-License-Identifier: MIT
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
 
@@ -94,4 +96,9 @@ enum uma_result_t
 umaMemoryProviderPurgeForce(uma_memory_provider_handle_t hProvider, void *ptr,
                             size_t size) {
     return hProvider->ops.purge_force(hProvider->provider_priv, ptr, size);
+}
+
+void umaMemoryProviderGetName(uma_memory_provider_handle_t hProvider,
+                              const char **ppName) {
+    hProvider->ops.get_name(hProvider->provider_priv, ppName);
 }
