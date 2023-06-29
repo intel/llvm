@@ -7,6 +7,12 @@ Adapter implementations for Unified Runtime currently reside in the [SYCL reposi
 fetch and build them directly in the UR tree. The adapters are disabled by default,
 see cmake options for details.
 
+> **Note**
+>
+> For those who intend to make a contribution to the project please read our
+> [Contribution Guide](https://oneapi-src.github.io/unified-runtime/core/CONTRIB.html)
+> for more information.
+
 ## Contents
 
 This repo contains the following:

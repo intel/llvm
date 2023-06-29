@@ -1,7 +1,9 @@
 #
 # Copyright (C) 2022 Intel Corporation
 #
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition
 #
@@ -106,6 +108,11 @@ type: handle
 desc: "Handle of memory object which can either be buffer or image"
 class: $xMem
 name: "$x_mem_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of physical memory object"
+class: $xPhysicalMem
+name: "$x_physical_mem_handle_t"
 --- #--------------------------------------------------------------------------
 type: macro
 desc: "Generic macro for enumerator bit masks"
@@ -253,7 +260,7 @@ etors:
       desc: "Objection allocation failure"
     - name: ERROR_ADAPTER_SPECIFIC
       desc: "An adapter specific warning/error has been reported and can be retrieved
-             via the urGetLastResult entry point."
+             via the urPlatformGetLastError entry point."
     - name: ERROR_UNKNOWN
       value: "0x7ffffffe"
       desc: "Unknown or internal error"
@@ -314,6 +321,22 @@ etors:
       desc: $x_sampler_native_properties_t
     - name: QUEUE_NATIVE_DESC
       desc: $x_queue_native_desc_t
+    - name: DEVICE_PARTITION_PROPERTIES
+      desc: $x_device_partition_properties_t
+    - name: KERNEL_ARG_MEM_OBJ_PROPERTIES
+      desc: $x_kernel_arg_mem_obj_properties_t
+    - name: PHYSICAL_MEM_PROPERTIES
+      desc: $x_physical_mem_properties_t
+    - name: KERNEL_ARG_POINTER_PROPERTIES
+      desc: $x_kernel_arg_pointer_properties_t
+    - name: KERNEL_ARG_SAMPLER_PROPERTIES
+      desc: $x_kernel_arg_sampler_properties_t
+    - name: KERNEL_EXEC_INFO_PROPERTIES
+      desc: $x_kernel_exec_info_properties_t
+    - name: KERNEL_ARG_VALUE_PROPERTIES
+      desc: $x_kernel_arg_value_properties_t
+    - name: KERNEL_ARG_LOCAL_PROPERTIES
+      desc: $x_kernel_arg_local_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"

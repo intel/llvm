@@ -2,7 +2,9 @@
  *
  * Copyright (C) 2023 Intel Corporation
  *
- * SPDX-License-Identifier: MIT
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
 
@@ -47,6 +49,7 @@ struct uma_memory_provider_ops_t {
                                            size_t *pageSize);
     enum uma_result_t (*purge_lazy)(void *provider, void *ptr, size_t size);
     enum uma_result_t (*purge_force)(void *provider, void *ptr, size_t size);
+    void (*get_name)(void *provider, const char **ppName);
 };
 
 #ifdef __cplusplus

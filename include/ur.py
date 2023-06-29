@@ -1,7 +1,9 @@
 """
  Copyright (C) 2022 Intel Corporation
 
- SPDX-License-Identifier: MIT
+ Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ See LICENSE.TXT
+ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
  @file ur.py
  @version v0.6-r0
@@ -104,6 +106,11 @@ class ur_mem_handle_t(c_void_p):
     pass
 
 ###############################################################################
+## @brief Handle of physical memory object
+class ur_physical_mem_handle_t(c_void_p):
+    pass
+
+###############################################################################
 ## @brief Generic macro for enumerator bit masks
 def UR_BIT( _i ):
     return ( 1 << _i )
@@ -188,7 +195,10 @@ class ur_result_v(IntEnum):
     ERROR_INVALID_USM_SIZE = 65                     ## Invalid USM size
     ERROR_OBJECT_ALLOCATION_FAILURE = 66            ## Objection allocation failure
     ERROR_ADAPTER_SPECIFIC = 67                     ## An adapter specific warning/error has been reported and can be
-                                                    ## retrieved via the urGetLastResult entry point.
+                                                    ## retrieved via the urPlatformGetLastError entry point.
+    ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000       ## Invalid Command-Buffer
+    ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001## Sync point is not valid for the command-buffer
+    ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002  ## Sync point wait list is invalid
     ERROR_UNKNOWN = 0x7ffffffe                      ## Unknown or internal error
 
 class ur_result_t(c_int):
@@ -225,6 +235,16 @@ class ur_structure_type_v(IntEnum):
     PROGRAM_NATIVE_PROPERTIES = 23                  ## ::ur_program_native_properties_t
     SAMPLER_NATIVE_PROPERTIES = 24                  ## ::ur_sampler_native_properties_t
     QUEUE_NATIVE_DESC = 25                          ## ::ur_queue_native_desc_t
+    DEVICE_PARTITION_PROPERTIES = 26                ## ::ur_device_partition_properties_t
+    KERNEL_ARG_MEM_OBJ_PROPERTIES = 27              ## ::ur_kernel_arg_mem_obj_properties_t
+    PHYSICAL_MEM_PROPERTIES = 28                    ## ::ur_physical_mem_properties_t
+    KERNEL_ARG_POINTER_PROPERTIES = 29              ## ::ur_kernel_arg_pointer_properties_t
+    KERNEL_ARG_SAMPLER_PROPERTIES = 30              ## ::ur_kernel_arg_sampler_properties_t
+    KERNEL_EXEC_INFO_PROPERTIES = 31                ## ::ur_kernel_exec_info_properties_t
+    KERNEL_ARG_VALUE_PROPERTIES = 32                ## ::ur_kernel_arg_value_properties_t
+    KERNEL_ARG_LOCAL_PROPERTIES = 33                ## ::ur_kernel_arg_local_properties_t
+    EXP_COMMAND_BUFFER_DESC = 0x1000                ## ::ur_exp_command_buffer_desc_t
+    EXP_SAMPLER_MIP_PROPERTIES = 0x2000             ## ::ur_exp_sampler_mip_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -502,8 +522,8 @@ class ur_device_info_v(IntEnum):
     PREFERRED_INTEROP_USER_SYNC = 74                ## [::ur_bool_t] prefer user synchronization when sharing object with
                                                     ## other API
     PARENT_DEVICE = 75                              ## [::ur_device_handle_t] return parent device handle
-    PARTITION_PROPERTIES = 76                       ## [::ur_device_partition_property_t[]] Returns an array of partition
-                                                    ## types supported by the device
+    SUPPORTED_PARTITIONS = 76                       ## [::ur_device_partition_t[]] Returns an array of partition types
+                                                    ## supported by the device
     PARTITION_MAX_SUB_DEVICES = 77                  ## [uint32_t] maximum number of sub-devices when the device is
                                                     ## partitioned
     PARTITION_AFFINITY_DOMAIN = 78                  ## [::ur_device_affinity_domain_flags_t] Returns a bit-field of the
@@ -553,15 +573,49 @@ class ur_device_info_v(IntEnum):
                                                     ## available for this device.
     KERNEL_SET_SPECIALIZATION_CONSTANTS = 106       ## [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
                                                     ## point
-    MEMORY_BUS_WIDTH = 107                          ## [::ur_bool_t] Return 1 if the device doesn't have a notion of a "queue
-                                                    ## index". Otherwise,
-                                                    ## return the number of queue indices that are available for this device.
+    MEMORY_BUS_WIDTH = 107                          ## [uint32_t] return the width in bits of the memory bus interface of the
+                                                    ## device.
     MAX_WORK_GROUPS_3D = 108                        ## [size_t[3]] return max 3D work groups
     ASYNC_BARRIER = 109                             ## [::ur_bool_t] return true if Async Barrier is supported
     MEM_CHANNEL_SUPPORT = 110                       ## [::ur_bool_t] return true if specifying memory channels is supported
-    HOST_PIPE_READ_WRITE_SUPPORTED = 111            ## [::ur_bool_t] Return true if the device supports enqueing commands to
-                                                    ## read and write pipes from the host.
+    HOST_PIPE_READ_WRITE_SUPPORTED = 111            ## [::ur_bool_t] Return true if the device supports enqueueing commands
+                                                    ## to read and write pipes from the host.
     MAX_REGISTERS_PER_WORK_GROUP = 112              ## [uint32_t] The maximum number of registers available per block.
+    IP_VERSION = 113                                ## [uint32_t] The device IP version. The meaning of the device IP version
+                                                    ## is implementation-defined, but newer devices should have a higher
+                                                    ## version than older devices.
+    BINDLESS_IMAGES_SUPPORT_EXP = 0x2000            ## [::ur_bool_t] returns true if the device supports the creation of
+                                                    ## bindless images
+    BINDLESS_IMAGES_1D_USM_SUPPORT_EXP = 0x2001     ## [::ur_bool_t] returns true if the device supports the creation of 1D
+                                                    ## bindless images backed by USM
+    BINDLESS_IMAGES_2D_USM_SUPPORT_EXP = 0x2002     ## [::ur_bool_t] returns true if the device supports the creation of 2D
+                                                    ## bindless images backed by USM
+    BINDLESS_IMAGES_3D_USM_SUPPORT_EXP = 0x2003     ## [::ur_bool_t] returns true if the device supports the creation of 3D
+                                                    ## bindless images backed by USM
+    IMAGE_PITCH_ALIGN_EXP = 0x2004                  ## [uint32_t] returns the required alignment of the pitch between two
+                                                    ## rows of an image in bytes
+    MAX_IMAGE_LINEAR_WIDTH_EXP = 0x2005             ## [size_t] returns the maximum linear width allowed for images allocated
+                                                    ## using USM
+    MAX_IMAGE_LINEAR_HEIGHT_EXP = 0x2006            ## [size_t] returns the maximum linear height allowed for images
+                                                    ## allocated using USM
+    MAX_IMAGE_LINEAR_PITCH_EXP = 0x2007             ## [size_t] returns the maximum linear pitch allowed for images allocated
+                                                    ## using USM
+    MIPMAP_SUPPORT_EXP = 0x2008                     ## [::ur_bool_t] returns true if the device supports allocating mipmap
+                                                    ## resources
+    MIPMAP_ANISOTROPY_SUPPORT_EXP = 0x2009          ## [::ur_bool_t] returns true if the device supports sampling mipmap
+                                                    ## images with anisotropic filtering
+    MIPMAP_MAX_ANISOTROPY_EXP = 0x200A              ## [uint32_t] returns the maximum anisotropic ratio supported by the
+                                                    ## device
+    MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP = 0x200B     ## [::ur_bool_t] returns true if the device supports using images created
+                                                    ## from individual mipmap levels
+    INTEROP_MEMORY_IMPORT_SUPPORT_EXP = 0x200C      ## [::ur_bool_t] returns true if the device supports importing external
+                                                    ## memory resources
+    INTEROP_MEMORY_EXPORT_SUPPORT_EXP = 0x200D      ## [::ur_bool_t] returns true if the device supports exporting internal
+                                                    ## memory resources
+    INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E   ## [::ur_bool_t] returns true if the device supports importing external
+                                                    ## semaphore resources
+    INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F   ## [::ur_bool_t] returns true if the device supports exporting internal
+                                                    ## event resources
 
 class ur_device_info_t(c_int):
     def __str__(self):
@@ -569,16 +623,39 @@ class ur_device_info_t(c_int):
 
 
 ###############################################################################
-## @brief Device partition property type
-class ur_device_partition_property_t(c_intptr_t):
-    pass
+## @brief Device affinity domain
+class ur_device_affinity_domain_flags_v(IntEnum):
+    NUMA = UR_BIT(0)                                ## Split the device into sub devices comprised of compute units that
+                                                    ## share a NUMA node.
+    L4_CACHE = UR_BIT(1)                            ## Split the device into sub devices comprised of compute units that
+                                                    ## share a level 4 data cache.
+    L3_CACHE = UR_BIT(2)                            ## Split the device into sub devices comprised of compute units that
+                                                    ## share a level 3 data cache.
+    L2_CACHE = UR_BIT(3)                            ## Split the device into sub devices comprised of compute units that
+                                                    ## share a level 2 data cache.
+    L1_CACHE = UR_BIT(4)                            ## Split the device into sub devices comprised of compute units that
+                                                    ## share a level 1 data cache.
+    NEXT_PARTITIONABLE = UR_BIT(5)                  ## Split the device along the next partitionable affinity domain. 
+                                                    ## The implementation shall find the first level along which the device
+                                                    ## or sub device may be further subdivided in the order: 
+                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
+                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
+                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
+                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
+                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE, 
+                                                    ## and partition the device into sub devices comprised of compute units
+                                                    ## that share memory subsystems at this level.
+
+class ur_device_affinity_domain_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
 
 ###############################################################################
 ## @brief Partition Properties
 class ur_device_partition_v(IntEnum):
     EQUALLY = 0x1086                                ## Partition Equally
     BY_COUNTS = 0x1087                              ## Partition by counts
-    BY_COUNTS_LIST_END = 0x0                        ## End of by counts list
     BY_AFFINITY_DOMAIN = 0x1088                     ## Partition by affinity domain
     BY_CSLICE = 0x1089                              ## Partition by c-slice
 
@@ -586,6 +663,37 @@ class ur_device_partition_t(c_int):
     def __str__(self):
         return str(ur_device_partition_v(self.value))
 
+
+###############################################################################
+## @brief Device partition value.
+class ur_device_partition_value_t(Structure):
+    _fields_ = [
+        ("equally", c_ulong),                                           ## [in] Number of compute units per sub-device when partitioning with
+                                                                        ## ::UR_DEVICE_PARTITION_EQUALLY.
+        ("count", c_ulong),                                             ## [in] Number of compute units in a sub-device when partitioning with
+                                                                        ## ::UR_DEVICE_PARTITION_BY_COUNTS.
+        ("affinity_domain", ur_device_affinity_domain_flags_t)          ## [in] The affinity domain to partition for when partitioning with
+                                                                        ## $UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN.
+    ]
+
+###############################################################################
+## @brief Device partition property
+class ur_device_partition_property_t(Structure):
+    _fields_ = [
+        ("type", ur_device_partition_t),                                ## [in] The partitioning type to be used.
+        ("value", ur_device_partition_value_t)                          ## [in] The paritioning value.
+    ]
+
+###############################################################################
+## @brief Device Partition Properties
+class ur_device_partition_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("pProperties", POINTER(ur_device_partition_property_t)),       ## [in] Pointer to the beginning of the properties array.
+        ("PropCount", c_size_t)                                         ## [in] The length of properties pointed to by `pProperties`.
+    ]
 
 ###############################################################################
 ## @brief FP capabilities
@@ -635,35 +743,6 @@ class ur_device_exec_capability_flags_v(IntEnum):
     NATIVE_KERNEL = UR_BIT(1)                       ## Support native kernel execution
 
 class ur_device_exec_capability_flags_t(c_int):
-    def __str__(self):
-        return hex(self.value)
-
-
-###############################################################################
-## @brief Device affinity domain
-class ur_device_affinity_domain_flags_v(IntEnum):
-    NUMA = UR_BIT(0)                                ## Split the device into sub devices comprised of compute units that
-                                                    ## share a NUMA node.
-    L4_CACHE = UR_BIT(1)                            ## Split the device into sub devices comprised of compute units that
-                                                    ## share a level 4 data cache.
-    L3_CACHE = UR_BIT(2)                            ## Split the device into sub devices comprised of compute units that
-                                                    ## share a level 3 data cache.
-    L2_CACHE = UR_BIT(3)                            ## Split the device into sub devices comprised of compute units that
-                                                    ## share a level 2 data cache.
-    L1_CACHE = UR_BIT(4)                            ## Split the device into sub devices comprised of compute units that
-                                                    ## share a level 1 data cache.
-    NEXT_PARTITIONABLE = UR_BIT(5)                  ## Split the device along the next partitionable affinity domain. 
-                                                    ## The implementation shall find the first level along which the device
-                                                    ## or sub device may be further subdivided in the order: 
-                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
-                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
-                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
-                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
-                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE, 
-                                                    ## and partition the device into sub devices comprised of compute units
-                                                    ## that share memory subsystems at this level.
-
-class ur_device_affinity_domain_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
@@ -1237,6 +1316,60 @@ class ur_usm_pool_info_t(c_int):
 
 
 ###############################################################################
+## @brief Virtual memory granularity info
+class ur_virtual_mem_granularity_info_v(IntEnum):
+    MINIMUM = 0x30100                               ## [size_t] size in bytes of the minimum virtual memory granularity.
+    RECOMMENDED = 0x30101                           ## [size_t] size in bytes of the recommended virtual memory granularity.
+
+class ur_virtual_mem_granularity_info_t(c_int):
+    def __str__(self):
+        return str(ur_virtual_mem_granularity_info_v(self.value))
+
+
+###############################################################################
+## @brief Virtual memory access mode flags.
+class ur_virtual_mem_access_flags_v(IntEnum):
+    NONE = UR_BIT(0)                                ## Virtual memory has no access.
+    READ_WRITE = UR_BIT(1)                          ## Virtual memory has both read and write access.
+    READ_ONLY = UR_BIT(2)                           ## Virtual memory has read only access.
+
+class ur_virtual_mem_access_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief Virtual memory range info queries.
+class ur_virtual_mem_info_v(IntEnum):
+    ACCESS_MODE = 0                                 ## [::ur_virtual_mem_access_flags_t] access flags of a mapped virtual
+                                                    ## memory range.
+
+class ur_virtual_mem_info_t(c_int):
+    def __str__(self):
+        return str(ur_virtual_mem_info_v(self.value))
+
+
+###############################################################################
+## @brief Physical memory creation properties.
+class ur_physical_mem_flags_v(IntEnum):
+    TBD = UR_BIT(0)                                 ## reserved for future use.
+
+class ur_physical_mem_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief Physical memory creation properties.
+class ur_physical_mem_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("flags", ur_physical_mem_flags_t)                              ## [in] physical memory creation flags
+    ]
+
+###############################################################################
 ## @brief Program metadata property type.
 class ur_program_metadata_type_v(IntEnum):
     UINT32 = 0                                      ## type is a 32-bit integer.
@@ -1372,6 +1505,24 @@ class ur_program_native_properties_t(Structure):
     ]
 
 ###############################################################################
+## @brief Properties for for ::urKernelSetArgValue.
+class ur_kernel_arg_value_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES
+        ("pNext", c_void_p)                                             ## [in,out][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief Properties for for ::urKernelSetArgLocal.
+class ur_kernel_arg_local_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES
+        ("pNext", c_void_p)                                             ## [in,out][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
 ## @brief Get Kernel object information
 class ur_kernel_info_v(IntEnum):
     FUNCTION_NAME = 0                               ## [char[]] Return null-terminated kernel function name.
@@ -1447,6 +1598,44 @@ class ur_kernel_exec_info_t(c_int):
 
 
 ###############################################################################
+## @brief Properties for for ::urKernelSetArgPointer.
+class ur_kernel_arg_pointer_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES
+        ("pNext", c_void_p)                                             ## [in,out][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief Properties for for ::urKernelSetExecInfo.
+class ur_kernel_exec_info_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES
+        ("pNext", c_void_p)                                             ## [in,out][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief Properties for for ::urKernelSetArgSampler.
+class ur_kernel_arg_sampler_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES
+        ("pNext", c_void_p)                                             ## [in,out][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief Properties for for ::urKernelSetArgMemObj.
+class ur_kernel_arg_mem_obj_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("memoryAccess", ur_mem_flags_t)                                ## [in] Memory access flag. Allowed values are: ::UR_MEM_FLAG_READ_WRITE,
+                                                                        ## ::UR_MEM_FLAG_WRITE_ONLY, ::UR_MEM_FLAG_READ_ONLY.
+    ]
+
+###############################################################################
 ## @brief Properties for for ::urKernelCreateWithNativeHandle.
 class ur_kernel_native_properties_t(Structure):
     _fields_ = [
@@ -1490,6 +1679,14 @@ class ur_queue_flags_v(IntEnum):
     DISCARD_EVENTS = UR_BIT(4)                      ## Events will be discarded
     PRIORITY_LOW = UR_BIT(5)                        ## Low priority queue
     PRIORITY_HIGH = UR_BIT(6)                       ## High priority queue
+    SUBMISSION_BATCHED = UR_BIT(7)                  ## Hint: enqueue and submit in a batch later. No change in queue
+                                                    ## semantics. Implementation chooses submission mode.
+    SUBMISSION_IMMEDIATE = UR_BIT(8)                ## Hint: enqueue and submit immediately. No change in queue semantics.
+                                                    ## Implementation chooses submission mode.
+    USE_DEFAULT_STREAM = UR_BIT(9)                  ## Use the default stream. Only meaningful for CUDA. Other platforms may
+                                                    ## ignore this flag.
+    SYNC_WITH_DEFAULT_STREAM = UR_BIT(10)           ## Synchronize with the default stream. Only meaningful for CUDA. Other
+                                                    ## platforms may ignore this flag.
 
 class ur_queue_flags_t(c_int):
     def __str__(self):
@@ -1577,6 +1774,9 @@ class ur_command_v(IntEnum):
     DEVICE_GLOBAL_VARIABLE_READ = 24                ## Event created by ::urEnqueueDeviceGlobalVariableRead
     READ_HOST_PIPE = 25                             ## Event created by ::urEnqueueReadHostPipe
     WRITE_HOST_PIPE = 26                            ## Event created by ::urEnqueueWriteHostPipe
+    COMMAND_BUFFER_ENQUEUE_EXP = 0x1000             ## Event created by ::urCommandBufferEnqueueExp
+    INTEROP_SEMAPHORE_WAIT_EXP = 0x2000             ## Event created by ::urBindlessImagesWaitExternalSemaphoreExp
+    INTEROP_SEMAPHORE_SIGNAL_EXP = 0x2001           ## Event created by ::urBindlessImagesSignalExternalSemaphoreExp
 
 class ur_command_t(c_int):
     def __str__(self):
@@ -1624,6 +1824,9 @@ class ur_profiling_info_v(IntEnum):
                                                     ## when the event starts execution
     COMMAND_END = 3                                 ## [uint64_t] A 64-bit value of current device counter in nanoseconds
                                                     ## when the event has finished execution
+    COMMAND_COMPLETE = 4                            ## [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                                    ## when the event and any child events enqueued by this event on the
+                                                    ## device have finished execution
 
 class ur_profiling_info_t(c_int):
     def __str__(self):
@@ -1702,8 +1905,6 @@ class ur_function_v(IntEnum):
     ENQUEUE_USM_MEMCPY = 33                         ## Enumerator for ::urEnqueueUSMMemcpy
     ENQUEUE_USM_PREFETCH = 34                       ## Enumerator for ::urEnqueueUSMPrefetch
     ENQUEUE_USM_ADVISE = 35                         ## Enumerator for ::urEnqueueUSMAdvise
-    ENQUEUE_USM_FILL2_D = 36                        ## Enumerator for ::urEnqueueUSMFill2D
-    ENQUEUE_USM_MEMCPY2_D = 37                      ## Enumerator for ::urEnqueueUSMMemcpy2D
     ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38       ## Enumerator for ::urEnqueueDeviceGlobalVariableWrite
     ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39        ## Enumerator for ::urEnqueueDeviceGlobalVariableRead
     EVENT_GET_INFO = 40                             ## Enumerator for ::urEventGetInfo
@@ -1743,7 +1944,6 @@ class ur_function_v(IntEnum):
     PLATFORM_GET_API_VERSION = 74                   ## Enumerator for ::urPlatformGetApiVersion
     PLATFORM_GET_NATIVE_HANDLE = 75                 ## Enumerator for ::urPlatformGetNativeHandle
     PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76         ## Enumerator for ::urPlatformCreateWithNativeHandle
-    GET_LAST_RESULT = 77                            ## Enumerator for ::urGetLastResult
     PROGRAM_CREATE_WITH_IL = 78                     ## Enumerator for ::urProgramCreateWithIL
     PROGRAM_CREATE_WITH_BINARY = 79                 ## Enumerator for ::urProgramCreateWithBinary
     PROGRAM_BUILD = 80                              ## Enumerator for ::urProgramBuild
@@ -1779,6 +1979,7 @@ class ur_function_v(IntEnum):
     USM_FREE = 110                                  ## Enumerator for ::urUSMFree
     USM_GET_MEM_ALLOC_INFO = 111                    ## Enumerator for ::urUSMGetMemAllocInfo
     USM_POOL_CREATE = 112                           ## Enumerator for ::urUSMPoolCreate
+    COMMAND_BUFFER_CREATE_EXP = 113                 ## Enumerator for ::urCommandBufferCreateExp
     PLATFORM_GET_BACKEND_OPTION = 114               ## Enumerator for ::urPlatformGetBackendOption
     MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115      ## Enumerator for ::urMemBufferCreateWithNativeHandle
     MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116       ## Enumerator for ::urMemImageCreateWithNativeHandle
@@ -1786,6 +1987,50 @@ class ur_function_v(IntEnum):
     USM_POOL_RETAIN = 118                           ## Enumerator for ::urUSMPoolRetain
     USM_POOL_RELEASE = 119                          ## Enumerator for ::urUSMPoolRelease
     USM_POOL_GET_INFO = 120                         ## Enumerator for ::urUSMPoolGetInfo
+    COMMAND_BUFFER_RETAIN_EXP = 121                 ## Enumerator for ::urCommandBufferRetainExp
+    COMMAND_BUFFER_RELEASE_EXP = 122                ## Enumerator for ::urCommandBufferReleaseExp
+    COMMAND_BUFFER_FINALIZE_EXP = 123               ## Enumerator for ::urCommandBufferFinalizeExp
+    COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125   ## Enumerator for ::urCommandBufferAppendKernelLaunchExp
+    COMMAND_BUFFER_ENQUEUE_EXP = 128                ## Enumerator for ::urCommandBufferEnqueueExp
+    COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129      ## Enumerator for ::urCommandBufferAppendMemcpyUSMExp
+    COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130  ## Enumerator for ::urCommandBufferAppendMembufferCopyExp
+    COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP = 131 ## Enumerator for ::urCommandBufferAppendMembufferCopyRectExp
+    USM_PITCHED_ALLOC_EXP = 132                     ## Enumerator for ::urUSMPitchedAllocExp
+    BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP = 133## Enumerator for ::urBindlessImagesUnsampledImageHandleDestroyExp
+    BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP = 134  ## Enumerator for ::urBindlessImagesSampledImageHandleDestroyExp
+    BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP = 135        ## Enumerator for ::urBindlessImagesImageAllocateExp
+    BINDLESS_IMAGES_IMAGE_FREE_EXP = 136            ## Enumerator for ::urBindlessImagesImageFreeExp
+    BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP = 137## Enumerator for ::urBindlessImagesUnsampledImageCreateExp
+    BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP = 138  ## Enumerator for ::urBindlessImagesSampledImageCreateExp
+    BINDLESS_IMAGES_IMAGE_COPY_EXP = 139            ## Enumerator for ::urBindlessImagesImageCopyExp
+    BINDLESS_IMAGES_IMAGE_GET_INFO_EXP = 140        ## Enumerator for ::urBindlessImagesImageGetInfoExp
+    BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP = 141      ## Enumerator for ::urBindlessImagesMipmapGetLevelExp
+    BINDLESS_IMAGES_MIPMAP_FREE_EXP = 142           ## Enumerator for ::urBindlessImagesMipmapFreeExp
+    BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP = 143      ## Enumerator for ::urBindlessImagesImportOpaqueFDExp
+    BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP = 144    ## Enumerator for ::urBindlessImagesMapExternalArrayExp
+    BINDLESS_IMAGES_RELEASE_INTEROP_EXP = 145       ## Enumerator for ::urBindlessImagesReleaseInteropExp
+    BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP = 146   ## Enumerator for ::urBindlessImagesImportExternalSemaphoreOpaqueFDExp
+    BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147## Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
+    BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148   ## Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
+    BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149 ## Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
+    PLATFORM_GET_LAST_ERROR = 150                   ## Enumerator for ::urPlatformGetLastError
+    ENQUEUE_USM_FILL_2D = 151                       ## Enumerator for ::urEnqueueUSMFill2D
+    ENQUEUE_USM_MEMCPY_2D = 152                     ## Enumerator for ::urEnqueueUSMMemcpy2D
+    VIRTUAL_MEM_GRANULARITY_GET_INFO = 153          ## Enumerator for ::urVirtualMemGranularityGetInfo
+    VIRTUAL_MEM_RESERVE = 154                       ## Enumerator for ::urVirtualMemReserve
+    VIRTUAL_MEM_FREE = 155                          ## Enumerator for ::urVirtualMemFree
+    VIRTUAL_MEM_MAP = 156                           ## Enumerator for ::urVirtualMemMap
+    VIRTUAL_MEM_UNMAP = 157                         ## Enumerator for ::urVirtualMemUnmap
+    VIRTUAL_MEM_SET_ACCESS = 158                    ## Enumerator for ::urVirtualMemSetAccess
+    VIRTUAL_MEM_GET_INFO = 159                      ## Enumerator for ::urVirtualMemGetInfo
+    PHYSICAL_MEM_CREATE = 160                       ## Enumerator for ::urPhysicalMemCreate
+    PHYSICAL_MEM_RETAIN = 161                       ## Enumerator for ::urPhysicalMemRetain
+    PHYSICAL_MEM_RELEASE = 162                      ## Enumerator for ::urPhysicalMemRelease
+    USM_IMPORT_EXP = 163                            ## Enumerator for ::urUSMImportExp
+    USM_RELEASE_EXP = 164                           ## Enumerator for ::urUSMReleaseExp
+    USM_P2P_ENABLE_PEER_ACCESS_EXP = 165            ## Enumerator for ::urUsmP2PEnablePeerAccessExp
+    USM_P2P_DISABLE_PEER_ACCESS_EXP = 166           ## Enumerator for ::urUsmP2PDisablePeerAccessExp
+    USM_P2P_PEER_ACCESS_GET_INFO_EXP = 167          ## Enumerator for ::urUsmP2PPeerAccessGetInfoExp
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -1812,6 +2057,95 @@ class ur_usm_migration_flags_v(IntEnum):
 class ur_usm_migration_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
+
+
+###############################################################################
+## @brief Handle of bindless image
+class ur_exp_image_handle_t(c_void_p):
+    pass
+
+###############################################################################
+## @brief Handle of bindless image memory
+class ur_exp_image_mem_handle_t(c_void_p):
+    pass
+
+###############################################################################
+## @brief Handle of interop memory
+class ur_exp_interop_mem_handle_t(c_void_p):
+    pass
+
+###############################################################################
+## @brief Handle of interop semaphore
+class ur_exp_interop_semaphore_handle_t(c_void_p):
+    pass
+
+###############################################################################
+## @brief Dictates the type of memory copy.
+class ur_exp_image_copy_flags_v(IntEnum):
+    HOST_TO_DEVICE = UR_BIT(0)                      ## Host to device.
+    DEVICE_TO_HOST = UR_BIT(1)                      ## Device to host
+    DEVICE_TO_DEVICE = UR_BIT(2)                    ## Device to device
+
+class ur_exp_image_copy_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief Describes mipmap sampler properties
+## 
+## @details
+##     - Specify these properties in ::urSamplerCreate via ::ur_sampler_desc_t
+##       as part of a `pNext` chain.
+class ur_exp_sampler_mip_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("minMipmapLevelClamp", c_float),                               ## [in] minimum mipmap level from which we can sample, minimum value
+                                                                        ## being 0
+        ("maxMipmapLevelClamp", c_float),                               ## [in] maximum mipmap level from which we can sample, maximum value
+                                                                        ## being the number of levels
+        ("maxAnistropy", c_float)                                       ## [in] anisotropic ratio used when samplling the mipmap with anisotropic
+                                                                        ## filtering
+    ]
+
+###############################################################################
+## @brief The extension string which defines support for command-buffers which
+##        is returned when querying device extensions.
+UR_COMMAND_BUFFER_EXTENSION_STRING_EXP = "ur_exp_command_buffer"
+
+###############################################################################
+## @brief Command-Buffer Descriptor Type
+class ur_exp_command_buffer_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
+        ("pNext", c_void_p)                                             ## [in][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief A value that identifies a command inside of a command-buffer, used for
+##        defining dependencies between commands in the same command-buffer.
+class ur_exp_command_buffer_sync_point_t(c_ulong):
+    pass
+
+###############################################################################
+## @brief Handle of Command-Buffer object
+class ur_exp_command_buffer_handle_t(c_void_p):
+    pass
+
+###############################################################################
+## @brief Supported peer info
+class ur_exp_peer_info_v(IntEnum):
+    UR_PEER_ACCESS_SUPPORTED = 0                    ## [uint32_t] 1 if P2P access is supported otherwise P2P access is not
+                                                    ## supported.
+    UR_PEER_ATOMICS_SUPPORTED = 1                   ## [uint32_t] 1 if atomic operations are supported over the P2P link,
+                                                    ## otherwise such operations are not supported.
+
+class ur_exp_peer_info_t(c_int):
+    def __str__(self):
+        return str(ur_exp_peer_info_v(self.value))
 
 
 ###############################################################################
@@ -1846,6 +2180,13 @@ else:
     _urPlatformCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_platform_native_properties_t), POINTER(ur_platform_handle_t) )
 
 ###############################################################################
+## @brief Function-pointer for urPlatformGetLastError
+if __use_win_types:
+    _urPlatformGetLastError_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p), POINTER(c_long) )
+else:
+    _urPlatformGetLastError_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p), POINTER(c_long) )
+
+###############################################################################
 ## @brief Function-pointer for urPlatformGetApiVersion
 if __use_win_types:
     _urPlatformGetApiVersion_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(ur_api_version_t) )
@@ -1868,6 +2209,7 @@ class ur_platform_dditable_t(Structure):
         ("pfnGetInfo", c_void_p),                                       ## _urPlatformGetInfo_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urPlatformGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urPlatformCreateWithNativeHandle_t
+        ("pfnGetLastError", c_void_p),                                  ## _urPlatformGetLastError_t
         ("pfnGetApiVersion", c_void_p),                                 ## _urPlatformGetApiVersion_t
         ("pfnGetBackendOption", c_void_p)                               ## _urPlatformGetBackendOption_t
     ]
@@ -2176,44 +2518,44 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgValue
 if __use_win_types:
-    _urKernelSetArgValue_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, c_void_p )
+    _urKernelSetArgValue_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, POINTER(ur_kernel_arg_value_properties_t), c_void_p )
 else:
-    _urKernelSetArgValue_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, c_void_p )
+    _urKernelSetArgValue_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, POINTER(ur_kernel_arg_value_properties_t), c_void_p )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgLocal
 if __use_win_types:
-    _urKernelSetArgLocal_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t )
+    _urKernelSetArgLocal_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, POINTER(ur_kernel_arg_local_properties_t) )
 else:
-    _urKernelSetArgLocal_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t )
+    _urKernelSetArgLocal_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, POINTER(ur_kernel_arg_local_properties_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgPointer
 if __use_win_types:
-    _urKernelSetArgPointer_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_void_p )
+    _urKernelSetArgPointer_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_kernel_arg_pointer_properties_t), c_void_p )
 else:
-    _urKernelSetArgPointer_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_void_p )
+    _urKernelSetArgPointer_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_kernel_arg_pointer_properties_t), c_void_p )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetExecInfo
 if __use_win_types:
-    _urKernelSetExecInfo_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_exec_info_t, c_size_t, c_void_p )
+    _urKernelSetExecInfo_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_exec_info_t, c_size_t, POINTER(ur_kernel_exec_info_properties_t), c_void_p )
 else:
-    _urKernelSetExecInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_exec_info_t, c_size_t, c_void_p )
+    _urKernelSetExecInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_exec_info_t, c_size_t, POINTER(ur_kernel_exec_info_properties_t), c_void_p )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgSampler
 if __use_win_types:
-    _urKernelSetArgSampler_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_sampler_handle_t )
+    _urKernelSetArgSampler_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_kernel_arg_sampler_properties_t), ur_sampler_handle_t )
 else:
-    _urKernelSetArgSampler_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_sampler_handle_t )
+    _urKernelSetArgSampler_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_kernel_arg_sampler_properties_t), ur_sampler_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgMemObj
 if __use_win_types:
-    _urKernelSetArgMemObj_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t )
+    _urKernelSetArgMemObj_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_kernel_arg_mem_obj_properties_t), ur_mem_handle_t )
 else:
-    _urKernelSetArgMemObj_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t )
+    _urKernelSetArgMemObj_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, POINTER(ur_kernel_arg_mem_obj_properties_t), ur_mem_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetSpecializationConstants
@@ -2384,6 +2726,37 @@ class ur_mem_dditable_t(Structure):
         ("pfnImageCreateWithNativeHandle", c_void_p),                   ## _urMemImageCreateWithNativeHandle_t
         ("pfnGetInfo", c_void_p),                                       ## _urMemGetInfo_t
         ("pfnImageGetInfo", c_void_p)                                   ## _urMemImageGetInfo_t
+    ]
+
+###############################################################################
+## @brief Function-pointer for urPhysicalMemCreate
+if __use_win_types:
+    _urPhysicalMemCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(ur_physical_mem_properties_t), POINTER(ur_physical_mem_handle_t) )
+else:
+    _urPhysicalMemCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(ur_physical_mem_properties_t), POINTER(ur_physical_mem_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urPhysicalMemRetain
+if __use_win_types:
+    _urPhysicalMemRetain_t = WINFUNCTYPE( ur_result_t, ur_physical_mem_handle_t )
+else:
+    _urPhysicalMemRetain_t = CFUNCTYPE( ur_result_t, ur_physical_mem_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urPhysicalMemRelease
+if __use_win_types:
+    _urPhysicalMemRelease_t = WINFUNCTYPE( ur_result_t, ur_physical_mem_handle_t )
+else:
+    _urPhysicalMemRelease_t = CFUNCTYPE( ur_result_t, ur_physical_mem_handle_t )
+
+
+###############################################################################
+## @brief Table of PhysicalMem functions pointers
+class ur_physical_mem_dditable_t(Structure):
+    _fields_ = [
+        ("pfnCreate", c_void_p),                                        ## _urPhysicalMemCreate_t
+        ("pfnRetain", c_void_p),                                        ## _urPhysicalMemRetain_t
+        ("pfnRelease", c_void_p)                                        ## _urPhysicalMemRelease_t
     ]
 
 ###############################################################################
@@ -2665,34 +3038,146 @@ class ur_queue_dditable_t(Structure):
     ]
 
 ###############################################################################
-## @brief Function-pointer for urInit
+## @brief Function-pointer for urBindlessImagesUnsampledImageHandleDestroyExp
 if __use_win_types:
-    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+    _urBindlessImagesUnsampledImageHandleDestroyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
 else:
-    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+    _urBindlessImagesUnsampledImageHandleDestroyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
 
 ###############################################################################
-## @brief Function-pointer for urGetLastResult
+## @brief Function-pointer for urBindlessImagesSampledImageHandleDestroyExp
 if __use_win_types:
-    _urGetLastResult_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
+    _urBindlessImagesSampledImageHandleDestroyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
 else:
-    _urGetLastResult_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
+    _urBindlessImagesSampledImageHandleDestroyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
 
 ###############################################################################
-## @brief Function-pointer for urTearDown
+## @brief Function-pointer for urBindlessImagesImageAllocateExp
 if __use_win_types:
-    _urTearDown_t = WINFUNCTYPE( ur_result_t, c_void_p )
+    _urBindlessImagesImageAllocateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_exp_image_mem_handle_t) )
 else:
-    _urTearDown_t = CFUNCTYPE( ur_result_t, c_void_p )
+    _urBindlessImagesImageAllocateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_exp_image_mem_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesImageFreeExp
+if __use_win_types:
+    _urBindlessImagesImageFreeExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+else:
+    _urBindlessImagesImageFreeExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesUnsampledImageCreateExp
+if __use_win_types:
+    _urBindlessImagesUnsampledImageCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+else:
+    _urBindlessImagesUnsampledImageCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesSampledImageCreateExp
+if __use_win_types:
+    _urBindlessImagesSampledImageCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_sampler_handle_t, POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+else:
+    _urBindlessImagesSampledImageCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_sampler_handle_t, POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesImageCopyExp
+if __use_win_types:
+    _urBindlessImagesImageCopyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_void_p, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_image_copy_flags_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urBindlessImagesImageCopyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_void_p, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_image_copy_flags_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesImageGetInfoExp
+if __use_win_types:
+    _urBindlessImagesImageGetInfoExp_t = WINFUNCTYPE( ur_result_t, ur_exp_image_mem_handle_t, ur_image_info_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urBindlessImagesImageGetInfoExp_t = CFUNCTYPE( ur_result_t, ur_exp_image_mem_handle_t, ur_image_info_t, c_void_p, POINTER(c_size_t) )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesMipmapGetLevelExp
+if __use_win_types:
+    _urBindlessImagesMipmapGetLevelExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, c_ulong, POINTER(ur_exp_image_mem_handle_t) )
+else:
+    _urBindlessImagesMipmapGetLevelExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, c_ulong, POINTER(ur_exp_image_mem_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesMipmapFreeExp
+if __use_win_types:
+    _urBindlessImagesMipmapFreeExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+else:
+    _urBindlessImagesMipmapFreeExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesImportOpaqueFDExp
+if __use_win_types:
+    _urBindlessImagesImportOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_size_t, c_ulong, POINTER(ur_exp_interop_mem_handle_t) )
+else:
+    _urBindlessImagesImportOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_size_t, c_ulong, POINTER(ur_exp_interop_mem_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesMapExternalArrayExp
+if __use_win_types:
+    _urBindlessImagesMapExternalArrayExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_interop_mem_handle_t, POINTER(ur_exp_image_handle_t) )
+else:
+    _urBindlessImagesMapExternalArrayExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_interop_mem_handle_t, POINTER(ur_exp_image_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesReleaseInteropExp
+if __use_win_types:
+    _urBindlessImagesReleaseInteropExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_mem_handle_t )
+else:
+    _urBindlessImagesReleaseInteropExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_mem_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
+if __use_win_types:
+    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_exp_interop_semaphore_handle_t) )
+else:
+    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_exp_interop_semaphore_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesDestroyExternalSemaphoreExp
+if __use_win_types:
+    _urBindlessImagesDestroyExternalSemaphoreExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_semaphore_handle_t )
+else:
+    _urBindlessImagesDestroyExternalSemaphoreExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_semaphore_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesWaitExternalSemaphoreExp
+if __use_win_types:
+    _urBindlessImagesWaitExternalSemaphoreExp_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_exp_interop_semaphore_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urBindlessImagesWaitExternalSemaphoreExp_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_exp_interop_semaphore_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urBindlessImagesSignalExternalSemaphoreExp
+if __use_win_types:
+    _urBindlessImagesSignalExternalSemaphoreExp_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_exp_interop_semaphore_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urBindlessImagesSignalExternalSemaphoreExp_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_exp_interop_semaphore_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 
 ###############################################################################
-## @brief Table of Global functions pointers
-class ur_global_dditable_t(Structure):
+## @brief Table of BindlessImagesExp functions pointers
+class ur_bindless_images_exp_dditable_t(Structure):
     _fields_ = [
-        ("pfnInit", c_void_p),                                          ## _urInit_t
-        ("pfnGetLastResult", c_void_p),                                 ## _urGetLastResult_t
-        ("pfnTearDown", c_void_p)                                       ## _urTearDown_t
+        ("pfnUnsampledImageHandleDestroyExp", c_void_p),                ## _urBindlessImagesUnsampledImageHandleDestroyExp_t
+        ("pfnSampledImageHandleDestroyExp", c_void_p),                  ## _urBindlessImagesSampledImageHandleDestroyExp_t
+        ("pfnImageAllocateExp", c_void_p),                              ## _urBindlessImagesImageAllocateExp_t
+        ("pfnImageFreeExp", c_void_p),                                  ## _urBindlessImagesImageFreeExp_t
+        ("pfnUnsampledImageCreateExp", c_void_p),                       ## _urBindlessImagesUnsampledImageCreateExp_t
+        ("pfnSampledImageCreateExp", c_void_p),                         ## _urBindlessImagesSampledImageCreateExp_t
+        ("pfnImageCopyExp", c_void_p),                                  ## _urBindlessImagesImageCopyExp_t
+        ("pfnImageGetInfoExp", c_void_p),                               ## _urBindlessImagesImageGetInfoExp_t
+        ("pfnMipmapGetLevelExp", c_void_p),                             ## _urBindlessImagesMipmapGetLevelExp_t
+        ("pfnMipmapFreeExp", c_void_p),                                 ## _urBindlessImagesMipmapFreeExp_t
+        ("pfnImportOpaqueFDExp", c_void_p),                             ## _urBindlessImagesImportOpaqueFDExp_t
+        ("pfnMapExternalArrayExp", c_void_p),                           ## _urBindlessImagesMapExternalArrayExp_t
+        ("pfnReleaseInteropExp", c_void_p),                             ## _urBindlessImagesReleaseInteropExp_t
+        ("pfnImportExternalSemaphoreOpaqueFDExp", c_void_p),            ## _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t
+        ("pfnDestroyExternalSemaphoreExp", c_void_p),                   ## _urBindlessImagesDestroyExternalSemaphoreExp_t
+        ("pfnWaitExternalSemaphoreExp", c_void_p),                      ## _urBindlessImagesWaitExternalSemaphoreExp_t
+        ("pfnSignalExternalSemaphoreExp", c_void_p)                     ## _urBindlessImagesSignalExternalSemaphoreExp_t
     ]
 
 ###############################################################################
@@ -2775,6 +3260,233 @@ class ur_usm_dditable_t(Structure):
     ]
 
 ###############################################################################
+## @brief Function-pointer for urUSMPitchedAllocExp
+if __use_win_types:
+    _urUSMPitchedAllocExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_size_t, c_size_t, POINTER(c_void_p), POINTER(c_size_t) )
+else:
+    _urUSMPitchedAllocExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_size_t, c_size_t, POINTER(c_void_p), POINTER(c_size_t) )
+
+###############################################################################
+## @brief Function-pointer for urUSMImportExp
+if __use_win_types:
+    _urUSMImportExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t )
+else:
+    _urUSMImportExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t )
+
+###############################################################################
+## @brief Function-pointer for urUSMReleaseExp
+if __use_win_types:
+    _urUSMReleaseExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
+else:
+    _urUSMReleaseExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
+
+
+###############################################################################
+## @brief Table of USMExp functions pointers
+class ur_usm_exp_dditable_t(Structure):
+    _fields_ = [
+        ("pfnPitchedAllocExp", c_void_p),                               ## _urUSMPitchedAllocExp_t
+        ("pfnImportExp", c_void_p),                                     ## _urUSMImportExp_t
+        ("pfnReleaseExp", c_void_p)                                     ## _urUSMReleaseExp_t
+    ]
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferCreateExp
+if __use_win_types:
+    _urCommandBufferCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_exp_command_buffer_desc_t), POINTER(ur_exp_command_buffer_handle_t) )
+else:
+    _urCommandBufferCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_exp_command_buffer_desc_t), POINTER(ur_exp_command_buffer_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferRetainExp
+if __use_win_types:
+    _urCommandBufferRetainExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+else:
+    _urCommandBufferRetainExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferReleaseExp
+if __use_win_types:
+    _urCommandBufferReleaseExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+else:
+    _urCommandBufferReleaseExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferFinalizeExp
+if __use_win_types:
+    _urCommandBufferFinalizeExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+else:
+    _urCommandBufferFinalizeExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferAppendKernelLaunchExp
+if __use_win_types:
+    _urCommandBufferAppendKernelLaunchExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_kernel_handle_t, c_ulong, POINTER(c_size_t), POINTER(c_size_t), POINTER(c_size_t), c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+else:
+    _urCommandBufferAppendKernelLaunchExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_kernel_handle_t, c_ulong, POINTER(c_size_t), POINTER(c_size_t), POINTER(c_size_t), c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferAppendMemcpyUSMExp
+if __use_win_types:
+    _urCommandBufferAppendMemcpyUSMExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, c_void_p, c_void_p, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+else:
+    _urCommandBufferAppendMemcpyUSMExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, c_void_p, c_void_p, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferAppendMembufferCopyExp
+if __use_win_types:
+    _urCommandBufferAppendMembufferCopyExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+else:
+    _urCommandBufferAppendMembufferCopyExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferAppendMembufferCopyRectExp
+if __use_win_types:
+    _urCommandBufferAppendMembufferCopyRectExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+else:
+    _urCommandBufferAppendMembufferCopyRectExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferEnqueueExp
+if __use_win_types:
+    _urCommandBufferEnqueueExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_queue_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urCommandBufferEnqueueExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_queue_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
+
+###############################################################################
+## @brief Table of CommandBufferExp functions pointers
+class ur_command_buffer_exp_dditable_t(Structure):
+    _fields_ = [
+        ("pfnCreateExp", c_void_p),                                     ## _urCommandBufferCreateExp_t
+        ("pfnRetainExp", c_void_p),                                     ## _urCommandBufferRetainExp_t
+        ("pfnReleaseExp", c_void_p),                                    ## _urCommandBufferReleaseExp_t
+        ("pfnFinalizeExp", c_void_p),                                   ## _urCommandBufferFinalizeExp_t
+        ("pfnAppendKernelLaunchExp", c_void_p),                         ## _urCommandBufferAppendKernelLaunchExp_t
+        ("pfnAppendMemcpyUSMExp", c_void_p),                            ## _urCommandBufferAppendMemcpyUSMExp_t
+        ("pfnAppendMembufferCopyExp", c_void_p),                        ## _urCommandBufferAppendMembufferCopyExp_t
+        ("pfnAppendMembufferCopyRectExp", c_void_p),                    ## _urCommandBufferAppendMembufferCopyRectExp_t
+        ("pfnEnqueueExp", c_void_p)                                     ## _urCommandBufferEnqueueExp_t
+    ]
+
+###############################################################################
+## @brief Function-pointer for urUsmP2PEnablePeerAccessExp
+if __use_win_types:
+    _urUsmP2PEnablePeerAccessExp_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t )
+else:
+    _urUsmP2PEnablePeerAccessExp_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urUsmP2PDisablePeerAccessExp
+if __use_win_types:
+    _urUsmP2PDisablePeerAccessExp_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t )
+else:
+    _urUsmP2PDisablePeerAccessExp_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urUsmP2PPeerAccessGetInfoExp
+if __use_win_types:
+    _urUsmP2PPeerAccessGetInfoExp_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t, ur_exp_peer_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urUsmP2PPeerAccessGetInfoExp_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t, ur_exp_peer_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
+
+###############################################################################
+## @brief Table of UsmP2PExp functions pointers
+class ur_usm_p2p_exp_dditable_t(Structure):
+    _fields_ = [
+        ("pfnEnablePeerAccessExp", c_void_p),                           ## _urUsmP2PEnablePeerAccessExp_t
+        ("pfnDisablePeerAccessExp", c_void_p),                          ## _urUsmP2PDisablePeerAccessExp_t
+        ("pfnPeerAccessGetInfoExp", c_void_p)                           ## _urUsmP2PPeerAccessGetInfoExp_t
+    ]
+
+###############################################################################
+## @brief Function-pointer for urInit
+if __use_win_types:
+    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+else:
+    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+
+###############################################################################
+## @brief Function-pointer for urTearDown
+if __use_win_types:
+    _urTearDown_t = WINFUNCTYPE( ur_result_t, c_void_p )
+else:
+    _urTearDown_t = CFUNCTYPE( ur_result_t, c_void_p )
+
+
+###############################################################################
+## @brief Table of Global functions pointers
+class ur_global_dditable_t(Structure):
+    _fields_ = [
+        ("pfnInit", c_void_p),                                          ## _urInit_t
+        ("pfnTearDown", c_void_p)                                       ## _urTearDown_t
+    ]
+
+###############################################################################
+## @brief Function-pointer for urVirtualMemGranularityGetInfo
+if __use_win_types:
+    _urVirtualMemGranularityGetInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_virtual_mem_granularity_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urVirtualMemGranularityGetInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_virtual_mem_granularity_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
+###############################################################################
+## @brief Function-pointer for urVirtualMemReserve
+if __use_win_types:
+    _urVirtualMemReserve_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, POINTER(c_void_p) )
+else:
+    _urVirtualMemReserve_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, POINTER(c_void_p) )
+
+###############################################################################
+## @brief Function-pointer for urVirtualMemFree
+if __use_win_types:
+    _urVirtualMemFree_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t )
+else:
+    _urVirtualMemFree_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t )
+
+###############################################################################
+## @brief Function-pointer for urVirtualMemMap
+if __use_win_types:
+    _urVirtualMemMap_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, ur_physical_mem_handle_t, c_size_t, ur_virtual_mem_access_flags_t )
+else:
+    _urVirtualMemMap_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, ur_physical_mem_handle_t, c_size_t, ur_virtual_mem_access_flags_t )
+
+###############################################################################
+## @brief Function-pointer for urVirtualMemUnmap
+if __use_win_types:
+    _urVirtualMemUnmap_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t )
+else:
+    _urVirtualMemUnmap_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t )
+
+###############################################################################
+## @brief Function-pointer for urVirtualMemSetAccess
+if __use_win_types:
+    _urVirtualMemSetAccess_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, ur_virtual_mem_access_flags_t )
+else:
+    _urVirtualMemSetAccess_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, ur_virtual_mem_access_flags_t )
+
+###############################################################################
+## @brief Function-pointer for urVirtualMemGetInfo
+if __use_win_types:
+    _urVirtualMemGetInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, ur_virtual_mem_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urVirtualMemGetInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, ur_virtual_mem_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
+
+###############################################################################
+## @brief Table of VirtualMem functions pointers
+class ur_virtual_mem_dditable_t(Structure):
+    _fields_ = [
+        ("pfnGranularityGetInfo", c_void_p),                            ## _urVirtualMemGranularityGetInfo_t
+        ("pfnReserve", c_void_p),                                       ## _urVirtualMemReserve_t
+        ("pfnFree", c_void_p),                                          ## _urVirtualMemFree_t
+        ("pfnMap", c_void_p),                                           ## _urVirtualMemMap_t
+        ("pfnUnmap", c_void_p),                                         ## _urVirtualMemUnmap_t
+        ("pfnSetAccess", c_void_p),                                     ## _urVirtualMemSetAccess_t
+        ("pfnGetInfo", c_void_p)                                        ## _urVirtualMemGetInfo_t
+    ]
+
+###############################################################################
 ## @brief Function-pointer for urDeviceGet
 if __use_win_types:
     _urDeviceGet_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_device_type_t, c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
@@ -2805,9 +3517,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urDevicePartition
 if __use_win_types:
-    _urDevicePartition_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_property_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
+    _urDevicePartition_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_properties_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
 else:
-    _urDevicePartition_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_property_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
+    _urDevicePartition_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_properties_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
 
 ###############################################################################
 ## @brief Function-pointer for urDeviceSelectBinary
@@ -2863,10 +3575,16 @@ class ur_dditable_t(Structure):
         ("Kernel", ur_kernel_dditable_t),
         ("Sampler", ur_sampler_dditable_t),
         ("Mem", ur_mem_dditable_t),
+        ("PhysicalMem", ur_physical_mem_dditable_t),
         ("Enqueue", ur_enqueue_dditable_t),
         ("Queue", ur_queue_dditable_t),
-        ("Global", ur_global_dditable_t),
+        ("BindlessImagesExp", ur_bindless_images_exp_dditable_t),
         ("USM", ur_usm_dditable_t),
+        ("USMExp", ur_usm_exp_dditable_t),
+        ("CommandBufferExp", ur_command_buffer_exp_dditable_t),
+        ("UsmP2PExp", ur_usm_p2p_exp_dditable_t),
+        ("Global", ur_global_dditable_t),
+        ("VirtualMem", ur_virtual_mem_dditable_t),
         ("Device", ur_device_dditable_t)
     ]
 
@@ -2898,6 +3616,7 @@ class UR_DDI:
         self.urPlatformGetInfo = _urPlatformGetInfo_t(self.__dditable.Platform.pfnGetInfo)
         self.urPlatformGetNativeHandle = _urPlatformGetNativeHandle_t(self.__dditable.Platform.pfnGetNativeHandle)
         self.urPlatformCreateWithNativeHandle = _urPlatformCreateWithNativeHandle_t(self.__dditable.Platform.pfnCreateWithNativeHandle)
+        self.urPlatformGetLastError = _urPlatformGetLastError_t(self.__dditable.Platform.pfnGetLastError)
         self.urPlatformGetApiVersion = _urPlatformGetApiVersion_t(self.__dditable.Platform.pfnGetApiVersion)
         self.urPlatformGetBackendOption = _urPlatformGetBackendOption_t(self.__dditable.Platform.pfnGetBackendOption)
 
@@ -3015,6 +3734,18 @@ class UR_DDI:
         self.urMemImageGetInfo = _urMemImageGetInfo_t(self.__dditable.Mem.pfnImageGetInfo)
 
         # call driver to get function pointers
+        PhysicalMem = ur_physical_mem_dditable_t()
+        r = ur_result_v(self.__dll.urGetPhysicalMemProcAddrTable(version, byref(PhysicalMem)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.PhysicalMem = PhysicalMem
+
+        # attach function interface to function address
+        self.urPhysicalMemCreate = _urPhysicalMemCreate_t(self.__dditable.PhysicalMem.pfnCreate)
+        self.urPhysicalMemRetain = _urPhysicalMemRetain_t(self.__dditable.PhysicalMem.pfnRetain)
+        self.urPhysicalMemRelease = _urPhysicalMemRelease_t(self.__dditable.PhysicalMem.pfnRelease)
+
+        # call driver to get function pointers
         Enqueue = ur_enqueue_dditable_t()
         r = ur_result_v(self.__dll.urGetEnqueueProcAddrTable(version, byref(Enqueue)))
         if r != ur_result_v.SUCCESS:
@@ -3066,16 +3797,30 @@ class UR_DDI:
         self.urQueueFlush = _urQueueFlush_t(self.__dditable.Queue.pfnFlush)
 
         # call driver to get function pointers
-        Global = ur_global_dditable_t()
-        r = ur_result_v(self.__dll.urGetGlobalProcAddrTable(version, byref(Global)))
+        BindlessImagesExp = ur_bindless_images_exp_dditable_t()
+        r = ur_result_v(self.__dll.urGetBindlessImagesExpProcAddrTable(version, byref(BindlessImagesExp)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Global = Global
+        self.__dditable.BindlessImagesExp = BindlessImagesExp
 
         # attach function interface to function address
-        self.urInit = _urInit_t(self.__dditable.Global.pfnInit)
-        self.urGetLastResult = _urGetLastResult_t(self.__dditable.Global.pfnGetLastResult)
-        self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
+        self.urBindlessImagesUnsampledImageHandleDestroyExp = _urBindlessImagesUnsampledImageHandleDestroyExp_t(self.__dditable.BindlessImagesExp.pfnUnsampledImageHandleDestroyExp)
+        self.urBindlessImagesSampledImageHandleDestroyExp = _urBindlessImagesSampledImageHandleDestroyExp_t(self.__dditable.BindlessImagesExp.pfnSampledImageHandleDestroyExp)
+        self.urBindlessImagesImageAllocateExp = _urBindlessImagesImageAllocateExp_t(self.__dditable.BindlessImagesExp.pfnImageAllocateExp)
+        self.urBindlessImagesImageFreeExp = _urBindlessImagesImageFreeExp_t(self.__dditable.BindlessImagesExp.pfnImageFreeExp)
+        self.urBindlessImagesUnsampledImageCreateExp = _urBindlessImagesUnsampledImageCreateExp_t(self.__dditable.BindlessImagesExp.pfnUnsampledImageCreateExp)
+        self.urBindlessImagesSampledImageCreateExp = _urBindlessImagesSampledImageCreateExp_t(self.__dditable.BindlessImagesExp.pfnSampledImageCreateExp)
+        self.urBindlessImagesImageCopyExp = _urBindlessImagesImageCopyExp_t(self.__dditable.BindlessImagesExp.pfnImageCopyExp)
+        self.urBindlessImagesImageGetInfoExp = _urBindlessImagesImageGetInfoExp_t(self.__dditable.BindlessImagesExp.pfnImageGetInfoExp)
+        self.urBindlessImagesMipmapGetLevelExp = _urBindlessImagesMipmapGetLevelExp_t(self.__dditable.BindlessImagesExp.pfnMipmapGetLevelExp)
+        self.urBindlessImagesMipmapFreeExp = _urBindlessImagesMipmapFreeExp_t(self.__dditable.BindlessImagesExp.pfnMipmapFreeExp)
+        self.urBindlessImagesImportOpaqueFDExp = _urBindlessImagesImportOpaqueFDExp_t(self.__dditable.BindlessImagesExp.pfnImportOpaqueFDExp)
+        self.urBindlessImagesMapExternalArrayExp = _urBindlessImagesMapExternalArrayExp_t(self.__dditable.BindlessImagesExp.pfnMapExternalArrayExp)
+        self.urBindlessImagesReleaseInteropExp = _urBindlessImagesReleaseInteropExp_t(self.__dditable.BindlessImagesExp.pfnReleaseInteropExp)
+        self.urBindlessImagesImportExternalSemaphoreOpaqueFDExp = _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t(self.__dditable.BindlessImagesExp.pfnImportExternalSemaphoreOpaqueFDExp)
+        self.urBindlessImagesDestroyExternalSemaphoreExp = _urBindlessImagesDestroyExternalSemaphoreExp_t(self.__dditable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp)
+        self.urBindlessImagesWaitExternalSemaphoreExp = _urBindlessImagesWaitExternalSemaphoreExp_t(self.__dditable.BindlessImagesExp.pfnWaitExternalSemaphoreExp)
+        self.urBindlessImagesSignalExternalSemaphoreExp = _urBindlessImagesSignalExternalSemaphoreExp_t(self.__dditable.BindlessImagesExp.pfnSignalExternalSemaphoreExp)
 
         # call driver to get function pointers
         USM = ur_usm_dditable_t()
@@ -3094,6 +3839,75 @@ class UR_DDI:
         self.urUSMPoolRetain = _urUSMPoolRetain_t(self.__dditable.USM.pfnPoolRetain)
         self.urUSMPoolRelease = _urUSMPoolRelease_t(self.__dditable.USM.pfnPoolRelease)
         self.urUSMPoolGetInfo = _urUSMPoolGetInfo_t(self.__dditable.USM.pfnPoolGetInfo)
+
+        # call driver to get function pointers
+        USMExp = ur_usm_exp_dditable_t()
+        r = ur_result_v(self.__dll.urGetUSMExpProcAddrTable(version, byref(USMExp)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.USMExp = USMExp
+
+        # attach function interface to function address
+        self.urUSMPitchedAllocExp = _urUSMPitchedAllocExp_t(self.__dditable.USMExp.pfnPitchedAllocExp)
+        self.urUSMImportExp = _urUSMImportExp_t(self.__dditable.USMExp.pfnImportExp)
+        self.urUSMReleaseExp = _urUSMReleaseExp_t(self.__dditable.USMExp.pfnReleaseExp)
+
+        # call driver to get function pointers
+        CommandBufferExp = ur_command_buffer_exp_dditable_t()
+        r = ur_result_v(self.__dll.urGetCommandBufferExpProcAddrTable(version, byref(CommandBufferExp)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.CommandBufferExp = CommandBufferExp
+
+        # attach function interface to function address
+        self.urCommandBufferCreateExp = _urCommandBufferCreateExp_t(self.__dditable.CommandBufferExp.pfnCreateExp)
+        self.urCommandBufferRetainExp = _urCommandBufferRetainExp_t(self.__dditable.CommandBufferExp.pfnRetainExp)
+        self.urCommandBufferReleaseExp = _urCommandBufferReleaseExp_t(self.__dditable.CommandBufferExp.pfnReleaseExp)
+        self.urCommandBufferFinalizeExp = _urCommandBufferFinalizeExp_t(self.__dditable.CommandBufferExp.pfnFinalizeExp)
+        self.urCommandBufferAppendKernelLaunchExp = _urCommandBufferAppendKernelLaunchExp_t(self.__dditable.CommandBufferExp.pfnAppendKernelLaunchExp)
+        self.urCommandBufferAppendMemcpyUSMExp = _urCommandBufferAppendMemcpyUSMExp_t(self.__dditable.CommandBufferExp.pfnAppendMemcpyUSMExp)
+        self.urCommandBufferAppendMembufferCopyExp = _urCommandBufferAppendMembufferCopyExp_t(self.__dditable.CommandBufferExp.pfnAppendMembufferCopyExp)
+        self.urCommandBufferAppendMembufferCopyRectExp = _urCommandBufferAppendMembufferCopyRectExp_t(self.__dditable.CommandBufferExp.pfnAppendMembufferCopyRectExp)
+        self.urCommandBufferEnqueueExp = _urCommandBufferEnqueueExp_t(self.__dditable.CommandBufferExp.pfnEnqueueExp)
+
+        # call driver to get function pointers
+        UsmP2PExp = ur_usm_p2p_exp_dditable_t()
+        r = ur_result_v(self.__dll.urGetUsmP2PExpProcAddrTable(version, byref(UsmP2PExp)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.UsmP2PExp = UsmP2PExp
+
+        # attach function interface to function address
+        self.urUsmP2PEnablePeerAccessExp = _urUsmP2PEnablePeerAccessExp_t(self.__dditable.UsmP2PExp.pfnEnablePeerAccessExp)
+        self.urUsmP2PDisablePeerAccessExp = _urUsmP2PDisablePeerAccessExp_t(self.__dditable.UsmP2PExp.pfnDisablePeerAccessExp)
+        self.urUsmP2PPeerAccessGetInfoExp = _urUsmP2PPeerAccessGetInfoExp_t(self.__dditable.UsmP2PExp.pfnPeerAccessGetInfoExp)
+
+        # call driver to get function pointers
+        Global = ur_global_dditable_t()
+        r = ur_result_v(self.__dll.urGetGlobalProcAddrTable(version, byref(Global)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.Global = Global
+
+        # attach function interface to function address
+        self.urInit = _urInit_t(self.__dditable.Global.pfnInit)
+        self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
+
+        # call driver to get function pointers
+        VirtualMem = ur_virtual_mem_dditable_t()
+        r = ur_result_v(self.__dll.urGetVirtualMemProcAddrTable(version, byref(VirtualMem)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.VirtualMem = VirtualMem
+
+        # attach function interface to function address
+        self.urVirtualMemGranularityGetInfo = _urVirtualMemGranularityGetInfo_t(self.__dditable.VirtualMem.pfnGranularityGetInfo)
+        self.urVirtualMemReserve = _urVirtualMemReserve_t(self.__dditable.VirtualMem.pfnReserve)
+        self.urVirtualMemFree = _urVirtualMemFree_t(self.__dditable.VirtualMem.pfnFree)
+        self.urVirtualMemMap = _urVirtualMemMap_t(self.__dditable.VirtualMem.pfnMap)
+        self.urVirtualMemUnmap = _urVirtualMemUnmap_t(self.__dditable.VirtualMem.pfnUnmap)
+        self.urVirtualMemSetAccess = _urVirtualMemSetAccess_t(self.__dditable.VirtualMem.pfnSetAccess)
+        self.urVirtualMemGetInfo = _urVirtualMemGetInfo_t(self.__dditable.VirtualMem.pfnGetInfo)
 
         # call driver to get function pointers
         Device = ur_device_dditable_t()

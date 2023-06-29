@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <CL/sycl.hpp>
 
@@ -13,7 +15,7 @@ int main() {
     sycl_queue.submit([&](cl::sycl::handler &cgh) {
         auto A_acc = A_buff.get_access<cl::sycl::access::mode::write>(cgh);
         cgh.parallel_for<class fill>(cl::sycl::range<1>{array_size},
-                                     [=](cl::sycl::item<1> itemId) {
+                                     [A_acc, val](cl::sycl::item<1> itemId) {
                                          auto id = itemId.get_id(0);
                                          A_acc[id] = val;
                                      });

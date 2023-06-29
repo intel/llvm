@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <map>
 #include <uur/fixtures.h>
 
@@ -41,4 +43,31 @@ TEST_P(urMemGetInfoTest, InvalidEnumerationMemInfoType) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urMemGetInfo(buffer, UR_MEM_INFO_FORCE_UINT32,
                                   sizeof(size_t), &mem_size, nullptr));
+}
+
+TEST_P(urMemGetInfoTest, InvalidSizeZero) {
+    size_t mem_size = 0;
+    ASSERT_EQ_RESULT(
+        urMemGetInfo(buffer, UR_MEM_INFO_SIZE, 0, &mem_size, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urMemGetInfoTest, InvalidSizeSmall) {
+    size_t mem_size = 0;
+    ASSERT_EQ_RESULT(urMemGetInfo(buffer, UR_MEM_INFO_SIZE,
+                                  sizeof(mem_size) - 1, &mem_size, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urMemGetInfoTest, InvalidNullPointerParamValue) {
+    size_t mem_size = 0;
+    ASSERT_EQ_RESULT(urMemGetInfo(buffer, UR_MEM_INFO_SIZE, sizeof(mem_size),
+                                  nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urMemGetInfoTest, InvalidNullPointerPropSizeRet) {
+    ASSERT_EQ_RESULT(
+        urMemGetInfo(buffer, UR_MEM_INFO_SIZE, 0, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
 }

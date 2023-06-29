@@ -1,5 +1,7 @@
 # Copyright (C) 2022 Intel Corporation
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/UrLoaderVersion.rc.in
@@ -117,15 +119,15 @@ endif()
 if(WIN32)
     target_sources(ur_loader
         PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/windows/adapter_search.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/lib_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_init.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_location.cpp
     )
 else()
     target_sources(ur_loader
         PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/linux/adapter_search.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/lib_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/loader_init.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/linux/loader_location.cpp
     )
 endif()

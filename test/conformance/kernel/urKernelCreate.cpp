@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 
@@ -7,15 +9,10 @@ struct urKernelCreateTest : uur::urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
         ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
-        size_t kernel_string_size = 0;
-        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_KERNEL_NAMES,
-                                        0, nullptr, &kernel_string_size));
-        std::string kernel_string;
-        kernel_string.resize(kernel_string_size);
-        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_KERNEL_NAMES,
-                                        kernel_string.size(),
-                                        kernel_string.data(), nullptr));
-        kernel_name = kernel_string.substr(0, kernel_string.find(";"));
+        auto kernel_names =
+            uur::KernelsEnvironment::instance->GetEntryPointNames(
+                this->program_name);
+        kernel_name = kernel_names[0];
     }
 
     void TearDown() override {
@@ -50,7 +47,7 @@ TEST_P(urKernelCreateTest, InvalidNullPointerKernel) {
 }
 
 TEST_P(urKernelCreateTest, InvalidKernelName) {
-    std::string invalid_name = "";
+    std::string invalid_name = "incorrect_kernel_name";
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_NAME,
                      urKernelCreate(program, invalid_name.data(), &kernel));
 }

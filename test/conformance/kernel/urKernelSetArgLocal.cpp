@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 
@@ -13,12 +15,12 @@ struct urKernelSetArgLocalTest : uur::urKernelTest {
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgLocalTest);
 
 TEST_P(urKernelSetArgLocalTest, Success) {
-    ASSERT_SUCCESS(urKernelSetArgLocal(kernel, 1, local_mem_size));
+    ASSERT_SUCCESS(urKernelSetArgLocal(kernel, 1, local_mem_size, nullptr));
 }
 
 TEST_P(urKernelSetArgLocalTest, InvalidNullHandleKernel) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urKernelSetArgLocal(nullptr, 1, local_mem_size));
+                     urKernelSetArgLocal(nullptr, 1, local_mem_size, nullptr));
 }
 
 TEST_P(urKernelSetArgLocalTest, InvalidKernelArgumentIndex) {
@@ -26,7 +28,7 @@ TEST_P(urKernelSetArgLocalTest, InvalidKernelArgumentIndex) {
     ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
                                    sizeof(num_kernel_args), &num_kernel_args,
                                    nullptr));
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
-        urKernelSetArgLocal(kernel, num_kernel_args + 1, local_mem_size));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+                     urKernelSetArgLocal(kernel, num_kernel_args + 1,
+                                         local_mem_size, nullptr));
 }

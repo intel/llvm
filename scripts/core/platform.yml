@@ -1,7 +1,9 @@
 #
 # Copyright (C) 2022 Intel Corporation
 #
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition
 #
@@ -96,9 +98,21 @@ params:
             [out][optional][typename(propName, propSize)] array of bytes holding the info.
             If Size is not equal to or greater to the real number of bytes needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPlatformInfo is not used.
     - type: "size_t*"
-      name: pSizeRet
+      name: pPropSizeRet
       desc: |
             [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_PLATFORM
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported API versions"
@@ -208,33 +222,54 @@ returns:
       - "If `pFrontendOption` is not a valid frontend option."
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Retrieve string representation of the underlying adapter specific result
-       reported by the the last API that returned UR_RESULT_ADAPTER_SPECIFIC.
-       Allows for an adapter independent way to return an adapter
-       specific result."
-class: $x
-name: GetLastResult
+desc: "Get the last adapter specific error."
+details: |
+    To be used after another entry-point has returned
+    $X_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
+    the circumstances of the underlying driver error and the error code
+    returned by the failed driver entry-point.
+
+    * Implementations *must* store the message and error code in thread-local
+      storage prior to returning $X_RESULT_ERROR_ADAPTER_SPECIFIC.
+
+    * The message and error code storage is will only be valid if a previously
+      called entry-point returned $X_RESULT_ERROR_ADAPTER_SPECIFIC.
+
+    * The memory pointed to by the C string returned in `ppMessage` is owned by
+      the adapter and *must* be null terminated.
+
+    * The application *may* call this function from simultaneous threads.
+
+    * The implementation of this function *should* be lock-free.
+
+    Example usage:
+
+    ```cpp
+    if ($xQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
+            $X_RESULT_ERROR_ADAPTER_SPECIFIC) {
+        const char* pMessage;
+        int32_t error;
+        $xPlatformGetLastError(hPlatform, &pMessage, &error);
+    }
+    ```
+class: $xPlatform
+name: GetLastError
 decl: static
 ordinal: "0"
-details:
-    - "The string returned via the ppMessage is a NULL terminated C style string."
-    - "The string returned via the ppMessage is thread local."
-    - "The entry point will return UR_RESULT_SUCCESS if the result being
-       reported is to be considered a warning. Any other result code returned
-       indicates that the adapter specific result is an error."
-    -  "The memory in the string returned via the ppMessage is owned by the
-       adapter."
-    - "The application may call this function from simultaneous
-       threads."
-    - "The implementation of this function should be lock-free."
 params:
     - type: $x_platform_handle_t
       name: hPlatform
       desc: "[in] handle of the platform instance"
     - type: const char**
       name: ppMessage
-      desc: "[out] pointer to a string containing adapter specific result
-             in string representation."
+      desc: >
+          [out] pointer to a C string where the adapter specific error message
+          will be stored.
+    - type: int32_t*
+      name: pError
+      desc: >
+          [out] pointer to an integer where the adapter specific error code
+          will be stored.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Identifies native backend adapters"

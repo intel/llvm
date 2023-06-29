@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 
@@ -48,6 +50,6 @@ TEST_P(urKernelGetSubGroupInfoTest, InvalidEnumeration) {
     size_t bad_enum_length = 0;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urKernelGetSubGroupInfo(
-                         nullptr, device, UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32,
+                         kernel, device, UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32,
                          0, nullptr, &bad_enum_length));
 }

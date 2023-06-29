@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 
 using urQueueCreateTest = uur::urContextTest;
@@ -75,14 +77,23 @@ TEST_P(urQueueCreateTest, InvalidValueProperties) {
 }
 
 TEST_P(urQueueCreateTest, InvalidQueueProperties) {
-    ur_queue_handle_t queue = nullptr;
-
-    // It should be an error to specify both low/high priorities
     ur_queue_properties_t props = {
         /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
         /*.pNext =*/nullptr,
         /*.flags =*/UR_QUEUE_FLAG_PRIORITY_HIGH | UR_QUEUE_FLAG_PRIORITY_LOW,
     };
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES,
-                     urQueueCreate(context, device, &props, &queue));
+    // It should be an error to specify both low/high priorities
+    {
+        ur_queue_handle_t queue = nullptr;
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES,
+                         urQueueCreate(context, device, &props, &queue));
+    }
+    // It should be an error to specify both batched and immediate submission
+    {
+        ur_queue_handle_t queue = nullptr;
+        props.flags = UR_QUEUE_FLAG_SUBMISSION_BATCHED |
+                      UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES,
+                         urQueueCreate(context, device, &props, &queue));
+    }
 }

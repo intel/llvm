@@ -1,13 +1,15 @@
 #
 # Copyright (C) 2023 Intel Corporation
 #
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Level-Zero Runtime APIs for Program"
+desc: "Intel $OneApi Unified Runtime Runtime APIs for Program"
 ordinal: "6"
 --- #--------------------------------------------------------------------------
 type: enum
@@ -107,6 +109,8 @@ returns:
         - "If `pIL` is not a valid IL binary for devices in `hContext`."
     - $X_RESULT_ERROR_COMPILER_NOT_AVAILABLE:
         - "If devices in `hContext` don't have the capability to compile an IL binary at runtime."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`length == 0`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create a program object from device native binary."
@@ -357,6 +361,18 @@ params:
       name: "pPropSizeRet"
       desc: |
             [out][optional] pointer to the actual size in bytes of the queried propName.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_PROGRAM
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Program object build status"

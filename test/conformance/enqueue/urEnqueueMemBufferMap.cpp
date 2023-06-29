@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 
 using urEnqueueMemBufferMapTest = uur::urMemBufferQueueTest;
@@ -139,29 +141,27 @@ TEST_P(urEnqueueMemBufferMapTest, SuccessMultiMaps) {
 }
 
 TEST_P(urEnqueueMemBufferMapTest, InvalidNullHandleQueue) {
-    uint32_t *map = nullptr;
+    void *map = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urEnqueueMemBufferMap(nullptr, buffer, true,
                                            UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE,
-                                           0, size, 0, nullptr, nullptr,
-                                           (void **)&map));
+                                           0, size, 0, nullptr, nullptr, &map));
 }
 
 TEST_P(urEnqueueMemBufferMapTest, InvalidNullHandleBuffer) {
-    uint32_t *map = nullptr;
+    void *map = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urEnqueueMemBufferMap(queue, nullptr, true,
                                            UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE,
-                                           0, size, 0, nullptr, nullptr,
-                                           (void **)&map));
+                                           0, size, 0, nullptr, nullptr, &map));
 }
 
 TEST_P(urEnqueueMemBufferMapTest, InvalidEnumerationMapFlags) {
-    uint32_t *map = nullptr;
+    void *map = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urEnqueueMemBufferMap(queue, buffer, true,
                                            UR_MAP_FLAG_FORCE_UINT32, 0, size, 0,
-                                           nullptr, nullptr, (void **)&map));
+                                           nullptr, nullptr, &map));
 }
 
 TEST_P(urEnqueueMemBufferMapTest, InvalidNullPointerRetMap) {
@@ -173,10 +173,10 @@ TEST_P(urEnqueueMemBufferMapTest, InvalidNullPointerRetMap) {
 }
 
 TEST_P(urEnqueueMemBufferMapTest, InvalidNullPtrEventWaitList) {
+    void *map;
     ASSERT_EQ_RESULT(urEnqueueMemBufferMap(queue, buffer, true,
                                            UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE,
-                                           0, size, 1, nullptr, nullptr,
-                                           nullptr),
+                                           0, size, 1, nullptr, nullptr, &map),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
     ur_event_handle_t validEvent;
@@ -185,7 +185,7 @@ TEST_P(urEnqueueMemBufferMapTest, InvalidNullPtrEventWaitList) {
     ASSERT_EQ_RESULT(urEnqueueMemBufferMap(queue, buffer, true,
                                            UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE,
                                            0, size, 0, &validEvent, nullptr,
-                                           nullptr),
+                                           &map),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 

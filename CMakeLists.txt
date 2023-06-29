@@ -1,5 +1,7 @@
 # Copyright (C) 2022-2023 Intel Corporation
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
 project(unified-runtime VERSION 0.6.0)
@@ -95,8 +97,16 @@ if(UR_ENABLE_TRACING)
     set(XPTI_SOURCE_DIR ${xpti_SOURCE_DIR})
     set(XPTI_DIR ${xpti_SOURCE_DIR})
     set(XPTI_ENABLE_TESTS OFF CACHE INTERNAL "Turn off xptifw tests")
+
     FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "sycl-nightly/20230304" "xptifw")
+
     FetchContent_MakeAvailable(xptifw)
+
+    check_cxx_compiler_flag("-Wno-error=maybe-uninitialized" HAS_MAYBE_UNINIT)
+    if (HAS_MAYBE_UNINIT)
+        target_compile_options(xptifw PRIVATE -Wno-error=maybe-uninitialized)
+    endif()
+
     set_target_properties(xptifw PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
     )
@@ -229,14 +239,14 @@ install(
 
 set(API_JSON_FILE ${PROJECT_BINARY_DIR}/unified_runtime.json)
 
-# Generate source from the specification
-add_custom_target(generate-code USES_TERMINAL
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/scripts
-    COMMAND ${Python3_EXECUTABLE} run.py --api-json ${API_JSON_FILE}
-    COMMAND ${Python3_EXECUTABLE} json2src.py --api-json ${API_JSON_FILE} ${PROJECT_SOURCE_DIR}
-)
-
 if(UR_FORMAT_CPP_STYLE)
+    # Generate source from the specification
+    add_custom_target(generate-code USES_TERMINAL
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/scripts
+        COMMAND ${Python3_EXECUTABLE} run.py --api-json ${API_JSON_FILE} --clang-format=${CLANG_FORMAT}
+        COMMAND ${Python3_EXECUTABLE} json2src.py --api-json ${API_JSON_FILE} ${PROJECT_SOURCE_DIR}
+    )
+
     # Generate and format source from the specification
     add_custom_target(generate USES_TERMINAL
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target generate-code

@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 
@@ -36,4 +38,31 @@ TEST_P(urProgramGetInfoTest, InvalidEnumeration) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urProgramGetInfo(program, UR_PROGRAM_INFO_FORCE_UINT32, 0,
                                       nullptr, &prop_size));
+}
+
+TEST_P(urProgramGetInfoTest, InvalidSizeZero) {
+    uint32_t ref_count = 0;
+    ASSERT_EQ_RESULT(urProgramGetInfo(program, UR_PROGRAM_INFO_REFERENCE_COUNT,
+                                      0, &ref_count, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urProgramGetInfoTest, InvalidSizeSmall) {
+    uint32_t ref_count = 0;
+    ASSERT_EQ_RESULT(urProgramGetInfo(program, UR_PROGRAM_INFO_REFERENCE_COUNT,
+                                      sizeof(ref_count) - 1, &ref_count,
+                                      nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urProgramGetInfoTest, InvalidNullPointerPropValue) {
+    ASSERT_EQ_RESULT(urProgramGetInfo(program, UR_PROGRAM_INFO_REFERENCE_COUNT,
+                                      sizeof(uint32_t), nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_P(urProgramGetInfoTest, InvalidNullPointerPropValueRet) {
+    ASSERT_EQ_RESULT(urProgramGetInfo(program, UR_PROGRAM_INFO_REFERENCE_COUNT,
+                                      0, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }

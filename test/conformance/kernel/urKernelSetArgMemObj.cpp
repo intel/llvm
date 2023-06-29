@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 
@@ -24,12 +26,12 @@ struct urKernelSetArgMemObjTest : uur::urKernelTest {
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgMemObjTest);
 
 TEST_P(urKernelSetArgMemObjTest, Success) {
-    ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, buffer));
+    ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer));
 }
 
 TEST_P(urKernelSetArgMemObjTest, InvalidNullHandleKernel) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urKernelSetArgMemObj(nullptr, 0, buffer));
+                     urKernelSetArgMemObj(nullptr, 0, nullptr, buffer));
 }
 
 TEST_P(urKernelSetArgMemObjTest, InvalidKernelArgumentIndex) {
@@ -37,11 +39,7 @@ TEST_P(urKernelSetArgMemObjTest, InvalidKernelArgumentIndex) {
     ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
                                    sizeof(num_kernel_args), &num_kernel_args,
                                    nullptr));
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
-                     urKernelSetArgMemObj(kernel, num_kernel_args + 1, buffer));
-}
-
-TEST_P(urKernelSetArgMemObjTest, InvalidNullPointer) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urKernelSetArgMemObj(kernel, 0, nullptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+        urKernelSetArgMemObj(kernel, num_kernel_args + 1, nullptr, buffer));
 }

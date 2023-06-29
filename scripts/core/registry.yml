@@ -1,6 +1,6 @@
 ---
 type: header
-desc: "Intel$OneApi Unified Rutime function registry"
+desc: "Intel $OneApi Unified Runtime function registry"
 ordinal: "9"
 ---
 name: $x_function_t
@@ -112,12 +112,6 @@ etors:
 - name: ENQUEUE_USM_ADVISE
   desc: Enumerator for $xEnqueueUSMAdvise
   value: '35'
-- name: ENQUEUE_USM_FILL2_D
-  desc: Enumerator for $xEnqueueUSMFill2D
-  value: '36'
-- name: ENQUEUE_USM_MEMCPY2_D
-  desc: Enumerator for $xEnqueueUSMMemcpy2D
-  value: '37'
 - name: ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE
   desc: Enumerator for $xEnqueueDeviceGlobalVariableWrite
   value: '38'
@@ -235,9 +229,6 @@ etors:
 - name: PLATFORM_CREATE_WITH_NATIVE_HANDLE
   desc: Enumerator for $xPlatformCreateWithNativeHandle
   value: '76'
-- name: GET_LAST_RESULT
-  desc: Enumerator for $xGetLastResult
-  value: '77'
 - name: PROGRAM_CREATE_WITH_IL
   desc: Enumerator for $xProgramCreateWithIL
   value: '78'
@@ -343,6 +334,9 @@ etors:
 - name: USM_POOL_CREATE
   desc: Enumerator for $xUSMPoolCreate
   value: '112'
+- name: COMMAND_BUFFER_CREATE_EXP
+  desc: Enumerator for $xCommandBufferCreateExp
+  value: '113'
 - name: PLATFORM_GET_BACKEND_OPTION
   desc: Enumerator for $xPlatformGetBackendOption
   value: '114'
@@ -364,3 +358,135 @@ etors:
 - name: USM_POOL_GET_INFO
   desc: Enumerator for $xUSMPoolGetInfo
   value: '120'
+- name: COMMAND_BUFFER_RETAIN_EXP
+  desc: Enumerator for $xCommandBufferRetainExp
+  value: '121'
+- name: COMMAND_BUFFER_RELEASE_EXP
+  desc: Enumerator for $xCommandBufferReleaseExp
+  value: '122'
+- name: COMMAND_BUFFER_FINALIZE_EXP
+  desc: Enumerator for $xCommandBufferFinalizeExp
+  value: '123'
+- name: COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP
+  desc: Enumerator for $xCommandBufferAppendKernelLaunchExp
+  value: '125'
+- name: COMMAND_BUFFER_ENQUEUE_EXP
+  desc: Enumerator for $xCommandBufferEnqueueExp
+  value: '128'
+- name: COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP
+  desc: Enumerator for $xCommandBufferAppendMemcpyUSMExp
+  value: '129'
+- name: COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP
+  desc: Enumerator for $xCommandBufferAppendMembufferCopyExp
+  value: '130'
+- name: COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMembufferCopyRectExp
+  value: '131'
+- name: USM_PITCHED_ALLOC_EXP
+  desc: Enumerator for $xUSMPitchedAllocExp
+  value: '132'
+- name: BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP
+  desc: Enumerator for $xBindlessImagesUnsampledImageHandleDestroyExp
+  value: '133'
+- name: BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP
+  desc: Enumerator for $xBindlessImagesSampledImageHandleDestroyExp
+  value: '134'
+- name: BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP
+  desc: Enumerator for $xBindlessImagesImageAllocateExp
+  value: '135'
+- name: BINDLESS_IMAGES_IMAGE_FREE_EXP
+  desc: Enumerator for $xBindlessImagesImageFreeExp
+  value: '136'
+- name: BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP
+  desc: Enumerator for $xBindlessImagesUnsampledImageCreateExp
+  value: '137'
+- name: BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP
+  desc: Enumerator for $xBindlessImagesSampledImageCreateExp
+  value: '138'
+- name: BINDLESS_IMAGES_IMAGE_COPY_EXP
+  desc: Enumerator for $xBindlessImagesImageCopyExp
+  value: '139'
+- name: BINDLESS_IMAGES_IMAGE_GET_INFO_EXP
+  desc: Enumerator for $xBindlessImagesImageGetInfoExp
+  value: '140'
+- name: BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP
+  desc: Enumerator for $xBindlessImagesMipmapGetLevelExp
+  value: '141'
+- name: BINDLESS_IMAGES_MIPMAP_FREE_EXP
+  desc: Enumerator for $xBindlessImagesMipmapFreeExp
+  value: '142'
+- name: BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP
+  desc: Enumerator for $xBindlessImagesImportOpaqueFDExp
+  value: '143'
+- name: BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
+  desc: Enumerator for $xBindlessImagesMapExternalArrayExp
+  value: '144'
+- name: BINDLESS_IMAGES_RELEASE_INTEROP_EXP
+  desc: Enumerator for $xBindlessImagesReleaseInteropExp
+  value: '145'
+- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP
+  desc: Enumerator for $xBindlessImagesImportExternalSemaphoreOpaqueFDExp
+  value: '146'
+- name: BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesDestroyExternalSemaphoreExp
+  value: '147'
+- name: BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesWaitExternalSemaphoreExp
+  value: '148'
+- name: BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesSignalExternalSemaphoreExp
+  value: '149'
+- name: PLATFORM_GET_LAST_ERROR
+  desc: Enumerator for $xPlatformGetLastError
+  value: '150'
+- name: ENQUEUE_USM_FILL_2D
+  desc: Enumerator for $xEnqueueUSMFill2D
+  value: '151'
+- name: ENQUEUE_USM_MEMCPY_2D
+  desc: Enumerator for $xEnqueueUSMMemcpy2D
+  value: '152'
+- name: VIRTUAL_MEM_GRANULARITY_GET_INFO
+  desc: Enumerator for $xVirtualMemGranularityGetInfo
+  value: '153'
+- name: VIRTUAL_MEM_RESERVE
+  desc: Enumerator for $xVirtualMemReserve
+  value: '154'
+- name: VIRTUAL_MEM_FREE
+  desc: Enumerator for $xVirtualMemFree
+  value: '155'
+- name: VIRTUAL_MEM_MAP
+  desc: Enumerator for $xVirtualMemMap
+  value: '156'
+- name: VIRTUAL_MEM_UNMAP
+  desc: Enumerator for $xVirtualMemUnmap
+  value: '157'
+- name: VIRTUAL_MEM_SET_ACCESS
+  desc: Enumerator for $xVirtualMemSetAccess
+  value: '158'
+- name: VIRTUAL_MEM_GET_INFO
+  desc: Enumerator for $xVirtualMemGetInfo
+  value: '159'
+- name: PHYSICAL_MEM_CREATE
+  desc: Enumerator for $xPhysicalMemCreate
+  value: '160'
+- name: PHYSICAL_MEM_RETAIN
+  desc: Enumerator for $xPhysicalMemRetain
+  value: '161'
+- name: PHYSICAL_MEM_RELEASE
+  desc: Enumerator for $xPhysicalMemRelease
+  value: '162'
+- name: USM_IMPORT_EXP
+  desc: Enumerator for $xUSMImportExp
+  value: '163'
+- name: USM_RELEASE_EXP
+  desc: Enumerator for $xUSMReleaseExp
+  value: '164'
+- name: USM_P2P_ENABLE_PEER_ACCESS_EXP
+  desc: Enumerator for $xUsmP2PEnablePeerAccessExp
+  value: '165'
+- name: USM_P2P_DISABLE_PEER_ACCESS_EXP
+  desc: Enumerator for $xUsmP2PDisablePeerAccessExp
+  value: '166'
+- name: USM_P2P_PEER_ACCESS_GET_INFO_EXP
+  desc: Enumerator for $xUsmP2PPeerAccessGetInfoExp
+  value: '167'

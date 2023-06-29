@@ -1,5 +1,7 @@
 # Copyright (C) 2022-2023 Intel Corporation
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 set(UR_CONFORMANCE_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -26,6 +28,7 @@ function(add_conformance_test_with_kernels_environment name)
     add_conformance_test(${name} ${ARGN})
     target_compile_definitions("test-${name}" PRIVATE KERNELS_ENVIRONMENT PRIVATE
       KERNELS_DEFAULT_DIR="${UR_CONFORMANCE_DEVICE_BINARIES_DIR}")
+    target_include_directories("test-${name}" PRIVATE ${UR_CONFORMANCE_DEVICE_BINARIES_DIR})
     add_dependencies("test-${name}" generate_device_binaries)
 endfunction()
 
@@ -50,7 +53,7 @@ add_subdirectory(memory)
 add_subdirectory(usm)
 add_subdirectory(event)
 add_subdirectory(queue)
-add_subdirectory(enqueue)
+add_subdirectory(sampler)
 
 if(DEFINED UR_DPCXX)
     add_custom_target(generate_device_binaries)
@@ -68,4 +71,5 @@ if(DEFINED UR_DPCXX)
     add_subdirectory(device_code)
     add_subdirectory(kernel)
     add_subdirectory(program)
+    add_subdirectory(enqueue)
 endif()

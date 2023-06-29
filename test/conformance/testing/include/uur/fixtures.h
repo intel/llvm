@@ -1,5 +1,7 @@
 // Copyright (C) 2022-2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED
 #define UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED
@@ -43,10 +45,9 @@ GetDevices(ur_platform_handle_t platform) {
     return {true, devices};
 }
 
-inline bool
-hasDevicePartitionSupport(ur_device_handle_t device,
-                          const ur_device_partition_property_t property) {
-    std::vector<ur_device_partition_property_t> properties;
+inline bool hasDevicePartitionSupport(ur_device_handle_t device,
+                                      const ur_device_partition_t property) {
+    std::vector<ur_device_partition_t> properties;
     uur::GetDevicePartitionProperties(device, properties);
     return std::find(properties.begin(), properties.end(), property) !=
            properties.end();
@@ -136,6 +137,29 @@ struct urContextTest : urDeviceTest {
     ur_context_handle_t context = nullptr;
 };
 
+struct urSamplerTest : urContextTest {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        sampler_desc = {
+            UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
+            nullptr,                          /* pNext */
+            true,                             /* normalizedCoords */
+            UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
+            UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
+        };
+        ASSERT_SUCCESS(urSamplerCreate(context, &sampler_desc, &sampler));
+    }
+
+    void TearDown() override {
+        EXPECT_SUCCESS(urSamplerRelease(sampler));
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+    }
+
+    ur_sampler_handle_t sampler;
+    ur_sampler_desc_t sampler_desc;
+};
+
 struct urMemBufferTest : urContextTest {
 
     void SetUp() override {
@@ -178,6 +202,29 @@ template <class T> struct urContextTestWithParam : urDeviceTestWithParam<T> {
         UUR_RETURN_ON_FATAL_FAILURE(urDeviceTestWithParam<T>::TearDown());
     }
     ur_context_handle_t context;
+};
+
+template <class T> struct urSamplerTestWithParam : urContextTestWithParam<T> {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        sampler_desc = {
+            UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
+            nullptr,                          /* pNext */
+            true,                             /* normalizedCoords */
+            UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
+            UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
+        };
+        ASSERT_SUCCESS(urSamplerCreate(this->context, &sampler_desc, &sampler));
+    }
+
+    void TearDown() override {
+        EXPECT_SUCCESS(urSamplerRelease(sampler));
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
+    }
+
+    ur_sampler_handle_t sampler;
+    ur_sampler_desc_t sampler_desc;
 };
 
 template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
@@ -539,10 +586,11 @@ std::string deviceTestWithParamPrinter(
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
 
-struct urProgramTest : urContextTest {
+struct urProgramTest : urQueueTest {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
-        uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+        uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
+                                                      il_binary);
         ASSERT_SUCCESS(urProgramCreateWithIL(
             context, il_binary->data(), il_binary->size(), nullptr, &program));
     }
@@ -551,7 +599,7 @@ struct urProgramTest : urContextTest {
         if (program) {
             EXPECT_SUCCESS(urProgramRelease(program));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
     }
 
     std::shared_ptr<std::vector<char>> il_binary;
@@ -580,42 +628,15 @@ template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
     ur_program_handle_t program = nullptr;
 };
 
-inline std::string getKernelName(ur_program_handle_t program) {
-    size_t kernel_string_size = 0;
-    if (UR_RESULT_SUCCESS != urProgramGetInfo(program,
-                                              UR_PROGRAM_INFO_KERNEL_NAMES, 0,
-                                              nullptr, &kernel_string_size)) {
-        return "";
-    }
-    std::string kernel_string;
-    kernel_string.resize(kernel_string_size);
-    if (UR_RESULT_SUCCESS !=
-        urProgramGetInfo(program, UR_PROGRAM_INFO_KERNEL_NAMES,
-                         kernel_string.size(), kernel_string.data(), nullptr)) {
-        return "";
-    }
-    std::stringstream kernel_stream(kernel_string);
-    std::string kernel_name;
-    bool found_kernel = false;
-    // Go through the semi-colon separated list of kernel names looking for
-    // one that isn't a wrapper or an offset handler.
-    while (kernel_stream.good()) {
-        getline(kernel_stream, kernel_name, ';');
-        if (kernel_name.find("wrapper") == std::string::npos &&
-            kernel_name.find("offset") == std::string::npos) {
-            found_kernel = true;
-            break;
-        }
-    }
-    return found_kernel ? kernel_name : "";
-}
-
 struct urKernelTest : urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
         ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
-        kernel_name = getKernelName(program);
+        auto kernel_names =
+            uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);
+        kernel_name = kernel_names[0];
         ASSERT_FALSE(kernel_name.empty());
+        ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));
     }
 
     void TearDown() override {
@@ -633,8 +654,13 @@ template <class T> struct urKernelTestWithParam : urProgramTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urProgramBuild(this->context, this->program, nullptr));
-        kernel_name = getKernelName(this->program);
+        auto kernel_names =
+            uur::KernelsEnvironment::instance->GetEntryPointNames(
+                this->program_name);
+        kernel_name = kernel_names[0];
         ASSERT_FALSE(kernel_name.empty());
+        ASSERT_SUCCESS(
+            urKernelCreate(this->program, kernel_name.data(), &kernel));
     }
 
     void TearDown() override {
@@ -646,6 +672,82 @@ template <class T> struct urKernelTestWithParam : urProgramTestWithParam<T> {
 
     std::string kernel_name;
     ur_kernel_handle_t kernel = nullptr;
+};
+
+struct urKernelExecutionTest : urKernelTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
+    }
+
+    void TearDown() override {
+        for (auto &buffer : buffer_args) {
+            ASSERT_SUCCESS(urMemRelease(buffer));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::TearDown());
+    }
+
+    // Adds a kernel arg representing a sycl buffer constructed with a 1D range.
+    void AddBuffer1DArg(size_t size, ur_mem_handle_t *out_buffer) {
+        ur_mem_handle_t mem_handle = nullptr;
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, size,
+                                         nullptr, &mem_handle));
+        char zero = 0;
+        ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, mem_handle, &zero,
+                                              sizeof(zero), 0, size, 0, nullptr,
+                                              nullptr));
+        ASSERT_SUCCESS(urQueueFinish(queue));
+        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index, nullptr,
+                                            mem_handle));
+
+        // This emulates the offset struct sycl adds for a 1D buffer accessor.
+        struct {
+            size_t offsets[1] = {0};
+        } accessor;
+        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
+                                           sizeof(accessor), nullptr,
+                                           &accessor));
+
+        current_arg_index += 2;
+        buffer_args.push_back(mem_handle);
+        *out_buffer = mem_handle;
+    }
+
+    template <class T> void AddPodArg(T data) {
+        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index,
+                                           sizeof(data), nullptr, &data));
+        current_arg_index++;
+    }
+
+    void Launch1DRange(size_t global_size, size_t local_size = 1) {
+        size_t offset = 0;
+        ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &offset,
+                                             &global_size, &local_size, 0,
+                                             nullptr, nullptr));
+        ASSERT_SUCCESS(urQueueFinish(queue));
+    }
+
+    // Validate the contents of `buffer` according to the given validator.
+    template <class T>
+    void ValidateBuffer(ur_mem_handle_t buffer, size_t size,
+                        std::function<bool(T &)> validator) {
+        std::vector<T> read_buffer(size / sizeof(T));
+        ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, true, 0, size,
+                                              read_buffer.data(), 0, nullptr,
+                                              nullptr));
+        ASSERT_TRUE(
+            std::all_of(read_buffer.begin(), read_buffer.end(), validator));
+    }
+
+    // Helper that uses the generic validate function to check for a given value.
+    template <class T>
+    void ValidateBuffer(ur_mem_handle_t buffer, size_t size, T value) {
+        auto validator = [&value](T result) -> bool { return result == value; };
+
+        ValidateBuffer<T>(buffer, size, validator);
+    }
+
+    std::vector<ur_mem_handle_t> buffer_args;
+    uint32_t current_arg_index = 0;
 };
 } // namespace uur
 

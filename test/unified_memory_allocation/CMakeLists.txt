@@ -1,5 +1,7 @@
 # Copyright (C) 2022-2023 Intel Corporation
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 set(UR_UMA_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -8,7 +10,7 @@ add_library(uma_test_helpers STATIC
     ${UR_UMA_TEST_DIR}/common/provider.c
 )
 
-target_link_libraries(uma_test_helpers PRIVATE ${PROJECT_NAME}::unified_memory_allocation)
+target_link_libraries(uma_test_helpers PRIVATE ${PROJECT_NAME}::common)
 
 function(add_uma_test name)
     set(TEST_TARGET_NAME uma_test-${name})
@@ -27,6 +29,8 @@ function(add_uma_test name)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(uma-${name} PROPERTIES LABELS "uma")
 endfunction()
+
+add_subdirectory(uma_pools)
 
 add_uma_test(memoryProvider memoryProviderAPI.cpp)
 add_uma_test(memoryPool memoryPoolAPI.cpp)

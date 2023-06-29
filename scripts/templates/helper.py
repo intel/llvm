@@ -1,10 +1,17 @@
 """
  Copyright (C) 2022 Intel Corporation
 
- SPDX-License-Identifier: MIT
+ Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ See LICENSE.TXT
+ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
 import re
+import sys
+import util
+
+# allow imports from top-level scripts directory
+sys.path.append("..")
 
 """
     Extracts traits from a spec object
@@ -488,9 +495,7 @@ Private:
     converts string from camelCase to snake_case
 """
 def _camel_to_snake(name):
-    str = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    str = re.sub('([a-z0-9])([A-Z])', r'\1_\2', str).lower()
-    return str
+    return util.to_snake_case(name).lower()
 
 """
 Public:
@@ -768,7 +773,7 @@ Public:
     returns a list of c++ strings for each parameter of a function
     format: "TYPE NAME = INIT, ///< DESCRIPTION"
 """
-def make_param_lines(namespace, tags, obj, py=False, decl=False, meta=None, format=["type", "name", "delim", "desc"], delim=","):
+def make_param_lines(namespace, tags, obj, py=False, decl=False, meta=None, format=["type", "name", "delim", "desc"], delim=",", replacements={}):
     lines = []
 
     params = obj['params']
@@ -778,6 +783,8 @@ def make_param_lines(namespace, tags, obj, py=False, decl=False, meta=None, form
 
     for i, item in enumerate(params):
         name = _get_param_name(namespace, tags, item)
+        if replacements.get(name):
+            name = replacements[name]
         if py:
             tname = get_ctype_name(namespace, tags, item)
             # Handle fptr_typedef
@@ -906,9 +913,7 @@ Public:
 def make_func_etor(namespace, tags, obj):
     etags = tags.copy()
     etags['$x'] += 'Function'
-    fname = re.sub('(.)([A-Z][a-z]+)', r'\1_\2',
-        make_func_name(namespace, etags, obj))
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', fname).upper()
+    return util.to_snake_case(make_func_name(namespace, etags, obj)).upper()
 
 """
 Public:

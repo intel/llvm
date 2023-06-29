@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // This file contains tests for UMA provider API
 
 #include "pool.h"
@@ -57,6 +59,12 @@ TEST_F(test, memoryProviderTrace) {
     ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
     ASSERT_EQ(calls["purge_force"], 1);
     ASSERT_EQ(calls.size(), ++call_count);
+
+    const char *pName;
+    umaMemoryProviderGetName(tracingProvider.get(), &pName);
+    ASSERT_EQ(calls["name"], 1);
+    ASSERT_EQ(calls.size(), ++call_count);
+    ASSERT_EQ(std::string(pName), std::string("null"));
 }
 
 //////////////////////////// Negative test cases

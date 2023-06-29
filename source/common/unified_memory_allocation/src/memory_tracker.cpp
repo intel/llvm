@@ -2,7 +2,9 @@
  *
  * Copyright (C) 2023 Intel Corporation
  *
- * SPDX-License-Identifier: MIT
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
 
@@ -106,6 +108,10 @@ static enum uma_result_t trackingAlloc(void *hProvider, size_t size,
         (uma_tracking_memory_provider_t *)hProvider;
     enum uma_result_t ret = UMA_RESULT_SUCCESS;
 
+    if (!p->hUpstream) {
+        return UMA_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
     ret = umaMemoryProviderAlloc(p->hUpstream, size, alignment, ptr);
     if (ret != UMA_RESULT_SUCCESS) {
         return ret;
@@ -198,6 +204,12 @@ static enum uma_result_t trackingPurgeForce(void *provider, void *ptr,
     return umaMemoryProviderPurgeForce(p->hUpstream, ptr, size);
 }
 
+static void trackingName(void *provider, const char **ppName) {
+    uma_tracking_memory_provider_t *p =
+        (uma_tracking_memory_provider_t *)provider;
+    return umaMemoryProviderGetName(p->hUpstream, ppName);
+}
+
 enum uma_result_t umaTrackingMemoryProviderCreate(
     uma_memory_provider_handle_t hUpstream, uma_memory_pool_handle_t hPool,
     uma_memory_provider_handle_t *hTrackingProvider) {
@@ -218,6 +230,7 @@ enum uma_result_t umaTrackingMemoryProviderCreate(
         trackingGetRecommendedPageSize;
     trackingMemoryProviderOps.purge_force = trackingPurgeForce;
     trackingMemoryProviderOps.purge_lazy = trackingPurgeLazy;
+    trackingMemoryProviderOps.get_name = trackingName;
 
     return umaMemoryProviderCreate(&trackingMemoryProviderOps, &params,
                                    hTrackingProvider);

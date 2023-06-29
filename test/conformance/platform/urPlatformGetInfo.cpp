@@ -1,5 +1,7 @@
 // Copyright (C) 2022-2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
 #include <cstring>
@@ -46,4 +48,31 @@ TEST_F(urPlatformGetInfoTest, InvalidEnumerationPlatformInfoType) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urPlatformGetInfo(platform, UR_PLATFORM_INFO_FORCE_UINT32,
                                        0, nullptr, &size));
+}
+
+TEST_F(urPlatformGetInfoTest, InvalidSizeZero) {
+    ur_platform_backend_t backend;
+    ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, 0,
+                                       &backend, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_F(urPlatformGetInfoTest, InvalidSizeSmall) {
+    ur_platform_backend_t backend;
+    ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                       sizeof(backend) - 1, &backend, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_F(urPlatformGetInfoTest, InvalidNullPointerPropValue) {
+    ur_platform_backend_t backend;
+    ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                       sizeof(backend), nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_F(urPlatformGetInfoTest, InvalidNullPointerPropSizeRet) {
+    ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, 0,
+                                       nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }

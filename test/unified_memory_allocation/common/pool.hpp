@@ -2,7 +2,9 @@
  *
  * Copyright (C) 2023 Intel Corporation
  *
- * SPDX-License-Identifier: MIT
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
 
@@ -50,7 +52,7 @@ struct malloc_pool : public pool_base {
     }
     void *aligned_malloc(size_t size, size_t alignment) noexcept {
 #ifdef _WIN32
-        // we could use _aligned_alloc but it requires using _aligned_free...
+        // we could use _aligned_malloc but it requires using _aligned_free...
         return nullptr;
 #else
         return ::aligned_alloc(alignment, size);
@@ -79,7 +81,7 @@ struct proxy_pool : public pool_base {
 
         memset(ptr, 0, num * size);
 
-        EXPECT_EQ(ret, UMA_RESULT_SUCCESS);
+        EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
         return ptr;
     }
     void *realloc(void *ptr, size_t size) noexcept {
@@ -89,7 +91,7 @@ struct proxy_pool : public pool_base {
     void *aligned_malloc(size_t size, size_t alignment) noexcept {
         void *ptr;
         auto ret = umaMemoryProviderAlloc(provider, size, alignment, &ptr);
-        EXPECT_EQ(ret, UMA_RESULT_SUCCESS);
+        EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
         return ptr;
     }
     size_t malloc_usable_size(void *ptr) noexcept {
@@ -98,7 +100,7 @@ struct proxy_pool : public pool_base {
     }
     void free(void *ptr) noexcept {
         auto ret = umaMemoryProviderFree(provider, ptr, 0);
-        EXPECT_EQ(ret, UMA_RESULT_SUCCESS);
+        EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
     }
     enum uma_result_t get_last_result(const char **ppMessage) noexcept {
         return umaMemoryProviderGetLastResult(provider, ppMessage);

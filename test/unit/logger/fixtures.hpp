@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef UR_UNIT_LOGGER_TEST_FIXTURES_HPP
 #define UR_UNIT_LOGGER_TEST_FIXTURES_HPP
@@ -39,6 +41,14 @@ class LoggerWithFileSink : public LoggerCommonSetup {
     }
 };
 
+class LoggerWithFileSinkFail : public LoggerWithFileSink {
+  protected:
+    void TearDown() override {
+        auto test_log = std::ifstream(file_path);
+        ASSERT_FALSE(test_log.good());
+    }
+};
+
 class CommonLoggerWithMultipleThreads
     : public LoggerCommonSetup,
       public ::testing::WithParamInterface<int> {
@@ -64,6 +74,16 @@ class UniquePtrLoggerWithFilesink : public LoggerWithFileSink {
     void TearDown() override {
         logger.reset();
         LoggerWithFileSink::TearDown();
+    }
+};
+
+class UniquePtrLoggerWithFilesinkFail : public LoggerWithFileSinkFail {
+  protected:
+    std::unique_ptr<logger::Logger> logger;
+
+    void TearDown() override {
+        logger.reset();
+        LoggerWithFileSinkFail::TearDown();
     }
 };
 

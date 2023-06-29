@@ -1,7 +1,9 @@
 """
  Copyright (C) 2022 Intel Corporation
 
- SPDX-License-Identifier: MIT
+ Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ See LICENSE.TXT
+ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
 import argparse
@@ -117,6 +119,7 @@ def main():
     parser.add_argument("--ver", type=str, default=get_version_from_cmakelists(),
                         required=False, help="specification version to generate.")
     parser.add_argument("--api-json", type=str, default="unified_runtime.json", required=False, help="json output file for the spec")
+    parser.add_argument("--clang-format", type=str, default="clang-format", required=False, help="path to clang-format executable")
     args = vars(parser.parse_args())
     args['rev'] = revision()
 
@@ -131,69 +134,83 @@ def main():
         'meta'   : {},
         'ref'    : {}
         }
+    
+    try:
 
-    for section in configParser.sections():
-        input['configs'].append({
-            'name'     : section,
-            'namespace': configParser.get(section,'namespace'),
-            'tags'     : {'$'+key : configParser.get(section,key) for key in configParser.get(section,'tags').split(",")},
-            })
+        for section in configParser.sections():
+            input['configs'].append({
+                'name'     : section,
+                'namespace': configParser.get(section,'namespace'),
+                'tags'     : {'$'+key : configParser.get(section,key) for key in configParser.get(section,'tags').split(",")},
+                })
 
-    # phase 2: parse specs
-    for config in input['configs']:
-        specs, input['meta'], input['ref'] = parse_specs.parse(config['name'], args['ver'], config['tags'], input['meta'], input['ref'])
-        input['specs'].append(specs)
+        # phase 2: parse specs
+        for config in input['configs']:
+            specs, input['meta'], input['ref'] = parse_specs.parse(config['name'], args['ver'], config['tags'], input['meta'], input['ref'])
+            input['specs'].append(specs)
 
-    util.jsonWrite(args['api_json'], input)
+        util.jsonWrite(args['api_json'], input)
 
-    # phase 3: generate files
-    if args['clean']:
-        clean()
+        # phase 3: generate files
+        if args['clean']:
+            clean()
 
-    incpath = os.path.join("../include/")
-    srcpath = os.path.join("../source/")
-    docpath = os.path.join("../docs/")
+        incpath = os.path.join("../include/")
+        srcpath = os.path.join("../source/")
+        docpath = os.path.join("../docs/")
 
-    generate_docs.prepare(docpath, args['rst'], args['html'], args['ver'])
-    generate_docs.generate_ref(docpath, input['ref'])
+        generate_docs.prepare(docpath, args['rst'], args['html'], args['ver'])
 
-    for idx, specs in enumerate(input['specs']):
-        config = input['configs'][idx]
-        if args[config['name']]:
+        for idx, specs in enumerate(input['specs']):
+            config = input['configs'][idx]
+            if args[config['name']]:
 
-            generate_code.generate_api(incpath, srcpath, config['namespace'], config['tags'], args['ver'], args['rev'], specs, input['meta'])
+                generate_code.generate_api(incpath, srcpath, config['namespace'], config['tags'], args['ver'], args['rev'], specs, input['meta'])
 
-            if args['rst']:
-                generate_docs.generate_rst(docpath, config['name'], config['namespace'], config['tags'], args['ver'], args['rev'], specs, input['meta'])
+                # clang-format ur_api.h
+                proc = subprocess.run([args['clang_format'], "--style=file", "-i" , "ur_api.h"], stderr=subprocess.PIPE, cwd=incpath)
+                if proc.returncode != 0:
+                    print("-- clang-format failed with non-zero return code. --")
+                    print(proc.stderr.decode())
+                    raise Exception("Failed to format ur_api.h")
 
-        if util.makeErrorCount():
-            print("\n%s Errors found during generation, stopping execution!"%util.makeErrorCount())
-            return
+                if args['rst']:
+                    generate_docs.generate_rst(docpath, config['name'], config['namespace'], config['tags'], args['ver'], args['rev'], specs, input['meta'])
 
-    if args['debug']:
-        util.makoFileListWrite("generated.json")
+            if util.makeErrorCount():
+                print("\n%s Errors found during generation, stopping execution!"%util.makeErrorCount())
+                return
 
-    # phase 4: build code
-    if args['build']:
-        if not build():
-            print("\nBuild failed, stopping execution!")
-            return
+        if args['debug']:
+            util.makoFileListWrite("generated.json")
 
-    # phase 5: prep for publication of html or pdf
-    if args['html'] or args['pdf']:
-        generate_docs.generate_common(docpath, configParser.sections(), args['ver'], args['rev'])
+        # phase 4: build code
+        if args['build']:
+            if not build():
+                print("\nBuild failed, stopping execution!")
+                return
 
-    # phase 5: publish documentation
-    if args['html']:
-        generate_docs.generate_html(docpath)
+        # phase 5: prep for publication of html or pdf
+        if args['html'] or args['pdf']:
+            generate_docs.generate_common(docpath, configParser.sections(), args['ver'], args['rev'])
 
-    if args['pdf']:
-        generate_docs.generate_pdf(docpath)
+        # phase 5: publish documentation
+        if args['html']:
+            generate_docs.generate_html(docpath)
 
-    if args['update_spec']:
-        update_spec(args['update_spec'])
+        if args['pdf']:
+            generate_docs.generate_pdf(docpath)
 
-    print("\nCompleted in %.1f seconds!"%(time.time() - start))
+        if args['update_spec']:
+            update_spec(args['update_spec'])
+
+        print("\nCompleted in %.1f seconds!"%(time.time() - start))
+
+    except BaseException as e:
+        print("Failed to generate specification.")
+        print(e)
+        return sys.exit(1)
+
 
 if __name__ == '__main__':
     main()

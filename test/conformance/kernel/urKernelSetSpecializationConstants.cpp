@@ -1,10 +1,14 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 
-struct urKernelSetSpecializationConstantsTest : uur::urKernelTest {
+struct urKernelSetSpecializationConstantsTest : uur::urKernelExecutionTest {
     void SetUp() override {
+        program_name = "spec_constant";
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
         bool supports_kernel_spec_constant = false;
         ASSERT_SUCCESS(urDeviceGetInfo(
             device, UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS,
@@ -14,8 +18,6 @@ struct urKernelSetSpecializationConstantsTest : uur::urKernelTest {
             GTEST_SKIP()
                 << "Device does not support setting kernel spec constants.";
         }
-        program_name = "spec_constant";
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
     }
 
     uint32_t spec_value = 42;
@@ -26,7 +28,11 @@ UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetSpecializationConstantsTest);
 
 TEST_P(urKernelSetSpecializationConstantsTest, Success) {
     ASSERT_SUCCESS(urKernelSetSpecializationConstants(kernel, 1, &info));
-    // TODO: Run the kernel to verify the spec constant was set.
+
+    ur_mem_handle_t buffer;
+    AddBuffer1DArg(sizeof(spec_value), &buffer);
+    Launch1DRange(1);
+    ValidateBuffer<uint32_t>(buffer, sizeof(spec_value), spec_value);
 }
 
 TEST_P(urKernelSetSpecializationConstantsTest, InvalidNullHandleKernel) {

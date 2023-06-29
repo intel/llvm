@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 
@@ -7,15 +9,10 @@ struct urProgramGetFunctionPointerTest : uur::urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
         ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
-        std::string kernel_list;
-        size_t kernel_list_size = 0;
-        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_KERNEL_NAMES,
-                                        0, nullptr, &kernel_list_size));
-        kernel_list.resize(kernel_list_size);
-        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_KERNEL_NAMES,
-                                        kernel_list_size, kernel_list.data(),
-                                        nullptr));
-        function_name = kernel_list.substr(0, kernel_list.find(";"));
+        auto kernel_names =
+            uur::KernelsEnvironment::instance->GetEntryPointNames(
+                this->program_name);
+        function_name = kernel_names[0];
     }
 
     std::string function_name;
@@ -29,11 +26,13 @@ TEST_P(urProgramGetFunctionPointerTest, Success) {
     ASSERT_NE(function_pointer, nullptr);
 }
 
-TEST_P(urProgramGetFunctionPointerTest, SuccessFunctionNotFound) {
+TEST_P(urProgramGetFunctionPointerTest, InvalidFunctionName) {
     void *function_pointer = nullptr;
     std::string missing_function = "aFakeFunctionName";
-    ASSERT_SUCCESS(urProgramGetFunctionPointer(
-        device, program, missing_function.data(), &function_pointer));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_FUNCTION_NAME,
+                     urProgramGetFunctionPointer(device, program,
+                                                 missing_function.data(),
+                                                 &function_pointer));
     ASSERT_EQ(function_pointer, nullptr);
 }
 

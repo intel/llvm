@@ -1,5 +1,7 @@
 # Copyright (C) 2023 Intel Corporation
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 function(add_adapter_reg_search_test name)
     cmake_parse_arguments(TEST "" "" "SEARCH_PATH;ENVS;SOURCES" ${ARGN})
@@ -10,10 +12,10 @@ function(add_adapter_reg_search_test name)
 
     if(WIN32)
         target_sources(${TEST_TARGET_NAME} PRIVATE
-            ${CMAKE_SOURCE_DIR}/source/loader/windows/loader_location.cpp)
+            ${CMAKE_SOURCE_DIR}/source/loader/windows/adapter_search.cpp)
     else()
         target_sources(${TEST_TARGET_NAME} PRIVATE
-            ${CMAKE_SOURCE_DIR}/source/loader/linux/loader_location.cpp)
+            ${CMAKE_SOURCE_DIR}/source/loader/linux/adapter_search.cpp)
     endif()
 
     target_link_libraries(${TEST_TARGET_NAME}
