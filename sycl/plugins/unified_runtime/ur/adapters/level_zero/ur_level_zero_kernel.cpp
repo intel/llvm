@@ -385,9 +385,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
     size_t ArgSize,    ///< [in] size of argument type
+    const ur_kernel_arg_value_properties_t
+        *Properties, ///< [in][optional] argument properties
     const void
         *PArgValue ///< [in] argument value represented as matching arg type.
 ) {
+  std::ignore = Properties;
+
   // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
   // in which case a NULL value will be used as the value for the argument
   // declared as a pointer to global or constant memory in the kernel"
@@ -410,11 +414,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
-    size_t ArgSize     ///< [in] size of the local buffer to be allocated by the
+    size_t ArgSize,    ///< [in] size of the local buffer to be allocated by the
                        ///< runtime
+    const ur_kernel_arg_local_properties_t
+        *Properties ///< [in][optional] argument properties
 ) {
   std::ignore = Kernel;
   std::ignore = ArgIndex;
+  std::ignore = Properties;
   std::ignore = ArgSize;
   urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -603,13 +610,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t ArgIndex,   ///< [in] argument index in range [0, num args - 1]
+    uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_pointer_properties_t
+        *Properties,     ///< [in][optional] argument properties
     const void *ArgValue ///< [in][optional] SVM pointer to memory location
                          ///< holding the argument value. If null then argument
                          ///< value is considered null.
 ) {
-  UR_CALL(
-      urKernelSetArgValue(Kernel, ArgIndex, sizeof(const void *), ArgValue));
+  std::ignore = Properties;
+
+  UR_CALL(urKernelSetArgValue(Kernel, ArgIndex, sizeof(const void *), nullptr,
+                              ArgValue));
   return UR_RESULT_SUCCESS;
 }
 
@@ -617,10 +628,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     ur_kernel_handle_t Kernel,      ///< [in] handle of the kernel object
     ur_kernel_exec_info_t PropName, ///< [in] name of the execution attribute
     size_t PropSize,                ///< [in] size in byte the attribute value
+    const ur_kernel_exec_info_properties_t
+        *Properties, ///< [in][optional] pointer to execution info properties
     const void *PropValue ///< [in][range(0, propSize)] pointer to memory
                           ///< location holding the property value.
 ) {
   std::ignore = PropSize;
+  std::ignore = Properties;
 
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS &&
@@ -633,15 +647,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
     ZE2UR_CALL(zeKernelSetIndirectAccess, (Kernel->ZeKernel, IndirectFlags));
-  } else if (PropName == UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG) {
+  } else if (PropName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
     ze_cache_config_flag_t ZeCacheConfig{};
     auto CacheConfig =
-        *(static_cast<const ur_kernel_cache_config *>(PropValue));
-    if (CacheConfig == UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM)
+        *(static_cast<const ur_kernel_cache_config_t *>(PropValue));
+    if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM)
       ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
-    else if (CacheConfig == UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA)
+    else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA)
       ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
-    else if (CacheConfig == UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT)
+    else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_DEFAULT)
       ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
     else
       // Unexpected cache configuration value.
@@ -658,8 +672,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_sampler_properties_t
+        *Properties,             ///< [in][optional] argument properties
     ur_sampler_handle_t ArgValue ///< [in] handle of Sampler object.
 ) {
+  std::ignore = Properties;
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   ZE2UR_CALL(zeKernelSetArgumentValue, (Kernel->ZeKernel, ArgIndex,
                                         sizeof(void *), &ArgValue->ZeSampler));
@@ -682,9 +699,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
 
   ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
 
+  ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
+  if (Properties) {
+    switch (Properties->memoryAccess) {
+    case UR_MEM_FLAG_READ_WRITE:
+      UrAccessMode = ur_mem_handle_t_::read_write;
+      break;
+    case UR_MEM_FLAG_WRITE_ONLY:
+      UrAccessMode = ur_mem_handle_t_::write_only;
+      break;
+    case UR_MEM_FLAG_READ_ONLY:
+      UrAccessMode = ur_mem_handle_t_::read_only;
+      break;
+    default:
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+  }
   auto Arg = UrMem ? UrMem : nullptr;
   Kernel->PendingArguments.push_back(
-      {ArgIndex, sizeof(void *), Arg, ur_mem_handle_t_::read_write});
+      {ArgIndex, sizeof(void *), Arg, UrAccessMode});
 
   return UR_RESULT_SUCCESS;
 }
