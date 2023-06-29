@@ -35,13 +35,12 @@ void vPrintersInit() {
   GS.setupUSMHandlers();
 }
 
-void vPrintersFinish() {
-}
+void vPrintersFinish() {}
 
 XPTI_CALLBACK_API void vCallback(uint16_t TraceType,
-                                  xpti::trace_event_data_t * /*Parent*/,
-                                  xpti::trace_event_data_t *ObjectEvent,
-                                  uint64_t /*Instance*/, const void *UserData) {
+                                 xpti::trace_event_data_t * /*Parent*/,
+                                 xpti::trace_event_data_t *ObjectEvent,
+                                 uint64_t /*Instance*/, const void *UserData) {
   auto &GS = USMAnalyzer::getInstance();
   GS.fillLastTracepointData(ObjectEvent);
 
@@ -50,11 +49,11 @@ XPTI_CALLBACK_API void vCallback(uint16_t TraceType,
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);
   if (TraceType == xpti::trace_function_with_args_begin) {
-      GS.ArgHandlerPreCall.handle(Data->function_id, *Plugin, std::nullopt,
-                                  Data->args_data);
+    GS.ArgHandlerPreCall.handle(Data->function_id, *Plugin, std::nullopt,
+                                Data->args_data);
   } else if (TraceType == xpti::trace_function_with_args_end) {
     const pi_result Result = *static_cast<pi_result *>(Data->ret_data);
     GS.ArgHandlerPostCall.handle(Data->function_id, *Plugin, Result,
-                                   Data->args_data);
+                                 Data->args_data);
   }
 }
