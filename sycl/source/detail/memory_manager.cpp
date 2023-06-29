@@ -1303,13 +1303,14 @@ void MemoryManager::ext_oneapi_copy_cmd_buffer(
 }
 
 void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
-    sycl::detail::ContextImplPtr Context, RT::PiExtCommandBuffer CommandBuffer,
-    SYCLMemObjI *SYCLMemObj, void *SrcMem, unsigned int DimSrc,
-    sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-    sycl::id<3> SrcOffset, unsigned int SrcElemSize, char *DstMem,
-    unsigned int DimDst, sycl::range<3> DstSize,
-    sycl::id<3> DstOffset, unsigned int DstElemSize,
-    std::vector<RT::PiExtSyncPoint> Deps, RT::PiExtSyncPoint *OutSyncPoint) {
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, SYCLMemObjI *SYCLMemObj,
+    void *SrcMem, unsigned int DimSrc, sycl::range<3> SrcSize,
+    sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+    unsigned int SrcElemSize, char *DstMem, unsigned int DimDst,
+    sycl::range<3> DstSize, sycl::id<3> DstOffset, unsigned int DstElemSize,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const PluginPtr &Plugin = Context->getPlugin();
@@ -1328,7 +1329,8 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
       Plugin->call<PiApiKind::piextCommandBufferMemBufferRead>(
-          CommandBuffer, RT::cast<RT::PiMem>(SrcMem), SrcXOffBytes,
+          CommandBuffer,
+          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem), SrcXOffBytes,
           SrcAccessRangeWidthBytes, DstMem + DstXOffBytes, Deps.size(),
           Deps.data(), OutSyncPoint);
     } else {
@@ -1348,10 +1350,11 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
                                             SrcAccessRange[SrcPos.ZTerm]};
 
       Plugin->call<PiApiKind::piextCommandBufferMemBufferReadRect>(
-          CommandBuffer, RT::cast<RT::PiMem>(SrcMem), &BufferOffset,
-          &HostOffset, &RectRegion, BufferRowPitch, BufferSlicePitch,
-          HostRowPitch, HostSlicePitch, DstMem, Deps.size(), Deps.data(),
-          OutSyncPoint);
+          CommandBuffer,
+          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+          &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
+          BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem, Deps.size(),
+          Deps.data(), OutSyncPoint);
     }
   } else {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
@@ -1360,12 +1363,14 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
 }
 
 void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
-    sycl::detail::ContextImplPtr Context, RT::PiExtCommandBuffer CommandBuffer,
-    SYCLMemObjI *SYCLMemObj, char *SrcMem, unsigned int DimSrc,
-    sycl::range<3> SrcSize, sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, SYCLMemObjI *SYCLMemObj,
+    char *SrcMem, unsigned int DimSrc, sycl::range<3> SrcSize,
+    sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
     unsigned int DimDst, sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
     sycl::id<3> DstOffset, unsigned int DstElemSize,
-    std::vector<RT::PiExtSyncPoint> Deps, RT::PiExtSyncPoint *OutSyncPoint) {
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const PluginPtr &Plugin = Context->getPlugin();
@@ -1384,7 +1389,8 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
       Plugin->call<PiApiKind::piextCommandBufferMemBufferWrite>(
-          CommandBuffer, RT::cast<RT::PiMem>(DstMem), DstXOffBytes,
+          CommandBuffer,
+          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), DstXOffBytes,
           DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes, Deps.size(),
           Deps.data(), OutSyncPoint);
     } else {
@@ -1404,10 +1410,11 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
                                             DstAccessRange[DstPos.ZTerm]};
 
       Plugin->call<PiApiKind::piextCommandBufferMemBufferWriteRect>(
-          CommandBuffer, RT::cast<RT::PiMem>(DstMem), &BufferOffset,
-          &HostOffset, &RectRegion, BufferRowPitch, BufferSlicePitch,
-          HostRowPitch, HostSlicePitch, SrcMem, Deps.size(), Deps.data(),
-          OutSyncPoint);
+          CommandBuffer,
+          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
+          &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
+          BufferSlicePitch, HostRowPitch, HostSlicePitch, SrcMem, Deps.size(),
+          Deps.data(), OutSyncPoint);
     }
   } else {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),

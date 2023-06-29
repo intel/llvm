@@ -499,9 +499,9 @@ public:
 };
 class CGExecCommandBuffer : public CG {
 public:
-  RT::PiExtCommandBuffer MCommandBuffer;
+  sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
 
-  CGExecCommandBuffer(RT::PiExtCommandBuffer CommandBuffer,
+  CGExecCommandBuffer(sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
                       CG::StorageInitHelper CGData)
       : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
         MCommandBuffer(CommandBuffer) {}

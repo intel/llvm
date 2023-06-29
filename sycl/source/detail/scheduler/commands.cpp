@@ -2652,7 +2652,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         AllocaCmd->getMemAllocation(), Req->MDims, Req->MMemoryRange,
         Req->MAccessRange, Req->MOffset, Req->MElemSize, (char *)Copy->getDst(),
         Req->MDims, Req->MAccessRange,
-        /*DstOffset=*/ {0, 0, 0}, Req->MElemSize, std::move(MSyncPointDeps),
+        /*DstOffset=*/{0, 0, 0}, Req->MElemSize, std::move(MSyncPointDeps),
         &OutSyncPoint);
 
     return PI_SUCCESS;
