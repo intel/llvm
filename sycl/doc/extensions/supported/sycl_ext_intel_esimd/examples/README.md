@@ -92,7 +92,7 @@ is to show the basic ESIMD APIs in well known examples.
          cgh.parallel_for(nd_range, [=](nd_item<1> item) {
            uint32_t global_id = item.get_global_id(0);
            uint32_t local_id = item.get_local_id(0);
-	   // Write/initialize SLM in SYCL context.
+           // Write/initialize SLM in SYCL context.
            auto local_acc_copy = local_acc;
            local_acc_copy[local_id] = global_id * 2;
            local_acc_copy[local_id + LOCAL_RANGE] = global_id * 3;
@@ -101,8 +101,8 @@ is to show the basic ESIMD APIs in well known examples.
            uint32_t la_byte_offset = (local_id / VL) * VL * sizeof(int);
            uint32_t global_byte_offset = global_id * sizeof(int);
            sycl::sub_group sg = item.get_sub_group();
-	   // Pass the local-accessor to initialized SLM memory to ESIMD context.
-	   // Pointer to a local copy of the local accessor is passed instead of a local-accessor value now
+           // Pass the local-accessor to initialized SLM memory to ESIMD context.
+           // Pointer to a local copy of the local accessor is passed instead of a local-accessor value now
            // to work-around a known/temporary issue in GPU driver.
            auto local_acc_arg = uniform{&local_acc_copy};
            invoke_simd(sg, invoke_slm_load_store, local_acc_arg,
