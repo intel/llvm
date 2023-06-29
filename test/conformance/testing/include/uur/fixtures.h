@@ -661,7 +661,7 @@ struct urPhysicalMemTest : urContextTest {
         ASSERT_NE(physical_mem, nullptr);
     }
 
-    void TearDown() {
+    void TearDown() override {
         if (physical_mem) {
             EXPECT_SUCCESS(urPhysicalMemRelease(physical_mem));
         }
