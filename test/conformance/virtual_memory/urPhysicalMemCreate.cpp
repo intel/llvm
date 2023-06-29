@@ -8,7 +8,7 @@ using urPhysicalMemCreateTestParams = size_t;
 struct urPhysicalMemCreateTest
     : uur::urContextTestWithParam<urPhysicalMemCreateTestParams> {
 
-    void SetUp() {
+    void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTestWithParam<
                                     urPhysicalMemCreateTestParams>::SetUp());
         ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
@@ -53,4 +53,16 @@ TEST_P(urPhysicalMemCreateTest, InvalidNullPointerPhysicalMem) {
     ASSERT_EQ_RESULT(
         urPhysicalMemCreate(context, device, size, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_P(urPhysicalMemCreateTest, InvalidSize) {
+    if (granularity == 1) {
+        GTEST_SKIP()
+            << "A granularity of 1 means that any size will be accepted.";
+    }
+    ur_physical_mem_handle_t physical_mem = nullptr;
+    size_t invalid_size = size - 1;
+    ASSERT_EQ_RESULT(urPhysicalMemCreate(context, device, invalid_size, nullptr,
+                                         &physical_mem),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 }
