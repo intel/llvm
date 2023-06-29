@@ -177,11 +177,10 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
 // If the kernel requires a number of registers for the entire thread
 // block exceeds the hardware limitations, then the cuLaunchKernel call
 // will fail to launch with CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES error.
-static auto hasExceededMaxRegistersPerBlock = [](ur_device_handle_t Device,
-                                                 ur_kernel_handle_t Kernel,
-                                                 size_t BlockSize) -> bool {
+bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
+                                ur_kernel_handle_t Kernel, size_t BlockSize) {
   return BlockSize * Kernel->getRegsPerThread() > Device->getMaxRegsPerBlock();
-};
+}
 
 /// Enqueues a wait on the given CUstream for all specified events (See
 /// \ref enqueueEventWaitWithBarrier.) If the events list is empty, the enqueued
