@@ -65,7 +65,7 @@ using PackedType = unsigned char;
 using APackedType = PackedType;
 using BPackedType = PackedType;
 
-// res type, according to documentation is either int or uint.
+// Result type, according to documentation is either int or uint.
 using ResType = unsigned int; // as both A and B are unsigned.
 
 constexpr int OpsPerChannel =
@@ -223,7 +223,7 @@ int main() {
       }
     }
 
-    q.single_task([=]() SYCL_ESIMD_KERNEL {
+    q.single_task([=]() [[intel::sycl_explicit_simd]] {
        esimd::simd<APackedType, APackedSize> a(a_packed,
                                                esimd::overaligned_tag<16>{});
        esimd::simd<BPackedType, BPackedSize> b(b_packed,
