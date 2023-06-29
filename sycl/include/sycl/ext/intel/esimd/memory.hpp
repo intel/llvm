@@ -265,7 +265,7 @@ scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
 /// Loads a contiguous block of memory from the given memory address \p addr
 /// and returns the loaded data as a vector.
 /// The generated code depends on the combination {T, N, Flags}.
-/// Providing flags specifying the alignment of 16-bites or more produces more
+/// Providing flags specifying the alignment of 16-bytes or more produces more
 /// efficient code. If the alignment is smaller than 16-bytes, then less
 /// efficient gather is generated. If the loaded vector is too long
 /// for 1 flat-load GPU instruction, then a series of flat-loads and/or gathers
@@ -345,7 +345,7 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
 /// Stores elements of the vector \p vals to a contiguous block of memory
 /// at the given address \p addr.
 /// The generated code depends on the combination {T, N, Flags}.
-/// Providing flags specifying the alignment of 16-bites or more produces more
+/// Providing flags specifying the alignment of 16-bytes or more produces more
 /// efficient code. If the alignment is smaller than 16-bytes, then less
 /// efficient scatter is generated. If the stored vector is too long
 /// for 1 flat-store GPU instruction, then a series of flat-store and/or
@@ -1823,7 +1823,7 @@ slm_scatter_rgba(simd<uint32_t, N> offsets,
 /// Loads a contiguous block of SLM memory referenced by the given byte-offset
 /// \p offset, then returns the loaded data as a simd object.
 /// The generated code depends on the combination {T, N, Flags}.
-/// Providing flags specifying the alignment of 16-bites or more produces more
+/// Providing flags specifying the alignment of 16-bytes or more produces more
 /// efficient code. If the alignment is smaller than 16-bytes, then less
 /// efficient gather is generated. If the loaded vector is too long
 /// for 1 flat-load GPU instruction, then a series of flat-loads and/or gathers
@@ -1846,7 +1846,7 @@ slm_block_load(uint32_t offset, Flags = {}) {
 /// Stores elements of the vector \p vals to a contiguous block of SLM memory
 /// at the given byte-offset \p offset.
 /// The generated code depends on the combination {T, N, Flags}.
-/// Providing flags specifying the alignment of 16-bites or more produces more
+/// Providing flags specifying the alignment of 16-bytes or more produces more
 /// efficient code. If the alignment is smaller than 16-bytes, then less
 /// efficient scatter is generated. If the stored vector is too long
 /// for 1 flat-store GPU instruction, then a series of flat-store and/or
@@ -1994,7 +1994,7 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
 /// local-accessor \p acc and byte-offset \p offset, then returns the loaded
 /// data as a simd object.
 /// The generated code depends on the combination {T, N, Flags}.
-/// Providing flags specifying the alignment of 16-bites or more produces more
+/// Providing flags specifying the alignment of 16-bytes or more produces more
 /// efficient code. If the alignment is smaller than 16-bytes, then less
 /// efficient gather is generated. If the loaded vector is too long
 /// for 1 flat-load GPU instruction, then a series of flat-loads and/or gathers
@@ -2022,7 +2022,7 @@ block_load(AccessorTy acc, uint32_t offset, Flags = {}) {
 /// Stores elements of the vector \p vals to a contiguous block of SLM memory
 /// represented by the given local accessor and the byte-offset \p offset.
 /// The generated code depends on the combination {T, N, Flags}.
-/// Providing flags specifying the alignment of 16-bites or more produces more
+/// Providing flags specifying the alignment of 16-bytes or more produces more
 /// efficient code. If the alignment is smaller than 16-bytes, then less
 /// efficient scatter is generated. If the stored vector is too long
 /// for 1 flat-store GPU instruction, then a series of flat-store and/or
