@@ -222,7 +222,7 @@ ur_result_t urTextureCreate(ur_context_handle_t hContext,
 
     // The address modes can interfere with other dimensionsenqueueEventsWait
     // e.g. 1D texture sampling can be interfered with when setting other
-    // dimension address modes despite their nonexistence
+    // dimension address modes despite their nonexistence.
     ImageTexDesc.addressMode[0] = AddrMode; // 1D
     ImageTexDesc.addressMode[1] =
         pImageDesc->height > 0 ? AddrMode : ImageTexDesc.addressMode[1]; // 2D
@@ -234,7 +234,7 @@ ur_result_t urTextureCreate(ur_context_handle_t hContext,
                                                : ImageTexDesc.flags;
 
     // CUDA default promotes 8-bit and 16-bit integers to float between [0,1]
-    // This flag prevents this behaviour
+    // This flag prevents this behaviour.
     ImageTexDesc.flags |= CU_TRSF_READ_AS_INTEGER;
 
     CUtexObject Texture;
@@ -266,8 +266,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
   assert(height > 0);
   assert(elementSizeBytes > 0);
 
-  // elementSizeBytes can only take on values of 4, 8, or 16
-  // small data types need to be minimised to 4
+  // elementSizeBytes can only take on values of 4, 8, or 16.
+  // small data types need to be minimised to 4.
   if (elementSizeBytes < 4) {
     elementSizeBytes = 4;
   }
@@ -463,7 +463,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     image_res_desc.res.array.hArray = (CUarray)hImageMem;
 
     // We create surfaces in the unsampled images case as it conforms to how
-    // CUDA deals with unsampled images
+    // CUDA deals with unsampled images.
     CUsurfObject surface;
     RetErr = UR_CHECK_ERROR(cuSurfObjectCreate(&surface, &image_res_desc));
     *phImage = (ur_exp_image_handle_t)surface;
@@ -525,9 +525,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
     unsigned int mem_type;
     // If this function doesn't return successfully, we assume that hImageMem is
-    // a CUarray or CUmipmappedArray If this function returns successfully, we
+    // a CUarray or CUmipmappedArray. If this function returns successfully, we
     // check whether hImageMem is device memory (even managed memory isn't
-    // considered shared)
+    // considered shared).
     CUresult Err = cuPointerGetAttribute(
         &mem_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)hImageMem);
     if (Err != CUDA_SUCCESS) {
@@ -612,7 +612,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         "urBindlessImagesImageCopyExp given unsupported channelOrder");
   }
 
-  // We need to get this now in bytes for calculating the total image size later
+  // We need to get this now in bytes for calculating the total image size
+  // later.
   RetErr = urToCudaImageChannelFormat(pImageFormat->channelType, nullptr,
                                       &PixelTypeSizeBytes);
   if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
@@ -627,7 +628,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     CUstream Stream = hQueue->getNextTransferStream();
     RetErr =
         enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
-    // We have to use a different copy function for each image dimensionality
+    // We have to use a different copy function for each image dimensionality.
 
     if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {

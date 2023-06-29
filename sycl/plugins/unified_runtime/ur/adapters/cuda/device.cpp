@@ -874,16 +874,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(int32_t{1});
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
-    // On CUDA bindless images are supported
+    // On CUDA bindless images are supported.
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    // On CUDA 1D bindless image USM is not supported
-    // More specifically, linear filtering is not supported
+    // On CUDA 1D bindless image USM is not supported.
+    // More specifically, linear filtering is not supported.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-    // On CUDA 2D bindless image USM is supported
+    // On CUDA 2D bindless image USM is supported.
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP: {
@@ -920,36 +920,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(tex_max_linear_pitch);
   }
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
-    // CUDA supports mipmaps
+    // CUDA supports mipmaps.
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP: {
-    // CUDA supports anisotropic filtering
+    // CUDA supports anisotropic filtering.
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP: {
-    // CUDA has no query for this, but documentation states max value is 16
+    // CUDA has no query for this, but documentation states max value is 16.
     return ReturnValue(16.f);
   }
   case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
-    // CUDA supports creation of images from individual mipmap levels
+    // CUDA supports creation of images from individual mipmap levels.
     return ReturnValue(true);
   }
 
   case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP: {
-    // CUDA supports importing external memory
+    // CUDA supports importing external memory.
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP: {
-    // CUDA does not support exporting it's own device memory
+    // CUDA does not support exporting it's own device memory.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP: {
-    // CUDA supports importing external semaphores
+    // CUDA supports importing external semaphores.
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP: {
-    // CUDA does not support exporting semaphores or events
+    // CUDA does not support exporting semaphores or events.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_DEVICE_ID: {

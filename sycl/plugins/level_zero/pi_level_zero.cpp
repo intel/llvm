@@ -390,9 +390,10 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
                                 ParamValueSizeRet);
 }
 
-pi_result piextMemUnsampledImageHandleDestroy(pi_context context,
-                                              pi_device device,
-                                              pi_image_handle handle) {
+pi_result
+piextMemUnsampledImageHandleDestroy([[maybe_unused]] pi_context context,
+                                    [[maybe_unused]] pi_device device,
+                                    [[maybe_unused]] pi_image_handle handle) {
 
   assert(context != nullptr);
   assert(device != nullptr);
@@ -405,9 +406,10 @@ pi_result piextMemUnsampledImageHandleDestroy(pi_context context,
   return retErr;
 }
 
-pi_result piextMemSampledImageHandleDestroy(pi_context context,
-                                            pi_device device,
-                                            pi_image_handle handle) {
+pi_result
+piextMemSampledImageHandleDestroy([[maybe_unused]] pi_context context,
+                                  [[maybe_unused]] pi_device device,
+                                  [[maybe_unused]] pi_image_handle handle) {
 
   assert(context != nullptr);
   assert(device != nullptr);
@@ -420,10 +422,11 @@ pi_result piextMemSampledImageHandleDestroy(pi_context context,
   return retErr;
 }
 
-pi_result piextMemImageAllocate(pi_context context, pi_device device,
-                                pi_image_format *image_format,
-                                pi_image_desc *image_desc,
-                                pi_image_mem_handle *ret_mem) {
+pi_result piextMemImageAllocate([[maybe_unused]] pi_context context,
+                                [[maybe_unused]] pi_device device,
+                                [[maybe_unused]] pi_image_format *image_format,
+                                [[maybe_unused]] pi_image_desc *image_desc,
+                                [[maybe_unused]] pi_image_mem_handle *ret_mem) {
 
   assert(context != nullptr);
   assert(device != nullptr);
@@ -437,10 +440,12 @@ pi_result piextMemImageAllocate(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result piextMemMipmapGetLevel(pi_context context, pi_device device,
-                                 pi_image_mem_handle mip_mem,
-                                 unsigned int level,
-                                 pi_image_mem_handle *ret_mem) {
+pi_result
+piextMemMipmapGetLevel([[maybe_unused]] pi_context context,
+                       [[maybe_unused]] pi_device device,
+                       [[maybe_unused]] pi_image_mem_handle mip_mem,
+                       [[maybe_unused]] unsigned int level,
+                       [[maybe_unused]] pi_image_mem_handle *ret_mem) {
 
   assert(context != nullptr);
   assert(device != nullptr);
@@ -452,8 +457,10 @@ pi_result piextMemMipmapGetLevel(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result piextMemImageFree(pi_context context, pi_device device,
-                            pi_image_mem_handle memory_handle) {
+pi_result
+piextMemImageFree([[maybe_unused]] pi_context context,
+                  [[maybe_unused]] pi_device device,
+                  [[maybe_unused]] pi_image_mem_handle memory_handle) {
 
   assert(context != nullptr);
   assert(device != nullptr);
@@ -465,8 +472,10 @@ pi_result piextMemImageFree(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result piextMemMipmapFree(pi_context context, pi_device device,
-                             pi_image_mem_handle memory_handle) {
+pi_result
+piextMemMipmapFree([[maybe_unused]] pi_context context,
+                   [[maybe_unused]] pi_device device,
+                   [[maybe_unused]] pi_image_mem_handle memory_handle) {
 
   assert(context != nullptr);
   assert(device != nullptr);
@@ -478,11 +487,12 @@ pi_result piextMemMipmapFree(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result piextMemUnsampledImageCreate(pi_context context, pi_device device,
-                                       pi_image_mem_handle img_mem,
-                                       pi_image_format *image_format,
-                                       pi_image_desc *desc, pi_mem *ret_mem,
-                                       pi_image_handle *ret_handle) {
+pi_result piextMemUnsampledImageCreate(
+    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
+    [[maybe_unused]] pi_image_mem_handle img_mem,
+    [[maybe_unused]] pi_image_format *image_format,
+    [[maybe_unused]] pi_image_desc *desc, [[maybe_unused]] pi_mem *ret_mem,
+    [[maybe_unused]] pi_image_handle *ret_handle) {
 
   assert(context != nullptr);
   assert(device != nullptr);
@@ -496,9 +506,10 @@ pi_result piextMemUnsampledImageCreate(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result piextMemImportOpaqueFD(pi_context context, pi_device device,
-                                 size_t size, int file_descriptor,
-                                 pi_interop_mem_handle *ret_handle) {
+pi_result piextMemImportOpaqueFD(
+    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
+    [[maybe_unused]] size_t size, [[maybe_unused]] int file_descriptor,
+    [[maybe_unused]] pi_interop_mem_handle *ret_handle) {
   assert(context);
   assert(device);
   assert(file_descriptor);
@@ -509,10 +520,10 @@ pi_result piextMemImportOpaqueFD(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result
-piextImportExternalSemaphoreOpaqueFD(pi_context context, pi_device device,
-                                     int file_descriptor,
-                                     pi_interop_semaphore_handle *ret_handle) {
+pi_result piextImportExternalSemaphoreOpaqueFD(
+    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
+    [[maybe_unused]] int file_descriptor,
+    [[maybe_unused]] pi_interop_semaphore_handle *ret_handle) {
   assert(context);
   assert(device);
   assert(ret_handle);
@@ -522,9 +533,9 @@ piextImportExternalSemaphoreOpaqueFD(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result
-piextDestroyExternalSemaphore(pi_context context, pi_device device,
-                              pi_interop_semaphore_handle sem_handle) {
+pi_result piextDestroyExternalSemaphore(
+    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
+    [[maybe_unused]] pi_interop_semaphore_handle sem_handle) {
   assert(context);
   assert(device);
   assert(sem_handle);
@@ -534,11 +545,12 @@ piextDestroyExternalSemaphore(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result piextWaitExternalSemaphore(pi_queue command_queue,
-                                     pi_interop_semaphore_handle sem_handle,
-                                     pi_uint32 num_events_in_wait_list,
-                                     const pi_event *event_wait_list,
-                                     pi_event *event) {
+pi_result piextWaitExternalSemaphore(
+    [[maybe_unused]] pi_queue command_queue,
+    [[maybe_unused]] pi_interop_semaphore_handle sem_handle,
+    [[maybe_unused]] pi_uint32 num_events_in_wait_list,
+    [[maybe_unused]] const pi_event *event_wait_list,
+    [[maybe_unused]] pi_event *event) {
   assert(command_queue);
   assert(sem_handle);
   die("piextWaitExternalSemaphore not implemented on level zero "
@@ -547,11 +559,12 @@ pi_result piextWaitExternalSemaphore(pi_queue command_queue,
   return retErr;
 }
 
-pi_result piextSignalExternalSemaphore(pi_queue command_queue,
-                                       pi_interop_semaphore_handle sem_handle,
-                                       pi_uint32 num_events_in_wait_list,
-                                       const pi_event *event_wait_list,
-                                       pi_event *event) {
+pi_result piextSignalExternalSemaphore(
+    [[maybe_unused]] pi_queue command_queue,
+    [[maybe_unused]] pi_interop_semaphore_handle sem_handle,
+    [[maybe_unused]] pi_uint32 num_events_in_wait_list,
+    [[maybe_unused]] const pi_event *event_wait_list,
+    [[maybe_unused]] pi_event *event) {
   assert(command_queue);
   assert(sem_handle);
   die("piextSignalExternalSemaphore not implemented on level zero "
@@ -560,11 +573,13 @@ pi_result piextSignalExternalSemaphore(pi_queue command_queue,
   return retErr;
 }
 
-pi_result piextMemMapExternalArray(pi_context context, pi_device device,
-                                   pi_image_format *image_format,
-                                   pi_image_desc *image_desc,
-                                   pi_interop_mem_handle mem_handle,
-                                   pi_image_mem_handle *ret_mem) {
+pi_result
+piextMemMapExternalArray([[maybe_unused]] pi_context context,
+                         [[maybe_unused]] pi_device device,
+                         [[maybe_unused]] pi_image_format *image_format,
+                         [[maybe_unused]] pi_image_desc *image_desc,
+                         [[maybe_unused]] pi_interop_mem_handle mem_handle,
+                         [[maybe_unused]] pi_image_mem_handle *ret_mem) {
   assert(context);
   assert(device);
   assert(image_format);
@@ -578,8 +593,10 @@ pi_result piextMemMapExternalArray(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result piextMemReleaseInterop(pi_context context, pi_device device,
-                                 pi_interop_mem_handle ext_mem) {
+pi_result
+piextMemReleaseInterop([[maybe_unused]] pi_context context,
+                       [[maybe_unused]] pi_device device,
+                       [[maybe_unused]] pi_interop_mem_handle ext_mem) {
   assert(context);
   assert(ext_mem);
 
@@ -588,12 +605,13 @@ pi_result piextMemReleaseInterop(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result piextMemSampledImageCreate(pi_context context, pi_device device,
-                                     pi_image_mem_handle img_mem,
-                                     pi_image_format *format,
-                                     pi_image_desc *desc, pi_sampler sampler,
-                                     pi_mem *ret_mem,
-                                     pi_image_handle *ret_handle) {
+pi_result piextMemSampledImageCreate(
+    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
+    [[maybe_unused]] pi_image_mem_handle img_mem,
+    [[maybe_unused]] pi_image_format *format,
+    [[maybe_unused]] pi_image_desc *desc, [[maybe_unused]] pi_sampler sampler,
+    [[maybe_unused]] pi_mem *ret_mem,
+    [[maybe_unused]] pi_image_handle *ret_handle) {
   assert(context != nullptr);
   assert(device != nullptr);
   assert(img_mem != nullptr);
@@ -606,13 +624,20 @@ pi_result piextMemSampledImageCreate(pi_context context, pi_device device,
   return retErr;
 }
 
-pi_result piextMemImageCopy(
-    pi_queue command_queue, void *dst_ptr, void *src_ptr,
-    const pi_image_format *image_format, const pi_image_desc *image_desc,
-    const pi_image_copy_flags flags, pi_image_offset src_offset,
-    pi_image_offset dst_offset, pi_image_region copy_extent,
-    pi_image_region host_extent, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
+pi_result
+piextMemImageCopy([[maybe_unused]] pi_queue command_queue,
+                  [[maybe_unused]] void *dst_ptr,
+                  [[maybe_unused]] void *src_ptr,
+                  [[maybe_unused]] const pi_image_format *image_format,
+                  [[maybe_unused]] const pi_image_desc *image_desc,
+                  [[maybe_unused]] const pi_image_copy_flags flags,
+                  [[maybe_unused]] pi_image_offset src_offset,
+                  [[maybe_unused]] pi_image_offset dst_offset,
+                  [[maybe_unused]] pi_image_region copy_extent,
+                  [[maybe_unused]] pi_image_region host_extent,
+                  [[maybe_unused]] pi_uint32 num_events_in_wait_list,
+                  [[maybe_unused]] const pi_event *event_wait_list,
+                  [[maybe_unused]] pi_event *event) {
   assert(command_queue != nullptr);
   assert(dst_ptr != nullptr);
   assert(src_ptr != nullptr);
@@ -623,9 +648,11 @@ pi_result piextMemImageCopy(
   return retErr;
 }
 
-pi_result piextMemImageGetInfo(const pi_image_mem_handle mem_handle,
-                               pi_image_info param_name, void *param_value,
-                               size_t *param_value_size_ret) {
+pi_result
+piextMemImageGetInfo([[maybe_unused]] const pi_image_mem_handle mem_handle,
+                     [[maybe_unused]] pi_image_info param_name,
+                     [[maybe_unused]] void *param_value,
+                     [[maybe_unused]] size_t *param_value_size_ret) {
   assert(mem_handle);
 
   die("piextMemImageGetInfo not implemented on level zero backend.\n");
@@ -1006,11 +1033,12 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                                     Size, Alignment);
 }
 
-pi_result piextUSMPitchedAlloc(void **result_ptr, size_t *result_pitch,
-                               pi_context context, pi_device device,
-                               pi_usm_mem_properties *properties,
-                               size_t width_in_bytes, size_t height,
-                               unsigned int element_size_bytes) {
+pi_result piextUSMPitchedAlloc(
+    [[maybe_unused]] void **result_ptr, [[maybe_unused]] size_t *result_pitch,
+    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
+    [[maybe_unused]] pi_usm_mem_properties *properties,
+    [[maybe_unused]] size_t width_in_bytes, [[maybe_unused]] size_t height,
+    [[maybe_unused]] unsigned int element_size_bytes) {
   die("piextUSMPitchedAlloc: not implemented");
 
   assert(result_ptr != nullptr);

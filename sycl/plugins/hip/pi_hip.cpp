@@ -4176,6 +4176,9 @@ pi_result hip_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
 ///
 /// \param[in] context The context the sampler is created for.
 /// \param[in] sampler_properties The properties for the sampler.
+/// \param[in] minMipmapLevelClamp The minimum mipmap clamp level.
+/// \param[in] maxMipmapLevelClamp The maximum mipmap clamp level.
+/// \param[in] maxAnisotropy The maximum anisotropy.
 /// \param[out] result_sampler Set to the resulting sampler object.
 ///
 /// \return PI_SUCCESS on success. PI_ERROR_INVALID_VALUE if given an invalid
@@ -4183,7 +4186,13 @@ pi_result hip_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
 ///         or if there is multiple of properties from the same category.
 pi_result hip_piSamplerCreate(pi_context context,
                               const pi_sampler_properties *sampler_properties,
+                              const float minMipmapLevelClamp,
+                              const float maxMipmapLevelClamp,
+                              const float maxAnisotropy,
                               pi_sampler *result_sampler) {
+  (void)minMipmapLevelClamp;
+  (void)maxMipmapLevelClamp;
+  (void)maxAnisotropy;
   std::unique_ptr<_pi_sampler> retImplSampl{new _pi_sampler(context)};
 
   bool propSeen[3] = {false, false, false};

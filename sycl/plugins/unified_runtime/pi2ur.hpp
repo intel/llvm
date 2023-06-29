@@ -2802,132 +2802,60 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
 static void ur2piImageFormat(const ur_image_format_t *UrFormat,
                              pi_image_format *PiFormat) {
   switch (UrFormat->channelOrder) {
-  case UR_IMAGE_CHANNEL_ORDER_A: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_A;
-    break;
+#define MAP(FROM, TO)                                                          \
+  case FROM: {                                                                 \
+    PiFormat->image_channel_order = TO;                                        \
+    break;                                                                     \
   }
-  case UR_IMAGE_CHANNEL_ORDER_R: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_R;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_RG: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RG;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_RA: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RA;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_RGB: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RGB;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_RGBA: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RGBA;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_BGRA: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_BGRA;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_ARGB: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_ARGB;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_ABGR: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_ABGR;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_INTENSITY: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_INTENSITY;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_LUMINANCE: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_LUMINANCE;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_RX: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_Rx;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_RGX: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RGx;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_RGBX: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_RGBx;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_SRGBA: {
-    PiFormat->image_channel_order = PI_IMAGE_CHANNEL_ORDER_sRGBA;
-    break;
-  }
+    MAP(UR_IMAGE_CHANNEL_ORDER_A, PI_IMAGE_CHANNEL_ORDER_A)
+    MAP(UR_IMAGE_CHANNEL_ORDER_R, PI_IMAGE_CHANNEL_ORDER_R)
+    MAP(UR_IMAGE_CHANNEL_ORDER_RG, PI_IMAGE_CHANNEL_ORDER_RG)
+    MAP(UR_IMAGE_CHANNEL_ORDER_RA, PI_IMAGE_CHANNEL_ORDER_RA)
+    MAP(UR_IMAGE_CHANNEL_ORDER_RGB, PI_IMAGE_CHANNEL_ORDER_RGB)
+    MAP(UR_IMAGE_CHANNEL_ORDER_RGBA, PI_IMAGE_CHANNEL_ORDER_RGBA)
+    MAP(UR_IMAGE_CHANNEL_ORDER_BGRA, PI_IMAGE_CHANNEL_ORDER_BGRA)
+    MAP(UR_IMAGE_CHANNEL_ORDER_ARGB, PI_IMAGE_CHANNEL_ORDER_ARGB)
+    MAP(UR_IMAGE_CHANNEL_ORDER_ABGR, PI_IMAGE_CHANNEL_ORDER_ABGR)
+    MAP(UR_IMAGE_CHANNEL_ORDER_INTENSITY, PI_IMAGE_CHANNEL_ORDER_INTENSITY)
+    MAP(UR_IMAGE_CHANNEL_ORDER_LUMINANCE, PI_IMAGE_CHANNEL_ORDER_LUMINANCE)
+    MAP(UR_IMAGE_CHANNEL_ORDER_RX, PI_IMAGE_CHANNEL_ORDER_Rx)
+    MAP(UR_IMAGE_CHANNEL_ORDER_RGX, PI_IMAGE_CHANNEL_ORDER_RGx)
+    MAP(UR_IMAGE_CHANNEL_ORDER_RGBX, PI_IMAGE_CHANNEL_ORDER_RGBx)
+    MAP(UR_IMAGE_CHANNEL_ORDER_SRGBA, PI_IMAGE_CHANNEL_ORDER_sRGBA)
+#undef MAP
   default: {
     die("ur2piImageFormat: unsuppported channelOrder.");
   }
   }
 
   switch (UrFormat->channelType) {
-  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_SNORM_INT8;
-    break;
+#define MAP(FROM, TO)                                                          \
+  case FROM: {                                                                 \
+    PiFormat->image_channel_data_type = TO;                                    \
+    break;                                                                     \
   }
-  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_SNORM_INT16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNORM_INT8;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNORM_INT16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_INT_101010: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_FLOAT: {
-    PiFormat->image_channel_data_type = PI_IMAGE_CHANNEL_TYPE_FLOAT;
-    break;
-  }
+    MAP(UR_IMAGE_CHANNEL_TYPE_SNORM_INT8, PI_IMAGE_CHANNEL_TYPE_SNORM_INT8)
+    MAP(UR_IMAGE_CHANNEL_TYPE_SNORM_INT16, PI_IMAGE_CHANNEL_TYPE_SNORM_INT16)
+    MAP(UR_IMAGE_CHANNEL_TYPE_UNORM_INT8, PI_IMAGE_CHANNEL_TYPE_UNORM_INT8)
+    MAP(UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, PI_IMAGE_CHANNEL_TYPE_UNORM_INT16)
+    MAP(UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
+        PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565)
+    MAP(UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555,
+        PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555)
+    MAP(UR_IMAGE_CHANNEL_TYPE_INT_101010,
+        PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010)
+    MAP(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8, PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8)
+    MAP(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16, PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16)
+    MAP(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32, PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32)
+    MAP(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8,
+        PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8)
+    MAP(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16,
+        PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16)
+    MAP(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32,
+        PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32)
+    MAP(UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT, PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT)
+    MAP(UR_IMAGE_CHANNEL_TYPE_FLOAT, PI_IMAGE_CHANNEL_TYPE_FLOAT)
+#undef MAP
   default: {
     die("ur2piImageFormat: unsuppported channelType.");
   }
