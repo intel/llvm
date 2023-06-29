@@ -24,9 +24,7 @@ namespace experimental {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  T operator op##=(const T &rhs) const {                                    \
-    return (*m_Ptr) = (*m_Ptr) op rhs;                                                           \
-  }
+  T operator op##=(const T &rhs) const { return (*m_Ptr) = (*m_Ptr)op rhs; }
 
 template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_ref {
@@ -54,13 +52,9 @@ public:
 
   operator T() const { return *m_Ptr; }
 
-  T operator=(const T &Obj) const {
-    return *m_Ptr = Obj;
-  }
+  T operator=(const T &Obj) const { return *m_Ptr = Obj; }
 
-  T operator=(const annotated_ref &Ref) const {
-    return *m_Ptr = *(Ref.m_Ptr);
-  }
+  T operator=(const annotated_ref &Ref) const { return *m_Ptr = *(Ref.m_Ptr); }
 
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
@@ -130,7 +124,8 @@ public:
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(annotated_ptr &) = default;
 
-  explicit annotated_ptr(T *Ptr, const property_list_t & = properties{}) noexcept
+  explicit annotated_ptr(T *Ptr,
+                         const property_list_t & = properties{}) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
@@ -207,8 +202,7 @@ public:
 
   explicit operator bool() const noexcept { return m_Ptr != nullptr; }
 
-  operator T *() noexcept = delete;
-  operator T *() const = delete;
+  operator T *() const noexcept = delete;
 
   T *get() const noexcept { return m_Ptr; }
 

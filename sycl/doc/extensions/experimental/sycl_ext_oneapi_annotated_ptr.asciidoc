@@ -284,7 +284,6 @@ class annotated_ptr {
     explicit operator bool() const noexcept;
 
     // Implicit conversion is not supported
-    operator T*() noexcept = delete;
     operator T*() const noexcept = delete;
 
     T* get() const noexcept;
@@ -394,16 +393,6 @@ Common properties with the same value (or no value) are allowed.
 a|
 [source,c++]
 ----
-annotated_ptr(const annotated_ptr &) noexcept = default;
-----
-|
-Constructs an `annotated_ptr` object from another `annotated_ptr` with the same
-type and properties.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
 reference operator*() const;
 ----
 |
@@ -452,16 +441,6 @@ Returns `false` if the underlying pointer is null, returns `true` otherwise.
 a|
 [source,c++]
 ----
-/*unspecified*/ operator T*() noexcept = delete;
-/*unspecified*/ operator const T*() const noexcept = delete;
-----
-|
-Implicit conversion to a pointer to the underlying type is not supported.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
 T* get() const noexcept;
 ----
 |
@@ -476,15 +455,6 @@ annotated_ptr& operator=(T*) noexcept;
 ----
 |
 Allows assignment from a pointer to type `T`.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-annotated_ptr& operator=(const annotated_ptr &) noexcept = default;
-----
-|
-Allows assignment from an `annotated_ptr` with the same parameterization.
 
 // --- ROW BREAK ---
 a|
@@ -577,15 +547,6 @@ Member Functions are described in the table below
 [frame="topbot",options="header"]
 |===
 |Functions |Description
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-annotated_ref(const annotated_ref&) = delete;
-----
-|
-No copy constructor.
 
 // --- ROW BREAK ---
 a|
