@@ -17,7 +17,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
-#include <llvm/ADT/StringRef.h>
+#include "llvm/ADT/StringRef.h"
 
 namespace mlir {
 constexpr llvm::StringLiteral DeviceModuleName = "device_functions";
