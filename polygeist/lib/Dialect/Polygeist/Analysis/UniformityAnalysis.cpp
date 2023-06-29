@@ -243,8 +243,6 @@ void UniformityAnalysis::analyzeMemoryEffects(
     if (!canComputeUniformity(*mods, op)) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Reaching def operand(s) uniformity not yet initialized\n");
-      // WORKAROUND      return propagateAllIfChanged(op->getResults(),
-      // Uniformity::getUnknown());
       return;
     }
 
