@@ -33,9 +33,9 @@ TEST_F(test, memoryProviderTrace) {
     ASSERT_EQ(calls["free"], 1);
     ASSERT_EQ(calls.size(), ++call_count);
 
-    ret = umaMemoryProviderGetLastResult(tracingProvider.get(), nullptr);
-    ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
-    ASSERT_EQ(calls["get_last_result"], 1);
+    umaMemoryProviderGetLastNativeError(tracingProvider.get(), nullptr,
+                                        nullptr);
+    ASSERT_EQ(calls["get_last_native_error"], 1);
     ASSERT_EQ(calls.size(), ++call_count);
 
     ret = umaMemoryProviderGetRecommendedPageSize(tracingProvider.get(), 0,
@@ -60,8 +60,7 @@ TEST_F(test, memoryProviderTrace) {
     ASSERT_EQ(calls["purge_force"], 1);
     ASSERT_EQ(calls.size(), ++call_count);
 
-    const char *pName;
-    umaMemoryProviderGetName(tracingProvider.get(), &pName);
+    const char *pName = umaMemoryProviderGetName(tracingProvider.get());
     ASSERT_EQ(calls["name"], 1);
     ASSERT_EQ(calls.size(), ++call_count);
     ASSERT_EQ(std::string(pName), std::string("null"));
@@ -76,7 +75,6 @@ struct providerInitializeTest : uma_test::test,
 INSTANTIATE_TEST_SUITE_P(
     providerInitializeTest, providerInitializeTest,
     ::testing::Values(UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY,
-                      UMA_RESULT_ERROR_POOL_SPECIFIC,
                       UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC,
                       UMA_RESULT_ERROR_INVALID_ARGUMENT,
                       UMA_RESULT_ERROR_UNKNOWN));

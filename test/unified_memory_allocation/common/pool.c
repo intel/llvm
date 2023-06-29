@@ -62,24 +62,23 @@ static void nullFree(void *pool, void *ptr) {
     (void)ptr;
 }
 
-enum uma_result_t nullGetLastResult(void *pool, const char **ppMsg) {
+enum uma_result_t nullGetLastStatus(void *pool) {
     (void)pool;
-    (void)ppMsg;
     return UMA_RESULT_SUCCESS;
 }
 
 uma_memory_pool_handle_t nullPoolCreate(void) {
-    struct uma_memory_pool_ops_t ops = {.version = UMA_VERSION_CURRENT,
-                                        .initialize = nullInitialize,
-                                        .finalize = nullFinalize,
-                                        .malloc = nullMalloc,
-                                        .realloc = nullRealloc,
-                                        .calloc = nullCalloc,
-                                        .aligned_malloc = nullAlignedMalloc,
-                                        .malloc_usable_size =
-                                            nullMallocUsableSize,
-                                        .free = nullFree,
-                                        .get_last_result = nullGetLastResult};
+    struct uma_memory_pool_ops_t ops = {
+        .version = UMA_VERSION_CURRENT,
+        .initialize = nullInitialize,
+        .finalize = nullFinalize,
+        .malloc = nullMalloc,
+        .realloc = nullRealloc,
+        .calloc = nullCalloc,
+        .aligned_malloc = nullAlignedMalloc,
+        .malloc_usable_size = nullMallocUsableSize,
+        .free = nullFree,
+        .get_last_allocation_error = nullGetLastStatus};
 
     uma_memory_provider_handle_t providerDesc = nullProviderCreate();
     uma_memory_pool_handle_t hPool;
@@ -159,28 +158,28 @@ static void traceFree(void *pool, void *ptr) {
     umaPoolFree(tracePool->params.hUpstreamPool, ptr);
 }
 
-enum uma_result_t traceGetLastResult(void *pool, const char **ppMsg) {
+enum uma_result_t traceGetLastStatus(void *pool) {
     struct tracePool *tracePool = (struct tracePool *)pool;
 
-    tracePool->params.trace("get_last_result");
-    return umaPoolGetLastResult(tracePool->params.hUpstreamPool, ppMsg);
+    tracePool->params.trace("get_last_native_error");
+    return umaPoolGetLastAllocationError(tracePool->params.hUpstreamPool);
 }
 
 uma_memory_pool_handle_t
 tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool,
                 uma_memory_provider_handle_t providerDesc,
                 void (*trace)(const char *)) {
-    struct uma_memory_pool_ops_t ops = {.version = UMA_VERSION_CURRENT,
-                                        .initialize = traceInitialize,
-                                        .finalize = traceFinalize,
-                                        .malloc = traceMalloc,
-                                        .realloc = traceRealloc,
-                                        .calloc = traceCalloc,
-                                        .aligned_malloc = traceAlignedMalloc,
-                                        .malloc_usable_size =
-                                            traceMallocUsableSize,
-                                        .free = traceFree,
-                                        .get_last_result = traceGetLastResult};
+    struct uma_memory_pool_ops_t ops = {
+        .version = UMA_VERSION_CURRENT,
+        .initialize = traceInitialize,
+        .finalize = traceFinalize,
+        .malloc = traceMalloc,
+        .realloc = traceRealloc,
+        .calloc = traceCalloc,
+        .aligned_malloc = traceAlignedMalloc,
+        .malloc_usable_size = traceMallocUsableSize,
+        .free = traceFree,
+        .get_last_allocation_error = traceGetLastStatus};
 
     struct traceParams params = {.hUpstreamPool = hUpstreamPool,
                                  .trace = trace};

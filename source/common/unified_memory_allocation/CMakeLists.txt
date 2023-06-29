@@ -7,6 +7,7 @@ set(UMA_SOURCES
     src/memory_pool.c
     src/memory_provider.c
     src/memory_tracker.cpp
+    src/memory_provider_get_last_failed.cpp
 )
 
 if(UMA_BUILD_SHARED_LIBRARY)

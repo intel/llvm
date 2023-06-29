@@ -74,6 +74,10 @@ static size_t AlignUp(size_t Val, size_t Alignment) {
     return (Val + Alignment - 1) & (~(Alignment - 1));
 }
 
+struct MemoryProviderError {
+    uma_result_t code;
+};
+
 DisjointPoolConfig::DisjointPoolConfig()
     : limits(std::make_shared<DisjointPoolConfig::SharedLimits>()) {}
 
@@ -332,8 +336,7 @@ static void *memoryProviderAlloc(uma_memory_provider_handle_t hProvider,
     void *ptr;
     auto ret = umaMemoryProviderAlloc(hProvider, size, alignment, &ptr);
     if (ret != UMA_RESULT_SUCCESS) {
-        // TODO: Set last error appropriately
-        throw std::runtime_error("umaMemoryProviderAlloc");
+        throw MemoryProviderError{ret};
     }
     return ptr;
 }
@@ -342,8 +345,7 @@ static void memoryProviderFree(uma_memory_provider_handle_t hProvider,
                                void *ptr) {
     auto ret = umaMemoryProviderFree(hProvider, ptr, 0);
     if (ret != UMA_RESULT_SUCCESS) {
-        // TODO: introduce custom exceptions? PI L0 relies on those
-        throw std::runtime_error("memoryProviderFree");
+        throw MemoryProviderError{ret};
     }
 }
 
@@ -373,7 +375,13 @@ Slab::~Slab() {
     } catch (std::exception &e) {
         std::cout << "DisjointPool: unexpected error: " << e.what() << "\n";
     }
-    memoryProviderFree(bucket.getMemHandle(), MemPtr);
+
+    try {
+        memoryProviderFree(bucket.getMemHandle(), MemPtr);
+    } catch (MemoryProviderError &e) {
+        std::cout << "DisjointPool: error from memory provider: " << e.code
+                  << "\n";
+    }
 }
 
 // Return the index of the first available chunk, SIZE_MAX otherwise
@@ -719,7 +727,7 @@ void Bucket::printStats(bool &TitlePrinted, const std::string &Label) {
     }
 }
 
-void *DisjointPool::AllocImpl::allocate(size_t Size, bool &FromPool) {
+void *DisjointPool::AllocImpl::allocate(size_t Size, bool &FromPool) try {
     void *Ptr;
 
     if (Size == 0) {
@@ -744,10 +752,13 @@ void *DisjointPool::AllocImpl::allocate(size_t Size, bool &FromPool) {
     }
 
     return Ptr;
+} catch (MemoryProviderError &e) {
+    uma::getPoolLastStatusRef<DisjointPool>() = e.code;
+    return nullptr;
 }
 
 void *DisjointPool::AllocImpl::allocate(size_t Size, size_t Alignment,
-                                        bool &FromPool) {
+                                        bool &FromPool) try {
     void *Ptr;
 
     if (Size == 0) {
@@ -791,6 +802,9 @@ void *DisjointPool::AllocImpl::allocate(size_t Size, size_t Alignment,
     }
 
     return AlignPtrUp(Ptr, Alignment);
+} catch (MemoryProviderError &e) {
+    uma::getPoolLastStatusRef<DisjointPool>() = e.code;
+    return nullptr;
 }
 
 Bucket &DisjointPool::AllocImpl::findBucket(size_t Size) {
@@ -805,7 +819,7 @@ Bucket &DisjointPool::AllocImpl::findBucket(size_t Size) {
     return *(*It);
 }
 
-void DisjointPool::AllocImpl::deallocate(void *Ptr, bool &ToPool) {
+void DisjointPool::AllocImpl::deallocate(void *Ptr, bool &ToPool) try {
     auto *SlabPtr = AlignPtrDown(Ptr, SlabMinSize());
 
     // Lock the map on read
@@ -848,6 +862,8 @@ void DisjointPool::AllocImpl::deallocate(void *Ptr, bool &ToPool) {
     // to some slab with an entry in the map. So we find a slab
     // but the range checks fail.
     memoryProviderFree(getMemHandle(), Ptr);
+} catch (MemoryProviderError &e) {
+    uma::getPoolLastStatusRef<DisjointPool>() = e.code;
 }
 
 void DisjointPool::AllocImpl::printStats(bool &TitlePrinted,
@@ -939,10 +955,8 @@ void DisjointPool::free(void *ptr) {
     return;
 }
 
-enum uma_result_t DisjointPool::get_last_result(const char **ppMessage) {
-    // TODO: implement and return last error, we probably need something like
-    // https://github.com/oneapi-src/unified-runtime/issues/500 in UMA
-    return UMA_RESULT_ERROR_UNKNOWN;
+enum uma_result_t DisjointPool::get_last_allocation_error() {
+    return uma::getPoolLastStatusRef<DisjointPool>();
 }
 
 DisjointPool::DisjointPool() {}

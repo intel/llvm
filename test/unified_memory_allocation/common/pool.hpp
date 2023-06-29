@@ -37,8 +37,8 @@ struct pool_base {
     void *aligned_malloc(size_t, size_t) noexcept { return nullptr; }
     size_t malloc_usable_size(void *) noexcept { return 0; }
     void free(void *) noexcept {}
-    enum uma_result_t get_last_result(const char **ppMessage) noexcept {
-        return UMA_RESULT_ERROR_UNKNOWN;
+    enum uma_result_t get_last_allocation_error() noexcept {
+        return UMA_RESULT_SUCCESS;
     }
 };
 
@@ -81,7 +81,9 @@ struct proxy_pool : public pool_base {
 
         memset(ptr, 0, num * size);
 
-        EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
+        if (ptr) {
+            EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
+        }
         return ptr;
     }
     void *realloc(void *ptr, size_t size) noexcept {
@@ -91,7 +93,9 @@ struct proxy_pool : public pool_base {
     void *aligned_malloc(size_t size, size_t alignment) noexcept {
         void *ptr;
         auto ret = umaMemoryProviderAlloc(provider, size, alignment, &ptr);
-        EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
+        if (ptr) {
+            EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
+        }
         return ptr;
     }
     size_t malloc_usable_size(void *ptr) noexcept {
@@ -101,9 +105,6 @@ struct proxy_pool : public pool_base {
     void free(void *ptr) noexcept {
         auto ret = umaMemoryProviderFree(provider, ptr, 0);
         EXPECT_EQ_NOEXCEPT(ret, UMA_RESULT_SUCCESS);
-    }
-    enum uma_result_t get_last_result(const char **ppMessage) noexcept {
-        return umaMemoryProviderGetLastResult(provider, ppMessage);
     }
     uma_memory_provider_handle_t provider;
 };

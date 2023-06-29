@@ -41,15 +41,15 @@ struct uma_memory_provider_ops_t {
     enum uma_result_t (*alloc)(void *provider, size_t size, size_t alignment,
                                void **ptr);
     enum uma_result_t (*free)(void *provider, void *ptr, size_t size);
-    enum uma_result_t (*get_last_result)(void *provider,
-                                         const char **ppMessage);
+    void (*get_last_native_error)(void *provider, const char **ppMessage,
+                                  int32_t *pError);
     enum uma_result_t (*get_recommended_page_size)(void *provider, size_t size,
                                                    size_t *pageSize);
     enum uma_result_t (*get_min_page_size)(void *provider, void *ptr,
                                            size_t *pageSize);
     enum uma_result_t (*purge_lazy)(void *provider, void *ptr, size_t size);
     enum uma_result_t (*purge_force)(void *provider, void *ptr, size_t size);
-    void (*get_name)(void *provider, const char **ppName);
+    const char *(*get_name)(void *provider);
 };
 
 #ifdef __cplusplus
