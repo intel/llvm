@@ -259,6 +259,46 @@ LogicalResult SYCLIDConstructorOp::verify() {
       "expects a different signature. Check documentation for details");
 }
 
+bool SYCLWrapOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+
+  Type sourceType = inputs.front();
+  Type resultType = outputs.front();
+  Type bodyType =
+      TypeSwitch<Type, Type>(resultType)
+          .Case<HalfType>([](auto ty) { return ty.getBody().front(); })
+          .Default({});
+
+  return bodyType && sourceType == bodyType;
+}
+
+OpFoldResult SYCLWrapOp::fold(FoldAdaptor adaptor) {
+  if (auto unwrap = dyn_cast_or_null<SYCLUnwrapOp>(getSource().getDefiningOp()))
+    return unwrap.getSource();
+  return nullptr;
+}
+
+bool SYCLUnwrapOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+
+  Type sourceType = inputs.front();
+  Type resultType = outputs.front();
+  Type bodyType =
+      TypeSwitch<Type, Type>(sourceType)
+          .Case<HalfType>([](auto ty) { return ty.getBody().front(); })
+          .Default({});
+
+  return bodyType && resultType == bodyType;
+}
+
+OpFoldResult SYCLUnwrapOp::fold(FoldAdaptor adaptor) {
+  if (auto wrap = dyn_cast_or_null<SYCLWrapOp>(getSource().getDefiningOp()))
+    return wrap.getSource();
+  return nullptr;
+}
+
 static LogicalResult verifyReferencesKernel(SymbolUserOpInterface user,
                                             SymbolTableCollection &symbolTable,
                                             SymbolRefAttr symbol) {

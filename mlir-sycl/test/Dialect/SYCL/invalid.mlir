@@ -468,3 +468,19 @@ gpu.module @kernels {
     gpu.return
   }
 }
+
+// -----
+
+func.func @test_wrap(%arg0 : f32) {
+  // expected-error @below {{'sycl.mlir.wrap' op operand type 'f32' and result type '!sycl.half<(f16)>' are cast incompatible}}
+  %0 = sycl.mlir.wrap %arg0 : f32 to !sycl.half<(f16)>
+  return
+}
+
+// -----
+
+func.func @test_unwrap(%arg0 : !sycl.half<(f16)>) {
+  // expected-error @below {{'sycl.mlir.unwrap' op operand type '!sycl.half<(f16)>' and result type 'i16' are cast incompatible}}
+  %0 = sycl.mlir.unwrap %arg0 : !sycl.half<(f16)> to i16
+  return
+}
