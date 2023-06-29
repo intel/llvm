@@ -1,0 +1,81 @@
+/*
+ *
+ * Copyright (C) 2023 Intel Corporation
+ *
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ */
+
+#ifndef UMF_TEST_PROVIDER_HPP
+#define UMF_TEST_PROVIDER_HPP 1
+
+#include <umf/base.h>
+#include <umf/memory_provider.h>
+
+#include <gtest/gtest.h>
+
+#include "base.hpp"
+#include "umf_helpers.hpp"
+
+namespace umf_test {
+
+auto wrapProviderUnique(umf_memory_provider_handle_t hProvider) {
+    return umf::provider_unique_handle_t(hProvider, &umfMemoryProviderDestroy);
+}
+
+struct provider_base {
+    umf_result_t initialize() noexcept { return UMF_RESULT_SUCCESS; };
+    enum umf_result_t alloc(size_t, size_t, void **) noexcept {
+        return UMF_RESULT_ERROR_UNKNOWN;
+    }
+    enum umf_result_t free(void *ptr, size_t size) noexcept {
+        return UMF_RESULT_ERROR_UNKNOWN;
+    }
+    void get_last_native_error(const char **, int32_t *) noexcept {}
+    enum umf_result_t get_recommended_page_size(size_t size,
+                                                size_t *pageSize) noexcept {
+        return UMF_RESULT_ERROR_UNKNOWN;
+    }
+    enum umf_result_t get_min_page_size(void *ptr, size_t *pageSize) noexcept {
+        return UMF_RESULT_ERROR_UNKNOWN;
+    }
+    enum umf_result_t purge_lazy(void *ptr, size_t size) noexcept {
+        return UMF_RESULT_ERROR_UNKNOWN;
+    }
+    enum umf_result_t purge_force(void *ptr, size_t size) noexcept {
+        return UMF_RESULT_ERROR_UNKNOWN;
+    }
+    const char *get_name() noexcept { return "base"; }
+};
+
+struct provider_malloc : public provider_base {
+    enum umf_result_t alloc(size_t size, size_t align, void **ptr) noexcept {
+        if (!align) {
+            align = 8;
+        }
+
+#ifdef _WIN32
+        *ptr = _aligned_malloc(size, align);
+#else
+        *ptr = ::aligned_alloc(align, size);
+#endif
+
+        return (*ptr) ? UMF_RESULT_SUCCESS
+                      : UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    enum umf_result_t free(void *ptr, size_t) noexcept {
+#ifdef _WIN32
+        _aligned_free(ptr);
+#else
+        ::free(ptr);
+#endif
+        return UMF_RESULT_SUCCESS;
+    }
+    const char *get_name() noexcept { return "malloc"; }
+};
+
+} // namespace umf_test
+
+#endif /* UMF_TEST_PROVIDER_HPP */
