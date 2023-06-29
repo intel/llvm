@@ -60,7 +60,7 @@ endmacro()
 include(FetchContent)
 
 function(FetchSource GIT_REPOSITORY GIT_TAG GIT_DIR DEST)
-message(STATUS "Fetching sparse source ${GIT_DIR} from ${GIT_REPOSITORY} ${GIT_TAG}")
+    message(STATUS "Fetching sparse source ${GIT_DIR} from ${GIT_REPOSITORY} ${GIT_TAG}")
     IF(NOT EXISTS ${DEST})
         file(MAKE_DIRECTORY ${DEST})
         execute_process(COMMAND git init -b main
@@ -71,7 +71,9 @@ message(STATUS "Fetching sparse source ${GIT_DIR} from ${GIT_REPOSITORY} ${GIT_T
             WORKING_DIRECTORY ${DEST})
         file(APPEND ${DEST}/.git/info/sparse-checkout ${GIT_DIR}/)
     endif()
-    execute_process(COMMAND git pull --depth=1 origin ${GIT_TAG}
+    execute_process(COMMAND git fetch --depth=1 origin refs/tags/${GIT_TAG}:refs/tags/${GIT_TAG}
+        WORKING_DIRECTORY ${DEST})
+    execute_process(COMMAND git checkout --quiet ${GIT_TAG}
         WORKING_DIRECTORY ${DEST})
 endfunction()
 
