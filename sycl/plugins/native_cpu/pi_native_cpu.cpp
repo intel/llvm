@@ -16,28 +16,6 @@ struct _pi_object {
   std::atomic<pi_uint32> RefCount;
 };
 
-struct _pi_mem : _pi_object {
-  _pi_mem(size_t Size) {
-    _mem = (char *)malloc(Size);
-    _owns_mem = true;
-  }
-  _pi_mem(void *HostPtr, size_t Size) {
-    _mem = (char *)malloc(Size);
-    memcpy(_mem, HostPtr, Size);
-    _owns_mem = true;
-  }
-  _pi_mem(void *HostPtr) {
-    _mem = (char *)HostPtr;
-    _owns_mem = false;
-  }
-  ~_pi_mem() {
-    if (_owns_mem)
-      free(_mem);
-  }
-  char *_mem;
-  bool _owns_mem;
-};
-
 struct _pi_program : _pi_object {
   _pi_context *_ctx;
   const unsigned char *_ptr;
@@ -156,56 +134,6 @@ pi_result piextPlatformGetNativeHandle(pi_platform, pi_native_handle *) {
 }
 
 pi_result piextPlatformCreateWithNativeHandle(pi_native_handle, pi_platform *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
-                            void *HostPtr, pi_mem *RetMem,
-                            const pi_mem_properties *properties) {
-  // TODO: add proper error checking and double check flag semantics
-  // TODO: support PI_MEM_FLAGS_HOST_PTR_ALLOC flag
-  const bool UseHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_USE;
-  const bool CopyHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_COPY;
-  const bool HostPtrNotNull = HostPtr != nullptr;
-  if (UseHostPtr && HostPtrNotNull) {
-    *RetMem = new _pi_mem(HostPtr);
-  } else if (CopyHostPtr && HostPtrNotNull) {
-    *RetMem = new _pi_mem(HostPtr, Size);
-  } else {
-    *RetMem = new _pi_mem(Size);
-  }
-  return PI_SUCCESS;
-}
-
-pi_result piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piMemRetain(pi_mem Mem) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piMemRelease(pi_mem Mem) {
-  uint32_t OldRefCount = Mem->RefCount.fetch_sub(1, std::memory_order_acq_rel);
-  if (OldRefCount == 1) {
-    delete Mem;
-  }
-
-  return PI_SUCCESS;
-}
-
-pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
-                           const pi_image_format *ImageFormat,
-                           const pi_image_desc *ImageDesc, void *HostPtr,
-                           pi_mem *RetImage) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextMemGetNativeHandle(pi_mem, pi_native_handle *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_context, bool,
-                                         pi_mem *) {
-
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -554,10 +482,6 @@ pi_result piEnqueueMemUnmap(pi_queue, pi_mem mem_obj, void *mapped_ptr,
   return PI_SUCCESS;
 }
 
-pi_result piMemImageGetInfo(pi_mem, pi_image_info, size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
                                 pi_bool BlockingRead, pi_image_offset Origin,
                                 pi_image_region Region, size_t RowPitch,
@@ -583,11 +507,6 @@ pi_result piEnqueueMemImageCopy(pi_queue, pi_mem, pi_mem, pi_image_offset,
 pi_result piEnqueueMemImageFill(pi_queue, pi_mem, const void *, const size_t *,
                                 const size_t *, pi_uint32, const pi_event *,
                                 pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piMemBufferPartition(pi_mem, pi_mem_flags, pi_buffer_create_type,
-                               void *, pi_mem *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -737,12 +656,6 @@ pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
 pi_result piextQueueCreate(pi_context context, pi_device device,
                            pi_queue_properties *properties, pi_queue *queue) {
   CONTINUE_NO_IMPLEMENTATION;
-}
-pi_result piextMemImageCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
-    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
-    pi_mem *img) {
-  DIE_NO_IMPLEMENTATION;
 }
 
 pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
@@ -975,15 +888,15 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          pi2ur::piextQueueCreateWithNativeHandle)
 
   // Memory
-  _PI_CL(piMemBufferCreate, piMemBufferCreate)
-  _PI_CL(piMemImageCreate, piMemImageCreate)
-  _PI_CL(piMemGetInfo, piMemGetInfo)
-  _PI_CL(piMemImageGetInfo, piMemImageGetInfo)
-  _PI_CL(piMemRetain, piMemRetain)
-  _PI_CL(piMemRelease, piMemRelease)
-  _PI_CL(piMemBufferPartition, piMemBufferPartition)
-  _PI_CL(piextMemGetNativeHandle, piextMemGetNativeHandle)
-  _PI_CL(piextMemCreateWithNativeHandle, piextMemCreateWithNativeHandle)
+  _PI_CL(piMemBufferCreate, pi2ur::piMemBufferCreate)
+  _PI_CL(piMemImageCreate, pi2ur::piMemImageCreate)
+  _PI_CL(piMemGetInfo, pi2ur::piMemGetInfo)
+  _PI_CL(piMemImageGetInfo, pi2ur::piMemImageGetInfo)
+  _PI_CL(piMemRetain, pi2ur::piMemRetain)
+  _PI_CL(piMemRelease, pi2ur::piMemRelease)
+  _PI_CL(piMemBufferPartition, pi2ur::piMemBufferPartition)
+  _PI_CL(piextMemGetNativeHandle, pi2ur::piextMemGetNativeHandle)
+  _PI_CL(piextMemCreateWithNativeHandle, pi2ur::piextMemCreateWithNativeHandle)
 
   // Program
   _PI_CL(piProgramCreate, piProgramCreate)
