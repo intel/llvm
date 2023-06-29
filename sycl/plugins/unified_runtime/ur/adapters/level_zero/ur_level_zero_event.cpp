@@ -70,7 +70,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     ur_event_handle_t InternalEvent;
     bool IsInternal = OutEvent == nullptr;
     ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
-    UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_EXT_COMMAND_TYPE_USER,
+    UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_EVENTS_WAIT,
                                          CommandList, IsInternal));
 
     ZeEvent = (*Event)->ZeEvent;
@@ -98,10 +98,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
     if (OutEvent) {
-      UR_CALL(createEventAndAssociateQueue(Queue, OutEvent,
-                                           UR_EXT_COMMAND_TYPE_USER,
-                                           Queue->CommandListMap.end(),
-                                           /* IsInternal */ false));
+      UR_CALL(createEventAndAssociateQueue(
+          Queue, OutEvent, UR_COMMAND_EVENTS_WAIT, Queue->CommandListMap.end(),
+          /* IsInternal */ false));
     }
 
     Queue->synchronize();
@@ -161,7 +160,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
         }
 
         UR_CALL(createEventAndAssociateQueue(
-            Queue, &Event, UR_EXT_COMMAND_TYPE_USER, CmdList, IsInternal));
+            Queue, &Event, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, CmdList,
+            IsInternal));
 
         Event->WaitList = EventWaitList;
 

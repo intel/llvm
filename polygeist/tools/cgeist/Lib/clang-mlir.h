@@ -140,8 +140,6 @@ private:
       CGFunctionInfos;
 
 public:
-  static constexpr llvm::StringLiteral DeviceModuleName{"device_functions"};
-
   MLIRASTConsumer(
       std::set<std::string> &EmitIfFound,
       std::set<std::pair<InsertionContext, std::string>> &Done,

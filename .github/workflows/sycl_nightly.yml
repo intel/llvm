@@ -11,6 +11,7 @@ on:
 
 jobs:
   test_matrix:
+    if: github.repository == 'intel/llvm'
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
