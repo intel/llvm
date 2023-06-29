@@ -633,7 +633,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   detail::CG::StorageInitHelper CGData;
   std::vector<std::vector<char>> &ArgsStorage = CGData.MArgsStorage;
   std::vector<detail::AccessorImplPtr> &AccStorage = CGData.MAccStorage;
-  std::unordered_set<Requirement *> &Requirements = CGData.MRequirements;
+  std::vector<Requirement *> &Requirements = CGData.MRequirements;
   std::vector<detail::EventImplPtr> &Events = CGData.MEvents;
   std::vector<::jit_compiler::NDRange> Ranges;
   sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig =
@@ -767,7 +767,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     // TODO(Lukas, ONNX-399): Does the MSharedPtrStorage contain any
     // information about actual shared pointers beside the kernel bundle and
     // handler impl? If yes, we might need to copy it here.
-    Requirements.insert(KernelCG->getRequirements().begin(),
+    Requirements.insert(Requirements.end(), KernelCG->getRequirements().begin(),
                         KernelCG->getRequirements().end());
     Events.insert(Events.end(), KernelCG->getEvents().begin(),
                   KernelCG->getEvents().end());

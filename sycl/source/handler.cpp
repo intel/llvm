@@ -433,7 +433,7 @@ void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                                          int AccTarget) {
   detail::Requirement *Req = AccImpl.get();
   // Add accessor to the list of requirements.
-  CGData.MRequirements.insert(Req);
+  CGData.MRequirements.push_back(Req);
   // Store copy of the accessor.
   CGData.MAccStorage.push_back(std::move(AccImpl));
   // Add an accessor to the handler list of associated accessors.

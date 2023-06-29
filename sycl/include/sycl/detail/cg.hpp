@@ -28,7 +28,6 @@
 #include <memory>
 #include <string>
 #include <type_traits>
-#include <unordered_set>
 #include <vector>
 
 namespace sycl {
@@ -84,7 +83,7 @@ public:
     StorageInitHelper(std::vector<std::vector<char>> ArgsStorage,
                       std::vector<detail::AccessorImplPtr> AccStorage,
                       std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-                      std::unordered_set<AccessorImplHost *> Requirements,
+                      std::vector<AccessorImplHost *> Requirements,
                       std::vector<detail::EventImplPtr> Events)
         : MArgsStorage(std::move(ArgsStorage)),
           MAccStorage(std::move(AccStorage)),
@@ -103,7 +102,7 @@ public:
 
     /// List of requirements that specify which memory is needed for the command
     /// group to be executed.
-    std::unordered_set<AccessorImplHost *> MRequirements;
+    std::vector<AccessorImplHost *> MRequirements;
     /// List of events that order the execution of this CG
     std::vector<detail::EventImplPtr> MEvents;
   };
@@ -136,7 +135,7 @@ public:
     return MData.MSharedPtrStorage;
   }
 
-  std::unordered_set<AccessorImplHost *> &getRequirements() {
+  std::vector<AccessorImplHost *> &getRequirements() {
     return MData.MRequirements;
   }
   std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }

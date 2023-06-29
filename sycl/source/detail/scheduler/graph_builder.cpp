@@ -857,7 +857,7 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 }
 
 EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
-    Command *Cmd, const std::unordered_set<Requirement *> &Reqs,
+    Command *Cmd, const std::vector<Requirement *> &Reqs,
     const QueueImplPtr &Queue, Command::BlockReason Reason,
     std::vector<Command *> &ToEnqueue, const bool AddDepsToLeaves) {
   EmptyCommand *EmptyCmd =
@@ -908,7 +908,7 @@ static bool isInteropHostTask(ExecCGCommand *Cmd) {
   return HT.MHostTask->isInteropTask();
 }
 
-static void combineAccessModesOfReqs(std::unordered_set<Requirement *> &Reqs) {
+static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
   std::unordered_map<SYCLMemObjI *, access::mode> CombinedModes;
   bool HasDuplicateMemObjects = false;
   for (const Requirement *Req : Reqs) {
@@ -932,7 +932,7 @@ Scheduler::GraphBuildResult
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                const QueueImplPtr &Queue,
                                std::vector<Command *> &ToEnqueue) {
-  std::unordered_set<Requirement *> &Reqs = CommandGroup->getRequirements();
+  std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
   auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
@@ -1009,7 +1009,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
 void Scheduler::GraphBuilder::createGraphForCommand(
     Command *NewCmd, CG &CG, bool isInteropTask,
-    std::unordered_set<Requirement *> &Reqs,
+    std::vector<Requirement *> &Reqs,
     const std::vector<detail::EventImplPtr> &Events, QueueImplPtr Queue,
     std::vector<Command *> &ToEnqueue) {
 

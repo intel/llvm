@@ -533,7 +533,7 @@ private:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
     // Add accessor to the list of requirements.
-    CGData.MRequirements.insert(Req);
+    CGData.MRequirements.push_back(Req);
     // Store copy of the accessor.
     CGData.MAccStorage.push_back(std::move(AccImpl));
     // Add accessor to the list of arguments.
@@ -2331,7 +2331,7 @@ public:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Src;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    CGData.MRequirements.insert(AccImpl.get());
+    CGData.MRequirements.push_back(AccImpl.get());
     MSrcPtr = static_cast<void *>(AccImpl.get());
     MDstPtr = static_cast<void *>(Dst);
     // Store copy of accessor to the local storage to make sure it is alive
@@ -2375,7 +2375,7 @@ public:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    CGData.MRequirements.insert(AccImpl.get());
+    CGData.MRequirements.push_back(AccImpl.get());
     MSrcPtr = const_cast<T_Src *>(Src);
     MDstPtr = static_cast<void *>(AccImpl.get());
     // Store copy of accessor to the local storage to make sure it is alive
@@ -2431,8 +2431,8 @@ public:
     detail::AccessorBaseHost *AccBaseDst = (detail::AccessorBaseHost *)&Dst;
     detail::AccessorImplPtr AccImplDst = detail::getSyclObjImpl(*AccBaseDst);
 
-    CGData.MRequirements.insert(AccImplSrc.get());
-    CGData.MRequirements.insert(AccImplDst.get());
+    CGData.MRequirements.push_back(AccImplSrc.get());
+    CGData.MRequirements.push_back(AccImplDst.get());
     MSrcPtr = AccImplSrc.get();
     MDstPtr = AccImplDst.get();
     // Store copy of accessor to the local storage to make sure it is alive
@@ -2462,7 +2462,7 @@ public:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    CGData.MRequirements.insert(AccImpl.get());
+    CGData.MRequirements.push_back(AccImpl.get());
     CGData.MAccStorage.push_back(std::move(AccImpl));
   }
 
@@ -2499,7 +2499,7 @@ public:
       detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
       MDstPtr = static_cast<void *>(AccImpl.get());
-      CGData.MRequirements.insert(AccImpl.get());
+      CGData.MRequirements.push_back(AccImpl.get());
       CGData.MAccStorage.push_back(std::move(AccImpl));
 
       MPattern.resize(sizeof(T));

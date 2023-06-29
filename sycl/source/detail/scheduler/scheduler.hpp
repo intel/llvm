@@ -655,14 +655,14 @@ protected:
                                        const ContextImplPtr &Context);
 
     EmptyCommand *addEmptyCmd(Command *Cmd,
-                              const std::unordered_set<Requirement *> &Req,
+                              const std::vector<Requirement *> &Req,
                               const QueueImplPtr &Queue,
                               Command::BlockReason Reason,
                               std::vector<Command *> &ToEnqueue,
                               const bool AddDepsToLeaves = true);
 
     void createGraphForCommand(Command *NewCmd, CG &CG, bool isInteropTask,
-                               std::unordered_set<Requirement *> &Reqs,
+                               std::vector<Requirement *> &Reqs,
                                const std::vector<detail::EventImplPtr> &Events,
                                QueueImplPtr Queue,
                                std::vector<Command *> &ToEnqueue);

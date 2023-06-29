@@ -32,13 +32,11 @@ static pi_result redefinedEnqueueNativeKernel(
   void **CastedBlob = (void **)args;
   auto [NDRDesc, MockReq] = initializeRefValues();
 
-  std::unordered_set<detail::Requirement *> Reqs = *(
-      static_cast<std::unordered_set<detail::Requirement *> *>(CastedBlob[0]));
-  EXPECT_TRUE(Reqs.size() == 1);
-  auto Req = *(Reqs.begin());
-  EXPECT_EQ(Req->MAccessRange[0], MockReq.MAccessRange[0]);
-  EXPECT_EQ(Req->MAccessRange[1], MockReq.MAccessRange[1]);
-  EXPECT_EQ(Req->MAccessRange[2], MockReq.MAccessRange[2]);
+  std::vector<detail::Requirement *> Reqs =
+      *(static_cast<std::vector<detail::Requirement *> *>(CastedBlob[0]));
+  EXPECT_EQ(Reqs[0]->MAccessRange[0], MockReq.MAccessRange[0]);
+  EXPECT_EQ(Reqs[0]->MAccessRange[1], MockReq.MAccessRange[1]);
+  EXPECT_EQ(Reqs[0]->MAccessRange[2], MockReq.MAccessRange[2]);
 
   std::shared_ptr<detail::HostKernelBase> *HostKernel =
       static_cast<std::shared_ptr<detail::HostKernelBase> *>(CastedBlob[1]);

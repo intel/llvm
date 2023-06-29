@@ -188,7 +188,7 @@ public:
 
   sycl::detail::EmptyCommand *
   addEmptyCmd(sycl::detail::Command *Cmd,
-              const std::unordered_set<sycl::detail::Requirement *> &Reqs,
+              const std::vector<sycl::detail::Requirement *> &Reqs,
               const sycl::detail::QueueImplPtr &Queue,
               sycl::detail::Command::BlockReason Reason,
               std::vector<sycl::detail::Command *> &ToEnqueue) {
@@ -248,7 +248,7 @@ public:
   std::vector<std::shared_ptr<const void>> &getSharedPtrStorage() {
     return CGData.MSharedPtrStorage;
   }
-  std::unordered_set<sycl::detail::Requirement *> &getRequirements() {
+  std::vector<sycl::detail::Requirement *> &getRequirements() {
     return CGData.MRequirements;
   }
   std::vector<sycl::detail::EventImplPtr> &getEvents() { return CGData.MEvents; }
