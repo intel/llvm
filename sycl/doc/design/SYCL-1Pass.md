@@ -10,13 +10,20 @@ This design reuqires some changes from the FE.  In particular, it needs to emit 
 
 The FE will generate the OpenCL Kernel which creates the Functor object that it will call into.  FE then replaces the [[sycl_kernel]] function with one that dispatches to the OpenCL Kernel.  New APIs from the SYCL Runtime Library (RTL) are needed to accomplish this task.
 
+The [[sycl_kernel]] function is actually code-gen'ed twice.  The code in "EmitFunctionDecl" for the [[sycl_kernel]] functions is replaced with 2 separate functions:
+
+the one on the host-side, which generates the decomposition of the function object, does the calls into the RTL to move this data over to the device, and calls the OpenCL kernel.
+
+the one on the device-side, which is just the OpenCL kernel, is similar to what we already generate for the device side.  But this now needs to happen at the IR level instead of the AST/Sema level.
 
 ### Elimination of generation of the integration header file
 
-Since there is no longer separate device and host compilation invocations, communication between them via the integration header file is no longer necessary.  Instead the FE can pass the information previously generated in the header file directly to the RTL via new APIs.
+Since there is no longer separate device and host compilation invocations, communication between them via the integration header file is no longer necessary, in the one-pass model.  Instead the FE can pass the information previously generated in the header file directly to the RTL via new APIs.
+
+However we may need to retain the code that previously emitted the integration header and footer files if we still need a two-pass model.
 
 ### Elimination of generation of the integration footer file
-Similarly, an integration footer file too is no longer necessary, but specialization constants need to still be handled.
+Similarly, an integration footer file too is no longer necessary in the one-pass model, but specialization constants need to still be handled.
 
 ### Intrinsics and builtins
 There will need to be some kind of collection of all intrinsics that we support over all devices into one table.  If intrinsics are spelled the same but have differing signatures, they will need to be renamed to be unique across the affected devices.
@@ -25,7 +32,7 @@ There will need to be some kind of collection of all intrinsics that we support 
 TODO
 
 ### Deferred device diagnostics
-FE will add an end-of-TU checker to emit deferred device diagnostics.
+A vast majority of our diagnostics will be converted to be exclusively deferred- diagnostics when possible.  FE will add an end-of-TU checker to emit deferred device diagnostics.
 
 ## Optimizer Changes
 The main change here will be to enable the ability to have multiple versions of LLVM IR running at once, as well as multiple separate invocations of the Code Generator.  A split-pass which creates a host LLVM-IR and device LLVM-IRs is added here; this in turn needs reachability analysis to figure out which is needed for device(s).  Optimizations specific to host or device occur on the respective IRs after this pass.  For ease of implementation, this document does not suggest adding optimizations common to both host and device(s) to occur prior to the split.  They may be added later when need arises.
