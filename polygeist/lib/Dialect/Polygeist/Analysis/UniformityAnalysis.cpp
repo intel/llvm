@@ -8,8 +8,10 @@
 
 #include "mlir/Dialect/Polygeist/Analysis/UniformityAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
-#include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -31,7 +33,6 @@ raw_ostream &operator<<(raw_ostream &os, const Uniformity &uniformity) {
   if (uniformity.isUninitialized())
     return os << "<UNINITIALIZED>";
 
-  os << "uniformity: ";
   switch (uniformity.getKind()) {
   case Uniformity::Kind::Unknown:
     return os << "unknown\n";
@@ -75,93 +76,294 @@ void Uniformity::print(raw_ostream &os) const { os << *this; }
 // UniformityAnalysis
 //===----------------------------------------------------------------------===//
 
+UniformityAnalysis::UniformityAnalysis(DataFlowSolver &solver,
+                                       AliasAnalysis &aliasAnalysis)
+    : SparseDataFlowAnalysis<UniformityLattice>(solver) {
+  // Load the reaching definition analysis (and the analyses it depends on).
+  // Reaching definition information are required by this analysis to reason
+  // about the uniformity of values loaded from memory.
+  internalSolver.load<DeadCodeAnalysis>();
+  internalSolver.load<SparseConstantPropagation>();
+  internalSolver.load<polygeist::ReachingDefinitionAnalysis>(aliasAnalysis);
+}
+
+LogicalResult UniformityAnalysis::initialize(Operation *top) {
+  // Run the dataflow analysis loaded in the internal solver.
+  if (failed(internalSolver.initializeAndRun(top)))
+    return failure();
+
+  return SparseDataFlowAnalysis::initialize(top);
+}
+
 void UniformityAnalysis::visitOperation(
     Operation *op, ArrayRef<const UniformityLattice *> operands,
     ArrayRef<UniformityLattice *> results) {
   LLVM_DEBUG(llvm::dbgs() << "UA: Visiting operation: " << *op << "\n");
 
-  // If the lattice on any operand is uninitialized, bail out.
-  if (llvm::any_of(operands, [](const UniformityLattice *lattice) {
-        return lattice->getValue().isUninitialized();
-      })) {
+  // If the lattice on any operand isn't yet initialized, bail out.
+  if (anyOfUniformityIsUninitialized(operands)) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Operand(s) uniformity not yet initialized\n");
     return;
   }
 
-  // These operations always yield non-uniform result(s).
-  if (isa<sycl::SYCLItemGetIDOp, sycl::SYCLNDItemGetGlobalIDOp>(op)) {
-    for (UniformityLattice *result : results)
-      propagateIfChanged(result, result->join(Uniformity::getNonUniform()));
-    return;
+  // Operations that always yield non-uniform result(s).
+  if (op->hasTrait<OpTrait::ResultsNonUniform>()) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Operation yields non-uniform result(s)\n");
+    return propagateAllIfChanged(results, Uniformity::getNonUniform());
   }
-
-  auto anyOperandUniformityIs = [&](Uniformity::Kind kind) {
-    return llvm::any_of(operands, [&](const UniformityLattice *lattice) {
-      return lattice->getValue().getKind() == kind;
-    });
-  };
 
   // If any operand uniformity is unknown/non-uniform the result(s) are also
   // unknown/non-uniform.
-  if (anyOperandUniformityIs(Uniformity::Kind::Unknown)) {
-    setAllToEntryStates(results);
-    return;
+  if (anyOfUniformityIs(operands, Uniformity::Kind::Unknown)) {
+    LLVM_DEBUG(llvm::dbgs() << "Operand(s) uniformity is unknown\n");
+    return propagateAllIfChanged(results, Uniformity::getNonUniform());
   }
-  if (anyOperandUniformityIs(Uniformity::Kind::NonUniform)) {
-    for (UniformityLattice *result : results)
-      propagateIfChanged(result, result->join(Uniformity::getNonUniform()));
-    return;
+  if (anyOfUniformityIs(operands, Uniformity::Kind::NonUniform)) {
+    LLVM_DEBUG(llvm::dbgs() << "Operand(s) are non-uniform\n");
+    return propagateAllIfChanged(results, Uniformity::getNonUniform());
   }
-
   assert(llvm::all_of(operands,
-                      [&](const UniformityLattice *lattice) {
-                        return lattice->getValue().getKind() ==
-                               Uniformity::Kind::Uniform;
+                      [](const UniformityLattice *lattice) {
+                        return Uniformity::isUniform(
+                            lattice->getValue().getKind());
                       }) &&
          "Expecting all operands to be uniform");
 
   // A memory side effects free operation that has uniform operands yields
   // uniform result(s).
   if (isMemoryEffectFree(op)) {
-    for (UniformityLattice *result : results)
-      propagateIfChanged(result, result->join(Uniformity::getUniform()));
-    return;
+    LLVM_DEBUG(llvm::dbgs() << "Operation is memory effect free\n");
+    return propagateAllIfChanged(results, Uniformity::getUniform());
   }
 
-  // If an operation has unknown memory side effects assume its result(s)
+  return analyzeMemoryEffects(op, operands, results);
+}
+
+void UniformityAnalysis::analyzeMemoryEffects(
+    Operation *op, ArrayRef<const UniformityLattice *> operands,
+    ArrayRef<UniformityLattice *> results) {
+  assert(!isMemoryEffectFree(op) &&
+         "Expecting operation to have memory effects");
+  assert(llvm::all_of(operands,
+                      [](const UniformityLattice *lattice) {
+                        return !lattice->getValue().isUninitialized();
+                      }) &&
+         "Expecting all operands to be initialized");
+  assert(llvm::all_of(operands,
+                      [](const UniformityLattice *lattice) {
+                        return Uniformity::isUniform(
+                            lattice->getValue().getKind());
+                      }) &&
+         "Expecting all operands to be uniform");
+
+  // If the operation has unknown memory side effects assume its result(s)
   // have unknown uniformity.
   auto memoryEffectOp = dyn_cast<MemoryEffectOpInterface>(op);
   if (!memoryEffectOp) {
-    for (UniformityLattice *result : results)
-      propagateIfChanged(result, result->join(Uniformity::getUnknown()));
-    return;
+    LLVM_DEBUG(llvm::dbgs() << "Operation has unknown memory effects\n");
+    return propagateAllIfChanged(results, Uniformity::getUnknown());
   }
 
-  // Analyze operations with memory side effects that have uniform operands.
+  // If the operation only allocates memory, the value yielded is uniform.
+  if (hasSingleEffect<MemoryEffects::Allocate>(memoryEffectOp)) {
+    LLVM_DEBUG(llvm::dbgs().indent(2) << "Operation allocates a value\n");
+    return propagateAllIfChanged(results, Uniformity::getUniform());
+  }
+
+  LLVM_DEBUG(llvm::dbgs().indent(2) << "Analyzing memory effects\n");
   SmallVector<MemoryEffects::EffectInstance> effects;
   memoryEffectOp.getEffects(effects);
-  for (const auto &effect : effects) {
-    Value val = effect.getValue();
+
+  for (const auto &EI : effects) {
+    Value val = EI.getValue();
     if (!val) {
       // Memory effect on anything other than a value: conservatively assume
       // the result(s) uniformity is unknown.
       LLVM_DEBUG(llvm::dbgs() << "Memory Effect on non-values found\n");
-      for (UniformityLattice *result : results)
-        propagateIfChanged(result, result->join(Uniformity::getUnknown()));
+      return propagateAllIfChanged(results, Uniformity::getUnknown());
+    }
+
+    if (!isa<MemoryEffects::Read>(EI.getEffect()))
+      continue;
+
+    // Get the reaching def. and potential reaching def. of the value 'val' and
+    // analyze them to determine its uniformity.
+    const ReachingDefinition *rdef =
+        internalSolver.lookupState<ReachingDefinition>(op);
+    if (!rdef) {
+      LLVM_DEBUG(llvm::dbgs() << "Unable to find reaching definition\n");
+      return propagateAllIfChanged(op->getResults(), Uniformity::getUnknown());
+    }
+
+    using ModifiersTy = ReachingDefinition::ModifiersTy;
+    auto merge = [](std::optional<ModifiersTy> mods,
+                    std::optional<ModifiersTy> pMods) {
+      if (!mods && !pMods)
+        return mods;
+      if (mods && !pMods)
+        return mods;
+      if (pMods && !mods)
+        return pMods;
+      mods->merge(*pMods);
+      return mods;
+    };
+
+    // Merge mods and pMods together.
+    std::optional<ModifiersTy> mods =
+        merge(rdef->getModifiers(val), rdef->getPotentialModifiers(val));
+    if (!mods)
+      continue;
+
+    LLVM_DEBUG({
+      llvm::dbgs().indent(2) << "val: " << val << "\n";
+      llvm::dbgs().indent(2) << "merged mods:\n";
+      for (Definition mod : *mods)
+        llvm::dbgs().indent(4) << mod << "\n";
+    });
+
+    // If any of mods/pMods are dominated by a branch with a condition that is
+    // unknown/non-uniform the loaded value has the same uniformity.
+    SetVector<Value> branchConditions = collectBranchConditions(*mods);
+    if (anyOfUniformityIs(branchConditions.getArrayRef(),
+                          Uniformity::Kind::Unknown)) {
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "Branch condition has unknown uniformity\n");
+      return propagateAllIfChanged(op->getResults(), Uniformity::getUnknown());
+    }
+    if (anyOfUniformityIs(branchConditions.getArrayRef(),
+                          Uniformity::Kind::NonUniform)) {
+      LLVM_DEBUG(llvm::dbgs().indent(2) << "Branch condition non-uniform\n");
+      return propagateAllIfChanged(op->getResults(),
+                                   Uniformity::getNonUniform());
+    }
+
+    // If we can't yet compute the mods/pMods operands uniformity, bail out.
+    if (!canComputeUniformity(*mods, op)) {
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "Reaching def operand(s) uniformity not yet initialized\n");
       return;
     }
 
-    TypeSwitch<MemoryEffects::Effect *>(effect.getEffect())
-        .Case<MemoryEffects::Read>([](auto) {
-          // A read operation yields uniform result(s) iff the (potentially)
-          // reaching definitions of all its operands are uniform.
-          assert(false && "TODO");
-        })
-        .Case<MemoryEffects::Write>([](auto) {
-          // A write operation store a value to a memory location. Anything
-          // to do here ?
-          assert(false && "TODO");
-        });
+    // If any modifiers or potential modifiers of the value loaded store a
+    // value that is unknown/non-uniform the result(s) of the load are also
+    // unknown/non-uniform.
+    if (anyModifierUniformityIs(*mods, Uniformity::Kind::Unknown)) {
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "Reaching def has unknown uniformity\n");
+      return propagateAllIfChanged(op->getResults(), Uniformity::getUnknown());
+    }
+    if (anyModifierUniformityIs(*mods, Uniformity::Kind::NonUniform)) {
+      LLVM_DEBUG(llvm::dbgs().indent(2) << "Reaching def is non-uniform\n");
+      return propagateAllIfChanged(op->getResults(),
+                                   Uniformity::getNonUniform());
+    }
   }
 
-  return;
+  LLVM_DEBUG(llvm::dbgs().indent(2) << "Memory effects analyzed\n");
+  return propagateAllIfChanged(op->getResults(), Uniformity::getUniform());
+}
+
+SetVector<Value> UniformityAnalysis::collectBranchConditions(
+    const ReachingDefinition::ModifiersTy &mods) {
+  SetVector<Value> conditions;
+  for (const Definition &mod : mods) {
+    if (!mod.isOperation())
+      continue;
+
+    SetVector<RegionBranchOpInterface> enclosingBranches =
+        getParentsOfType<RegionBranchOpInterface>(
+            *mod.getOperation()->getBlock());
+    for (RegionBranchOpInterface branchOp : enclosingBranches)
+      conditions.insert(getCondition(branchOp));
+  }
+
+  LLVM_DEBUG({
+    if (!conditions.empty()) {
+      llvm::dbgs().indent(2) << "branch conditions:\n";
+      for (auto cond : conditions)
+        llvm::dbgs().indent(4) << cond << "\n";
+    }
+  });
+
+  return conditions;
+}
+
+bool UniformityAnalysis::canComputeUniformity(
+    const ReachingDefinition::ModifiersTy &mods, Operation *op) {
+  assert(op && "Expecting a valid operation");
+
+  // Determine whether any modifier has operands with uniformity that is not
+  // yet known.
+  bool uniformityIsKnow = llvm::all_of(mods, [&](const Definition &def) {
+    if (!def.isOperation())
+      return true;
+
+    Operation *defOp = def.getOperation();
+    return !anyOfUniformityIsUninitialized(defOp->getOperands());
+  });
+
+  if (!uniformityIsKnow) {
+    for (Definition def : mods) {
+      if (!def.isOperation())
+        continue;
+
+      Operation *defOp = def.getOperation();
+      for (Value operand : defOp->getOperands()) {
+        // If the operand uniformity is not yet initialized we need to create a
+        // dependency between the operand state and 'op', the operation that
+        // uses values the modifiers potentially define, so that when the
+        // uniformity of the modifier(s) has been computed, the dataflow
+        // framework revisits 'op'.
+        UniformityLattice *lattice = getLatticeElement(operand);
+        if (lattice->getValue().isUninitialized())
+          getOrCreateFor<UniformityLattice>(op, operand);
+      }
+    }
+  }
+
+  return uniformityIsKnow;
+}
+
+bool UniformityAnalysis::anyModifierUniformityIs(
+    const ReachingDefinition::ModifiersTy &mods, Uniformity::Kind kind) {
+  return llvm::any_of(mods, [&](const Definition &def) {
+    // The initial definition (the one for pointer args to a function)
+    // has unknown uniformity.
+    if (def.isInitialDefinition())
+      return Uniformity::isUnknown(kind);
+
+    assert(!anyOfUniformityIsUninitialized(def.getOperation()->getOperands()) &&
+           "Expecting the uniformity of all operands to be initialized");
+
+    // Handle a concrete definition.
+    return TypeSwitch<Operation *, bool>(def.getOperation())
+        .Case<memref::AllocaOp>(
+            [&](auto) { return Uniformity::isUniform(kind); })
+        .Case<memref::StoreOp, affine::AffineStoreOp>([&](auto storeOp) {
+          return anyOfUniformityIs(storeOp.getOperands(), kind);
+        })
+        .Default([](auto *op) {
+          llvm::errs() << "op: " << *op << "\n";
+          llvm_unreachable("Unhandled operation");
+          return false;
+        });
+  });
+}
+
+void UniformityAnalysis::propagateAllIfChanged(
+    ArrayRef<UniformityLattice *> results, Uniformity &&uniformity) {
+  for (UniformityLattice *result : results)
+    propagateIfChanged(result, result->join(uniformity));
+  LLVM_DEBUG(llvm::dbgs() << "Results are: " << uniformity << "\n");
+}
+
+void UniformityAnalysis::propagateAllIfChanged(const ValueRange values,
+                                               Uniformity &&uniformity) {
+  for (Value value : values) {
+    UniformityLattice *lattice = getLatticeElement(value);
+    propagateIfChanged(lattice, lattice->join(uniformity));
+  }
+  LLVM_DEBUG(llvm::dbgs().indent(2) << "Result(s) are " << uniformity << "\n");
 }
