@@ -30,11 +30,11 @@
  *
  **************************************************************************/
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 const size_t N = 100;
 const size_t M = 150;

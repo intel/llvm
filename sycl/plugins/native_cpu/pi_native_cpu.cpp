@@ -814,6 +814,7 @@ pi_result piKernelSetArg(pi_kernel kernel, pi_uint32, size_t, const void *arg) {
 }
 
 pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32,
+                                  const pi_mem_obj_property *,
                                   const pi_mem *memObj) {
   // Todo: error checking
   _pi_mem *memPtr = *memObj;

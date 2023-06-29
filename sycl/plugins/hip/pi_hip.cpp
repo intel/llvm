@@ -616,6 +616,11 @@ pi_uint64 _pi_event::get_queued_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
 
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  PI_CHECK_ERROR(hipEventSynchronize(evStart_));
+  PI_CHECK_ERROR(hipEventSynchronize(evEnd_));
+
   PI_CHECK_ERROR(hipEventElapsedTime(&miliSeconds, evStart_, evEnd_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
@@ -623,6 +628,11 @@ pi_uint64 _pi_event::get_queued_time() const {
 pi_uint64 _pi_event::get_start_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  PI_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
+  PI_CHECK_ERROR(hipEventSynchronize(evStart_));
 
   PI_CHECK_ERROR(
       hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evStart_));
@@ -632,6 +642,11 @@ pi_uint64 _pi_event::get_start_time() const {
 pi_uint64 _pi_event::get_end_time() const {
   float miliSeconds = 0.0f;
   assert(is_started() && is_recorded());
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  PI_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
+  PI_CHECK_ERROR(hipEventSynchronize(evEnd_));
 
   PI_CHECK_ERROR(
       hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evEnd_));
@@ -1992,9 +2007,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     sycl::detail::pi::assertion(
         hipDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
         hipSuccess);
-    // A typical PCI address is 12 bytes + \0: "1234:67:90.2", but the HIP API is not
-    // guaranteed to use this format. In practice, it uses this format, at least
-    // in 5.3-5.5. To be on the safe side, we make sure the terminating \0 is set.
+    // A typical PCI address is 12 bytes + \0: "1234:67:90.2", but the HIP API
+    // is not guaranteed to use this format. In practice, it uses this format,
+    // at least in 5.3-5.5. To be on the safe side, we make sure the terminating
+    // \0 is set.
     AddressBuffer[AddressBufferSize - 1] = '\0';
     sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) > 0);
     return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
@@ -2946,7 +2962,9 @@ pi_result hip_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
 }
 
 pi_result hip_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
+                                      const pi_mem_obj_property *arg_properties,
                                       const pi_mem *arg_value) {
+  std::ignore = arg_properties;
 
   assert(kernel != nullptr);
   assert(arg_value != nullptr);

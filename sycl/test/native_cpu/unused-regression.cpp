@@ -1,7 +1,7 @@
 // REQUIRES: native_cpu_be
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <array>
 #include <iostream>
@@ -19,7 +19,7 @@ struct myfun {
   myfun(int *ptr1, int *ptr2, int used1, int used2, char *notused, int used3)
       : ptr1(ptr1), ptr2(ptr2), used1(used1), used2(used2), notused(notused),
         used3(used3) {}
-  void operator()(cl::sycl::id<1> id) const {
+  void operator()(sycl::id<1> id) const {
     ptr1[id] = ptr2[id] + used1 + used2 + used3;
   }
 };
@@ -27,8 +27,8 @@ struct myfun {
 int main() {
   const size_t N = 4;
   std::array<int, N> A = {{0, 0, 0, 0}}, B = {{1, 2, 3, 4}};
-  cl::sycl::queue deviceQueue;
-  cl::sycl::range<1> numOfItems{N};
+  sycl::queue deviceQueue;
+  sycl::range<1> numOfItems{N};
   auto a_ptr = sycl::malloc_device<int>(N, deviceQueue);
   auto b_ptr = sycl::malloc_device<int>(N, deviceQueue);
   deviceQueue.memcpy(a_ptr, A.data(), N * sizeof(int)).wait();
@@ -40,8 +40,7 @@ int main() {
   myfun TheFun(a_ptr, b_ptr, used1, used2, unused, used3);
 
   deviceQueue
-      .submit(
-          [&](cl::sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
+      .submit([&](sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
       .wait();
   deviceQueue.memcpy(A.data(), a_ptr, N * sizeof(int)).wait();
 
