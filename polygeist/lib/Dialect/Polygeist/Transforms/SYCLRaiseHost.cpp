@@ -65,7 +65,7 @@ public:
       return failure();
 
     // Get a reference to the kernel the global references
-    std::optional<SymbolRefAttr> ref = getKernelRef(global);
+    std::optional<SymbolRefAttr> ref = getKernelRef(global, symbolTable);
     if (!ref)
       return failure();
 
@@ -81,7 +81,8 @@ private:
   ///
   /// The string will contain a trailing character we need to get rid of before
   /// searching.
-  static std::optional<SymbolRefAttr> getKernelRef(LLVM::GlobalOp op) {
+  static std::optional<SymbolRefAttr>
+  getKernelRef(LLVM::GlobalOp op, SymbolTableCollection &symbolTable) {
     // Check the operation has a value
     std::optional<Attribute> attr = op.getValue();
     if (!attr)
@@ -96,7 +97,6 @@ private:
     StringRef name = strAttr.getValue().drop_back();
 
     // Search the `gpu.func` in the device module
-    SymbolTableCollection symbolTable;
     auto ref =
         SymbolRefAttr::get(op->getContext(), DeviceModuleName,
                            FlatSymbolRefAttr::get(op->getContext(), name));
