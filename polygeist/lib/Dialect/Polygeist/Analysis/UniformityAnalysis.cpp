@@ -240,7 +240,6 @@ void UniformityAnalysis::analyzeMemoryEffects(
     }
 
     // If we can't yet compute the mods/pMods operands uniformity, bail out.
-    llvm::errs() << "op: " << *op << "\n";
     if (!canComputeUniformity(*mods, op)) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Reaching def operand(s) uniformity not yet initialized\n");
