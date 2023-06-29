@@ -643,6 +643,36 @@ template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
     ur_usm_pool_handle_t pool;
 };
 
+struct urPhysicalMemTest : urContextTest {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
+            context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
+            sizeof(granularity), &granularity, nullptr));
+        size = granularity * 256;
+        ur_physical_mem_properties_t props{
+            UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
+            nullptr,
+            0 /*flags*/,
+        };
+        ASSERT_SUCCESS(
+            urPhysicalMemCreate(context, device, size, &props, &physical_mem));
+        ASSERT_NE(physical_mem, nullptr);
+    }
+
+    void TearDown() {
+        if (physical_mem) {
+            EXPECT_SUCCESS(urPhysicalMemRelease(physical_mem));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+    }
+
+    size_t granularity = 0;
+    size_t size = 0;
+    ur_physical_mem_handle_t physical_mem = nullptr;
+};
+
 template <class T>
 struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
 
