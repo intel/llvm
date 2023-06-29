@@ -14,6 +14,7 @@
 
 #include <array>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 using uma_test::test;
@@ -80,14 +81,10 @@ TEST_F(test, memoryPoolTrace) {
 
     ASSERT_EQ(providerCalls.size(), provider_call_count);
 
-    ret = umaPoolGetLastResult(tracingPool.get(), nullptr);
+    ret = umaPoolGetLastAllocationError(tracingPool.get());
     ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
-
-    ASSERT_EQ(poolCalls["get_last_result"], 1);
+    ASSERT_EQ(poolCalls["get_last_native_error"], 1);
     ASSERT_EQ(poolCalls.size(), ++pool_call_count);
-
-    ASSERT_EQ(providerCalls["get_last_result"], 1);
-    ASSERT_EQ(providerCalls.size(), ++provider_call_count);
 
     umaMemoryProviderDestroy(providerDesc);
 }
@@ -194,7 +191,6 @@ struct poolInitializeTest : uma_test::test,
 INSTANTIATE_TEST_SUITE_P(
     poolInitializeTest, poolInitializeTest,
     ::testing::Values(UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY,
-                      UMA_RESULT_ERROR_POOL_SPECIFIC,
                       UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC,
                       UMA_RESULT_ERROR_INVALID_ARGUMENT,
                       UMA_RESULT_ERROR_UNKNOWN));
@@ -226,4 +222,90 @@ TEST_F(test, retrieveMemoryProvidersError) {
 
     ret = umaPoolGetMemoryProviders(pool.get(), 1, providers.data(), nullptr);
     ASSERT_EQ(ret, UMA_RESULT_ERROR_INVALID_ARGUMENT);
+}
+
+// TODO: extend test for different functions (not only alloc)
+TEST_F(test, getLastFailedMemoryProvider) {
+    static constexpr size_t allocSize = 8;
+    static uma_result_t allocResult = UMA_RESULT_SUCCESS;
+
+    struct memory_provider : public uma_test::provider_base {
+        uma_result_t initialize(const char *name) {
+            this->name = name;
+            return UMA_RESULT_SUCCESS;
+        }
+
+        enum uma_result_t alloc(size_t size, size_t, void **ptr) noexcept {
+            if (allocResult == UMA_RESULT_SUCCESS) {
+                *ptr = malloc(size);
+            } else {
+                *ptr = nullptr;
+            }
+
+            return allocResult;
+        }
+
+        enum uma_result_t free(void *ptr, size_t size) noexcept {
+            ::free(ptr);
+            return UMA_RESULT_SUCCESS;
+        }
+
+        const char *get_name() noexcept { return this->name; }
+
+        const char *name;
+    };
+
+    auto [ret1, providerUnique1] =
+        uma::memoryProviderMakeUnique<memory_provider>("provider1");
+    ASSERT_EQ(ret1, UMA_RESULT_SUCCESS);
+    auto [ret2, providerUnique2] =
+        uma::memoryProviderMakeUnique<memory_provider>("provider2");
+    ASSERT_EQ(ret2, UMA_RESULT_SUCCESS);
+
+    auto hProvider = providerUnique1.get();
+
+    auto [ret, pool] = uma::poolMakeUnique<uma_test::proxy_pool>(&hProvider, 1);
+    ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
+
+    ASSERT_EQ(umaGetLastFailedMemoryProvider(), nullptr);
+    auto ptr = umaPoolMalloc(pool.get(), allocSize);
+    ASSERT_NE(ptr, nullptr);
+    ASSERT_EQ(umaGetLastFailedMemoryProvider(), nullptr);
+
+    // make provider return an error during allocation
+    allocResult = UMA_RESULT_ERROR_UNKNOWN;
+    ptr = umaPoolMalloc(pool.get(), allocSize);
+    ASSERT_EQ(ptr, nullptr);
+    ASSERT_EQ(std::string_view(
+                  umaMemoryProviderGetName(umaGetLastFailedMemoryProvider())),
+              "provider1");
+
+    ret = umaMemoryProviderAlloc(providerUnique2.get(), allocSize, 0, &ptr);
+    ASSERT_EQ(ptr, nullptr);
+    ASSERT_EQ(std::string_view(
+                  umaMemoryProviderGetName(umaGetLastFailedMemoryProvider())),
+              "provider2");
+
+    // succesfull provider should not be returned by umaGetLastFailedMemoryProvider
+    allocResult = UMA_RESULT_SUCCESS;
+    ptr = umaPoolMalloc(pool.get(), allocSize);
+    ASSERT_NE(ptr, nullptr);
+    ASSERT_EQ(std::string_view(
+                  umaMemoryProviderGetName(umaGetLastFailedMemoryProvider())),
+              "provider2");
+
+    // erorr in another thread should not impact umaGetLastFailedMemoryProvider on this thread
+    allocResult = UMA_RESULT_ERROR_UNKNOWN;
+    std::thread t([&, hPool = pool.get()] {
+        ptr = umaPoolMalloc(hPool, allocSize);
+        ASSERT_EQ(ptr, nullptr);
+        ASSERT_EQ(std::string_view(umaMemoryProviderGetName(
+                      umaGetLastFailedMemoryProvider())),
+                  "provider1");
+    });
+    t.join();
+
+    ASSERT_EQ(std::string_view(
+                  umaMemoryProviderGetName(umaGetLastFailedMemoryProvider())),
+              "provider2");
 }

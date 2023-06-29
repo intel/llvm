@@ -34,10 +34,11 @@ static enum uma_result_t nullFree(void *provider, void *ptr, size_t size) {
     return UMA_RESULT_SUCCESS;
 }
 
-static enum uma_result_t nullGetLastResult(void *provider, const char **ppMsg) {
+static void nullGetLastError(void *provider, const char **ppMsg,
+                             int32_t *pError) {
     (void)provider;
     (void)ppMsg;
-    return UMA_RESULT_SUCCESS;
+    (void)pError;
 }
 
 static enum uma_result_t nullGetRecommendedPageSize(void *provider, size_t size,
@@ -72,9 +73,9 @@ static enum uma_result_t nullPurgeForce(void *provider, void *ptr,
     return UMA_RESULT_SUCCESS;
 }
 
-static void nullName(void *provider, const char **ppName) {
+static const char *nullName(void *provider) {
     (void)provider;
-    *ppName = "null";
+    return "null";
 }
 
 uma_memory_provider_handle_t nullProviderCreate(void) {
@@ -84,7 +85,7 @@ uma_memory_provider_handle_t nullProviderCreate(void) {
         .finalize = nullFinalize,
         .alloc = nullAlloc,
         .free = nullFree,
-        .get_last_result = nullGetLastResult,
+        .get_last_native_error = nullGetLastError,
         .get_recommended_page_size = nullGetRecommendedPageSize,
         .get_min_page_size = nullGetPageSize,
         .purge_lazy = nullPurgeLazy,
@@ -131,13 +132,13 @@ static enum uma_result_t traceFree(void *provider, void *ptr, size_t size) {
     return umaMemoryProviderFree(traceProvider->hUpstreamProvider, ptr, size);
 }
 
-static enum uma_result_t traceGetLastResult(void *provider,
-                                            const char **ppMsg) {
+static void traceGetLastError(void *provider, const char **ppMsg,
+                              int32_t *pError) {
     struct traceParams *traceProvider = (struct traceParams *)provider;
 
-    traceProvider->trace("get_last_result");
-    return umaMemoryProviderGetLastResult(traceProvider->hUpstreamProvider,
-                                          ppMsg);
+    traceProvider->trace("get_last_native_error");
+    umaMemoryProviderGetLastNativeError(traceProvider->hUpstreamProvider, ppMsg,
+                                        pError);
 }
 
 static enum uma_result_t
@@ -177,11 +178,11 @@ static enum uma_result_t tracePurgeForce(void *provider, void *ptr,
                                        size);
 }
 
-static void traceName(void *provider, const char **ppName) {
+static const char *traceName(void *provider) {
     struct traceParams *traceProvider = (struct traceParams *)provider;
 
     traceProvider->trace("name");
-    umaMemoryProviderGetName(traceProvider->hUpstreamProvider, ppName);
+    return umaMemoryProviderGetName(traceProvider->hUpstreamProvider);
 }
 
 uma_memory_provider_handle_t
@@ -193,7 +194,7 @@ traceProviderCreate(uma_memory_provider_handle_t hUpstreamProvider,
         .finalize = traceFinalize,
         .alloc = traceAlloc,
         .free = traceFree,
-        .get_last_result = traceGetLastResult,
+        .get_last_native_error = traceGetLastError,
         .get_recommended_page_size = traceGetRecommendedPageSize,
         .get_min_page_size = traceGetPageSize,
         .purge_lazy = tracePurgeLazy,
