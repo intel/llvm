@@ -51,19 +51,26 @@ public:
 //===----------------------------------------------------------------------===//
 
 namespace {
-struct RaiseKernelName : public OpRewritePattern<LLVM::GlobalOp> {
+struct RaiseKernelName : public OpRewritePattern<LLVM::AddressOfOp> {
 public:
-  using OpRewritePattern<LLVM::GlobalOp>::OpRewritePattern;
+  using OpRewritePattern<LLVM::AddressOfOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(LLVM::GlobalOp op,
+  LogicalResult matchAndRewrite(LLVM::AddressOfOp op,
                                 PatternRewriter &rewriter) const final {
-    // Get a reference to the kernel this global references
-    std::optional<SymbolRefAttr> ref = getKernelRef(op);
+    // Get the global this operation uses
+    SymbolTableCollection symbolTable;
+    auto global = symbolTable.lookupNearestSymbolFrom<LLVM::GlobalOp>(
+        op, op.getGlobalNameAttr());
+    if (!global)
+      return failure();
+
+    // Get a reference to the kernel the global references
+    std::optional<SymbolRefAttr> ref = getKernelRef(global);
     if (!ref)
       return failure();
 
-    rewriter.replaceOpWithNewOp<sycl::SYCLHostKernelNameOp>(op, op.getSymName(),
-                                                            *ref);
+    rewriter.replaceOpWithNewOp<sycl::SYCLHostGetKernelOp>(op, op.getType(),
+                                                           *ref);
     return success();
   }
 
@@ -100,32 +107,6 @@ private:
                                        : std::nullopt;
   }
 };
-
-struct RaiseGetKernelName : public OpRewritePattern<LLVM::AddressOfOp> {
-public:
-  using OpRewritePattern<LLVM::AddressOfOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(LLVM::AddressOfOp op,
-                                PatternRewriter &rewriter) const final {
-    // Get the reference to the kernel
-    sycl::SYCLHostKernelNameOp kernelName = getKernelNameOp(op);
-    if (!kernelName)
-      return failure();
-
-    rewriter.replaceOpWithNewOp<sycl::SYCLHostGetKernelOp>(
-        op, op.getType(), kernelName.getKernelName());
-
-    return success();
-  }
-
-private:
-  /// Returns the `sycl.host.kernel_name` operation this operation references.
-  static sycl::SYCLHostKernelNameOp getKernelNameOp(LLVM::AddressOfOp op) {
-    SymbolTableCollection symbolTable;
-    return symbolTable.lookupNearestSymbolFrom<sycl::SYCLHostKernelNameOp>(
-        op, op.getGlobalNameAttr());
-  }
-};
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -137,7 +118,7 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   MLIRContext *context = &getContext();
 
   RewritePatternSet rewritePatterns{context};
-  rewritePatterns.add<RaiseKernelName, RaiseGetKernelName>(context);
+  rewritePatterns.add<RaiseKernelName>(context);
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
   if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen)))
