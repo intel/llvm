@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s
+// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only %s
 
 #include <CL/sycl.hpp>
 #include <cassert>
