@@ -25,20 +25,18 @@ using namespace sycl;
 #define IMG_WIDTH 1024
 #define IMG_HEIGHT 1024
 //
-// each parallel_for handles 1x32 bytes
+// each parallel_for handles 1x8 bytes
 //
-#define BLOCK_WIDTH 32
+#define BLOCK_WIDTH 8
 #define BLOCK_HEIGHT 1
 
-void histogram_CPU(unsigned int width, unsigned int height, unsigned char *srcY,
-                   unsigned int *cpuHistogram) {
-  int i;
-  for (i = 0; i < width * height; i++) {
-    cpuHistogram[srcY[i]] += 1;
-  }
+void histogram_CPU(uint32_t width, uint32_t height, uint8_t *src_y,
+                   uint32_t *cpu_histogram) {
+  for (size_t i = 0; i < static_cast<size_t>(width) * height; i++)
+    cpu_histogram[src_y[i]] += 1;
 }
 
-void writeHist(unsigned int *hist) {
+void print_histogram(unsigned int *hist) {
   int total = 0;
 
   std::cerr << " Histogram: \n";
@@ -52,10 +50,10 @@ void writeHist(unsigned int *hist) {
   std::cerr << "\nTotal = " << total << " \n";
 }
 
-int checkHistogram(unsigned int *refHistogram, unsigned int *hist) {
+int check_histogram(unsigned int *ref_histogram, unsigned int *hist) {
 
   for (int i = 0; i < NUM_BINS; i++) {
-    if (refHistogram[i] != hist[i]) {
+    if (ref_histogram[i] != hist[i]) {
       return 0;
     }
   }
@@ -112,49 +110,25 @@ int main(int argc, char *argv[]) {
     auto LocalRange = range<2>(1, 1);
     nd_range<2> Range(GlobalRange, LocalRange);
 
-    auto e = q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Hist>(
-          Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::esimd;
+    q.parallel_for(Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
+       using namespace sycl::ext::intel::esimd;
 
-            // Get thread origin offsets
-            uint h_pos = ndi.get_group(0) * BLOCK_WIDTH;
-            uint v_pos = ndi.get_group(1) * BLOCK_HEIGHT;
+       // Get thread origin offsets
+       uint h_pos = ndi.get_group(0) * BLOCK_WIDTH;
+       uint v_pos = ndi.get_group(1) * BLOCK_HEIGHT;
 
-            // Declare a 1xBLOCK_WIDTH uchar matrix to store the input block
-            // pixel value
-            simd<unsigned char, BLOCK_WIDTH> in;
-
-            // Declare a vector to store the local histogram
-            simd<unsigned int, NUM_BINS> histogram(0);
-
-            in.copy_from(srcY + v_pos * width + h_pos);
-
-        // Accumulate local histogram for each pixel value
-#pragma unroll
-            for (int j = 0; j < 32; j++) {
-              histogram.select<1, 1>(in[j]) += 1;
-            }
-
-            // Declare a vector to store the offset for atomic write operation
-            simd<uint32_t, 8> offset(0, 1); // init to 0, 1, 2, ..., 7
-            offset *= sizeof(unsigned int);
-
-        // Update global sum by atomically adding each local histogram
-#pragma unroll
-            for (int i = 0; i < NUM_BINS; i += 8) {
-              // Declare a vector to store the source for atomic write
-              // operation
-              simd<unsigned int, 8> src;
-              src = histogram.select<8, 1>(i);
-
-              atomic_update<atomic_op::add, unsigned int, 8>(bins, offset, src,
-                                                             1);
-              offset += 8 * sizeof(unsigned int);
-            }
-          });
-    });
-    e.wait();
+       // Declare a 1xBLOCK_WIDTH uchar matrix to store the input block
+       // pixel value
+       simd<unsigned char, BLOCK_WIDTH> in;
+       
+       // Read the data into the vector
+       in.copy_from(srcY + v_pos * width + h_pos);
+       // Convert the data to bin offsets
+       simd<uint32_t, BLOCK_WIDTH> offset = in;
+       offset *= sizeof(uint32_t);
+       // Update the bins values
+       atomic_update<atomic_op::inc, uint32_t, BLOCK_WIDTH>(bins, offset, 1);
+     }).wait();
 
     // SYCL will enqueue and run the kernel. Recall that the buffer's data is
     // given back to the host at the end of scope.
@@ -166,21 +140,14 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   std::cerr << "\nGPU ";
-  writeHist(bins);
+  print_histogram(bins);
   std::cerr << "\nCPU ";
-  writeHist(cpuHistogram);
+  print_histogram(cpuHistogram);
   // Checking Histogram
-  int result = checkHistogram(cpuHistogram, bins);
+  int result = check_histogram(cpuHistogram, bins);
   free(srcY, q);
   free(bins, q);
-  if (result) {
-    std::cerr << "PASSED\n";
-    return 0;
-  } else {
-    std::cerr << "FAILED\n";
-    return 1;
-  }
-
-  return 0;
+  std::cerr << (result ? "PASSED" : "FAILED");
+  return !result;
 }
 ```
