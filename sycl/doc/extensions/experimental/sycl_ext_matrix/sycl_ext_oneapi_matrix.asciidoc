@@ -315,9 +315,9 @@ namespace sycl::ext::oneapi::experimental::matrix {
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           use Use1, use Use2, layout Layout>
-void joint_matrix_copy(Group g, joint_matrix<Group, T, Use1,
-                         Rows, Cols, Layout> &dest, joint_matrix<Group, T, Use2,
-                         Rows, Cols, Layout> &src);
+void joint_matrix_copy(Group g,
+                       joint_matrix<Group, T, Use1, Rows, Cols, Layout> &dest,
+                       joint_matrix<Group, T, Use2, Rows, Cols, Layout> &src);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -589,13 +589,13 @@ using joint_matrix_d;`| type alias for `joint_matrix` for the output matrix accu
 namespace sycl::ext::oneapi::experimental::matrix {
 
 template<architecture Arch, typename Ta, typename Tb, typename Tc,
-typename Td=Tc, size_t sM=0, size_t sN=0, size_t sK=0>
+         typename Td=Tc, size_t sM=0, size_t sN=0, size_t sK=0>
 struct matrix_params;
 
 // This is the validation form, when all template parameters are
 // specified.
 template<architecture Arch, typename Ta, typename Tb, typename Tc,
-typename Td, size_t sM, size_t sN, size_t sK>
+         typename Td, size_t sM, size_t sN, size_t sK>
 struct matrix_params<Arch, Ta, Tb, Tc, Td, sM, sN, sK> {
   // An implementation typically uses static_assert here to trigger a
   // compilation error when the matrix types or shapes are not
@@ -844,13 +844,12 @@ shown in a single column in the table below.
 |======================
 
 ==== Nvidia Tensor Cores Supported Combinations
-
 The complete set of matrix data types and shapes that are supported by
 the `ext_oneapi_cuda` backend are represented in the following
-table. Tm indicates the matrix element data type held by a
-"multiplicand" `joint_matrix`: i.e requiring `use::a` or `use::b`. Tc
-indicates the matrix element data type held by an "accumulator"
-`joint_matrix`: i.e requiring `use::accumulator`.
+table. In this architecture's implementation,
+the type of the A matrix must be the same as the type of the B
+matrix. Also, the type of the C matrix must be the same as the type of the D
+matrix.
 
 IMPORTANT: When compiling for the `ext_oneapi_cuda` backend the target
 arch backend flag, `-Xsycl-target-backend --cuda-gpu-arch=sm_xx`, must
@@ -864,16 +863,16 @@ supported parameter combination is specified in the following table.
 --
 [.center]
 |======================
-|Tm (`use::a` or `use::b`) |Tc (`use::accumulator`) |M |N |K | Minimum Compute Capability
-.3+|half  .3+|float
+| A and B type | C and D type | M | N | K | Minimum Compute Capability
+.3+| `matrix_type::fp16`  .3+| `matrix_type::fp32`
 |16 |16 |16 .6+| sm_70
 |8 |32 |16
 |32 |8 |16
-.3+|half  .3+|half
+.3+| `matrix_type::fp16`  .3+| `matrix_type::fp16`
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
-.3+|int8_t  .3+|int32_t
+.3+| `matrix_type::int8`  .3+| `matrix_type::int32`
 |16 |16 |16 .6+| sm_72
 |8 |32 |16
 |32 |8 |16
@@ -881,12 +880,12 @@ supported parameter combination is specified in the following table.
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
-|precision::tf32  |float |16 |16 |8 .5+| sm_80
-.3+|bfloat16  .3+|float
+| `matrix_type::tf32`  | `matrix_type::fp32` |16 |16 |8 .5+| sm_80
+.3+|`matrix_type::bf16`  .3+| `matrix_type::fp32`
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
-|double  |double |8 |8 |4
+| `matrix_type::fp64`  | `matrix_type::fp64` |8 |8 |4
 |======================
 --
 
@@ -922,7 +921,9 @@ new matrix use parameter and remove reference to the AOT AMX initial
 implementation 
 |5   |2022-11-07 |Dounia Khaldi |Update the matrix spec by making it
 portable across Intel AMX, Intel XMX and Nvidia Tensor Cores, and move
-the Intel-specifics to a separate extension document.
+the Intel-specifics to a separate extension document
 |6   |2023-01-09 |Dounia Khaldi |Add `joint_matrix_apply` API, tf32
-type, runtime query, and supported combinations appendix.
+type, runtime query, and supported combinations appendix for Intel AMX
+and Intel XMX
+|7   |2023-04-11 |Jack Kirk |Add Nvidia Tensor Cores supported combinations
 |======================
