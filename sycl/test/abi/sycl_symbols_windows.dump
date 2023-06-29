@@ -228,6 +228,11 @@
 ??$get_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVinitialize_to_identity@reduction@property@23@XZ
 ??$get_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVinitialize_to_identity@reduction@property@12@XZ
 ??$get_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVinitialize_to_identity@reduction@property@12@XZ
+??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVmem_channel@buffer@property@12@XZ
+??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVmem_channel@buffer@property@23@XZ
+??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVmem_channel@buffer@property@23@XZ
+??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVmem_channel@buffer@property@12@XZ
+??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVmem_channel@buffer@property@12@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVno_init@property@23@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVno_init@property@12@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVno_init@property@23@XZ
@@ -317,6 +322,11 @@
 ??$has_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
+??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
+??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
+??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
+??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
+??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ

@@ -52,6 +52,9 @@ piextKernelSetArgSampler
 piextMemCreateWithNativeHandle
 piextMemGetNativeHandle
 piextMemImageCreateWithNativeHandle
+piextPhysicalMemCreate
+piextPhysicalMemRelease
+piextPhysicalMemRetain
 piextPlatformCreateWithNativeHandle
 piextPlatformGetNativeHandle
 piextProgramCreateWithNativeHandle
@@ -72,3 +75,10 @@ piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc
 piextUSMSharedAlloc
+piextVirtualMemFree
+piextVirtualMemGetInfo
+piextVirtualMemGranularityGetInfo
+piextVirtualMemMap
+piextVirtualMemReserve
+piextVirtualMemSetAccess
+piextVirtualMemUnmap

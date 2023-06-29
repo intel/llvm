@@ -150,11 +150,12 @@ __SYCL_EXPORT pi_result piKernelCreate(pi_program Program,
 }
 
 // Special version of piKernelSetArg to accept pi_mem.
-__SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel Kernel,
-                                                pi_uint32 ArgIndex,
-                                                const pi_mem *ArgValue) {
+__SYCL_EXPORT pi_result piextKernelSetArgMemObj(
+    pi_kernel Kernel, pi_uint32 ArgIndex,
+    const pi_mem_obj_property *ArgProperties, const pi_mem *ArgValue) {
 
-  return pi2ur::piextKernelSetArgMemObj(Kernel, ArgIndex, ArgValue);
+  return pi2ur::piextKernelSetArgMemObj(Kernel, ArgIndex, ArgProperties,
+                                        ArgValue);
 }
 
 __SYCL_EXPORT pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,

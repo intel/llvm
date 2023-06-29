@@ -395,16 +395,6 @@ public:
 namespace ext {
 namespace oneapi {
 namespace experimental {
-template <typename T, typename ID = T>
-class __SYCL_TYPE(spec_constant) spec_constant {
-public:
-  spec_constant() {}
-  explicit constexpr spec_constant(T defaultVal) : DefaultValue(defaultVal) {}
-
-private:
-  T DefaultValue;
-};
-
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) annotated_arg {
   T obj;
