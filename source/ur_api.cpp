@@ -1807,6 +1807,18 @@ ur_result_t UR_APICALL urUSMPoolGetInfo(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext, ///< [in] handle of the context object.
     ur_device_handle_t
