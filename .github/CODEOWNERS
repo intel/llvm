@@ -105,3 +105,12 @@ sycl/test-e2e/KernelFusion @victor-eds @Naghasan @sommerlukas
 
 # Matrix tests
 sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
+
+# Native CPU
+llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-pi-reviewers 
+clang/include/clang/Basic/SYCLNativeCPUHelpers.h @intel/dpcpp-nativecpu-pi-reviewers 
+clang/test/CodeGenSYCL/native_cpu*.cpp @intel/dpcpp-nativecpu-pi-reviewers 
+clang/test/Driver/sycl-native-cpu*.cpp @intel/dpcpp-nativecpu-pi-reviewers 
+sycl/**/native_cpu/ @intel/dpcpp-nativecpu-pi-reviewers
+sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-pi-reviewers
+sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-pi-reviewers
