@@ -720,7 +720,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
 
   case UR_DEVICE_INFO_ATOMIC_64: {
-    // TODO: Reconsider it when AMD supports SYCL_USE_NATIVE_FP_ATOMICS.
     hipDeviceProp_t Props;
     sycl::detail::ur::assertion(
         hipGetDeviceProperties(&Props, hDevice->get()) == hipSuccess);
