@@ -34,8 +34,8 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor"> {
     Operation representing the construction of a SYCL object, i.e., allocation,
     and member initialization.
 
-    This operation differs from `sycl.constructor` as it will return an 
-    `llvm.ptr` to any type instead of requiring a `sycl` type.
+    This operation differs from `sycl.constructor` as it will take a
+    `llvm.ptr` to any type instead of requiring a memref of a `sycl` type.
 
     This difference is the reason why this operation was introduced in
     the first place: this is a short-term solution to represent construction of
