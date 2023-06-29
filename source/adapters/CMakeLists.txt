@@ -5,6 +5,19 @@
 
 add_subdirectory(null)
 
+
+if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_CUDA)
+    # fetch adapter sources from SYCL
+    set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
+    FetchSource(https://github.com/intel/llvm.git sycl-nightly/20230628 "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
+    execute_process(COMMAND git apply ../0001-SYCL-CUDA-remove-sycl-namespaces-from-ur-adapter.patch
+        WORKING_DIRECTORY ${SYCL_ADAPTER_DIR})
+endif()
+
 if(UR_BUILD_ADAPTER_L0)
 add_subdirectory(level_zero)
+endif()
+
+if(UR_BUILD_ADAPTER_CUDA)
+add_subdirectory(cuda)
 endif()
