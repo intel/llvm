@@ -1024,46 +1024,6 @@ public:
 private:
   value_type MData[NumElements];
 
-  // Trait for checking if an argument type is either convertible to the data
-  // type or an array of types convertible to the data type.
-  template <typename Type>
-  struct IsSuitableArgType : std::is_convertible<Type, ComplexDataT> {};
-  template <typename Type, size_t N>
-  struct IsSuitableArgType<marray<Type, N>>
-      : std::is_convertible<Type, ComplexDataT> {};
-
-  // Trait for computing the conjunction of of IsSuitableArgType. The empty type
-  // list will trivially evaluate to true.
-  template <typename... ArgTN>
-  struct AllSuitableArgTypes : std::conjunction<IsSuitableArgType<ArgTN>...> {};
-
-  // Utility trait for creating an std::array from an marray argument.
-  template <typename ComplexDataT, typename Type, std::size_t... Is>
-  static constexpr std::array<ComplexDataT, sizeof...(Is)>
-  MArrayToArray(const marray<Type, sizeof...(Is)> &A,
-                std::index_sequence<Is...>) {
-    return {static_cast<ComplexDataT>(A.MData[Is])...};
-  }
-  template <typename ComplexDataT, typename Type, std::size_t N>
-  static constexpr std::array<ComplexDataT, N>
-  FlattenMArrayArgHelper(const marray<Type, N> &A) {
-    return MArrayToArray<ComplexDataT>(A, std::make_index_sequence<N>());
-  }
-  template <typename ComplexDataT, typename Type>
-  static constexpr auto FlattenMArrayArgHelper(const Type &A) {
-    return std::array<ComplexDataT, 1>{static_cast<ComplexDataT>(A)};
-  }
-  template <typename ComplexDataT, typename Type> struct FlattenMArrayArg {
-    constexpr auto operator()(const Type &A) const {
-      return FlattenMArrayArgHelper<ComplexDataT>(A);
-    }
-  };
-
-  // Alias for shortening the marray arguments to array converter.
-  template <typename ComplexDataT, typename... ArgTN>
-  using MArrayArgArrayCreator =
-      detail::ArrayCreator<ComplexDataT, FlattenMArrayArg, ArgTN...>;
-
   template <size_t... Is>
   constexpr marray(const std::array<ComplexDataT, NumElements> &Arr,
                    std::index_sequence<Is...>)
@@ -1078,11 +1038,11 @@ public:
                std::make_index_sequence<NumElements>()} {}
 
   template <typename... ArgTN,
-            typename = std::enable_if_t<AllSuitableArgTypes<ArgTN...>::value &&
+            typename = std::enable_if_t<sycl::detail::AllSuitableArgTypes<ArgTN...>::value &&
                                         sycl::detail::GetMArrayArgsSize<
                                             ArgTN...>::value == NumElements>>
   constexpr marray(const ArgTN &...Args)
-      : marray{MArrayArgArrayCreator<ComplexDataT, ArgTN...>::Create(Args...),
+      : marray{sycl::detail::MArrayArgArrayCreator<ComplexDataT, ArgTN...>::Create(Args...),
                std::make_index_sequence<NumElements>()} {}
 
   constexpr marray(const marray<ComplexDataT, NumElements> &rhs) = default;
@@ -1114,7 +1074,7 @@ public:
 
   // subscript operator
   reference operator[](std::size_t i) { return MData[i]; }
-  const_reference operator[](std::size_t i) const { return MData[i]; }
+  constexpr const_reference operator[](std::size_t i) const { return MData[i]; }
 
   marray &operator=(const marray<ComplexDataT, NumElements> &rhs) = default;
   marray &operator=(const ComplexDataT &rhs) {

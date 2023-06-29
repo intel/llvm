@@ -39,6 +39,45 @@ template <typename T, typename... Ts> struct GetMArrayArgsSize<T, Ts...> {
   static constexpr std::size_t value = 1 + GetMArrayArgsSize<Ts...>::value;
 };
 
+// Trait for checking if an argument type is either convertible to the data
+// type or an array of types convertible to the data type.
+template <typename DataT, typename T>
+struct IsSuitableArgType : std::is_convertible<T, DataT> {};
+template <typename DataT, typename T, size_t N>
+struct IsSuitableArgType<DataT, marray<T, N>> : std::is_convertible<T, DataT> {};
+
+// Trait for computing the conjunction of of IsSuitableArgType. The empty type
+// list will trivially evaluate to true.
+template <typename DataT, typename... ArgTN>
+struct AllSuitableArgTypes : std::conjunction<IsSuitableArgType<DataT, ArgTN>...> {};
+
+// Utility trait for creating an std::array from an marray argument.
+template <typename DataT, typename T, std::size_t... Is>
+static constexpr std::array<DataT, sizeof...(Is)>
+MArrayToArray(const marray<T, sizeof...(Is)> &A, std::index_sequence<Is...>) {
+  // return {static_cast<DataT>(A.MData[Is])...};
+  return {static_cast<DataT>(A[Is])...};
+}
+template <typename DataT, typename T, std::size_t N>
+static constexpr std::array<DataT, N>
+FlattenMArrayArgHelper(const marray<T, N> &A) {
+  return MArrayToArray<DataT>(A, std::make_index_sequence<N>());
+}
+template <typename DataT, typename T>
+static constexpr auto FlattenMArrayArgHelper(const T &A) {
+  return std::array<DataT, 1>{static_cast<DataT>(A)};
+}
+template <typename DataT, typename T> struct FlattenMArrayArg {
+  constexpr auto operator()(const T &A) const {
+    return FlattenMArrayArgHelper<DataT>(A);
+  }
+};
+
+// Alias for shortening the marray arguments to array converter.
+template <typename DataT, typename... ArgTN>
+using MArrayArgArrayCreator =
+    detail::ArrayCreator<DataT, FlattenMArrayArg, ArgTN...>;
+
 } // namespace detail
 
 /// Provides a cross-platform math array class template that works on
@@ -57,48 +96,6 @@ public:
 
 private:
   value_type MData[NumElements];
-
-  // Trait for checking if an argument type is either convertible to the data
-  // type or an array of types convertible to the data type.
-  template <typename T>
-  struct IsSuitableArgType : std::is_convertible<T, DataT> {};
-  template <typename T, size_t N>
-  struct IsSuitableArgType<marray<T, N>> : std::is_convertible<T, DataT> {};
-
-  // Trait for computing the conjunction of of IsSuitableArgType. The empty type
-  // list will trivially evaluate to true.
-  template <typename... ArgTN>
-  struct AllSuitableArgTypes : std::conjunction<IsSuitableArgType<ArgTN>...> {};
-
-  // Utility trait for creating an std::array from an marray argument.
-  template <typename DataT, typename T, std::size_t... Is>
-  static constexpr std::array<DataT, sizeof...(Is)>
-  MArrayToArray(const marray<T, sizeof...(Is)> &A, std::index_sequence<Is...>) {
-    return {static_cast<DataT>(A.MData[Is])...};
-  }
-  template <typename DataT, typename T, std::size_t N>
-  static constexpr std::array<DataT, N>
-  FlattenMArrayArgHelper(const marray<T, N> &A) {
-    return MArrayToArray<DataT>(A, std::make_index_sequence<N>());
-  }
-  template <typename DataT, typename T>
-  static constexpr auto FlattenMArrayArgHelper(const T &A) {
-    return std::array<DataT, 1>{static_cast<DataT>(A)};
-  }
-  template <typename DataT, typename T> struct FlattenMArrayArg {
-    constexpr auto operator()(const T &A) const {
-      return FlattenMArrayArgHelper<DataT>(A);
-    }
-  };
-
-  // Alias for shortening the marray arguments to array converter.
-  template <typename DataT, typename... ArgTN>
-  using MArrayArgArrayCreator =
-      detail::ArrayCreator<DataT, FlattenMArrayArg, ArgTN...>;
-
-  // FIXME: Other marray specializations needs to be a friend to access MData.
-  //        If the subscript operator is made constexpr this can be removed.
-  template <typename Type_, std::size_t NumElements_> friend class marray;
 
   constexpr void initialize_data(const Type &Arg) {
     for (size_t i = 0; i < NumElements; ++i) {
@@ -120,10 +117,10 @@ public:
 
   template <typename... ArgTN,
             typename = std::enable_if_t<
-                AllSuitableArgTypes<ArgTN...>::value &&
+                detail::AllSuitableArgTypes<DataT, ArgTN...>::value &&
                 detail::GetMArrayArgsSize<ArgTN...>::value == NumElements>>
   constexpr marray(const ArgTN &...Args)
-      : marray{MArrayArgArrayCreator<DataT, ArgTN...>::Create(Args...),
+      : marray{detail::MArrayArgArrayCreator<DataT, ArgTN...>::Create(Args...),
                std::make_index_sequence<NumElements>()} {}
 
   constexpr marray(const marray<Type, NumElements> &Rhs) = default;
@@ -142,7 +139,7 @@ public:
   // subscript operator
   reference operator[](std::size_t index) { return MData[index]; }
 
-  const_reference operator[](std::size_t index) const { return MData[index]; }
+  constexpr const_reference operator[](std::size_t index) const { return MData[index]; }
 
   marray &operator=(const marray<Type, NumElements> &Rhs) = default;
 
