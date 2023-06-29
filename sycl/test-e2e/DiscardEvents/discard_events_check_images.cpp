@@ -35,7 +35,8 @@ void TestHelper(sycl::queue Q,
   const sycl::image_channel_type ChanType =
       sycl::image_channel_type::signed_int32;
 
-  const sycl::range<2> ImgSize(sqrt(BUFFER_SIZE), sqrt(BUFFER_SIZE));
+  const sycl::range<2> ImgSize(sycl::sqrt(static_cast<float>(BUFFER_SIZE)),
+                               sycl::sqrt(static_cast<float>(BUFFER_SIZE)));
   std::vector<sycl::int4> ImgHostData(
       ImgSize.size(), {InitialVal, InitialVal, InitialVal, InitialVal});
   sycl::image<2> Img(ImgHostData.data(), ChanOrder, ChanType, ImgSize);
