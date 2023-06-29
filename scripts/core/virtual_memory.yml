@@ -281,7 +281,9 @@ params:
     - type: $x_physical_mem_handle_t*
       name: phPhysicalMem
       desc: "[out] pointer to handle of physical memory object created."
-
+returns:
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If size is not a multiple of $X_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retain a physical memory handle, increment its reference count."
