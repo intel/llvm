@@ -416,6 +416,13 @@ and not recommended to use in production environment.
     Instructs the target backend to reduce compilation time, potentially
     at the cost of runtime performance. Currently only supported on Intel GPUs.
 
+**`-f[no-]target-export-symbols`**
+
+    Exposes exported symbols in a generated target library to allow for
+    visibility to other modules.
+
+    NOTE: This flag is only supported for spir64_gen AOT targets.
+
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.
