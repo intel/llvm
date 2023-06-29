@@ -178,7 +178,8 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
 // block exceeds the hardware limitations, then the cuLaunchKernel call
 // will fail to launch with CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES error.
 bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
-                                ur_kernel_handle_t Kernel, size_t BlockSize) {
+                                     ur_kernel_handle_t Kernel,
+                                     size_t BlockSize) {
   return BlockSize * Kernel->getRegsPerThread() > Device->getMaxRegsPerBlock();
 }
 
