@@ -261,16 +261,28 @@ using is_gen_based_on_type_sizeof =
     std::bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
 
 template <typename> struct is_vec : std::false_type {};
-template <typename T, std::size_t N>
-struct is_vec<sycl::vec<T, N>> : std::true_type {};
+template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
+
+template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
 
 template <typename> struct get_vec_size {
-  static constexpr std::size_t size = 1;
+  static constexpr int size = 1;
 };
 
-template <typename T, std::size_t N> struct get_vec_size<sycl::vec<T, N>> {
-  static constexpr std::size_t size = N;
+template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
+  static constexpr int size = N;
 };
+
+// is_marray
+template <typename> struct is_marray : std::false_type {};
+template <typename T, std::size_t N>
+struct is_marray<sycl::marray<T, N>> : std::true_type {};
+
+template <typename T> constexpr bool is_marray_v = is_marray<T>::value;
+
+// is_marray_or_vec_v
+template <typename T>
+constexpr bool is_marray_or_vec_v = is_marray_v<T> || is_vec_v<T>;
 
 // is_integral
 template <typename T>

@@ -29,6 +29,7 @@ namespace {
 constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 constexpr StringRef SYCL_PIPELINED_ATTR = "sycl-pipelined";
 constexpr StringRef SYCL_REGISTER_ALLOC_MODE_ATTR = "sycl-register-alloc-mode";
+constexpr StringRef SYCL_GRF_SIZE_ATTR = "sycl-grf-size";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
@@ -270,11 +271,24 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     return std::pair<std::string, MDNode *>("ip_interface",
                                             getIpInterface("csr", Ctx, Attr));
 
-  if (AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR &&
+  if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
+       AttrKindStr == SYCL_GRF_SIZE_ATTR) &&
       !llvm::esimd::isESIMD(F)) {
-    uint32_t RegAllocModeVal = getAttributeAsInteger<uint32_t>(Attr);
-    Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(Constant::getIntegerValue(
-        Type::getInt32Ty(Ctx), APInt(32, RegAllocModeVal)))};
+    // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
+    uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
+    if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
+      assert((PropVal == 0 || PropVal == 128 || PropVal == 256) &&
+             "Unsupported GRF Size");
+      // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
+      static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
+      static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
+      if (PropVal == 128)
+        PropVal = SMALL_GRF_REGALLOCMODE_VAL;
+      else if (PropVal == 256)
+        PropVal = LARGE_GRF_REGALLOCMODE_VAL;
+    }
+    Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
+        Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)))};
     return std::pair<std::string, MDNode *>("RegisterAllocMode",
                                             MDNode::get(Ctx, AttrMDArgs));
   }
