@@ -3,11 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-set(SYCL_L0_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
-set(L0_DIR "${SYCL_L0_DIR}/sycl/plugins/unified_runtime/ur/adapters/level_zero")
-
-# fetch xpti proxy library for the tracing layer
-FetchSource(https://github.com/intel/llvm.git sycl-nightly/20230628 "sycl/plugins/unified_runtime/ur" ${SYCL_L0_DIR})
+set(L0_DIR "${SYCL_ADAPTER_DIR}/sycl/plugins/unified_runtime/ur/adapters/level_zero")
 
 set(TARGET_NAME ur_adapter_level_zero)
 

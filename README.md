@@ -111,6 +111,7 @@ List of options provided by CMake:
 | UR_ENABLE_TRACING | Enable XPTI-based tracing layer | ON/OFF | OFF |
 | UR_BUILD_TOOLS | Build tools | ON/OFF | ON |
 | UR_BUILD_ADAPTER_L0 | Fetch and use level-zero adapter from SYCL | ON/OFF | OFF |
+| UR_BUILD_ADAPTER_CUDA | Fetch and use cuda adapter from SYCL | ON/OFF | OFF |
 
 **General**:
 
