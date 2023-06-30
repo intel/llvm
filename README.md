@@ -38,7 +38,7 @@ is something we are interested in expanding on.
 
 #### Implementation Status
 
-| Feature                                                            | Implementation Status |
+| Feature                                                            | Implementation Status (- error type) |
 | ------------------------------------------------------------------ | --------------------- |
 | Adding a command-group node with `command_graph::add()`            | Implemented           |
 | Begin & end queue recording to a graph to create nodes             | Implemented           |
@@ -51,25 +51,25 @@ is something we are interested in expanding on.
 | Vendor test macro                                                  | Implemented           |
 | Ability to add a graph as a node of another graph (Sub-graphs)     | Implemented, with the limitations that a subgraph can only be added as a node to any parent graph once, and will not correctly execute by itself after being added as a sub-graph. |
 | Using all capabilities of USM in a graph node                      | Implemented           |
-| Extending lifetime of buffers used in a graph, as defined by the "Storage Lifetimes" specification section  | Not implemented       |
-| Buffer taking a copy of underlying host data when buffer is used in a graph, as defined by the "Storage Lifetimes" specification section  | Not implemented       |
-| Executable graph `update()`                                        | Not implemented       |
+| Extending lifetime of buffers used in a graph, as defined by the "Storage Lifetimes" specification section  | Not implemented - Segmentation fault      |
+| Buffer taking a copy of underlying host data when buffer is used in a graph, as defined by the "Storage Lifetimes" specification section  | Not implemented - Segmentation fault      |
+| Executable graph `update()`                                        | Not implemented - Exception "Method not yet implemented"      |
 | Recording an in-order queue preserves linear dependencies          | Implemented           |
 | Using `handler::parallel_for` in a graph node                      | Implemented           |
 | Using `handler::single_task` in a graph node                       | Implemented           |
 | Using `handler::memcpy` in a graph node                            | Implemented           |
 | Using `handler::copy` in a graph node                              | Implemented           |
-| Using `handler::host_task` in a graph node                         | Not implemented       |
-| Using `handler::fill` in a graph node                              | Implemented for USM, not implemented for buffer accessors |
-| Using `handler::memset` in a graph node                            | Not implemented       |
-| Using `handler::prefech` in a graph node                           | Not implemented       |
-| Using `handler::memadvise` in a graph node                         | Not implemented       |
-| Using specialization constants in a graph node                     | Not implemented       |
-| Using reductions in a graph node                                   | Not implemented       |
-| Using sycl streams in a graph node                                 | Not implemented       |
+| Using `handler::host_task` in a graph node                         | Not implemented - Assert: "getCGCopy() const: Assertion `false' failed."       |
+| Using `handler::fill` in a graph node                              | Implemented for USM, not implemented for buffer accessors - Exception: "CG type not implemented for command buffers" |
+| Using `handler::memset` in a graph node                            | Not implemented - Exception: "CG type not implemented for command buffers"       |
+| Using `handler::prefech` in a graph node                           | Not implemented - Exception: "CG type not implemented for command buffers"       |
+| Using `handler::memadvise` in a graph node                         | Not implemented - Exception: "CG type not implemented for command buffers"       |
+| Using specialization constants in a graph node                     | Not implemented - Segmentation fault      |
+| Using reductions in a graph node                                   | Not implemented - Segmentation fault      |
+| Using sycl streams in a graph node                                 | Not implemented - Exception: "Failed to add kernel to PI command-buffer"      |
 | Thread safety of new methods                                       | Not implemented       |
-| Profiling an event returned from graph submission with `event::get_profiling_info()`       | Not implemented       |
-| Querying the state of an event returned from graph submission with `event::get_info<info::event::command_execution_status>()`     | Not implemented       |
+| Profiling an event returned from graph submission with `event::get_profiling_info()`       | Unsupported       |
+| Querying the state of an event returned from graph submission with `event::get_info<info::event::command_execution_status>()`     | Implemented       |
 | Error checking                                                     | Throwing exceptions for invalid usage is only partially implemented |
 
 ### Other Material
