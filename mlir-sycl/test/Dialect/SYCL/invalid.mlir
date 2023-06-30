@@ -310,9 +310,11 @@ func.func @test_vec_nonscalar(%v: !sycl.vec<[!sycl_vec_i8_1_, 2], (vector<2x1xi8
 // -----
 
 func.func @test_host_constructor() -> !llvm.ptr {
+  %0 = llvm.mlir.constant(1 : i32) : i32
+  %1 = llvm.alloca %0 x i32 : (i32) -> !llvm.ptr
 // expected-error @below {{'sycl.host.constructor' op expecting a sycl type as constructed type. Got 'i32'}}
-  %0 = sycl.host.constructor() {type = i32} : () -> !llvm.ptr
-  return %0 : !llvm.ptr
+  sycl.host.constructor(%1) {type = i32} : (!llvm.ptr) -> ()
+  return %1 : !llvm.ptr
 }
 
 // -----
