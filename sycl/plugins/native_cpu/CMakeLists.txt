@@ -10,6 +10,8 @@ add_sycl_plugin(native_cpu
     "../unified_runtime/ur/adapters/native_cpu/context.hpp"
     "../unified_runtime/ur/adapters/native_cpu/device.cpp"
     "../unified_runtime/ur/adapters/native_cpu/device.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/kernel.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/kernel.hpp"
     "../unified_runtime/ur/adapters/native_cpu/memory.cpp"
     "../unified_runtime/ur/adapters/native_cpu/memory.hpp"
     "../unified_runtime/ur/adapters/native_cpu/platform.cpp"

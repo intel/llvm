@@ -16,16 +16,6 @@ struct _pi_object {
   std::atomic<pi_uint32> RefCount;
 };
 
-using nativecpu_kernel_t = void(const sycl::detail::NativeCPUArgDesc *,
-                                __nativecpu_state *);
-using nativecpu_ptr_t = nativecpu_kernel_t *;
-using nativecpu_task_t = std::function<nativecpu_kernel_t>;
-struct _pi_kernel : _pi_object {
-  const char *_name;
-  nativecpu_task_t _subhandler;
-  std::vector<sycl::detail::NativeCPUArgDesc> _args;
-};
-
 // taken from pi_cuda.cpp
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
@@ -130,111 +120,6 @@ pi_result piextPlatformGetNativeHandle(pi_platform, pi_native_handle *) {
 
 pi_result piextPlatformCreateWithNativeHandle(pi_native_handle, pi_platform *) {
   DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piKernelCreate(pi_program program, const char *name,
-                         pi_kernel *kernel) {
-  // Todo: error checking
-  auto ker = new _pi_kernel();
-  auto f = reinterpret_cast<nativecpu_ptr_t>(program->_ptr);
-  ker->_subhandler = *f;
-  ker->_name = name;
-  *kernel = ker;
-  return PI_SUCCESS;
-}
-
-pi_result piKernelSetArg(pi_kernel kernel, pi_uint32, size_t, const void *arg) {
-  // Todo: error checking
-  // Todo: I think that the opencl spec (and therefore the pi spec mandates that
-  // arg is copied (this is why it is defined as const void*, I guess we should
-  // do it
-  kernel->_args.emplace_back(const_cast<void *>(arg));
-  return PI_SUCCESS;
-}
-
-pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32,
-                                  const pi_mem_obj_property *,
-                                  const pi_mem *memObj) {
-  // Todo: error checking
-  _pi_mem *memPtr = *memObj;
-  kernel->_args.emplace_back(memPtr->_mem);
-  return PI_SUCCESS;
-}
-
-pi_result piextKernelSetArgSampler(pi_kernel, pi_uint32, const pi_sampler *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piKernelGetInfo(pi_kernel, pi_kernel_info, size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device,
-                               pi_kernel_group_info param_name,
-                               size_t param_value_size, void *param_value,
-                               size_t *param_value_size_ret) {
-  // Todo: return something meaningful here, we could emit info in our
-  // integration header and read them here?
-
-  if (kernel != nullptr) {
-
-    switch (param_name) {
-    case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
-      size_t global_work_size[3] = {0, 0, 0};
-
-      return getInfoArray(3, param_value_size, param_value,
-                          param_value_size_ret, global_work_size);
-    }
-    case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-      size_t max_threads = 0;
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     size_t(max_threads));
-    }
-    case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
-      size_t group_size[3] = {1, 1, 1};
-      return getInfoArray(3, param_value_size, param_value,
-                          param_value_size_ret, group_size);
-    }
-    case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
-      int bytes = 0;
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     pi_uint64(bytes));
-    }
-    case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
-      int warpSize = 0;
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     static_cast<size_t>(warpSize));
-    }
-    case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
-      int bytes = 0;
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     pi_uint64(bytes));
-    }
-    case PI_KERNEL_GROUP_INFO_NUM_REGS: {
-      sycl::detail::pi::die("PI_KERNEL_GROUP_INFO_NUM_REGS in "
-                            "piKernelGetGroupInfo not implemented\n");
-      return {};
-    }
-
-    default:
-      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-    }
-  }
-
-  return PI_ERROR_INVALID_KERNEL;
-}
-
-pi_result piKernelGetSubGroupInfo(pi_kernel, pi_device,
-                                  pi_kernel_sub_group_info, size_t,
-                                  const void *, size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piKernelRetain(pi_kernel) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piKernelRelease(pi_kernel kernel) {
-  delete kernel;
-  return PI_SUCCESS;
 }
 
 pi_result piEventCreate(pi_context, pi_event *) { DIE_NO_IMPLEMENTATION; }
@@ -437,15 +322,6 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   return PI_SUCCESS;
 }
 
-pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
-                                            pi_program, bool, pi_kernel *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextKernelGetNativeHandle(pi_kernel, pi_native_handle *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
                                 pi_uint32, const pi_mem *, const void **,
                                 pi_uint32, const pi_event *, pi_event *) {
@@ -481,15 +357,6 @@ pi_result piextUSMFree(pi_context, void *Ptr) {
   return PI_SUCCESS;
 }
 
-pi_result piextKernelSetArgPointer(pi_kernel kernel, pi_uint32, size_t,
-                                   const void *ptr) {
-  // Todo: error checking
-  auto PtrToPtr = reinterpret_cast<const intptr_t *>(ptr);
-  auto DerefPtr = reinterpret_cast<void *>(*PtrToPtr);
-  kernel->_args.push_back(DerefPtr);
-  return PI_SUCCESS;
-}
-
 pi_result piextUSMEnqueueMemset(pi_queue, void *ptr, pi_int32 value,
                                 size_t count, pi_uint32, const pi_event *,
                                 pi_event *) {
@@ -516,11 +383,6 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
 pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
                                   size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piKernelSetExecInfo(pi_kernel, pi_kernel_exec_info, size_t,
-                              const void *) {
-  return PI_SUCCESS;
 }
 
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
@@ -790,17 +652,20 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextProgramSetSpecializationConstant,
          pi2ur::piextProgramSetSpecializationConstant)
   // Kernel
-  _PI_CL(piKernelCreate, piKernelCreate)
-  _PI_CL(piKernelSetArg, piKernelSetArg)
-  _PI_CL(piKernelGetInfo, piKernelGetInfo)
-  _PI_CL(piKernelGetGroupInfo, piKernelGetGroupInfo)
-  _PI_CL(piKernelGetSubGroupInfo, piKernelGetSubGroupInfo)
-  _PI_CL(piKernelRetain, piKernelRetain)
-  _PI_CL(piKernelRelease, piKernelRelease)
-  _PI_CL(piextKernelGetNativeHandle, piextKernelGetNativeHandle)
-  _PI_CL(piKernelSetExecInfo, piKernelSetExecInfo)
-  _PI_CL(piextKernelSetArgPointer, piextKernelSetArgPointer)
-  _PI_CL(piextKernelCreateWithNativeHandle, piextKernelCreateWithNativeHandle)
+  _PI_CL(piKernelCreate, pi2ur::piKernelCreate)
+  _PI_CL(piKernelSetArg, pi2ur::piKernelSetArg)
+  _PI_CL(piKernelGetInfo, pi2ur::piKernelGetInfo)
+  _PI_CL(piKernelGetGroupInfo, pi2ur::piKernelGetGroupInfo)
+  _PI_CL(piKernelGetSubGroupInfo, pi2ur::piKernelGetSubGroupInfo)
+  _PI_CL(piKernelRetain, pi2ur::piKernelRetain)
+  _PI_CL(piKernelRelease, pi2ur::piKernelRelease)
+  _PI_CL(piextKernelGetNativeHandle, pi2ur::piextKernelGetNativeHandle)
+  _PI_CL(piKernelSetExecInfo, pi2ur::piKernelSetExecInfo)
+  _PI_CL(piextKernelSetArgPointer, pi2ur::piKernelSetArgPointer)
+  _PI_CL(piextKernelCreateWithNativeHandle,
+         pi2ur::piextKernelCreateWithNativeHandle)
+  _PI_CL(piextKernelSetArgMemObj, pi2ur::piextKernelSetArgMemObj)
+  _PI_CL(piextKernelSetArgSampler, pi2ur::piextKernelSetArgSampler)
 
   // Event
   _PI_CL(piEventCreate, piEventCreate)
@@ -860,8 +725,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextEnqueueReadHostPipe, piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, piextEnqueueWriteHostPipe)
 
-  _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
-  _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
 
   _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
