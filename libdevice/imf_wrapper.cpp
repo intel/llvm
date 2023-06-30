@@ -1788,4 +1788,50 @@ DEVICE_EXTERN_C_INLINE
 _iml_half_internal __imf_ushort_as_half(unsigned short x) {
   return __devicelib_imf_ushort_as_half(x);
 }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_exp10f(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_exp10f(float x) { return __devicelib_imf_fast_exp10f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_expf(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_expf(float x) { return __devicelib_imf_fast_expf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_fdividef(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_fdividef(float x, float y) {
+  return __devicelib_imf_fast_fdividef(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_logf(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_logf(float x) { return __devicelib_imf_fast_logf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_log2f(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_log2f(float x) { return __devicelib_imf_fast_log2f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_log10f(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_log10f(float x) { return __devicelib_imf_fast_log10f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_powf(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_powf(float x, float y) {
+  return __devicelib_imf_fast_powf(x, y);
+}
 #endif // __LIBDEVICE_IMF_ENABLED__
