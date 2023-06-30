@@ -33,17 +33,10 @@ SYCLRangeGetOp sycl::createSYCLRangeGetOp(Type resTy,
 TypedValue<MemRefType> sycl::constructSYCLID(IDType idTy,
                                              ArrayRef<Value> indexes,
                                              OpBuilder builder, Location loc) {
-  const unsigned numDims = idTy.getDimension();
-  assert(numDims == indexes.size() &&
+  assert(idTy.getDimension() == indexes.size() &&
          "Expecting the size of indexes to be the id dimension");
-  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
-  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
-  for (unsigned dim = 0; dim < idTy.getDimension(); ++dim) {
-    Type resTy = MemRefType::get(ShapedType::kDynamic, builder.getIndexType());
-    Value idGetOp = createSYCLIDGetOp(resTy, id, dim, builder, loc);
-    builder.create<memref::StoreOp>(loc, indexes[dim], idGetOp, zeroIndex);
-  }
-  return id;
+  return builder.create<SYCLIDConstructorOp>(loc, MemRefType::get(1, idTy),
+                                             indexes);
 }
 
 SYCLAccessorSubscriptOp
