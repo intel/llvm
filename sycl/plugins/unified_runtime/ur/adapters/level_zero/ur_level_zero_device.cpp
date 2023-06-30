@@ -396,6 +396,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         uint32_t{1});
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
     return ReturnValue(uint64_t{Device->ZeDeviceCacheProperties->cacheSize});
+  case UR_DEVICE_INFO_IP_VERSION:
+    return ReturnValue(uint32_t{Device->ZeDeviceIpVersionExt->ipVersion});
   case UR_DEVICE_INFO_MAX_PARAMETER_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceModuleProperties->maxArgumentsSize});
@@ -906,6 +908,14 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   ZeDeviceComputeProperties.Compute =
       [ZeDevice](ze_device_compute_properties_t &Properties) {
         ZE_CALL_NOCHECK(zeDeviceGetComputeProperties, (ZeDevice, &Properties));
+      };
+
+  ZeDeviceIpVersionExt.Compute =
+      [ZeDevice](ze_device_ip_version_ext_t &Properties) {
+        ze_device_properties_t P;
+        P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+        P.pNext = (void *)&Properties;
+        ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
 
   ZeDeviceImageProperties.Compute =
