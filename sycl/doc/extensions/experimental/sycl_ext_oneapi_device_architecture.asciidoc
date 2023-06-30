@@ -523,6 +523,58 @@ call to `if_architecture_is` or `else_if_architecture_is` whose condition is
 architectures in the `Archs` parameter pack.
 
 
+=== New member function of `device` class 
+
+This extension adds the following new member function to the `device` class, 
+which returns a Boolean telling whether the device has the specified 
+architecture.
+
+--
+```
+namespace sycl {
+
+class device {
+  bool ext_oneapi_architecture_is(
+    ext::oneapi::experimental::architecture arch);
+};
+
+// namespace sycl
+```
+--
+
+=== New device descriptor
+
+[%header,cols="5,1,5"]
+|===
+|Device descriptor
+|Return type
+|Description
+
+|`ext::oneapi::experimental::info::device::architecture`
+|`ext::oneapi::experimental::architecture`
+|Returns the architecture of the device
+
+|===
+
+This device descriptor allows host code such as:
+
+--
+```
+namespace syclex = sycl::ext::oneapi::experimental;
+
+syclex::architecture arch = dev.get_info<syclex::info::device::architecture>();
+switch (arch) {
+case syclex::architecture::x86_64:
+  /* ... */
+  break;
+case syclex::architecture::intel_gpu_bdw:
+  /* ... */
+  break;
+/* etc. */
+}
+```
+--
+
 == Limitations with the experimental version
 
 The {dpcpp} implementation of this extension currently has some important
@@ -537,44 +589,6 @@ form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
 
 This experimental extension is still evolving.  We expect that future versions
 will include the following:
-
-* An extended member function like:
-+
---
-```
-namespace sycl {
-
-class device {
-  bool ext_oneapi_architecture_is(
-    ext::oneapi::experimental::architecture arch);
-};
-
-// namespace sycl
-```
-
-This provides a way to query a device's architecture from host code.
---
-
-* An extended device information descriptor named
-  `sycl::ext::oneapi::experimental::info::device::architecture`, which returns
-  the architecture of the device.  This allows host code such as:
-+
---
-```
-using namespace sycl::ext::oneapi::experimental;
-
-architecture arch = dev.get_info<info::device::architecture>();
-switch (arch) {
-case architecture::x86_64:
-  /* ... */
-  break;
-case architecture::intel_gpu_bdw:
-  /* ... */
-  break;
-/* etc. */
-}
-```
---
 
 * A compile-time constant property that can be used to decorate kernels and
   non-kernel device functions:
