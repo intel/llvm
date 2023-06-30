@@ -388,6 +388,8 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
 
   ze_command_list_handle_t ZeCommandList;
+  // TODO We could optimize this by pooling both Level Zero command-lists and UR
+  // command-buffers, then reusing them.
   ZE2UR_CALL(zeCommandListCreate, (Context->ZeContext, Device->ZeDevice,
                                    &ZeCommandListDesc, &ZeCommandList));
   try {
