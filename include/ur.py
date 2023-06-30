@@ -187,6 +187,11 @@ class ur_function_v(IntEnum):
     COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP = 169  ## Enumerator for ::urCommandBufferAppendMembufferReadExp
     COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP = 170## Enumerator for ::urCommandBufferAppendMembufferWriteRectExp
     COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP = 171 ## Enumerator for ::urCommandBufferAppendMembufferReadRectExp
+    LOADER_CONFIG_CREATE = 172                      ## Enumerator for ::urLoaderConfigCreate
+    LOADER_CONFIG_RELEASE = 173                     ## Enumerator for ::urLoaderConfigRelease
+    LOADER_CONFIG_RETAIN = 174                      ## Enumerator for ::urLoaderConfigRetain
+    LOADER_CONFIG_GET_INFO = 175                    ## Enumerator for ::urLoaderConfigGetInfo
+    LOADER_CONFIG_ENABLE_LAYER = 176                ## Enumerator for ::urLoaderConfigEnableLayer
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -276,6 +281,11 @@ def UR_MINOR_VERSION( _ver ):
 ###############################################################################
 ## @brief compiler-independent type
 class ur_bool_t(c_ubyte):
+    pass
+
+###############################################################################
+## @brief Handle of a loader config object
+class ur_loader_config_handle_t(c_void_p):
     pass
 
 ###############################################################################
@@ -420,6 +430,7 @@ class ur_result_v(IntEnum):
     ERROR_OBJECT_ALLOCATION_FAILURE = 66            ## Objection allocation failure
     ERROR_ADAPTER_SPECIFIC = 67                     ## An adapter specific warning/error has been reported and can be
                                                     ## retrieved via the urPlatformGetLastError entry point.
+    ERROR_LAYER_NOT_PRESENT = 68                    ## A requested layer was not found by the loader.
     ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000       ## Invalid Command-Buffer
     ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001## Sync point is not valid for the command-buffer
     ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002  ## Sync point wait list is invalid
@@ -476,6 +487,18 @@ class ur_device_init_flags_v(IntEnum):
 class ur_device_init_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
+
+
+###############################################################################
+## @brief Supported loader info
+class ur_loader_config_info_v(IntEnum):
+    AVAILABLE_LAYERS = 0                            ## [char[]] Null-terminated, semi-colon separated list of available
+                                                    ## layers.
+    REFERENCE_COUNT = 1                             ## [uint32_t] Reference count of the loader config object.
+
+class ur_loader_config_info_t(c_int):
+    def __str__(self):
+        return str(ur_loader_config_info_v(self.value))
 
 
 ###############################################################################
@@ -2201,6 +2224,53 @@ class ur_exp_peer_info_t(c_int):
 __use_win_types = "Windows" == platform.uname()[0]
 
 ###############################################################################
+## @brief Function-pointer for urLoaderConfigCreate
+if __use_win_types:
+    _urLoaderConfigCreate_t = WINFUNCTYPE( ur_result_t, POINTER(ur_loader_config_handle_t) )
+else:
+    _urLoaderConfigCreate_t = CFUNCTYPE( ur_result_t, POINTER(ur_loader_config_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urLoaderConfigRetain
+if __use_win_types:
+    _urLoaderConfigRetain_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
+else:
+    _urLoaderConfigRetain_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urLoaderConfigRelease
+if __use_win_types:
+    _urLoaderConfigRelease_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
+else:
+    _urLoaderConfigRelease_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urLoaderConfigGetInfo
+if __use_win_types:
+    _urLoaderConfigGetInfo_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t, ur_loader_config_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urLoaderConfigGetInfo_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t, ur_loader_config_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
+###############################################################################
+## @brief Function-pointer for urLoaderConfigEnableLayer
+if __use_win_types:
+    _urLoaderConfigEnableLayer_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t, c_char_p )
+else:
+    _urLoaderConfigEnableLayer_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t, c_char_p )
+
+
+###############################################################################
+## @brief Table of LoaderConfig functions pointers
+class ur_loader_config_dditable_t(Structure):
+    _fields_ = [
+        ("pfnCreate", c_void_p),                                        ## _urLoaderConfigCreate_t
+        ("pfnRetain", c_void_p),                                        ## _urLoaderConfigRetain_t
+        ("pfnRelease", c_void_p),                                       ## _urLoaderConfigRelease_t
+        ("pfnGetInfo", c_void_p),                                       ## _urLoaderConfigGetInfo_t
+        ("pfnEnableLayer", c_void_p)                                    ## _urLoaderConfigEnableLayer_t
+    ]
+
+###############################################################################
 ## @brief Function-pointer for urPlatformGet
 if __use_win_types:
     _urPlatformGet_t = WINFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_platform_handle_t), POINTER(c_ulong) )
@@ -3484,9 +3554,9 @@ class ur_usm_p2p_exp_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urInit
 if __use_win_types:
-    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t, ur_loader_config_handle_t )
 else:
-    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t, ur_loader_config_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urTearDown
@@ -3649,6 +3719,7 @@ class ur_device_dditable_t(Structure):
 ###############################################################################
 class ur_dditable_t(Structure):
     _fields_ = [
+        ("LoaderConfig", ur_loader_config_dditable_t),
         ("Platform", ur_platform_dditable_t),
         ("Context", ur_context_dditable_t),
         ("Event", ur_event_dditable_t),

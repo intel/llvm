@@ -1,4 +1,4 @@
-urInit(.device_flags = 0) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
+urInit(.device_flags = 0, .hLoaderConfig = nullptr) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
 Platform initialized.
 urPlatformGet(.NumEntries = 1, .phPlatforms = {}, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
 urPlatformGet(.NumEntries = 1, .phPlatforms = {{{.*}}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)

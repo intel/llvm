@@ -1869,7 +1869,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetUsmP2PExpProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urInit
 typedef ur_result_t(UR_APICALL *ur_pfnInit_t)(
-    ur_device_init_flags_t);
+    ur_device_init_flags_t,
+    ur_loader_config_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urTearDown

@@ -33,6 +33,9 @@ namespace ${x}_lib
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
 
     %for tbl in th.get_pfntables(specs, meta, n, tags):
+        %if 'Loader' in tbl['export']['name']:
+            <% continue %>
+        %endif
         if( ${X}_RESULT_SUCCESS == result )
         {
             result = ${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &${n}DdiTable.${tbl['name']} );

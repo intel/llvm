@@ -1,5 +1,5 @@
-begin(1) - urInit(.device_flags = 0);
-end(1) - urInit(.device_flags = 0) -> UR_RESULT_SUCCESS;
+begin(1) - urInit(.device_flags = 0, .hLoaderConfig = nullptr);
+end(1) - urInit(.device_flags = 0, .hLoaderConfig = nullptr) -> UR_RESULT_SUCCESS;
 Platform initialized.
 begin(2) - urPlatformGet(.NumEntries = 1, .phPlatforms = {}, .pNumPlatforms = {{.*}} (0));
 end(2) - urPlatformGet(.NumEntries = 1, .phPlatforms = {}, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;

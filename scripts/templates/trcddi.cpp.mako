@@ -102,10 +102,9 @@ namespace ur_tracing_layer
     }
     %endfor
 
-    ${x}_result_t context_t::init(ur_dditable_t *dditable)
-    {
+    ${x}_result_t context_t::init(ur_dditable_t *dditable) {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
-
+        
     %for tbl in th.get_pfntables(specs, meta, n, tags):
         if( ${X}_RESULT_SUCCESS == result )
         {

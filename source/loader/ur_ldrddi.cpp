@@ -35,8 +35,10 @@ ur_exp_command_buffer_factory_t ur_exp_command_buffer_factory;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urInit
 __urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags ///< [in] device initialization flags.
+    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_loader_config_handle_t
+        hLoaderConfig ///< [in][optional] Handle of loader config handle.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -44,7 +46,8 @@ __urdlllocal ur_result_t UR_APICALL urInit(
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
-        platform.initStatus = platform.dditable.ur.Global.pfnInit(device_flags);
+        platform.initStatus =
+            platform.dditable.ur.Global.pfnInit(device_flags, hLoaderConfig);
     }
 
     return result;

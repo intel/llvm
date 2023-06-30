@@ -43,8 +43,13 @@ std::ostream &operator<<(std::ostream &out,
 uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
     : platform_options{parsePlatformOptions(argc, argv)} {
     instance = this;
+
+    ur_loader_config_handle_t config;
+    urLoaderConfigCreate(&config);
+    urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION");
+
     ur_device_init_flags_t device_flags = 0;
-    switch (urInit(device_flags)) {
+    switch (urInit(device_flags, config)) {
     case UR_RESULT_SUCCESS:
         break;
     case UR_RESULT_ERROR_UNINITIALIZED:
@@ -54,6 +59,7 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
         error = "urInit() failed";
         return;
     }
+    urLoaderConfigRelease(config);
 
     uint32_t count = 0;
     if (urPlatformGet(0, nullptr, &count)) {
