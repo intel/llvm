@@ -4,28 +4,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 
-using urPhysicalMemCreateTestParams = size_t;
 struct urPhysicalMemCreateTest
-    : uur::urContextTestWithParam<urPhysicalMemCreateTestParams> {
+    : uur::urVirtualMemGranularityTestWithParam<size_t> {
 
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTestWithParam<
-                                    urPhysicalMemCreateTestParams>::SetUp());
-        ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
-            context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
-            sizeof(granularity), &granularity, nullptr));
-        ASSERT_NE(granularity, 0);
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urVirtualMemGranularityTestWithParam<size_t>::SetUp());
         size = getParam() * granularity;
     }
 
-    size_t granularity;
     size_t size;
 };
 
-UUR_TEST_SUITE_P(
-    urPhysicalMemCreateTest,
-    ::testing::Values(1, 2, 3, 7, 12, 44, 1024, 4000, 12345),
-    uur::deviceTestWithParamPrinter<urPhysicalMemCreateTestParams>);
+UUR_TEST_SUITE_P(urPhysicalMemCreateTest,
+                 ::testing::Values(1, 2, 3, 7, 12, 44, 1024, 4000, 12345),
+                 uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urPhysicalMemCreateTest, Success) {
     ur_physical_mem_handle_t physical_mem = nullptr;
