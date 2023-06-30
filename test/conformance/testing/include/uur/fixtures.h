@@ -54,7 +54,6 @@ inline bool hasDevicePartitionSupport(ur_device_handle_t device,
 }
 
 struct urAllDevicesTest : urPlatformTest {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
         auto devicesPair = GetDevices(platform);
@@ -76,7 +75,6 @@ struct urAllDevicesTest : urPlatformTest {
 
 struct urDeviceTest : urPlatformTest,
                       ::testing::WithParamInterface<ur_device_handle_t> {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
         device = GetParam();
@@ -138,7 +136,6 @@ struct urContextTest : urDeviceTest {
 };
 
 struct urSamplerTest : urContextTest {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
         sampler_desc = {
@@ -161,7 +158,6 @@ struct urSamplerTest : urContextTest {
 };
 
 struct urMemBufferTest : urContextTest {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, 4096,
@@ -205,7 +201,6 @@ template <class T> struct urContextTestWithParam : urDeviceTestWithParam<T> {
 };
 
 template <class T> struct urSamplerTestWithParam : urContextTestWithParam<T> {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         sampler_desc = {
@@ -335,7 +330,6 @@ struct urHostPipeTest : urQueueTest {
 };
 
 template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urQueueCreate(this->context, this->device, 0, &queue));
@@ -624,7 +618,6 @@ struct urUSMPoolTest : urContextTest {
 };
 
 template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
@@ -641,6 +634,35 @@ template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
     }
 
     ur_usm_pool_handle_t pool;
+};
+
+struct urPhysicalMemTest : urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
+            context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
+            sizeof(granularity), &granularity, nullptr));
+        size = granularity * 256;
+        ur_physical_mem_properties_t props{
+            UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
+            nullptr,
+            0 /*flags*/,
+        };
+        ASSERT_SUCCESS(
+            urPhysicalMemCreate(context, device, size, &props, &physical_mem));
+        ASSERT_NE(physical_mem, nullptr);
+    }
+
+    void TearDown() override {
+        if (physical_mem) {
+            EXPECT_SUCCESS(urPhysicalMemRelease(physical_mem));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+    }
+
+    size_t granularity = 0;
+    size_t size = 0;
+    ur_physical_mem_handle_t physical_mem = nullptr;
 };
 
 template <class T>

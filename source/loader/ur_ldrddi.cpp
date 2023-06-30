@@ -1939,7 +1939,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
     ur_context_handle_t hContext, ///< [in] handle to the context object.
     const void
         *pStart, ///< [in] pointer to the start of the virtual memory range.
-    size_t size, ///< [in] size in bytes of the virutal memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range.
     ur_virtual_mem_access_flags_t
         flags ///< [in] access flags to set for the mapped virtual memory range.
 ) {
@@ -2004,7 +2004,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
     ur_context_handle_t hContext, ///< [in] handle of the context object.
     ur_device_handle_t hDevice,   ///< [in] handle of the device object.
     size_t
-        size, ///< [in] size in bytes of phyisical memory to allocate, must be a multiple
+        size, ///< [in] size in bytes of physical memory to allocate, must be a multiple
               ///< of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
     const ur_physical_mem_properties_t *
         pProperties, ///< [in][optional] pointer to physical memory creation properties.
