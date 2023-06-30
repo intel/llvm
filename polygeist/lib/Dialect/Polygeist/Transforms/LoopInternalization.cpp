@@ -425,7 +425,7 @@ memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
 void tile(affine::AffineForOp loop, Value tileSize,
           SmallVectorImpl<affine::AffineForOp> &tiledNest) {
   SmallVector<affine::AffineForOp> newNestedLoops;
-  LogicalResult res =
+  [[maybe_unused]] LogicalResult res =
       tilePerfectlyNestedParametric({loop}, tileSize, &newNestedLoops);
   assert(res.succeeded() && "Expecting innermost loop to be tiled");
   tiledNest = SmallVector<affine::AffineForOp>(newNestedLoops.begin() + 1,
@@ -659,17 +659,17 @@ Value castToIndex(Value val) {
                                             builder.getIndexType(), val);
 }
 
-/// Unroll the given loop \p loop by \p factor.
+/// Unroll the given \p loop by \p factor.
 void unrollByFactor(LoopLikeOpInterface loop, unsigned factor) {
   if (factor == 1)
     return;
 
   // Lowering affine for loop to scf for loop, as not all affine loops can be
   // unrolled. Some affine loops (e.g., min expression upper bound) cannot be
-  // unrolled, as the lower bound of the cleanup loop cannot be expressed as an
+  // unrolled, as the lower bound of the residual loop cannot be expressed as an
   // affine function.
   if (Operation *loopOp = loop;
-      affine::AffineForOp affineForOp = dyn_cast<affine::AffineForOp>(loopOp)) {
+      auto affineForOp = dyn_cast<affine::AffineForOp>(loopOp)) {
     OpBuilder builder(affineForOp);
     Location loc = affineForOp.getLoc();
     Value lowerBound = lowerAffineLowerBound(affineForOp, builder);
@@ -685,18 +685,21 @@ void unrollByFactor(LoopLikeOpInterface loop, unsigned factor) {
         scfForOp.getRegion().end(), affineForOp.getRegion().getBlocks());
 
     // Replace affine::AffineYieldOp with scf::YieldOp.
-    scfForOp.walk([&](affine::AffineYieldOp yieldOp) {
-      OpBuilder builder(yieldOp);
-      builder.create<scf::YieldOp>(yieldOp.getLoc(), yieldOp.getOperands());
-      yieldOp.erase();
-    });
+    Operation *yieldOp = scfForOp.getRegion().front().getTerminator();
+    assert(isa<affine::AffineYieldOp>(yieldOp) &&
+           "Expecting affine.yield operation");
+    OpBuilder yieldBuilder(yieldOp);
+    yieldBuilder.create<scf::YieldOp>(yieldOp->getLoc(),
+                                      yieldOp->getOperands());
+    yieldOp->erase();
 
     affineForOp->replaceAllUsesWith(scfForOp);
     affineForOp->erase();
     loop = scfForOp;
   }
 
-  LogicalResult res = loopUnrollByFactor(cast<scf::ForOp>(loop), factor);
+  [[maybe_unused]] LogicalResult res =
+      loopUnrollByFactor(cast<scf::ForOp>(loop), factor);
   assert(res.succeeded() && "Expecting tiled loop to be unrolled");
 }
 
