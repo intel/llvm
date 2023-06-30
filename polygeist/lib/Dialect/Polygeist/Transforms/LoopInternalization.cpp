@@ -745,9 +745,8 @@ class MemorySelector {
 
 public:
   MemorySelector(MemoryAccessAnalysis &memAccessAnalysis,
-                 AliasAnalysis &aliasAnalysis, DataFlowSolver &solver)
-      : memAccessAnalysis(memAccessAnalysis), aliasAnalysis(aliasAnalysis),
-        solver(solver) {}
+                 AliasAnalysis &aliasAnalysis)
+      : memAccessAnalysis(memAccessAnalysis), aliasAnalysis(aliasAnalysis) {}
 
   /// The kind of accesses to consider.
   enum class AccessKind { ReadOnly, WriteOnly, ReadWrite };
@@ -774,7 +773,6 @@ private:
 private:
   MemoryAccessAnalysis &memAccessAnalysis;
   AliasAnalysis &aliasAnalysis;
-  DataFlowSolver &solver;
 
   /// The preferred memory space for each memref access.
   DenseMap<Value, MemorySpace> memRefAccessToMemSpace;
@@ -1095,7 +1093,7 @@ void LoopInternalization::selectMemorySpace(
   // Use the memory selector to determine the ideal memory space for memref
   // accesses in the innermost loop.
   // TODO: allow memory selection on read-write accesses.
-  MemorySelector memorySelector(memAccessAnalysis, aliasAnalysis, solver);
+  MemorySelector memorySelector(memAccessAnalysis, aliasAnalysis);
   memorySelector.analyze(loop, MemorySelector::AccessKind::ReadOnly);
 
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
