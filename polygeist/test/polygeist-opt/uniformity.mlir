@@ -196,13 +196,13 @@ func.func private @test3(%cond: i1, %uniform_val: i64, %non_uniform_val : i64)  
   %alloca = memref.alloca() : memref<10xi64>
 
   // COM: The stored value is known inter-procedurally to be uniform.
-  // CHECK: test2_load1, uniformity: uniform
+  // CHECK: test3_load1, uniformity: uniform
   %c0 = arith.constant 0 : index
   memref.store %uniform_val, %alloca[%c0]: memref<10xi64>
   %load1 = memref.load %alloca[%c0] { tag = "test3_load1" } : memref<10xi64>
 
   // COM: The condition is known inter-procedurally to be uniform, uniform value is stored.
-  // CHECK: test2_load2, uniformity: uniform  
+  // CHECK: test3_load2, uniformity: uniform  
   scf.if %cond {
     memref.store %uniform_val, %alloca[%c0] : memref<10xi64>    
   } else {
@@ -211,12 +211,12 @@ func.func private @test3(%cond: i1, %uniform_val: i64, %non_uniform_val : i64)  
   %load2 = memref.load %alloca[%c0] { tag = "test3_load2" } : memref<10xi64>
 
   // COM: The stored value is known inter-procedurally to be non-uniform.
-  // CHECK: test2_load3, uniformity: non-uniform
+  // CHECK: test3_load3, uniformity: non-uniform
   memref.store %non_uniform_val, %alloca[%c0]: memref<10xi64>
   %load3 = memref.load %alloca[%c0] { tag = "test3_load3" } : memref<10xi64>
 
   // COM: The condition is uniform but the store only partially kills the previous def. 
-  // CHECK: test2_load4, uniformity: non-uniform  
+  // CHECK: test3_load4, uniformity: non-uniform  
   scf.if %cond {
     memref.store %uniform_val, %alloca[%c0] : memref<10xi64>
   } else {
