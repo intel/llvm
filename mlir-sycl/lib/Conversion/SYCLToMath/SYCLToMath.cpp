@@ -33,11 +33,35 @@ namespace {
 template <typename SYCLOpT, typename MathOpT>
 struct OneToOneMappingPattern : public OpConversionPattern<SYCLOpT> {
   using OpConversionPattern<SYCLOpT>::OpConversionPattern;
+
   LogicalResult
   matchAndRewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<MathOpT>(op, adaptor.getOperands());
-    return success();
+    Type type = op.getType();
+
+    // If `op` has a native MLIR type, we can just replace it with its
+    // counterpart in the `math` dialect.
+    if (type.isF32() || type.isF64()) {
+      rewriter.replaceOpWithNewOp<MathOpT>(op, adaptor.getOperands());
+      return success();
+    }
+
+    // `op` is using a SYCL-specific type; we need to unwrap the operands and
+    // wrap the result.
+    assert(isSYCLType(type));
+
+    if (type.isa<HalfType>()) {
+      auto loc = op.getLoc();
+      SmallVector<Value, 3> unwrappedOperands;
+      for (auto operand : adaptor.getOperands())
+        unwrappedOperands.push_back(
+            rewriter.create<SYCLUnwrapOp>(loc, rewriter.getF16Type(), operand));
+      auto math = rewriter.create<MathOpT>(loc, unwrappedOperands);
+      rewriter.replaceOpWithNewOp<SYCLWrapOp>(op, type, math.getResult());
+      return success();
+    }
+
+    return failure();
   }
 };
 

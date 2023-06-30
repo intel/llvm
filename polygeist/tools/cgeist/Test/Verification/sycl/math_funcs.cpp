@@ -3,12 +3,14 @@
 // RUN:     -O0 -w -emit-mlir -S -o %t.mlir %s
 // RUN: FileCheck %s --check-prefix=MLIR -DMLIR_TYPE=f32 < %t.mlir
 // RUN: FileCheck %s --check-prefix=MLIR -DMLIR_TYPE=f64 < %t.mlir
+// RUN: FileCheck %s --check-prefix=MLIR '-DMLIR_TYPE=!sycl_half' < %t.mlir
 
 // ... and lowered to the corresponding LLVM intrinsics.
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir \
 // RUN:     -O0 -w -emit-llvm -S -o %t.ll %s
 // RUN: FileCheck %s --check-prefix=LLVM -DLLVM_TYPE=float -DINTR_TYPE=f32 < %t.ll
 // RUN: FileCheck %s --check-prefix=LLVM -DLLVM_TYPE=double -DINTR_TYPE=f64 < %t.ll
+// RUN: FileCheck %s --check-prefix=LLVM -DLLVM_TYPE=half -DINTR_TYPE=f16 < %t.ll
 
 // Test that the LLVMIR generated is verifiable.
 // RUN: opt -passes=verify -disable-output %t.ll
@@ -37,7 +39,7 @@ SYCL_EXTERNAL T math_funcs_scalar(T a, T b, T c) {
   a += sycl::exp2(a);
   // MLIR: sycl.math.expm1 %{{.*}} : [[MLIR_TYPE]]
   // LLVM: %[[exp:.*]] = call [[LLVM_TYPE]] @llvm.exp.[[INTR_TYPE]]
-  // LLVM-NEXT: fsub [[LLVM_TYPE]] %[[exp]], 1.000000e+00
+  // LLVM-NEXT: fsub [[LLVM_TYPE]] %[[exp]], {{1\.000000e\+00|0xH3C00}}
   a += sycl::expm1(a);
   // MLIR: sycl.math.fabs %{{.*}} : [[MLIR_TYPE]]
   // LLVM: call [[LLVM_TYPE]] @llvm.fabs.[[INTR_TYPE]]
@@ -65,7 +67,7 @@ SYCL_EXTERNAL T math_funcs_scalar(T a, T b, T c) {
   a += sycl::round(a);
   // MLIR: sycl.math.rsqrt %{{.*}} : [[MLIR_TYPE]]
   // LLVM: %[[sqrt:.*]] = call [[LLVM_TYPE]] @llvm.sqrt.[[INTR_TYPE]]
-  // LLVM-NEXT: fdiv [[LLVM_TYPE]] 1.000000e+00, %[[sqrt]]
+  // LLVM-NEXT: fdiv [[LLVM_TYPE]] {{1\.000000e\+00|0xH3C00}}, %[[sqrt]]
   a += sycl::rsqrt(a);
   // MLIR: sycl.math.sin %{{.*}} : [[MLIR_TYPE]]
   // LLVM: call [[LLVM_TYPE]] @llvm.sin.[[INTR_TYPE]]
@@ -84,5 +86,6 @@ SYCL_EXTERNAL double math_funcs(double a, double b, double c) {
   double res = 0.0;
   res += math_funcs_scalar<float>(a, b, c);
   res += math_funcs_scalar<double>(a, b, c);
+  res += math_funcs_scalar<sycl::half>(a, b, c);
   return res;
 }

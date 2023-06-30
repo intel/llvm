@@ -105,6 +105,7 @@ def SYCL_GroupType : SYCL_Type<"Group", "group"> {
 }
 
 def SYCL_HalfType : SYCL_Type<"Half", "half"> {
+  let summary = "sycl::half";
   let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `(` $body `)` `>`";
 }
