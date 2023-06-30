@@ -36,6 +36,15 @@ on:
       build_artifact_suffix:
         type: string
         required: true
+      artifact_archive_name:
+        type: string
+        default: llvm_sycl.tar.zst
+      artifact_compress_command:
+        type: string
+        default: zstd -9
+      artifact_decompress_command:
+        type: string
+        default: zstd
       lts_matrix:
         type: string
         required: false
@@ -182,13 +191,13 @@ jobs:
 
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      run: tar -I 'zstd -9' -cf llvm_sycl.tar.zst -C $GITHUB_WORKSPACE/build/install .
+      run: tar -I '${{ inputs.artifact_compress_command }}' -cf ${{ inputs.artifact_archive_name }} -C $GITHUB_WORKSPACE/build/install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
-        path: llvm_sycl.tar.zst
+        path: ${{ inputs.artifact_archive_name }}
 
   aws-start:
     name: Start AWS
@@ -244,7 +253,8 @@ jobs:
       name: Run SYCL End-to-End tests
       with:
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.zst
+        sycl_archive: ${{ inputs.artifact_archive_name }}
+        decompress_command: ${{ inputs.artifact_decompress_command }}
         targets: ${{ matrix.targets }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
 
@@ -290,7 +300,8 @@ jobs:
       with:
         test_ref: ${{ inputs.cts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.zst
+        sycl_archive: ${{ inputs.artifact_archive_name }}
+        decompress_command: ${{ inputs.artifact_decompress_command }}
         sycl_device_filter: ${{ matrix.sycl_device_filter }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.cts_cmake_extra_args }}'
 
