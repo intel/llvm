@@ -17,14 +17,9 @@ namespace detail {
 sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
                            addressing_mode addressingMode,
                            filtering_mode filteringMode,
-                           mipmap_filtering_mode mipmapFilteringMode,
-                           float minMipmapLevelClamp, float maxMipmapLevelClamp,
-                           float maxAnisotropy, const property_list &propList)
+                           const property_list &propList)
     : MCoordNormMode(normalizationMode), MAddrMode(addressingMode),
-      MFiltMode(filteringMode), MMipFiltMode(mipmapFilteringMode),
-      MMinMipmapLevelClamp(minMipmapLevelClamp),
-      MMaxMipmapLevelClamp(maxMipmapLevelClamp), MMaxAnisotropy(maxAnisotropy),
-      MPropList(propList) {}
+      MFiltMode(filteringMode), MPropList(propList) {}
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 
@@ -69,8 +64,6 @@ sampler_impl::getOrCreateSampler(const context &Context) {
       static_cast<pi_sampler_properties>(MAddrMode),
       PI_SAMPLER_INFO_FILTER_MODE,
       static_cast<pi_sampler_properties>(MFiltMode),
-      PI_SAMPLER_INFO_MIP_FILTER_MODE,
-      static_cast<pi_sampler_properties>(MMipFiltMode),
       0};
 
   sycl::detail::pi::PiResult errcode_ret = PI_SUCCESS;
@@ -78,8 +71,7 @@ sampler_impl::getOrCreateSampler(const context &Context) {
   const PluginPtr &Plugin = getSyclObjImpl(Context)->getPlugin();
 
   errcode_ret = Plugin->call_nocheck<PiApiKind::piSamplerCreate>(
-      getSyclObjImpl(Context)->getHandleRef(), sprops, MMinMipmapLevelClamp,
-      MMaxMipmapLevelClamp, MMaxAnisotropy, &resultSampler);
+      getSyclObjImpl(Context)->getHandleRef(), sprops, &resultSampler);
 
   if (errcode_ret == PI_ERROR_INVALID_OPERATION)
     throw feature_not_supported("Images are not supported by this device.",
@@ -96,24 +88,10 @@ addressing_mode sampler_impl::get_addressing_mode() const { return MAddrMode; }
 
 filtering_mode sampler_impl::get_filtering_mode() const { return MFiltMode; }
 
-mipmap_filtering_mode sampler_impl::get_mipmap_filtering_mode() const {
-  return MMipFiltMode;
-}
-
 coordinate_normalization_mode
 sampler_impl::get_coordinate_normalization_mode() const {
   return MCoordNormMode;
 }
-
-float sampler_impl::get_min_mipmap_level_clamp() const {
-  return MMinMipmapLevelClamp;
-}
-
-float sampler_impl::get_max_mipmap_level_clamp() const {
-  return MMaxMipmapLevelClamp;
-}
-
-float sampler_impl::get_max_anisotropy() const { return MMaxAnisotropy; }
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

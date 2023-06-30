@@ -92,11 +92,55 @@
 // 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
 // 12.31 Added PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP device
 // info query.
-// 12.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
+// 13.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
 // piextQueueGetNativeHandle
+// 13.33 Adding support for experimental bindless images. This includes
+//       - Added device info queries
+//         - Device queries for bindless image support
+//           - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT
+//         - Device queries for pitched USM allocations
+//           - PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_PITCH_ALIGN
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH
+//         - Device queries for mipmap image support
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT
+//         - Device queries for interop memory support
+//           - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT
+//       - Added PI_IMAGE_INFO_DEPTH to _pi_image_info
+//       - Added _pi_image_copy_flags enum to determine direction of copy
+//       - Added new extension functions
+//         - piextBindlessImageSamplerCreate
+//         - piextUSMPitchedAlloc
+//         - piextMemUnsampledImageHandleDestroy
+//         - piextMemSampledImageHandleDestroy
+//         - piextMemImageAllocate
+//         - piextMemImageFree
+//         - piextMemUnsampledImageCreate
+//         - piextMemSampledImageCreate
+//         - piextMemImageCopy
+//         - piextMemImageGetInfo
+//         - piextMemMipmapGetLevel
+//         - piextMemMipmapFree
+//         - piextMemImportOpaqueFD
+//         - piextMemMapExternalArray
+//         - piextMemReleaseInterop
+//         - piextImportExternalSemaphoreOpaqueFD
+//         - piextDestroyExternalSemaphore
+//         - piextWaitExternalSemaphore
+//         - piextSignalExternalSemaphore
 
 #define _PI_H_VERSION_MAJOR 13
-#define _PI_H_VERSION_MINOR 32
+#define _PI_H_VERSION_MINOR 33
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -493,10 +537,7 @@ typedef enum {
   PI_COMMAND_TYPE_SVM_MEMFILL = 0x120B,
   PI_COMMAND_TYPE_SVM_MAP = 0x120C,
   PI_COMMAND_TYPE_SVM_UNMAP = 0x120D,
-  PI_COMMAND_TYPE_INTEROP_SEMAPHORE_WAIT = 0x120E,
-  PI_COMMAND_TYPE_INTEROP_SEMAPHORE_SIGNAL = 0x120F,
   PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ = 0x418E,
-  PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE = 0x418F,
 } _pi_command_type;
 
 typedef enum {
@@ -595,11 +636,6 @@ typedef enum {
   PI_SAMPLER_FILTER_MODE_NEAREST = 0x1140,
   PI_SAMPLER_FILTER_MODE_LINEAR = 0x1141,
 } _pi_sampler_filter_mode;
-
-typedef enum {
-  PI_SAMPLER_MIP_FILTER_MODE_NEAREST = 0x1142,
-  PI_SAMPLER_MIP_FILTER_MODE_LINEAR = 0x1143,
-} _pi_sampler_mip_filter_mode;
 
 using pi_context_properties = intptr_t;
 
@@ -721,7 +757,6 @@ using pi_image_channel_type = _pi_image_channel_type;
 using pi_buffer_create_type = _pi_buffer_create_type;
 using pi_sampler_addressing_mode = _pi_sampler_addressing_mode;
 using pi_sampler_filter_mode = _pi_sampler_filter_mode;
-using pi_sampler_mip_filter_mode = _pi_sampler_mip_filter_mode;
 using pi_sampler_info = _pi_sampler_info;
 using pi_event_status = _pi_event_status;
 using pi_program_build_info = _pi_program_build_info;
@@ -1629,7 +1664,6 @@ __SYCL_EXPORT pi_result piextEventCreateWithNativeHandle(
 //
 __SYCL_EXPORT pi_result piSamplerCreate(
     pi_context context, const pi_sampler_properties *sampler_properties,
-    float minMipmapLevelClamp, float maxMipmapLevelClamp, float maxAnisotropy,
     pi_sampler *result_sampler);
 
 __SYCL_EXPORT pi_result piSamplerGetInfo(pi_sampler sampler,
@@ -2244,6 +2278,20 @@ __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
     pi_image_format *image_format, pi_image_desc *image_desc,
     pi_sampler sampler, pi_mem *ret_mem, pi_image_handle *ret_handle);
+
+/// API to create samplers for bindless images.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param sampler_properties is the pointer to the sampler properties bitfield
+/// \param min_mipmap_level_clamp is the minimum mipmap level to sample from
+/// \param max_mipmap_level_clamp is the maximum mipmap level to sample from
+/// \param max_anisotropy is the maximum anisotropic ratio
+/// \param result_sampler is the returned sampler
+__SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
+    pi_context context, const pi_sampler_properties *sampler_properties,
+    float min_mipmap_level_clamp, float max_mipmap_level_clamp,
+    float max_anisotropy, pi_sampler *result_sampler);
 
 /// API to copy image data Host to Device or Device to Host
 ///

@@ -624,6 +624,24 @@ pi_result piextMemSampledImageCreate(
   return retErr;
 }
 
+pi_result piextBindlessImageSamplerCreate(
+    [[maybe_unused]] pi_context context,
+    [[maybe_unused]] const pi_sampler_properties *sampler_properties,
+    [[maybe_unused]] float min_mipmap_level_clamp,
+    [[maybe_unused]] float max_mipmap_level_clamp,
+    [[maybe_unused]] float max_anisotropy,
+    [[maybe_unused]] pi_sampler *result_sampler) {
+  assert(context != nullptr);
+  assert(sampler_properties != nullptr);
+  assert(result_sampler != nullptr);
+
+  die("piextBindlessImageSamplerCreate not implemented on level zero "
+      "backend.\n");
+  // No image formats are supported!
+  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  return retErr;
+}
+
 pi_result
 piextMemImageCopy([[maybe_unused]] pi_queue command_queue,
                   [[maybe_unused]] void *dst_ptr,
@@ -781,11 +799,8 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
 //
 pi_result piSamplerCreate(pi_context Context,
                           const pi_sampler_properties *SamplerProperties,
-                          const float minMipmapLevelClamp,
-                          const float maxMipmapLevelClamp,
-                          const float maxAnisotropy, pi_sampler *RetSampler) {
-  return pi2ur::piSamplerCreate(Context, SamplerProperties, minMipmapLevelClamp,
-                                maxMipmapLevelClamp, maxAnisotropy, RetSampler);
+                          pi_sampler *RetSampler) {
+  return pi2ur::piSamplerCreate(Context, SamplerProperties, RetSampler);
 }
 
 pi_result piSamplerGetInfo(pi_sampler Sampler, pi_sampler_info ParamName,

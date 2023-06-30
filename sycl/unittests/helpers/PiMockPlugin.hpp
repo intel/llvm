@@ -546,6 +546,14 @@ inline pi_result mock_piextMemSampledImageCreate(
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextBindlessImageSamplerCreate(
+    pi_context context, const pi_sampler_properties *sampler_properties,
+    const float minMipmapLevelClamp, const float maxMipmapLevelClamp,
+    const float maxAnisotropy, pi_sampler *result_sampler) {
+  *result_sampler = createDummyHandle<pi_sampler>();
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextMemImageCopy(
     pi_queue command_queue, void *dst_ptr, void *src_ptr,
     const pi_image_format *image_format, const pi_image_desc *image_desc,
@@ -932,10 +940,10 @@ mock_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
 //
 // Sampler
 //
-inline pi_result mock_piSamplerCreate(
-    pi_context context, const pi_sampler_properties *sampler_properties,
-    const float minMipmapLevelClamp, const float maxMipmapLevelClamp,
-    const float maxAnisotropy, pi_sampler *result_sampler) {
+inline pi_result
+mock_piSamplerCreate(pi_context context,
+                     const pi_sampler_properties *sampler_properties,
+                     pi_sampler *result_sampler) {
   *result_sampler = createDummyHandle<pi_sampler>();
   return PI_SUCCESS;
 }

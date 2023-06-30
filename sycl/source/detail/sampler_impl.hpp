@@ -20,7 +20,6 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 enum class addressing_mode : unsigned int;
 enum class filtering_mode : unsigned int;
-enum class mipmap_filtering_mode : unsigned int;
 enum class coordinate_normalization_mode : unsigned int;
 
 namespace detail {
@@ -28,9 +27,7 @@ class __SYCL_EXPORT sampler_impl {
 public:
   sampler_impl(coordinate_normalization_mode normalizationMode,
                addressing_mode addressingMode, filtering_mode filteringMode,
-               mipmap_filtering_mode mipmapFilteringMode,
-               float minMipmapLevelClamp, float maxMipmapLevelClamp,
-               float maxAnisotropy, const property_list &propList);
+               const property_list &propList);
 
   sampler_impl(cl_sampler clSampler, const context &syclContext);
 
@@ -38,15 +35,7 @@ public:
 
   filtering_mode get_filtering_mode() const;
 
-  mipmap_filtering_mode get_mipmap_filtering_mode() const;
-
   coordinate_normalization_mode get_coordinate_normalization_mode() const;
-
-  float get_min_mipmap_level_clamp() const;
-
-  float get_max_mipmap_level_clamp() const;
-
-  float get_max_anisotropy() const;
 
   sycl::detail::pi::PiSampler getOrCreateSampler(const context &Context);
 
@@ -78,10 +67,6 @@ private:
   coordinate_normalization_mode MCoordNormMode;
   addressing_mode MAddrMode;
   filtering_mode MFiltMode;
-  mipmap_filtering_mode MMipFiltMode;
-  float MMinMipmapLevelClamp;
-  float MMaxMipmapLevelClamp;
-  float MMaxAnisotropy;
   property_list MPropList;
 };
 

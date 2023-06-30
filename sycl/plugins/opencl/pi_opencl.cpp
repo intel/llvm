@@ -1086,9 +1086,6 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 pi_result piSamplerCreate(pi_context context,
                           const pi_sampler_properties *sampler_properties,
-                          const float minMipmapLevelClamp,
-                          const float maxMipmapLevelClamp,
-                          const float maxAnisotropy,
                           pi_sampler *result_sampler) {
   // Initialize properties according to OpenCL 2.1 spec.
   pi_result error_code;

@@ -196,6 +196,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextMemImageFree, pi2ur::piextMemImageFree)
   _PI_CL(piextMemUnsampledImageCreate, pi2ur::piextMemUnsampledImageCreate)
   _PI_CL(piextMemSampledImageCreate, pi2ur::piextMemSampledImageCreate)
+  _PI_CL(piextBindlessImageSamplerCreate,
+         pi2ur::piextBindlessImageSamplerCreate)
   _PI_CL(piextMemImageCopy, pi2ur::piextMemImageCopy)
   _PI_CL(piextMemImageGetInfo, pi2ur::piextMemImageGetInfo)
 

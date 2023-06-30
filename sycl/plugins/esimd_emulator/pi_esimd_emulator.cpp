@@ -1553,7 +1553,7 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle, pi_context, bool,
   DIE_NO_IMPLEMENTATION;
 }
 pi_result piSamplerCreate(pi_context, const pi_sampler_properties *,
-                          const float, const float, const float, pi_sampler *) {
+                          pi_sampler *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1827,6 +1827,12 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
 pi_result piEnqueueMemImageWrite(pi_queue, pi_mem, pi_bool, pi_image_offset,
                                  pi_image_region, size_t, size_t, const void *,
                                  pi_uint32, const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextBindlessImageSamplerCreate(pi_context,
+                                          const pi_sampler_properties *, float,
+                                          float, float, pi_sampler *) {
   DIE_NO_IMPLEMENTATION;
 }
 

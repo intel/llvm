@@ -70,46 +70,23 @@ urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
   ur_result_t Err = UR_RESULT_SUCCESS;
 
   switch (image_channel_type) {
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
-    cuda_format = CU_AD_FORMAT_UNORM_INT8X1;
-    PixelTypeSizeBytes = 1;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
-    cuda_format = CU_AD_FORMAT_UNSIGNED_INT8;
-    PixelTypeSizeBytes = 1;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
-    cuda_format = CU_AD_FORMAT_SIGNED_INT8;
-    PixelTypeSizeBytes = 1;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
-    cuda_format = CU_AD_FORMAT_UNORM_INT16X1;
-    PixelTypeSizeBytes = 2;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
-    cuda_format = CU_AD_FORMAT_UNSIGNED_INT16;
-    PixelTypeSizeBytes = 2;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
-    cuda_format = CU_AD_FORMAT_SIGNED_INT16;
-    PixelTypeSizeBytes = 2;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
-    cuda_format = CU_AD_FORMAT_HALF;
-    PixelTypeSizeBytes = 2;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
-    cuda_format = CU_AD_FORMAT_UNSIGNED_INT32;
-    PixelTypeSizeBytes = 4;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
-    cuda_format = CU_AD_FORMAT_SIGNED_INT32;
-    PixelTypeSizeBytes = 4;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_FLOAT:
-    cuda_format = CU_AD_FORMAT_FLOAT;
-    PixelTypeSizeBytes = 4;
-    break;
+#define CASE(FROM, TO, SIZE)                                                   \
+  case FROM: {                                                                 \
+    cuda_format = TO;                                                          \
+    PixelTypeSizeBytes = SIZE;                                                 \
+    break;                                                                     \
+  }
+    CASE(UR_IMAGE_CHANNEL_TYPE_UNORM_INT8, CU_AD_FORMAT_UNORM_INT8X1, 1)
+    CASE(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8, CU_AD_FORMAT_UNSIGNED_INT8, 1)
+    CASE(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8, CU_AD_FORMAT_SIGNED_INT8, 1)
+    CASE(UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, CU_AD_FORMAT_UNORM_INT16X1, 2)
+    CASE(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16, CU_AD_FORMAT_UNSIGNED_INT16, 2)
+    CASE(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16, CU_AD_FORMAT_SIGNED_INT16, 2)
+    CASE(UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT, CU_AD_FORMAT_HALF, 2)
+    CASE(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32, CU_AD_FORMAT_UNSIGNED_INT32, 4)
+    CASE(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32, CU_AD_FORMAT_SIGNED_INT32, 4)
+    CASE(UR_IMAGE_CHANNEL_TYPE_FLOAT, CU_AD_FORMAT_FLOAT, 4)
+#undef CASE
   default:
     Err = UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
     break;
@@ -127,40 +104,26 @@ urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
 ur_result_t
 cudaToUrImageChannelFormat(CUarray_format cuda_format,
                            ur_image_channel_type_t *return_image_channel_type) {
-  assert(return_image_channel_type);
+  UR_ASSERT(return_image_channel_type, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   ur_result_t Err = UR_RESULT_SUCCESS;
 
   switch (cuda_format) {
-  case CU_AD_FORMAT_UNSIGNED_INT8:
-    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
-    break;
-  case CU_AD_FORMAT_UNSIGNED_INT16:
-    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
-    break;
-  case CU_AD_FORMAT_UNSIGNED_INT32:
-    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
-    break;
-  case CU_AD_FORMAT_SIGNED_INT8:
-    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
-    break;
-  case CU_AD_FORMAT_SIGNED_INT16:
-    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
-    break;
-  case CU_AD_FORMAT_SIGNED_INT32:
-    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
-    break;
-  case CU_AD_FORMAT_HALF:
-    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
-    break;
-  case CU_AD_FORMAT_FLOAT:
-    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_FLOAT;
-    break;
-  case CU_AD_FORMAT_UNORM_INT8X1:
-    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_UNORM_INT8;
-    break;
-  case CU_AD_FORMAT_UNORM_INT16X1:
-    *return_image_channel_type = UR_IMAGE_CHANNEL_TYPE_UNORM_INT16;
-    break;
+#define MAP(FROM, TO)                                                          \
+  case FROM: {                                                                 \
+    *return_image_channel_type = TO;                                           \
+    break;                                                                     \
+  }
+    MAP(CU_AD_FORMAT_UNSIGNED_INT8, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8);
+    MAP(CU_AD_FORMAT_UNSIGNED_INT16, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16);
+    MAP(CU_AD_FORMAT_UNSIGNED_INT32, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32);
+    MAP(CU_AD_FORMAT_SIGNED_INT8, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8);
+    MAP(CU_AD_FORMAT_SIGNED_INT16, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16);
+    MAP(CU_AD_FORMAT_SIGNED_INT32, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32);
+    MAP(CU_AD_FORMAT_HALF, UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT);
+    MAP(CU_AD_FORMAT_FLOAT, UR_IMAGE_CHANNEL_TYPE_FLOAT);
+    MAP(CU_AD_FORMAT_UNORM_INT8X1, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8);
+    MAP(CU_AD_FORMAT_UNORM_INT16X1, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16);
+#undef MAP
   default:
     Err = UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
     break;
@@ -262,17 +225,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
   std::ignore = pUSMDesc;
   std::ignore = pool;
 
-  assert(widthInBytes > 0);
-  assert(height > 0);
-  assert(elementSizeBytes > 0);
+  UR_ASSERT((widthInBytes > 0), UR_RESULT_ERROR_INVALID_VALUE);
+  UR_ASSERT((height > 0), UR_RESULT_ERROR_INVALID_VALUE);
+  UR_ASSERT((elementSizeBytes > 0), UR_RESULT_ERROR_INVALID_VALUE);
 
   // elementSizeBytes can only take on values of 4, 8, or 16.
   // small data types need to be minimised to 4.
   if (elementSizeBytes < 4) {
     elementSizeBytes = 4;
   }
-  assert(elementSizeBytes == 4 || elementSizeBytes == 8 ||
-         elementSizeBytes == 16);
+  UR_ASSERT((elementSizeBytes == 4 || elementSizeBytes == 8 ||
+             elementSizeBytes == 16),
+            UR_RESULT_ERROR_INVALID_VALUE);
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedContext Active(hDevice->getContext());
@@ -438,18 +402,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 
   unsigned int NumChannels = 0;
   RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
-  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
-    sycl::detail::ur::die("urBindlessImagesUnsampledImageCreateExp given "
-                          "unsupported channelType");
+  if (RetErr != UR_RESULT_SUCCESS) {
+    return RetErr;
   }
 
   CUarray_format format;
   size_t PixelTypeSizeBytes;
   RetErr = urToCudaImageChannelFormat(pImageFormat->channelType, &format,
                                       &PixelTypeSizeBytes);
-  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
-    sycl::detail::ur::die("urBindlessImagesUnsampledImageCreateExp given "
-                          "unsupported channelType");
+  if (RetErr != UR_RESULT_SUCCESS) {
+    return RetErr;
   }
 
   try {
@@ -506,18 +468,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
   unsigned int NumChannels = 0;
   RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
-  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
-    sycl::detail::ur::die("urBindlessImagesSampledImageCreateExp given "
-                          "unsupported channelOrder");
+  if (RetErr != UR_RESULT_SUCCESS) {
+    return RetErr;
   }
 
   CUarray_format format;
   size_t PixelTypeSizeBytes;
   RetErr = urToCudaImageChannelFormat(pImageFormat->channelType, &format,
                                       &PixelTypeSizeBytes);
-  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
-    sycl::detail::ur::die("urBindlessImagesSampledImageCreateExp given "
-                          "unsupported channelType");
+  if (RetErr != UR_RESULT_SUCCESS) {
+    return RetErr;
   }
 
   try {
@@ -607,18 +567,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   size_t PixelTypeSizeBytes = 0;
 
   RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
-  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
-    sycl::detail::ur::die(
-        "urBindlessImagesImageCopyExp given unsupported channelOrder");
+  if (RetErr != UR_RESULT_SUCCESS) {
+    return RetErr;
   }
 
   // We need to get this now in bytes for calculating the total image size
   // later.
   RetErr = urToCudaImageChannelFormat(pImageFormat->channelType, nullptr,
                                       &PixelTypeSizeBytes);
-  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
-    sycl::detail::ur::die(
-        "urBindlessImagesImageCopyExp given unsupported channelType");
+  if (RetErr != UR_RESULT_SUCCESS) {
+    return RetErr;
   }
 
   size_t PixelSizeBytes = PixelTypeSizeBytes * NumChannels;
@@ -904,17 +862,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 
   unsigned int NumChannels = 0;
   RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
-  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
-    sycl::detail::ur::die("cuda_piextMemMapExternalArray given "
-                          "unsupported channelOrder\n");
+  if (RetErr != UR_RESULT_SUCCESS) {
+    return RetErr;
   }
 
   CUarray_format format;
   RetErr =
       urToCudaImageChannelFormat(pImageFormat->channelType, &format, nullptr);
-  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
-    sycl::detail::ur::die("cuda_piextMemMapExternalArray given "
-                          "unsupported channelType\n");
+  if (RetErr != UR_RESULT_SUCCESS) {
+    return RetErr;
   }
 
   try {

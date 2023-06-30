@@ -83,6 +83,7 @@ piSamplerRelease
 piSamplerRetain
 piTearDown
 piclProgramCreateWithSource
+piextBindlessImageSamplerCreate
 piextContextCreateWithNativeHandle
 piextContextGetNativeHandle
 piextContextSetExtendedDeleter
