@@ -70,6 +70,7 @@ target_link_libraries(cgeist PRIVATE
   MLIRPolygeistToLLVM
   MLIRPolygeistTransforms
   MLIRLLVMToLLVMIRTranslation
+  MLIRReconcileUnrealizedCasts
   MLIRSCFToOpenMP
   MLIROpenMPToLLVM
   MLIROpenMPToLLVMIRTranslation
