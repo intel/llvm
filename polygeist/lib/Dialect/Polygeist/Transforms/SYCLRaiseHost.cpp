@@ -52,6 +52,99 @@ public:
 // Pattern
 //===----------------------------------------------------------------------===//
 
+/// Searches the component of the split demangled function name containing the
+/// actual function name in \p components. Returns whether the actual function
+/// name is equal to \p functionName.
+static bool matchFunctionName(ArrayRef<StringRef> components,
+                              StringRef functionName) {
+  // First search the component containing the function name
+  std::size_t parenPos = 0;
+  components = components.drop_while([&](StringRef component) {
+    parenPos = component.find('(');
+    return parenPos == StringRef::npos;
+  });
+
+  // Not found
+  if (components.empty())
+    return false;
+
+  std::size_t nameLength = functionName.size();
+  if (parenPos < nameLength) {
+    // Component got is too short
+    return false;
+  }
+
+  StringRef component = components.front();
+  return functionName == component.substr(parenPos - nameLength, nameLength);
+}
+
+/// Returns whether the demangled function name \p functionName comes from a
+/// call to function \p name, member of \p typeName in namespace \p
+/// namespaceprefix.
+static bool checkFunction(StringRef functionName, StringRef namespacePrefix,
+                          StringRef typeName, StringRef name) {
+  // First split demangled function name in its components
+  constexpr StringLiteral namespaceQualifier = "::";
+  SmallVector<StringRef> components;
+  functionName.split(components, namespaceQualifier);
+
+  // Check namespace
+  if (components.empty() || components.front() != namespacePrefix)
+    return false;
+
+  // Check type name
+  ArrayRef<StringRef> remaining(components.begin() + 1, components.end());
+  remaining = remaining.drop_until(
+      [=](StringRef component) { return component.starts_with(typeName); });
+  if (remaining.empty())
+    return false;
+
+  // Check function name
+  return matchFunctionName(remaining.drop_front(), name);
+}
+
+/// Returns whether the demangled function name \p functionName comes from a
+/// call to function \p name, member of \p typeName in the std namespace.
+static bool isSTDFunction(StringRef functionName, StringRef typeName,
+                          StringRef name) {
+  constexpr StringLiteral namespacePrefix = "std";
+  return checkFunction(functionName, namespacePrefix, typeName, name);
+}
+
+/// Returns the demangled name of the function called by the input operation.
+static FailureOr<std::string> getDemangledCalleeName(CallOpInterface op) {
+  // Get the callable
+  auto callable = dyn_cast<SymbolRefAttr>(op.getCallableForCallee());
+  if (!callable)
+    return failure();
+
+  // Get its name
+  StringRef mangledCalleeName = callable.getLeafReference();
+
+  // Return the demangled name
+  std::string demangledCalleeName = llvm::demangle(mangledCalleeName);
+  return demangledCalleeName == mangledCalleeName
+             ? FailureOr<std::string>() // No demangling could be performed
+             : FailureOr<std::string>(demangledCalleeName);
+}
+
+template <typename T> static auto getUsersOfType(Value value) {
+  constexpr auto filter = [](const OpOperand &operand) -> bool {
+    return isa<T>(operand.getOwner());
+  };
+  constexpr auto map = [](const OpOperand &operand) -> T {
+    return cast<T>(operand.getOwner());
+  };
+  return llvm::map_range(llvm::make_filter_range(value.getUsers(), filter),
+                         map);
+}
+
+/// Returns whether \p type is an `llvm.struct` type with name \p className.
+static bool isClassType(Type type, StringRef className) {
+  auto st = dyn_cast<LLVM::LLVMStructType>(type);
+  return st && st.isIdentified() && st.getName() == className;
+}
+
 namespace {
 struct RaiseKernelName : public OpRewritePattern<LLVM::AddressOfOp> {
 public:
@@ -484,6 +577,76 @@ struct RaiseRangeConstructor
       RangeTypeTag>::RaiseArrayConstructorBasePattern;
 };
 
+/// Raise constructs assigning a kernel name to a handler to
+/// `sycl.host.handler.set_kernel`.
+///
+/// This pattern acts on `FunctionOpInterface` instances as it will not be
+/// removing the operations assigning the kernel name, but creating additional
+/// ones to mark the construct.
+struct RaiseSetKernel : public OpInterfaceRewritePattern<FunctionOpInterface> {
+public:
+  using OpInterfaceRewritePattern<
+      FunctionOpInterface>::OpInterfaceRewritePattern;
+
+  LogicalResult matchAndRewrite(FunctionOpInterface op,
+                                PatternRewriter &rewriter) const final {
+    bool changed = false;
+    // Go through each `sycl.host.get_kernel` introduced
+    op.walk([&](sycl::SYCLHostGetKernelOp getKernel) {
+      SymbolRefAttr symbolRef = getKernel.getKernelNameAttr();
+      // `llvm.invoke` operations using that are candidates for this pattern
+      for (auto invoke : getUsersOfType<LLVM::InvokeOp>(getKernel)) {
+        // We mark already visited `llvm.invoke` operations to avoid infinite
+        // recursion
+        constexpr StringLiteral alreadyVisitedAttrName =
+            "RaiseSetKernelVisited";
+        if (invoke->hasAttr(alreadyVisitedAttrName))
+          continue;
+        invoke->setAttr(alreadyVisitedAttrName, rewriter.getAttr<UnitAttr>());
+
+        // Check the 4th argument (input `str`) is defined by the
+        // `sycl.host.get_kernel` operation
+        constexpr unsigned inputStringArgumentNumber = 3;
+        if (invoke.getOperand(inputStringArgumentNumber) != getKernel)
+          continue;
+
+        // Search for `std::basic_string<...>::replace` calls
+        constexpr StringLiteral targetType = "basic_string";
+        constexpr StringLiteral targetFunction = "replace";
+        FailureOr<std::string> demangledCalleeName =
+            getDemangledCalleeName(invoke);
+        if (failed(demangledCalleeName) ||
+            !isSTDFunction(*demangledCalleeName, targetType, targetFunction))
+          continue;
+        Value handler = getHandlerFromThisArg(invoke);
+        if (!handler)
+          continue;
+
+        // Introduce operation marking this construct
+        rewriter.updateRootInPlace(op, [&] {
+          OpBuilder::InsertionGuard IG(rewriter);
+          rewriter.setInsertionPoint(invoke);
+          rewriter.create<sycl::SYCLHostHandlerSetKernel>(invoke.getLoc(),
+                                                          handler, symbolRef);
+        });
+        changed = true;
+      }
+    });
+
+    return success(changed);
+  }
+
+private:
+  /// Return the handler being accessed through the `this` argument of the input
+  /// `llvm.invoke` \p op.
+  static Value getHandlerFromThisArg(LLVM::InvokeOp op) {
+    auto gep = op.getOperand(0).getDefiningOp<LLVM::GEPOp>();
+    return gep && isClassType(gep.getSourceElementType(),
+                              "class.sycl::_V1::handler")
+               ? gep.getBase()
+               : Value();
+  }
+};
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -498,6 +661,11 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   rewritePatterns.add<RaiseKernelName, BufferInvokeConstructorPattern,
                       AccessorInvokeConstructorPattern, RaiseIDConstructor,
                       RaiseRangeConstructor>(context);
+
+  // RaiseKernelName should be prioritized, as RaiseSetKernel depends on that.
+  rewritePatterns.add<RaiseKernelName>(context, /*benefit=*/2);
+  rewritePatterns.add<RaiseSetKernel>(context, /*benefit=*/1);
+
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
   if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen)))

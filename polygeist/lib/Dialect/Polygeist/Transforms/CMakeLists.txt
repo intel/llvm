@@ -53,4 +53,6 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRSideEffectInterfaces
   MLIRSCFToControlFlow
   MLIRTransformUtils
+
+  LINK_COMPONENTS Demangle
 )
