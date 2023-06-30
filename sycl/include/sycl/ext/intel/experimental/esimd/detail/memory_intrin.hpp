@@ -80,6 +80,50 @@ __esimd_raw_sends2(uint8_t modifier, uint8_t execSize,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+// \brief Raw sends.
+//
+// @tparam modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @tparam execSize the execution size.
+//
+// @tparam numSrc0 the number of GRFs for source-0.
+//
+// @tparam numSrc1 the number of GRFs for source-1.
+//
+// @tparam numDst the number of GRFs for destination.
+//
+// @tparam sfid the shared function ID.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+// @param msgSrc1 the second source operand of send message.
+//
+// @param msgDst the destination operand of send message.
+//
+// Returns a simd vector of type Ty1 and size N1.
+template <uint8_t modifier, uint8_t execSize, uint8_t numSrc0, uint8_t numSrc1,
+          uint8_t numDst, uint8_t sfid, typename Ty1, int N1, typename Ty2,
+          int N2, typename Ty3, int N3, int N = 16>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty1, N1>
+__esimd_raw_sends2_constexpr(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                             uint32_t exDesc, uint32_t msgDesc,
+                             __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
+                             __ESIMD_DNS::vector_type_t<Ty3, N3> msgSrc1,
+                             __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 // \brief Raw send.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
@@ -113,6 +157,45 @@ __esimd_raw_send2(uint8_t modifier, uint8_t execSize,
                   uint8_t numDst, uint8_t sfid, uint32_t exDesc,
                   uint32_t msgDesc, __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
                   __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+// \brief Raw send.
+//
+// @tparam modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @tparam execSize the execution size.
+//
+// @tparam numSrc0 the number of GRFs for source-0.
+//
+// @tparam numDst the number of GRFs for destination.
+//
+// @tparam sfid the shared function ID.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+// @param msgDst the destination operand of send message.
+//
+// Returns a simd vector of type Ty1 and size N1.
+//
+template <uint8_t modifier, uint8_t execSize, uint8_t numSrc0, uint8_t numDst,
+          uint8_t sfid, typename Ty1, int N1, typename Ty2, int N2, int N = 16>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty1, N1>
+__esimd_raw_send2_constexpr(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                            uint32_t exDesc, uint32_t msgDesc,
+                            __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
+                            __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -161,6 +244,42 @@ __esimd_raw_sends2_noresult(uint8_t modifier, uint8_t execSize,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+// \brief Raw sends.
+//
+// @tparam modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @tparam execSize the execution size.
+//
+// @tparam numSrc0 the number of GRFs for source-0.
+//
+// @tparam numSrc1 the number of GRFs for source-1.
+//
+// @tparam sfid the shared function ID.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+// @param msgSrc1 the second source operand of send message.
+//
+template <uint8_t modifier, uint8_t execSize, uint8_t numSrc0, uint8_t numSrc1,
+          uint8_t sfid, typename Ty1, int N1, typename Ty2, int N2, int N = 16>
+__ESIMD_INTRIN void __esimd_raw_sends2_noresult_constexpr(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0,
+    __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc1)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 // \brief Raw send.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
@@ -187,6 +306,37 @@ __esimd_raw_send2_noresult(uint8_t modifier, uint8_t execSize,
                            uint8_t numSrc0, uint8_t sfid, uint32_t exDesc,
                            uint32_t msgDesc,
                            __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+// \brief Raw send.
+//
+// @tparam modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @tparam execSize the execution size.
+//
+// @tparam numSrc0 the number of GRFs for source-0.
+//
+// @tparam sfid the shared function ID.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+template <uint8_t modifier, uint8_t execSize, uint8_t numSrc0, uint8_t sfid,
+          typename Ty1, int N1, int N = 16>
+__ESIMD_INTRIN void __esimd_raw_send2_noresult_constexpr(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
