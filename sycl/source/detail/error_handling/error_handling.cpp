@@ -22,30 +22,7 @@ namespace detail::enqueue_kernel_launch {
 
 void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
                                 const NDRDescT &NDRDesc) {
-  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
-
-  const PluginPtr &Plugin = DeviceImpl.getPlugin();
-  sycl::detail::pi::PiDevice Device = DeviceImpl.getHandleRef();
   sycl::platform Platform = DeviceImpl.get_platform();
-
-  if (HasLocalSize) {
-    size_t MaxThreadsPerBlock[3] = {};
-    Plugin->call<PiApiKind::piDeviceGetInfo>(
-        Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxThreadsPerBlock),
-        MaxThreadsPerBlock, nullptr);
-
-    for (size_t I = 0; I < 3; ++I) {
-      if (MaxThreadsPerBlock[I] < NDRDesc.LocalSize[I]) {
-        throw sycl::nd_range_error(
-            "The number of work-items in each dimension of a work-group cannot "
-            "exceed {" +
-                std::to_string(MaxThreadsPerBlock[0]) + ", " +
-                std::to_string(MaxThreadsPerBlock[1]) + ", " +
-                std::to_string(MaxThreadsPerBlock[2]) + "} for this device",
-            PI_ERROR_INVALID_WORK_GROUP_SIZE);
-      }
-    }
-  }
 
   // Some of the error handling below is special for particular OpenCL
   // versions.  If this is an OpenCL backend, get the version.
@@ -68,6 +45,9 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
     IsCuda = true;
   }
 
+  const PluginPtr &Plugin = DeviceImpl.getPlugin();
+  sycl::detail::pi::PiDevice Device = DeviceImpl.getHandleRef();
+
   size_t CompileWGSize[3] = {0};
   Plugin->call<PiApiKind::piKernelGetGroupInfo>(
       Kernel, Device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
@@ -77,6 +57,9 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   Plugin->call<PiApiKind::piDeviceGetInfo>(Device,
                                            PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
                                            sizeof(size_t), &MaxWGSize, nullptr);
+
+  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+
   if (CompileWGSize[0] != 0) {
     if (CompileWGSize[0] > MaxWGSize || CompileWGSize[1] > MaxWGSize ||
         CompileWGSize[2] > MaxWGSize)
@@ -111,6 +94,26 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
               std::to_string(CompileWGSize[0]) + "}",
           PI_ERROR_INVALID_WORK_GROUP_SIZE);
   }
+
+  if (HasLocalSize) {
+    size_t MaxThreadsPerBlock[3] = {};
+    Plugin->call<PiApiKind::piDeviceGetInfo>(
+        Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxThreadsPerBlock),
+        MaxThreadsPerBlock, nullptr);
+
+    for (size_t I = 0; I < 3; ++I) {
+      if (MaxThreadsPerBlock[I] < NDRDesc.LocalSize[I]) {
+        throw sycl::nd_range_error(
+            "The number of work-items in each dimension of a work-group cannot "
+            "exceed {" +
+                std::to_string(MaxThreadsPerBlock[0]) + ", " +
+                std::to_string(MaxThreadsPerBlock[1]) + ", " +
+                std::to_string(MaxThreadsPerBlock[2]) + "} for this device",
+            PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      }
+    }
+  }
+
   if (IsOpenCLV1x) {
     // OpenCL 1.x:
     // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
