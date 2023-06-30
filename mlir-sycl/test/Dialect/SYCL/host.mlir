@@ -41,3 +41,11 @@ func.func @f() -> !llvm.ptr {
   %0 = sycl.host.get_kernel @kernels::@k0 : !llvm.ptr
   func.return %0 : !llvm.ptr
 }
+
+// CHECK-LABEL:  func.func @set_kernel(
+// CHECK-SAME:                         %[[VAL_0:.*]]: !llvm.ptr) {
+// CHECK-NEXT:     sycl.host.handler.set_kernel %[[VAL_0]] -> @kernels::@k0
+func.func @set_kernel(%handler: !llvm.ptr) {
+  sycl.host.handler.set_kernel %handler -> @kernels::@k0 : !llvm.ptr
+  func.return
+}
