@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --loop-internalization --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --loop-internalization="unroll-factor=1" --split-input-file %s | FileCheck %s
 
 !sycl_array_2 = !sycl.array<[2], (memref<2xi64, 4>)>
 !sycl_id_2 = !sycl.id<[2], (!sycl_array_2)>
