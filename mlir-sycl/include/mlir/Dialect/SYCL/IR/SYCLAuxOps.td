@@ -38,6 +38,7 @@ def SYCLWrapOp : SYCL_AuxOp<"wrap",
     This operation wraps a value in one of MLIR's built-in types into a SYCL
     type with a single, matching body type.
 
+    Example:
     ```
     %1 = sycl.mlir.wrap %0 : f16 to !sycl.half<(f16)>
     ```
@@ -58,6 +59,7 @@ def SYCLUnwrapOp : SYCL_AuxOp<"unwrap",
     This operation unwraps a value in one of MLIR's built-in types from a SYCL
     type with a single, matching body type.
 
+    Example:
     ```
     %1 = sycl.mlir.unwrap %0 : !sycl.half<(f16)> to f16
     ```
