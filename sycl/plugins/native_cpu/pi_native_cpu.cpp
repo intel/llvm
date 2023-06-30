@@ -16,11 +16,6 @@ struct _pi_object {
   std::atomic<pi_uint32> RefCount;
 };
 
-struct _pi_program : _pi_object {
-  _pi_context *_ctx;
-  const unsigned char *_ptr;
-};
-
 using nativecpu_kernel_t = void(const sycl::detail::NativeCPUArgDesc *,
                                 __nativecpu_state *);
 using nativecpu_ptr_t = nativecpu_kernel_t *;
@@ -134,111 +129,6 @@ pi_result piextPlatformGetNativeHandle(pi_platform, pi_native_handle *) {
 }
 
 pi_result piextPlatformCreateWithNativeHandle(pi_native_handle, pi_platform *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piProgramCreate(pi_context, const void *, size_t, pi_program *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piProgramCreateWithBinary(pi_context context, pi_uint32,
-                                    const pi_device *, const size_t *,
-                                    const unsigned char **binaries, size_t,
-                                    const pi_device_binary_property *,
-                                    pi_int32 *, pi_program *program) {
-  // Todo: proper error checking
-  assert(binaries);
-  auto p = new _pi_program();
-  p->_ptr = binaries[0];
-  p->_ctx = context;
-  *program = p;
-  return PI_SUCCESS;
-}
-
-pi_result piclProgramCreateWithBinary(pi_context, pi_uint32, const pi_device *,
-                                      const size_t *, const unsigned char **,
-                                      pi_int32 *, pi_program *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piclProgramCreateWithSource(pi_context, pi_uint32, const char **,
-                                      const size_t *, pi_program *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piProgramGetInfo(pi_program program, pi_program_info param_name,
-                           size_t param_value_size, void *param_value,
-                           size_t *param_value_size_ret) {
-  assert(program != nullptr);
-
-  switch (param_name) {
-  case PI_PROGRAM_INFO_REFERENCE_COUNT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   &program->RefCount);
-  case PI_PROGRAM_INFO_CONTEXT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   nullptr);
-  case PI_PROGRAM_INFO_NUM_DEVICES:
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  case PI_PROGRAM_INFO_DEVICES:
-    return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
-                        program->_ctx->Device);
-  case PI_PROGRAM_INFO_SOURCE:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   nullptr);
-  case PI_PROGRAM_INFO_BINARY_SIZES:
-    return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
-                        "foo");
-  case PI_PROGRAM_INFO_BINARIES:
-    return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
-                        "foo");
-  case PI_PROGRAM_INFO_KERNEL_NAMES: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, "foo");
-  }
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-  sycl::detail::pi::die("Program info request not implemented");
-  return {};
-}
-
-pi_result piProgramLink(pi_context, pi_uint32, const pi_device *, const char *,
-                        pi_uint32, const pi_program *,
-                        void (*)(pi_program, void *), void *, pi_program *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piProgramCompile(pi_program, pi_uint32, const pi_device *,
-                           const char *, pi_uint32, const pi_program *,
-                           const char **, void (*)(pi_program, void *),
-                           void *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piProgramBuild(pi_program, pi_uint32, const pi_device *, const char *,
-                         void (*)(pi_program, void *), void *) {
-  return PI_SUCCESS;
-}
-
-pi_result piProgramGetBuildInfo(pi_program, pi_device,
-                                pi_program_build_info param_name, size_t,
-                                void *, size_t *) {
-  CONTINUE_NO_IMPLEMENTATION;
-}
-
-pi_result piProgramRetain(pi_program) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piProgramRelease(pi_program program) {
-  delete program;
-  return PI_SUCCESS;
-}
-
-pi_result piextProgramGetNativeHandle(pi_program, pi_native_handle *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextProgramCreateWithNativeHandle(pi_native_handle, pi_context, bool,
-                                             pi_program *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -562,11 +452,6 @@ pi_result piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextGetDeviceFunctionPointer(pi_device, pi_program, const char *,
-                                        pi_uint64 *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piextUSMHostAlloc(void **result_ptr, pi_context,
                             pi_usm_mem_properties *, size_t size, pi_uint32) {
   // Todo: check properties and alignment.
@@ -638,11 +523,6 @@ pi_result piKernelSetExecInfo(pi_kernel, pi_kernel_exec_info, size_t,
   return PI_SUCCESS;
 }
 
-pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
-                                                const void *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
                                   pi_usm_migration_flags, pi_uint32,
                                   const pi_event *, pi_event *) {
@@ -701,12 +581,6 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
     size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
   DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piPluginGetBackendOption(pi_platform platform,
-                                   const char *frontend_option,
-                                   const char **backend_option) {
-  CONTINUE_NO_IMPLEMENTATION;
 }
 
 pi_result piextUSMEnqueueMemset2D(pi_queue queue, void *ptr, size_t pitch,
@@ -853,6 +727,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Platform
   _PI_CL(piPlatformsGet, pi2ur::piPlatformsGet)
   _PI_CL(piPlatformGetInfo, pi2ur::piPlatformGetInfo)
+  _PI_CL(piPluginGetBackendOption, pi2ur::piPluginGetBackendOption)
+
   // Device
   _PI_CL(piDevicesGet, pi2ur::piDevicesGet)
   _PI_CL(piDeviceGetInfo, pi2ur::piDeviceGetInfo)
@@ -861,8 +737,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piDeviceRelease, pi2ur::piDeviceRelease)
   _PI_CL(piextDeviceSelectBinary, pi2ur::piextDeviceSelectBinary)
   // TODO: uncomment when program is fully ported
-  //  _PI_CL(piextGetDeviceFunctionPointer,
-  //  pi2ur::piextGetDeviceFunctionPointer)
+  _PI_CL(piextGetDeviceFunctionPointer, pi2ur::piextGetDeviceFunctionPointer)
   _PI_CL(piextDeviceGetNativeHandle, pi2ur::piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          pi2ur::piextDeviceCreateWithNativeHandle)
@@ -899,20 +774,21 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextMemCreateWithNativeHandle, pi2ur::piextMemCreateWithNativeHandle)
 
   // Program
-  _PI_CL(piProgramCreate, piProgramCreate)
-  _PI_CL(piclProgramCreateWithSource, piclProgramCreateWithSource)
-  _PI_CL(piProgramCreateWithBinary, piProgramCreateWithBinary)
-  _PI_CL(piProgramGetInfo, piProgramGetInfo)
-  _PI_CL(piProgramCompile, piProgramCompile)
-  _PI_CL(piProgramBuild, piProgramBuild)
-  _PI_CL(piProgramLink, piProgramLink)
-  _PI_CL(piProgramGetBuildInfo, piProgramGetBuildInfo)
-  _PI_CL(piProgramRetain, piProgramRetain)
-  _PI_CL(piProgramRelease, piProgramRelease)
-  _PI_CL(piextProgramGetNativeHandle, piextProgramGetNativeHandle)
-  _PI_CL(piextProgramCreateWithNativeHandle, piextProgramCreateWithNativeHandle)
+  _PI_CL(piProgramCreate, pi2ur::piProgramCreate)
+  _PI_CL(piclProgramCreateWithSource, pi2ur::piclProgramCreateWithSource)
+  _PI_CL(piProgramCreateWithBinary, pi2ur::piProgramCreateWithBinary)
+  _PI_CL(piProgramGetInfo, pi2ur::piProgramGetInfo)
+  _PI_CL(piProgramCompile, pi2ur::piProgramCompile)
+  _PI_CL(piProgramBuild, pi2ur::piProgramBuild)
+  _PI_CL(piProgramLink, pi2ur::piProgramLink)
+  _PI_CL(piProgramGetBuildInfo, pi2ur::piProgramGetBuildInfo)
+  _PI_CL(piProgramRetain, pi2ur::piProgramRetain)
+  _PI_CL(piProgramRelease, pi2ur::piProgramRelease)
+  _PI_CL(piextProgramGetNativeHandle, pi2ur::piextProgramGetNativeHandle)
+  _PI_CL(piextProgramCreateWithNativeHandle,
+         pi2ur::piextProgramCreateWithNativeHandle)
   _PI_CL(piextProgramSetSpecializationConstant,
-         piextProgramSetSpecializationConstant)
+         pi2ur::piextProgramSetSpecializationConstant)
   // Kernel
   _PI_CL(piKernelCreate, piKernelCreate)
   _PI_CL(piKernelSetArg, piKernelSetArg)
@@ -987,9 +863,16 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
-  _PI_CL(piTearDown, piTearDown)
+
   _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
-  _PI_CL(piPluginGetBackendOption, piPluginGetBackendOption)
+
+  // P2P Access
+  _PI_CL(piextEnablePeerAccess, piextEnablePeerAccess)
+  _PI_CL(piextDisablePeerAccess, piextDisablePeerAccess)
+  _PI_CL(piextPeerAccessGetInfo, piextPeerAccessGetInfo)
+
+  // Runtime
+  _PI_CL(piTearDown, pi2ur::piTearDown)
 
 #undef _PI_CL
   return PI_SUCCESS;

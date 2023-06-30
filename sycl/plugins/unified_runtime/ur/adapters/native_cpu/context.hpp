@@ -13,7 +13,7 @@
 #include "device.hpp"
 
 struct ur_context_handle_t_ {
-  ur_context_handle_t_(ur_device_handle_t_ *phDevices) : Device{phDevices} {}
+  ur_context_handle_t_(ur_device_handle_t_ *phDevices) : _device{phDevices} {}
 
-  ur_device_handle_t Device;
+  ur_device_handle_t _device;
 };

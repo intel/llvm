@@ -1,20 +1,19 @@
 # PI Unified Runtime plugin library
 #
-if(NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED
-                                          UNIFIED_RUNTIME_INCLUDE_DIR)
+if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
   set(UNIFIED_RUNTIME_TAG 3c6f02c7a76a0448a83932d93c2dbeff25af70aa)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
-  FetchContent_Declare(
-    unified-runtime
-    GIT_REPOSITORY ${UNIFIED_RUNTIME_REPO}
-    GIT_TAG ${UNIFIED_RUNTIME_TAG})
+  FetchContent_Declare(unified-runtime
+    GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
+    GIT_TAG           ${UNIFIED_RUNTIME_TAG}
+  )
 
-  # Disable errors from warnings while building the UR. And remember origin
-  # flags before doing that.
+  # Disable errors from warnings while building the UR.
+  # And remember origin flags before doing that.
   set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
   if(WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
@@ -30,9 +29,7 @@ if(NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED
   endif()
 
   # No need to build tests from unified-runtime
-  set(UR_BUILD_TESTS
-      "0"
-      CACHE STRING "0")
+  set(UR_BUILD_TESTS "0" CACHE STRING "0")
 
   FetchContent_GetProperties(unified-runtime)
   FetchContent_MakeAvailable(unified-runtime)
@@ -43,20 +40,21 @@ if(NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED
   add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 
   set(UNIFIED_RUNTIME_SOURCE_DIR
-      ${unified-runtime_SOURCE_DIR}
-      CACHE PATH "Path to Unified Runtime Headers")
+    ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
   set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 endif()
 
-add_library(UnifiedRuntime-Headers INTERFACE)
+
+add_library (UnifiedRuntime-Headers INTERFACE)
 
 target_include_directories(UnifiedRuntime-Headers
-                           INTERFACE "${UNIFIED_RUNTIME_INCLUDE_DIR}")
+  INTERFACE
+    "${UNIFIED_RUNTIME_INCLUDE_DIR}"
+)
 
 find_package(Threads REQUIRED)
 
-add_sycl_plugin(
-  unified_runtime
+add_sycl_plugin(unified_runtime
   SOURCES
     # These are short-term shared with Unified Runtime
     # The two plugins define a few things differrently so must
@@ -77,9 +75,7 @@ add_sycl_plugin(
 )
 
 # Build level zero adapter
-add_sycl_library(
-  "ur_adapter_level_zero"
-  SHARED
+add_sycl_library("ur_adapter_level_zero" SHARED
   SOURCES
     "ur/ur.hpp"
     "ur/ur.cpp"
@@ -118,21 +114,22 @@ add_sycl_library(
     "ur/adapters/level_zero/usm.cpp"
     "ur/adapters/level_zero/usm_p2p.cpp"
   INCLUDE_DIRS
-  ${sycl_inc_dir}
+    ${sycl_inc_dir}
   LIBRARIES
-  UnifiedRuntime-Headers
-  LevelZeroLoader-Headers
-  LevelZeroLoader
-  Threads::Threads)
+    UnifiedRuntime-Headers
+    LevelZeroLoader-Headers
+    LevelZeroLoader
+    Threads::Threads
+)
 
-set_target_properties("ur_adapter_level_zero" PROPERTIES VERSION "0.0.0"
-                                                         SOVERSION "0")
+set_target_properties("ur_adapter_level_zero" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+)
 
-if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   # Build CUDA adapter
-  add_sycl_library(
-    "ur_adapter_cuda"
-    SHARED
+  add_sycl_library("ur_adapter_cuda" SHARED
     SOURCES
       "ur/ur.hpp"
       "ur/ur.cpp"
@@ -168,14 +165,17 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/command_buffer.cpp"
       "ur/adapters/cuda/usm_p2p.cpp"
     INCLUDE_DIRS
-    ${sycl_inc_dir}
+      ${sycl_inc_dir}
     LIBRARIES
-    UnifiedRuntime-Headers
-    Threads::Threads
-    cudadrv)
+      UnifiedRuntime-Headers
+      Threads::Threads
+      cudadrv
+  )
 
-  set_target_properties("ur_adapter_cuda" PROPERTIES VERSION "0.0.0" SOVERSION
-                                                                     "0")
+  set_target_properties("ur_adapter_cuda" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+  )
 endif()
 
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -239,9 +239,7 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_sycl_library(
-    "ur_adapter_native_cpu"
-    SHARED
+  add_sycl_library("ur_adapter_native_cpu" SHARED
     SOURCES
       "ur/ur.cpp"
       "ur/ur.hpp"
@@ -254,34 +252,41 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/memory.hpp"
       "ur/adapters/native_cpu/platform.cpp"
       "ur/adapters/native_cpu/platform.hpp"
+      "ur/adapters/native_cpu/program.cpp"
+      "ur/adapters/native_cpu/program.hpp"
       "ur/adapters/native_cpu/queue.cpp"
       "ur/adapters/native_cpu/queue.hpp"
+      "ur/adapters/native_cpu/runtime.cpp"
     INCLUDE_DIRS
-    ${sycl_inc_dir}
+      ${sycl_inc_dir}
     LIBRARIES
-    UnifiedRuntime-Headers
-    Threads::Threads)
+      UnifiedRuntime-Headers
+      Threads::Threads
+  )
 
-  set_target_properties("ur_adapter_native_cpu" PROPERTIES VERSION "0.0.0"
-                                                           SOVERSION "0")
+  set_target_properties("ur_adapter_native_cpu" PROPERTIES 
+    VERSION "0.0.0"                                                         
+    SOVERSION "0"
+  )
 endif()
 
-if(TARGET UnifiedRuntimeLoader)
-  set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1
-                                               EXCLUDE_FROM_DEFAULT_BUILD 1)
-  # Install the UR loader. TODO: this is piggy-backing on the existing target
-  # component level-zero-sycl-dev When UR is moved to its separate repo perhaps
-  # we should introduce new component, e.g. unified-runtime-sycl-dev.
-  install(
-    TARGETS ur_loader
+
+if (TARGET UnifiedRuntimeLoader)
+  set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
+  # Install the UR loader.
+  # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
+  # When UR is moved to its separate repo perhaps we should introduce new component,
+  # e.g. unified-runtime-sycl-dev.
+  install(TARGETS ur_loader
     LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
     ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev)
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+  )
 endif()
 
 # Install the UR adapters too
-install(
-  TARGETS ur_adapter_level_zero
+install(TARGETS ur_adapter_level_zero
   LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
   ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev)
+  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+)

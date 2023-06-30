@@ -1,5 +1,4 @@
-add_sycl_plugin(
-  native_cpu
+add_sycl_plugin(native_cpu
   SOURCES
     "pi_native_cpu.cpp"
     "../unified_runtime/pi2ur.hpp"
@@ -15,11 +14,14 @@ add_sycl_plugin(
     "../unified_runtime/ur/adapters/native_cpu/memory.hpp"
     "../unified_runtime/ur/adapters/native_cpu/platform.cpp"
     "../unified_runtime/ur/adapters/native_cpu/platform.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/program.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/program.hpp"
     "../unified_runtime/ur/adapters/native_cpu/queue.cpp"
     "../unified_runtime/ur/adapters/native_cpu/queue.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/runtime.cpp"
   INCLUDE_DIRS
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
+    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
   LIBRARIES
-  sycl
-  UnifiedRuntime-Headers)
+    sycl
+    UnifiedRuntime-Headers
+)

@@ -94,8 +94,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(uint32_t{256});
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
     return ReturnValue(uint32_t{0});
-  case UR_DEVICE_INFO_PARTITION_PROPERTIES:
-    return ReturnValue(ur_device_partition_property_t{0});
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS:
+    return ReturnValue(ur_device_partition_properties_t{});
   case UR_DEVICE_INFO_VENDOR_ID:
     // '0x8086' : 'Intel HD graphics vendor ID'
     return ReturnValue(uint32_t{0x8086});
@@ -112,7 +112,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
     return ReturnValue(uint32_t{3});
   case UR_DEVICE_INFO_PARTITION_TYPE:
-    return ReturnValue(ur_device_partition_property_t{0});
+    return ReturnValue(ur_device_partition_property_t{});
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
@@ -274,7 +274,7 @@ urDeviceRelease(ur_device_handle_t hDevice) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     ur_device_handle_t hDevice,
-    const ur_device_partition_property_t *pProperties, uint32_t NumDevices,
+    const ur_device_partition_properties_t *pProperties, uint32_t NumDevices,
     ur_device_handle_t *phSubDevices, uint32_t *pNumDevicesRet) {
   std::ignore = hDevice;
   std::ignore = NumDevices;

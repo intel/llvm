@@ -76,23 +76,13 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
-  return UR_RESULT_SUCCESS;
-}
-
-// TODO
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     ur_platform_handle_t hPlatform, const char *pFrontendOption,
     const char **ppPlatformOption) {
   std::ignore = hPlatform;
-  if (pFrontendOption == nullptr) {
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-  }
-
+  std::ignore = pFrontendOption;
   std::ignore = ppPlatformOption;
-  return UR_RESULT_SUCCESS;
+
+  // Equivalent to piPluginGetBackendOption
+  CONTINUE_NO_IMPLEMENTATION
 }
