@@ -280,5 +280,10 @@ SYCLHostGetKernelOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
 }
 
+LogicalResult
+SYCLHostHandlerSetKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
+}
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"

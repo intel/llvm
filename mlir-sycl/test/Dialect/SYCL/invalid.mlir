@@ -428,3 +428,43 @@ func.func @f() -> !llvm.ptr {
   %0 = sycl.host.get_kernel @kernels::@k0 : !llvm.ptr
   func.return %0 : !llvm.ptr
 }
+
+// -----
+
+// COM: Check inexistent symbol.
+
+func.func @f(%handler: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.handler.set_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  sycl.host.handler.set_kernel %handler -> @kernels::@k0 : !llvm.ptr
+  func.return
+}
+
+// -----
+
+// COM: Check function is not a gpu.func
+
+func.func @f(%handler: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.handler.set_kernel' op '@f0' does not reference a valid kernel}}
+  sycl.host.handler.set_kernel %handler -> @f0 : !llvm.ptr
+  func.return
+}
+
+func.func @f0() {
+  func.return
+}
+
+// -----
+
+// COM: Check function is not a kernel
+
+func.func @f(%handler: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.handler.set_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  sycl.host.handler.set_kernel %handler -> @kernels::@k0 : !llvm.ptr
+  func.return
+}
+
+gpu.module @kernels {
+  gpu.func @k0() {
+    gpu.return
+  }
+}

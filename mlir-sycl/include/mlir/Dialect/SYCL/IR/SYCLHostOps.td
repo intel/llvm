@@ -81,4 +81,17 @@ def SYCLHostGetKernelOp
   }];
 }
 
+def SYCLHostHandlerSetKernel
+    : SYCL_HostOp<"handler.set_kernel",
+        [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = [{
+    Operation assigning a kernel to a `sycl::handler`, thus pairing the handler
+    and the kernel being launched.
+  }];
+  let arguments = (ins LLVM_AnyPointer:$handler, SymbolRefAttr:$kernel_name);
+  let assemblyFormat = [{
+    $handler `->` $kernel_name attr-dict `:` type($handler)
+  }];
+}
+
 #endif // SYCL_HOST_OPS
