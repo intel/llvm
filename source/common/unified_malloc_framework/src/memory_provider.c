@@ -127,6 +127,6 @@ const char *umfMemoryProviderGetName(umf_memory_provider_handle_t hProvider) {
     return hProvider->ops.get_name(hProvider->provider_priv);
 }
 
-umf_memory_provider_handle_t umfGetLastFailedMemoryProvider() {
+umf_memory_provider_handle_t umfGetLastFailedMemoryProvider(void) {
     return *umfGetLastFailedMemoryProviderPtr();
 }
