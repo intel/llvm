@@ -128,7 +128,7 @@ inline bool pool_descriptor::equal(const pool_descriptor &lhs,
 
     // We want to share a memory pool for sub-devices and sub-sub devices.
     // Sub-devices and sub-sub-devices might be represented by different ur_device_handle_t but
-    // they share the same native_handle_t (which is used by UMA provider).
+    // they share the same native_handle_t (which is used by UMF provider).
     // Ref: https://github.com/intel/llvm/commit/86511c5dc84b5781dcfd828caadcb5cac157eae1
     // TODO: is this L0 specific?
     auto ret = urDeviceGetNativeHandle(lhs.hDevice, &lhsNative);
