@@ -243,7 +243,7 @@ queue is created.
     ${x}QueueCreate(hContext, hDevice, 
                     ${X}_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE, &hQueue);
 
-    // Lanuch a kernel with 3D workspace partitioning
+    // Launch a kernel with 3D workspace partitioning
     const uint32_t nDim = 3;
     const size_t gWorkOffset = {0, 0, 0};
     const size_t gWorkSize = {128, 128, 128};
