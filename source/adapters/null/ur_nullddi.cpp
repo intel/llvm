@@ -15,15 +15,17 @@ namespace driver {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urInit
 __urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags ///< [in] device initialization flags.
+    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_loader_config_handle_t
+        hLoaderConfig ///< [in][optional] Handle of loader config handle.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnInit = d_context.urDdiTable.Global.pfnInit;
     if (nullptr != pfnInit) {
-        result = pfnInit(device_flags);
+        result = pfnInit(device_flags, hLoaderConfig);
     } else {
         // generic implementation
     }

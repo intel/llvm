@@ -15,13 +15,26 @@ namespace ur_validation_layer {
 context_t context;
 
 ///////////////////////////////////////////////////////////////////////////////
-context_t::context_t() : logger(logger::create_logger("validation")) {
-    enableValidation = getenv_tobool("UR_ENABLE_VALIDATION_LAYER");
-    enableParameterValidation = getenv_tobool("UR_ENABLE_PARAMETER_VALIDATION");
-    enableLeakChecking = getenv_tobool("UR_ENABLE_LEAK_CHECKING");
-}
+context_t::context_t() : logger(logger::create_logger("validation")) {}
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::~context_t() {}
+
+bool context_t::isEnabled(const std::set<std::string> &enabledLayerNames) {
+    if (enabledLayerNames.find(nameFullValidation) != enabledLayerNames.end()) {
+        enableParameterValidation = true;
+        enableLeakChecking = true;
+    } else {
+        if (enabledLayerNames.find(nameParameterValidation) !=
+            enabledLayerNames.end()) {
+            enableParameterValidation = true;
+        }
+        if (enabledLayerNames.find(nameLeakChecking) !=
+            enabledLayerNames.end()) {
+            enableLeakChecking = true;
+        }
+    }
+    return enableParameterValidation || enableLeakChecking;
+}
 
 } // namespace ur_validation_layer
