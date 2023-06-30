@@ -578,7 +578,6 @@ struct get_device_info_impl<
       // TODO: use std::map::contains instead of try-catch when SYCL RT be moved
       // to C++20
       try {
-        std::cout << "DeviceIp: " << std::hex << DeviceIp << std::endl;
         oneapi_exp_arch Result = MapDeviceIpToArch.at(DeviceIp);
         return Result;
       } catch (std::out_of_range &) {
