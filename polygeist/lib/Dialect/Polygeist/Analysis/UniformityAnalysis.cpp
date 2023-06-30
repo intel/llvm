@@ -155,51 +155,8 @@ void UniformityAnalysis::visitNonControlFlowArguments(
 
   // Infer the uniformity of the loop IV by analyzing the loop bounds and step.
   if (auto loop = dyn_cast<LoopLikeOpInterface>(op)) {
-    std::optional<Value> iv = loop.getSingleInductionVar();
-    if (!iv)
-      return SparseDataFlowAnalysis::visitNonControlFlowArguments(
-          op, successor, argLattices, firstIndex);
-
-    // Collect the bounds and step if they aren't constant.
-    SmallVector<Value> boundsAndStep;
-    Operation *loopOp = loop;
-    if (auto affineLoop = dyn_cast<affine::AffineForOp>(loopOp)) {
-      // Non-constant lower/upper bounds for affine loops use a map so special
-      // case them here. Note that the step is always a constant.
-      ValueRange lbOperands = affineLoop.getLowerBoundOperands();
-      ValueRange ubOperands = affineLoop.getUpperBoundOperands();
-      boundsAndStep.append(lbOperands.begin(), lbOperands.end());
-      boundsAndStep.append(ubOperands.begin(), ubOperands.end());
-    } else {
-      std::optional<OpFoldResult> lb = loop.getSingleLowerBound();
-      std::optional<OpFoldResult> ub = loop.getSingleUpperBound();
-      std::optional<OpFoldResult> st = loop.getSingleStep();
-
-      if (!lb || !ub || !st)
-        return SparseDataFlowAnalysis::visitNonControlFlowArguments(
-            op, successor, argLattices, firstIndex);
-
-      if (auto lbVal = llvm::dyn_cast_if_present<Value>(*lb))
-        boundsAndStep.push_back(lbVal);
-      if (auto ubVal = llvm::dyn_cast_if_present<Value>(*ub))
-        boundsAndStep.push_back(ubVal);
-      if (auto stVal = llvm::dyn_cast_if_present<Value>(*st))
-        boundsAndStep.push_back(stVal);
-    }
-
-    // The loop IV uniformity matches the one of the values collected.
-    if (anyOfUniformityIs(boundsAndStep, Uniformity::Kind::Unknown)) {
-      LLVM_DEBUG(llvm::dbgs()
-                 << "UA: Loop bound(s) or step have unknown uniformity\n");
-      return propagateAllIfChanged(*iv, Uniformity::getUnknown());
-    }
-    if (anyOfUniformityIs(boundsAndStep, Uniformity::Kind::NonUniform)) {
-      LLVM_DEBUG(llvm::dbgs() << "UA: Loop bound(s) or step are non-uniform\n");
-      return propagateAllIfChanged(*iv, Uniformity::getNonUniform());
-    }
-
-    LLVM_DEBUG(llvm::dbgs() << "UA: Loop bounds and step are uniform\n");
-    return propagateAllIfChanged(*iv, Uniformity::getUniform());
+    if (auto uniformity = getInductionVariableUniformity(loop))
+      return propagateAllIfChanged(*loop.getSingleInductionVar(), *uniformity);
   }
 
   return SparseDataFlowAnalysis::visitNonControlFlowArguments(
@@ -332,6 +289,58 @@ void UniformityAnalysis::analyzeMemoryEffects(
   return propagateAllIfChanged(op->getResults(), Uniformity::getUniform());
 }
 
+std::optional<Uniformity>
+UniformityAnalysis::getInductionVariableUniformity(LoopLikeOpInterface loop) {
+  if (std::optional<Value> iv = loop.getSingleInductionVar()) {
+    // Collect the bounds and step if they aren't constant.
+    SmallVector<Value> boundsAndStep;
+    Operation *loopOp = loop;
+    if (auto affineLoop = dyn_cast<affine::AffineForOp>(loopOp)) {
+      // Non-constant lower/upper bounds for affine loops use a map so special
+      // case them here. Note that the step is always a constant.
+      ValueRange lbOperands = affineLoop.getLowerBoundOperands();
+      ValueRange ubOperands = affineLoop.getUpperBoundOperands();
+      boundsAndStep.append(lbOperands.begin(), lbOperands.end());
+      boundsAndStep.append(ubOperands.begin(), ubOperands.end());
+    } else {
+      std::optional<OpFoldResult> lb = loop.getSingleLowerBound();
+      std::optional<OpFoldResult> ub = loop.getSingleUpperBound();
+      std::optional<OpFoldResult> st = loop.getSingleStep();
+
+      // The result yielded by the calls above may be:
+      //  - std::nullopt is an OpFoldResult cannot be computed
+      //  - PointerUnion<Attribute, Value> containing:
+      //     + an Attribute if the loop bound/step is constant
+      //     + a Value if the bound/step is not immediately known
+      if (!lb || !ub || !st)
+        return std::nullopt;
+
+      if (auto lbVal = llvm::dyn_cast_if_present<Value>(*lb))
+        boundsAndStep.push_back(lbVal);
+      if (auto ubVal = llvm::dyn_cast_if_present<Value>(*ub))
+        boundsAndStep.push_back(ubVal);
+      if (auto stVal = llvm::dyn_cast_if_present<Value>(*st))
+        boundsAndStep.push_back(stVal);
+    }
+
+    // The loop IV uniformity matches the one of the values collected.
+    if (anyOfUniformityIs(boundsAndStep, Uniformity::Kind::Unknown)) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "UA: Loop bound(s) or step have unknown uniformity\n");
+      return Uniformity::getUnknown();
+    }
+    if (anyOfUniformityIs(boundsAndStep, Uniformity::Kind::NonUniform)) {
+      LLVM_DEBUG(llvm::dbgs() << "UA: Loop bound(s) or step are non-uniform\n");
+      return Uniformity::getNonUniform();
+    }
+
+    LLVM_DEBUG(llvm::dbgs() << "UA: Loop bounds and step are uniform\n");
+    return Uniformity::getUniform();
+  }
+
+  return std::nullopt;
+}
+
 SetVector<Value> UniformityAnalysis::collectBranchConditions(
     const ReachingDefinition::ModifiersTy &mods) {
   SetVector<Value> conditions;
@@ -420,14 +429,14 @@ bool UniformityAnalysis::anyModifierUniformityIs(
 }
 
 void UniformityAnalysis::propagateAllIfChanged(
-    ArrayRef<UniformityLattice *> results, Uniformity &&uniformity) {
+    ArrayRef<UniformityLattice *> results, const Uniformity &uniformity) {
   for (UniformityLattice *result : results)
     propagateIfChanged(result, result->join(uniformity));
   LLVM_DEBUG(llvm::dbgs() << "UA: Results are: " << uniformity << "\n");
 }
 
 void UniformityAnalysis::propagateAllIfChanged(const ValueRange values,
-                                               Uniformity &&uniformity) {
+                                               const Uniformity &uniformity) {
   for (Value value : values) {
     UniformityLattice *lattice = getLatticeElement(value);
     propagateIfChanged(lattice, lattice->join(uniformity));

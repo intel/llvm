@@ -20,6 +20,8 @@
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 
 namespace mlir {
+
+class LoopLikeOpInterface;
 namespace polygeist {
 
 //===----------------------------------------------------------------------===//
@@ -143,18 +145,22 @@ private:
                             ArrayRef<const UniformityLattice *> operands,
                             ArrayRef<UniformityLattice *> results);
 
-  /// Collect the branch conditions that dominate each of the modifiers \p mods.
+  std::optional<Uniformity>
+  getInductionVariableUniformity(LoopLikeOpInterface loop);
+
+  /// Collect the branch conditions that dominate each of the modifiers \p
+  /// mods.
   SetVector<Value>
   collectBranchConditions(const ReachingDefinition::ModifiersTy &mods);
 
-  /// Return true if all the modifiers \p mods have operands with known uniform
-  /// that is initialized. The \p op argument is the operation the modifiers
-  /// are for.
+  /// Return true if all the modifiers \p mods have operands with known
+  /// uniform that is initialized. The \p op argument is the operation the
+  /// modifiers are for.
   bool canComputeUniformity(const ReachingDefinition::ModifiersTy &mods,
                             Operation *op);
 
-  /// Return true if any of the modifiers \p mods store a value with uniformity
-  /// equal to \p kind.
+  /// Return true if any of the modifiers \p mods store a value with
+  /// uniformity equal to \p kind.
   bool anyModifierUniformityIs(const ReachingDefinition::ModifiersTy &mods,
                                Uniformity::Kind kind);
 
@@ -174,7 +180,8 @@ private:
     });
   }
 
-  /// Return true if any of the \p operands has uniformity of the given \p kind.
+  /// Return true if any of the \p operands has uniformity of the given \p
+  /// kind.
   bool anyOfUniformityIs(ArrayRef<const UniformityLattice *> operands,
                          Uniformity::Kind kind) {
     return llvm::any_of(operands, [&](const UniformityLattice *lattice) {
@@ -192,10 +199,11 @@ private:
 
   /// Propagate \p uniformity to all \p results if necessary.
   void propagateAllIfChanged(ArrayRef<UniformityLattice *> results,
-                             Uniformity &&uniformity);
+                             const Uniformity &uniformity);
 
   /// Propagate \p uniformity to all \p values if necessary.
-  void propagateAllIfChanged(const ValueRange values, Uniformity &&uniformity);
+  void propagateAllIfChanged(const ValueRange values,
+                             const Uniformity &uniformity);
 
 private:
   DataFlowSolver internalSolver;

@@ -84,7 +84,7 @@ func.func @test1(%arg0 : i1, %arg1: memref<?x!sycl_nd_item_2>)  {
     scf.yield %next_sum : index
   } {tag = "test1_v6"}
 
-  // COM: If a uniform loop carried value is added to a non-uniform value the resulted yielded
+  // COM: If a uniform loop carried value is added to a non-uniform value the result yielded
   // COM: by the loop is non-uniform.
   // CHECK: test1_v7, uniformity: non-uniform  
   %v7 = scf.for %ii = %c0 to %c4 step %c1 iter_args(%sum = %c0) -> index {
