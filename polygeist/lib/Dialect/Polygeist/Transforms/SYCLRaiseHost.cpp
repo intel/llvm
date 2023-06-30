@@ -49,90 +49,6 @@ public:
 } // anonymous namespace
 
 //===----------------------------------------------------------------------===//
-// Helper
-//===----------------------------------------------------------------------===//
-
-namespace {
-
-bool isConstructor(CallOpInterface call, LLVM::AllocaOp alloc) {
-  if (call->getOperand(0) != alloc) {
-    // Allocation ('this*') must be first argument for constructor call.
-    return false;
-  }
-
-  CallInterfaceCallable callableOp = call.getCallableForCallee();
-  StringRef funcName = callableOp.get<SymbolRefAttr>().getLeafReference();
-
-  llvm::ItaniumPartialDemangler Demangler;
-  Demangler.partialDemangle(funcName.data());
-  if (!Demangler.isCtorOrDtor())
-    return false;
-
-  char *demangled = Demangler.finishDemangle(nullptr, 0);
-  if (!demangled)
-    // Demangling failed
-    return false;
-
-  llvm::StringRef demangledName{demangled};
-  bool isDestructor = demangledName.contains('~');
-  free(demangled);
-  return !isDestructor;
-}
-
-bool anyUsesBetween(LLVM::AllocaOp alloc, Operation *end) {
-  assert(alloc->getBlock() && end->getBlock() &&
-         "Expecting operations to be aprt of a block");
-
-  if (alloc->getBlock() != end->getBlock())
-    return true;
-
-  llvm::SmallPtrSet<Operation *, 8> uses(alloc->user_begin(),
-                                         alloc->user_end());
-
-  bool started = false;
-  for (auto &op : *alloc->getBlock()) {
-    if (&op == alloc)
-      started = true;
-
-    if (started) {
-      if (&op == end)
-        return false;
-
-      if (uses.contains(&op))
-        return true;
-    }
-  }
-  llvm_unreachable("'end' operation before allocation");
-}
-
-sycl::BufferType getBufferTypeFromConstructor(CallOpInterface constructor) {
-  CallInterfaceCallable callableOp = constructor.getCallableForCallee();
-  StringRef constructorName =
-      callableOp.get<SymbolRefAttr>().getLeafReference();
-
-  auto demangledName = llvm::demangle(constructorName);
-
-  // Try to determine the dimensions of the buffer by parsing the template
-  // parameter from the demangled name of the constructor.
-  llvm::Regex bufferTemplate("buffer<.*, ([0-9]+)");
-  llvm::SmallVector<StringRef> matches;
-  bool regexMatch = bufferTemplate.match(demangledName, &matches);
-  unsigned dimensions = 1;
-  if (regexMatch)
-    std::stoul(matches[1].str());
-
-  // FIXME: There's currently no good way to obtain the element type of the
-  // buffer from the constructor call (or allocation). Parsing it from the
-  // demangled name, as done for 'dimensions' above, would require translation
-  // from C++ types to MLIR types, which is not available here.
-  Type elemTy = LLVM::LLVMVoidType::get(constructor->getContext());
-
-  return sycl::BufferType::get(constructor->getContext(), elemTy, dimensions);
-}
-
-} // namespace
-
-//===----------------------------------------------------------------------===//
 // Pattern
 //===----------------------------------------------------------------------===//
 
@@ -194,21 +110,22 @@ private:
   }
 };
 
-class BufferConstructorPattern : public OpRewritePattern<LLVM::InvokeOp> {
-
+template <typename Derived, typename ConstructorOp, typename TypeTag,
+          bool PostProcess = false>
+class RaiseConstructorBasePattern : public OpRewritePattern<ConstructorOp> {
 public:
-  using OpRewritePattern<LLVM::InvokeOp>::OpRewritePattern;
+  using OpRewritePattern<ConstructorOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(LLVM::InvokeOp invoke,
+  LogicalResult matchAndRewrite(ConstructorOp constructor,
                                 PatternRewriter &rewriter) const final {
 
-    if (invoke.getArgOperands().empty())
+    if (constructor.getArgOperands().empty())
       return failure();
 
     // 'this*' is the first argument to the constructor call, if it is a
     // constructor.
     auto alloc = dyn_cast_or_null<LLVM::AllocaOp>(
-        invoke.getArgOperands().front().getDefiningOp());
+        constructor.getArgOperands().front().getDefiningOp());
 
     if (!alloc)
       return failure();
@@ -218,29 +135,104 @@ public:
 
     auto allocTy = *alloc.getElemType();
     auto structAllocTy = dyn_cast<LLVM::LLVMStructType>(allocTy);
-    if (!structAllocTy || structAllocTy.getName() != "class.sycl::_V1::buffer")
+    if (!structAllocTy || structAllocTy.getName() != TypeTag::getTypeName())
       return failure();
 
-    if (invoke.getNumResults())
+    if (constructor.getNumResults())
       // Constructor should not return anything.
       return failure();
 
-    if (!isConstructor(invoke, alloc))
+    if (!isConstructor(constructor, alloc))
       // Invoke is not a constructor call.
       return failure();
 
     rewriter.create<sycl::SYCLHostConstructorOp>(
-        invoke->getLoc(), invoke.getArgOperands().front(),
-        invoke.getArgOperands().drop_front(1),
-        TypeAttr::get(getBufferTypeFromConstructor(invoke)));
+        constructor->getLoc(), constructor.getArgOperands().front(),
+        constructor.getArgOperands().drop_front(1),
+        TypeAttr::get(TypeTag::getTypeFromConstructor(constructor)));
 
+    if constexpr (PostProcess)
+      static_cast<const Derived *>(this)->postprocess(constructor, rewriter);
+
+    rewriter.eraseOp(constructor);
+    return success();
+  }
+
+private:
+  bool isConstructor(ConstructorOp call, LLVM::AllocaOp alloc) const {
+    CallInterfaceCallable callableOp = call.getCallableForCallee();
+    StringRef funcName = callableOp.get<SymbolRefAttr>().getLeafReference();
+
+    llvm::ItaniumPartialDemangler Demangler;
+    Demangler.partialDemangle(funcName.data());
+    if (!Demangler.isCtorOrDtor())
+      return false;
+
+    char *demangled = Demangler.finishDemangle(nullptr, 0);
+    if (!demangled)
+      // Demangling failed
+      return false;
+
+    llvm::StringRef demangledName{demangled};
+    bool isDestructor = demangledName.contains('~');
+    free(demangled);
+    return !isDestructor;
+  }
+};
+
+template <typename TypeTag>
+class RaiseInvokeConstructorBasePattern
+    : public RaiseConstructorBasePattern<
+          RaiseInvokeConstructorBasePattern<TypeTag>, LLVM::InvokeOp, TypeTag,
+          true> {
+public:
+  using RaiseConstructorBasePattern<RaiseInvokeConstructorBasePattern<TypeTag>,
+                                    LLVM::InvokeOp,
+                                    TypeTag, true>::RaiseConstructorBasePattern;
+
+  void postprocess(LLVM::InvokeOp invoke, PatternRewriter &rewriter) const {
     rewriter.create<LLVM::BrOp>(invoke->getLoc(),
                                 invoke.getNormalDestOperands(),
                                 invoke.getNormalDest());
-    rewriter.eraseOp(invoke);
-    return success();
   }
 };
+
+struct BufferTypeTag {
+
+  static llvm::StringRef getTypeName() { return "class.sycl::_V1::buffer"; }
+
+  static mlir::Type getTypeFromConstructor(CallOpInterface constructor) {
+    CallInterfaceCallable callableOp = constructor.getCallableForCallee();
+    StringRef constructorName =
+        callableOp.get<SymbolRefAttr>().getLeafReference();
+
+    auto demangledName = llvm::demangle(constructorName);
+
+    // Try to determine the dimensions of the buffer by parsing the template
+    // parameter from the demangled name of the constructor.
+    llvm::Regex bufferTemplate("buffer<.*, ([0-9]+)");
+    llvm::SmallVector<StringRef> matches;
+    bool regexMatch = bufferTemplate.match(demangledName, &matches);
+    unsigned dimensions = 1;
+    if (regexMatch)
+      std::stoul(matches[1].str());
+
+    // FIXME: There's currently no good way to obtain the element type of the
+    // buffer from the constructor call (or allocation). Parsing it from the
+    // demangled name, as done for 'dimensions' above, would require translation
+    // from C++ types to MLIR types, which is not available here.
+    Type elemTy = LLVM::LLVMVoidType::get(constructor->getContext());
+
+    return sycl::BufferType::get(constructor->getContext(), elemTy, dimensions);
+  }
+};
+
+struct BufferConstructorPattern
+    : public RaiseInvokeConstructorBasePattern<BufferTypeTag> {
+  using RaiseInvokeConstructorBasePattern<
+      BufferTypeTag>::RaiseInvokeConstructorBasePattern;
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
