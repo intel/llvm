@@ -775,7 +775,8 @@ public:
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : m_Pointer(Accessor.get_pointer().get_decorated()) {}
+      : multi_ptr(detail::cast_AS<pointer_t>(
+            Accessor.get_pointer().get_decorated())) {}
 
   // Only if Space == local_space || generic_space
   template <
