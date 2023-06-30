@@ -1,6 +1,6 @@
-// REQUIRES: level_zero,linux
+// REQUIRES: level_zero,windows
 
-// RUN: %{build} -O0 -o %t0.out
+// RUN: %{build} -Od -o %t0.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t0.out 2>&1 | FileCheck %s --check-prefixes=CHECK0
 // RUN: %{build} -O1 -o %t1.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
@@ -14,7 +14,7 @@
 // API call in device code:
 // Following is expected addition of options for level_zero backend:
 // Front-end option | L0 backend option
-//       -O0        |    -ze-opt-disable
+//       -Od        |    -ze-opt-disable
 //       -O1        |    -ze-opt-level=1
 //       -O2        |    -ze-opt-level=1
 //       -O3        |    -ze-opt-level=2

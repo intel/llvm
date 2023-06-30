@@ -1,6 +1,6 @@
-// REQUIRES: opencl,linux
+// REQUIRES: opencl,windows
 
-// RUN: %{build} -O0 -o %t0.out
+// RUN: %{build} -Od -o %t0.out
 // RUN: %if !acc %{ env SYCL_PI_TRACE=-1 %{run} %t0.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL0 %}
 // RUN: %{build} -O1 -o %t1.out
 // RUN: %if !acc %{ env SYCL_PI_TRACE=-1 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL1 %}
@@ -17,7 +17,7 @@
 // API call in device code:
 // Following is expected addition of options for opencl backend:
 // Front-end option | OpenCL backend option
-//       -O0        |    -cl-opt-disable
+//       -Od        |    -cl-opt-disable
 //       -O1        |    /* no option */
 //       -O2        |    /* no option */
 //       -O3        |    /* no option */
