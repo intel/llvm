@@ -259,16 +259,20 @@ LogicalResult SYCLIDConstructorOp::verify() {
       "expects a different signature. Check documentation for details");
 }
 
+static Type getBodyType(Type type) {
+  auto *ctx = type.getContext();
+  return TypeSwitch<Type, Type>(type)
+      .Case<HalfType>([&](auto) { return Float16Type::get(ctx); })
+      .Default({});
+}
+
 bool SYCLWrapOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   if (inputs.size() != 1 || outputs.size() != 1)
     return false;
 
   Type sourceType = inputs.front();
   Type resultType = outputs.front();
-  Type bodyType =
-      TypeSwitch<Type, Type>(resultType)
-          .Case<HalfType>([](auto ty) { return ty.getBody().front(); })
-          .Default({});
+  Type bodyType = getBodyType(resultType);
 
   return bodyType && sourceType == bodyType;
 }
@@ -285,11 +289,7 @@ bool SYCLUnwrapOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
 
   Type sourceType = inputs.front();
   Type resultType = outputs.front();
-  Type bodyType =
-      TypeSwitch<Type, Type>(sourceType)
-          .Case<HalfType>([](auto ty) { return ty.getBody().front(); })
-          .Default({});
-
+  Type bodyType = getBodyType(sourceType);
   return bodyType && resultType == bodyType;
 }
 
