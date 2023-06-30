@@ -24,6 +24,7 @@
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVM.h"
+#include "mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
 #include "mlir/Dialect/Affine/Passes.h"
@@ -730,6 +731,7 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
         ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
       }
       PM3.addPass(createConvertPolygeistToLLVM(ConvertOptions));
+      PM3.addPass(createReconcileUnrealizedCastsPass());
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       PM3.addPass(polygeist::createLegalizeForSPIRVPass());
 

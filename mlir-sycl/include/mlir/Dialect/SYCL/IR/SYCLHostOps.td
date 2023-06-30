@@ -34,13 +34,10 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor"> {
     Operation representing the construction of a SYCL object, i.e., allocation,
     and member initialization.
 
-    This operation differs with `sycl.constructor` in two points:
-    - This operation will return a pointer to the constructed object instead of
-      receiving a reference to the object to construct
-    - This operation will return an `llvm.ptr` to any type instead of requiring a
-      `sycl` type.
+    This operation differs from `sycl.constructor` as it will take a
+    `llvm.ptr` to any type instead of requiring a memref of a `sycl` type.
 
-    These two differences are the reason why this operation was introduced in
+    This difference is the reason why this operation was introduced in
     the first place: this is a short-term solution to represent construction of
     a SYCL object in the host side. Using a `sycl.constructor` operation would
     imply performing heavy modifications to the host LLVM code (or blurring the
@@ -49,8 +46,8 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor"> {
     Note that, despite the more relaxed typing, the `type` attribute still needs
     to be a type in the `sycl` dialect.
   }];
-  let arguments = (ins Variadic<AnyType>:$args, Builtin_TypeAttr:$type);
-  let results = (outs LLVM_AnyPointer:$res);
+  let arguments = (ins LLVM_AnyPointer:$dst, Variadic<AnyType>:$args,
+                        Builtin_TypeAttr:$type);
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
@@ -81,6 +78,19 @@ def SYCLHostGetKernelOp
   let results = (outs LLVM_AnyPointer:$res);
   let assemblyFormat = [{
     $kernel_name attr-dict `:` type($res)
+  }];
+}
+
+def SYCLHostHandlerSetKernel
+    : SYCL_HostOp<"handler.set_kernel",
+        [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = [{
+    Operation assigning a kernel to a `sycl::handler`, thus pairing the handler
+    and the kernel being launched.
+  }];
+  let arguments = (ins LLVM_AnyPointer:$handler, SymbolRefAttr:$kernel_name);
+  let assemblyFormat = [{
+    $handler `->` $kernel_name attr-dict `:` type($handler)
   }];
 }
 

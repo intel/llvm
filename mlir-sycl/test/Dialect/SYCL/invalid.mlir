@@ -310,9 +310,11 @@ func.func @test_vec_nonscalar(%v: !sycl.vec<[!sycl_vec_i8_1_, 2], (vector<2x1xi8
 // -----
 
 func.func @test_host_constructor() -> !llvm.ptr {
+  %0 = llvm.mlir.constant(1 : i32) : i32
+  %1 = llvm.alloca %0 x i32 : (i32) -> !llvm.ptr
 // expected-error @below {{'sycl.host.constructor' op expecting a sycl type as constructed type. Got 'i32'}}
-  %0 = sycl.host.constructor() {type = i32} : () -> !llvm.ptr
-  return %0 : !llvm.ptr
+  sycl.host.constructor(%1) {type = i32} : (!llvm.ptr) -> ()
+  return %1 : !llvm.ptr
 }
 
 // -----
@@ -425,4 +427,44 @@ func.func @f() -> !llvm.ptr {
   // expected-error @below {{'sycl.host.get_kernel' op '@kernels::@k0' does not reference a valid kernel}}
   %0 = sycl.host.get_kernel @kernels::@k0 : !llvm.ptr
   func.return %0 : !llvm.ptr
+}
+
+// -----
+
+// COM: Check inexistent symbol.
+
+func.func @f(%handler: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.handler.set_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  sycl.host.handler.set_kernel %handler -> @kernels::@k0 : !llvm.ptr
+  func.return
+}
+
+// -----
+
+// COM: Check function is not a gpu.func
+
+func.func @f(%handler: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.handler.set_kernel' op '@f0' does not reference a valid kernel}}
+  sycl.host.handler.set_kernel %handler -> @f0 : !llvm.ptr
+  func.return
+}
+
+func.func @f0() {
+  func.return
+}
+
+// -----
+
+// COM: Check function is not a kernel
+
+func.func @f(%handler: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.handler.set_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  sycl.host.handler.set_kernel %handler -> @kernels::@k0 : !llvm.ptr
+  func.return
+}
+
+gpu.module @kernels {
+  gpu.func @k0() {
+    gpu.return
+  }
 }
