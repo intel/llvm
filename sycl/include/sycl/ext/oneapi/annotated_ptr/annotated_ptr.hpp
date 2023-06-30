@@ -13,7 +13,7 @@
 
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/annotated_arg/properties.hpp>
+#include <sycl/ext/oneapi/common_annotated_properties/common_properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
 namespace sycl {
