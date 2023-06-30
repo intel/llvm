@@ -30,9 +30,10 @@ SYCLRangeGetOp sycl::createSYCLRangeGetOp(Type resTy,
   return builder.create<SYCLRangeGetOp>(loc, resTy, range, indexOp);
 }
 
-TypedValue<MemRefType> sycl::constructSYCLID(IDType idTy,
-                                             ArrayRef<Value> indexes,
-                                             OpBuilder builder, Location loc) {
+TypedValue<MemRefType> sycl::createSYCLIDConstructorOp(IDType idTy,
+                                                       ArrayRef<Value> indexes,
+                                                       OpBuilder builder,
+                                                       Location loc) {
   assert(idTy.getDimension() == indexes.size() &&
          "Expecting the size of indexes to be the id dimension");
   return builder.create<SYCLIDConstructorOp>(loc, MemRefType::get(1, idTy),

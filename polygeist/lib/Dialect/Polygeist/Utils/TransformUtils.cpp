@@ -833,7 +833,8 @@ static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   SmallVector<Value> zeroIndexes(idTy.getDimension(), zeroIndex);
-  TypedValue<MemRefType> id = constructSYCLID(idTy, zeroIndexes, builder, loc);
+  TypedValue<MemRefType> id =
+      createSYCLIDConstructorOp(idTy, zeroIndexes, builder, loc);
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
 }
 
@@ -865,7 +866,8 @@ static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
         (i == dim - 1) ? rangeGetOp
                        : builder.create<arith::SubIOp>(loc, rangeGetOp, one));
   }
-  TypedValue<MemRefType> id = constructSYCLID(idTy, indexes, builder, loc);
+  TypedValue<MemRefType> id =
+      createSYCLIDConstructorOp(idTy, indexes, builder, loc);
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
 }
 
