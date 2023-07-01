@@ -27,6 +27,7 @@ is to show the basic ESIMD APIs in well known examples.
    }).wait_and_throw();
    ```
 2) Calling ESIMD from SYCL using invoke_simd - ["invoke_simd"](./invoke_simd.md).
+   
    Please see the full source code here: ["invoke_simd"](./invoke_simd.md)
    ```c++
    [[intel::device_indirectly_callable]] simd<int, VL> __regcall scale(
@@ -65,4 +66,50 @@ is to show the basic ESIMD APIs in well known examples.
           });
     });
     ```
-3) TODO: Add more examples here.
+3)  Calling ESIMD from SYCL using invoke_simd and Shared Local Memory (SLM) - ["invoke_simd_slm"](./invoke_simd_slm.md).
+  
+    Please see the full source code here: ["invoke_simd_slm"](./invoke_simd_slm.md)
+    ```c++
+     [[intel::device_indirectly_callable]] SYCL_EXTERNAL void __regcall invoke_slm_load_store(
+     local_accessor<int, 1> *local_acc, uint32_t slm_byte_offset, int *in, int *out,
+     simd<uint32_t, VL> global_byte_offsets) SYCL_ESIMD_FUNCTION {
+      esimd::simd<uint32_t, VL> esimd_global_byte_offsets = global_byte_offsets;
+      // Read SLM in ESIMD context.
+      auto local1 = esimd::block_load<int, VL>(*local_acc, slm_byte_offset);
+      auto local2 = esimd::block_load<int, VL>(*local_acc, slm_byte_offset + 
+                                               LOCAL_RANGE * sizeof(int));
+      auto global = esimd::gather(in, esimd_global_byte_offsets);
+      auto res = global + local1 + local2;
+      esimd::scatter(out, esimd_global_byte_offsets, res);
+     }
+
+     int main(void) {
+       auto *in = malloc_shared<int>(GLOBAL_RANGE, q);
+       auto *out = malloc_shared<int>(GLOBAL_RANGE, q);
+       ...
+       q.submit([&](handler &cgh) {
+         auto local_acc = local_accessor<int, 1>(LOCAL_RANGE * 2, cgh);
+         cgh.parallel_for(nd_range, [=](nd_item<1> item) {
+           uint32_t global_id = item.get_global_id(0);
+           uint32_t local_id = item.get_local_id(0);
+           // Write/initialize SLM in SYCL context.
+           auto local_acc_copy = local_acc;
+           local_acc_copy[local_id] = global_id * 2;
+           local_acc_copy[local_id + LOCAL_RANGE] = global_id * 3;
+           item.barrier();
+
+           uint32_t la_byte_offset = (local_id / VL) * VL * sizeof(int);
+           uint32_t global_byte_offset = global_id * sizeof(int);
+           sycl::sub_group sg = item.get_sub_group();
+           // Pass the local-accessor to initialized SLM memory to ESIMD context.
+           // Pointer to a local copy of the local accessor is passed instead of a local-accessor value now
+           // to work-around a known/temporary issue in GPU driver.
+           auto local_acc_arg = uniform{&local_acc_copy};
+           invoke_simd(sg, invoke_slm_load_store, local_acc_arg,
+                       uniform{la_byte_offset}, uniform{in}, uniform{out},
+                       global_byte_offset);
+         });
+       })
+    ```
+
+6) TODO: Add more examples here.
