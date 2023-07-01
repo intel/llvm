@@ -186,6 +186,16 @@ public:
   bool shouldDynamicCastCallBeNullChecked(bool SrcIsPtr,
                                           QualType SrcRecordTy) override;
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::Value *emitDynamicCastCall(CodeGenFunction &CGF, Address Value,
+                                   QualType SrcRecordTy, QualType DestTy,
+                                   QualType DestRecordTy,
+                                   llvm::BasicBlock *CastEnd) override;
+
+  llvm::Value *emitDynamicCastToVoid(CodeGenFunction &CGF, Address Value,
+                                     QualType SrcRecordTy) override;
+
+#else
   llvm::Value *EmitDynamicCastCall(CodeGenFunction &CGF, Address Value,
                                    QualType SrcRecordTy, QualType DestTy,
                                    QualType DestRecordTy,
@@ -194,6 +204,7 @@ public:
   llvm::Value *EmitDynamicCastToVoid(CodeGenFunction &CGF, Address Value,
                                      QualType SrcRecordTy,
                                      QualType DestTy) override;
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   bool EmitBadCastCall(CodeGenFunction &CGF) override;
 
@@ -1444,12 +1455,18 @@ bool ItaniumCXXABI::shouldDynamicCastCallBeNullChecked(bool SrcIsPtr,
   return SrcIsPtr;
 }
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+llvm::Value *ItaniumCXXABI::emitDynamicCastCall(
+#else
 llvm::Value *ItaniumCXXABI::EmitDynamicCastCall(
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     CodeGenFunction &CGF, Address ThisAddr, QualType SrcRecordTy,
     QualType DestTy, QualType DestRecordTy, llvm::BasicBlock *CastEnd) {
   llvm::Type *PtrDiffLTy =
       CGF.ConvertType(CGF.getContext().getPointerDiffType());
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Type *DestLTy = CGF.ConvertType(DestTy);
+#endif
 
   llvm::Value *SrcRTTI =
       CGF.CGM.GetAddrOfRTTIDescriptor(SrcRecordTy.getUnqualifiedType());
@@ -1464,12 +1481,18 @@ llvm::Value *ItaniumCXXABI::EmitDynamicCastCall(
       computeOffsetHint(CGF.getContext(), SrcDecl, DestDecl).getQuantity());
 
   // Emit the call to __dynamic_cast.
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::Value *Args[] = {ThisAddr.getPointer(), SrcRTTI, DestRTTI, OffsetHint};
+  llvm::Value *Value =
+      CGF.EmitNounwindRuntimeCall(getItaniumDynamicCastFn(CGF), Args);
+#else
   llvm::Value *Value = ThisAddr.getPointer();
   Value = CGF.EmitCastToVoidPtr(Value);
 
   llvm::Value *args[] = {Value, SrcRTTI, DestRTTI, OffsetHint};
   Value = CGF.EmitNounwindRuntimeCall(getItaniumDynamicCastFn(CGF), args);
   Value = CGF.Builder.CreateBitCast(Value, DestLTy);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   /// C++ [expr.dynamic.cast]p9:
   ///   A failed cast to reference type throws std::bad_cast
@@ -1487,11 +1510,18 @@ llvm::Value *ItaniumCXXABI::EmitDynamicCastCall(
   return Value;
 }
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+llvm::Value *ItaniumCXXABI::emitDynamicCastToVoid(CodeGenFunction &CGF,
+                                                  Address ThisAddr,
+                                                  QualType SrcRecordTy) {
+
+#else
 llvm::Value *ItaniumCXXABI::EmitDynamicCastToVoid(CodeGenFunction &CGF,
                                                   Address ThisAddr,
                                                   QualType SrcRecordTy,
                                                   QualType DestTy) {
   llvm::Type *DestLTy = CGF.ConvertType(DestTy);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   auto *ClassDecl =
       cast<CXXRecordDecl>(SrcRecordTy->castAs<RecordType>()->getDecl());
   llvm::Value *OffsetToTop;
@@ -1520,10 +1550,15 @@ llvm::Value *ItaniumCXXABI::EmitDynamicCastToVoid(CodeGenFunction &CGF,
         PtrDiffLTy, OffsetToTop, CGF.getPointerAlign(), "offset.to.top");
   }
   // Finally, add the offset to the pointer.
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return CGF.Builder.CreateInBoundsGEP(CGF.Int8Ty, ThisAddr.getPointer(),
+                                       OffsetToTop);
+#else
   llvm::Value *Value = ThisAddr.getPointer();
   Value = CGF.EmitCastToVoidPtr(Value);
   Value = CGF.Builder.CreateInBoundsGEP(CGF.Int8Ty, Value, OffsetToTop);
   return CGF.Builder.CreateBitCast(Value, DestLTy);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 bool ItaniumCXXABI::EmitBadCastCall(CodeGenFunction &CGF) {

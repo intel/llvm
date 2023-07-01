@@ -80,6 +80,17 @@ namespace {
         AtomicSizeInBits = C.toBits(
             C.toCharUnitsFromBits(Offset + OrigBFI.Size + C.getCharWidth() - 1)
                 .alignTo(lvalue.getAlignment()));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        llvm::Value *BitFieldPtr = lvalue.getBitFieldPointer();
+        auto OffsetInChars =
+            (C.toCharUnitsFromBits(OrigBFI.Offset) / lvalue.getAlignment()) *
+            lvalue.getAlignment();
+        llvm::Value *StoragePtr = CGF.Builder.CreateConstGEP1_64(
+            CGF.Int8Ty, BitFieldPtr, OffsetInChars.getQuantity());
+        StoragePtr = CGF.Builder.CreateAddrSpaceCast(
+            StoragePtr, llvm::PointerType::getUnqual(CGF.getLLVMContext()),
+            "atomic_bitfield_base");
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
         auto VoidPtrAddr = CGF.EmitCastToVoidPtr(lvalue.getBitFieldPointer());
         auto OffsetInChars =
             (C.toCharUnitsFromBits(OrigBFI.Offset) / lvalue.getAlignment()) *
@@ -88,19 +99,24 @@ namespace {
             CGF.Int8Ty, VoidPtrAddr, OffsetInChars.getQuantity());
         llvm::Type *IntTy = CGF.Builder.getIntNTy(AtomicSizeInBits);
         auto Addr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-            VoidPtrAddr, llvm::PointerType::getUnqual(CGF.getLLVMContext()),
-            "atomic_bitfield_base");
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
+
             VoidPtrAddr, IntTy->getPointerTo(), "atomic_bitfield_base");
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
         BFI = OrigBFI;
         BFI.Offset = Offset;
         BFI.StorageSize = AtomicSizeInBits;
         BFI.StorageOffset += OffsetInChars;
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        llvm::Type *StorageTy = CGF.Builder.getIntNTy(AtomicSizeInBits);
+        LVal = LValue::MakeBitfield(
+            Address(StoragePtr, StorageTy, lvalue.getAlignment()), BFI,
+            lvalue.getType(), lvalue.getBaseInfo(), lvalue.getTBAAInfo());
+
+#else
         LVal = LValue::MakeBitfield(Address(Addr, IntTy, lvalue.getAlignment()),
                                     BFI, lvalue.getType(), lvalue.getBaseInfo(),
                                     lvalue.getTBAAInfo());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
         AtomicTy = C.getIntTypeForBitwidth(AtomicSizeInBits, OrigBFI.IsSigned);
         if (AtomicTy.isNull()) {
           llvm::APInt Size(
@@ -814,8 +830,12 @@ AddDirectArgument(CodeGenFunction &CGF, CallArgList &Args,
     Args.add(RValue::get(Val), ValTy);
   } else {
     // Non-optimized functions always take a reference.
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Args.add(RValue::get(Val), CGF.getContext().VoidPtrTy);
+#else
     Args.add(RValue::get(CGF.EmitCastToVoidPtr(Val)),
                          CGF.getContext().VoidPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 }
 
@@ -1117,9 +1137,15 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
           *this, V, AS, LangAS::opencl_generic, DestType, false);
     };
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Args.add(RValue::get(CastToGenericAddrSpace(Ptr.getPointer(),
+                                                E->getPtr()->getType())),
+             getContext().VoidPtrTy);
+#else
     Args.add(RValue::get(CastToGenericAddrSpace(
                  EmitCastToVoidPtr(Ptr.getPointer()), E->getPtr()->getType())),
              getContext().VoidPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     std::string LibCallName;
     QualType LoweredMemTy =
@@ -1151,10 +1177,17 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
       LibCallName = "__atomic_compare_exchange";
       RetTy = getContext().BoolTy;
       HaveRetTy = true;
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      Args.add(RValue::get(CastToGenericAddrSpace(Val1.getPointer(),
+                                                  E->getVal1()->getType())),
+               getContext().VoidPtrTy);
+
+#else
       Args.add(
           RValue::get(CastToGenericAddrSpace(
               EmitCastToVoidPtr(Val1.getPointer()), E->getVal1()->getType())),
           getContext().VoidPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       AddDirectArgument(*this, Args, UseOptimizedLibcall, Val2.getPointer(),
                         MemTy, E->getExprLoc(), TInfo.Width);
       Args.add(RValue::get(Order), getContext().IntTy);
@@ -1316,8 +1349,12 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
       } else {
         // Value is returned through parameter before the order.
         RetTy = getContext().VoidTy;
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        Args.add(RValue::get(Dest.getPointer()), getContext().VoidPtrTy);
+#else
         Args.add(RValue::get(EmitCastToVoidPtr(Dest.getPointer())),
                  getContext().VoidPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       }
     }
     // order is always the last parameter
@@ -1585,10 +1622,15 @@ void AtomicInfo::EmitAtomicLoadLibcall(llvm::Value *AddForLoaded,
   // void __atomic_load(size_t size, void *mem, void *return, int order);
   CallArgList Args;
   Args.add(RValue::get(getAtomicSizeValue()), CGF.getContext().getSizeType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Args.add(RValue::get(getAtomicPointer()), CGF.getContext().VoidPtrTy);
+  Args.add(RValue::get(AddForLoaded), CGF.getContext().VoidPtrTy);
+#else
   Args.add(RValue::get(CGF.EmitCastToVoidPtr(getAtomicPointer())),
            CGF.getContext().VoidPtrTy);
   Args.add(RValue::get(CGF.EmitCastToVoidPtr(AddForLoaded)),
            CGF.getContext().VoidPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Args.add(
       RValue::get(llvm::ConstantInt::get(CGF.IntTy, (int)llvm::toCABI(AO))),
       CGF.getContext().IntTy);
@@ -1782,12 +1824,18 @@ AtomicInfo::EmitAtomicCompareExchangeLibcall(llvm::Value *ExpectedAddr,
   // void *desired, int success, int failure);
   CallArgList Args;
   Args.add(RValue::get(getAtomicSizeValue()), CGF.getContext().getSizeType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Args.add(RValue::get(getAtomicPointer()), CGF.getContext().VoidPtrTy);
+  Args.add(RValue::get(ExpectedAddr), CGF.getContext().VoidPtrTy);
+  Args.add(RValue::get(DesiredAddr), CGF.getContext().VoidPtrTy);
+#else
   Args.add(RValue::get(CGF.EmitCastToVoidPtr(getAtomicPointer())),
            CGF.getContext().VoidPtrTy);
   Args.add(RValue::get(CGF.EmitCastToVoidPtr(ExpectedAddr)),
            CGF.getContext().VoidPtrTy);
   Args.add(RValue::get(CGF.EmitCastToVoidPtr(DesiredAddr)),
            CGF.getContext().VoidPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Args.add(RValue::get(
                llvm::ConstantInt::get(CGF.IntTy, (int)llvm::toCABI(Success))),
            CGF.getContext().IntTy);
@@ -2090,10 +2138,15 @@ void CodeGenFunction::EmitAtomicStore(RValue rvalue, LValue dest,
       CallArgList args;
       args.add(RValue::get(atomics.getAtomicSizeValue()),
                getContext().getSizeType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      args.add(RValue::get(atomics.getAtomicPointer()), getContext().VoidPtrTy);
+      args.add(RValue::get(srcAddr.getPointer()), getContext().VoidPtrTy);
+#else
       args.add(RValue::get(EmitCastToVoidPtr(atomics.getAtomicPointer())),
                getContext().VoidPtrTy);
       args.add(RValue::get(EmitCastToVoidPtr(srcAddr.getPointer())),
                getContext().VoidPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       args.add(
           RValue::get(llvm::ConstantInt::get(IntTy, (int)llvm::toCABI(AO))),
           getContext().IntTy);

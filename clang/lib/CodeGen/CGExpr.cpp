@@ -56,6 +56,7 @@ using namespace CodeGen;
 //                        Miscellaneous Helper Methods
 //===--------------------------------------------------------------------===//
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 llvm::Value *CodeGenFunction::EmitCastToVoidPtr(llvm::Value *value) {
   unsigned addressSpace =
       cast<llvm::PointerType>(value->getType())->getAddressSpace();
@@ -67,6 +68,7 @@ llvm::Value *CodeGenFunction::EmitCastToVoidPtr(llvm::Value *value) {
   if (value->getType() == destType) return value;
   return Builder.CreateBitCast(value, destType);
 }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 /// CreateTempAlloca - This creates a alloca and inserts it into the entry
 /// block.
@@ -3391,7 +3393,11 @@ void CodeGenFunction::EmitCheck(
           CGM.getDataLayout().getDefaultGlobalsAddressSpace());
       InfoPtr->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
       CGM.getSanitizerMetadata()->disableSanitizerForGlobal(InfoPtr);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      Args.push_back(InfoPtr);
+#else
       Args.push_back(EmitCastToVoidPtr(InfoPtr));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       ArgTypes.push_back(Args.back()->getType());
     }
 

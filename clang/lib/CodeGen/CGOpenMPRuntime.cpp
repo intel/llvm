@@ -5690,6 +5690,15 @@ llvm::Value *CGOpenMPRuntime::emitTaskReductionInit(
     // ElemLVal.reduce_shar = &Shareds[Cnt];
     LValue SharedLVal = CGF.EmitLValueForField(ElemLVal, SharedFD);
     RCG.emitSharedOrigLValue(CGF, Cnt);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Value *Shared = RCG.getSharedLValue(Cnt).getPointer(CGF);
+    CGF.EmitStoreOfScalar(Shared, SharedLVal);
+    // ElemLVal.reduce_orig = &Origs[Cnt];
+    LValue OrigLVal = CGF.EmitLValueForField(ElemLVal, OrigFD);
+    llvm::Value *Orig = RCG.getOrigLValue(Cnt).getPointer(CGF);
+    CGF.EmitStoreOfScalar(Orig, OrigLVal);
+
+#else
     llvm::Value *CastedShared =
         CGF.EmitCastToVoidPtr(RCG.getSharedLValue(Cnt).getPointer(CGF));
     CGF.EmitStoreOfScalar(CastedShared, SharedLVal);
@@ -5698,6 +5707,7 @@ llvm::Value *CGOpenMPRuntime::emitTaskReductionInit(
     llvm::Value *CastedOrig =
         CGF.EmitCastToVoidPtr(RCG.getOrigLValue(Cnt).getPointer(CGF));
     CGF.EmitStoreOfScalar(CastedOrig, OrigLVal);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     RCG.emitAggregateType(CGF, Cnt);
     llvm::Value *SizeValInChars;
     llvm::Value *SizeVal;
@@ -5714,21 +5724,37 @@ llvm::Value *CGOpenMPRuntime::emitTaskReductionInit(
     CGF.EmitStoreOfScalar(SizeValInChars, SizeLVal);
     // ElemLVal.reduce_init = init;
     LValue InitLVal = CGF.EmitLValueForField(ElemLVal, InitFD);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Value *InitAddr = emitReduceInitFunction(CGM, Loc, RCG, Cnt);
+#else
     llvm::Value *InitAddr =
         CGF.EmitCastToVoidPtr(emitReduceInitFunction(CGM, Loc, RCG, Cnt));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     CGF.EmitStoreOfScalar(InitAddr, InitLVal);
     // ElemLVal.reduce_fini = fini;
     LValue FiniLVal = CGF.EmitLValueForField(ElemLVal, FiniFD);
     llvm::Value *Fini = emitReduceFiniFunction(CGM, Loc, RCG, Cnt);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Value *FiniAddr =
+        Fini ? Fini : llvm::ConstantPointerNull::get(CGM.VoidPtrTy);
+#else
     llvm::Value *FiniAddr = Fini
                                 ? CGF.EmitCastToVoidPtr(Fini)
                                 : llvm::ConstantPointerNull::get(CGM.VoidPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     CGF.EmitStoreOfScalar(FiniAddr, FiniLVal);
     // ElemLVal.reduce_comb = comb;
     LValue CombLVal = CGF.EmitLValueForField(ElemLVal, CombFD);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Value *CombAddr = emitReduceCombFunction(
+        CGM, Loc, RCG, Cnt, Data.ReductionOps[Cnt], LHSExprs[Cnt],
+        RHSExprs[Cnt], Data.ReductionCopies[Cnt]);
+
+#else
     llvm::Value *CombAddr = CGF.EmitCastToVoidPtr(emitReduceCombFunction(
         CGM, Loc, RCG, Cnt, Data.ReductionOps[Cnt], LHSExprs[Cnt],
         RHSExprs[Cnt], Data.ReductionCopies[Cnt]));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     CGF.EmitStoreOfScalar(CombAddr, CombLVal);
     // ElemLVal.flags = 0;
     LValue FlagsLVal = CGF.EmitLValueForField(ElemLVal, FlagsFD);
@@ -7593,8 +7619,12 @@ private:
                           .getAddress(CGF);
                 }
                 Size = CGF.Builder.CreatePtrDiff(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+                    CGF.Int8Ty, ComponentLB.getPointer(), LB.getPointer());
+#else
                     CGF.Int8Ty, CGF.EmitCastToVoidPtr(ComponentLB.getPointer()),
                     CGF.EmitCastToVoidPtr(LB.getPointer()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                 break;
               }
             }
@@ -7617,7 +7647,11 @@ private:
           CombinedInfo.Pointers.push_back(LB.getPointer());
           Size = CGF.Builder.CreatePtrDiff(
               CGF.Int8Ty, CGF.Builder.CreateConstGEP(HB, 1).getPointer(),
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+              LB.getPointer());
+#else
               CGF.EmitCastToVoidPtr(LB.getPointer()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
           CombinedInfo.Sizes.push_back(
               CGF.Builder.CreateIntCast(Size, CGF.Int64Ty, /*isSigned=*/true));
           CombinedInfo.Types.push_back(Flags);

@@ -555,8 +555,12 @@ static void EmitNullBaseClassInitialization(CodeGenFunction &CGF,
         std::max(Layout.getNonVirtualAlignment(), DestPtr.getAlignment());
     NullVariable->setAlignment(Align.getAsAlign());
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Address SrcPtr(NullVariable, CGF.Int8Ty, Align);
+#else
     Address SrcPtr =
         Address(CGF.EmitCastToVoidPtr(NullVariable), CGF.Int8Ty, Align);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     // Get and call the appropriate llvm.memcpy overload.
     for (std::pair<CharUnits, CharUnits> Store : Stores) {
@@ -2311,6 +2315,15 @@ llvm::Value *CodeGenFunction::EmitDynamicCast(Address ThisAddr,
 
   llvm::Value *Value;
   if (isDynamicCastToVoid) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Value = CGM.getCXXABI().emitDynamicCastToVoid(*this, ThisAddr, SrcRecordTy);
+  } else {
+    assert(DestRecordTy->isRecordType() &&
+           "destination type must be a record type!");
+    Value = CGM.getCXXABI().emitDynamicCastCall(*this, ThisAddr, SrcRecordTy,
+                                                DestTy, DestRecordTy, CastEnd);
+
+#else
     Value = CGM.getCXXABI().EmitDynamicCastToVoid(*this, ThisAddr, SrcRecordTy,
                                                   DestTy);
   } else {
@@ -2318,6 +2331,7 @@ llvm::Value *CodeGenFunction::EmitDynamicCast(Address ThisAddr,
            "destination type must be a record type!");
     Value = CGM.getCXXABI().EmitDynamicCastCall(*this, ThisAddr, SrcRecordTy,
                                                 DestTy, DestRecordTy, CastEnd);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     CastNotNull = Builder.GetInsertBlock();
   }
 
