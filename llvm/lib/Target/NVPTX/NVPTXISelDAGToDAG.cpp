@@ -500,7 +500,7 @@ void NVPTXDAGToDAGISel::Select(SDNode *N) {
     SelectAddrSpaceCast(N);
     return;
   case ISD::ConstantFP:
-    if (tryConstantFP(N))
+    if (tryConstantFP16(N))
       return;
     break;
   default:
@@ -524,17 +524,15 @@ bool NVPTXDAGToDAGISel::tryIntrinsicChain(SDNode *N) {
   }
 }
 
-// There's no way to specify FP16 and BF16 immediates in .(b)f16 ops, so we
-// have to load them into an .(b)f16 register first.
-bool NVPTXDAGToDAGISel::tryConstantFP(SDNode *N) {
-  if (N->getValueType(0) != MVT::f16 && N->getValueType(0) != MVT::bf16)
+// There's no way to specify FP16 immediates in .f16 ops, so we have to
+// load them into an .f16 register first.
+bool NVPTXDAGToDAGISel::tryConstantFP16(SDNode *N) {
+  if (N->getValueType(0) != MVT::f16)
     return false;
   SDValue Val = CurDAG->getTargetConstantFP(
-      cast<ConstantFPSDNode>(N)->getValueAPF(), SDLoc(N), N->getValueType(0));
-  SDNode *LoadConstF16 = CurDAG->getMachineNode(
-      (N->getValueType(0) == MVT::f16 ? NVPTX::LOAD_CONST_F16
-                                      : NVPTX::LOAD_CONST_BF16),
-      SDLoc(N), N->getValueType(0), Val);
+      cast<ConstantFPSDNode>(N)->getValueAPF(), SDLoc(N), MVT::f16);
+  SDNode *LoadConstF16 =
+      CurDAG->getMachineNode(NVPTX::LOAD_CONST_F16, SDLoc(N), MVT::f16, Val);
   ReplaceNode(N, LoadConstF16);
   return true;
 }
@@ -614,9 +612,9 @@ bool NVPTXDAGToDAGISel::tryEXTRACT_VECTOR_ELEMENT(SDNode *N) {
 
   // We only care about f16x2 as it's the only real vector type we
   // need to deal with.
-  MVT VT = Vector.getSimpleValueType();
-  if (!(VT == MVT::v2f16 || VT == MVT::v2bf16))
+  if (Vector.getSimpleValueType() != MVT::v2f16)
     return false;
+
   // Find and record all uses of this vector that extract element 0 or 1.
   SmallVector<SDNode *, 4> E0, E1;
   for (auto *U : Vector.getNode()->uses()) {
@@ -642,9 +640,8 @@ bool NVPTXDAGToDAGISel::tryEXTRACT_VECTOR_ELEMENT(SDNode *N) {
 
   // Merge (f16 extractelt(V, 0), f16 extractelt(V,1))
   // into f16,f16 SplitF16x2(V)
-  MVT EltVT = VT.getVectorElementType();
-  SDNode *ScatterOp =
-      CurDAG->getMachineNode(NVPTX::I32toV2I16, SDLoc(N), EltVT, EltVT, Vector);
+  SDNode *ScatterOp = CurDAG->getMachineNode(NVPTX::I32toV2I16, SDLoc(N),
+                                             MVT::f16, MVT::f16, Vector);
   for (auto *Node : E0)
     ReplaceUses(SDValue(Node, 0), SDValue(ScatterOp, 0));
   for (auto *Node : E1)
@@ -1261,11 +1258,10 @@ bool NVPTXDAGToDAGISel::tryLDGLDU(SDNode *N) {
     NumElts = EltVT.getVectorNumElements();
     EltVT = EltVT.getVectorElementType();
     // vectors of f16 are loaded/stored as multiples of v2f16 elements.
-    if ((EltVT == MVT::f16 && N->getValueType(0) == MVT::v2f16) ||
-        (EltVT == MVT::bf16 && N->getValueType(0) == MVT::v2bf16)) {
-          assert(NumElts % 2 == 0 && "Vector must have even number of elements");
-          EltVT = N->getValueType(0);
-          NumElts /= 2;
+    if (EltVT == MVT::f16 && N->getValueType(0) == MVT::v2f16) {
+      assert(NumElts % 2 == 0 && "Vector must have even number of elements");
+      EltVT = MVT::v2f16;
+      NumElts /= 2;
     }
   }
 
