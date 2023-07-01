@@ -13,8 +13,10 @@ if (NOT DEFINED XPTI_DIR) # don't overwrite if already set
   if (NOT DEFINED XPTI_SOURCE_DIR)
     # If XPTI_SOURCE_DIR is not provided then assume that xpti is in-tree and not external.
     set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR}/../xpti)
+    message(STATUS "Setting XPTI_DIR using relative path...")
   else()
     set(XPTI_DIR ${XPTI_SOURCE_DIR}/../xpti)
+    message(STATUS "Setting XPTI_DIR using XPTI_SOURCE_DIR from command...")
   endif()
 endif()
 
@@ -71,14 +73,9 @@ endif()
 if (XPTI_BUILD_SAMPLES)
   add_subdirectory(samples/basic_collector)
   add_subdirectory(samples/syclpi_collector)
+  add_subdirectory(basic_test)
 endif()
 
 if (XPTI_BUILD_BENCHMARK)
   add_subdirectory(benchmark)
-endif()
-
-# The tests in basic_test are written using TBB, so these tests are enabled
-# only if TBB has been enabled.
-if (XPTI_ENABLE_TBB)
-  add_subdirectory(basic_test)
 endif()
