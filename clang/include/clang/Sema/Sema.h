@@ -4266,7 +4266,8 @@ public:
       bool AllowExplicitConversion = false,
       ADLCallKind IsADLCandidate = ADLCallKind::NotADL,
       ConversionSequenceList EarlyConversions = std::nullopt,
-      OverloadCandidateParamOrder PO = {});
+      OverloadCandidateParamOrder PO = {},
+      bool AggregateCandidateDeduction = false);
   void AddFunctionCandidates(const UnresolvedSetImpl &Functions,
                       ArrayRef<Expr *> Args,
                       OverloadCandidateSet &CandidateSet,
@@ -4307,7 +4308,8 @@ public:
       OverloadCandidateSet &CandidateSet, bool SuppressUserConversions = false,
       bool PartialOverloading = false, bool AllowExplicit = true,
       ADLCallKind IsADLCandidate = ADLCallKind::NotADL,
-      OverloadCandidateParamOrder PO = {});
+      OverloadCandidateParamOrder PO = {},
+      bool AggregateCandidateDeduction = false);
   bool CheckNonDependentConversions(
       FunctionTemplateDecl *FunctionTemplate, ArrayRef<QualType> ParamTypes,
       ArrayRef<Expr *> Args, OverloadCandidateSet &CandidateSet,
@@ -9395,7 +9397,7 @@ public:
       FunctionTemplateDecl *FunctionTemplate,
       TemplateArgumentListInfo *ExplicitTemplateArgs, ArrayRef<Expr *> Args,
       FunctionDecl *&Specialization, sema::TemplateDeductionInfo &Info,
-      bool PartialOverloading,
+      bool PartialOverloading, bool AggregateDeductionCandidate,
       llvm::function_ref<bool(ArrayRef<QualType>)> CheckNonDependent);
 
   TemplateDeductionResult
@@ -9455,10 +9457,16 @@ public:
   /// not already done so.
   void DeclareImplicitDeductionGuides(TemplateDecl *Template,
                                       SourceLocation Loc);
+  FunctionTemplateDecl *DeclareImplicitDeductionGuideFromInitList(
+      TemplateDecl *Template, MutableArrayRef<QualType> ParamTypes,
+      SourceLocation Loc);
+  llvm::DenseMap<unsigned, CXXDeductionGuideDecl *>
+      AggregateDeductionCandidates;
 
   QualType DeduceTemplateSpecializationFromInitializer(
       TypeSourceInfo *TInfo, const InitializedEntity &Entity,
-      const InitializationKind &Kind, MultiExprArg Init);
+      const InitializationKind &Kind, MultiExprArg Init,
+      ParenListExpr *PL = nullptr);
 
   QualType deduceVarTypeFromInitializer(VarDecl *VDecl, DeclarationName Name,
                                         QualType Type, TypeSourceInfo *TSI,
@@ -9638,7 +9646,10 @@ public:
       /// Memoization means we are _not_ instantiating a template because
       /// it is already instantiated (but we entered a context where we
       /// would have had to if it was not already instantiated).
-      Memoization
+      Memoization,
+
+      /// We are building deduction guides for a class.
+      BuildingDeductionGuides,
     } Kind;
 
     /// Was the enclosing context a non-instantiation SFINAE context?
@@ -9951,6 +9962,13 @@ public:
                           const RequiresExpr *E,
                           sema::TemplateDeductionInfo &DeductionInfo,
                           SourceRange InstantiationRange);
+
+    struct BuildingDeductionGuidesTag {};
+    /// \brief Note that we are building deduction guides.
+    InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
+                          TemplateDecl *Entity, BuildingDeductionGuidesTag,
+                          SourceRange InstantiationRange = SourceRange());
+
     /// Note that we have finished instantiating this template.
     void Clear();
 
@@ -11448,10 +11466,7 @@ private:
   /// Initialization of data-sharing attributes stack.
   void InitDataSharingAttributesStack();
   void DestroyDataSharingAttributesStack();
-  ExprResult
-  VerifyPositiveIntegerConstantInClause(Expr *Op, OpenMPClauseKind CKind,
-                                        bool StrictlyPositive = true,
-                                        bool SuppressExprDiags = false);
+
   /// Returns OpenMP nesting level for current directive.
   unsigned getOpenMPNestingLevel() const;
 
@@ -11536,6 +11551,11 @@ public:
   bool isInOpenMPDeclareVariantScope() const {
     return !OMPDeclareVariantScopes.empty();
   }
+
+  ExprResult
+  VerifyPositiveIntegerConstantInClause(Expr *Op, OpenMPClauseKind CKind,
+                                        bool StrictlyPositive = true,
+                                        bool SuppressExprDiags = false);
 
   /// Given the potential call expression \p Call, determine if there is a
   /// specialization via the OpenMP declare variant mechanism available. If
@@ -12696,6 +12716,13 @@ public:
   OMPClause *ActOnOpenMPXDynCGroupMemClause(Expr *Size, SourceLocation StartLoc,
                                             SourceLocation LParenLoc,
                                             SourceLocation EndLoc);
+
+  /// Called on well-formed 'doacross' clause.
+  OMPClause *
+  ActOnOpenMPDoacrossClause(OpenMPDoacrossClauseModifier DepType,
+                            SourceLocation DepLoc, SourceLocation ColonLoc,
+                            ArrayRef<Expr *> VarList, SourceLocation StartLoc,
+                            SourceLocation LParenLoc, SourceLocation EndLoc);
 
   /// The kind of conversion being performed.
   enum CheckedConversionKind {

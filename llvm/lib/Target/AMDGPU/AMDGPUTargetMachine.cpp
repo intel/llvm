@@ -423,6 +423,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUResourceUsageAnalysisPass(*PR);
   initializeGCNNSAReassignPass(*PR);
   initializeGCNPreRAOptimizationsPass(*PR);
+  initializeGCNPreRALongBranchRegPass(*PR);
   initializeGCNRewritePartialRegUsesPass(*PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
@@ -1364,6 +1365,8 @@ bool GCNPassConfig::addRegAssignAndRewriteFast() {
   if (!usingDefaultRegAlloc())
     report_fatal_error(RegAllocOptNotSupportedMessage);
 
+  addPass(&GCNPreRALongBranchRegID);
+
   addPass(createSGPRAllocPass(false));
 
   // Equivalent of PEI for SGPRs.
@@ -1376,6 +1379,8 @@ bool GCNPassConfig::addRegAssignAndRewriteFast() {
 bool GCNPassConfig::addRegAssignAndRewriteOptimized() {
   if (!usingDefaultRegAlloc())
     report_fatal_error(RegAllocOptNotSupportedMessage);
+
+  addPass(&GCNPreRALongBranchRegID);
 
   addPass(createSGPRAllocPass(true));
 
@@ -1497,6 +1502,10 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   };
 
   if (parseOptionalRegister(YamlMFI.VGPRForAGPRCopy, MFI->VGPRForAGPRCopy))
+    return true;
+
+  if (parseOptionalRegister(YamlMFI.LongBranchReservedReg,
+                            MFI->LongBranchReservedReg))
     return true;
 
   auto diagnoseRegisterClass = [&](const yaml::StringValue &RegName) {

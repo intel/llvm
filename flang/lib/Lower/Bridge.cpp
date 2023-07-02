@@ -3165,7 +3165,8 @@ private:
       return hlfir::EntityWithAttributes{builder.createConvert(loc, toTy, val)};
     };
     mlir::Value convertedRhs = hlfir::genElementalOp(
-        loc, builder, toTy, shape, /*typeParams=*/{}, genKernel);
+        loc, builder, toTy, shape, /*typeParams=*/{}, genKernel,
+        /*isUnordered=*/true);
     fir::FirOpBuilder *bldr = &builder;
     stmtCtx.attachCleanup([loc, bldr, convertedRhs]() {
       bldr->create<hlfir::DestroyOp>(loc, convertedRhs);
@@ -3956,6 +3957,19 @@ private:
     func.setVisibility(mlir::SymbolTable::Visibility::Public);
     assert(blockId == 0 && "invalid blockId");
     assert(activeConstructStack.empty() && "invalid construct stack state");
+
+    // Get the rounding mode at function entry, and arrange for it to be
+    // restored at all function exits.
+    if (!funit.isMainProgram() && funit.mayModifyRoundingMode) {
+      mlir::func::FuncOp getRound = fir::factory::getLlvmGetRounding(*builder);
+      mlir::func::FuncOp setRound = fir::factory::getLlvmSetRounding(*builder);
+      mlir::Value roundMode =
+          builder->create<fir::CallOp>(toLocation(), getRound).getResult(0);
+      mlir::Location endLoc =
+          toLocation(Fortran::lower::pft::stmtSourceLoc(funit.endStmt));
+      bridge.fctCtx().attachCleanup(
+          [=]() { builder->create<fir::CallOp>(endLoc, setRound, roundMode); });
+    }
 
     mapDummiesAndResults(funit, callee);
 

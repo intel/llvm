@@ -326,7 +326,6 @@ set(files
   __coroutine/coroutine_traits.h
   __coroutine/noop_coroutine_handle.h
   __coroutine/trivial_awaitables.h
-  __debug
   __debug_utils/randomize_range.h
   __debug_utils/strict_weak_ordering_check.h
   __exception/exception.h
@@ -478,6 +477,7 @@ set(files
   __locale_dir/locale_base_api/locale_guard.h
   __mbstate_t.h
   __mdspan/extents.h
+  __mdspan/layout_left.h
   __mdspan/layout_right.h
   __memory/addressof.h
   __memory/align.h
@@ -504,7 +504,6 @@ set(files
   __memory/temp_value.h
   __memory/temporary_buffer.h
   __memory/uninitialized_algorithms.h
-  __memory/uninitialized_buffer.h
   __memory/unique_ptr.h
   __memory/uses_allocator.h
   __memory/uses_allocator_construction.h
