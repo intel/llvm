@@ -72,11 +72,18 @@ static cl::opt<bool>
                          "nvvm-reflect dead-code errors."),
                 cl::init(true), cl::Hidden);
 
+// FIXME: intended as a temporary debugging aid. Should be removed before it
+// makes it into the LLVM-17 release.
+static cl::opt<bool>
+    ExitOnUnreachable("nvptx-exit-on-unreachable",
+                      cl::desc("Lower 'unreachable' as 'exit' instruction."),
+                      cl::init(true), cl::Hidden);
+
 namespace llvm {
 
 void initializeGenericToNVVMLegacyPassPass(PassRegistry &);
 void initializeNVPTXAllocaHoistingPass(PassRegistry &);
-void initializeNVPTXAssignValidGlobalNamesPass(PassRegistry&);
+void initializeNVPTXAssignValidGlobalNamesPass(PassRegistry &);
 void initializeNVPTXAtomicLowerPass(PassRegistry &);
 void initializeNVPTXCtorDtorLoweringLegacyPass(PassRegistry &);
 void initializeNVPTXLowerAggrCopiesPass(PassRegistry &);
@@ -426,7 +433,8 @@ void NVPTXPassConfig::addIRPasses() {
     addPass(createSROAPass());
   }
 
-  addPass(createNVPTXLowerUnreachablePass());
+  if (ExitOnUnreachable)
+    addPass(createNVPTXLowerUnreachablePass());
 }
 
 bool NVPTXPassConfig::addInstSelector() {
@@ -479,11 +487,10 @@ void NVPTXPassConfig::addOptimizedRegAlloc() {
   if (addPass(&MachineSchedulerID))
     printAndVerify("After Machine Scheduling");
 
-
   addPass(&StackSlotColoringID);
 
   // FIXME: Needs physical registers
-  //addPass(&MachineLICMID);
+  // addPass(&MachineLICMID);
 
   printAndVerify("After StackSlotColoring");
 }
