@@ -69,38 +69,12 @@ public:
     return DemangleResult(buf, size);
   }
 
-  ~DemangleResult() { free(buf); }
-
-  explicit operator StringRef() const { return {buf, size - 1}; }
-
-  DemangleResult(const DemangleResult &other)
-      : DemangleResult(new char[other.size], other.size) {
-    std::memcpy(buf, other.buf, size);
-  }
-
-  DemangleResult(DemangleResult &&other)
-      : DemangleResult(other.buf, other.size) {
-    other.buf = nullptr;
-  }
-
-  DemangleResult &operator=(const DemangleResult &other) {
-    buf = new char[other.size];
-    size = other.size;
-    std::memcpy(buf, other.buf, size);
-    return *this;
-  }
-
-  DemangleResult &operator=(DemangleResult &&other) {
-    buf = other.buf;
-    size = other.size;
-    other.buf = nullptr;
-    return *this;
-  }
+  explicit operator StringRef() const { return {buf.get(), size - 1}; }
 
 private:
   DemangleResult(char *buf, std::size_t size) : buf(buf), size(size) {}
 
-  char *buf;
+  std::unique_ptr<char[]> buf;
   std::size_t size;
 };
 
