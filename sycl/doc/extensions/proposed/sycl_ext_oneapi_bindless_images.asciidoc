@@ -276,9 +276,9 @@ struct image_mem_handle {
 class image_mem {
 public:
   image_mem();
-  image_mem(const image_mem &) = delete;
-
+  image_mem(const image_mem &rhs);
   image_mem(image_mem &&rhs) noexcept;
+
   image_mem(const image_descriptor &imageDesc,
             const sycl::device &syclDevice, 
             const sycl::context &syclContext);
@@ -287,8 +287,11 @@ public:
 
   ~image_mem();
 
-  image_mem &operator=(image_mem &&);
-  image_mem &operator=(image_mem &) = delete;
+  image_mem &operator=(image_mem &rhs);
+  image_mem &operator=(image_mem &&rhs) noexcept;
+
+  bool operator==(const image_mem &rhs) const;
+  bool operator!=(const image_mem &rhs) const;
 
   image_mem_handle get_handle() const;
   image_descriptor get_descriptor() const;
@@ -354,13 +357,10 @@ Note that the handle type `image_mem_handle::raw_handle_type` is an opaque type,
 and the handle cannot be dereferenced on the host. The layout of the memory is 
 backend-specific, and may be an optimized layout, e.g. tile swizzle patterns.
 
-`image_mem` shall not be copy-constructible, copy-assignable, or 
-device-copyable.
-`image_mem` shall be default-constructible, move-constructible, as well as 
-provide a move-assignment operator.
+The `image_mem` class must follow Common Reference Semantics as outlined by the 
+core SYCL 2020 specification. 
 
-`image_mem_handle` shall be default-constructible and copy-constructible.
-`image_mem_handle` shall not be device-copyable.
+The `image_mem` class is not a valid kernel argument.
 
 If the construction of the `image_mem` class fails, a 
 `sycl::exception` with error code `sycl::errc::memory_allocation` will be 
@@ -1964,7 +1964,10 @@ These features still need to be handled:
                    specified that the implementation should relay the reason 
                    for the failure back to the user.
 
-                 - Added a `bindless_image_sampler` struct
+                 - Added a `bindless_image_sampler` struct.
 
-                 - Updated code samples
+                 - Specified that `image_mem` must follow Common Reference 
+                   Semantics.
+
+                 - Updated code samples.
 |======================
