@@ -133,6 +133,8 @@ public:
     assert(alloc.getElemType().has_value() &&
            "Expecting element type attribute for opaque alloca");
 
+    // Check whether the type allocated for the first argument ('this') matches
+    // the expected type.
     auto allocTy = *alloc.getElemType();
     auto structAllocTy = dyn_cast<LLVM::LLVMStructType>(allocTy);
     if (!structAllocTy || structAllocTy.getName() != TypeTag::getTypeName())
@@ -142,7 +144,7 @@ public:
       // Constructor should not return anything.
       return failure();
 
-    if (!isConstructor(constructor, alloc))
+    if (!isConstructor(constructor))
       // Invoke is not a constructor call.
       return failure();
 
@@ -159,7 +161,7 @@ public:
   }
 
 private:
-  bool isConstructor(ConstructorOp call, LLVM::AllocaOp alloc) const {
+  bool isConstructor(ConstructorOp call) const {
     CallInterfaceCallable callableOp = call.getCallableForCallee();
     StringRef funcName = callableOp.get<SymbolRefAttr>().getLeafReference();
 
@@ -187,8 +189,8 @@ class RaiseInvokeConstructorBasePattern
           true> {
 public:
   using RaiseConstructorBasePattern<RaiseInvokeConstructorBasePattern<TypeTag>,
-                                    LLVM::InvokeOp,
-                                    TypeTag, true>::RaiseConstructorBasePattern;
+                                    LLVM::InvokeOp, TypeTag,
+                                    true>::RaiseConstructorBasePattern;
 
   void postprocess(LLVM::InvokeOp invoke, PatternRewriter &rewriter) const {
     rewriter.create<LLVM::BrOp>(invoke->getLoc(),
@@ -215,7 +217,7 @@ struct BufferTypeTag {
     bool regexMatch = bufferTemplate.match(demangledName, &matches);
     unsigned dimensions = 1;
     if (regexMatch)
-      std::stoul(matches[1].str());
+      dimensions = std::stoul(matches[1].str());
 
     // FIXME: There's currently no good way to obtain the element type of the
     // buffer from the constructor call (or allocation). Parsing it from the
@@ -227,10 +229,57 @@ struct BufferTypeTag {
   }
 };
 
-struct BufferConstructorPattern
+struct BufferInvokeConstructorPattern
     : public RaiseInvokeConstructorBasePattern<BufferTypeTag> {
   using RaiseInvokeConstructorBasePattern<
       BufferTypeTag>::RaiseInvokeConstructorBasePattern;
+};
+
+struct AccessorTypeTag {
+
+  static llvm::StringRef getTypeName() { return "class.sycl::_V1::accessor"; }
+
+  static mlir::Type getTypeFromConstructor(CallOpInterface constructor) {
+    CallInterfaceCallable callableOp = constructor.getCallableForCallee();
+    StringRef constructorName =
+        callableOp.get<SymbolRefAttr>().getLeafReference();
+
+    auto demangledName = llvm::demangle(constructorName);
+
+    // Try to determine the parameters of the accessor by parsing the template
+    // parameter from the demangled name of the constructor.
+    llvm::Regex accessorTemplate(
+        "accessor<.*, ([0-9]+), \\(sycl::_V1::access::mode\\)([0-9]+), "
+        "\\(sycl::_V1::access::target\\)([0-9]+)");
+    llvm::SmallVector<StringRef> matches;
+    bool regexMatch = accessorTemplate.match(demangledName, &matches);
+    unsigned dimensions = 1;
+    unsigned target = 2014;
+    unsigned mode = 1026;
+    if (regexMatch) {
+      dimensions = std::stoul(matches[1].str());
+      mode = std::stoul(matches[2].str());
+      target = std::stoul(matches[3].str());
+    }
+
+    sycl::AccessMode accessMode = static_cast<sycl::AccessMode>(mode);
+    sycl::Target accessTarget = static_cast<sycl::Target>(target);
+
+    // FIXME: There's currently no good way to obtain the element type of the
+    // accessor from the constructor call (or allocation). Parsing it from the
+    // demangled name, as done for other parameters above, would require
+    // translation from C++ types to MLIR types, which is not available here.
+    Type elemTy = LLVM::LLVMVoidType::get(constructor->getContext());
+
+    return sycl::AccessorType::get(constructor.getContext(), elemTy, dimensions,
+                                   accessMode, accessTarget, {});
+  }
+};
+
+struct AccessorInvokeConstructorPattern
+    : public RaiseInvokeConstructorBasePattern<AccessorTypeTag> {
+  using RaiseInvokeConstructorBasePattern<
+      AccessorTypeTag>::RaiseInvokeConstructorBasePattern;
 };
 
 } // namespace
@@ -244,7 +293,8 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   MLIRContext *context = &getContext();
 
   RewritePatternSet rewritePatterns{context};
-  rewritePatterns.add<RaiseKernelName, BufferConstructorPattern>(context);
+  rewritePatterns.add<RaiseKernelName, BufferInvokeConstructorPattern,
+                      AccessorInvokeConstructorPattern>(context);
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
   if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen)))
