@@ -140,10 +140,11 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
                         # If function is split across multiple lines
                         # then join lines until a ';' is encountered.
                         try:
-                            line = line.strip()
+                            line = line.rstrip()
                             while not line.endswith(';'):
                                 _, n_line = next(iter)
                                 line = line + n_line.strip()
+                            line += '\n'
                         except StopIteration:
                             print(f"Function {line[:100]} was not terminated by a ';' character.")
                             error = True
