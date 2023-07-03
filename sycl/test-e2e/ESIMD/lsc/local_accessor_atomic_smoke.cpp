@@ -166,7 +166,6 @@ bool test(queue q) {
 
   for (int i = 0; i < size; ++i) {
     arr[i] = ImplF<T, N>::init(i);
-    std::cout << arr[i] << " ";
   }
 
   range<1> glob_rng(n_threads);
