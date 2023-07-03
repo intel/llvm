@@ -319,6 +319,7 @@ typedef enum {
   // Intel UUID extension.
   PI_DEVICE_INFO_UUID = 0x106A,
   // These are Intel-specific extensions.
+  PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION = 0x4250,
   PI_DEVICE_INFO_DEVICE_ID = 0x4251,
   PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
   PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,

@@ -1047,6 +1047,9 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
     InfoType = UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE;
     break;
+  case PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION:
+    InfoType = UR_DEVICE_INFO_IP_VERSION;
+    break;
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE:
     InfoType = UR_DEVICE_INFO_BUILD_ON_SUBDEVICE;
     break;
