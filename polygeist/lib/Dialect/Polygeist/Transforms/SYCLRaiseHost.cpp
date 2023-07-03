@@ -614,6 +614,11 @@ public:
           continue;
         invoke->setAttr(alreadyVisitedAttrName, rewriter.getAttr<UnitAttr>());
 
+        // Arity check
+        constexpr unsigned expectedArity = 5;
+        if (invoke.getNumOperands() != expectedArity)
+          continue;
+
         // Check the 4th argument (input `str`) is defined by the
         // `sycl.host.get_kernel` operation
         constexpr unsigned inputStringArgumentNumber = 3;
