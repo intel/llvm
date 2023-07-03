@@ -4053,7 +4053,6 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
     // Call LLVM's EH setjmp, which is lightweight.
     Function *F = CGM.getIntrinsic(Intrinsic::eh_sjlj_setjmp);
-    Buf = Builder.CreateElementBitCast(Buf, Int8Ty);
     return RValue::get(Builder.CreateCall(F, Buf.getPointer()));
   }
   case Builtin::BI__builtin_longjmp: {
@@ -4371,7 +4370,11 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
         PtrTy->castAs<PointerType>()->getPointeeType().isVolatileQualified();
 
     Address Ptr = EmitPointerWithAlignment(E->getArg(0));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Ptr = Ptr.withElementType(Int8Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Ptr = Builder.CreateElementBitCast(Ptr, Int8Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Value *NewVal = Builder.getInt8(0);
     Value *Order = EmitScalarExpr(E->getArg(1));
     if (isa<llvm::ConstantInt>(Order)) {
@@ -7452,7 +7455,11 @@ Value *CodeGenFunction::EmitCommonNeonBuiltinExpr(
   case NEON::BI__builtin_neon_vld1_dup_v:
   case NEON::BI__builtin_neon_vld1q_dup_v: {
     Value *V = PoisonValue::get(Ty);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    PtrOp0 = PtrOp0.withElementType(VTy->getElementType());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     PtrOp0 = Builder.CreateElementBitCast(PtrOp0, VTy->getElementType());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     LoadInst *Ld = Builder.CreateLoad(PtrOp0);
     llvm::Constant *CI = ConstantInt::get(SizeTy, 0);
     Ops[0] = Builder.CreateInsertElement(V, Ld, CI);
@@ -8269,7 +8276,11 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
     Value *Val = EmitScalarExpr(E->getArg(0));
     Builder.CreateStore(Val, Tmp);
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Address LdPtr = Tmp.withElementType(STy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Address LdPtr = Builder.CreateElementBitCast(Tmp, STy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Val = Builder.CreateLoad(LdPtr);
 
     Value *Arg0 = Builder.CreateExtractValue(Val, 0);
@@ -8650,7 +8661,11 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
     [[fallthrough]];
   case NEON::BI__builtin_neon_vld1_lane_v: {
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    PtrOp0 = PtrOp0.withElementType(VTy->getElementType());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     PtrOp0 = Builder.CreateElementBitCast(PtrOp0, VTy->getElementType());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Value *Ld = Builder.CreateLoad(PtrOp0);
     return Builder.CreateInsertElement(Ops[1], Ld, Ops[2], "vld1_lane");
   }
@@ -8714,9 +8729,13 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
   case NEON::BI__builtin_neon_vst1_lane_v: {
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
     Ops[1] = Builder.CreateExtractElement(Ops[1], Ops[2]);
-    auto St = Builder.CreateStore(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    return Builder.CreateStore(Ops[1],
+                               PtrOp0.withElementType(Ops[1]->getType()));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    return Builder.CreateStore(
         Ops[1], Builder.CreateElementBitCast(PtrOp0, Ops[1]->getType()));
-    return St;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
   case NEON::BI__builtin_neon_vtbl1_v:
     return EmitNeonCall(CGM.getIntrinsic(Intrinsic::arm_neon_vtbl1),
@@ -10391,7 +10410,11 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     Address Tmp = CreateMemTemp(E->getArg(0)->getType());
     EmitAnyExprToMem(E->getArg(0), Tmp, Qualifiers(), /*init*/ true);
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Tmp = Tmp.withElementType(STy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Tmp = Builder.CreateElementBitCast(Tmp, STy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Value *Val = Builder.CreateLoad(Tmp);
 
     Value *Arg0 = Builder.CreateExtractValue(Val, 0);
@@ -22280,8 +22303,13 @@ Value *CodeGenFunction::EmitHexagonBuiltinExpr(unsigned BuiltinID,
   case Hexagon::BI__builtin_HEXAGON_V6_vsubcarry_128B: {
     // Get the type from the 0-th argument.
     llvm::Type *VecType = ConvertType(E->getArg(0)->getType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Address PredAddr =
+        EmitPointerWithAlignment(E->getArg(2)).withElementType(VecType);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Address PredAddr = Builder.CreateElementBitCast(
         EmitPointerWithAlignment(E->getArg(2)), VecType);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Value *PredIn = V2Q(Builder.CreateLoad(PredAddr));
     llvm::Value *Result = Builder.CreateCall(CGM.getIntrinsic(ID),
         {EmitScalarExpr(E->getArg(0)), EmitScalarExpr(E->getArg(1)), PredIn});
@@ -22300,8 +22328,13 @@ Value *CodeGenFunction::EmitHexagonBuiltinExpr(unsigned BuiltinID,
   case Hexagon::BI__builtin_HEXAGON_V6_vsubcarryo_128B: {
     // Get the type from the 0-th argument.
     llvm::Type *VecType = ConvertType(E->getArg(0)->getType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Address PredAddr = Builder.CreateElementBitCast(
         EmitPointerWithAlignment(E->getArg(2)), VecType);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    Address PredAddr =
+        EmitPointerWithAlignment(E->getArg(2)).withElementType(VecType);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Value *Result = Builder.CreateCall(CGM.getIntrinsic(ID),
         {EmitScalarExpr(E->getArg(0)), EmitScalarExpr(E->getArg(1))});
 

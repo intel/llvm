@@ -502,7 +502,11 @@ static void EmitNullBaseClassInitialization(CodeGenFunction &CGF,
   if (Base->isEmpty())
     return;
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  DestPtr = DestPtr.withElementType(CGF.Int8Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   DestPtr = CGF.Builder.CreateElementBitCast(DestPtr, CGF.Int8Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   const ASTRecordLayout &Layout = CGF.getContext().getASTRecordLayout(Base);
   CharUnits NVSize = Layout.getNonVirtualSize();
@@ -1081,7 +1085,11 @@ void CodeGenFunction::EmitNewArrayInitializer(
     if (const ConstantArrayType *CAT = dyn_cast_or_null<ConstantArrayType>(
             AllocType->getAsArrayTypeUnsafe())) {
       ElementTy = ConvertTypeForMem(AllocType);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      CurPtr = CurPtr.withElementType(ElementTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
       CurPtr = Builder.CreateElementBitCast(CurPtr, ElementTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       InitListElements *= getContext().getConstantArrayElementCount(CAT);
     }
 
@@ -1138,7 +1146,11 @@ void CodeGenFunction::EmitNewArrayInitializer(
     }
 
     // Switch back to initializing one base element at a time.
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    CurPtr = CurPtr.withElementType(BeginPtr.getElementType());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     CurPtr = Builder.CreateElementBitCast(CurPtr, BeginPtr.getElementType());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   // If all elements have already been initialized, skip any further
@@ -1720,7 +1732,11 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
   }
 
   llvm::Type *elementTy = ConvertTypeForMem(allocType);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Address result = allocation.withElementType(elementTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Address result = Builder.CreateElementBitCast(allocation, elementTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Passing pointer through launder.invariant.group to avoid propagation of
   // vptrs information which may be included in previous type.
