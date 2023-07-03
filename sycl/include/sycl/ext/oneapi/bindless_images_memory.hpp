@@ -8,10 +8,17 @@
 
 #pragma once
 
+#include <sycl/context.hpp>
+#include <sycl/device.hpp>
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
+#include <sycl/image.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+
+// Forward declaration
+class queue;
+
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -28,9 +35,10 @@ class image_mem_impl {
   using raw_handle_type = image_mem_handle;
 
 public:
-  image_mem_impl(const image_descriptor &desc, const device &syclDevice,
-                 const context &syclContext);
-  ~image_mem_impl();
+  __SYCL_EXPORT image_mem_impl(const image_descriptor &desc,
+                               const device &syclDevice,
+                               const context &syclContext);
+  __SYCL_EXPORT ~image_mem_impl();
 
   raw_handle_type get_handle() const { return handle; }
   const image_descriptor &get_descriptor() const { return descriptor; }
@@ -55,9 +63,9 @@ public:
   image_mem(const image_mem &) = default;
   image_mem(image_mem &&rhs) = default;
 
-  image_mem(const image_descriptor &desc, const device &syclDevice,
-            const context &syclContext);
-  image_mem(const image_descriptor &desc, const queue &syclQueue);
+  __SYCL_EXPORT image_mem(const image_descriptor &desc,
+                          const device &syclDevice, const context &syclContext);
+  __SYCL_EXPORT image_mem(const image_descriptor &desc, const queue &syclQueue);
   ~image_mem() = default;
 
   image_mem &operator=(const image_mem &) = default;
@@ -73,13 +81,14 @@ public:
   sycl::device get_device() const { return impl->get_device(); }
   sycl::context get_context() const { return impl->get_context(); }
 
-  sycl::range<3> get_range() const;
-  sycl::image_channel_type get_channel_type() const;
-  sycl::image_channel_order get_channel_order() const;
-  unsigned int get_num_channels() const;
-  image_type get_type() const;
+  __SYCL_EXPORT sycl::range<3> get_range() const;
+  __SYCL_EXPORT sycl::image_channel_type get_channel_type() const;
+  __SYCL_EXPORT sycl::image_channel_order get_channel_order() const;
+  __SYCL_EXPORT unsigned int get_num_channels() const;
+  __SYCL_EXPORT image_type get_type() const;
 
-  raw_handle_type get_mip_level_mem_handle(const unsigned int level) const;
+  __SYCL_EXPORT raw_handle_type
+  __SYCL_EXPORT get_mip_level_mem_handle(const unsigned int level) const;
 
 protected:
   std::shared_ptr<detail::image_mem_impl> impl;

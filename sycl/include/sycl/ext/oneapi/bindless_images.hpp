@@ -22,12 +22,12 @@ namespace oneapi {
 namespace experimental {
 /// Opaque unsampled image handle type.
 struct unsampled_image_handle {
-  using raw_handle_type = unsigned long;
+  using raw_handle_type = pi_uint64;
   raw_handle_type raw_handle;
 };
 /// Opaque sampled image handle type.
 struct sampled_image_handle {
-  using raw_handle_type = unsigned long;
+  using raw_handle_type = pi_uint64;
   raw_handle_type raw_handle;
 };
 
@@ -530,9 +530,9 @@ __SYCL_EXPORT void *pitched_alloc_device(size_t *resultPitch,
  *  @param   syclContext The context in which we created our image memory handle
  *  @return  sycl range describing image's dimensions
  */
-sycl::range<3> get_image_range(const image_mem_handle memHandle,
-                               const sycl::device &syclDevice,
-                               const sycl::context &syclContext);
+__SYCL_EXPORT sycl::range<3> get_image_range(const image_mem_handle memHandle,
+                                             const sycl::device &syclDevice,
+                                             const sycl::context &syclContext);
 
 /**
  *  @brief   Get the range that describes the image's dimensions
@@ -541,8 +541,8 @@ sycl::range<3> get_image_range(const image_mem_handle memHandle,
  *  @param   syclQueue The queue in which we created our image memory handle
  *  @return  sycl range describing image's dimensions
  */
-sycl::range<3> get_image_range(const image_mem_handle memHandle,
-                               const sycl::queue &syclQueue);
+__SYCL_EXPORT sycl::range<3> get_image_range(const image_mem_handle memHandle,
+                                             const sycl::queue &syclQueue);
 
 /**
  *  @brief   Get the channel type that describes the image memory
@@ -552,7 +552,7 @@ sycl::range<3> get_image_range(const image_mem_handle memHandle,
  *  @param   syclContext The context in which we created our image memory handle
  *  @return  sycl image channel type that describes the image
  */
-sycl::image_channel_type
+__SYCL_EXPORT sycl::image_channel_type
 get_image_channel_type(const image_mem_handle memHandle,
                        const sycl::device &syclDevice,
                        const sycl::context &syclContext);
@@ -564,7 +564,7 @@ get_image_channel_type(const image_mem_handle memHandle,
  *  @param   syclQueue The queue in which we created our image memory handle
  *  @return  sycl image channel type that describes the image
  */
-sycl::image_channel_type
+__SYCL_EXPORT sycl::image_channel_type
 get_image_channel_type(const image_mem_handle memHandle,
                        const sycl::queue &syclQueue);
 
@@ -576,9 +576,10 @@ get_image_channel_type(const image_mem_handle memHandle,
  *  @param   syclContext The context in which we created our image memory handle
  *  @return  The number of channels describing the image
  */
-unsigned int get_image_num_channels(const image_mem_handle memHandle,
-                                    const sycl::device &syclDevice,
-                                    const sycl::context &syclContext);
+__SYCL_EXPORT unsigned int
+get_image_num_channels(const image_mem_handle memHandle,
+                       const sycl::device &syclDevice,
+                       const sycl::context &syclContext);
 
 /**
  *  @brief   Get the number of channels that describes the image memory
@@ -587,8 +588,9 @@ unsigned int get_image_num_channels(const image_mem_handle memHandle,
  *  @param   syclQueue The queue in which we created our image memory handle
  *  @return  The number of channels describing the image
  */
-unsigned int get_image_num_channels(const image_mem_handle memHandle,
-                                    const sycl::queue &syclQueue);
+__SYCL_EXPORT unsigned int
+get_image_num_channels(const image_mem_handle memHandle,
+                       const sycl::queue &syclQueue);
 
 namespace detail {
 // Get the number of coordinates

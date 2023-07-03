@@ -16,7 +16,7 @@ namespace experimental {
 
 /// Opaque interop memory handle type
 struct interop_mem_handle {
-  using raw_handle_type = unsigned long;
+  using raw_handle_type = pi_uint64;
   raw_handle_type raw_handle;
 };
 
@@ -39,7 +39,7 @@ template <typename HandleType> struct external_mem_descriptor {
 
 /// Opaque interop semaphore handle type
 struct interop_semaphore_handle {
-  using raw_handle_type = unsigned long;
+  using raw_handle_type = pi_uint64;
   raw_handle_type raw_handle;
 };
 
