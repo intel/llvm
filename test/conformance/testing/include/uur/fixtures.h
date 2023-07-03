@@ -636,12 +636,33 @@ template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
     ur_usm_pool_handle_t pool;
 };
 
-struct urPhysicalMemTest : urContextTest {
+struct urVirtualMemGranularityTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
         ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
             context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
             sizeof(granularity), &granularity, nullptr));
+    }
+    size_t granularity;
+};
+
+template <class T>
+struct urVirtualMemGranularityTestWithParam : urContextTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
+            this->context, this->device,
+            UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, sizeof(granularity),
+            &granularity, nullptr));
+        ASSERT_NE(granularity, 0);
+    }
+
+    size_t granularity = 0;
+};
+
+struct urPhysicalMemTest : urVirtualMemGranularityTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemGranularityTest::SetUp());
         size = granularity * 256;
         ur_physical_mem_properties_t props{
             UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
@@ -657,12 +678,108 @@ struct urPhysicalMemTest : urContextTest {
         if (physical_mem) {
             EXPECT_SUCCESS(urPhysicalMemRelease(physical_mem));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemGranularityTest::TearDown());
     }
 
-    size_t granularity = 0;
     size_t size = 0;
     ur_physical_mem_handle_t physical_mem = nullptr;
+};
+
+template <class T>
+struct urPhysicalMemTestWithParam : urVirtualMemGranularityTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urVirtualMemGranularityTestWithParam<T>::SetUp());
+        size = this->granularity * 256;
+        ur_physical_mem_properties_t props{
+            UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
+            nullptr,
+            0 /*flags*/,
+        };
+        ASSERT_SUCCESS(urPhysicalMemCreate(this->context, this->device, size,
+                                           &props, &physical_mem));
+        ASSERT_NE(physical_mem, nullptr);
+    }
+
+    void TearDown() override {
+        if (physical_mem) {
+            EXPECT_SUCCESS(urPhysicalMemRelease(physical_mem));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urVirtualMemGranularityTestWithParam<T>::TearDown());
+    }
+
+    size_t size = 0;
+    ur_physical_mem_handle_t physical_mem = nullptr;
+};
+
+struct urVirtualMemTest : urPhysicalMemTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urPhysicalMemTest::SetUp());
+        ASSERT_SUCCESS(
+            urVirtualMemReserve(context, nullptr, size, &virtual_ptr));
+        ASSERT_NE(virtual_ptr, nullptr);
+    }
+
+    void TearDown() override {
+        if (virtual_ptr) {
+            EXPECT_SUCCESS(urVirtualMemFree(context, virtual_ptr, size));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urPhysicalMemTest::TearDown());
+    }
+
+    void *virtual_ptr = nullptr;
+};
+
+template <class T>
+struct urVirtualMemTestWithParam : urPhysicalMemTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urPhysicalMemTestWithParam<T>::SetUp());
+        ASSERT_SUCCESS(urVirtualMemReserve(this->context, nullptr, this->size,
+                                           &virtual_ptr));
+    }
+
+    void TearDown() override {
+        if (virtual_ptr) {
+            EXPECT_SUCCESS(
+                urVirtualMemFree(this->context, virtual_ptr, this->size));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urPhysicalMemTestWithParam<T>::TearDown());
+    }
+
+    void *virtual_ptr = nullptr;
+};
+
+struct urVirtualMemMappedTest : urVirtualMemTest {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemTest::SetUp());
+        ASSERT_SUCCESS(urVirtualMemMap(context, virtual_ptr, size, physical_mem,
+                                       0,
+                                       UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE));
+    }
+
+    void TearDown() override {
+        EXPECT_SUCCESS(urVirtualMemUnmap(context, virtual_ptr, size));
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemTest::TearDown());
+    }
+};
+
+template <class T>
+struct urVirtualMemMappedTestWithParam : urVirtualMemTestWithParam<T> {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemTestWithParam<T>::SetUp());
+        ASSERT_SUCCESS(urVirtualMemMap(this->context, this->virtual_ptr,
+                                       this->size, this->physical_mem, 0,
+                                       UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE));
+    }
+
+    void TearDown() override {
+        EXPECT_SUCCESS(
+            urVirtualMemUnmap(this->context, this->virtual_ptr, this->size));
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemTestWithParam<T>::TearDown());
+    }
 };
 
 template <class T>
