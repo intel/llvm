@@ -52,80 +52,110 @@ public:
 // Pattern
 //===----------------------------------------------------------------------===//
 
-/// Searches the component of the split demangled function name containing the
-/// actual function name in \p components. Returns whether the actual function
-/// name is equal to \p functionName.
-static bool matchFunctionName(ArrayRef<StringRef> components,
-                              StringRef functionName) {
-  // First search the component containing the function name
-  std::size_t parenPos = 0;
-  components = components.drop_while([&](StringRef component) {
-    parenPos = component.find('(');
-    return parenPos == StringRef::npos;
-  });
+constexpr StringLiteral stdNamespace = "std";
 
-  // Not found
-  if (components.empty())
-    return false;
-
-  std::size_t nameLength = functionName.size();
-  if (parenPos < nameLength) {
-    // Component got is too short
-    return false;
+/// Class holding results of calling `llvm::ItaniumPartialDemangler` member
+/// functions.
+///
+/// Result is owned by this type.
+class DemangleResult {
+public:
+  template <typename FuncTy> static FailureOr<DemangleResult> get(FuncTy f) {
+    char *buf = nullptr;
+    std::size_t size = 0;
+    buf = f(buf, &size);
+    if (!buf)
+      return failure();
+    return DemangleResult(buf, size);
   }
 
-  StringRef component = components.front();
-  return functionName == component.substr(parenPos - nameLength, nameLength);
-}
+  ~DemangleResult() { free(buf); }
 
-/// Returns whether the demangled function name \p functionName comes from a
-/// call to function \p name, member of \p typeName in namespace \p
-/// namespaceprefix.
-static bool checkFunction(StringRef functionName, StringRef namespacePrefix,
-                          StringRef typeName, StringRef name) {
-  // First split demangled function name in its components
+  explicit operator StringRef() const { return {buf, size - 1}; }
+
+  DemangleResult(const DemangleResult &other)
+      : buf(new char[other.size]), size(other.size) {
+    std::memcpy(buf, other.buf, size);
+  }
+
+  DemangleResult(DemangleResult &&other)
+      : DemangleResult(other.buf, other.size) {
+    other.buf = nullptr;
+  }
+
+  DemangleResult &operator=(const DemangleResult &other) {
+    buf = new char[other.size];
+    size = other.size;
+    std::memcpy(buf, other.buf, size);
+    return *this;
+  }
+
+  DemangleResult &operator=(DemangleResult &&other) {
+    buf = other.buf;
+    size = other.size;
+    other.buf = nullptr;
+    return *this;
+  }
+
+private:
+  DemangleResult(char *buf, std::size_t size) : buf(buf), size(size) {}
+
+  char *buf;
+  std::size_t size;
+};
+
+/// Returns whether function \p demangled is a member of type \p targetType in
+/// namespace \p targetNamespace.
+static bool isMemberFunction(StringRef demangled, StringRef targetNamespace,
+                             StringRef targetType) {
+  // Check demangled == targetNamespace::...::targetType
   constexpr StringLiteral namespaceQualifier = "::";
-  SmallVector<StringRef> components;
-  functionName.split(components, namespaceQualifier);
-
-  // Check namespace
-  if (components.empty() || components.front() != namespacePrefix)
-    return false;
-
-  // Check type name
-  ArrayRef<StringRef> remaining(components.begin() + 1, components.end());
-  remaining = remaining.drop_until(
-      [=](StringRef component) { return component.starts_with(typeName); });
-  if (remaining.empty())
-    return false;
-
-  // Check function name
-  return matchFunctionName(remaining.drop_front(), name);
+  return demangled.consume_front(targetNamespace) &&
+         demangled.consume_front(namespaceQualifier) &&
+         demangled.consume_back(targetType) &&
+         demangled.ends_with(namespaceQualifier);
 }
 
-/// Returns whether the demangled function name \p functionName comes from a
-/// call to function \p name, member of \p typeName in the std namespace.
-static bool isSTDFunction(StringRef functionName, StringRef typeName,
-                          StringRef name) {
-  constexpr StringLiteral namespacePrefix = "std";
-  return checkFunction(functionName, namespacePrefix, typeName, name);
+/// Returns whether the function demangled by \p demangler is a member of type
+/// \p targetType in namespace \p targetNamespace.
+static bool isMemberFunction(const llvm::ItaniumPartialDemangler &demangler,
+                             StringRef targetNamespace, StringRef targetType) {
+  FailureOr<DemangleResult> demangled =
+      DemangleResult::get([&](char *buf, std::size_t *size) {
+        return demangler.getFunctionDeclContextName(buf, size);
+      });
+  return succeeded(demangled) &&
+         isMemberFunction(static_cast<StringRef>(*demangled), targetNamespace,
+                          targetType);
 }
 
-/// Returns the demangled name of the function called by the input operation.
-static FailureOr<std::string> getDemangledCalleeName(CallOpInterface op) {
+/// Returns whether the name of the function demangled by \p demangler matches
+/// \p targetName.
+static bool functionNameMatches(const llvm::ItaniumPartialDemangler &demangler,
+                                StringRef targetName) {
+  FailureOr<DemangleResult> demangled =
+      DemangleResult::get([&](char *buf, std::size_t *size) {
+        return demangler.getFunctionBaseName(buf, size);
+      });
+  return succeeded(demangled) &&
+         static_cast<StringRef>(*demangled) == targetName;
+}
+
+/// Calls `partialDemangle` on \p demangler using the name of the function
+/// referenced by \p ref.
+static LogicalResult partialDemangle(llvm::ItaniumPartialDemangler &demangler,
+                                     SymbolRefAttr ref) {
+  StringRef mangledCalleeName = ref.getLeafReference();
+  return failure(demangler.partialDemangle(mangledCalleeName.data()));
+}
+
+/// Calls `partialDemangle` on \p demangler using the name of the function
+/// called by \p op.
+static LogicalResult partialDemangle(llvm::ItaniumPartialDemangler &demangler,
+                                     CallOpInterface op) {
   // Get the callable
   auto callable = dyn_cast<SymbolRefAttr>(op.getCallableForCallee());
-  if (!callable)
-    return failure();
-
-  // Get its name
-  StringRef mangledCalleeName = callable.getLeafReference();
-
-  // Return the demangled name
-  std::string demangledCalleeName = llvm::demangle(mangledCalleeName);
-  return demangledCalleeName == mangledCalleeName
-             ? FailureOr<std::string>() // No demangling could be performed
-             : FailureOr<std::string>(demangledCalleeName);
+  return callable ? partialDemangle(demangler, callable) : failure();
 }
 
 template <typename T> static auto getUsersOfType(Value value) {
@@ -590,6 +620,7 @@ public:
 
   LogicalResult matchAndRewrite(FunctionOpInterface op,
                                 PatternRewriter &rewriter) const final {
+    llvm::ItaniumPartialDemangler demangler;
     bool changed = false;
     // Go through each `sycl.host.get_kernel` introduced
     op.walk([&](sycl::SYCLHostGetKernelOp getKernel) {
@@ -610,16 +641,20 @@ public:
         if (invoke.getOperand(inputStringArgumentNumber) != getKernel)
           continue;
 
-        // Search for `std::basic_string<...>::replace` calls
-        constexpr StringLiteral targetType = "basic_string";
-        constexpr StringLiteral targetFunction = "replace";
-        FailureOr<std::string> demangledCalleeName =
-            getDemangledCalleeName(invoke);
-        if (failed(demangledCalleeName) ||
-            !isSTDFunction(*demangledCalleeName, targetType, targetFunction))
-          continue;
+        // Check the first (this) argument is a pointer to a member of a
+        // `sycl::handler`
         Value handler = getHandlerFromThisArg(invoke);
         if (!handler)
+          continue;
+
+        // Search for `std::basic_string<...>::replace` calls
+        constexpr StringLiteral targetType =
+            "basic_string<char, std::char_traits<char>, std::allocator<char>>";
+        constexpr StringLiteral targetFunction = "_M_replace";
+        if (!(succeeded(partialDemangle(demangler, invoke)) &&
+              demangler.isFunction() &&
+              functionNameMatches(demangler, targetFunction) &&
+              isMemberFunction(demangler, stdNamespace, targetType)))
           continue;
 
         // Introduce operation marking this construct
