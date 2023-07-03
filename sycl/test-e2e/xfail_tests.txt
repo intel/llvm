@@ -172,6 +172,7 @@ ESIMD/accessor_gather_scatter_stateless.cpp
 ESIMD/accessor_global.cpp
 ESIMD/accessor_load_store.cpp
 ESIMD/accessor_load_store_stateless.cpp
+ESIMD/accessor_local.cpp
 ESIMD/accessor_stateless.cpp
 ESIMD/addc.cpp
 ESIMD/api/ballot.cpp
