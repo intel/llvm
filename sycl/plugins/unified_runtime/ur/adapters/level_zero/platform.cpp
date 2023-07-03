@@ -25,11 +25,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urTearDown(
 ) {
   std::ignore = Params;
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
-  for (ur_platform_handle_t Platform : *PiPlatformsCache) {
-    delete Platform;
+
+  if (PiPlatformsCache) {
+    for (ur_platform_handle_t Platform : *PiPlatformsCache) {
+      delete Platform;
+    }
+
+    delete PiPlatformsCache;
+    PiPlatformsCache = nullptr;
+    delete PiPlatformsCacheMutex;
+    PiPlatformsCacheMutex = nullptr;
   }
-  delete PiPlatformsCache;
-  delete PiPlatformsCacheMutex;
 
   bool LeakFound = false;
 
