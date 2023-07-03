@@ -48,8 +48,6 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
 namespace __sycl_std = __host_std;
 #endif
 
-#define __SYCL_COMMA ,
-
 #define __SYCL_DEF_BUILTIN_VEC(TYPE)                                           \
   __SYCL_BUILTIN_DEF(TYPE##2)                                                  \
   __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
@@ -65,15 +63,6 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_GEOCROSSVEC(TYPE)                                   \
   __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
   __SYCL_BUILTIN_DEF(TYPE##4)
-
-#define __SYCL_DEF_BUILTIN_GEOMARRAY(TYPE)                                     \
-  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 2>)                              \
-  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 3>)                              \
-  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 4>)
-
-#define __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(TYPE)                                \
-  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 3>)                              \
-  __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA 4>)
 
 #define __SYCL_DEF_BUILTIN_MARRAY(TYPE)
 
@@ -270,9 +259,6 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_FLOAT_SCALAR __SYCL_BUILTIN_DEF(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_VEC __SYCL_DEF_BUILTIN_VEC(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(float)
-#define __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSMARRAY                                \
-  __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(float)
-#define __SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY __SYCL_DEF_BUILTIN_GEOMARRAY(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSVEC                                   \
   __SYCL_DEF_BUILTIN_GEOCROSSVEC(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(float)
@@ -289,9 +275,6 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_DOUBLE_SCALAR __SYCL_BUILTIN_DEF(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_VEC __SYCL_DEF_BUILTIN_VEC(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(double)
-#define __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSMARRAY                               \
-  __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(double)
-#define __SYCL_DEF_BUILTIN_DOUBLE_GEOMARRAY __SYCL_DEF_BUILTIN_GEOMARRAY(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSVEC                                  \
   __SYCL_DEF_BUILTIN_GEOCROSSVEC(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_MARRAY __SYCL_DEF_BUILTIN_MARRAY(double)
@@ -308,9 +291,6 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_HALF_SCALAR __SYCL_BUILTIN_DEF(half)
 #define __SYCL_DEF_BUILTIN_HALF_VEC __SYCL_DEF_BUILTIN_VEC(half)
 #define __SYCL_DEF_BUILTIN_HALF_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(half)
-#define __SYCL_DEF_BUILTIN_HALF_GEOCROSSMARRAY                                 \
-  __SYCL_DEF_BUILTIN_GEOCROSSMARRAY(half)
-#define __SYCL_DEF_BUILTIN_HALF_GEOMARRAY __SYCL_DEF_BUILTIN_GEOMARRAY(half)
 #define __SYCL_DEF_BUILTIN_HALF_GEOCROSSVEC __SYCL_DEF_BUILTIN_GEOCROSSVEC(half)
 #define __SYCL_DEF_BUILTIN_HALF_MARRAY __SYCL_DEF_BUILTIN_MARRAY(half)
 #define __SYCL_DEF_BUILTIN_HALFN                                               \
@@ -343,17 +323,6 @@ namespace __sycl_std = __host_std;
   __SYCL_DEF_BUILTIN_GENGEOFLOATD                                              \
   __SYCL_DEF_BUILTIN_GENGEOFLOATH
 
-#define __SYCL_DEF_BUILTIN_GENGEOCROSSMARRAY                                   \
-  __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSMARRAY                                      \
-  __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSMARRAY                                     \
-  __SYCL_DEF_BUILTIN_HALF_GEOCROSSMARRAY
-
-#define __SYCL_DEF_BUILTIN_GENGEOMARRAY                                        \
-  __SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY                                           \
-  __SYCL_DEF_BUILTIN_DOUBLE_GEOMARRAY                                          \
-  __SYCL_DEF_BUILTIN_HALF_GEOMARRAY
-
-// TODO: Replace with overloads.
 #define __SYCL_DEF_BUILTIN_VGENGEOCROSSFLOAT                                   \
   __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSVEC                                         \
   __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSVEC                                        \
@@ -2094,81 +2063,67 @@ __SYCL_DEF_BUILTIN_GENGEOFLOATF
 
 // marray geometric functions
 
-// cross
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE cross(TYPE p0, TYPE p1) __NOEXC {                                \
-    return detail::to_marray(cross(detail::to_vec(p0), detail::to_vec(p1)));   \
+#define __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(NAME, ...)              \
+  vec<detail::marray_element_t<T>, T::size()> result_v;                        \
+  result_v = NAME(__VA_ARGS__);                                                \
+  return detail::to_marray(result_v);
+
+template <typename T>
+std::enable_if_t<detail::is_gencrossmarray<T>::value, T> cross(T p0,
+                                                               T p1) __NOEXC {
+  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(cross, detail::to_vec(p0),
+                                                 detail::to_vec(p1))
+}
+
+template <typename T>
+std::enable_if_t<detail::is_gengeomarray<T>::value, T> normalize(T p) __NOEXC {
+  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(normalize, detail::to_vec(p))
+}
+
+template <typename T>
+std::enable_if_t<detail::is_gengeomarrayfloat<T>::value, T>
+fast_normalize(T p) __NOEXC {
+  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(fast_normalize,
+                                                 detail::to_vec(p))
+}
+
+#undef __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL
+
+#define __SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(NAME)  \
+  template <typename T>                                                        \
+  std::enable_if_t<detail::is_gengeomarray<T>::value,                          \
+                   detail::marray_element_t<T>>                                \
+  NAME(T p0, T p1) __NOEXC {                                                   \
+    return NAME(detail::to_vec(p0), detail::to_vec(p1));                       \
   }
-__SYCL_DEF_BUILTIN_GENGEOCROSSMARRAY
-#undef __SYCL_BUILTIN_DEF
 
-#undef __SYCL_DEF_BUILTIN_GENGEOCROSSMARRAY
-#undef __SYCL_DEF_BUILTIN_HALF_GEOCROSSMARRAY
-#undef __SYCL_DEF_BUILTIN_DOUBLE_GEOCROSSMARRAY
-#undef __SYCL_DEF_BUILTIN_FLOAT_GEOCROSSMARRAY
-#undef __SYCL_DEF_BUILTIN_GEOCROSSMARRAY
+// clang-format off
+__SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(dot)
+__SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD(distance)
+// clang-format on
 
-// dot
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE::value_type dot(TYPE p0, TYPE p1) __NOEXC {                      \
-    return dot(detail::to_vec(p0), detail::to_vec(p1));                        \
-  }
-__SYCL_DEF_BUILTIN_GENGEOMARRAY
-#undef __SYCL_BUILTIN_DEF
+#undef __SYCL_MARRAY_GEOMETRIC_FUNCTION_IS_GENGEOMARRAY_BINOP_OVERLOAD
 
-// distance
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE::value_type distance(TYPE p0, TYPE p1) __NOEXC {                 \
-    return distance(detail::to_vec(p0), detail::to_vec(p1));                   \
-  }
-__SYCL_DEF_BUILTIN_GENGEOMARRAY
-#undef __SYCL_BUILTIN_DEF
+template <typename T>
+std::enable_if_t<detail::is_gengeomarray<T>::value, detail::marray_element_t<T>>
+length(T p) __NOEXC {
+  return __sycl_std::__invoke_length<detail::marray_element_t<T>>(
+      detail::to_vec(p));
+}
 
-// length
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE::value_type length(TYPE p) __NOEXC {                             \
-    return length(detail::to_vec(p));                                          \
-  }
-__SYCL_DEF_BUILTIN_GENGEOMARRAY
-#undef __SYCL_BUILTIN_DEF
+template <typename T>
+std::enable_if_t<detail::is_gengeomarrayfloat<T>::value,
+                 detail::marray_element_t<T>>
+fast_distance(T p0, T p1) __NOEXC {
+  return fast_distance(detail::to_vec(p0), detail::to_vec(p1));
+}
 
-// normalize
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE normalize(TYPE p) __NOEXC {                                      \
-    return detail::to_marray(normalize(detail::to_vec(p)));                    \
-  }
-__SYCL_DEF_BUILTIN_GENGEOMARRAY
-#undef __SYCL_BUILTIN_DEF
-
-// fast_distance
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline float fast_distance(TYPE p0, TYPE p1) __NOEXC {                       \
-    return fast_distance(detail::to_vec(p0), detail::to_vec(p1));              \
-  }
-__SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
-#undef __SYCL_BUILTIN_DEF
-
-// fast_normalize
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fast_normalize(TYPE p) __NOEXC {                                 \
-    return detail::to_marray(fast_normalize(detail::to_vec(p)));               \
-  }
-__SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
-#undef __SYCL_BUILTIN_DEF
-
-// fast_length
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline float fast_length(TYPE p) __NOEXC {                                   \
-    return fast_length(detail::to_vec(p));                                     \
-  }
-__SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
-#undef __SYCL_BUILTIN_DEF
-
-#undef __SYCL_DEF_BUILTIN_GENGEOMARRAY
-#undef __SYCL_DEF_BUILTIN_HALF_GEOMARRAY
-#undef __SYCL_DEF_BUILTIN_DOUBLE_GEOMARRAY
-#undef __SYCL_DEF_BUILTIN_FLOAT_GEOMARRAY
-#undef __SYCL_DEF_BUILTIN_GEOMARRAY
+template <typename T>
+std::enable_if_t<detail::is_gengeomarrayfloat<T>::value,
+                 detail::marray_element_t<T>>
+fast_length(T p) __NOEXC {
+  return fast_length(detail::to_vec(p));
+}
 
 /* SYCL 1.2.1 ---- 4.13.7 Relational functions. -----------------------------*/
 /* SYCL 2020  ---- 4.17.9 Relational functions. -----------------------------*/
@@ -2969,7 +2924,6 @@ std::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
 #undef __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_DEF_BUILTIN_SGENTYPE
 #undef __SYCL_DEF_BUILTIN_GENTYPE
-#undef __SYCL_COMMA
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
