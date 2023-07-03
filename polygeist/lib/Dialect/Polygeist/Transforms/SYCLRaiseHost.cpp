@@ -124,8 +124,9 @@ public:
 
     // 'this*' is the first argument to the constructor call, if it is a
     // constructor.
-    auto alloc = dyn_cast_or_null<LLVM::AllocaOp>(
-        constructor.getArgOperands().front().getDefiningOp());
+    auto alloc = constructor.getArgOperands()
+                     .front()
+                     .template getDefiningOp<LLVM::AllocaOp>();
 
     if (!alloc)
       return failure();
@@ -148,10 +149,14 @@ public:
       // Invoke is not a constructor call.
       return failure();
 
+    auto constructedType = TypeTag::getTypeFromConstructor(constructor);
+    if (!constructedType)
+      return failure();
+
     rewriter.create<sycl::SYCLHostConstructorOp>(
         constructor->getLoc(), constructor.getArgOperands().front(),
         constructor.getArgOperands().drop_front(1),
-        TypeAttr::get(TypeTag::getTypeFromConstructor(constructor)));
+        TypeAttr::get(constructedType));
 
     if constexpr (PostProcess)
       static_cast<const Derived *>(this)->postprocess(constructor, rewriter);
@@ -215,9 +220,9 @@ struct BufferTypeTag {
     llvm::Regex bufferTemplate("buffer<.*, ([0-9]+)");
     llvm::SmallVector<StringRef> matches;
     bool regexMatch = bufferTemplate.match(demangledName, &matches);
-    unsigned dimensions = 1;
-    if (regexMatch)
-      dimensions = std::stoul(matches[1].str());
+    if (!regexMatch)
+      return nullptr;
+    unsigned dimensions = std::stoul(matches[1].str());
 
     // FIXME: There's currently no good way to obtain the element type of the
     // buffer from the constructor call (or allocation). Parsing it from the
@@ -253,17 +258,21 @@ struct AccessorTypeTag {
         "\\(sycl::_V1::access::target\\)([0-9]+)");
     llvm::SmallVector<StringRef> matches;
     bool regexMatch = accessorTemplate.match(demangledName, &matches);
-    unsigned dimensions = 1;
-    unsigned target = 2014;
-    unsigned mode = 1026;
-    if (regexMatch) {
-      dimensions = std::stoul(matches[1].str());
-      mode = std::stoul(matches[2].str());
-      target = std::stoul(matches[3].str());
-    }
 
-    sycl::AccessMode accessMode = static_cast<sycl::AccessMode>(mode);
-    sycl::Target accessTarget = static_cast<sycl::Target>(target);
+    if (!regexMatch)
+      return nullptr;
+
+    unsigned dimensions = std::stoul(matches[1].str());
+    unsigned mode = std::stoul(matches[2].str());
+    unsigned target = std::stoul(matches[3].str());
+
+    auto accessModeOrNone = mlir::sycl::symbolizeAccessMode(mode);
+    auto accessTargetOrNone = mlir::sycl::symbolizeTarget(target);
+    if (!accessModeOrNone || !accessTargetOrNone)
+      return nullptr;
+
+    sycl::AccessMode accessMode = *accessModeOrNone;
+    sycl::Target accessTarget = *accessTargetOrNone;
 
     // FIXME: There's currently no good way to obtain the element type of the
     // accessor from the constructor call (or allocation). Parsing it from the
