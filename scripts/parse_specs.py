@@ -763,6 +763,13 @@ def _generate_returns(obj, meta):
         obj['returns'] = rets
     return obj
 
+
+def _inline_extended_structs(specs, meta):
+    for s in specs:
+        for i, obj in enumerate(s['objects']):
+            obj = _inline_base(obj, meta)
+            s['objects'][i] = obj
+
 """
     generates extra content
 """
@@ -770,7 +777,6 @@ def _generate_extra(specs, meta):
     for s in specs:
         for i, obj in enumerate(s['objects']):
             obj = _generate_hash(obj)
-            obj = _inline_base(obj, meta)
             obj = _generate_returns(obj, meta)
             s['objects'][i] = obj
 
@@ -809,7 +815,8 @@ def _refresh_enum_meta(obj, meta):
     if obj.get('class'):
         meta['class'][obj['class']]['enum'].remove(obj['name'])
         
-    del meta['enum'][obj['name']]
+    if meta['enum'].get(obj['name']):
+        del meta['enum'][obj['name']]
     ## re-generate meta
     meta = _generate_meta(obj, None, meta)
 
@@ -845,6 +852,26 @@ def _extend_enums(enum_extensions, specs, meta):
             value = _get_etor_value(x.get('value'), value)
             return value
         matching_enum['etors'] = sorted(matching_enum['etors'], key=sort_etors)
+
+def _generate_structure_type_t(specs, meta):
+    extended_structs = [obj for s in specs for obj in s['objects'] if re.match(r"struct|union", obj['type']) and 'base' in obj]
+    ur_structure_type_t = {
+        "type": "enum",
+        "desc": "Defines structure types",
+        "name": "$x_structure_type_t",
+        "etors": []
+    }
+    for struct in extended_structs:
+        if struct['name'].startswith("$x_exp_"):
+            continue
+        stype = [mem for mem in struct['members'] if mem['name'] == 'stype'][0]
+        etor = stype['init']
+        ur_structure_type_t['etors'].append({"name": etor, "desc": struct['name']})
+    
+    common_header = [s for s in specs if s['header']['desc'].endswith("common types")][0]
+    result_t_index = [i for i, obj in enumerate(common_header['objects']) if obj['name'] == "$x_result_t"][0]
+    common_header['objects'].insert(result_t_index + 1, ur_structure_type_t)
+    _refresh_enum_meta(ur_structure_type_t, meta)
 
 """
 Entry-point:
@@ -914,6 +941,8 @@ def parse(section, version, tags, meta, ref):
             })
 
     specs = sorted(specs, key=lambda s: s['header']['ordinal'])
+    _inline_extended_structs(specs, meta)
+    _generate_structure_type_t(specs, meta)
     _extend_enums(enum_extensions, specs, meta)
     _generate_extra(specs, meta)
 
