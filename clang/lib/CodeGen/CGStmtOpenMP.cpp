@@ -704,7 +704,11 @@ void CodeGenFunction::EmitOMPAggregateAssign(
   // Drill down to the base element type on both arrays.
   const ArrayType *ArrayTy = OriginalType->getAsArrayTypeUnsafe();
   llvm::Value *NumElements = emitArrayLength(ArrayTy, ElementTy, DestAddr);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   SrcAddr = SrcAddr.withElementType(DestAddr.getElementType());
+#else
+  SrcAddr = Builder.CreateElementBitCast(SrcAddr, DestAddr.getElementType());
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   llvm::Value *SrcBegin = SrcAddr.getPointer();
   llvm::Value *DestBegin = DestAddr.getPointer();
@@ -7210,7 +7214,11 @@ void CodeGenFunction::EmitOMPUseDevicePtrClause(
     // privatization scope, so the initialization here disregards the fact
     // the original variable is a reference.
     llvm::Type *Ty = ConvertTypeForMem(OrigVD->getType().getNonReferenceType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Address InitAddr = InitAddrIt->second.withElementType(Ty);
+#else
+    Address InitAddr = Builder.CreateElementBitCast(InitAddrIt->second, Ty);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     setAddrOfLocalVar(InitVD, InitAddr);
 
     // Emit private declaration, it will be initialized by the value we
@@ -7276,9 +7284,15 @@ void CodeGenFunction::EmitOMPUseDeviceAddrClause(
         MatchingVD->getType()->isArrayType()) {
       QualType PtrTy = getContext().getPointerType(
           OrigVD->getType().getNonReferenceType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       PrivAddr =
           EmitLoadOfPointer(PrivAddr.withElementType(ConvertTypeForMem(PtrTy)),
                             PtrTy->castAs<PointerType>());
+#else
+      PrivAddr = EmitLoadOfPointer(
+          Builder.CreateElementBitCast(PrivAddr, ConvertTypeForMem(PtrTy)),
+          PtrTy->castAs<PointerType>());
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     }
 
     (void)PrivateScope.addPrivate(OrigVD, PrivAddr);

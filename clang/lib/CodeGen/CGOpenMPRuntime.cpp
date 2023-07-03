@@ -684,7 +684,12 @@ static void EmitOMPAggregateInit(CodeGenFunction &CGF, Address DestAddr,
   const ArrayType *ArrayTy = Type->getAsArrayTypeUnsafe();
   llvm::Value *NumElements = CGF.emitArrayLength(ArrayTy, ElementTy, DestAddr);
   if (DRD)
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     SrcAddr = SrcAddr.withElementType(DestAddr.getElementType());
+#else
+    SrcAddr =
+        CGF.Builder.CreateElementBitCast(SrcAddr, DestAddr.getElementType());
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   llvm::Value *SrcBegin = nullptr;
   if (DRD)
@@ -905,8 +910,13 @@ void ReductionCodeGen::emitCleanups(CodeGenFunction &CGF, unsigned N,
   QualType PrivateType = getPrivateType(N);
   QualType::DestructionKind DTorKind = PrivateType.isDestructedType();
   if (needCleanups(N)) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     PrivateAddr =
         PrivateAddr.withElementType(CGF.ConvertTypeForMem(PrivateType));
+#else
+    PrivateAddr = CGF.Builder.CreateElementBitCast(
+        PrivateAddr, CGF.ConvertTypeForMem(PrivateType));
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     CGF.pushDestroy(DTorKind, PrivateAddr, PrivateType);
   }
 }
@@ -925,7 +935,12 @@ static LValue loadToBegin(CodeGenFunction &CGF, QualType BaseTy, QualType ElTy,
     BaseTy = BaseTy->getPointeeType();
   }
   return CGF.MakeAddrLValue(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       BaseLV.getAddress(CGF).withElementType(CGF.ConvertTypeForMem(ElTy)),
+#else
+      CGF.Builder.CreateElementBitCast(BaseLV.getAddress(CGF),
+                                       CGF.ConvertTypeForMem(ElTy)),
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       BaseLV.getType(), BaseLV.getBaseInfo(),
       CGF.CGM.getTBAAInfoForSubobject(BaseLV, BaseLV.getType()));
 }
@@ -1775,8 +1790,14 @@ llvm::Function *CGOpenMPRuntime::emitThreadPrivateVarDefinition(
       llvm::Value *ArgVal = CtorCGF.EmitLoadOfScalar(
           CtorCGF.GetAddrOfLocalVar(&Dst), /*Volatile=*/false,
           CGM.getContext().VoidPtrTy, Dst.getLocation());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Address Arg(ArgVal, CtorCGF.ConvertTypeForMem(ASTTy),
                   VDAddr.getAlignment());
+#else
+      Address Arg(ArgVal, CtorCGF.Int8Ty, VDAddr.getAlignment());
+      Arg = CtorCGF.Builder.CreateElementBitCast(
+          Arg, CtorCGF.ConvertTypeForMem(ASTTy));
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       CtorCGF.EmitAnyExprToMem(Init, Arg, Init->getType().getQualifiers(),
                                /*IsInitializer=*/true);
       ArgVal = CtorCGF.EmitLoadOfScalar(
@@ -4251,7 +4272,12 @@ CGOpenMPRuntime::getDepobjElements(CodeGenFunction &CGF, LValue DepobjLVal,
       cast<RecordDecl>(KmpDependInfoTy->getAsTagDecl());
   QualType KmpDependInfoPtrTy = C.getPointerType(KmpDependInfoTy);
   LValue Base = CGF.EmitLoadOfPointerLValue(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       DepobjLVal.getAddress(CGF).withElementType(
+#else
+      CGF.Builder.CreateElementBitCast(
+          DepobjLVal.getAddress(CGF),
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
           CGF.ConvertTypeForMem(KmpDependInfoPtrTy)),
       KmpDependInfoPtrTy->castAs<PointerType>());
   Address DepObjAddr = CGF.Builder.CreateGEP(
@@ -5477,7 +5503,12 @@ static llvm::Value *emitReduceInitFunction(CodeGenModule &CGM,
   CGF.StartFunction(GlobalDecl(), C.VoidTy, Fn, FnInfo, Args, Loc, Loc);
   QualType PrivateType = RCG.getPrivateType(N);
   Address PrivateAddr = CGF.EmitLoadOfPointer(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       CGF.GetAddrOfLocalVar(&Param).withElementType(
+#else
+      CGF.Builder.CreateElementBitCast(
+          CGF.GetAddrOfLocalVar(&Param),
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
           CGF.ConvertTypeForMem(PrivateType)->getPointerTo()),
       C.getPointerType(PrivateType)->castAs<PointerType>());
   llvm::Value *Size = nullptr;
@@ -5565,16 +5596,28 @@ static llvm::Value *emitReduceCombFunction(CodeGenModule &CGM,
       LHSVD,
       // Pull out the pointer to the variable.
       CGF.EmitLoadOfPointer(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
           CGF.GetAddrOfLocalVar(&ParamInOut)
               .withElementType(
                   CGF.ConvertTypeForMem(LHSVD->getType())->getPointerTo()),
+#else
+          CGF.Builder.CreateElementBitCast(
+              CGF.GetAddrOfLocalVar(&ParamInOut),
+              CGF.ConvertTypeForMem(LHSVD->getType())->getPointerTo()),
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
           C.getPointerType(LHSVD->getType())->castAs<PointerType>()));
   PrivateScope.addPrivate(
       RHSVD,
       // Pull out the pointer to the variable.
       CGF.EmitLoadOfPointer(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
           CGF.GetAddrOfLocalVar(&ParamIn).withElementType(
               CGF.ConvertTypeForMem(RHSVD->getType())->getPointerTo()),
+#else
+          CGF.Builder.CreateElementBitCast(
+            CGF.GetAddrOfLocalVar(&ParamIn),
+            CGF.ConvertTypeForMem(RHSVD->getType())->getPointerTo()),
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
           C.getPointerType(RHSVD->getType())->castAs<PointerType>()));
   PrivateScope.Privatize();
   // Emit the combiner body:
