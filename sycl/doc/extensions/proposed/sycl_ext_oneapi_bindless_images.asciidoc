@@ -34,13 +34,6 @@ This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-[NOTE]
-====
-One exception to this is use of the SYCL 1.2.1 `sycl::sampler` class. Please 
-refer to the issues section at the bottom of this document for reasons why we 
-do not yet use the SYCL 2020 `sycl::image_sampler` struct.
-====
-
 == Status
 
 This is an experimental extension specification, intended to provide early
@@ -529,12 +522,12 @@ unsampled_image_handle create_image(image_mem_handle memHandle,
 // Creating a sampled image from an `image_mem_handle`
 sampled_image_handle create_image(image_mem_handle memHandle,
                                   const image_descriptor &desc,
-                                  const sycl::sampler &syclSampler,
+                                  const bindless_image_sampler &sampler,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext);
 sampled_image_handle create_image(image_mem_handle memHandle,
                                   const image_descriptor &desc,
-                                  const sycl::sampler &syclSampler,
+                                  const bindless_image_sampler &sampler,
                                   const sycl::queue &syclQueue);
 
 // Creating an unsampled image from an `image_mem` object
@@ -549,23 +542,23 @@ unsampled_image_handle create_image(const image_mem &memHandle,
 // Creating a sampled image from an `image_mem` object
 sampled_image_handle create_image(const image_mem &memHandle,
                                   const image_descriptor &desc,
-                                  const sycl::sampler &syclSampler,
+                                  const bindless_image_sampler &sampler,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext);
 sampled_image_handle create_image(const image_mem &memHandle,
                                   const image_descriptor &desc,
-                                  const sycl::sampler &syclSampler,
+                                  const bindless_image_sampler &sampler,
                                   const sycl::queue &syclQueue);
 
 // Creating a sampled image from a USM allocation and pitch
 sampled_image_handle create_image(const void *usmPtr, size_t pitch,
                                   const image_descriptor &desc,
-                                  const sycl::sampler &syclSampler,
+                                  const bindless_image_sampler &sampler,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext);
 sampled_image_handle create_image(const void *usmPtr, size_t pitch,
                                   const image_descriptor &desc,
-                                  const sycl::sampler &syclSampler,
+                                  const bindless_image_sampler &sampler,
                                   const sycl::queue &syclQueue);
 
 // Destroying an image handle
@@ -590,10 +583,11 @@ They can be captured by value into a SYCL kernel, or they can be passed in a
 buffer as a dynamic array of images (see examples at the bottom of this 
 document).
 
-We can either provide a `sycl::sampler` or not when creating the image. Doing 
-so will create a `sampled_image_handle`, where otherwise an 
-`unsampled_image_handle` would be returned. A `sampled_image_handle` should 
-contain a raw sampler handle that will be used when sampling an image.
+We can either provide a `bindless_image_sampler` (defined in section below) or 
+not when creating the image. Doing so will create a `sampled_image_handle`, 
+where otherwise an `unsampled_image_handle` would be returned. A 
+`sampled_image_handle` should contain a raw sampler handle that will be used 
+when sampling an image.
 
 Whether an `image_descriptor` or `void *` USM allocation was passed to 
 `create_image`, it must have been allocated in the same context and on the same 
@@ -626,6 +620,54 @@ After we're done with the image, we need to destroy the handle using
 `destroy_image_handle`. Destroying an image handle does not deallocate the 
 underlying image memory. The user is responsible for deallocation, either 
 through `free_image_mem`, or destroying the `image_mem` object, if one was used.
+
+=== Image sampler struct
+
+The `bindless_image_sampler` struct shown below is used to set the sampling 
+properties of `sampled_images` upon image creation. It can be used to set 
+sampling properties that exist in the SYCL 2020 `image_sampler` as well as 
+extra properties used for sampling mipmaps including level-of-detail (LOD) and 
+anisotropic filtering.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+struct bindless_image_sampler {
+
+  bindless_image_sampler(sycl::addressing_mode addressing,
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering);
+
+  bindless_image_sampler(sycl::addressing_mode addressing,
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering,
+                         sycl::filtering_mode mipFiltering,
+                         float minMipmapLevelClamp, float maxMipmapLevelClamp,
+                         float maxAnisotropy);
+
+  sycl::addressing_mode addressing;
+  sycl::coordinate_normalization_mode coordinate;
+  sycl::filtering_mode filtering;
+  sycl::filtering_mode mipmapFiltering;
+  float minMipmapLevelClamp;
+  float maxMipmapLevelClamp;
+  float maxAnisotropy;
+};
+
+}
+```
+
+`mipmapFiltering` dictates the method in which sampling between mipmap 
+levels is performed.
+
+`minMipmapLevelClamp` defines the minimum mipmap level from which we can sample, 
+with the minimum value being 0.
+
+`maxMipmapLevelClamp` defines the maximum mipmap level from which we can sample.
+This cannot value cannot be higher than the number of allocated levels.
+
+`maxAnisotropy` dictates the anisotropic ratio used when samplling the mipmap 
+with anisotropic filtering.
 
 === Explicit copies
 
@@ -918,8 +960,8 @@ Inside a kernel, it's possible to read an image via `read_image`, passing
 the image handle. For the form that takes `unsampled_image_handle`, image data 
 will be fetched exactly as is in device memory. For the form that takes a 
 `sampled_image_handle`, the image will be sampled according to the 
-`sycl::sampler` that was passed to the image upon construction. The sampler 
-handle and is included in the `sampled_image_handle` as 
+`bindless_image_sampler` that was passed to the image upon construction. The 
+sampler handle is included in the `sampled_image_handle` as 
 `sampled_image_handle::raw_sampler_handle`. 
 
 The returned data will be of templated type `DataT`, which is specified by the 
@@ -1029,63 +1071,11 @@ specific level or create an image based on that level.
 A handle to a mipmap image is acquired in the same way as a 
 `sampled_image_handle`. Mipmaps can only be sampled image types. We can create a 
 `sampled_image_handle` to the allocated mipmap through the `create_image` 
-functions which take a sampler.
-
-Below we describe an extension to the existing SYCL `sampler` object which 
-allows for the sampling of mipmaps with support for level of detail(LOD) and 
-anisotropic filtering. To sample a mipmap correctly, the extended attributes of 
-this sampler must be defined.
+functions which take a `bindless_image_sampler`. To sample a mipmap correctly, 
+the mipmap attributes of this sampler must be defined.
 
 Attempting to create an `unsampled_image_handle` to a mipmap will result in a 
 `sycl::exception` with error code `sycl::errc::runtime` being thrown.
-
-=== Extended sampler object
-
-To represent the different sampling capabilities that mipmaps provide as opposed 
-to standard sampled images, we propose to extend the core SYCL `sampler` 
-class.
-
-We propose to add a `mipmap_filtering_mode` enum, mipmap filtering properties' 
-values, getter functions, and a new constructor to the SYCL `sampler` 
-class.
-
-```c++
-namespace sycl {
-
-enum class mipmap_filtering_mode : /* unspecified */ {
-  nearest,
-  linear,
-};
-
-class sampler {
-public:
-
-  sampler(coordinate_normalization_mode normalizationMode,
-          addressing_mode addressingMode, filtering_mode filteringMode,
-          mipmap_filtering_mode mipmapFilteringMode, float minMipmapLevelClamp,
-          float maxMipmapLevelClamp, float maxAnisotropy,
-          const property_list &propList = {});
-
-
-  mipmap_filtering_mode get_mipmap_filtering_mode() const;
-  float get_min_mipmap_level_clamp() const;
-  float get_max_mipmap_level_clamp() const;
-  float get_max_anisotropy() const;
-};
-}
-```
-
-`mipmapFilteringMode` dictates the method in which sampling between mipmap 
-levels is performed.
-
-`minMipmapLevelClamp` defines the minimum mipmap level from which we can sample, 
-with the minimum value being 0.
-
-`maxMipmapLevelClamp` defines the maximum mipmap level from which we can sample.
-This cannot value cannot be higher than the number of allocated levels.
-
-`maxAnisotropy` dictates the anisotropic ratio used when samplling the mipmap 
-with anisotropic filtering.
 
 === Copying mipmap image data
 
@@ -1649,9 +1639,10 @@ try {
   q.wait_and_throw();
 
   // Extended sampler object to take in mipmap attributes
-  sycl::sampler samp(coordinate_normalization_mode::normalized,
-                addressing_mode::mirrored_repeat, filtering_mode::nearest,
-                mipmap_filtering_mode::nearest, 0.0f, (float)num_levels, 8.0f);
+  sycl::ext::oneapi::experimental::bindless_image_sampler samp(
+      addressing_mode::mirrored_repeat,
+      coordinate_normalization_mode::normalized, filtering_mode::nearest,
+      mipmap_filtering_mode::nearest, 0.0f, (float)num_levels, 8.0f);
 
   // Create a sampled image handle to represent the mipmap
   sycl::ext::oneapi::experimental::sampled_image_handle mipHandle =
@@ -1854,13 +1845,6 @@ work across different backends.
 
 == Issues
 
-== Use of SYCL 1.2.1 `sycl::sampler`
-
-At the time of writing the extended `sycl::sampler` class, DPC++ had no support 
-for the SYCL 2020 `sycl::image_sampler` struct. Hence the proposal and current 
-experimental implementation both use the old SYCL 1.2.1 `sycl::sampler`. Both 
-will be updated to use the SYCL 2020 `sycl::image_sampler` in the future.
-
 === No dependency tracking
 
 Because this extension allows images to work in a USM-like model,
@@ -1980,9 +1964,7 @@ These features still need to be handled:
                    specified that the implementation should relay the reason 
                    for the failure back to the user.
 
-                 - Added notes on the exception of using the SYCL 1.2.1 
-                   `sampler` class, and reason for not using the SYCL 2020 
-                   `image_sampler` struct.
+                 - Added a `bindless_image_sampler` struct
 
                  - Updated code samples
 |======================
