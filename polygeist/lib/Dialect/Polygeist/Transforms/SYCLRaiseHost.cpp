@@ -25,6 +25,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
 
+#include <type_traits>
+
 namespace mlir {
 namespace polygeist {
 #define GEN_PASS_DEF_SYCLRAISEHOSTCONSTRUCTS
@@ -60,7 +62,10 @@ constexpr StringLiteral stdNamespace = "std";
 /// Result is owned by this type.
 class DemangleResult {
 public:
-  template <typename FuncTy> static FailureOr<DemangleResult> get(FuncTy f) {
+  template <typename FuncTy,
+            typename = std::enable_if_t<std::is_same_v<
+                char *, std::invoke_result_t<FuncTy, char *, std::size_t *>>>>
+  static FailureOr<DemangleResult> get(FuncTy f) {
     char *buf = nullptr;
     std::size_t size = 0;
     buf = f(buf, &size);
