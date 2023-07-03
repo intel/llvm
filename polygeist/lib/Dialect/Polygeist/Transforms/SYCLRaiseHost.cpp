@@ -74,7 +74,7 @@ public:
   explicit operator StringRef() const { return {buf, size - 1}; }
 
   DemangleResult(const DemangleResult &other)
-      : buf(new char[other.size]), size(other.size) {
+      : DemangleResult(new char[other.size], other.size) {
     std::memcpy(buf, other.buf, size);
   }
 
