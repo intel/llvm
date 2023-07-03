@@ -550,7 +550,7 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
   typedef
       typename cplx::detail::__libcpp_complex_overload_traits<_Tp>::_ValueType
           _ValueType;
-  return sycl::atan2<_ValueType>(0, __re);
+  return sycl::atan2(static_cast<_ValueType>(0), __re);
 }
 
 // norm
@@ -978,6 +978,27 @@ tan(const complex<_Tp> &__x) {
   complex<_Tp> __z = tanh(complex<_Tp>(-__x.imag(), __x.real()));
   return complex<_Tp>(__z.imag(), -__z.real());
 }
+
+// Literal suffix for complex number literals [complex.literals]
+inline namespace literals {
+inline namespace complex_literals {
+constexpr complex<double> operator""i(long double __im) {
+  return {0.0, static_cast<double>(__im)};
+}
+
+constexpr complex<double> operator""i(unsigned long long __im) {
+  return {0.0, static_cast<double>(__im)};
+}
+
+constexpr complex<float> operator""if(long double __im) {
+  return {0.0f, static_cast<float>(__im)};
+}
+
+constexpr complex<float> operator""if(unsigned long long __im) {
+  return {0.0f, static_cast<float>(__im)};
+}
+} // namespace complex_literals
+} // namespace literals
 
 } // namespace experimental
 } // namespace oneapi

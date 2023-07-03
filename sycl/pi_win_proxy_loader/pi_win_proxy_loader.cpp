@@ -44,10 +44,6 @@
 // ------------------------------------
 
 static constexpr const char *DirSep = "\\";
-using OSModuleHandle = intptr_t;
-/// Module handle for the executable module - it is assumed there is always
-/// single one at most.
-static constexpr OSModuleHandle ExeModuleHandle = -1;
 
 // cribbed from sycl/source/detail/os_util.cpp
 std::string getDirName(const char *Path) {
@@ -64,7 +60,10 @@ std::string getDirName(const char *Path) {
 }
 
 // cribbed from sycl/source/detail/os_util.cpp
-OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
+// TODO: Just inline it.
+using OSModuleHandle = intptr_t;
+static constexpr OSModuleHandle ExeModuleHandle = -1;
+static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
   HMODULE PhModule;
   DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
@@ -109,7 +108,6 @@ std::string getCurrentDSODir() {
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "pi_unified_runtime.dll"
-#define __SYCL_ONLINE_COMPILER_LIBRARY_NAME "ocloc64.dll"
 #else // llvm-mingw
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
@@ -117,7 +115,6 @@ std::string getCurrentDSODir() {
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.dll"
-#define __SYCL_ONLINE_COMPILER_LIBRARY_NAME "ocloc64.dll"
 #endif
 
 // ------------------------------------
@@ -168,9 +165,6 @@ void preloadLibraries() {
 
   std::string ur_path = LibSYCLDir + __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME;
   dllMap.emplace(ur_path, LoadLibraryA(ur_path.c_str()));
-
-  std::string ocloc_path = __SYCL_ONLINE_COMPILER_LIBRARY_NAME;
-  dllMap.emplace(ocloc_path, LoadLibraryA(ocloc_path.c_str()));
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);

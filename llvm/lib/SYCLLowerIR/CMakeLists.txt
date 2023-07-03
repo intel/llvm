@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: "Victor Mustya" <victor.mustya@intel.com>
-    # Date: Mon, 15 May 2023 23:44:14 +0000
-    # Mark new lsc_load_merge intrinsics as LSC ones
-    set(LLVMGenXIntrinsics_GIT_TAG fe92a377338258b725cfbd0a1bd49a9cf5e2864c)
+    # Author: Gorban, Igor <igor.gorban@intel.com>
+    # Date:   Tue Jun 6 23:56:43 2023 +0000
+    # Mark llvm15 tests failures
+    set(LLVMGenXIntrinsics_GIT_TAG 910db4801d4a029834606e3e42a8d60358e74fdf)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -80,6 +80,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMGenXIntrinsics
   LLVMDemangle
   LLVMTransformUtils
+  DeviceConfigFile
 
   LINK_LIBS
   LLVMGenXIntrinsics

@@ -57,7 +57,7 @@ public:
   ///
   /// \param Event is a valid instance of plug-in event.
   /// \param SyclContext is an instance of SYCL context.
-  event_impl(RT::PiEvent Event, const context &SyclContext);
+  event_impl(sycl::detail::pi::PiEvent Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
 
   /// Checks if this event is a SYCL host event.
@@ -115,12 +115,12 @@ public:
   /// invalid if event_impl was destroyed.
   ///
   /// \return a reference to an instance of plug-in event handle.
-  RT::PiEvent &getHandleRef();
+  sycl::detail::pi::PiEvent &getHandleRef();
   /// Returns raw interoperability event handle. Returned reference will be]
   /// invalid if event_impl was destroyed.
   ///
   /// \return a const reference to an instance of plug-in event handle.
-  const RT::PiEvent &getHandleRef() const;
+  const sycl::detail::pi::PiEvent &getHandleRef() const;
 
   /// Returns context that is associated with this event.
   ///
@@ -270,7 +270,7 @@ protected:
   void ensureContextInitialized();
   bool MIsInitialized = true;
   bool MIsContextInitialized = false;
-  RT::PiEvent MEvent = nullptr;
+  sycl::detail::pi::PiEvent MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
   ContextImplPtr MContext;
@@ -302,7 +302,7 @@ protected:
   std::mutex MMutex;
   std::condition_variable cv;
 
-  friend std::vector<RT::PiEvent>
+  friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,
                   std::shared_ptr<sycl::detail::context_impl> Context);
 };

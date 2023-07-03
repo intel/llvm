@@ -75,6 +75,7 @@ public:
     CopyToDeviceGlobal = 19,
     CopyFromDeviceGlobal = 20,
     ReadWriteHostPipe = 21,
+    ExecCommandBuffer = 22,
   };
 
   struct StorageInitHelper {
@@ -89,6 +90,7 @@ public:
           MSharedPtrStorage(std::move(SharedPtrStorage)),
           MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
     StorageInitHelper(StorageInitHelper &&) = default;
+    StorageInitHelper(const StorageInitHelper &) = default;
     // The following storages are needed to ensure that arguments won't die
     // while we are using them.
     /// Storage for standard layout arguments.
@@ -119,16 +121,23 @@ public:
   }
 
   CG(CG &&CommandGroup) = default;
+  CG(const CG &CommandGroup) = default;
 
   CGTYPE getType() { return MType; }
 
-  std::vector<std::vector<char>> &getArgsStorage() { return MData.MArgsStorage; }
-  std::vector<detail::AccessorImplPtr> &getAccStorage() { return MData.MAccStorage; }
+  std::vector<std::vector<char>> &getArgsStorage() {
+    return MData.MArgsStorage;
+  }
+  std::vector<detail::AccessorImplPtr> &getAccStorage() {
+    return MData.MAccStorage;
+  }
   std::vector<std::shared_ptr<const void>> &getSharedPtrStorage() {
     return MData.MSharedPtrStorage;
   }
 
-  std::vector<AccessorImplHost *> &getRequirements() { return MData.MRequirements; }
+  std::vector<AccessorImplHost *> &getRequirements() {
+    return MData.MRequirements;
+  }
   std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
 
   virtual ~CG() = default;
@@ -151,36 +160,37 @@ class CGExecKernel : public CG {
 public:
   /// Stores ND-range description.
   NDRDescT MNDRDesc;
-  std::unique_ptr<HostKernelBase> MHostKernel;
+  std::shared_ptr<HostKernelBase> MHostKernel;
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
   std::string MKernelName;
-  detail::OSModuleHandle MOSModuleHandle;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
-  RT::PiKernelCacheConfig MKernelCacheConfig;
+  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
 
-  CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
+  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName, detail::OSModuleHandle OSModuleHandle,
+               std::string KernelName,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
-               CGTYPE Type, RT::PiKernelCacheConfig KernelCacheConfig,
+               CGTYPE Type,
+               sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
                detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
-        MStreams(std::move(Streams)),
+        MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
     assert((getType() == RunOnHostIntel || getType() == Kernel) &&
            "Wrong type of exec kernel CG.");
   }
+
+  CGExecKernel(const CGExecKernel &CGExec) = default;
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
   std::string getKernelName() const { return MKernelName; }
@@ -445,25 +455,22 @@ class CGCopyToDeviceGlobal : public CG {
   bool MIsDeviceImageScoped;
   size_t MNumBytes;
   size_t MOffset;
-  detail::OSModuleHandle MOSModuleHandle;
 
 public:
   CGCopyToDeviceGlobal(void *Src, void *DeviceGlobalPtr,
                        bool IsDeviceImageScoped, size_t NumBytes, size_t Offset,
                        CG::StorageInitHelper CGData,
-                       detail::OSModuleHandle OSModuleHandle,
                        detail::code_location loc = {})
       : CG(CopyToDeviceGlobal, std::move(CGData), std::move(loc)), MSrc(Src),
         MDeviceGlobalPtr(DeviceGlobalPtr),
         MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
-        MOffset(Offset), MOSModuleHandle(OSModuleHandle) {}
+        MOffset(Offset) {}
 
   void *getSrc() { return MSrc; }
   void *getDeviceGlobalPtr() { return MDeviceGlobalPtr; }
   bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
-  detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
 };
 
 /// "Copy to device_global" command group class.
@@ -473,25 +480,22 @@ class CGCopyFromDeviceGlobal : public CG {
   bool MIsDeviceImageScoped;
   size_t MNumBytes;
   size_t MOffset;
-  detail::OSModuleHandle MOSModuleHandle;
 
 public:
   CGCopyFromDeviceGlobal(void *DeviceGlobalPtr, void *Dest,
                          bool IsDeviceImageScoped, size_t NumBytes,
                          size_t Offset, CG::StorageInitHelper CGData,
-                         detail::OSModuleHandle OSModuleHandle,
                          detail::code_location loc = {})
       : CG(CopyFromDeviceGlobal, std::move(CGData), std::move(loc)),
         MDeviceGlobalPtr(DeviceGlobalPtr), MDest(Dest),
         MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
-        MOffset(Offset), MOSModuleHandle(OSModuleHandle) {}
+        MOffset(Offset) {}
 
   void *getDeviceGlobalPtr() { return MDeviceGlobalPtr; }
   void *getDest() { return MDest; }
   bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
-  detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
 };
 
 } // namespace detail

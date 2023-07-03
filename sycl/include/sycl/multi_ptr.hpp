@@ -113,6 +113,16 @@ public:
       : m_Pointer(ptr) {}
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
 
+  // Explicit conversion from multi_ptr<T> to multi_ptr<const T>
+  template <typename NonConstElementType = std::remove_const_t<ElementType>,
+            typename = typename std::enable_if_t<
+                std::is_const_v<ElementType> &&
+                std::is_same_v<NonConstElementType,
+                               std::remove_const_t<ElementType>>>>
+  explicit multi_ptr(
+      multi_ptr<NonConstElementType, Space, DecorateAddress> MPtr)
+      : m_Pointer(MPtr.get_decorated()) {}
+
   // Only if Space is in
   // {global_space, ext_intel_global_device_space, generic_space}
   template <
@@ -126,7 +136,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space || generic_space
   template <int Dimensions, access::mode Mode,
@@ -176,8 +188,9 @@ public:
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
                      Mode, access::target::device, isPlaceholder, PropertyListT>
                 Accessor)
-      : m_Pointer(Accessor.template get_multi_ptr<DecorateAddress>()
-                      .get_decorated()) {}
+      : m_Pointer(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space || generic_space and element type is const
   template <int Dimensions, access::mode Mode,
@@ -440,7 +453,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space
   template <
@@ -565,7 +580,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space
   template <
@@ -1264,10 +1281,21 @@ private:
 };
 
 #ifdef __cpp_deduction_guides
-template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+template <int dimensions, access::placeholder isPlaceholder,
           typename PropertyListT, class T>
-multi_ptr(accessor<T, dimensions, Mode, access::target::device, isPlaceholder,
-                   PropertyListT>)
+multi_ptr(accessor<T, dimensions, access::mode::read, access::target::device,
+                   isPlaceholder, PropertyListT>)
+    -> multi_ptr<const T, access::address_space::global_space,
+                 access::decorated::no>;
+template <int dimensions, access::placeholder isPlaceholder,
+          typename PropertyListT, class T>
+multi_ptr(accessor<T, dimensions, access::mode::write, access::target::device,
+                   isPlaceholder, PropertyListT>)
+    -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
+template <int dimensions, access::placeholder isPlaceholder,
+          typename PropertyListT, class T>
+multi_ptr(accessor<T, dimensions, access::mode::read_write,
+                   access::target::device, isPlaceholder, PropertyListT>)
     -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
 template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
           typename PropertyListT, class T>

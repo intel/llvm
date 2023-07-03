@@ -501,7 +501,7 @@ Speculation::Speculatability DimOp::getSpeculatability() {
 
 OpFoldResult DimOp::fold(FoldAdaptor adaptor) {
   // All forms of folding require a known index.
-  auto index = adaptor.getIndex().dyn_cast_or_null<IntegerAttr>();
+  auto index = llvm::dyn_cast_if_present<IntegerAttr>(adaptor.getIndex());
   if (!index)
     return {};
 
@@ -764,7 +764,7 @@ struct FoldEmptyTensorWithCastOp : public OpRewritePattern<CastOp> {
       OpFoldResult currDim = std::get<1>(it);
       // Case 1: The empty tensor dim is static. Check that the tensor cast
       // result dim matches.
-      if (auto attr = currDim.dyn_cast<Attribute>()) {
+      if (auto attr = llvm::dyn_cast_if_present<Attribute>(currDim)) {
         if (ShapedType::isDynamic(newDim) ||
             newDim != llvm::cast<IntegerAttr>(attr).getInt()) {
           // Something is off, the cast result shape cannot be more dynamic
@@ -1111,14 +1111,43 @@ LogicalResult GenerateOp::reifyResultShapes(
   return success();
 }
 
+/// Extract operands and shape from a tensor with dynamic extents.
+static void operandsAndShape(TensorType resultType,
+                             Operation::operand_range dynamicExtents,
+                             SmallVectorImpl<Value> &newOperands,
+                             SmallVectorImpl<int64_t> &newShape) {
+  auto operandsIt = dynamicExtents.begin();
+  for (int64_t dim : resultType.getShape()) {
+    if (!ShapedType::isDynamic(dim)) {
+      newShape.push_back(dim);
+      continue;
+    }
+    APInt index;
+    if (!matchPattern(*operandsIt, m_ConstantInt(&index))) {
+      newShape.push_back(ShapedType::kDynamic);
+      newOperands.push_back(*operandsIt++);
+      continue;
+    }
+    newShape.push_back(index.getSExtValue());
+    operandsIt++;
+  }
+}
+
 LogicalResult GenerateOp::verify() {
   // Ensure that the tensor type has as many dynamic dimensions as are
   // specified by the operands.
-  RankedTensorType resultTy = llvm::cast<RankedTensorType>(getType());
-  if (getNumOperands() != resultTy.getNumDynamicDims())
+  RankedTensorType resultType = llvm::cast<RankedTensorType>(getType());
+  if (getNumOperands() != resultType.getNumDynamicDims())
     return emitError("must have as many index operands as dynamic extents "
                      "in the result type");
-
+  // Ensure operands are non-negative.
+  SmallVector<Value> newOperands;
+  SmallVector<int64_t> newShape;
+  operandsAndShape(resultType, getDynamicExtents(), newOperands, newShape);
+  for (int64_t newdim : newShape) {
+    if (newdim < 0 && !ShapedType::isDynamic(newdim))
+      return emitError("tensor dimensions must be non-negative");
+  }
   return success();
 }
 
@@ -1176,24 +1205,11 @@ struct StaticTensorGenerate : public OpRewritePattern<GenerateOp> {
     if (resultType.hasStaticShape())
       return failure();
 
-    SmallVector<Value, 4> newOperands;
-    SmallVector<int64_t, 4> newShape;
-    auto operandsIt = tensorFromElements.getDynamicExtents().begin();
-
-    for (int64_t dim : resultType.getShape()) {
-      if (!ShapedType::isDynamic(dim)) {
-        newShape.push_back(dim);
-        continue;
-      }
-      APInt index;
-      if (!matchPattern(*operandsIt, m_ConstantInt(&index))) {
-        newShape.push_back(ShapedType::kDynamic);
-        newOperands.push_back(*operandsIt++);
-        continue;
-      }
-      newShape.push_back(index.getSExtValue());
-      operandsIt++;
-    }
+    Operation::operand_range dynamicExtents =
+        tensorFromElements.getDynamicExtents();
+    SmallVector<Value> newOperands;
+    SmallVector<int64_t> newShape;
+    operandsAndShape(resultType, dynamicExtents, newOperands, newShape);
 
     if (newOperands.size() == tensorFromElements.getDynamicExtents().size())
       return failure();
@@ -2106,7 +2122,7 @@ static Value foldExtractAfterInsertSlice(ExtractSliceOp extractOp) {
 }
 
 OpFoldResult ExtractSliceOp::fold(FoldAdaptor adaptor) {
-  if (auto splat = adaptor.getSource().dyn_cast_or_null<SplatElementsAttr>()) {
+  if (auto splat = llvm::dyn_cast_if_present<SplatElementsAttr>(adaptor.getSource())) {
     auto resultType = llvm::cast<ShapedType>(getResult().getType());
     if (resultType.hasStaticShape())
       return splat.resizeSplat(resultType);
@@ -3558,7 +3574,7 @@ asShapeWithAnyValueAsDynamic(ArrayRef<OpFoldResult> ofrs) {
   SmallVector<int64_t> result;
   for (auto o : ofrs) {
     // Have to do this first, as getConstantIntValue special-cases constants.
-    if (o.dyn_cast<Value>())
+    if (llvm::dyn_cast_if_present<Value>(o))
       result.push_back(ShapedType::kDynamic);
     else
       result.push_back(getConstantIntValue(o).value_or(ShapedType::kDynamic));
