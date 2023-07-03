@@ -592,7 +592,7 @@ struct RaiseRangeConstructor
 /// This pattern acts on `FunctionOpInterface` instances as it will not be
 /// removing the operations assigning the kernel name, but creating additional
 /// ones to mark the construct.
-struct RaiseSetKernel : public OpInterfaceRewritePattern<FunctionOpInterface> {
+class RaiseSetKernel : public OpInterfaceRewritePattern<FunctionOpInterface> {
 public:
   using OpInterfaceRewritePattern<
       FunctionOpInterface>::OpInterfaceRewritePattern;
