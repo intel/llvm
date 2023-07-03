@@ -196,14 +196,25 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
       RetVal = 0; // Not specified by kernel
       Ret = CL_SUCCESS;
     } else if (propName == UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE) {
-      // Return the maximum work group size for the kernel
-      size_t KernelWGSize = 0;
-      ur_result_t UrRet = urKernelGetGroupInfo(
-          hKernel, hDevice, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
-          sizeof(size_t), &KernelWGSize, nullptr);
-      if (UrRet != UR_RESULT_SUCCESS)
+      // Return the maximum sub group size for the device
+      size_t result_size = 0;
+      // Two calls to urDeviceGetInfo are needed: the first determines the size
+      // required to store the result, and the second returns the actual size
+      // values.
+      ur_result_t UrRet =
+          urDeviceGetInfo(hDevice, UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, 0,
+                          nullptr, &result_size);
+      if (UrRet != UR_RESULT_SUCCESS) {
         return UrRet;
-      RetVal = KernelWGSize;
+      }
+      assert(result_size % sizeof(size_t) == 0);
+      std::vector<size_t> result(result_size / sizeof(size_t));
+      UrRet = urDeviceGetInfo(hDevice, UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL,
+                              result_size, result.data(), nullptr);
+      if (UrRet != UR_RESULT_SUCCESS) {
+        return UrRet;
+      }
+      RetVal = *std::max_element(result.begin(), result.end());
       Ret = CL_SUCCESS;
     } else if (propName == UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL) {
       RetVal = 0; // Not specified by kernel
@@ -361,8 +372,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, ur_mem_handle_t hArgValue) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
+                     ur_mem_handle_t hArgValue) {
+
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   cl_int ret_err = clSetKernelArg(
       cl_adapter::cast<cl_kernel>(hKernel), cl_adapter::cast<cl_uint>(argIndex),

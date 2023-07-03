@@ -167,6 +167,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     *ppPlatformOption = "";
     return UR_RESULT_SUCCESS;
   }
+  // Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
   if (!strcmp(pFrontendOption, "-O0")) {
     *ppPlatformOption = "-cl-opt-disable";
     return UR_RESULT_SUCCESS;
@@ -176,5 +177,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     *ppPlatformOption = "";
     return UR_RESULT_SUCCESS;
   }
+  if (pFrontendOption == "-ftarget-compile-fast"sv) {
+    *ppPlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
+    return UR_RESULT_SUCCESS;
+  }
   return UR_RESULT_ERROR_INVALID_VALUE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetLastError(
+    ur_platform_handle_t hPlatform, const char **ppMessage, int32_t *pError) {
+  std::ignore = hPlatform;
+  std::ignore = ppMessage;
+  std::ignore = pError;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

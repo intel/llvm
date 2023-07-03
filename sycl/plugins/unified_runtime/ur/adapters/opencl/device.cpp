@@ -209,7 +209,7 @@ static cl_int map_ur_device_info_to_cl(ur_device_info_t urPropName) {
   case UR_DEVICE_INFO_REFERENCE_COUNT:
     cl_propName = CL_DEVICE_REFERENCE_COUNT;
     break;
-  case UR_DEVICE_INFO_PARTITION_PROPERTIES:
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS:
     cl_propName = CL_DEVICE_PARTITION_PROPERTIES;
     break;
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
@@ -442,19 +442,50 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                 std::to_string(version.getMinor());
     return ReturnValue(results.c_str(), results.size() + 1);
   }
-  case UR_DEVICE_INFO_PARTITION_PROPERTIES:
-  case UR_DEVICE_INFO_PARTITION_TYPE: {
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
     size_t cl_size;
     CL_RETURN_ON_FAILURE(
         clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName, 0,
                         nullptr, &cl_size));
     const size_t n_properties = cl_size / sizeof(cl_device_partition_property);
 
-    /* Special case for UR_DEVICE_INFO_PARTITION_TYPE because OpenCL
-     * implementation returns a size of 0 if the device is not a sub-device.
-     * But UR implementation expects a size of 1 element with a value of 0. */
-    if (propName == UR_DEVICE_INFO_PARTITION_TYPE && cl_size == 0) {
-      return ReturnValue(static_cast<ur_device_partition_property_t>(0));
+    std::vector<cl_device_partition_property> cl_value(n_properties);
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName,
+                        cl_size, cl_value.data(), nullptr));
+
+    /* The OpenCL implementation returns a value of 0 if no properties are
+     * supported. UR will return a size of 0 for now.
+     */
+    if (pPropSizeRet && cl_value[0] == 0) {
+      *pPropSizeRet = 0;
+      return UR_RESULT_SUCCESS;
+    }
+
+    std::vector<ur_device_partition_t> ur_value{};
+    for (size_t i = 0; i < n_properties; ++i) {
+      if (cl_value[i] != CL_DEVICE_PARTITION_BY_NAMES_INTEL &&
+          cl_value[i] != 0) {
+        ur_value.push_back(static_cast<ur_device_partition_t>(cl_value[i]));
+      }
+    }
+    return ReturnValue(ur_value.data(), ur_value.size());
+  }
+  case UR_DEVICE_INFO_PARTITION_TYPE: {
+
+    size_t cl_size;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName, 0,
+                        nullptr, &cl_size));
+    const size_t n_properties = cl_size / sizeof(cl_device_partition_property);
+
+    /* The OpenCL implementation returns either a size of 0 or a value of 0 if
+     * the device is not a sub-device. UR will return a size of 0 for now.
+     * TODO Ideally, this could become an error once PI is removed from SYCL RT
+     */
+    if (pPropSizeRet && (cl_size == 0 || n_properties == 1)) {
+      *pPropSizeRet = 0;
+      return UR_RESULT_SUCCESS;
     }
 
     auto cl_value =
@@ -463,11 +494,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName,
                         cl_size, cl_value, nullptr));
 
-    std::vector<ur_device_partition_property_t> ur_value{};
-    for (size_t i = 0; i < n_properties; ++i) {
-      if (cl_value[i] != CL_DEVICE_PARTITION_BY_NAMES_INTEL) {
-        ur_value.push_back(
-            static_cast<ur_device_partition_property_t>(cl_value[i]));
+    std::vector<ur_device_partition_property_t> ur_value(n_properties - 1);
+
+    /* OpenCL will always return exactly one partition type followed by one or
+     * more values. */
+    for (uint32_t i = 0; i < ur_value.size(); ++i) {
+      ur_value[i].type = static_cast<ur_device_partition_t>(cl_value[0]);
+      switch (ur_value[i].type) {
+      case UR_DEVICE_PARTITION_EQUALLY: {
+        ur_value[i].value.equally = cl_value[i + 1];
+        break;
+      }
+      case UR_DEVICE_PARTITION_BY_COUNTS: {
+        ur_value[i].value.count = cl_value[i + 1];
+        break;
+      }
+      case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN: {
+        ur_value[i].value.affinity_domain = cl_value[i + 1];
+        break;
+      }
+      default: {
+        return UR_RESULT_ERROR_UNKNOWN;
+      }
       }
     }
 
@@ -796,7 +844,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
   case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
-    /* CL type: cl_bitfield
+    /* CL type: cl_bitfield / enum
      * UR type: ur_flags_t (uint32_t) */
 
     cl_bitfield cl_value;
@@ -937,17 +985,52 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     ur_device_handle_t hDevice,
-    const ur_device_partition_property_t *pProperties, uint32_t NumDevices,
+    const ur_device_partition_properties_t *pProperties, uint32_t NumDevices,
     ur_device_handle_t *phSubDevices, uint32_t *pNumDevicesRet) {
 
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pProperties, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
+  std::vector<cl_device_partition_property> cl_properties(
+      pProperties->PropCount + 2);
+
+  /* The type must be the same for all properties since OpenCL doesn't support
+   * property lists with multiple types */
+  cl_properties[0] =
+      static_cast<cl_device_partition_property>(pProperties->pProperties->type);
+
+  for (uint32_t i = 0; i < pProperties->PropCount; ++i) {
+    cl_device_partition_property cl_property;
+    switch (pProperties->pProperties->type) {
+    case UR_DEVICE_PARTITION_EQUALLY: {
+      cl_property = static_cast<cl_device_partition_property>(
+          pProperties->pProperties->value.equally);
+      break;
+    }
+    case UR_DEVICE_PARTITION_BY_COUNTS: {
+      cl_property = static_cast<cl_device_partition_property>(
+          pProperties->pProperties->value.count);
+      break;
+    }
+    case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN: {
+      cl_property = static_cast<cl_device_partition_property>(
+          pProperties->pProperties->value.affinity_domain);
+      break;
+    }
+    default: {
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+    }
+    cl_properties[i + 1] = cl_property;
+  }
+
+  /* Terminate the list with 0 */
+  cl_properties[cl_properties.size() - 1] = 0;
+
   cl_uint cl_num_devices_ret;
   CL_RETURN_ON_FAILURE(clCreateSubDevices(
-      cl_adapter::cast<cl_device_id>(hDevice),
-      cl_adapter::cast<const cl_device_partition_property *>(pProperties), 0,
-      nullptr, &cl_num_devices_ret));
+      cl_adapter::cast<cl_device_id>(hDevice), cl_properties.data(), 0, nullptr,
+      &cl_num_devices_ret));
 
   if (pNumDevicesRet) {
     *pNumDevicesRet = cl_num_devices_ret;
@@ -958,8 +1041,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
   if (phSubDevices) {
     std::vector<cl_device_id> cl_sub_devices(cl_num_devices_ret);
     CL_RETURN_ON_FAILURE(clCreateSubDevices(
-        cl_adapter::cast<cl_device_id>(hDevice),
-        cl_adapter::cast<const cl_device_partition_property *>(pProperties),
+        cl_adapter::cast<cl_device_id>(hDevice), cl_properties.data(),
         cl_num_devices_ret, cl_sub_devices.data(), nullptr));
 
     std::memcpy(phSubDevices, cl_sub_devices.data(),

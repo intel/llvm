@@ -84,34 +84,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
     *phProgram = cl_adapter::cast<ur_program_handle_t>(clCreateProgramWithIL(
         cl_adapter::cast<cl_context>(hContext), pIL, length, &err));
     CL_RETURN_ON_FAILURE(err);
-  }
+  } else {
 
-  /* If none of the devices conform with CL 2.1 or newer make sure they all
-   * support the cl_khr_il_program extension.
-   */
-  for (cl_device_id dev : *devicesInCtx) {
-    bool supported = false;
-    CL_RETURN_ON_FAILURE_AND_SET_NULL(
-        cl_adapter::checkDeviceExtensions(dev, {"cl_khr_il_program"},
-                                          supported),
-        phProgram);
+    /* If none of the devices conform with CL 2.1 or newer make sure they all
+     * support the cl_khr_il_program extension.
+     */
+    for (cl_device_id dev : *devicesInCtx) {
+      bool supported = false;
+      CL_RETURN_ON_FAILURE_AND_SET_NULL(
+          cl_adapter::checkDeviceExtensions(dev, {"cl_khr_il_program"},
+                                            supported),
+          phProgram);
 
-    if (!supported) {
-      return UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE;
+      if (!supported) {
+        return UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE;
+      }
     }
+
+    using apiFuncT =
+        cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
+    apiFuncT funcPtr =
+        reinterpret_cast<apiFuncT>(clGetExtensionFunctionAddressForPlatform(
+            curPlatform, "clCreateProgramWithILKHR"));
+
+    assert(funcPtr != nullptr);
+
+    *phProgram = cl_adapter::cast<ur_program_handle_t>(
+        funcPtr(cl_adapter::cast<cl_context>(hContext), pIL, length, &err));
+    CL_RETURN_ON_FAILURE(err);
   }
-
-  using apiFuncT =
-      cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
-  apiFuncT funcPtr =
-      reinterpret_cast<apiFuncT>(clGetExtensionFunctionAddressForPlatform(
-          curPlatform, "clCreateProgramWithILKHR"));
-
-  assert(funcPtr != nullptr);
-
-  *phProgram = cl_adapter::cast<ur_program_handle_t>(
-      funcPtr(cl_adapter::cast<cl_context>(hContext), pIL, length, &err));
-  CL_RETURN_ON_FAILURE(err);
 
   return UR_RESULT_SUCCESS;
 }

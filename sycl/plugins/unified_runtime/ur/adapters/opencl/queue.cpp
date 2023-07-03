@@ -80,19 +80,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
       convert_ur_queue_properties_to_cl(pProperties);
 
   // Check that unexpected bits are not set.
-  assert(!(clProperties &
-           ~(CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-             CL_QUEUE_PROFILING_ENABLE | CL_QUEUE_ON_DEVICE |
-             CL_QUEUE_ON_DEVICE_DEFAULT)));
+  assert(!(clProperties & ~(CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+                            CL_QUEUE_PROFILING_ENABLE | CL_QUEUE_ON_DEVICE |
+                            CL_QUEUE_ON_DEVICE_DEFAULT)));
 
   // Properties supported by OpenCL backend.
   cl_command_queue_properties SupportByOpenCL =
       CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE |
       CL_QUEUE_ON_DEVICE | CL_QUEUE_ON_DEVICE_DEFAULT;
-  
+
   OCLV::OpenCLVersion version;
-  CL_RETURN_ON_FAILURE_AND_SET_NULL(cl_adapter::getPlatformVersion(curPlatform, version),
-                                    phQueue);
+  CL_RETURN_ON_FAILURE_AND_SET_NULL(
+      cl_adapter::getPlatformVersion(curPlatform, version), phQueue);
 
   cl_int ret_err = CL_INVALID_OPERATION;
 
@@ -137,8 +136,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
-    ur_queue_handle_t hQueue, ur_native_handle_t *phNativeQueue) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
+                       ur_native_handle_t *phNativeQueue) {
   return urGetNativeHandle(hQueue, phNativeQueue);
 }
 

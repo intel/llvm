@@ -3191,8 +3191,8 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 ///
 /// \param queue is the queue to submit to
 /// \param ptr is the ptr to fill
-/// \param pitch is the total width of the destination memory including padding
-/// \param pattern is a pointer with the bytes of the pattern to set
+/// \param pitch is the total width of the destination memory including
+/// padding \param pattern is a pointer with the bytes of the pattern to set
 /// \param pattern_size is the size in bytes of the pattern
 /// \param width is width in bytes of each row to fill
 /// \param height is height the columns to fill
@@ -3890,6 +3890,17 @@ inline pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
 
   HANDLE_ERRORS(urEventGetInfo(UrEvent, PropName, ParamValueSize, ParamValue,
                                ParamValueSizeRet));
+
+  if (ParamName == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    /* If the PI_EVENT_INFO_COMMAND_EXECUTION_STATUS info value is
+     * PI_EVENT_QUEUED, change it to PI_EVENT_SUBMITTED. This change is needed
+     * since sycl::info::event::event_command_status has no equivalent to
+     * PI_EVENT_QUEUED. */
+    const auto param_value_int = static_cast<cl_int *>(ParamValue);
+    if (*param_value_int == PI_EVENT_QUEUED) {
+      *param_value_int = PI_EVENT_SUBMITTED;
+    }
+  }
 
   return PI_SUCCESS;
 }
