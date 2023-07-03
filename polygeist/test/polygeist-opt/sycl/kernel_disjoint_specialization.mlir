@@ -29,20 +29,20 @@ gpu.module @device_func {
   // CHECK-LABEL: gpu.func @caller1(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) kernel {
 
   // COM: Obtain a pointer to the beginning of the first accessor.
-  // CHECK-NEXT:    %c0 = arith.constant 0 : index
-  // CHECK-NEXT:    %0 = sycl.id.constructor(%c0) : (index) -> memref<1x!sycl_id_1_>
-  // CHECK-NEXT:    [[ACC1_BEGIN:%.*]] = sycl.accessor.subscript %arg0[%0] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
+  // CHECK-NEXT:    %[[VAL_6:.*]] = arith.constant 0 : index
+  // CHECK-NEXT:    %[[VAL_7:.*]] = sycl.id.constructor(%[[VAL_6]]) : (index) -> memref<1x!sycl_id_1_>
+  // CHECK-NEXT:    [[ACC1_BEGIN:%.*]] = sycl.accessor.subscript %arg0{{\[}}%[[VAL_7]]] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
 
   // COM: Obtain a pointer to the end of the first accessor.
-  // CHECK-NEXT:    %2 = sycl.accessor.get_range(%arg0) : (memref<?x!sycl_accessor_1_f32_r_gb>) -> !sycl_range_1_
-  // CHECK-NEXT:    %alloca = memref.alloca() : memref<1x!sycl_range_1_>
-  // CHECK-NEXT:    %c0_0 = arith.constant 0 : index
-  // CHECK-NEXT:    memref.store %2, %alloca[%c0_0] : memref<1x!sycl_range_1_>
-  // CHECK-NEXT:    %c1 = arith.constant 1 : index
-  // CHECK-NEXT:    %c0_i32 = arith.constant 0 : i32
-  // CHECK-NEXT:    %3 = sycl.range.get %alloca[%c0_i32] : (memref<1x!sycl_range_1_>, i32) -> index
-  // CHECK-NEXT:    %4 = sycl.id.constructor(%3) : (index) -> memref<1x!sycl_id_1_>
-  // CHECK-NEXT:    [[ACC1_END:%.*]] = sycl.accessor.subscript %arg0[%4] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
+  // CHECK-NEXT:    %[[VAL_9:.*]] = sycl.accessor.get_range(%arg0) : (memref<?x!sycl_accessor_1_f32_r_gb>) -> !sycl_range_1_
+  // CHECK-NEXT:    %[[VAL_10:.*]] = memref.alloca() : memref<1x!sycl_range_1_>
+  // CHECK-NEXT:    %[[VAL_11:.*]] = arith.constant 0 : index
+  // CHECK-NEXT:    memref.store %[[VAL_9]], %[[VAL_10]]{{\[}}%[[VAL_11]]] : memref<1x!sycl_range_1_>
+  // CHECK-NEXT:    %[[VAL_12:.*]] = arith.constant 1 : index
+  // CHECK-NEXT:    %[[VAL_13:.*]] = arith.constant 0 : i32
+  // CHECK-NEXT:    %[[VAL_14:.*]] = sycl.range.get %[[VAL_10]]{{\[}}%[[VAL_13]]] : (memref<1x!sycl_range_1_>, i32) -> index
+  // CHECK-NEXT:    %[[VAL_15:.*]] = sycl.id.constructor(%[[VAL_14]]) : (index) -> memref<1x!sycl_id_1_>
+  // CHECK-NEXT:    [[ACC1_END:%.*]] = sycl.accessor.subscript %arg0{{\[}}%[[VAL_15]]] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
 
   // COM: Version with condition: [[ACC1_END]] <= [[ACC2_BEGIN]] || [[ACC1_BEGIN]] >= [[ACC2_END]].
   // CHECK:         [[ACC2_BEGIN:%.*]] = sycl.accessor.subscript %arg1[{{.*}}]  : (memref<?x!sycl_accessor_1_f32_w_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
@@ -96,35 +96,35 @@ gpu.module @device_func {
   // CHECK-LABEL: gpu.func @caller3(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_accessor_2_f32_w_gb>) kernel {
 
   // COM: Obtain a pointer to the beginning of the first accessor.
-  // CHECK-NEXT:    %c0 = arith.constant 0 : index
-  // CHECK-NEXT:    %0 = sycl.id.constructor(%c0, %c0) : (index, index) -> memref<1x!sycl_id_2_>
-  // CHECK-NEXT:    [[ACC1_BEGIN:%.*]] = sycl.accessor.subscript %arg0[%0] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
+  // CHECK-NEXT:    %[[VAL_47:.*]] = arith.constant 0 : index
+  // CHECK-NEXT:    %[[VAL_48:.*]] = sycl.id.constructor(%[[VAL_47]], %[[VAL_47]]) : (index, index) -> memref<1x!sycl_id_2_>
+  // CHECK-NEXT:    [[ACC1_BEGIN:%.*]] = sycl.accessor.subscript %arg0{{\[}}%[[VAL_48]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 
   // COM: Obtain a pointer to the end of the first accessor.
-  // CHECK-NEXT:    %2 = sycl.accessor.get_range(%arg0) : (memref<?x!sycl_accessor_2_f32_r_gb>) -> !sycl_range_2_
-  // CHECK-NEXT:    %alloca = memref.alloca() : memref<1x!sycl_range_2_>
-  // CHECK-NEXT:    %c0_0 = arith.constant 0 : index
-  // CHECK-NEXT:    memref.store %2, %alloca[%c0_0] : memref<1x!sycl_range_2_>
-  // CHECK-NEXT:    %c1 = arith.constant 1 : index
-  // CHECK-NEXT:    %c0_i32 = arith.constant 0 : i32
-  // CHECK-NEXT:    %3 = sycl.range.get %alloca[%c0_i32] : (memref<1x!sycl_range_2_>, i32) -> index
-  // CHECK-NEXT:    %4 = arith.subi %3, %c1 : index
-  // CHECK-NEXT:    %c1_i32 = arith.constant 1 : i32
-  // CHECK-NEXT:    %5 = sycl.range.get %alloca[%c1_i32] : (memref<1x!sycl_range_2_>, i32) -> index
-  // CHECK-NEXT:    %6 = sycl.id.constructor(%4, %5) : (index, index) -> memref<1x!sycl_id_2_>
-  // CHECK-NEXT:    [[ACC1_END:%.*]] = sycl.accessor.subscript %arg0[%6] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
+  // CHECK-NEXT:    %[[VAL_50:.*]] = sycl.accessor.get_range(%arg0) : (memref<?x!sycl_accessor_2_f32_r_gb>) -> !sycl_range_2_
+  // CHECK-NEXT:    %[[VAL_51:.*]] = memref.alloca() : memref<1x!sycl_range_2_>
+  // CHECK-NEXT:    %[[VAL_52:.*]] = arith.constant 0 : index
+  // CHECK-NEXT:    memref.store %[[VAL_50]], %[[VAL_51]]{{\[}}%[[VAL_52]]] : memref<1x!sycl_range_2_>
+  // CHECK-NEXT:    %[[VAL_53:.*]] = arith.constant 1 : index
+  // CHECK-NEXT:    %[[VAL_54:.*]] = arith.constant 0 : i32
+  // CHECK-NEXT:    %[[VAL_55:.*]] = sycl.range.get %[[VAL_51]]{{\[}}%[[VAL_54]]] : (memref<1x!sycl_range_2_>, i32) -> index
+  // CHECK-NEXT:    %[[VAL_56:.*]] = arith.subi %[[VAL_55]], %[[VAL_53]] : index
+  // CHECK-NEXT:    %[[VAL_57:.*]] = arith.constant 1 : i32
+  // CHECK-NEXT:    %[[VAL_58:.*]] = sycl.range.get %[[VAL_51]]{{\[}}%[[VAL_57]]] : (memref<1x!sycl_range_2_>, i32) -> index
+  // CHECK-NEXT:    %[[VAL_59:.*]] = sycl.id.constructor(%[[VAL_56]], %[[VAL_58]]) : (index, index) -> memref<1x!sycl_id_2_>
+  // CHECK-NEXT:    [[ACC1_END:%.*]] = sycl.accessor.subscript %arg0{{\[}}%[[VAL_59]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 
   // COM: Version with condition: [[ACC1_END]] <= [[ACC2_BEGIN]] || [[ACC1_BEGIN]] >= [[ACC2_END]].
-  // CHECK:         [[ACC2_BEGIN:%.*]] = sycl.accessor.subscript %arg1[%8] : (memref<?x!sycl_accessor_2_f32_w_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
-  // CHECK:         [[ACC2_END:%.*]] = sycl.accessor.subscript %arg1[%14] : (memref<?x!sycl_accessor_2_f32_w_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
+  // CHECK:         [[ACC2_BEGIN:%.*]] = sycl.accessor.subscript %arg1[%{{.*}}] : (memref<?x!sycl_accessor_2_f32_w_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
+  // CHECK:         [[ACC2_END:%.*]] = sycl.accessor.subscript %arg1[%{{.*}}] : (memref<?x!sycl_accessor_2_f32_w_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
   // CHECK-DAG:     [[ACC1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ACC1_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
   // CHECK-DAG:     [[ACC2_BEGIN_PTR:%.*]]  = "polygeist.memref2pointer"([[ACC2_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
-  // CHECK-NEXT:    %18 = llvm.icmp "ule" [[ACC1_END_PTR]], [[ACC2_BEGIN_PTR]] : !llvm.ptr<1>
+  // CHECK-NEXT:    %[[VAL_77:.*]] = llvm.icmp "ule" [[ACC1_END_PTR]], [[ACC2_BEGIN_PTR]] : !llvm.ptr<1>
   // CHECK-DAG:     [[ACC1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ACC1_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
   // CHECK-DAG:     [[ACC2_END_PTR:%.*]] = "polygeist.memref2pointer"([[ACC2_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
-  // CHECK-NEXT:    %21 = llvm.icmp "uge" [[ACC1_BEGIN_PTR]], [[ACC2_END_PTR]] : !llvm.ptr<1>
-  // CHECK-NEXT:    %22 = arith.ori %18, %21 : i1
-  // CHECK-NEXT:    scf.if %22 {
+  // CHECK-NEXT:    %[[VAL_80:.*]] = llvm.icmp "uge" [[ACC1_BEGIN_PTR]], [[ACC2_END_PTR]] : !llvm.ptr<1>
+  // CHECK-NEXT:    %[[VAL_81:.*]] = arith.ori %[[VAL_77]], %[[VAL_80]] : i1
+  // CHECK-NEXT:    scf.if %[[VAL_81]] {
   // CHECK-NEXT:      func.call @callee3.specialized(%arg0, %arg1) : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_accessor_2_f32_w_gb>) -> ()
   // CHECK-NEXT:    } else {
   // CHECK-NEXT:      func.call @callee3(%arg0, %arg1) : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_accessor_2_f32_w_gb>) -> ()

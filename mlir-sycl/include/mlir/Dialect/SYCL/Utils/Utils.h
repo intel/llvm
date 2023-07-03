@@ -38,7 +38,7 @@ SYCLRangeGetOp createSYCLRangeGetOp(Type resTy, TypedValue<MemRefType> range,
 
 /// Construct sycl.id with id type \p idTy and indexes \p indexes.
 TypedValue<MemRefType> createSYCLIDConstructorOp(IDType idTy,
-                                                 ArrayRef<Value> indexes,
+                                                 ValueRange indexes,
                                                  OpBuilder builder,
                                                  Location loc);
 

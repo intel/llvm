@@ -527,7 +527,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:            %[[VAL_55:.*]] = arith.select %[[VAL_54]], %[[VAL_39]], %[[VAL_53]] : index
 
 // COM: Copy to shared local memory for 1st memref:
-// CHECK-NEXT:            %[[VAL_56:.*]] = arith.index_cast %arg2 : index to i64
+// CHECK-NEXT:            %[[VAL_56:.*]] = arith.index_cast %[[VAL_45]] : index to i64
 // CHECK-NEXT:            %[[VAL_57:.*]] = sycl.id.constructor(%[[VAL_44]], %[[VAL_45]], %[[VAL_49]]) : (index, index, index) -> memref<1x!sycl_id_3_>
 // CHECK-NEXT:            %[[VAL_58:.*]] = arith.constant 0 : index
 // CHECK-NEXT:            %[[VAL_59:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_57]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<1x!sycl_id_3_>) -> memref<?xf32, 1>

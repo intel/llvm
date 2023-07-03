@@ -31,7 +31,7 @@ SYCLRangeGetOp sycl::createSYCLRangeGetOp(Type resTy,
 }
 
 TypedValue<MemRefType> sycl::createSYCLIDConstructorOp(IDType idTy,
-                                                       ArrayRef<Value> indexes,
+                                                       ValueRange indexes,
                                                        OpBuilder builder,
                                                        Location loc) {
   assert(idTy.getDimension() == indexes.size() &&

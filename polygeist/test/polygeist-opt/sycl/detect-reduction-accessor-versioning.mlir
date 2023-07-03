@@ -25,22 +25,22 @@
 // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_r_gb, 4>) {
 
 // COM: Obtain a pointer to the beginning of the accessor %arg0.
-// CHECK:         %2 = sycl.id.constructor(%c0_7) : (index) -> memref<1x!sycl_id_1_>
+// CHECK:         %[[VAL_19:.*]] = sycl.id.constructor(%c0{{.*}}) : (index) -> memref<1x!sycl_id_1_>
 // CHECK-NEXT:    [[ARG0_BEGIN:%.*]] = sycl.accessor.subscript %arg0[%2] : (memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xi32, 1>
 
 // COM: Obtain a pointer to the end of the accessor %arg0.
-// CHECK-NEXT:    %4 = sycl.accessor.get_range(%arg0) : (memref<?x!sycl_accessor_1_i32_rw_gb, 4>) -> !sycl_range_1_
-// CHECK-NEXT:    %alloca_8 = memref.alloca() : memref<1x!sycl_range_1_>
-// CHECK-NEXT:    %c0_9 = arith.constant 0 : index
-// CHECK-NEXT:    memref.store %4, %alloca_8[%c0_9] : memref<1x!sycl_range_1_>
-// CHECK-NEXT:    %c1_10 = arith.constant 1 : index
-// CHECK-NEXT:    %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:    %5 = sycl.range.get %alloca_8[%c0_i32] : (memref<1x!sycl_range_1_>, i32) -> index
-// CHECK-NEXT:    %6 = sycl.id.constructor(%5) : (index) -> memref<1x!sycl_id_1_>
-// CHECK-NEXT:    [[ARG0_END:%.*]] = sycl.accessor.subscript %arg0[%6] : (memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xi32, 1>
+// CHECK-NEXT:    %[[VAL_21:.*]] = sycl.accessor.get_range(%arg0) : (memref<?x!sycl_accessor_1_i32_rw_gb, 4>) -> !sycl_range_1_
+// CHECK-NEXT:    %[[VAL_22:.*]] = memref.alloca() : memref<1x!sycl_range_1_>
+// CHECK-NEXT:    %[[VAL_23:.*]] = arith.constant 0 : index
+// CHECK-NEXT:    memref.store %[[VAL_21]], %[[VAL_22]]{{\[}}%[[VAL_23]]] : memref<1x!sycl_range_1_>
+// CHECK-NEXT:    %[[VAL_24:.*]] = arith.constant 1 : index
+// CHECK-NEXT:    %[[VAL_25:.*]] = arith.constant 0 : i32
+// CHECK-NEXT:    %[[VAL_26:.*]] = sycl.range.get %[[VAL_22]]{{\[}}%[[VAL_25]]] : (memref<1x!sycl_range_1_>, i32) -> index
+// CHECK-NEXT:    %[[VAL_27:.*]] = sycl.id.constructor(%[[VAL_26]]) : (index) -> memref<1x!sycl_id_1_>
+// CHECK-NEXT:    [[ARG0_END:%.*]] = sycl.accessor.subscript %arg0{{\[}}%[[VAL_27]]] : (memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xi32, 1>
 
-// CHECK:         [[ARG1_BEGIN:%.*]] = sycl.accessor.subscript %arg1[%8]
-// CHECK:         [[ARG1_END:%.*]] = sycl.accessor.subscript %arg1[%12]
+// CHECK:         [[ARG1_BEGIN:%.*]] = sycl.accessor.subscript %arg1[%{{.*}}]
+// CHECK:         [[ARG1_END:%.*]] = sycl.accessor.subscript %arg1[%{{.*}}]
 // CHECK-DAG:     [[ARG0_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<1>
 // CHECK-DAG:     [[ARG1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<1>
 // CHECK-NEXT:    [[BEFORE_COND:%.*]] = llvm.icmp "ule" [[ARG0_END_PTR]], [[ARG1_BEGIN_PTR]] : !llvm.ptr<1>
