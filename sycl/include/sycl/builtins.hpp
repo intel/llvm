@@ -3338,6 +3338,8 @@ extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmax(long long int x,
                                                        long long int y);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmin(long long int x,
                                                        long long int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_max(int x, int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_min(int x, int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned long long int
 __imf_ullmax(unsigned long long int x, unsigned long long int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned long long int
@@ -3362,6 +3364,7 @@ extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_sad(int x, int y,
 extern __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_usad(unsigned int x, unsigned int y, unsigned int z);
 extern __DPCPP_SYCL_EXTERNAL int __imf_rhadd(int x, int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_hadd(int x, int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_urhadd(unsigned int x,
                                                        unsigned int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_uhadd(unsigned int x,
