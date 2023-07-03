@@ -3367,101 +3367,97 @@ inline half16 remainder(half16 x, half16 y) __NOEXC {
   return __sycl_std::__invoke_remainder<half16>(x, y);
 }
 
-// svgenfloat remquo (svgenfloat x, svgenfloat y, genintptr quo)
+// genfloat remquo (genfloat x, genfloat y, genintptr quo)
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline float modf(float x, float y,
-                  multi_ptr<int, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<float>(x, iptr);
+inline float remquo(float x, float y,
+                    multi_ptr<int, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<float>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline float2 modf(float2 x, float2 y,
-                   multi_ptr<int2, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<float2>(x, iptr);
+inline float2 remquo(float2 x, float2 y,
+                     multi_ptr<int2, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<float2>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline float3 modf(float3 x, float3 y,
-                   multi_ptr<int3, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<float3>(x, iptr);
+inline float3 remquo(float3 x, float3 y,
+                     multi_ptr<int3, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<float3>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline float4 modf(float4 x, float4 y,
-                   multi_ptr<int4, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<float4>(x, iptr);
+inline float4 remquo(float4 x, float4 y,
+                     multi_ptr<int4, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<float4>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline float8 modf(float8 x, float8 y,
-                   multi_ptr<int8, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<float8>(x, iptr);
+inline float8 remquo(float8 x, float8 y,
+                     multi_ptr<int8, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<float8>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline float16 modf(float16 x, float16 y,
-                    multi_ptr<int16, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<float16>(x, iptr);
+inline float16 remquo(float16 x, float16 y,
+                      multi_ptr<int16, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<float16>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline double modf(double x, double y,
-                   multi_ptr<double, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<double>(x, iptr);
+inline double remquo(double x, double y,
+                     multi_ptr<int, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<double>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline double2
-modf(double2 x, double2 y,
-     multi_ptr<double2, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<double2>(x, iptr);
+inline double2 remquo(double2 x, double2 y,
+                      multi_ptr<int2, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<double2>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline double3
-modf(double3 x, double3 y,
-     multi_ptr<double3, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<double3>(x, iptr);
+inline double3 remquo(double3 x, double3 y,
+                      multi_ptr<int3, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<double3>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline double4
-modf(double4 x, double4 y,
-     multi_ptr<double4, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<double4>(x, iptr);
+inline double4 remquo(double4 x, double4 y,
+                      multi_ptr<int4, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<double4>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline double8
-modf(double8 x, double8 y,
-     multi_ptr<double8, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<double8>(x, iptr);
+inline double8 remquo(double8 x, double8 y,
+                      multi_ptr<int8, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<double8>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
 inline double16
-modf(double16 x, double16 y,
-     multi_ptr<double16, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<double16>(x, iptr);
+remquo(double16 x, double16 y,
+       multi_ptr<int16, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<double16>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline half modf(half x, half y,
-                 multi_ptr<half, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<half>(x, iptr);
+inline half remquo(half x, half y,
+                   multi_ptr<int, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<half>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline half2 modf(half2 x, half2 y,
-                  multi_ptr<half2, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<half2>(x, iptr);
+inline half2 remquo(half2 x, half2 y,
+                    multi_ptr<int2, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<half2>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline half3 modf(half3 x, half3 y,
-                  multi_ptr<half3, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<half3>(x, iptr);
+inline half3 remquo(half3 x, half3 y,
+                    multi_ptr<int3, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<half3>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline half4 modf(half4 x, half4 y,
-                  multi_ptr<half4, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<half4>(x, iptr);
+inline half4 remquo(half4 x, half4 y,
+                    multi_ptr<int4, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<half4>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline half8 modf(half8 x, half8 y,
-                  multi_ptr<half8, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<half8>(x, iptr);
+inline half8 remquo(half8 x, half8 y,
+                    multi_ptr<int8, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<half8>(x, y, quo);
 }
 template <access::address_space AddressSpace, access::decorated IsDecorated>
-inline half16 modf(half16 x, half16 y,
-                   multi_ptr<half16, AddressSpace, IsDecorated> iptr) __NOEXC {
-  return __sycl_std::__invoke_fract<half16>(x, iptr);
+inline half16 remquo(half16 x, half16 y,
+                     multi_ptr<int16, AddressSpace, IsDecorated> quo) __NOEXC {
+  return __sycl_std::__invoke_remquo<half16>(x, y, quo);
 }
 
 // genfloat rint (genfloat x)

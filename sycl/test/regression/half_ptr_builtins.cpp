@@ -14,7 +14,10 @@
 
 int main() {
   sycl::half x;
-  sycl::modf(sycl::half{1.0}, &x);
-  sycl::sincos(sycl::half{1.0}, &x);
+  auto pX =
+      sycl::multi_ptr<sycl::half, sycl::access::address_space::global_space>(
+          &x);
+  sycl::modf(sycl::half{1.0}, pX);
+  sycl::sincos(sycl::half{1.0}, pX);
   return 0;
 }
