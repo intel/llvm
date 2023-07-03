@@ -49,6 +49,7 @@ int main() {
                                          sycl::access::decorated::no>;
   using constMPtr = sycl::multi_ptr<int, address_space::constant_space,
                                     sycl::access::decorated::legacy>;
+  using constDefaultMPtr = sycl::multi_ptr<int, address_space::constant_space>;
   using localMPtr = sycl::multi_ptr<int, address_space::local_space,
                                     sycl::access::decorated::no>;
   using legacyMPtr = sycl::multi_ptr<int, address_space::global_space,
@@ -65,6 +66,7 @@ int main() {
   static_assert(std::is_same<constCTAD, constMPtr>::value);
   static_assert(std::is_same<localCTAD, localMPtr>::value);
   static_assert(std::is_same<localCTADDep, localMPtr>::value);
+  static_assert(std::is_same<constMPtr, constDefaultMPtr>::value);
 
   legacyMPtr LegacytMultiPtr;
   static_assert(
