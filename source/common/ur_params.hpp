@@ -693,8 +693,28 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_structure_type_t value) {
     switch (value) {
 
+    case UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_BINARY:
+        os << "UR_STRUCTURE_TYPE_DEVICE_BINARY";
+        break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES";
+        break;
+
     case UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES";
         break;
 
     case UR_STRUCTURE_TYPE_IMAGE_DESC:
@@ -705,10 +725,6 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_STRUCTURE_TYPE_BUFFER_PROPERTIES";
         break;
 
-    case UR_STRUCTURE_TYPE_BUFFER_REGION:
-        os << "UR_STRUCTURE_TYPE_BUFFER_REGION";
-        break;
-
     case UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES";
         break;
@@ -717,8 +733,20 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES";
         break;
 
-    case UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES";
+    case UR_STRUCTURE_TYPE_BUFFER_REGION:
+        os << "UR_STRUCTURE_TYPE_BUFFER_REGION";
+        break;
+
+    case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_SAMPLER_DESC:
+        os << "UR_STRUCTURE_TYPE_SAMPLER_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES";
         break;
 
     case UR_STRUCTURE_TYPE_USM_DESC:
@@ -741,12 +769,44 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC";
         break;
 
-    case UR_STRUCTURE_TYPE_DEVICE_BINARY:
-        os << "UR_STRUCTURE_TYPE_DEVICE_BINARY";
+    case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES";
         break;
 
-    case UR_STRUCTURE_TYPE_SAMPLER_DESC:
-        os << "UR_STRUCTURE_TYPE_SAMPLER_DESC";
+    case UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES";
         break;
 
     case UR_STRUCTURE_TYPE_QUEUE_PROPERTIES:
@@ -757,76 +817,16 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES";
         break;
 
-    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES";
+    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC:
+        os << "UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC";
         break;
 
     case UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES";
         break;
 
-    case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES";
-        break;
-
     case UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC:
-        os << "UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES";
         break;
 
     case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
@@ -852,9 +852,38 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     enum ur_structure_type_t *value = (enum ur_structure_type_t *)ptr;
     switch (*value) {
 
+    case UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES: {
+        const ur_platform_native_properties_t *pstruct =
+            (const ur_platform_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_BINARY: {
+        const ur_device_binary_t *pstruct = (const ur_device_binary_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES: {
+        const ur_device_partition_properties_t *pstruct =
+            (const ur_device_partition_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES: {
+        const ur_device_native_properties_t *pstruct =
+            (const ur_device_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
     case UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES: {
         const ur_context_properties_t *pstruct =
             (const ur_context_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES: {
+        const ur_context_native_properties_t *pstruct =
+            (const ur_context_native_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
 
@@ -866,11 +895,6 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_BUFFER_PROPERTIES: {
         const ur_buffer_properties_t *pstruct =
             (const ur_buffer_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_BUFFER_REGION: {
-        const ur_buffer_region_t *pstruct = (const ur_buffer_region_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
 
@@ -886,9 +910,25 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
         ur_params::serializePtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES: {
-        const ur_program_properties_t *pstruct =
-            (const ur_program_properties_t *)ptr;
+    case UR_STRUCTURE_TYPE_BUFFER_REGION: {
+        const ur_buffer_region_t *pstruct = (const ur_buffer_region_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES: {
+        const ur_mem_native_properties_t *pstruct =
+            (const ur_mem_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_SAMPLER_DESC: {
+        const ur_sampler_desc_t *pstruct = (const ur_sampler_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES: {
+        const ur_sampler_native_properties_t *pstruct =
+            (const ur_sampler_native_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
 
@@ -918,121 +958,21 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
         ur_params::serializePtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_DEVICE_BINARY: {
-        const ur_device_binary_t *pstruct = (const ur_device_binary_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_SAMPLER_DESC: {
-        const ur_sampler_desc_t *pstruct = (const ur_sampler_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_PROPERTIES: {
-        const ur_queue_properties_t *pstruct =
-            (const ur_queue_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES: {
-        const ur_queue_properties_t *pstruct =
-            (const ur_queue_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES: {
-        const ur_context_native_properties_t *pstruct =
-            (const ur_context_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES: {
-        const ur_kernel_native_properties_t *pstruct =
-            (const ur_kernel_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES: {
-        const ur_queue_native_properties_t *pstruct =
-            (const ur_queue_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES: {
-        const ur_mem_native_properties_t *pstruct =
-            (const ur_mem_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES: {
-        const ur_event_native_properties_t *pstruct =
-            (const ur_event_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES: {
-        const ur_platform_native_properties_t *pstruct =
-            (const ur_platform_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES: {
-        const ur_device_native_properties_t *pstruct =
-            (const ur_device_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES: {
-        const ur_program_native_properties_t *pstruct =
-            (const ur_program_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES: {
-        const ur_sampler_native_properties_t *pstruct =
-            (const ur_sampler_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC: {
-        const ur_queue_native_desc_t *pstruct =
-            (const ur_queue_native_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES: {
-        const ur_device_partition_properties_t *pstruct =
-            (const ur_device_partition_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES: {
-        const ur_kernel_arg_mem_obj_properties_t *pstruct =
-            (const ur_kernel_arg_mem_obj_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
     case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES: {
         const ur_physical_mem_properties_t *pstruct =
             (const ur_physical_mem_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES: {
-        const ur_kernel_arg_pointer_properties_t *pstruct =
-            (const ur_kernel_arg_pointer_properties_t *)ptr;
+    case UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES: {
+        const ur_program_properties_t *pstruct =
+            (const ur_program_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES: {
-        const ur_kernel_arg_sampler_properties_t *pstruct =
-            (const ur_kernel_arg_sampler_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES: {
-        const ur_kernel_exec_info_properties_t *pstruct =
-            (const ur_kernel_exec_info_properties_t *)ptr;
+    case UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES: {
+        const ur_program_native_properties_t *pstruct =
+            (const ur_program_native_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
 
@@ -1045,6 +985,66 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES: {
         const ur_kernel_arg_local_properties_t *pstruct =
             (const ur_kernel_arg_local_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES: {
+        const ur_kernel_arg_pointer_properties_t *pstruct =
+            (const ur_kernel_arg_pointer_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES: {
+        const ur_kernel_exec_info_properties_t *pstruct =
+            (const ur_kernel_exec_info_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES: {
+        const ur_kernel_arg_sampler_properties_t *pstruct =
+            (const ur_kernel_arg_sampler_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES: {
+        const ur_kernel_arg_mem_obj_properties_t *pstruct =
+            (const ur_kernel_arg_mem_obj_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES: {
+        const ur_kernel_native_properties_t *pstruct =
+            (const ur_kernel_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_PROPERTIES: {
+        const ur_queue_properties_t *pstruct =
+            (const ur_queue_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES: {
+        const ur_queue_index_properties_t *pstruct =
+            (const ur_queue_index_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC: {
+        const ur_queue_native_desc_t *pstruct =
+            (const ur_queue_native_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES: {
+        const ur_queue_native_properties_t *pstruct =
+            (const ur_queue_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES: {
+        const ur_event_native_properties_t *pstruct =
+            (const ur_event_native_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
 
