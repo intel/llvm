@@ -853,25 +853,53 @@ def _extend_enums(enum_extensions, specs, meta):
             return value
         matching_enum['etors'] = sorted(matching_enum['etors'], key=sort_etors)
 
-def _generate_structure_type_t(specs, meta):
+def _generate_structure_type_t(specs, meta, registry):
     extended_structs = [obj for s in specs for obj in s['objects'] if re.match(r"struct|union", obj['type']) and 'base' in obj]
-    ur_structure_type_t = {
-        "type": "enum",
-        "desc": "Defines structure types",
-        "name": "$x_structure_type_t",
-        "etors": []
-    }
+    ur_structure_type_t = [obj for s in specs for obj in s['objects'] if obj['name'] == "$x_structure_type_t"][0]
+    existing_etors = ur_structure_type_t['etors']
+    max_enum = int(max(ur_structure_type_t['etors'], key= lambda x : int(x['value']))['value'])
+
+    out_etors = []
     for struct in extended_structs:
+        # skip experimental enumerations
         if struct['name'].startswith("$x_exp_"):
             continue
-        stype = [mem for mem in struct['members'] if mem['name'] == 'stype'][0]
-        etor = stype['init']
-        ur_structure_type_t['etors'].append({"name": etor, "desc": struct['name']})
-    
-    common_header = [s for s in specs if s['header']['desc'].endswith("common types")][0]
-    result_t_index = [i for i, obj in enumerate(common_header['objects']) if obj['name'] == "$x_result_t"][0]
-    common_header['objects'].insert(result_t_index + 1, ur_structure_type_t)
+
+        # name of the etor
+        etor = [mem for mem in struct['members'] if mem['name'] == 'stype'][0]['init']
+
+        # try and match the etor
+        matched_etor = [e for e in existing_etors if e['name'] == etor]
+        
+        # if no match exists then we have to add it
+        if len(matched_etor) == 0:
+            max_enum += 1
+            out_etors.append({
+                "name": etor,
+                "desc": struct['name'],
+                "value": str(max_enum)
+            })
+        else:
+            out_etors.append({
+                "name": etor,
+                "desc": struct['name'],
+                "value": matched_etor[0]['value']
+            })
+
+    out_etors = sorted(out_etors, key = lambda x : int(x['value']))
+    ur_structure_type_t['etors'] = out_etors
     _refresh_enum_meta(ur_structure_type_t, meta)
+
+    ## write the result out to the yml file
+    try:
+        contents = list(util.yamlRead(registry))
+        cpy = copy.deepcopy(ur_structure_type_t)
+        for e in cpy['etors']:
+            e['name'] = e['name'][len("$X_STRUCTURE_TYPE_"):]
+        contents[2] = cpy
+        generate_ids.write_registry(contents[1:], registry)
+    except:
+        raise
 
 """
 Entry-point:
@@ -942,7 +970,8 @@ def parse(section, version, tags, meta, ref):
 
     specs = sorted(specs, key=lambda s: s['header']['ordinal'])
     _inline_extended_structs(specs, meta)
-    _generate_structure_type_t(specs, meta)
+    registry = [f for f in files if f.endswith('registry.yml')][0]
+    _generate_structure_type_t(specs, meta, registry)
     _extend_enums(enum_extensions, specs, meta)
     _generate_extra(specs, meta)
 
