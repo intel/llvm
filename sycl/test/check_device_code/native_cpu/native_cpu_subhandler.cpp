@@ -30,7 +30,7 @@ __attribute__((sycl_kernel)) void launch(const Func &kernelFunc) {
 void test() {
   queue q;
   gen_test<int>(q);
-//CHECK:  define weak void @_ZTS6init_aIiEsubhandler(ptr %0, ptr %1) #2 {
+//CHECK:  define weak void @_ZTS6init_aIiE(ptr %0, ptr %1) #{{[0-9]*}} {
 //CHECK-NEXT:entry:
 //CHECK-NEXT:  %2 = getelementptr %0, ptr %0, i64 0
 //CHECK-NEXT:  %3 = load ptr, ptr %2, align 8
@@ -43,7 +43,7 @@ void test() {
 //CHECK-NEXT:  ret void
 //CHECK-NEXT:}
   gen_test<float>(q);
-//CHECK:  define weak void @_ZTS6init_aIfEsubhandler(ptr %0, ptr %1) #2 {
+//CHECK:  define weak void @_ZTS6init_aIfE(ptr %0, ptr %1) #{{[0-9]*}} {
 //CHECK-NEXT:entry:
 //CHECK-NEXT:  %2 = getelementptr %0, ptr %0, i64 0
 //CHECK-NEXT:  %3 = load ptr, ptr %2, align 8
@@ -63,14 +63,14 @@ void test() {
       acc[id[0]]; // all kernel arguments are removed
     });
   });
-//CHECK:define weak void @_ZTS5Test1subhandler(ptr %0, ptr %1) #2 {
+//CHECK:define weak void @_ZTS5Test1(ptr %0, ptr %1) #{{[0-9]*}} {
 //CHECK-NEXT:entry:
 //CHECK-NEXT:  call void @_ZTS5Test1_NativeCPUKernel(ptr %1)
 //CHECK-NEXT:  ret void
 //CHECK-NEXT:}
 
   launch<class TestKernel>([]() {});
-//CHECK:define weak void @_ZTSZ4testvE10TestKernelsubhandler(ptr %0, ptr %1) #2 {
+//CHECK:define weak void @_ZTSZ4testvE10TestKernel(ptr %0, ptr %1) #{{[0-9]*}} {
 //CHECK-NEXT:entry:
 //CHECK-NEXT:  call void @_ZTSZ4testvE10TestKernel_NativeCPUKernel(ptr %1)
 //CHECK-NEXT:  ret void
