@@ -1308,15 +1308,21 @@ DINode *SPIRVToLLVMDbgTran::transModule(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= OperandCount && "Invalid number of operands");
   DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
-  SPIRVWord Line =
-      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
+  // In case we translate DebugModuleINTEL instruction (not DebugModule of
+  // NonSemantic.Shader.200 spec), we should not apply the rule "literals are
+  // not allowed for NonSemantic specification". This is a hack to avoid getting
+  // constant value instead of literal in such case.
+  const SPIRVExtInstSetKind ExtKind =
+      DebugInst->getExtOp() == SPIRVDebug::Instruction::ModuleINTEL
+          ? SPIRVEIS_OpenCL_DebugInfo_100
+          : DebugInst->getExtSetKind();
+  SPIRVWord Line = getConstantValueOrLiteral(Ops, LineIdx, ExtKind);
   DIFile *File = getFile(Ops[SourceIdx]);
   StringRef Name = getString(Ops[NameIdx]);
   StringRef ConfigMacros = getString(Ops[ConfigMacrosIdx]);
   StringRef IncludePath = getString(Ops[IncludePathIdx]);
   StringRef ApiNotes = getString(Ops[ApiNotesIdx]);
-  bool IsDecl =
-      getConstantValueOrLiteral(Ops, IsDeclIdx, DebugInst->getExtSetKind());
+  bool IsDecl = getConstantValueOrLiteral(Ops, IsDeclIdx, ExtKind);
   return getDIBuilder(DebugInst).createModule(
       Scope, Name, ConfigMacros, IncludePath, ApiNotes, File, Line, IsDecl);
 }
