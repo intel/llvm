@@ -105,7 +105,7 @@ float find_prime_s(work *w) {
     }
   }
 
-  std::chrono::duration<float> diff{0};
+  std::chrono::duration<double> diff{0};
   diff = (stop - start);
 
   return diff.count();
