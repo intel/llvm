@@ -718,7 +718,8 @@ lgamma_r(T x, T2 signp) __NOEXC {
 // svgenfloat log (svgenfloat x)
 template <typename T>
 std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
-                 typename detail::is_svgenfloat_convertible<T>::to_type> log(T x) __NOEXC {
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+log(T x) __NOEXC {
   using to_t = typename detail::is_svgenfloat_convertible<T>::to_type;
   if constexpr (detail::use_sv_fast_math_v<to_t>)
     return __sycl_std::__invoke_native_log<to_t>(x);
@@ -910,12 +911,13 @@ rsqrt(T x) __NOEXC {
 // svgenfloat sin (svgenfloat x)
 template <typename T>
 std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
-                 typename detail::is_svgenfloat_convertible<T>::to_type> sin(T x) __NOEXC {
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+sin(T x) __NOEXC {
   using to_t = typename detail::is_svgenfloat_convertible<T>::to_type;
   if constexpr (detail::use_sv_fast_math_v<to_t>)
     return __sycl_std::__invoke_native_sin<to_t>(x);
   else
-  return __sycl_std::__invoke_sin<to_t>(x);
+    return __sycl_std::__invoke_sin<to_t>(x);
 }
 
 // svgenfloat sincos (svgenfloat x, genfloatptr cosval)
@@ -948,7 +950,8 @@ sinpi(T x) __NOEXC {
 // svgenfloat sqrt (svgenfloat x)
 template <typename T>
 std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
-                 typename detail::is_svgenfloat_convertible<T>::to_type> sqrt(T x) __NOEXC {
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+sqrt(T x) __NOEXC {
   using to_t = typename detail::is_svgenfloat_convertible<T>::to_type;
   if constexpr (detail::use_sv_fast_math_v<to_t>)
     return __sycl_std::__invoke_native_sqrt<to_t>(x);
@@ -1362,54 +1365,51 @@ __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(
 /* --------------- 4.13.4 Integer functions. --------------------------------*/
 // ugeninteger abs_diff (geninteger x, geninteger y)
 template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T> abs_diff(T x,
-                                                               T y) __NOEXC {
-  return __sycl_std::__invoke_u_abs_diff<T>(x, y);
-}
-
-// ugeninteger abs_diff (geninteger x, geninteger y)
-template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, detail::make_unsigned_t<T>>
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 detail::make_unsigned_t<
+                     typename detail::is_geninteger_convertible<T>::to_type>>
 abs_diff(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_s_abs_diff<detail::make_unsigned_t<T>>(x, y);
+  using to_t = typename detail::is_geninteger_convertible<T>::to_type;
+  if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_abs_diff<detail::make_unsigned_t<to_t>>(x, y);
+  else
+    return __sycl_std::__invoke_u_abs_diff<to_t>(x, y);
 }
 
 // geninteger add_sat (geninteger x, geninteger y)
 template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T> add_sat(T x,
-                                                              T y) __NOEXC {
-  return __sycl_std::__invoke_s_add_sat<T>(x, y);
-}
-
-// geninteger add_sat (geninteger x, geninteger y)
-template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T> add_sat(T x,
-                                                              T y) __NOEXC {
-  return __sycl_std::__invoke_u_add_sat<T>(x, y);
-}
-
-// geninteger hadd (geninteger x, geninteger y)
-template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T> hadd(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_s_hadd<T>(x, y);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+add_sat(T x, T y) __NOEXC {
+  using to_t = typename detail::is_geninteger_convertible<T>::to_type;
+  if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_add_sat<to_t>(x, y);
+  else
+    return __sycl_std::__invoke_u_add_sat<to_t>(x, y);
 }
 
 // geninteger hadd (geninteger x, geninteger y)
 template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T> hadd(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_u_hadd<T>(x, y);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+hadd(T x, T y) __NOEXC {
+  using to_t = typename detail::is_geninteger_convertible<T>::to_type;
+  if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_hadd<to_t>(x, y);
+  else
+    return __sycl_std::__invoke_u_hadd<to_t>(x, y);
 }
 
 // geninteger rhadd (geninteger x, geninteger y)
 template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T> rhadd(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_s_rhadd<T>(x, y);
-}
-
-// geninteger rhadd (geninteger x, geninteger y)
-template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T> rhadd(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_u_rhadd<T>(x, y);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+rhadd(T x, T y) __NOEXC {
+  using to_t = typename detail::is_geninteger_convertible<T>::to_type;
+  if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_rhadd<to_t>(x, y);
+  else
+    return __sycl_std::__invoke_u_rhadd<to_t>(x, y);
 }
 
 // geninteger clamp (geninteger x, sgeninteger minval, sgeninteger maxval)
@@ -1430,14 +1430,20 @@ clamp(T x, typename T::element_type minval,
 
 // geninteger clz (geninteger x)
 template <typename T>
-std::enable_if_t<detail::is_geninteger<T>::value, T> clz(T x) __NOEXC {
-  return __sycl_std::__invoke_clz<T>(x);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+clz(T x) __NOEXC {
+  return __sycl_std::__invoke_clz<
+      typename detail::is_geninteger_convertible<T>::to_type>(x);
 }
 
 // geninteger ctz (geninteger x)
 template <typename T>
-std::enable_if_t<detail::is_geninteger<T>::value, T> ctz(T x) __NOEXC {
-  return __sycl_std::__invoke_ctz<T>(x);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+ctz(T x) __NOEXC {
+  return __sycl_std::__invoke_ctz<
+      typename detail::is_geninteger_convertible<T>::to_type>(x);
 }
 
 // geninteger ctz (geninteger x) for calls with deprecated namespace
@@ -1456,30 +1462,26 @@ using namespace ext::intel;
 
 // geninteger mad_hi (geninteger a, geninteger b, geninteger c)
 template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T> mad_hi(T x, T y,
-                                                             T z) __NOEXC {
-  return __sycl_std::__invoke_s_mad_hi<T>(x, y, z);
-}
-
-// geninteger mad_hi (geninteger a, geninteger b, geninteger c)
-template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T> mad_hi(T x, T y,
-                                                             T z) __NOEXC {
-  return __sycl_std::__invoke_u_mad_hi<T>(x, y, z);
-}
-
-// geninteger mad_sat (geninteger a, geninteger b, geninteger c)
-template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T> mad_sat(T a, T b,
-                                                              T c) __NOEXC {
-  return __sycl_std::__invoke_s_mad_sat<T>(a, b, c);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+mad_hi(T x, T y, T z) __NOEXC {
+  using to_t = typename detail::is_geninteger_convertible<T>::to_type;
+  if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_mad_hi<to_t>(x, y, z);
+  else
+    return __sycl_std::__invoke_u_mad_hi<to_t>(x, y, z);
 }
 
 // geninteger mad_sat (geninteger a, geninteger b, geninteger c)
 template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T> mad_sat(T a, T b,
-                                                              T c) __NOEXC {
-  return __sycl_std::__invoke_u_mad_sat<T>(a, b, c);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+mad_sat(T a, T b, T c) __NOEXC {
+  using to_t = typename detail::is_geninteger_convertible<T>::to_type;
+  if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_mad_sat<to_t>(a, b, c);
+  else
+    return __sycl_std::__invoke_u_mad_sat<to_t>(a, b, c);
 }
 
 // igeninteger max (vigeninteger x, sigeninteger y)
@@ -1512,34 +1514,35 @@ std::enable_if_t<detail::is_vugeninteger<T>::value, T>(min)(
 
 // geninteger mul_hi (geninteger x, geninteger y)
 template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T> mul_hi(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_s_mul_hi<T>(x, y);
-}
-
-// geninteger mul_hi (geninteger x, geninteger y)
-template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T> mul_hi(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_u_mul_hi<T>(x, y);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+mul_hi(T x, T y) __NOEXC {
+  using to_t = typename detail::is_geninteger_convertible<T>::to_type;
+  if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_mul_hi<to_t>(x, y);
+  else
+    return __sycl_std::__invoke_u_mul_hi<to_t>(x, y);
 }
 
 // geninteger rotate (geninteger v, geninteger i)
 template <typename T>
-std::enable_if_t<detail::is_geninteger<T>::value, T> rotate(T v, T i) __NOEXC {
-  return __sycl_std::__invoke_rotate<T>(v, i);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+rotate(T v, T i) __NOEXC {
+  return __sycl_std::__invoke_rotate<
+      typename detail::is_geninteger_convertible<T>::to_type>(v, i);
 }
 
 // geninteger sub_sat (geninteger x, geninteger y)
 template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T> sub_sat(T x,
-                                                              T y) __NOEXC {
-  return __sycl_std::__invoke_s_sub_sat<T>(x, y);
-}
-
-// geninteger sub_sat (geninteger x, geninteger y)
-template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T> sub_sat(T x,
-                                                              T y) __NOEXC {
-  return __sycl_std::__invoke_u_sub_sat<T>(x, y);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+sub_sat(T x, T y) __NOEXC {
+  using to_t = typename detail::is_geninteger_convertible<T>::to_type;
+  if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_sub_sat<to_t>(x, y);
+  else
+    return __sycl_std::__invoke_u_sub_sat<to_t>(x, y);
 }
 
 // ugeninteger16bit upsample (ugeninteger8bit hi, ugeninteger8bit lo)
@@ -1597,8 +1600,11 @@ upsample(T hi, T2 lo) __NOEXC {
 
 // geninteger popcount (geninteger x)
 template <typename T>
-std::enable_if_t<detail::is_geninteger<T>::value, T> popcount(T x) __NOEXC {
-  return __sycl_std::__invoke_popcount<T>(x);
+std::enable_if_t<detail::is_geninteger_convertible<T>::value,
+                 typename detail::is_geninteger_convertible<T>::to_type>
+popcount(T x) __NOEXC {
+  return __sycl_std::__invoke_popcount<
+      typename detail::is_geninteger_convertible<T>::to_type>(x);
 }
 
 // geninteger32bit mad24 (geninteger32bit x, geninteger32bit y,
