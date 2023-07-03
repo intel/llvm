@@ -148,7 +148,7 @@ const char *umfMemoryProviderGetName(umf_memory_provider_handle_t hProvider);
 ///          returns status other than UMF_RESULT_SUCCESS.
 ///
 /// \return Handle to the memory provider
-umf_memory_provider_handle_t umfGetLastFailedMemoryProvider();
+umf_memory_provider_handle_t umfGetLastFailedMemoryProvider(void);
 
 #ifdef __cplusplus
 }
