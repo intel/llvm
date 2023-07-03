@@ -773,572 +773,3945 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
 
 #undef __SYCL_MATH_FUNCTION_3_OVERLOAD
 
-// genfloat acos (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE acos(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_acos<TYPE>(x);                                 \
-  }
-        __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat acosh (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE acosh(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_acosh<TYPE>(x);                                \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat acospi (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE acospi(TYPE x) __NOEXC {                                         \
-    return __sycl_std::__invoke_acospi<TYPE>(x);                               \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat asin (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE asin(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_asin<TYPE>(x);                                 \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat asinh (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE asinh(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_asinh<TYPE>(x);                                \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat asinpi (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE asinpi(TYPE x) __NOEXC {                                         \
-    return __sycl_std::__invoke_asinpi<TYPE>(x);                               \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat atan (genfloat y_over_x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE atan(TYPE y_over_x) __NOEXC {                                    \
-    return __sycl_std::__invoke_atan<TYPE>(y_over_x);                          \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat atan2 (genfloat y, genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE atan2(TYPE y, TYPE x) __NOEXC {                                  \
-    return __sycl_std::__invoke_atan2<TYPE>(y, x);                             \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat atanh (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE atanh(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_atanh<TYPE>(x);                                \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat atanpi (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE atanpi(TYPE x) __NOEXC {                                         \
-    return __sycl_std::__invoke_atanpi<TYPE>(x);                               \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat atan2pi (genfloat y, genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE atan2pi(TYPE y, TYPE x) __NOEXC {                                \
-    return __sycl_std::__invoke_atan2pi<TYPE>(y, x);                           \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat cbrt (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE cbrt(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_cbrt<TYPE>(x);                                 \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat ceil (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE ceil(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_ceil<TYPE>(x);                                 \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat copysign (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE copysign(TYPE y, TYPE x) __NOEXC {                               \
-    return __sycl_std::__invoke_copysign<TYPE>(y, x);                          \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat cos (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE cos(TYPE x) __NOEXC { return __sycl_std::__invoke_cos<TYPE>(x); }
-    __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat cosh (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE cosh(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_cosh<TYPE>(x);                                 \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat cospi (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE cospi(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_cospi<TYPE>(x);                                \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat erfc (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE erfc(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_erfc<TYPE>(x);                                 \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat erf (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE erf(TYPE x) __NOEXC { return __sycl_std::__invoke_erf<TYPE>(x); }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat exp (genfloat x )
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE exp(TYPE x) __NOEXC { return __sycl_std::__invoke_exp<TYPE>(x); }
-    __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat exp2 (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE exp2(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_exp2<TYPE>(x);                                 \
-  }
-    __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat exp10 (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE exp10(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_exp10<TYPE>(x);                                \
-  }
-    __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat expm1 (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE expm1(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_expm1<TYPE>(x);                                \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat fabs (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fabs(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_fabs<TYPE>(x);                                 \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat fdim (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fdim(TYPE x, TYPE y) __NOEXC {                                   \
-    return __sycl_std::__invoke_fdim<TYPE>(x, y);                              \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat floor (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE floor(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_floor<TYPE>(x);                                \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat fma (genfloat a, genfloat b, genfloat c)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fma(TYPE a, TYPE b, TYPE c) __NOEXC {                            \
-    return __sycl_std::__invoke_fma<TYPE>(a, b, c);                            \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat fmax (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fmax(TYPE x, TYPE y) __NOEXC {                                   \
-    return __sycl_std::__invoke_fmax<TYPE>(x, y);                              \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat fmax (genfloat x, sgenfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fmax(TYPE x, TYPE::element_type y) __NOEXC {                     \
-    return __sycl_std::__invoke_fmax<TYPE>(x, TYPE(y));                        \
-  }
-    __SYCL_DEF_BUILTIN_VGENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat fmin (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fmin(TYPE x, TYPE y) __NOEXC {                                   \
-    return __sycl_std::__invoke_fmin<TYPE>(x, y);                              \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat fmin (genfloat x, sgenfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fmin(TYPE x, TYPE::element_type y) __NOEXC {                     \
-    return __sycl_std::__invoke_fmin<TYPE>(x, TYPE(y));                        \
-  }
-    __SYCL_DEF_BUILTIN_VGENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat fmod (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fmod(TYPE x, TYPE y) __NOEXC {                                   \
-    return __sycl_std::__invoke_fmod<TYPE>(x, y);                              \
-  }
-    __SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-    // svgenfloat fract (svgenfloat x, genfloatptr iptr)
-    template <typename T, typename T2>
-    std::enable_if_t<detail::is_svgenfloat<T>::value &&
-                         detail::is_genfloatptr<T2>::value,
-                     T> fract(T x, T2 iptr) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_fract<T>(x, iptr);
+    // genfloat acos (genfloat x)
+    inline float acos(float x) __NOEXC {
+  return __sycl_std::__invoke_acos<float>(x);
+}
+inline float2 acos(float2 x) __NOEXC {
+  return __sycl_std::__invoke_acos<float2>(x);
+}
+inline float3 acos(float3 x) __NOEXC {
+  return __sycl_std::__invoke_acos<float3>(x);
+}
+inline float4 acos(float4 x) __NOEXC {
+  return __sycl_std::__invoke_acos<float4>(x);
+}
+inline float8 acos(float8 x) __NOEXC {
+  return __sycl_std::__invoke_acos<float8>(x);
+}
+inline float16 acos(float16 x) __NOEXC {
+  return __sycl_std::__invoke_acos<float16>(x);
+}
+inline double acos(double x) __NOEXC {
+  return __sycl_std::__invoke_acos<double>(x);
+}
+inline double2 acos(double2 x) __NOEXC {
+  return __sycl_std::__invoke_acos<double2>(x);
+}
+inline double3 acos(double3 x) __NOEXC {
+  return __sycl_std::__invoke_acos<double3>(x);
+}
+inline double4 acos(double4 x) __NOEXC {
+  return __sycl_std::__invoke_acos<double4>(x);
+}
+inline double8 acos(double8 x) __NOEXC {
+  return __sycl_std::__invoke_acos<double8>(x);
+}
+inline double16 acos(double16 x) __NOEXC {
+  return __sycl_std::__invoke_acos<double16>(x);
+}
+inline half acos(half x) __NOEXC { return __sycl_std::__invoke_acos<half>(x); }
+inline half2 acos(half2 x) __NOEXC {
+  return __sycl_std::__invoke_acos<half2>(x);
+}
+inline half3 acos(half3 x) __NOEXC {
+  return __sycl_std::__invoke_acos<half3>(x);
+}
+inline half4 acos(half4 x) __NOEXC {
+  return __sycl_std::__invoke_acos<half4>(x);
+}
+inline half8 acos(half8 x) __NOEXC {
+  return __sycl_std::__invoke_acos<half8>(x);
+}
+inline half16 acos(half16 x) __NOEXC {
+  return __sycl_std::__invoke_acos<half16>(x);
 }
 
-// svgenfloat frexp (svgenfloat x, genintptr exp)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
-frexp(T x, T2 exp) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_frexp<T>(x, exp);
+// genfloat acosh (genfloat x)
+inline float acosh(float x) __NOEXC {
+  return __sycl_std::__invoke_acosh<float>(x);
+}
+inline float2 acosh(float2 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<float2>(x);
+}
+inline float3 acosh(float3 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<float3>(x);
+}
+inline float4 acosh(float4 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<float4>(x);
+}
+inline float8 acosh(float8 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<float8>(x);
+}
+inline float16 acosh(float16 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<float16>(x);
+}
+inline double acosh(double x) __NOEXC {
+  return __sycl_std::__invoke_acosh<double>(x);
+}
+inline double2 acosh(double2 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<double2>(x);
+}
+inline double3 acosh(double3 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<double3>(x);
+}
+inline double4 acosh(double4 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<double4>(x);
+}
+inline double8 acosh(double8 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<double8>(x);
+}
+inline double16 acosh(double16 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<double16>(x);
+}
+inline half acosh(half x) __NOEXC {
+  return __sycl_std::__invoke_acosh<half>(x);
+}
+inline half2 acosh(half2 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<half2>(x);
+}
+inline half3 acosh(half3 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<half3>(x);
+}
+inline half4 acosh(half4 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<half4>(x);
+}
+inline half8 acosh(half8 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<half8>(x);
+}
+inline half16 acosh(half16 x) __NOEXC {
+  return __sycl_std::__invoke_acosh<half16>(x);
+}
+
+// genfloat acospi (genfloat x)
+inline float acospi(float x) __NOEXC {
+  return __sycl_std::__invoke_acospi<float>(x);
+}
+inline float2 acospi(float2 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<float2>(x);
+}
+inline float3 acospi(float3 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<float3>(x);
+}
+inline float4 acospi(float4 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<float4>(x);
+}
+inline float8 acospi(float8 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<float8>(x);
+}
+inline float16 acospi(float16 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<float16>(x);
+}
+inline double acospi(double x) __NOEXC {
+  return __sycl_std::__invoke_acospi<double>(x);
+}
+inline double2 acospi(double2 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<double2>(x);
+}
+inline double3 acospi(double3 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<double3>(x);
+}
+inline double4 acospi(double4 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<double4>(x);
+}
+inline double8 acospi(double8 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<double8>(x);
+}
+inline double16 acospi(double16 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<double16>(x);
+}
+inline half acospi(half x) __NOEXC {
+  return __sycl_std::__invoke_acospi<half>(x);
+}
+inline half2 acospi(half2 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<half2>(x);
+}
+inline half3 acospi(half3 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<half3>(x);
+}
+inline half4 acospi(half4 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<half4>(x);
+}
+inline half8 acospi(half8 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<half8>(x);
+}
+inline half16 acospi(half16 x) __NOEXC {
+  return __sycl_std::__invoke_acospi<half16>(x);
+}
+
+// genfloat asin (genfloat x)
+inline float asin(float x) __NOEXC {
+  return __sycl_std::__invoke_asin<float>(x);
+}
+inline float2 asin(float2 x) __NOEXC {
+  return __sycl_std::__invoke_asin<float2>(x);
+}
+inline float3 asin(float3 x) __NOEXC {
+  return __sycl_std::__invoke_asin<float3>(x);
+}
+inline float4 asin(float4 x) __NOEXC {
+  return __sycl_std::__invoke_asin<float4>(x);
+}
+inline float8 asin(float8 x) __NOEXC {
+  return __sycl_std::__invoke_asin<float8>(x);
+}
+inline float16 asin(float16 x) __NOEXC {
+  return __sycl_std::__invoke_asin<float16>(x);
+}
+inline double asin(double x) __NOEXC {
+  return __sycl_std::__invoke_asin<double>(x);
+}
+inline double2 asin(double2 x) __NOEXC {
+  return __sycl_std::__invoke_asin<double2>(x);
+}
+inline double3 asin(double3 x) __NOEXC {
+  return __sycl_std::__invoke_asin<double3>(x);
+}
+inline double4 asin(double4 x) __NOEXC {
+  return __sycl_std::__invoke_asin<double4>(x);
+}
+inline double8 asin(double8 x) __NOEXC {
+  return __sycl_std::__invoke_asin<double8>(x);
+}
+inline double16 asin(double16 x) __NOEXC {
+  return __sycl_std::__invoke_asin<double16>(x);
+}
+inline half asin(half x) __NOEXC { return __sycl_std::__invoke_asin<half>(x); }
+inline half2 asin(half2 x) __NOEXC {
+  return __sycl_std::__invoke_asin<half2>(x);
+}
+inline half3 asin(half3 x) __NOEXC {
+  return __sycl_std::__invoke_asin<half3>(x);
+}
+inline half4 asin(half4 x) __NOEXC {
+  return __sycl_std::__invoke_asin<half4>(x);
+}
+inline half8 asin(half8 x) __NOEXC {
+  return __sycl_std::__invoke_asin<half8>(x);
+}
+inline half16 asin(half16 x) __NOEXC {
+  return __sycl_std::__invoke_asin<half16>(x);
+}
+
+// genfloat asinh (genfloat x)
+inline float asinh(float x) __NOEXC {
+  return __sycl_std::__invoke_asinh<float>(x);
+}
+inline float2 asinh(float2 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<float2>(x);
+}
+inline float3 asinh(float3 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<float3>(x);
+}
+inline float4 asinh(float4 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<float4>(x);
+}
+inline float8 asinh(float8 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<float8>(x);
+}
+inline float16 asinh(float16 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<float16>(x);
+}
+inline double asinh(double x) __NOEXC {
+  return __sycl_std::__invoke_asinh<double>(x);
+}
+inline double2 asinh(double2 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<double2>(x);
+}
+inline double3 asinh(double3 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<double3>(x);
+}
+inline double4 asinh(double4 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<double4>(x);
+}
+inline double8 asinh(double8 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<double8>(x);
+}
+inline double16 asinh(double16 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<double16>(x);
+}
+inline half asinh(half x) __NOEXC {
+  return __sycl_std::__invoke_asinh<half>(x);
+}
+inline half2 asinh(half2 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<half2>(x);
+}
+inline half3 asinh(half3 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<half3>(x);
+}
+inline half4 asinh(half4 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<half4>(x);
+}
+inline half8 asinh(half8 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<half8>(x);
+}
+inline half16 asinh(half16 x) __NOEXC {
+  return __sycl_std::__invoke_asinh<half16>(x);
+}
+
+// genfloat asinpi (genfloat x)
+inline float asinpi(float x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<float>(x);
+}
+inline float2 asinpi(float2 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<float2>(x);
+}
+inline float3 asinpi(float3 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<float3>(x);
+}
+inline float4 asinpi(float4 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<float4>(x);
+}
+inline float8 asinpi(float8 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<float8>(x);
+}
+inline float16 asinpi(float16 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<float16>(x);
+}
+inline double asinpi(double x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<double>(x);
+}
+inline double2 asinpi(double2 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<double2>(x);
+}
+inline double3 asinpi(double3 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<double3>(x);
+}
+inline double4 asinpi(double4 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<double4>(x);
+}
+inline double8 asinpi(double8 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<double8>(x);
+}
+inline double16 asinpi(double16 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<double16>(x);
+}
+inline half asinpi(half x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<half>(x);
+}
+inline half2 asinpi(half2 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<half2>(x);
+}
+inline half3 asinpi(half3 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<half3>(x);
+}
+inline half4 asinpi(half4 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<half4>(x);
+}
+inline half8 asinpi(half8 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<half8>(x);
+}
+inline half16 asinpi(half16 x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<half16>(x);
+}
+
+// genfloat atan (genfloat y_over_x)
+inline float atan(float y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<float>(y_over_x);
+}
+inline float2 atan(float2 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<float2>(y_over_x);
+}
+inline float3 atan(float3 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<float3>(y_over_x);
+}
+inline float4 atan(float4 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<float4>(y_over_x);
+}
+inline float8 atan(float8 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<float8>(y_over_x);
+}
+inline float16 atan(float16 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<float16>(y_over_x);
+}
+inline double atan(double y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<double>(y_over_x);
+}
+inline double2 atan(double2 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<double2>(y_over_x);
+}
+inline double3 atan(double3 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<double3>(y_over_x);
+}
+inline double4 atan(double4 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<double4>(y_over_x);
+}
+inline double8 atan(double8 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<double8>(y_over_x);
+}
+inline double16 atan(double16 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<double16>(y_over_x);
+}
+inline half atan(half y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<half>(y_over_x);
+}
+inline half2 atan(half2 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<half2>(y_over_x);
+}
+inline half3 atan(half3 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<half3>(y_over_x);
+}
+inline half4 atan(half4 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<half4>(y_over_x);
+}
+inline half8 atan(half8 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<half8>(y_over_x);
+}
+inline half16 atan(half16 y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<half16>(y_over_x);
+}
+
+// genfloat atan2 (genfloat y, genfloat x)
+inline float atan2(float y, float x) __NOEXC {
+  return __sycl_std::__invoke_atan2<float>(y, x);
+}
+inline float2 atan2(float2 y, float2 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<float2>(y, x);
+}
+inline float3 atan2(float3 y, float3 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<float3>(y, x);
+}
+inline float4 atan2(float4 y, float4 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<float4>(y, x);
+}
+inline float8 atan2(float8 y, float8 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<float8>(y, x);
+}
+inline float16 atan2(float16 y, float16 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<float16>(y, x);
+}
+inline double atan2(double y, double x) __NOEXC {
+  return __sycl_std::__invoke_atan2<double>(y, x);
+}
+inline double2 atan2(double2 y, double2 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<double2>(y, x);
+}
+inline double3 atan2(double3 y, double3 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<double3>(y, x);
+}
+inline double4 atan2(double4 y, double4 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<double4>(y, x);
+}
+inline double8 atan2(double8 y, double8 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<double8>(y, x);
+}
+inline double16 atan2(double16 y, double16 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<double16>(y, x);
+}
+inline half atan2(half y, half x) __NOEXC {
+  return __sycl_std::__invoke_atan2<half>(y, x);
+}
+inline half2 atan2(half2 y, half2 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<half2>(y, x);
+}
+inline half3 atan2(half3 y, half3 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<half3>(y, x);
+}
+inline half4 atan2(half4 y, half4 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<half4>(y, x);
+}
+inline half8 atan2(half8 y, half8 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<half8>(y, x);
+}
+inline half16 atan2(half16 y, half16 x) __NOEXC {
+  return __sycl_std::__invoke_atan2<half16>(y, x);
+}
+
+// genfloat atanh (genfloat x)
+inline float atanh(float x) __NOEXC {
+  return __sycl_std::__invoke_atanh<float>(x);
+}
+inline float2 atanh(float2 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<float2>(x);
+}
+inline float3 atanh(float3 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<float3>(x);
+}
+inline float4 atanh(float4 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<float4>(x);
+}
+inline float8 atanh(float8 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<float8>(x);
+}
+inline float16 atanh(float16 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<float16>(x);
+}
+inline double atanh(double x) __NOEXC {
+  return __sycl_std::__invoke_atanh<double>(x);
+}
+inline double2 atanh(double2 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<double2>(x);
+}
+inline double3 atanh(double3 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<double3>(x);
+}
+inline double4 atanh(double4 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<double4>(x);
+}
+inline double8 atanh(double8 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<double8>(x);
+}
+inline double16 atanh(double16 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<double16>(x);
+}
+inline half atanh(half x) __NOEXC {
+  return __sycl_std::__invoke_atanh<half>(x);
+}
+inline half2 atanh(half2 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<half2>(x);
+}
+inline half3 atanh(half3 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<half3>(x);
+}
+inline half4 atanh(half4 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<half4>(x);
+}
+inline half8 atanh(half8 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<half8>(x);
+}
+inline half16 atanh(half16 x) __NOEXC {
+  return __sycl_std::__invoke_atanh<half16>(x);
+}
+
+// genfloat atanpi (genfloat x)
+inline float atanpi(float x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<float>(x);
+}
+inline float2 atanpi(float2 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<float2>(x);
+}
+inline float3 atanpi(float3 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<float3>(x);
+}
+inline float4 atanpi(float4 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<float4>(x);
+}
+inline float8 atanpi(float8 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<float8>(x);
+}
+inline float16 atanpi(float16 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<float16>(x);
+}
+inline double atanpi(double x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<double>(x);
+}
+inline double2 atanpi(double2 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<double2>(x);
+}
+inline double3 atanpi(double3 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<double3>(x);
+}
+inline double4 atanpi(double4 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<double4>(x);
+}
+inline double8 atanpi(double8 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<double8>(x);
+}
+inline double16 atanpi(double16 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<double16>(x);
+}
+inline half atanpi(half x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<half>(x);
+}
+inline half2 atanpi(half2 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<half2>(x);
+}
+inline half3 atanpi(half3 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<half3>(x);
+}
+inline half4 atanpi(half4 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<half4>(x);
+}
+inline half8 atanpi(half8 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<half8>(x);
+}
+inline half16 atanpi(half16 x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<half16>(x);
+}
+
+// genfloat atan2pi (genfloat y, genfloat x)
+inline float atan2pi(float y, float x) {
+  return __sycl_std::__invoke_atan2pi<float>(y, x);
+}
+inline float2 atan2pi(float2 y, float2 x) {
+  return __sycl_std::__invoke_atan2pi<float2>(y, x);
+}
+inline float3 atan2pi(float3 y, float3 x) {
+  return __sycl_std::__invoke_atan2pi<float3>(y, x);
+}
+inline float4 atan2pi(float4 y, float4 x) {
+  return __sycl_std::__invoke_atan2pi<float4>(y, x);
+}
+inline float8 atan2pi(float8 y, float8 x) {
+  return __sycl_std::__invoke_atan2pi<float8>(y, x);
+}
+inline float16 atan2pi(float16 y, float16 x) {
+  return __sycl_std::__invoke_atan2pi<float16>(y, x);
+}
+inline double atan2pi(double y, double x) {
+  return __sycl_std::__invoke_atan2pi<double>(y, x);
+}
+inline double2 atan2pi(double2 y, double2 x) {
+  return __sycl_std::__invoke_atan2pi<double2>(y, x);
+}
+inline double3 atan2pi(double3 y, double3 x) {
+  return __sycl_std::__invoke_atan2pi<double3>(y, x);
+}
+inline double4 atan2pi(double4 y, double4 x) {
+  return __sycl_std::__invoke_atan2pi<double4>(y, x);
+}
+inline double8 atan2pi(double8 y, double8 x) {
+  return __sycl_std::__invoke_atan2pi<double8>(y, x);
+}
+inline double16 atan2pi(double16 y, double16 x) {
+  return __sycl_std::__invoke_atan2pi<double16>(y, x);
+}
+inline half atan2pi(half y, half x) {
+  return __sycl_std::__invoke_atan2pi<half>(y, x);
+}
+inline half2 atan2pi(half2 y, half2 x) {
+  return __sycl_std::__invoke_atan2pi<half2>(y, x);
+}
+inline half3 atan2pi(half3 y, half3 x) {
+  return __sycl_std::__invoke_atan2pi<half3>(y, x);
+}
+inline half4 atan2pi(half4 y, half4 x) {
+  return __sycl_std::__invoke_atan2pi<half4>(y, x);
+}
+inline half8 atan2pi(half8 y, half8 x) {
+  return __sycl_std::__invoke_atan2pi<half8>(y, x);
+}
+inline half16 atan2pi(half16 y, half16 x) {
+  return __sycl_std::__invoke_atan2pi<half16>(y, x);
+}
+
+// genfloat cbrt (genfloat x)
+inline float cbrt(float x) { return __sycl_std::__invoke_cbrt<float>(x); }
+inline float2 cbrt(float2 x) { return __sycl_std::__invoke_cbrt<float2>(x); }
+inline float3 cbrt(float3 x) { return __sycl_std::__invoke_cbrt<float3>(x); }
+inline float4 cbrt(float4 x) { return __sycl_std::__invoke_cbrt<float4>(x); }
+inline float8 cbrt(float8 x) { return __sycl_std::__invoke_cbrt<float8>(x); }
+inline float16 cbrt(float16 x) { return __sycl_std::__invoke_cbrt<float16>(x); }
+inline double cbrt(double x) { return __sycl_std::__invoke_cbrt<double>(x); }
+inline double2 cbrt(double2 x) { return __sycl_std::__invoke_cbrt<double2>(x); }
+inline double3 cbrt(double3 x) { return __sycl_std::__invoke_cbrt<double3>(x); }
+inline double4 cbrt(double4 x) { return __sycl_std::__invoke_cbrt<double4>(x); }
+inline double8 cbrt(double8 x) { return __sycl_std::__invoke_cbrt<double8>(x); }
+inline double16 cbrt(double16 x) {
+  return __sycl_std::__invoke_cbrt<double16>(x);
+}
+inline half cbrt(half x) { return __sycl_std::__invoke_cbrt<half>(x); }
+inline half2 cbrt(half2 x) { return __sycl_std::__invoke_cbrt<half2>(x); }
+inline half3 cbrt(half3 x) { return __sycl_std::__invoke_cbrt<half3>(x); }
+inline half4 cbrt(half4 x) { return __sycl_std::__invoke_cbrt<half4>(x); }
+inline half8 cbrt(half8 x) { return __sycl_std::__invoke_cbrt<half8>(x); }
+inline half16 cbrt(half16 x) { return __sycl_std::__invoke_cbrt<half16>(x); }
+
+// genfloat ceil (genfloat x)
+inline float ceil(float x) { return __sycl_std::__invoke_ceil<float>(x); }
+inline float2 ceil(float2 x) { return __sycl_std::__invoke_ceil<float2>(x); }
+inline float3 ceil(float3 x) { return __sycl_std::__invoke_ceil<float3>(x); }
+inline float4 ceil(float4 x) { return __sycl_std::__invoke_ceil<float4>(x); }
+inline float8 ceil(float8 x) { return __sycl_std::__invoke_ceil<float8>(x); }
+inline float16 ceil(float16 x) { return __sycl_std::__invoke_ceil<float16>(x); }
+inline double ceil(double x) { return __sycl_std::__invoke_ceil<double>(x); }
+inline double2 ceil(double2 x) { return __sycl_std::__invoke_ceil<double2>(x); }
+inline double3 ceil(double3 x) { return __sycl_std::__invoke_ceil<double3>(x); }
+inline double4 ceil(double4 x) { return __sycl_std::__invoke_ceil<double4>(x); }
+inline double8 ceil(double8 x) { return __sycl_std::__invoke_ceil<double8>(x); }
+inline double16 ceil(double16 x) {
+  return __sycl_std::__invoke_ceil<double16>(x);
+}
+inline half ceil(half x) { return __sycl_std::__invoke_ceil<half>(x); }
+inline half2 ceil(half2 x) { return __sycl_std::__invoke_ceil<half2>(x); }
+inline half3 ceil(half3 x) { return __sycl_std::__invoke_ceil<half3>(x); }
+inline half4 ceil(half4 x) { return __sycl_std::__invoke_ceil<half4>(x); }
+inline half8 ceil(half8 x) { return __sycl_std::__invoke_ceil<half8>(x); }
+inline half16 ceil(half16 x) { return __sycl_std::__invoke_ceil<half16>(x); }
+
+// genfloat copysign (genfloat x, genfloat y)
+inline float copysign(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_copysign<float>(x, y);
+}
+inline float2 copysign(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<float2>(x, y);
+}
+inline float3 copysign(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<float3>(x, y);
+}
+inline float4 copysign(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<float4>(x, y);
+}
+inline float8 copysign(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<float8>(x, y);
+}
+inline float16 copysign(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<float16>(x, y);
+}
+inline double copysign(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_copysign<double>(x, y);
+}
+inline double2 copysign(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<double2>(x, y);
+}
+inline double3 copysign(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<double3>(x, y);
+}
+inline double4 copysign(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<double4>(x, y);
+}
+inline double8 copysign(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<double8>(x, y);
+}
+inline double16 copysign(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<double16>(x, y);
+}
+inline half copysign(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_copysign<half>(x, y);
+}
+inline half2 copysign(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<half2>(x, y);
+}
+inline half3 copysign(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<half3>(x, y);
+}
+inline half4 copysign(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<half4>(x, y);
+}
+inline half8 copysign(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<half8>(x, y);
+}
+inline half16 copysign(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_copysign<half16>(x, y);
+}
+
+// genfloat cos (genfloat x)
+inline float cos(float x) __NOEXC { return __sycl_std::__invoke_cos<float>(x); }
+inline float2 cos(float2 x) __NOEXC {
+  return __sycl_std::__invoke_cos<float2>(x);
+}
+inline float3 cos(float3 x) __NOEXC {
+  return __sycl_std::__invoke_cos<float3>(x);
+}
+inline float4 cos(float4 x) __NOEXC {
+  return __sycl_std::__invoke_cos<float4>(x);
+}
+inline float8 cos(float8 x) __NOEXC {
+  return __sycl_std::__invoke_cos<float8>(x);
+}
+inline float16 cos(float16 x) __NOEXC {
+  return __sycl_std::__invoke_cos<float16>(x);
+}
+inline double cos(double x) __NOEXC {
+  return __sycl_std::__invoke_cos<double>(x);
+}
+inline double2 cos(double2 x) __NOEXC {
+  return __sycl_std::__invoke_cos<double2>(x);
+}
+inline double3 cos(double3 x) __NOEXC {
+  return __sycl_std::__invoke_cos<double3>(x);
+}
+inline double4 cos(double4 x) __NOEXC {
+  return __sycl_std::__invoke_cos<double4>(x);
+}
+inline double8 cos(double8 x) __NOEXC {
+  return __sycl_std::__invoke_cos<double8>(x);
+}
+inline double16 cos(double16 x) __NOEXC {
+  return __sycl_std::__invoke_cos<double16>(x);
+}
+inline half cos(half x) __NOEXC { return __sycl_std::__invoke_cos<half>(x); }
+inline half2 cos(half2 x) __NOEXC { return __sycl_std::__invoke_cos<half2>(x); }
+inline half3 cos(half3 x) __NOEXC { return __sycl_std::__invoke_cos<half3>(x); }
+inline half4 cos(half4 x) __NOEXC { return __sycl_std::__invoke_cos<half4>(x); }
+inline half8 cos(half8 x) __NOEXC { return __sycl_std::__invoke_cos<half8>(x); }
+inline half16 cos(half16 x) __NOEXC {
+  return __sycl_std::__invoke_cos<half16>(x);
+}
+
+// genfloat cosh (genfloat x)
+inline float cosh(float x) __NOEXC {
+  return __sycl_std::__invoke_cosh<float>(x);
+}
+inline float2 cosh(float2 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<float2>(x);
+}
+inline float3 cosh(float3 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<float3>(x);
+}
+inline float4 cosh(float4 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<float4>(x);
+}
+inline float8 cosh(float8 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<float8>(x);
+}
+inline float16 cosh(float16 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<float16>(x);
+}
+inline double cosh(double x) __NOEXC {
+  return __sycl_std::__invoke_cosh<double>(x);
+}
+inline double2 cosh(double2 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<double2>(x);
+}
+inline double3 cosh(double3 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<double3>(x);
+}
+inline double4 cosh(double4 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<double4>(x);
+}
+inline double8 cosh(double8 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<double8>(x);
+}
+inline double16 cosh(double16 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<double16>(x);
+}
+inline half cosh(half x) __NOEXC { return __sycl_std::__invoke_cosh<half>(x); }
+inline half2 cosh(half2 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<half2>(x);
+}
+inline half3 cosh(half3 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<half3>(x);
+}
+inline half4 cosh(half4 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<half4>(x);
+}
+inline half8 cosh(half8 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<half8>(x);
+}
+inline half16 cosh(half16 x) __NOEXC {
+  return __sycl_std::__invoke_cosh<half16>(x);
+}
+
+// genfloat cospi (genfloat x)
+inline float cospi(float x) __NOEXC {
+  return __sycl_std::__invoke_cospi<float>(x);
+}
+inline float2 cospi(float2 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<float2>(x);
+}
+inline float3 cospi(float3 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<float3>(x);
+}
+inline float4 cospi(float4 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<float4>(x);
+}
+inline float8 cospi(float8 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<float8>(x);
+}
+inline float16 cospi(float16 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<float16>(x);
+}
+inline double cospi(double x) __NOEXC {
+  return __sycl_std::__invoke_cospi<double>(x);
+}
+inline double2 cospi(double2 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<double2>(x);
+}
+inline double3 cospi(double3 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<double3>(x);
+}
+inline double4 cospi(double4 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<double4>(x);
+}
+inline double8 cospi(double8 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<double8>(x);
+}
+inline double16 cospi(double16 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<double16>(x);
+}
+inline half cospi(half x) __NOEXC {
+  return __sycl_std::__invoke_cospi<half>(x);
+}
+inline half2 cospi(half2 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<half2>(x);
+}
+inline half3 cospi(half3 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<half3>(x);
+}
+inline half4 cospi(half4 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<half4>(x);
+}
+inline half8 cospi(half8 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<half8>(x);
+}
+inline half16 cospi(half16 x) __NOEXC {
+  return __sycl_std::__invoke_cospi<half16>(x);
+}
+
+// genfloat erfc (genfloat x)
+inline float erfc(float x) __NOEXC {
+  return __sycl_std::__invoke_erfc<float>(x);
+}
+inline float2 erfc(float2 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<float2>(x);
+}
+inline float3 erfc(float3 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<float3>(x);
+}
+inline float4 erfc(float4 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<float4>(x);
+}
+inline float8 erfc(float8 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<float8>(x);
+}
+inline float16 erfc(float16 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<float16>(x);
+}
+inline double erfc(double x) __NOEXC {
+  return __sycl_std::__invoke_erfc<double>(x);
+}
+inline double2 erfc(double2 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<double2>(x);
+}
+inline double3 erfc(double3 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<double3>(x);
+}
+inline double4 erfc(double4 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<double4>(x);
+}
+inline double8 erfc(double8 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<double8>(x);
+}
+inline double16 erfc(double16 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<double16>(x);
+}
+inline half erfc(half x) __NOEXC { return __sycl_std::__invoke_erfc<half>(x); }
+inline half2 erfc(half2 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<half2>(x);
+}
+inline half3 erfc(half3 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<half3>(x);
+}
+inline half4 erfc(half4 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<half4>(x);
+}
+inline half8 erfc(half8 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<half8>(x);
+}
+inline half16 erfc(half16 x) __NOEXC {
+  return __sycl_std::__invoke_erfc<half16>(x);
+}
+
+// genfloat erf (genfloat x)
+inline float erf(float x) __NOEXC { return __sycl_std::__invoke_erf<float>(x); }
+inline float2 erf(float2 x) __NOEXC {
+  return __sycl_std::__invoke_erf<float2>(x);
+}
+inline float3 erf(float3 x) __NOEXC {
+  return __sycl_std::__invoke_erf<float3>(x);
+}
+inline float4 erf(float4 x) __NOEXC {
+  return __sycl_std::__invoke_erf<float4>(x);
+}
+inline float8 erf(float8 x) __NOEXC {
+  return __sycl_std::__invoke_erf<float8>(x);
+}
+inline float16 erf(float16 x) __NOEXC {
+  return __sycl_std::__invoke_erf<float16>(x);
+}
+inline double erf(double x) __NOEXC {
+  return __sycl_std::__invoke_erf<double>(x);
+}
+inline double2 erf(double2 x) __NOEXC {
+  return __sycl_std::__invoke_erf<double2>(x);
+}
+inline double3 erf(double3 x) __NOEXC {
+  return __sycl_std::__invoke_erf<double3>(x);
+}
+inline double4 erf(double4 x) __NOEXC {
+  return __sycl_std::__invoke_erf<double4>(x);
+}
+inline double8 erf(double8 x) __NOEXC {
+  return __sycl_std::__invoke_erf<double8>(x);
+}
+inline double16 erf(double16 x) __NOEXC {
+  return __sycl_std::__invoke_erf<double16>(x);
+}
+inline half erf(half x) __NOEXC { return __sycl_std::__invoke_erf<half>(x); }
+inline half2 erf(half2 x) __NOEXC { return __sycl_std::__invoke_erf<half2>(x); }
+inline half3 erf(half3 x) __NOEXC { return __sycl_std::__invoke_erf<half3>(x); }
+inline half4 erf(half4 x) __NOEXC { return __sycl_std::__invoke_erf<half4>(x); }
+inline half8 erf(half8 x) __NOEXC { return __sycl_std::__invoke_erf<half8>(x); }
+inline half16 erf(half16 x) __NOEXC {
+  return __sycl_std::__invoke_erf<half16>(x);
+}
+
+// genfloat exp (genfloat x )
+inline float exp(float x) __NOEXC { return __sycl_std::__invoke_exp<float>(x); }
+inline float2 exp(float2 x) __NOEXC {
+  return __sycl_std::__invoke_exp<float2>(x);
+}
+inline float3 exp(float3 x) __NOEXC {
+  return __sycl_std::__invoke_exp<float3>(x);
+}
+inline float4 exp(float4 x) __NOEXC {
+  return __sycl_std::__invoke_exp<float4>(x);
+}
+inline float8 exp(float8 x) __NOEXC {
+  return __sycl_std::__invoke_exp<float8>(x);
+}
+inline float16 exp(float16 x) __NOEXC {
+  return __sycl_std::__invoke_exp<float16>(x);
+}
+inline double exp(double x) __NOEXC {
+  return __sycl_std::__invoke_exp<double>(x);
+}
+inline double2 exp(double2 x) __NOEXC {
+  return __sycl_std::__invoke_exp<double2>(x);
+}
+inline double3 exp(double3 x) __NOEXC {
+  return __sycl_std::__invoke_exp<double3>(x);
+}
+inline double4 exp(double4 x) __NOEXC {
+  return __sycl_std::__invoke_exp<double4>(x);
+}
+inline double8 exp(double8 x) __NOEXC {
+  return __sycl_std::__invoke_exp<double8>(x);
+}
+inline double16 exp(double16 x) __NOEXC {
+  return __sycl_std::__invoke_exp<double16>(x);
+}
+inline half exp(half x) __NOEXC { return __sycl_std::__invoke_exp<half>(x); }
+inline half2 exp(half2 x) __NOEXC { return __sycl_std::__invoke_exp<half2>(x); }
+inline half3 exp(half3 x) __NOEXC { return __sycl_std::__invoke_exp<half3>(x); }
+inline half4 exp(half4 x) __NOEXC { return __sycl_std::__invoke_exp<half4>(x); }
+inline half8 exp(half8 x) __NOEXC { return __sycl_std::__invoke_exp<half8>(x); }
+inline half16 exp(half16 x) __NOEXC {
+  return __sycl_std::__invoke_exp<half16>(x);
+}
+
+// genfloat exp2 (genfloat x)
+inline float exp2(float x) __NOEXC {
+  return __sycl_std::__invoke_exp2<float>(x);
+}
+inline float2 exp2(float2 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<float2>(x);
+}
+inline float3 exp2(float3 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<float3>(x);
+}
+inline float4 exp2(float4 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<float4>(x);
+}
+inline float8 exp2(float8 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<float8>(x);
+}
+inline float16 exp2(float16 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<float16>(x);
+}
+inline double exp2(double x) __NOEXC {
+  return __sycl_std::__invoke_exp2<double>(x);
+}
+inline double2 exp2(double2 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<double2>(x);
+}
+inline double3 exp2(double3 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<double3>(x);
+}
+inline double4 exp2(double4 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<double4>(x);
+}
+inline double8 exp2(double8 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<double8>(x);
+}
+inline double16 exp2(double16 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<double16>(x);
+}
+inline half exp2(half x) __NOEXC { return __sycl_std::__invoke_exp2<half>(x); }
+inline half2 exp2(half2 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<half2>(x);
+}
+inline half3 exp2(half3 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<half3>(x);
+}
+inline half4 exp2(half4 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<half4>(x);
+}
+inline half8 exp2(half8 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<half8>(x);
+}
+inline half16 exp2(half16 x) __NOEXC {
+  return __sycl_std::__invoke_exp2<half16>(x);
+}
+
+// genfloat exp10 (genfloat x)
+inline float exp10(float x) __NOEXC {
+  return __sycl_std::__invoke_exp10<float>(x);
+}
+inline float2 exp10(float2 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<float2>(x);
+}
+inline float3 exp10(float3 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<float3>(x);
+}
+inline float4 exp10(float4 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<float4>(x);
+}
+inline float8 exp10(float8 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<float8>(x);
+}
+inline float16 exp10(float16 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<float16>(x);
+}
+inline double exp10(double x) __NOEXC {
+  return __sycl_std::__invoke_exp10<double>(x);
+}
+inline double2 exp10(double2 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<double2>(x);
+}
+inline double3 exp10(double3 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<double3>(x);
+}
+inline double4 exp10(double4 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<double4>(x);
+}
+inline double8 exp10(double8 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<double8>(x);
+}
+inline double16 exp10(double16 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<double16>(x);
+}
+inline half exp10(half x) __NOEXC {
+  return __sycl_std::__invoke_exp10<half>(x);
+}
+inline half2 exp10(half2 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<half2>(x);
+}
+inline half3 exp10(half3 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<half3>(x);
+}
+inline half4 exp10(half4 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<half4>(x);
+}
+inline half8 exp10(half8 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<half8>(x);
+}
+inline half16 exp10(half16 x) __NOEXC {
+  return __sycl_std::__invoke_exp10<half16>(x);
+}
+
+// genfloat expm1 (genfloat x)
+inline float expm1(float x) __NOEXC {
+  return __sycl_std::__invoke_expm1<float>(x);
+}
+inline float2 expm1(float2 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<float2>(x);
+}
+inline float3 expm1(float3 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<float3>(x);
+}
+inline float4 expm1(float4 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<float4>(x);
+}
+inline float8 expm1(float8 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<float8>(x);
+}
+inline float16 expm1(float16 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<float16>(x);
+}
+inline double expm1(double x) __NOEXC {
+  return __sycl_std::__invoke_expm1<double>(x);
+}
+inline double2 expm1(double2 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<double2>(x);
+}
+inline double3 expm1(double3 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<double3>(x);
+}
+inline double4 expm1(double4 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<double4>(x);
+}
+inline double8 expm1(double8 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<double8>(x);
+}
+inline double16 expm1(double16 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<double16>(x);
+}
+inline half expm1(half x) __NOEXC {
+  return __sycl_std::__invoke_expm1<half>(x);
+}
+inline half2 expm1(half2 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<half2>(x);
+}
+inline half3 expm1(half3 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<half3>(x);
+}
+inline half4 expm1(half4 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<half4>(x);
+}
+inline half8 expm1(half8 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<half8>(x);
+}
+inline half16 expm1(half16 x) __NOEXC {
+  return __sycl_std::__invoke_expm1<half16>(x);
+}
+
+// genfloat fabs (genfloat x)
+inline float fabs(float x) __NOEXC {
+  return __sycl_std::__invoke_fabs<float>(x);
+}
+inline float2 fabs(float2 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<float2>(x);
+}
+inline float3 fabs(float3 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<float3>(x);
+}
+inline float4 fabs(float4 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<float4>(x);
+}
+inline float8 fabs(float8 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<float8>(x);
+}
+inline float16 fabs(float16 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<float16>(x);
+}
+inline double fabs(double x) __NOEXC {
+  return __sycl_std::__invoke_fabs<double>(x);
+}
+inline double2 fabs(double2 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<double2>(x);
+}
+inline double3 fabs(double3 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<double3>(x);
+}
+inline double4 fabs(double4 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<double4>(x);
+}
+inline double8 fabs(double8 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<double8>(x);
+}
+inline double16 fabs(double16 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<double16>(x);
+}
+inline half fabs(half x) __NOEXC { return __sycl_std::__invoke_fabs<half>(x); }
+inline half2 fabs(half2 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<half2>(x);
+}
+inline half3 fabs(half3 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<half3>(x);
+}
+inline half4 fabs(half4 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<half4>(x);
+}
+inline half8 fabs(half8 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<half8>(x);
+}
+inline half16 fabs(half16 x) __NOEXC {
+  return __sycl_std::__invoke_fabs<half16>(x);
+}
+
+// genfloat fdim (genfloat x, genfloat y)
+inline float fdim(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_fdim<float>(x, y);
+}
+inline float2 fdim(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<float2>(x, y);
+}
+inline float3 fdim(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<float3>(x, y);
+}
+inline float4 fdim(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<float4>(x, y);
+}
+inline float8 fdim(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<float8>(x, y);
+}
+inline float16 fdim(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<float16>(x, y);
+}
+inline double fdim(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_fdim<double>(x, y);
+}
+inline double2 fdim(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<double2>(x, y);
+}
+inline double3 fdim(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<double3>(x, y);
+}
+inline double4 fdim(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<double4>(x, y);
+}
+inline double8 fdim(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<double8>(x, y);
+}
+inline double16 fdim(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<double16>(x, y);
+}
+inline half fdim(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_fdim<half>(x, y);
+}
+inline half2 fdim(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<half2>(x, y);
+}
+inline half3 fdim(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<half3>(x, y);
+}
+inline half4 fdim(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<half4>(x, y);
+}
+inline half8 fdim(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<half8>(x, y);
+}
+inline half16 fdim(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_fdim<half16>(x, y);
+}
+
+// genfloat floor (genfloat x)
+inline float floor(float x) __NOEXC {
+  return __sycl_std::__invoke_floor<float>(x);
+}
+inline float2 floor(float2 x) __NOEXC {
+  return __sycl_std::__invoke_floor<float2>(x);
+}
+inline float3 floor(float3 x) __NOEXC {
+  return __sycl_std::__invoke_floor<float3>(x);
+}
+inline float4 floor(float4 x) __NOEXC {
+  return __sycl_std::__invoke_floor<float4>(x);
+}
+inline float8 floor(float8 x) __NOEXC {
+  return __sycl_std::__invoke_floor<float8>(x);
+}
+inline float16 floor(float16 x) __NOEXC {
+  return __sycl_std::__invoke_floor<float16>(x);
+}
+inline double floor(double x) __NOEXC {
+  return __sycl_std::__invoke_floor<double>(x);
+}
+inline double2 floor(double2 x) __NOEXC {
+  return __sycl_std::__invoke_floor<double2>(x);
+}
+inline double3 floor(double3 x) __NOEXC {
+  return __sycl_std::__invoke_floor<double3>(x);
+}
+inline double4 floor(double4 x) __NOEXC {
+  return __sycl_std::__invoke_floor<double4>(x);
+}
+inline double8 floor(double8 x) __NOEXC {
+  return __sycl_std::__invoke_floor<double8>(x);
+}
+inline double16 floor(double16 x) __NOEXC {
+  return __sycl_std::__invoke_floor<double16>(x);
+}
+inline half floor(half x) __NOEXC {
+  return __sycl_std::__invoke_floor<half>(x);
+}
+inline half2 floor(half2 x) __NOEXC {
+  return __sycl_std::__invoke_floor<half2>(x);
+}
+inline half3 floor(half3 x) __NOEXC {
+  return __sycl_std::__invoke_floor<half3>(x);
+}
+inline half4 floor(half4 x) __NOEXC {
+  return __sycl_std::__invoke_floor<half4>(x);
+}
+inline half8 floor(half8 x) __NOEXC {
+  return __sycl_std::__invoke_floor<half8>(x);
+}
+inline half16 floor(half16 x) __NOEXC {
+  return __sycl_std::__invoke_floor<half16>(x);
+}
+
+// genfloat fma (genfloat a, genfloat b, genfloat c)
+inline float fma(float a, float b, float c) __NOEXC {
+  return __sycl_std::__invoke_fma<float>(a, b, c);
+}
+inline float2 fma(float2 a, float2 b, float2 c) __NOEXC {
+  return __sycl_std::__invoke_fma<float2>(a, b, c);
+}
+inline float3 fma(float3 a, float3 b, float3 c) __NOEXC {
+  return __sycl_std::__invoke_fma<float3>(a, b, c);
+}
+inline float4 fma(float4 a, float4 b, float4 c) __NOEXC {
+  return __sycl_std::__invoke_fma<float4>(a, b, c);
+}
+inline float8 fma(float8 a, float8 b, float8 c) __NOEXC {
+  return __sycl_std::__invoke_fma<float8>(a, b, c);
+}
+inline float16 fma(float16 a, float16 b, float16 c) __NOEXC {
+  return __sycl_std::__invoke_fma<float16>(a, b, c);
+}
+inline double fma(double a, double b, double c) __NOEXC {
+  return __sycl_std::__invoke_fma<double>(a, b, c);
+}
+inline double2 fma(double2 a, double2 b, double2 c) __NOEXC {
+  return __sycl_std::__invoke_fma<double2>(a, b, c);
+}
+inline double3 fma(double3 a, double3 b, double3 c) __NOEXC {
+  return __sycl_std::__invoke_fma<double3>(a, b, c);
+}
+inline double4 fma(double4 a, double4 b, double4 c) __NOEXC {
+  return __sycl_std::__invoke_fma<double4>(a, b, c);
+}
+inline double8 fma(double8 a, double8 b, double8 c) __NOEXC {
+  return __sycl_std::__invoke_fma<double8>(a, b, c);
+}
+inline double16 fma(double16 a, double16 b, double16 c) __NOEXC {
+  return __sycl_std::__invoke_fma<double16>(a, b, c);
+}
+inline half fma(half a, half b, half c) __NOEXC {
+  return __sycl_std::__invoke_fma<half>(a, b, c);
+}
+inline half2 fma(half2 a, half2 b, half2 c) __NOEXC {
+  return __sycl_std::__invoke_fma<half2>(a, b, c);
+}
+inline half3 fma(half3 a, half3 b, half3 c) __NOEXC {
+  return __sycl_std::__invoke_fma<half3>(a, b, c);
+}
+inline half4 fma(half4 a, half4 b, half4 c) __NOEXC {
+  return __sycl_std::__invoke_fma<half4>(a, b, c);
+}
+inline half8 fma(half8 a, half8 b, half8 c) __NOEXC {
+  return __sycl_std::__invoke_fma<half8>(a, b, c);
+}
+inline half16 fma(half16 a, half16 b, half16 c) __NOEXC {
+  return __sycl_std::__invoke_fma<half16>(a, b, c);
+}
+
+// genfloat fmax (genfloat x, genfloat y)
+inline float fmax(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float>(x, y);
+}
+inline float2 fmax(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float2>(x, y);
+}
+inline float3 fmax(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float3>(x, y);
+}
+inline float4 fmax(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float4>(x, y);
+}
+inline float8 fmax(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float8>(x, y);
+}
+inline float16 fmax(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float16>(x, y);
+}
+inline double fmax(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double>(x, y);
+}
+inline double2 fmax(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double2>(x, y);
+}
+inline double3 fmax(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double3>(x, y);
+}
+inline double4 fmax(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double4>(x, y);
+}
+inline double8 fmax(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double8>(x, y);
+}
+inline double16 fmax(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double16>(x, y);
+}
+inline half fmax(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half>(x, y);
+}
+inline half2 fmax(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half2>(x, y);
+}
+inline half3 fmax(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half3>(x, y);
+}
+inline half4 fmax(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half4>(x, y);
+}
+inline half8 fmax(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half8>(x, y);
+}
+inline half16 fmax(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half16>(x, y);
+}
+
+// genfloat fmax (genfloat x, sgenfloat y)
+inline float2 fmax(float2 x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float2>(x, float2(y));
+}
+inline float3 fmax(float3 x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float3>(x, float3(y));
+}
+inline float4 fmax(float4 x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float4>(x, float4(y));
+}
+inline float8 fmax(float8 x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float8>(x, float8(y));
+}
+inline float16 fmax(float16 x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmax<float16>(x, float16(y));
+}
+inline double2 fmax(double2 x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double2>(x, double2(y));
+}
+inline double3 fmax(double3 x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double3>(x, double3(y));
+}
+inline double4 fmax(double4 x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double4>(x, double4(y));
+}
+inline double8 fmax(double8 x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double8>(x, double8(y));
+}
+inline double16 fmax(double16 x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmax<double16>(x, double16(y));
+}
+inline half2 fmax(half2 x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half2>(x, half2(y));
+}
+inline half3 fmax(half3 x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half3>(x, half3(y));
+}
+inline half4 fmax(half4 x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half4>(x, half4(y));
+}
+inline half8 fmax(half8 x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half8>(x, half8(y));
+}
+inline half16 fmax(half16 x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmax<half16>(x, half16(y));
+}
+
+// genfloat fmin (genfloat x, genfloat y)
+inline float fmin(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float>(x, y);
+}
+inline float2 fmin(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float2>(x, y);
+}
+inline float3 fmin(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float3>(x, y);
+}
+inline float4 fmin(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float4>(x, y);
+}
+inline float8 fmin(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float8>(x, y);
+}
+inline float16 fmin(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float16>(x, y);
+}
+inline double fmin(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double>(x, y);
+}
+inline double2 fmin(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double2>(x, y);
+}
+inline double3 fmin(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double3>(x, y);
+}
+inline double4 fmin(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double4>(x, y);
+}
+inline double8 fmin(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double8>(x, y);
+}
+inline double16 fmin(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double16>(x, y);
+}
+inline half fmin(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half>(x, y);
+}
+inline half2 fmin(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half2>(x, y);
+}
+inline half3 fmin(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half3>(x, y);
+}
+inline half4 fmin(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half4>(x, y);
+}
+inline half8 fmin(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half8>(x, y);
+}
+inline half16 fmin(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half16>(x, y);
+}
+
+// genfloat fmin (genfloat x, sgenfloat y)
+inline float2 fmin(float2 x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float2>(x, float2(y));
+}
+inline float3 fmin(float3 x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float3>(x, float3(y));
+}
+inline float4 fmin(float4 x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float4>(x, float4(y));
+}
+inline float8 fmin(float8 x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float8>(x, float8(y));
+}
+inline float16 fmin(float16 x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float16>(x, float16(y));
+}
+inline double2 fmin(double2 x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double2>(x, double2(y));
+}
+inline double3 fmin(double3 x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double3>(x, double3(y));
+}
+inline double4 fmin(double4 x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double4>(x, double4(y));
+}
+inline double8 fmin(double8 x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double8>(x, double8(y));
+}
+inline double16 fmin(double16 x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double16>(x, double16(y));
+}
+inline half2 fmin(half2 x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half2>(x, half2(y));
+}
+inline half3 fmin(half3 x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half3>(x, half3(y));
+}
+inline half4 fmin(half4 x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half4>(x, half4(y));
+}
+inline half8 fmin(half8 x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half8>(x, half8(y));
+}
+inline half16 fmin(half16 x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half16>(x, half16(y));
+}
+
+// genfloat fmod (genfloat x, genfloat y)
+inline float fmod(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float>(x, y);
+}
+inline float2 fmod(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float2>(x, y);
+}
+inline float3 fmod(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float3>(x, y);
+}
+inline float4 fmod(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float4>(x, y);
+}
+inline float8 fmod(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float8>(x, y);
+}
+inline float16 fmod(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<float16>(x, y);
+}
+inline double fmod(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double>(x, y);
+}
+inline double2 fmod(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double2>(x, y);
+}
+inline double3 fmod(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double3>(x, y);
+}
+inline double4 fmod(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double4>(x, y);
+}
+inline double8 fmod(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double8>(x, y);
+}
+inline double16 fmod(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<double16>(x, y);
+}
+inline half fmod(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half>(x, y);
+}
+inline half2 fmod(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half2>(x, y);
+}
+inline half3 fmod(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half3>(x, y);
+}
+inline half4 fmod(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half4>(x, y);
+}
+inline half8 fmod(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half8>(x, y);
+}
+inline half16 fmod(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_fmin<half16>(x, y);
+}
+
+// genfloat fract (genfloat x, genfloatptr iptr)
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float fract(float x,
+                   multi_ptr<float, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float2 fract(float2 x,
+                    multi_ptr<float2, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float2>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float3 fract(float3 x,
+                    multi_ptr<float3, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float3>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float4 fract(float4 x,
+                    multi_ptr<float4, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float4>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float8 fract(float8 x,
+                    multi_ptr<float8, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float8>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float16
+fract(float16 x, multi_ptr<float16, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float16>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double fract(double x,
+                    multi_ptr<double, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double2
+fract(double2 x, multi_ptr<double2, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double2>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double3
+fract(double3 x, multi_ptr<double3, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double3>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double4
+fract(double4 x, multi_ptr<double4, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double4>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double8
+fract(double8 x, multi_ptr<double8, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double8>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double16
+fract(double16 x, multi_ptr<double16, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double16>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half fract(half x,
+                  multi_ptr<half, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half2 fract(half2 x,
+                   multi_ptr<half2, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half2>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half3 fract(half3 x,
+                   multi_ptr<half3, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half3>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half4 fract(half4 x,
+                   multi_ptr<half4, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half4>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half8 fract(half8 x,
+                   multi_ptr<half8, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half8>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half16 fract(half16 x,
+                    multi_ptr<half16, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half16>(x, iptr);
+}
+
+// genfloat frexp(genfloat x, genintptr exp)
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float frexp(float x,
+                   multi_ptr<int, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<int>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float2 frexp(float2 x,
+                    multi_ptr<int2, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<float2>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float3 frexp(float3 x,
+                    multi_ptr<int3, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<float3>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float4 frexp(float4 x,
+                    multi_ptr<int4, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<float4>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float8 frexp(float8 x,
+                    multi_ptr<int8, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<float8>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float16 frexp(float16 x,
+                     multi_ptr<int16, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<float16>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double frexp(double x,
+                    multi_ptr<int, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<double>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double2 frexp(double2 x,
+                     multi_ptr<int2, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<double2>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double3 frexp(double3 x,
+                     multi_ptr<int3, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<double3>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double4 frexp(double4 x,
+                     multi_ptr<int4, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<double4>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double8 frexp(double8 x,
+                     multi_ptr<int8, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<double8>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double16 frexp(double16 x,
+                      multi_ptr<int16, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<double16>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half frexp(half x,
+                  multi_ptr<int, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<half>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half2 frexp(half2 x,
+                   multi_ptr<int2, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<half2>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half3 frexp(half3 x,
+                   multi_ptr<int3, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<half3>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half4 frexp(half4 x,
+                   multi_ptr<int4, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<half4>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half8 frexp(half8 x,
+                   multi_ptr<int8, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<half8>(x, exp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half16 frexp(half16 x,
+                    multi_ptr<int16, AddressSpace, IsDecorated> exp) __NOEXC {
+  return __sycl_std::__invoke_frexp<half16>(x, exp);
 }
 
 // genfloat hypot (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE hypot(TYPE x, TYPE y) __NOEXC {                                  \
-    return __sycl_std::__invoke_hypot<TYPE>(x, y);                             \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float hypot(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_hypot<float>(x, y);
+}
+inline float2 hypot(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<float2>(x, y);
+}
+inline float3 hypot(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<float3>(x, y);
+}
+inline float4 hypot(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<float4>(x, y);
+}
+inline float8 hypot(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<float8>(x, y);
+}
+inline float16 hypot(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<float16>(x, y);
+}
+inline double hypot(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_hypot<double>(x, y);
+}
+inline double2 hypot(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<double2>(x, y);
+}
+inline double3 hypot(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<double3>(x, y);
+}
+inline double4 hypot(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<double4>(x, y);
+}
+inline double8 hypot(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<double8>(x, y);
+}
+inline double16 hypot(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<double16>(x, y);
+}
+inline half hypot(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_hypot<half>(x, y);
+}
+inline half2 hypot(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<half2>(x, y);
+}
+inline half3 hypot(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<half3>(x, y);
+}
+inline half4 hypot(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<half4>(x, y);
+}
+inline half8 hypot(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<half8>(x, y);
+}
+inline half16 hypot(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_hypot<half16>(x, y);
+}
 
 // genint ilogb (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline detail::change_base_type_t<TYPE, int> ilogb(TYPE x) __NOEXC {         \
-    return __sycl_std::__invoke_ilogb<detail::change_base_type_t<TYPE, int>>(  \
-        x);                                                                    \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline int ilogb(float x) __NOEXC { return __sycl_std::__invoke_ilogb<int>(x); }
+inline int2 ilogb(float2 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int2>(x);
+}
+inline int3 ilogb(float3 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int3>(x);
+}
+inline int4 ilogb(float4 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int4>(x);
+}
+inline int8 ilogb(float8 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int8>(x);
+}
+inline int16 ilogb(float16 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int16>(x);
+}
+inline int ilogb(double x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int>(x);
+}
+inline int2 ilogb(double2 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int2>(x);
+}
+inline int3 ilogb(double3 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int3>(x);
+}
+inline int4 ilogb(double4 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int4>(x);
+}
+inline int8 ilogb(double8 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int8>(x);
+}
+inline int16 ilogb(double16 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int16>(x);
+}
+inline int ilogb(half x) __NOEXC { return __sycl_std::__invoke_ilogb<int>(x); }
+inline int2 ilogb(half2 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int2>(x);
+}
+inline int3 ilogb(half3 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int3>(x);
+}
+inline int4 ilogb(half4 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int4>(x);
+}
+inline int8 ilogb(half8 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int8>(x);
+}
+inline int16 ilogb(half16 x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<int16>(x);
+}
 
-// float ldexp (float x, int k)
-// double ldexp (double x, int k)
-// half ldexp (half x, int k)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE ldexp(TYPE x, int k) __NOEXC {                                   \
-    return __sycl_std::__invoke_ldexp<TYPE>(x, k);                             \
-  }
-__SYCL_DEF_BUILTIN_SGENFLOAT
-#undef __SYCL_BUILTIN_DEF
+// genfloat ldexp (genfloat x, genint k)
+inline float ldexp(float x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float>(x, k);
+}
+inline float2 ldexp(float2 x, int2 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float2>(x, k);
+}
+inline float3 ldexp(float3 x, int3 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float3>(x, k);
+}
+inline float4 ldexp(float4 x, int4 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float4>(x, k);
+}
+inline float8 ldexp(float8 x, int8 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float8>(x, k);
+}
+inline float16 ldexp(float16 x, int16 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float16>(x, k);
+}
+inline double ldexp(double x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double>(x, k);
+}
+inline double2 ldexp(double2 x, int2 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double2>(x, k);
+}
+inline double3 ldexp(double3 x, int3 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double3>(x, k);
+}
+inline double4 ldexp(double4 x, int4 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double4>(x, k);
+}
+inline double8 ldexp(double8 x, int8 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double8>(x, k);
+}
+inline double16 ldexp(double16 x, int16 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double16>(x, k);
+}
+inline half ldexp(half x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half>(x, k);
+}
+inline half2 ldexp(half2 x, int2 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half2>(x, k);
+}
+inline half3 ldexp(half3 x, int3 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half3>(x, k);
+}
+inline half4 ldexp(half4 x, int4 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half4>(x, k);
+}
+inline half8 ldexp(half8 x, int8 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half8>(x, k);
+}
+inline half16 ldexp(half16 x, int16 k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half16>(x, k);
+}
 
-// vgenfloat ldexp (vgenfloat x, int k)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE ldexp(TYPE x, int k) __NOEXC {                                   \
-    return __sycl_std::__invoke_ldexp<TYPE>(x, vec<int, TYPE::size()>(k));     \
-  }
-__SYCL_DEF_BUILTIN_VGENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// vgenfloat ldexp (vgenfloat x, genint k)
-template <typename T, typename T2>
-std::enable_if_t<detail::is_vgenfloat<T>::value && detail::is_intn<T2>::value,
-                 T>
-ldexp(T x, T2 k) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_ldexp<T>(x, k);
+// genfloat ldexp (genfloat x, int k)
+inline float2 ldexp(float2 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float2>(x, int2(k));
+}
+inline float3 ldexp(float3 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float3>(x, int3(k));
+}
+inline float4 ldexp(float4 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float4>(x, int4(k));
+}
+inline float8 ldexp(float8 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float8>(x, int8(k));
+}
+inline float16 ldexp(float16 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<float16>(x, int16(k));
+}
+inline double2 ldexp(double2 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double2>(x, int2(k));
+}
+inline double3 ldexp(double3 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double3>(x, int3(k));
+}
+inline double4 ldexp(double4 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double4>(x, int4(k));
+}
+inline double8 ldexp(double8 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double8>(x, int8(k));
+}
+inline double16 ldexp(double16 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<double16>(x, int16(k));
+}
+inline half2 ldexp(half2 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half2>(x, int2(k));
+}
+inline half3 ldexp(half3 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half3>(x, int3(k));
+}
+inline half4 ldexp(half4 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half4>(x, int4(k));
+}
+inline half8 ldexp(half8 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half8>(x, int8(k));
+}
+inline half16 ldexp(half16 x, int k) __NOEXC {
+  return __sycl_std::__invoke_ldexp<half16>(x, int16(k));
 }
 
 // genfloat lgamma (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE lgamma(TYPE x) __NOEXC {                                         \
-    return __sycl_std::__invoke_lgamma<TYPE>(x);                               \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float lgamma(float x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<float>(x);
+}
+inline float2 lgamma(float2 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<float2>(x);
+}
+inline float3 lgamma(float3 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<float3>(x);
+}
+inline float4 lgamma(float4 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<float4>(x);
+}
+inline float8 lgamma(float8 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<float8>(x);
+}
+inline float16 lgamma(float16 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<float16>(x);
+}
+inline double lgamma(double x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<double>(x);
+}
+inline double2 lgamma(double2 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<double2>(x);
+}
+inline double3 lgamma(double3 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<double3>(x);
+}
+inline double4 lgamma(double4 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<double4>(x);
+}
+inline double8 lgamma(double8 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<double8>(x);
+}
+inline double16 lgamma(double16 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<double16>(x);
+}
+inline half lgamma(half x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<half>(x);
+}
+inline half2 lgamma(half2 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<half2>(x);
+}
+inline half3 lgamma(half3 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<half3>(x);
+}
+inline half4 lgamma(half4 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<half4>(x);
+}
+inline half8 lgamma(half8 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<half8>(x);
+}
+inline half16 lgamma(half16 x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<half16>(x);
+}
 
-// svgenfloat lgamma_r (svgenfloat x, genintptr signp)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
-lgamma_r(T x, T2 signp) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_lgamma_r<T>(x, signp);
+// genfloat lgamma_r (genfloat x, genintptr signp)
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float lgamma_r(float x,
+                      multi_ptr<int, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<float>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float2
+lgamma_r(float2 x, multi_ptr<int2, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<float2>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float3
+lgamma_r(float3 x, multi_ptr<int3, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<float3>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float4
+lgamma_r(float4 x, multi_ptr<int4, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<float4>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float8
+lgamma_r(float8 x, multi_ptr<int8, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<float8>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float16
+lgamma_r(float16 x, multi_ptr<int16, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<float16>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double
+lgamma_r(double x, multi_ptr<double, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<double>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double2
+lgamma_r(double2 x,
+         multi_ptr<double2, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<double2>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double3
+lgamma_r(double3 x,
+         multi_ptr<double3, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<double3>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double4
+lgamma_r(double4 x,
+         multi_ptr<double4, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<double4>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double8
+lgamma_r(double8 x,
+         multi_ptr<double8, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<double8>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double16
+lgamma_r(double16 x,
+         multi_ptr<double16, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<double16>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half lgamma_r(half x,
+                     multi_ptr<half, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<half>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half2
+lgamma_r(half2 x, multi_ptr<half2, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<half2>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half3
+lgamma_r(half3 x, multi_ptr<half3, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<half3>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half4
+lgamma_r(half4 x, multi_ptr<half4, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<half4>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half8
+lgamma_r(half8 x, multi_ptr<half8, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<half8>(x, signp);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half16
+lgamma_r(half16 x, multi_ptr<half16, AddressSpace, IsDecorated> signp) __NOEXC {
+  return __sycl_std::__invoke_lgamma_r<half16>(x, signp);
 }
 
 // genfloat log (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE log(TYPE x) __NOEXC { return __sycl_std::__invoke_log<TYPE>(x); }
-__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat log2 (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE log2(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_log2<TYPE>(x);                                 \
-  }
-__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat log10 (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE log10(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_log10<TYPE>(x);                                \
-  }
-__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat log1p (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE log1p(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_log1p<TYPE>(x);                                \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat logb (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE logb(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_logb<TYPE>(x);                                 \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat mad (genfloat a, genfloat b, genfloat c)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE mad(TYPE a, TYPE b, TYPE c) __NOEXC {                            \
-    return __sycl_std::__invoke_mad<TYPE>(a, b, c);                            \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat maxmag (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE maxmag(TYPE x, TYPE y) __NOEXC {                                 \
-    return __sycl_std::__invoke_maxmag<TYPE>(x, y);                            \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// genfloat minmag (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE minmag(TYPE x, TYPE y) __NOEXC {                                 \
-    return __sycl_std::__invoke_minmag<TYPE>(x, y);                            \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
-
-// svgenfloat modf (svgenfloat x, genfloatptr iptr)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
-modf(T x, T2 iptr) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_modf<T>(x, iptr);
+inline float log(float x) __NOEXC { return __sycl_std::__invoke_log<float>(x); }
+inline float2 log(float2 x) __NOEXC {
+  return __sycl_std::__invoke_log<float2>(x);
+}
+inline float3 log(float3 x) __NOEXC {
+  return __sycl_std::__invoke_log<float3>(x);
+}
+inline float4 log(float4 x) __NOEXC {
+  return __sycl_std::__invoke_log<float4>(x);
+}
+inline float8 log(float8 x) __NOEXC {
+  return __sycl_std::__invoke_log<float8>(x);
+}
+inline float16 log(float16 x) __NOEXC {
+  return __sycl_std::__invoke_log<float16>(x);
+}
+inline double log(double x) __NOEXC {
+  return __sycl_std::__invoke_log<double>(x);
+}
+inline double2 log(double2 x) __NOEXC {
+  return __sycl_std::__invoke_log<double2>(x);
+}
+inline double3 log(double3 x) __NOEXC {
+  return __sycl_std::__invoke_log<double3>(x);
+}
+inline double4 log(double4 x) __NOEXC {
+  return __sycl_std::__invoke_log<double4>(x);
+}
+inline double8 log(double8 x) __NOEXC {
+  return __sycl_std::__invoke_log<double8>(x);
+}
+inline double16 log(double16 x) __NOEXC {
+  return __sycl_std::__invoke_log<double16>(x);
+}
+inline half log(half x) __NOEXC { return __sycl_std::__invoke_log<half>(x); }
+inline half2 log(half2 x) __NOEXC { return __sycl_std::__invoke_log<half2>(x); }
+inline half3 log(half3 x) __NOEXC { return __sycl_std::__invoke_log<half3>(x); }
+inline half4 log(half4 x) __NOEXC { return __sycl_std::__invoke_log<half4>(x); }
+inline half8 log(half8 x) __NOEXC { return __sycl_std::__invoke_log<half8>(x); }
+inline half16 log(half16 x) __NOEXC {
+  return __sycl_std::__invoke_log<half16>(x);
 }
 
-template <typename T,
-          typename = std::enable_if_t<detail::is_nan_type<T>::value, T>>
-detail::nan_return_t<T> nan(T nancode) __NOEXC {
-  return __sycl_std::__invoke_nan<detail::nan_return_t<T>>(
-      detail::convert_data_type<T, detail::nan_argument_base_t<T>>()(nancode));
+// genfloat log2 (genfloat x)
+inline float log2(float x) __NOEXC {
+  return __sycl_std::__invoke_log2<float>(x);
+}
+inline float2 log2(float2 x) __NOEXC {
+  return __sycl_std::__invoke_log2<float2>(x);
+}
+inline float3 log2(float3 x) __NOEXC {
+  return __sycl_std::__invoke_log2<float3>(x);
+}
+inline float4 log2(float4 x) __NOEXC {
+  return __sycl_std::__invoke_log2<float4>(x);
+}
+inline float8 log2(float8 x) __NOEXC {
+  return __sycl_std::__invoke_log2<float8>(x);
+}
+inline float16 log2(float16 x) __NOEXC {
+  return __sycl_std::__invoke_log2<float16>(x);
+}
+inline double log2(double x) __NOEXC {
+  return __sycl_std::__invoke_log2<double>(x);
+}
+inline double2 log2(double2 x) __NOEXC {
+  return __sycl_std::__invoke_log2<double2>(x);
+}
+inline double3 log2(double3 x) __NOEXC {
+  return __sycl_std::__invoke_log2<double3>(x);
+}
+inline double4 log2(double4 x) __NOEXC {
+  return __sycl_std::__invoke_log2<double4>(x);
+}
+inline double8 log2(double8 x) __NOEXC {
+  return __sycl_std::__invoke_log2<double8>(x);
+}
+inline double16 log2(double16 x) __NOEXC {
+  return __sycl_std::__invoke_log2<double16>(x);
+}
+inline half log2(half x) __NOEXC { return __sycl_std::__invoke_log2<half>(x); }
+inline half2 log2(half2 x) __NOEXC {
+  return __sycl_std::__invoke_log2<half2>(x);
+}
+inline half3 log2(half3 x) __NOEXC {
+  return __sycl_std::__invoke_log2<half3>(x);
+}
+inline half4 log2(half4 x) __NOEXC {
+  return __sycl_std::__invoke_log2<half4>(x);
+}
+inline half8 log2(half8 x) __NOEXC {
+  return __sycl_std::__invoke_log2<half8>(x);
+}
+inline half16 log2(half16 x) __NOEXC {
+  return __sycl_std::__invoke_log2<half16>(x);
+}
+
+// genfloat log10 (genfloat x)
+inline float log10(float x) __NOEXC {
+  return __sycl_std::__invoke_log10<float>(x);
+}
+inline float2 log10(float2 x) __NOEXC {
+  return __sycl_std::__invoke_log10<float2>(x);
+}
+inline float3 log10(float3 x) __NOEXC {
+  return __sycl_std::__invoke_log10<float3>(x);
+}
+inline float4 log10(float4 x) __NOEXC {
+  return __sycl_std::__invoke_log10<float4>(x);
+}
+inline float8 log10(float8 x) __NOEXC {
+  return __sycl_std::__invoke_log10<float8>(x);
+}
+inline float16 log10(float16 x) __NOEXC {
+  return __sycl_std::__invoke_log10<float16>(x);
+}
+inline double log10(double x) __NOEXC {
+  return __sycl_std::__invoke_log10<double>(x);
+}
+inline double2 log10(double2 x) __NOEXC {
+  return __sycl_std::__invoke_log10<double2>(x);
+}
+inline double3 log10(double3 x) __NOEXC {
+  return __sycl_std::__invoke_log10<double3>(x);
+}
+inline double4 log10(double4 x) __NOEXC {
+  return __sycl_std::__invoke_log10<double4>(x);
+}
+inline double8 log10(double8 x) __NOEXC {
+  return __sycl_std::__invoke_log10<double8>(x);
+}
+inline double16 log10(double16 x) __NOEXC {
+  return __sycl_std::__invoke_log10<double16>(x);
+}
+inline half log10(half x) __NOEXC {
+  return __sycl_std::__invoke_log10<half>(x);
+}
+inline half2 log10(half2 x) __NOEXC {
+  return __sycl_std::__invoke_log10<half2>(x);
+}
+inline half3 log10(half3 x) __NOEXC {
+  return __sycl_std::__invoke_log10<half3>(x);
+}
+inline half4 log10(half4 x) __NOEXC {
+  return __sycl_std::__invoke_log10<half4>(x);
+}
+inline half8 log10(half8 x) __NOEXC {
+  return __sycl_std::__invoke_log10<half8>(x);
+}
+inline half16 log10(half16 x) __NOEXC {
+  return __sycl_std::__invoke_log10<half16>(x);
+}
+
+// genfloat log1p (genfloat x)
+inline float log1p(float x) __NOEXC {
+  return __sycl_std::__invoke_log1p<float>(x);
+}
+inline float2 log1p(float2 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<float2>(x);
+}
+inline float3 log1p(float3 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<float3>(x);
+}
+inline float4 log1p(float4 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<float4>(x);
+}
+inline float8 log1p(float8 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<float8>(x);
+}
+inline float16 log1p(float16 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<float16>(x);
+}
+inline double log1p(double x) __NOEXC {
+  return __sycl_std::__invoke_log1p<double>(x);
+}
+inline double2 log1p(double2 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<double2>(x);
+}
+inline double3 log1p(double3 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<double3>(x);
+}
+inline double4 log1p(double4 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<double4>(x);
+}
+inline double8 log1p(double8 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<double8>(x);
+}
+inline double16 log1p(double16 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<double16>(x);
+}
+inline half log1p(half x) __NOEXC {
+  return __sycl_std::__invoke_log1p<half>(x);
+}
+inline half2 log1p(half2 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<half2>(x);
+}
+inline half3 log1p(half3 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<half3>(x);
+}
+inline half4 log1p(half4 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<half4>(x);
+}
+inline half8 log1p(half8 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<half8>(x);
+}
+inline half16 log1p(half16 x) __NOEXC {
+  return __sycl_std::__invoke_log1p<half16>(x);
+}
+
+// genfloat logb (genfloat x)
+inline float logb(float x) __NOEXC {
+  return __sycl_std::__invoke_logb<float>(x);
+}
+inline float2 logb(float2 x) __NOEXC {
+  return __sycl_std::__invoke_logb<float2>(x);
+}
+inline float3 logb(float3 x) __NOEXC {
+  return __sycl_std::__invoke_logb<float3>(x);
+}
+inline float4 logb(float4 x) __NOEXC {
+  return __sycl_std::__invoke_logb<float4>(x);
+}
+inline float8 logb(float8 x) __NOEXC {
+  return __sycl_std::__invoke_logb<float8>(x);
+}
+inline float16 logb(float16 x) __NOEXC {
+  return __sycl_std::__invoke_logb<float16>(x);
+}
+inline double logb(double x) __NOEXC {
+  return __sycl_std::__invoke_logb<double>(x);
+}
+inline double2 logb(double2 x) __NOEXC {
+  return __sycl_std::__invoke_logb<double2>(x);
+}
+inline double3 logb(double3 x) __NOEXC {
+  return __sycl_std::__invoke_logb<double3>(x);
+}
+inline double4 logb(double4 x) __NOEXC {
+  return __sycl_std::__invoke_logb<double4>(x);
+}
+inline double8 logb(double8 x) __NOEXC {
+  return __sycl_std::__invoke_logb<double8>(x);
+}
+inline double16 logb(double16 x) __NOEXC {
+  return __sycl_std::__invoke_logb<double16>(x);
+}
+inline half logb(half x) __NOEXC { return __sycl_std::__invoke_logb<half>(x); }
+inline half2 logb(half2 x) __NOEXC {
+  return __sycl_std::__invoke_logb<half2>(x);
+}
+inline half3 logb(half3 x) __NOEXC {
+  return __sycl_std::__invoke_logb<half3>(x);
+}
+inline half4 logb(half4 x) __NOEXC {
+  return __sycl_std::__invoke_logb<half4>(x);
+}
+inline half8 logb(half8 x) __NOEXC {
+  return __sycl_std::__invoke_logb<half8>(x);
+}
+inline half16 logb(half16 x) __NOEXC {
+  return __sycl_std::__invoke_logb<half16>(x);
+}
+
+// genfloat mad (genfloat a, genfloat b, genfloat c)
+inline float mad(float a, float b, float c) __NOEXC {
+  return __sycl_std::__invoke_mad<float>(a, b, c);
+}
+inline float2 mad(float2 a, float2 b, float2 c) __NOEXC {
+  return __sycl_std::__invoke_mad<float2>(a, b, c);
+}
+inline float3 mad(float3 a, float3 b, float3 c) __NOEXC {
+  return __sycl_std::__invoke_mad<float3>(a, b, c);
+}
+inline float4 mad(float4 a, float4 b, float4 c) __NOEXC {
+  return __sycl_std::__invoke_mad<float4>(a, b, c);
+}
+inline float8 mad(float8 a, float8 b, float8 c) __NOEXC {
+  return __sycl_std::__invoke_mad<float8>(a, b, c);
+}
+inline float16 mad(float16 a, float16 b, float16 c) __NOEXC {
+  return __sycl_std::__invoke_mad<float16>(a, b, c);
+}
+inline double mad(double a, double b, double c) __NOEXC {
+  return __sycl_std::__invoke_mad<double>(a, b, c);
+}
+inline double2 mad(double2 a, double2 b, double2 c) __NOEXC {
+  return __sycl_std::__invoke_mad<double2>(a, b, c);
+}
+inline double3 mad(double3 a, double3 b, double3 c) __NOEXC {
+  return __sycl_std::__invoke_mad<double3>(a, b, c);
+}
+inline double4 mad(double4 a, double4 b, double4 c) __NOEXC {
+  return __sycl_std::__invoke_mad<double4>(a, b, c);
+}
+inline double8 mad(double8 a, double8 b, double8 c) __NOEXC {
+  return __sycl_std::__invoke_mad<double8>(a, b, c);
+}
+inline double16 mad(double16 a, double16 b, double16 c) __NOEXC {
+  return __sycl_std::__invoke_mad<double16>(a, b, c);
+}
+inline half mad(half a, half b, half c) __NOEXC {
+  return __sycl_std::__invoke_mad<half>(a, b, c);
+}
+inline half2 mad(half2 a, half2 b, half2 c) __NOEXC {
+  return __sycl_std::__invoke_mad<half2>(a, b, c);
+}
+inline half3 mad(half3 a, half3 b, half3 c) __NOEXC {
+  return __sycl_std::__invoke_mad<half3>(a, b, c);
+}
+inline half4 mad(half4 a, half4 b, half4 c) __NOEXC {
+  return __sycl_std::__invoke_mad<half4>(a, b, c);
+}
+inline half8 mad(half8 a, half8 b, half8 c) __NOEXC {
+  return __sycl_std::__invoke_mad<half8>(a, b, c);
+}
+inline half16 mad(half16 a, half16 b, half16 c) __NOEXC {
+  return __sycl_std::__invoke_mad<half16>(a, b, c);
+}
+
+// genfloat maxmag (genfloat x, genfloat y)
+inline float maxmag(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<float>(x, y);
+}
+inline float2 maxmag(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<float2>(x, y);
+}
+inline float3 maxmag(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<float3>(x, y);
+}
+inline float4 maxmag(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<float4>(x, y);
+}
+inline float8 maxmag(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<float8>(x, y);
+}
+inline float16 maxmag(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<float16>(x, y);
+}
+inline double maxmag(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<double>(x, y);
+}
+inline double2 maxmag(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<double2>(x, y);
+}
+inline double3 maxmag(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<double3>(x, y);
+}
+inline double4 maxmag(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<double4>(x, y);
+}
+inline double8 maxmag(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<double8>(x, y);
+}
+inline double16 maxmag(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<double16>(x, y);
+}
+inline half maxmag(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<half>(x, y);
+}
+inline half2 maxmag(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<half2>(x, y);
+}
+inline half3 maxmag(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<half3>(x, y);
+}
+inline half4 maxmag(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<half4>(x, y);
+}
+inline half8 maxmag(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<half8>(x, y);
+}
+inline half16 maxmag(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<half16>(x, y);
+}
+
+// genfloat minmag (genfloat x, genfloat y)
+inline float minmag(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_minmag<float>(x, y);
+}
+inline float2 minmag(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<float2>(x, y);
+}
+inline float3 minmag(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<float3>(x, y);
+}
+inline float4 minmag(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<float4>(x, y);
+}
+inline float8 minmag(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<float8>(x, y);
+}
+inline float16 minmag(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<float16>(x, y);
+}
+inline double minmag(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_minmag<double>(x, y);
+}
+inline double2 minmag(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<double2>(x, y);
+}
+inline double3 minmag(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<double3>(x, y);
+}
+inline double4 minmag(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<double4>(x, y);
+}
+inline double8 minmag(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<double8>(x, y);
+}
+inline double16 minmag(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<double16>(x, y);
+}
+inline half minmag(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_minmag<half>(x, y);
+}
+inline half2 minmag(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<half2>(x, y);
+}
+inline half3 minmag(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<half3>(x, y);
+}
+inline half4 minmag(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<half4>(x, y);
+}
+inline half8 minmag(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<half8>(x, y);
+}
+inline half16 minmag(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_minmag<half16>(x, y);
+}
+
+// genfloat modf (genfloat x, genfloatptr iptr)
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float modf(float x,
+                  multi_ptr<float, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float2 modf(float2 x,
+                   multi_ptr<float2, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float2>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float3 modf(float3 x,
+                   multi_ptr<float3, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float3>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float4 modf(float4 x,
+                   multi_ptr<float4, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float4>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float8 modf(float8 x,
+                   multi_ptr<float8, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float8>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float16
+modf(float16 x, multi_ptr<float16, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float16>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double modf(double x,
+                   multi_ptr<double, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double2
+modf(double2 x, multi_ptr<double2, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double2>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double3
+modf(double3 x, multi_ptr<double3, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double3>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double4
+modf(double4 x, multi_ptr<double4, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double4>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double8
+modf(double8 x, multi_ptr<double8, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double8>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double16
+modf(double16 x, multi_ptr<double16, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double16>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half modf(half x,
+                 multi_ptr<half, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half2 modf(half2 x,
+                  multi_ptr<half2, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half2>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half3 modf(half3 x,
+                  multi_ptr<half3, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half3>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half4 modf(half4 x,
+                  multi_ptr<half4, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half4>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half8 modf(half8 x,
+                  multi_ptr<half8, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half8>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half16 modf(half16 x,
+                   multi_ptr<half16, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half16>(x, iptr);
+}
+
+// genfloatf nan(ugenint nancode)
+inline float nan(unsigned int nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<float>(nancode);
+}
+inline float2 nan(uint2 nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<float2>(nancode);
+}
+inline float3 nan(uint3 nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<float3>(nancode);
+}
+inline float4 nan(uint4 nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<float4>(nancode);
+}
+inline float8 nan(uint8 nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<float8>(nancode);
+}
+inline float16 nan(uint16 nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<float16>(nancode);
+}
+// genfloatd nan(ugenlonginteger nancode)
+inline double nan(unsigned long nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<double>(nancode);
+}
+inline double2 nan(ulong2 nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<double2>(nancode);
+}
+inline double3 nan(ulong3 nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<double3>(nancode);
+}
+inline double4 nan(ulong4 nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<double4>(nancode);
+}
+inline double8 nan(ulong8 nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<double8>(nancode);
+}
+inline double16 nan(ulong16 nancode) __NOEXC {
+  return __sycl_std::__invoke_nan<double16>(nancode);
 }
 
 // genfloat nextafter (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE nextafter(TYPE x, TYPE y) __NOEXC {                              \
-    return __sycl_std::__invoke_nextafter<TYPE>(x, y);                         \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float nextafter(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<float>(x, y);
+}
+inline float2 nextafter(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<float2>(x, y);
+}
+inline float3 nextafter(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<float3>(x, y);
+}
+inline float4 nextafter(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<float4>(x, y);
+}
+inline float8 nextafter(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<float8>(x, y);
+}
+inline float16 nextafter(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<float16>(x, y);
+}
+inline double nextafter(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<double>(x, y);
+}
+inline double2 nextafter(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<double2>(x, y);
+}
+inline double3 nextafter(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<double3>(x, y);
+}
+inline double4 nextafter(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<double4>(x, y);
+}
+inline double8 nextafter(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<double8>(x, y);
+}
+inline double16 nextafter(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<double16>(x, y);
+}
+inline half nextafter(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<half>(x, y);
+}
+inline half2 nextafter(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<half2>(x, y);
+}
+inline half3 nextafter(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<half3>(x, y);
+}
+inline half4 nextafter(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<half4>(x, y);
+}
+inline half8 nextafter(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<half8>(x, y);
+}
+inline half16 nextafter(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<half16>(x, y);
+}
 
 // genfloat pow (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE pow(TYPE x, TYPE y) __NOEXC {                                    \
-    return __sycl_std::__invoke_pow<TYPE>(x, y);                               \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float pow(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_pow<float>(x, y);
+}
+inline float2 pow(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_pow<float2>(x, y);
+}
+inline float3 pow(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_pow<float3>(x, y);
+}
+inline float4 pow(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_pow<float4>(x, y);
+}
+inline float8 pow(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_pow<float8>(x, y);
+}
+inline float16 pow(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_pow<float16>(x, y);
+}
+inline double pow(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_pow<double>(x, y);
+}
+inline double2 pow(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_pow<double2>(x, y);
+}
+inline double3 pow(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_pow<double3>(x, y);
+}
+inline double4 pow(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_pow<double4>(x, y);
+}
+inline double8 pow(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_pow<double8>(x, y);
+}
+inline double16 pow(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_pow<double16>(x, y);
+}
+inline half pow(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_pow<half>(x, y);
+}
+inline half2 pow(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_pow<half2>(x, y);
+}
+inline half3 pow(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_pow<half3>(x, y);
+}
+inline half4 pow(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_pow<half4>(x, y);
+}
+inline half8 pow(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_pow<half8>(x, y);
+}
+inline half16 pow(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_pow<half16>(x, y);
+}
 
-// svgenfloat pown (svgenfloat x, genint y)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genint<T2>::value, T>
-pown(T x, T2 y) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_pown<T>(x, y);
+// genfloat pown (genfloat x, genint y)
+inline float pown(float x, int y) __NOEXC {
+  return __sycl_std::__invoke_pown<float>(x, y);
+}
+inline float2 pown(float2 x, int2 y) __NOEXC {
+  return __sycl_std::__invoke_pown<float2>(x, y);
+}
+inline float3 pown(float3 x, int3 y) __NOEXC {
+  return __sycl_std::__invoke_pown<float3>(x, y);
+}
+inline float4 pown(float4 x, int4 y) __NOEXC {
+  return __sycl_std::__invoke_pown<float4>(x, y);
+}
+inline float8 pown(float8 x, int8 y) __NOEXC {
+  return __sycl_std::__invoke_pown<float8>(x, y);
+}
+inline float16 pown(float16 x, int16 y) __NOEXC {
+  return __sycl_std::__invoke_pown<float16>(x, y);
+}
+inline double pown(double x, int y) __NOEXC {
+  return __sycl_std::__invoke_pown<double>(x, y);
+}
+inline double2 pown(double2 x, int2 y) __NOEXC {
+  return __sycl_std::__invoke_pown<double2>(x, y);
+}
+inline double3 pown(double3 x, int3 y) __NOEXC {
+  return __sycl_std::__invoke_pown<double3>(x, y);
+}
+inline double4 pown(double4 x, int4 y) __NOEXC {
+  return __sycl_std::__invoke_pown<double4>(x, y);
+}
+inline double8 pown(double8 x, int8 y) __NOEXC {
+  return __sycl_std::__invoke_pown<double8>(x, y);
+}
+inline double16 pown(double16 x, int16 y) __NOEXC {
+  return __sycl_std::__invoke_pown<double16>(x, y);
+}
+inline half pown(half x, int y) __NOEXC {
+  return __sycl_std::__invoke_pown<half>(x, y);
+}
+inline half2 pown(half2 x, int2 y) __NOEXC {
+  return __sycl_std::__invoke_pown<half2>(x, y);
+}
+inline half3 pown(half3 x, int3 y) __NOEXC {
+  return __sycl_std::__invoke_pown<half3>(x, y);
+}
+inline half4 pown(half4 x, int4 y) __NOEXC {
+  return __sycl_std::__invoke_pown<half4>(x, y);
+}
+inline half8 pown(half8 x, int8 y) __NOEXC {
+  return __sycl_std::__invoke_pown<half8>(x, y);
+}
+inline half16 pown(half16 x, int16 y) __NOEXC {
+  return __sycl_std::__invoke_pown<half16>(x, y);
 }
 
 // genfloat powr (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
-    return __sycl_std::__invoke_powr<TYPE>(x, y);                              \
-  }
-__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float powr(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_powr<float>(x, y);
+}
+inline float2 powr(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_powr<float2>(x, y);
+}
+inline float3 powr(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_powr<float3>(x, y);
+}
+inline float4 powr(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_powr<float4>(x, y);
+}
+inline float8 powr(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_powr<float8>(x, y);
+}
+inline float16 powr(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_powr<float16>(x, y);
+}
+inline double powr(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_powr<double>(x, y);
+}
+inline double2 powr(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_powr<double2>(x, y);
+}
+inline double3 powr(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_powr<double3>(x, y);
+}
+inline double4 powr(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_powr<double4>(x, y);
+}
+inline double8 powr(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_powr<double8>(x, y);
+}
+inline double16 powr(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_powr<double16>(x, y);
+}
+inline half powr(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_powr<half>(x, y);
+}
+inline half2 powr(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_powr<half2>(x, y);
+}
+inline half3 powr(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_powr<half3>(x, y);
+}
+inline half4 powr(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_powr<half4>(x, y);
+}
+inline half8 powr(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_powr<half8>(x, y);
+}
+inline half16 powr(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_powr<half16>(x, y);
+}
 
-// genfloat remainder (genfloat x, genfloat y)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE remainder(TYPE x, TYPE y) __NOEXC {                              \
-    return __sycl_std::__invoke_remainder<TYPE>(x, y);                         \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+// genfloat remainder(genfloat x, genfloat y)
+inline float remainder(float x, float y) __NOEXC {
+  return __sycl_std::__invoke_remainder<float>(x, y);
+}
+inline float2 remainder(float2 x, float2 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<float2>(x, y);
+}
+inline float3 remainder(float3 x, float3 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<float3>(x, y);
+}
+inline float4 remainder(float4 x, float4 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<float4>(x, y);
+}
+inline float8 remainder(float8 x, float8 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<float8>(x, y);
+}
+inline float16 remainder(float16 x, float16 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<float16>(x, y);
+}
+inline double remainder(double x, double y) __NOEXC {
+  return __sycl_std::__invoke_remainder<double>(x, y);
+}
+inline double2 remainder(double2 x, double2 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<double2>(x, y);
+}
+inline double3 remainder(double3 x, double3 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<double3>(x, y);
+}
+inline double4 remainder(double4 x, double4 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<double4>(x, y);
+}
+inline double8 remainder(double8 x, double8 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<double8>(x, y);
+}
+inline double16 remainder(double16 x, double16 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<double16>(x, y);
+}
+inline half remainder(half x, half y) __NOEXC {
+  return __sycl_std::__invoke_remainder<half>(x, y);
+}
+inline half2 remainder(half2 x, half2 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<half2>(x, y);
+}
+inline half3 remainder(half3 x, half3 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<half3>(x, y);
+}
+inline half4 remainder(half4 x, half4 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<half4>(x, y);
+}
+inline half8 remainder(half8 x, half8 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<half8>(x, y);
+}
+inline half16 remainder(half16 x, half16 y) __NOEXC {
+  return __sycl_std::__invoke_remainder<half16>(x, y);
+}
 
 // svgenfloat remquo (svgenfloat x, svgenfloat y, genintptr quo)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
-remquo(T x, T y, T2 quo) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_remquo<T>(x, y, quo);
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float modf(float x, float y,
+                  multi_ptr<int, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float2 modf(float2 x, float2 y,
+                   multi_ptr<int2, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float2>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float3 modf(float3 x, float3 y,
+                   multi_ptr<int3, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float3>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float4 modf(float4 x, float4 y,
+                   multi_ptr<int4, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float4>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float8 modf(float8 x, float8 y,
+                   multi_ptr<int8, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float8>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float16 modf(float16 x, float16 y,
+                    multi_ptr<int16, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<float16>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double modf(double x, double y,
+                   multi_ptr<double, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double2
+modf(double2 x, double2 y,
+     multi_ptr<double2, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double2>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double3
+modf(double3 x, double3 y,
+     multi_ptr<double3, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double3>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double4
+modf(double4 x, double4 y,
+     multi_ptr<double4, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double4>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double8
+modf(double8 x, double8 y,
+     multi_ptr<double8, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double8>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double16
+modf(double16 x, double16 y,
+     multi_ptr<double16, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<double16>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half modf(half x, half y,
+                 multi_ptr<half, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half2 modf(half2 x, half2 y,
+                  multi_ptr<half2, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half2>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half3 modf(half3 x, half3 y,
+                  multi_ptr<half3, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half3>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half4 modf(half4 x, half4 y,
+                  multi_ptr<half4, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half4>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half8 modf(half8 x, half8 y,
+                  multi_ptr<half8, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half8>(x, iptr);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half16 modf(half16 x, half16 y,
+                   multi_ptr<half16, AddressSpace, IsDecorated> iptr) __NOEXC {
+  return __sycl_std::__invoke_fract<half16>(x, iptr);
 }
 
 // genfloat rint (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE rint(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_rint<TYPE>(x);                                 \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float rint(float x) __NOEXC {
+  return __sycl_std::__invoke_rint<float>(x);
+}
+inline float2 rint(float2 x) __NOEXC {
+  return __sycl_std::__invoke_rint<float2>(x);
+}
+inline float3 rint(float3 x) __NOEXC {
+  return __sycl_std::__invoke_rint<float3>(x);
+}
+inline float4 rint(float4 x) __NOEXC {
+  return __sycl_std::__invoke_rint<float4>(x);
+}
+inline float8 rint(float8 x) __NOEXC {
+  return __sycl_std::__invoke_rint<float8>(x);
+}
+inline float16 rint(float16 x) __NOEXC {
+  return __sycl_std::__invoke_rint<float16>(x);
+}
+inline double rint(double x) __NOEXC {
+  return __sycl_std::__invoke_rint<double>(x);
+}
+inline double2 rint(double2 x) __NOEXC {
+  return __sycl_std::__invoke_rint<double2>(x);
+}
+inline double3 rint(double3 x) __NOEXC {
+  return __sycl_std::__invoke_rint<double3>(x);
+}
+inline double4 rint(double4 x) __NOEXC {
+  return __sycl_std::__invoke_rint<double4>(x);
+}
+inline double8 rint(double8 x) __NOEXC {
+  return __sycl_std::__invoke_rint<double8>(x);
+}
+inline double16 rint(double16 x) __NOEXC {
+  return __sycl_std::__invoke_rint<double16>(x);
+}
+inline half rint(half x) __NOEXC { return __sycl_std::__invoke_rint<half>(x); }
+inline half2 rint(half2 x) __NOEXC {
+  return __sycl_std::__invoke_rint<half2>(x);
+}
+inline half3 rint(half3 x) __NOEXC {
+  return __sycl_std::__invoke_rint<half3>(x);
+}
+inline half4 rint(half4 x) __NOEXC {
+  return __sycl_std::__invoke_rint<half4>(x);
+}
+inline half8 rint(half8 x) __NOEXC {
+  return __sycl_std::__invoke_rint<half8>(x);
+}
+inline half16 rint(half16 x) __NOEXC {
+  return __sycl_std::__invoke_rint<half16>(x);
+}
 
-// svgenfloat rootn (svgenfloat x, genint y)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genint<T2>::value, T>
-rootn(T x, T2 y) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_rootn<T>(x, y);
+// genfloat rootn (genfloat x, genint y)
+inline float rootn(float x, int y) __NOEXC {
+  return __sycl_std::__invoke_rootn<float>(x, y);
+}
+inline float2 rootn(float2 x, int2 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<float2>(x, y);
+}
+inline float3 rootn(float3 x, int3 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<float3>(x, y);
+}
+inline float4 rootn(float4 x, int4 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<float4>(x, y);
+}
+inline float8 rootn(float8 x, int8 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<float8>(x, y);
+}
+inline float16 rootn(float16 x, int16 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<float16>(x, y);
+}
+inline double rootn(double x, int y) __NOEXC {
+  return __sycl_std::__invoke_rootn<double>(x, y);
+}
+inline double2 rootn(double2 x, int2 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<double2>(x, y);
+}
+inline double3 rootn(double3 x, int3 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<double3>(x, y);
+}
+inline double4 rootn(double4 x, int4 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<double4>(x, y);
+}
+inline double8 rootn(double8 x, int8 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<double8>(x, y);
+}
+inline double16 rootn(double16 x, int16 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<double16>(x, y);
+}
+inline half rootn(half x, int y) __NOEXC {
+  return __sycl_std::__invoke_rootn<half>(x, y);
+}
+inline half2 rootn(half2 x, int2 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<half2>(x, y);
+}
+inline half3 rootn(half3 x, int3 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<half3>(x, y);
+}
+inline half4 rootn(half4 x, int4 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<half4>(x, y);
+}
+inline half8 rootn(half8 x, int8 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<half8>(x, y);
+}
+inline half16 rootn(half16 x, int16 y) __NOEXC {
+  return __sycl_std::__invoke_rootn<half16>(x, y);
 }
 
 // genfloat round (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE round(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_round<TYPE>(x);                                \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float round(float x) __NOEXC {
+  return __sycl_std::__invoke_round<float>(x);
+}
+inline float2 round(float2 x) __NOEXC {
+  return __sycl_std::__invoke_round<float2>(x);
+}
+inline float3 round(float3 x) __NOEXC {
+  return __sycl_std::__invoke_round<float3>(x);
+}
+inline float4 round(float4 x) __NOEXC {
+  return __sycl_std::__invoke_round<float4>(x);
+}
+inline float8 round(float8 x) __NOEXC {
+  return __sycl_std::__invoke_round<float8>(x);
+}
+inline float16 round(float16 x) __NOEXC {
+  return __sycl_std::__invoke_round<float16>(x);
+}
+inline double round(double x) __NOEXC {
+  return __sycl_std::__invoke_round<double>(x);
+}
+inline double2 round(double2 x) __NOEXC {
+  return __sycl_std::__invoke_round<double2>(x);
+}
+inline double3 round(double3 x) __NOEXC {
+  return __sycl_std::__invoke_round<double3>(x);
+}
+inline double4 round(double4 x) __NOEXC {
+  return __sycl_std::__invoke_round<double4>(x);
+}
+inline double8 round(double8 x) __NOEXC {
+  return __sycl_std::__invoke_round<double8>(x);
+}
+inline double16 round(double16 x) __NOEXC {
+  return __sycl_std::__invoke_round<double16>(x);
+}
+inline half round(half x) __NOEXC {
+  return __sycl_std::__invoke_round<half>(x);
+}
+inline half2 round(half2 x) __NOEXC {
+  return __sycl_std::__invoke_round<half2>(x);
+}
+inline half3 round(half3 x) __NOEXC {
+  return __sycl_std::__invoke_round<half3>(x);
+}
+inline half4 round(half4 x) __NOEXC {
+  return __sycl_std::__invoke_round<half4>(x);
+}
+inline half8 round(half8 x) __NOEXC {
+  return __sycl_std::__invoke_round<half8>(x);
+}
+inline half16 round(half16 x) __NOEXC {
+  return __sycl_std::__invoke_round<half16>(x);
+}
 
 // genfloat rsqrt (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_rsqrt<TYPE>(x);                                \
-  }
-__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float rsqrt(float x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<float>(x);
+}
+inline float2 rsqrt(float2 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<float2>(x);
+}
+inline float3 rsqrt(float3 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<float3>(x);
+}
+inline float4 rsqrt(float4 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<float4>(x);
+}
+inline float8 rsqrt(float8 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<float8>(x);
+}
+inline float16 rsqrt(float16 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<float16>(x);
+}
+inline double rsqrt(double x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<double>(x);
+}
+inline double2 rsqrt(double2 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<double2>(x);
+}
+inline double3 rsqrt(double3 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<double3>(x);
+}
+inline double4 rsqrt(double4 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<double4>(x);
+}
+inline double8 rsqrt(double8 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<double8>(x);
+}
+inline double16 rsqrt(double16 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<double16>(x);
+}
+inline half rsqrt(half x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<half>(x);
+}
+inline half2 rsqrt(half2 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<half2>(x);
+}
+inline half3 rsqrt(half3 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<half3>(x);
+}
+inline half4 rsqrt(half4 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<half4>(x);
+}
+inline half8 rsqrt(half8 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<half8>(x);
+}
+inline half16 rsqrt(half16 x) __NOEXC {
+  return __sycl_std::__invoke_rsqrt<half16>(x);
+}
 
 // genfloat sin (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE sin(TYPE x) __NOEXC { return __sycl_std::__invoke_sin<TYPE>(x); }
-__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float sin(float x) __NOEXC { return __sycl_std::__invoke_sin<float>(x); }
+inline float2 sin(float2 x) __NOEXC {
+  return __sycl_std::__invoke_sin<float2>(x);
+}
+inline float3 sin(float3 x) __NOEXC {
+  return __sycl_std::__invoke_sin<float3>(x);
+}
+inline float4 sin(float4 x) __NOEXC {
+  return __sycl_std::__invoke_sin<float4>(x);
+}
+inline float8 sin(float8 x) __NOEXC {
+  return __sycl_std::__invoke_sin<float8>(x);
+}
+inline float16 sin(float16 x) __NOEXC {
+  return __sycl_std::__invoke_sin<float16>(x);
+}
+inline double sin(double x) __NOEXC {
+  return __sycl_std::__invoke_sin<double>(x);
+}
+inline double2 sin(double2 x) __NOEXC {
+  return __sycl_std::__invoke_sin<double2>(x);
+}
+inline double3 sin(double3 x) __NOEXC {
+  return __sycl_std::__invoke_sin<double3>(x);
+}
+inline double4 sin(double4 x) __NOEXC {
+  return __sycl_std::__invoke_sin<double4>(x);
+}
+inline double8 sin(double8 x) __NOEXC {
+  return __sycl_std::__invoke_sin<double8>(x);
+}
+inline double16 sin(double16 x) __NOEXC {
+  return __sycl_std::__invoke_sin<double16>(x);
+}
+inline half sin(half x) __NOEXC { return __sycl_std::__invoke_sin<half>(x); }
+inline half2 sin(half2 x) __NOEXC { return __sycl_std::__invoke_sin<half2>(x); }
+inline half3 sin(half3 x) __NOEXC { return __sycl_std::__invoke_sin<half3>(x); }
+inline half4 sin(half4 x) __NOEXC { return __sycl_std::__invoke_sin<half4>(x); }
+inline half8 sin(half8 x) __NOEXC { return __sycl_std::__invoke_sin<half8>(x); }
+inline half16 sin(half16 x) __NOEXC {
+  return __sycl_std::__invoke_sin<half16>(x);
+}
 
-// svgenfloat sincos (svgenfloat x, genfloatptr cosval)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
-sincos(T x, T2 cosval) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_sincos<T>(x, cosval);
+// genfloat sincos (genfloat x, genfloatptr cosval)
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float
+sincos(float x, multi_ptr<float, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<float>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float2
+sincos(float2 x, multi_ptr<float2, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<float2>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float3
+sincos(float3 x, multi_ptr<float3, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<float3>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float4
+sincos(float4 x, multi_ptr<float4, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<float4>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float8
+sincos(float8 x, multi_ptr<float8, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<float8>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline float16
+sincos(float16 x,
+       multi_ptr<float16, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<float16>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double
+sincos(double x, multi_ptr<double, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<double>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double2
+sincos(double2 x,
+       multi_ptr<double2, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<double2>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double3
+sincos(double3 x,
+       multi_ptr<double3, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<double3>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double4
+sincos(double4 x,
+       multi_ptr<double4, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<double4>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double8
+sincos(double8 x,
+       multi_ptr<double8, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<double8>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline double16
+sincos(double16 x,
+       multi_ptr<double16, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<double16>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half sincos(half x,
+                   multi_ptr<half, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<half>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half2
+sincos(half2 x, multi_ptr<half2, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<half2>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half3
+sincos(half3 x, multi_ptr<half3, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<half3>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half4
+sincos(half4 x, multi_ptr<half4, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<half4>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half8
+sincos(half8 x, multi_ptr<half8, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<half8>(x, cosval);
+}
+template <access::address_space AddressSpace, access::decorated IsDecorated>
+inline half16
+sincos(half16 x, multi_ptr<half16, AddressSpace, IsDecorated> cosval) __NOEXC {
+  return __sycl_std::__invoke_sincos<half16>(x, cosval);
 }
 
 // genfloat sinh (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE sinh(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_sinh<TYPE>(x);                                 \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float sinh(float x) __NOEXC {
+  return __sycl_std::__invoke_sinh<float>(x);
+}
+inline float2 sinh(float2 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<float2>(x);
+}
+inline float3 sinh(float3 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<float3>(x);
+}
+inline float4 sinh(float4 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<float4>(x);
+}
+inline float8 sinh(float8 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<float8>(x);
+}
+inline float16 sinh(float16 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<float16>(x);
+}
+inline double sinh(double x) __NOEXC {
+  return __sycl_std::__invoke_sinh<double>(x);
+}
+inline double2 sinh(double2 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<double2>(x);
+}
+inline double3 sinh(double3 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<double3>(x);
+}
+inline double4 sinh(double4 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<double4>(x);
+}
+inline double8 sinh(double8 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<double8>(x);
+}
+inline double16 sinh(double16 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<double16>(x);
+}
+inline half sinh(half x) __NOEXC { return __sycl_std::__invoke_sinh<half>(x); }
+inline half2 sinh(half2 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<half2>(x);
+}
+inline half3 sinh(half3 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<half3>(x);
+}
+inline half4 sinh(half4 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<half4>(x);
+}
+inline half8 sinh(half8 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<half8>(x);
+}
+inline half16 sinh(half16 x) __NOEXC {
+  return __sycl_std::__invoke_sinh<half16>(x);
+}
 
 // genfloat sinpi (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE sinpi(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_sinpi<TYPE>(x);                                \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float sinpi(float x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<float>(x);
+}
+inline float2 sinpi(float2 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<float2>(x);
+}
+inline float3 sinpi(float3 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<float3>(x);
+}
+inline float4 sinpi(float4 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<float4>(x);
+}
+inline float8 sinpi(float8 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<float8>(x);
+}
+inline float16 sinpi(float16 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<float16>(x);
+}
+inline double sinpi(double x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<double>(x);
+}
+inline double2 sinpi(double2 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<double2>(x);
+}
+inline double3 sinpi(double3 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<double3>(x);
+}
+inline double4 sinpi(double4 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<double4>(x);
+}
+inline double8 sinpi(double8 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<double8>(x);
+}
+inline double16 sinpi(double16 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<double16>(x);
+}
+inline half sinpi(half x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<half>(x);
+}
+inline half2 sinpi(half2 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<half2>(x);
+}
+inline half3 sinpi(half3 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<half3>(x);
+}
+inline half4 sinpi(half4 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<half4>(x);
+}
+inline half8 sinpi(half8 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<half8>(x);
+}
+inline half16 sinpi(half16 x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<half16>(x);
+}
 
 // genfloat sqrt (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE sqrt(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_sqrt<TYPE>(x);                                 \
-  }
-__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float sqrt(float x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<float>(x);
+}
+inline float2 sqrt(float2 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<float2>(x);
+}
+inline float3 sqrt(float3 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<float3>(x);
+}
+inline float4 sqrt(float4 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<float4>(x);
+}
+inline float8 sqrt(float8 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<float8>(x);
+}
+inline float16 sqrt(float16 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<float16>(x);
+}
+inline double sqrt(double x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<double>(x);
+}
+inline double2 sqrt(double2 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<double2>(x);
+}
+inline double3 sqrt(double3 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<double3>(x);
+}
+inline double4 sqrt(double4 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<double4>(x);
+}
+inline double8 sqrt(double8 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<double8>(x);
+}
+inline double16 sqrt(double16 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<double16>(x);
+}
+inline half sqrt(half x) __NOEXC { return __sycl_std::__invoke_sqrt<half>(x); }
+inline half2 sqrt(half2 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<half2>(x);
+}
+inline half3 sqrt(half3 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<half3>(x);
+}
+inline half4 sqrt(half4 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<half4>(x);
+}
+inline half8 sqrt(half8 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<half8>(x);
+}
+inline half16 sqrt(half16 x) __NOEXC {
+  return __sycl_std::__invoke_sqrt<half16>(x);
+}
 
 // genfloat tan (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE tan(TYPE x) __NOEXC { return __sycl_std::__invoke_tan<TYPE>(x); }
-__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float tan(float x) __NOEXC { return __sycl_std::__invoke_tan<float>(x); }
+inline float2 tan(float2 x) __NOEXC {
+  return __sycl_std::__invoke_tan<float2>(x);
+}
+inline float3 tan(float3 x) __NOEXC {
+  return __sycl_std::__invoke_tan<float3>(x);
+}
+inline float4 tan(float4 x) __NOEXC {
+  return __sycl_std::__invoke_tan<float4>(x);
+}
+inline float8 tan(float8 x) __NOEXC {
+  return __sycl_std::__invoke_tan<float8>(x);
+}
+inline float16 tan(float16 x) __NOEXC {
+  return __sycl_std::__invoke_tan<float16>(x);
+}
+inline double tan(double x) __NOEXC {
+  return __sycl_std::__invoke_tan<double>(x);
+}
+inline double2 tan(double2 x) __NOEXC {
+  return __sycl_std::__invoke_tan<double2>(x);
+}
+inline double3 tan(double3 x) __NOEXC {
+  return __sycl_std::__invoke_tan<double3>(x);
+}
+inline double4 tan(double4 x) __NOEXC {
+  return __sycl_std::__invoke_tan<double4>(x);
+}
+inline double8 tan(double8 x) __NOEXC {
+  return __sycl_std::__invoke_tan<double8>(x);
+}
+inline double16 tan(double16 x) __NOEXC {
+  return __sycl_std::__invoke_tan<double16>(x);
+}
+inline half tan(half x) __NOEXC { return __sycl_std::__invoke_tan<half>(x); }
+inline half2 tan(half2 x) __NOEXC { return __sycl_std::__invoke_tan<half2>(x); }
+inline half3 tan(half3 x) __NOEXC { return __sycl_std::__invoke_tan<half3>(x); }
+inline half4 tan(half4 x) __NOEXC { return __sycl_std::__invoke_tan<half4>(x); }
+inline half8 tan(half8 x) __NOEXC { return __sycl_std::__invoke_tan<half8>(x); }
+inline half16 tan(half16 x) __NOEXC {
+  return __sycl_std::__invoke_tan<half16>(x);
+}
 
 // genfloat tanh (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE tanh(TYPE x) __NOEXC {                                           \
-    return __sycl_std::__invoke_tanh<TYPE>(x);                                 \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float tanh(float x) __NOEXC {
+  return __sycl_std::__invoke_tanh<float>(x);
+}
+inline float2 tanh(float2 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<float2>(x);
+}
+inline float3 tanh(float3 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<float3>(x);
+}
+inline float4 tanh(float4 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<float4>(x);
+}
+inline float8 tanh(float8 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<float8>(x);
+}
+inline float16 tanh(float16 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<float16>(x);
+}
+inline double tanh(double x) __NOEXC {
+  return __sycl_std::__invoke_tanh<double>(x);
+}
+inline double2 tanh(double2 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<double2>(x);
+}
+inline double3 tanh(double3 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<double3>(x);
+}
+inline double4 tanh(double4 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<double4>(x);
+}
+inline double8 tanh(double8 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<double8>(x);
+}
+inline double16 tanh(double16 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<double16>(x);
+}
+inline half tanh(half x) __NOEXC { return __sycl_std::__invoke_tanh<half>(x); }
+inline half2 tanh(half2 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<half2>(x);
+}
+inline half3 tanh(half3 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<half3>(x);
+}
+inline half4 tanh(half4 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<half4>(x);
+}
+inline half8 tanh(half8 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<half8>(x);
+}
+inline half16 tanh(half16 x) __NOEXC {
+  return __sycl_std::__invoke_tanh<half16>(x);
+}
 
 // genfloat tanpi (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE tanpi(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_tanpi<TYPE>(x);                                \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float tanpi(float x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<float>(x);
+}
+inline float2 tanpi(float2 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<float2>(x);
+}
+inline float3 tanpi(float3 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<float3>(x);
+}
+inline float4 tanpi(float4 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<float4>(x);
+}
+inline float8 tanpi(float8 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<float8>(x);
+}
+inline float16 tanpi(float16 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<float16>(x);
+}
+inline double tanpi(double x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<double>(x);
+}
+inline double2 tanpi(double2 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<double2>(x);
+}
+inline double3 tanpi(double3 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<double3>(x);
+}
+inline double4 tanpi(double4 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<double4>(x);
+}
+inline double8 tanpi(double8 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<double8>(x);
+}
+inline double16 tanpi(double16 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<double16>(x);
+}
+inline half tanpi(half x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<half>(x);
+}
+inline half2 tanpi(half2 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<half2>(x);
+}
+inline half3 tanpi(half3 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<half3>(x);
+}
+inline half4 tanpi(half4 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<half4>(x);
+}
+inline half8 tanpi(half8 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<half8>(x);
+}
+inline half16 tanpi(half16 x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<half16>(x);
+}
 
 // genfloat tgamma (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE tgamma(TYPE x) __NOEXC {                                         \
-    return __sycl_std::__invoke_tgamma<TYPE>(x);                               \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float tgamma(float x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<float>(x);
+}
+inline float2 tgamma(float2 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<float2>(x);
+}
+inline float3 tgamma(float3 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<float3>(x);
+}
+inline float4 tgamma(float4 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<float4>(x);
+}
+inline float8 tgamma(float8 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<float8>(x);
+}
+inline float16 tgamma(float16 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<float16>(x);
+}
+inline double tgamma(double x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<double>(x);
+}
+inline double2 tgamma(double2 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<double2>(x);
+}
+inline double3 tgamma(double3 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<double3>(x);
+}
+inline double4 tgamma(double4 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<double4>(x);
+}
+inline double8 tgamma(double8 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<double8>(x);
+}
+inline double16 tgamma(double16 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<double16>(x);
+}
+inline half tgamma(half x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<half>(x);
+}
+inline half2 tgamma(half2 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<half2>(x);
+}
+inline half3 tgamma(half3 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<half3>(x);
+}
+inline half4 tgamma(half4 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<half4>(x);
+}
+inline half8 tgamma(half8 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<half8>(x);
+}
+inline half16 tgamma(half16 x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<half16>(x);
+}
 
 // genfloat trunc (genfloat x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE trunc(TYPE x) __NOEXC {                                          \
-    return __sycl_std::__invoke_trunc<TYPE>(x);                                \
-  }
-__SYCL_DEF_BUILTIN_GENFLOAT
-#undef __SYCL_BUILTIN_DEF
+inline float trunc(float x) __NOEXC {
+  return __sycl_std::__invoke_trunc<float>(x);
+}
+inline float2 trunc(float2 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<float2>(x);
+}
+inline float3 trunc(float3 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<float3>(x);
+}
+inline float4 trunc(float4 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<float4>(x);
+}
+inline float8 trunc(float8 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<float8>(x);
+}
+inline float16 trunc(float16 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<float16>(x);
+}
+inline double trunc(double x) __NOEXC {
+  return __sycl_std::__invoke_trunc<double>(x);
+}
+inline double2 trunc(double2 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<double2>(x);
+}
+inline double3 trunc(double3 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<double3>(x);
+}
+inline double4 trunc(double4 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<double4>(x);
+}
+inline double8 trunc(double8 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<double8>(x);
+}
+inline double16 trunc(double16 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<double16>(x);
+}
+inline half trunc(half x) __NOEXC {
+  return __sycl_std::__invoke_trunc<half>(x);
+}
+inline half2 trunc(half2 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<half2>(x);
+}
+inline half3 trunc(half3 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<half3>(x);
+}
+inline half4 trunc(half4 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<half4>(x);
+}
+inline half8 trunc(half8 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<half8>(x);
+}
+inline half16 trunc(half16 x) __NOEXC {
+  return __sycl_std::__invoke_trunc<half16>(x);
+}
 
 // other marray math functions
 
@@ -3239,7 +6612,8 @@ __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_DEF_BUILTIN_GENTYPE
 #undef __SYCL_COMMA
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
+} // namespace
+  // sycl
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
