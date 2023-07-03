@@ -51,7 +51,7 @@ float find_prime_s(work *w) {
         if (number < N) {
           for (size_t i = 0; i < niter; ++i) {
             bool is_prime = !(number % 2 == 0);
-            const int upper_bound = sycl::sqrt(1.0 * number) + 1;
+            const int upper_bound = sycl::sqrt(1.0f * number) + 1;
             int k = 3;
             while (k < upper_bound && is_prime) {
               is_prime = !(number % k == 0);
@@ -105,7 +105,7 @@ float find_prime_s(work *w) {
     }
   }
 
-  std::chrono::duration<double> diff{0};
+  std::chrono::duration<float> diff{0};
   diff = (stop - start);
 
   return diff.count();

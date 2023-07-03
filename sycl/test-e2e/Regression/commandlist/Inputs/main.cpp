@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
 
   vector<work> vwork;
 
-  std::chrono::duration<double> diff{0};
+  std::chrono::duration<float> diff{0};
 
   work w[nthreadsGPU];
   for (int i = 0; i < nthreadsGPU; ++i) {
@@ -172,9 +172,9 @@ int main(int argc, char *argv[]) {
     avgtime += w.run;
 
 #ifdef DEBUG
-    std::chrono::duration<double> d1 = w.start - minstart;
-    std::chrono::duration<double> d2 = w.stop - minstart;
-    std::chrono::duration<double> d3 = w.stop - w.start;
+    std::chrono::duration<float> d1 = w.start - minstart;
+    std::chrono::duration<float> d2 = w.stop - minstart;
+    std::chrono::duration<float> d3 = w.stop - w.start;
 
     std::cout << "GPU[" << w.id << "]:  nPrimes: " << nPrimes << "  "
               << std::fixed << std::setprecision(2) << std::setw(6)
