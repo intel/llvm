@@ -1,4 +1,4 @@
-// REQUIRES: aspect-image
+// REQUIRES: aspect-ext_intel_legacy_image
 // TODO: Can we move it to sycl/test?
 // RUN: %{build} -fsycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
