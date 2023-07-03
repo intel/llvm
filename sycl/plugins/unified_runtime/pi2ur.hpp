@@ -4116,7 +4116,7 @@ pi_result piextPeerAccessGetInfo(pi_device command_device,
     break;
   }
   default: {
-    return PI_ERROR_UNKNOWN;
+    return PI_ERROR_INVALID_VALUE;
   }
   }
 
