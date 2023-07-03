@@ -3187,7 +3187,7 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
-  return lsc_slm_atomic_update<Op, T, N, DS, L1H, L3H>(
+  return lsc_slm_atomic_update<Op, T, N, DS>(
       offsets + __ESIMD_DNS::localAccessorToOffset(acc), pred);
 }
 
@@ -3275,7 +3275,7 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
-  return lsc_slm_atomic_update<Op, T, N, DS, L1H, L3H>(
+  return lsc_slm_atomic_update<Op, T, N, DS>(
       offsets + __ESIMD_DNS::localAccessorToOffset(acc), src0, pred);
 }
 
@@ -3367,7 +3367,7 @@ __ESIMD_API std::enable_if_t<
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
-  return lsc_slm_atomic_update<Op, T, N, DS, L1H, L3H>(
+  return lsc_slm_atomic_update<Op, T, N, DS>(
       offsets + __ESIMD_DNS::localAccessorToOffset(acc), src0, src1, pred);
 }
 
