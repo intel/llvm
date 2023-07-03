@@ -181,9 +181,10 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
 
 } // namespace ur_params
 
-inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_structure_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_base_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
@@ -379,7 +380,6 @@ inline std::ostream &
 operator<<(std::ostream &os, const struct ur_event_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_execution_info_t value);
-inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_migration_flag_t value);
@@ -393,6 +393,1051 @@ operator<<(std::ostream &os, const struct ur_exp_command_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_peer_info_t value);
 
+inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
+    switch (value) {
+
+    case UR_FUNCTION_CONTEXT_CREATE:
+        os << "UR_FUNCTION_CONTEXT_CREATE";
+        break;
+
+    case UR_FUNCTION_CONTEXT_RETAIN:
+        os << "UR_FUNCTION_CONTEXT_RETAIN";
+        break;
+
+    case UR_FUNCTION_CONTEXT_RELEASE:
+        os << "UR_FUNCTION_CONTEXT_RELEASE";
+        break;
+
+    case UR_FUNCTION_CONTEXT_GET_INFO:
+        os << "UR_FUNCTION_CONTEXT_GET_INFO";
+        break;
+
+    case UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE:
+        os << "UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER:
+        os << "UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER";
+        break;
+
+    case UR_FUNCTION_DEVICE_GET:
+        os << "UR_FUNCTION_DEVICE_GET";
+        break;
+
+    case UR_FUNCTION_DEVICE_GET_INFO:
+        os << "UR_FUNCTION_DEVICE_GET_INFO";
+        break;
+
+    case UR_FUNCTION_DEVICE_RETAIN:
+        os << "UR_FUNCTION_DEVICE_RETAIN";
+        break;
+
+    case UR_FUNCTION_DEVICE_RELEASE:
+        os << "UR_FUNCTION_DEVICE_RELEASE";
+        break;
+
+    case UR_FUNCTION_DEVICE_PARTITION:
+        os << "UR_FUNCTION_DEVICE_PARTITION";
+        break;
+
+    case UR_FUNCTION_DEVICE_SELECT_BINARY:
+        os << "UR_FUNCTION_DEVICE_SELECT_BINARY";
+        break;
+
+    case UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE:
+        os << "UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS:
+        os << "UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH:
+        os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_EVENTS_WAIT:
+        os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER:
+        os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ:
+        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE:
+        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT:
+        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT:
+        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY:
+        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT:
+        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL:
+        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ:
+        os << "UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE:
+        os << "UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY:
+        os << "UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP:
+        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_MEM_UNMAP:
+        os << "UR_FUNCTION_ENQUEUE_MEM_UNMAP";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_USM_FILL:
+        os << "UR_FUNCTION_ENQUEUE_USM_FILL";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_USM_MEMCPY:
+        os << "UR_FUNCTION_ENQUEUE_USM_MEMCPY";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_USM_PREFETCH:
+        os << "UR_FUNCTION_ENQUEUE_USM_PREFETCH";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_USM_ADVISE:
+        os << "UR_FUNCTION_ENQUEUE_USM_ADVISE";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE:
+        os << "UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ:
+        os << "UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ";
+        break;
+
+    case UR_FUNCTION_EVENT_GET_INFO:
+        os << "UR_FUNCTION_EVENT_GET_INFO";
+        break;
+
+    case UR_FUNCTION_EVENT_GET_PROFILING_INFO:
+        os << "UR_FUNCTION_EVENT_GET_PROFILING_INFO";
+        break;
+
+    case UR_FUNCTION_EVENT_WAIT:
+        os << "UR_FUNCTION_EVENT_WAIT";
+        break;
+
+    case UR_FUNCTION_EVENT_RETAIN:
+        os << "UR_FUNCTION_EVENT_RETAIN";
+        break;
+
+    case UR_FUNCTION_EVENT_RELEASE:
+        os << "UR_FUNCTION_EVENT_RELEASE";
+        break;
+
+    case UR_FUNCTION_EVENT_GET_NATIVE_HANDLE:
+        os << "UR_FUNCTION_EVENT_GET_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_EVENT_SET_CALLBACK:
+        os << "UR_FUNCTION_EVENT_SET_CALLBACK";
+        break;
+
+    case UR_FUNCTION_KERNEL_CREATE:
+        os << "UR_FUNCTION_KERNEL_CREATE";
+        break;
+
+    case UR_FUNCTION_KERNEL_SET_ARG_VALUE:
+        os << "UR_FUNCTION_KERNEL_SET_ARG_VALUE";
+        break;
+
+    case UR_FUNCTION_KERNEL_SET_ARG_LOCAL:
+        os << "UR_FUNCTION_KERNEL_SET_ARG_LOCAL";
+        break;
+
+    case UR_FUNCTION_KERNEL_GET_INFO:
+        os << "UR_FUNCTION_KERNEL_GET_INFO";
+        break;
+
+    case UR_FUNCTION_KERNEL_GET_GROUP_INFO:
+        os << "UR_FUNCTION_KERNEL_GET_GROUP_INFO";
+        break;
+
+    case UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO:
+        os << "UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO";
+        break;
+
+    case UR_FUNCTION_KERNEL_RETAIN:
+        os << "UR_FUNCTION_KERNEL_RETAIN";
+        break;
+
+    case UR_FUNCTION_KERNEL_RELEASE:
+        os << "UR_FUNCTION_KERNEL_RELEASE";
+        break;
+
+    case UR_FUNCTION_KERNEL_SET_ARG_POINTER:
+        os << "UR_FUNCTION_KERNEL_SET_ARG_POINTER";
+        break;
+
+    case UR_FUNCTION_KERNEL_SET_EXEC_INFO:
+        os << "UR_FUNCTION_KERNEL_SET_EXEC_INFO";
+        break;
+
+    case UR_FUNCTION_KERNEL_SET_ARG_SAMPLER:
+        os << "UR_FUNCTION_KERNEL_SET_ARG_SAMPLER";
+        break;
+
+    case UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ:
+        os << "UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ";
+        break;
+
+    case UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS:
+        os << "UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS";
+        break;
+
+    case UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE:
+        os << "UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_MEM_IMAGE_CREATE:
+        os << "UR_FUNCTION_MEM_IMAGE_CREATE";
+        break;
+
+    case UR_FUNCTION_MEM_BUFFER_CREATE:
+        os << "UR_FUNCTION_MEM_BUFFER_CREATE";
+        break;
+
+    case UR_FUNCTION_MEM_RETAIN:
+        os << "UR_FUNCTION_MEM_RETAIN";
+        break;
+
+    case UR_FUNCTION_MEM_RELEASE:
+        os << "UR_FUNCTION_MEM_RELEASE";
+        break;
+
+    case UR_FUNCTION_MEM_BUFFER_PARTITION:
+        os << "UR_FUNCTION_MEM_BUFFER_PARTITION";
+        break;
+
+    case UR_FUNCTION_MEM_GET_NATIVE_HANDLE:
+        os << "UR_FUNCTION_MEM_GET_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_READ_HOST_PIPE:
+        os << "UR_FUNCTION_ENQUEUE_READ_HOST_PIPE";
+        break;
+
+    case UR_FUNCTION_MEM_GET_INFO:
+        os << "UR_FUNCTION_MEM_GET_INFO";
+        break;
+
+    case UR_FUNCTION_MEM_IMAGE_GET_INFO:
+        os << "UR_FUNCTION_MEM_IMAGE_GET_INFO";
+        break;
+
+    case UR_FUNCTION_PLATFORM_GET:
+        os << "UR_FUNCTION_PLATFORM_GET";
+        break;
+
+    case UR_FUNCTION_PLATFORM_GET_INFO:
+        os << "UR_FUNCTION_PLATFORM_GET_INFO";
+        break;
+
+    case UR_FUNCTION_PLATFORM_GET_API_VERSION:
+        os << "UR_FUNCTION_PLATFORM_GET_API_VERSION";
+        break;
+
+    case UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE:
+        os << "UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_PROGRAM_CREATE_WITH_IL:
+        os << "UR_FUNCTION_PROGRAM_CREATE_WITH_IL";
+        break;
+
+    case UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY:
+        os << "UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY";
+        break;
+
+    case UR_FUNCTION_PROGRAM_BUILD:
+        os << "UR_FUNCTION_PROGRAM_BUILD";
+        break;
+
+    case UR_FUNCTION_PROGRAM_COMPILE:
+        os << "UR_FUNCTION_PROGRAM_COMPILE";
+        break;
+
+    case UR_FUNCTION_PROGRAM_LINK:
+        os << "UR_FUNCTION_PROGRAM_LINK";
+        break;
+
+    case UR_FUNCTION_PROGRAM_RETAIN:
+        os << "UR_FUNCTION_PROGRAM_RETAIN";
+        break;
+
+    case UR_FUNCTION_PROGRAM_RELEASE:
+        os << "UR_FUNCTION_PROGRAM_RELEASE";
+        break;
+
+    case UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER:
+        os << "UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER";
+        break;
+
+    case UR_FUNCTION_PROGRAM_GET_INFO:
+        os << "UR_FUNCTION_PROGRAM_GET_INFO";
+        break;
+
+    case UR_FUNCTION_PROGRAM_GET_BUILD_INFO:
+        os << "UR_FUNCTION_PROGRAM_GET_BUILD_INFO";
+        break;
+
+    case UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
+        os << "UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS";
+        break;
+
+    case UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE:
+        os << "UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_QUEUE_GET_INFO:
+        os << "UR_FUNCTION_QUEUE_GET_INFO";
+        break;
+
+    case UR_FUNCTION_QUEUE_CREATE:
+        os << "UR_FUNCTION_QUEUE_CREATE";
+        break;
+
+    case UR_FUNCTION_QUEUE_RETAIN:
+        os << "UR_FUNCTION_QUEUE_RETAIN";
+        break;
+
+    case UR_FUNCTION_QUEUE_RELEASE:
+        os << "UR_FUNCTION_QUEUE_RELEASE";
+        break;
+
+    case UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE:
+        os << "UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_QUEUE_FINISH:
+        os << "UR_FUNCTION_QUEUE_FINISH";
+        break;
+
+    case UR_FUNCTION_QUEUE_FLUSH:
+        os << "UR_FUNCTION_QUEUE_FLUSH";
+        break;
+
+    case UR_FUNCTION_INIT:
+        os << "UR_FUNCTION_INIT";
+        break;
+
+    case UR_FUNCTION_TEAR_DOWN:
+        os << "UR_FUNCTION_TEAR_DOWN";
+        break;
+
+    case UR_FUNCTION_SAMPLER_CREATE:
+        os << "UR_FUNCTION_SAMPLER_CREATE";
+        break;
+
+    case UR_FUNCTION_SAMPLER_RETAIN:
+        os << "UR_FUNCTION_SAMPLER_RETAIN";
+        break;
+
+    case UR_FUNCTION_SAMPLER_RELEASE:
+        os << "UR_FUNCTION_SAMPLER_RELEASE";
+        break;
+
+    case UR_FUNCTION_SAMPLER_GET_INFO:
+        os << "UR_FUNCTION_SAMPLER_GET_INFO";
+        break;
+
+    case UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE:
+        os << "UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_USM_HOST_ALLOC:
+        os << "UR_FUNCTION_USM_HOST_ALLOC";
+        break;
+
+    case UR_FUNCTION_USM_DEVICE_ALLOC:
+        os << "UR_FUNCTION_USM_DEVICE_ALLOC";
+        break;
+
+    case UR_FUNCTION_USM_SHARED_ALLOC:
+        os << "UR_FUNCTION_USM_SHARED_ALLOC";
+        break;
+
+    case UR_FUNCTION_USM_FREE:
+        os << "UR_FUNCTION_USM_FREE";
+        break;
+
+    case UR_FUNCTION_USM_GET_MEM_ALLOC_INFO:
+        os << "UR_FUNCTION_USM_GET_MEM_ALLOC_INFO";
+        break;
+
+    case UR_FUNCTION_USM_POOL_CREATE:
+        os << "UR_FUNCTION_USM_POOL_CREATE";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP";
+        break;
+
+    case UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION:
+        os << "UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION";
+        break;
+
+    case UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE:
+        os << "UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE";
+        break;
+
+    case UR_FUNCTION_USM_POOL_RETAIN:
+        os << "UR_FUNCTION_USM_POOL_RETAIN";
+        break;
+
+    case UR_FUNCTION_USM_POOL_RELEASE:
+        os << "UR_FUNCTION_USM_POOL_RELEASE";
+        break;
+
+    case UR_FUNCTION_USM_POOL_GET_INFO:
+        os << "UR_FUNCTION_USM_POOL_GET_INFO";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP";
+        break;
+
+    case UR_FUNCTION_USM_PITCHED_ALLOC_EXP:
+        os << "UR_FUNCTION_USM_PITCHED_ALLOC_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_"
+              "EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP";
+        break;
+
+    case UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP";
+        break;
+
+    case UR_FUNCTION_PLATFORM_GET_LAST_ERROR:
+        os << "UR_FUNCTION_PLATFORM_GET_LAST_ERROR";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_USM_FILL_2D:
+        os << "UR_FUNCTION_ENQUEUE_USM_FILL_2D";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D:
+        os << "UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D";
+        break;
+
+    case UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO:
+        os << "UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO";
+        break;
+
+    case UR_FUNCTION_VIRTUAL_MEM_RESERVE:
+        os << "UR_FUNCTION_VIRTUAL_MEM_RESERVE";
+        break;
+
+    case UR_FUNCTION_VIRTUAL_MEM_FREE:
+        os << "UR_FUNCTION_VIRTUAL_MEM_FREE";
+        break;
+
+    case UR_FUNCTION_VIRTUAL_MEM_MAP:
+        os << "UR_FUNCTION_VIRTUAL_MEM_MAP";
+        break;
+
+    case UR_FUNCTION_VIRTUAL_MEM_UNMAP:
+        os << "UR_FUNCTION_VIRTUAL_MEM_UNMAP";
+        break;
+
+    case UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS:
+        os << "UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS";
+        break;
+
+    case UR_FUNCTION_VIRTUAL_MEM_GET_INFO:
+        os << "UR_FUNCTION_VIRTUAL_MEM_GET_INFO";
+        break;
+
+    case UR_FUNCTION_PHYSICAL_MEM_CREATE:
+        os << "UR_FUNCTION_PHYSICAL_MEM_CREATE";
+        break;
+
+    case UR_FUNCTION_PHYSICAL_MEM_RETAIN:
+        os << "UR_FUNCTION_PHYSICAL_MEM_RETAIN";
+        break;
+
+    case UR_FUNCTION_PHYSICAL_MEM_RELEASE:
+        os << "UR_FUNCTION_PHYSICAL_MEM_RELEASE";
+        break;
+
+    case UR_FUNCTION_USM_IMPORT_EXP:
+        os << "UR_FUNCTION_USM_IMPORT_EXP";
+        break;
+
+    case UR_FUNCTION_USM_RELEASE_EXP:
+        os << "UR_FUNCTION_USM_RELEASE_EXP";
+        break;
+
+    case UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP:
+        os << "UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP";
+        break;
+
+    case UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP:
+        os << "UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP";
+        break;
+
+    case UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP:
+        os << "UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_structure_type_t value) {
+    switch (value) {
+
+    case UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_IMAGE_DESC:
+        os << "UR_STRUCTURE_TYPE_IMAGE_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_BUFFER_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_BUFFER_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_BUFFER_REGION:
+        os << "UR_STRUCTURE_TYPE_BUFFER_REGION";
+        break;
+
+    case UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_USM_DESC:
+        os << "UR_STRUCTURE_TYPE_USM_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_USM_HOST_DESC:
+        os << "UR_STRUCTURE_TYPE_USM_HOST_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_USM_DEVICE_DESC:
+        os << "UR_STRUCTURE_TYPE_USM_DEVICE_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_USM_POOL_DESC:
+        os << "UR_STRUCTURE_TYPE_USM_POOL_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC:
+        os << "UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_BINARY:
+        os << "UR_STRUCTURE_TYPE_DEVICE_BINARY";
+        break;
+
+    case UR_STRUCTURE_TYPE_SAMPLER_DESC:
+        os << "UR_STRUCTURE_TYPE_SAMPLER_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_QUEUE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC:
+        os << "UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+namespace ur_params {
+inline void serializeStruct(std::ostream &os, const void *ptr) {
+    if (ptr == NULL) {
+        ur_params::serializePtr(os, ptr);
+        return;
+    }
+
+    enum ur_structure_type_t *value = (enum ur_structure_type_t *)ptr;
+    switch (*value) {
+
+    case UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES: {
+        const ur_context_properties_t *pstruct =
+            (const ur_context_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_IMAGE_DESC: {
+        const ur_image_desc_t *pstruct = (const ur_image_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_BUFFER_PROPERTIES: {
+        const ur_buffer_properties_t *pstruct =
+            (const ur_buffer_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_BUFFER_REGION: {
+        const ur_buffer_region_t *pstruct = (const ur_buffer_region_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES: {
+        const ur_buffer_channel_properties_t *pstruct =
+            (const ur_buffer_channel_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES: {
+        const ur_buffer_alloc_location_properties_t *pstruct =
+            (const ur_buffer_alloc_location_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES: {
+        const ur_program_properties_t *pstruct =
+            (const ur_program_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_USM_DESC: {
+        const ur_usm_desc_t *pstruct = (const ur_usm_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_USM_HOST_DESC: {
+        const ur_usm_host_desc_t *pstruct = (const ur_usm_host_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_USM_DEVICE_DESC: {
+        const ur_usm_device_desc_t *pstruct = (const ur_usm_device_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_USM_POOL_DESC: {
+        const ur_usm_pool_desc_t *pstruct = (const ur_usm_pool_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC: {
+        const ur_usm_pool_limits_desc_t *pstruct =
+            (const ur_usm_pool_limits_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_BINARY: {
+        const ur_device_binary_t *pstruct = (const ur_device_binary_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_SAMPLER_DESC: {
+        const ur_sampler_desc_t *pstruct = (const ur_sampler_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_PROPERTIES: {
+        const ur_queue_properties_t *pstruct =
+            (const ur_queue_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES: {
+        const ur_queue_index_properties_t *pstruct =
+            (const ur_queue_index_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES: {
+        const ur_context_native_properties_t *pstruct =
+            (const ur_context_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES: {
+        const ur_kernel_native_properties_t *pstruct =
+            (const ur_kernel_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES: {
+        const ur_queue_native_properties_t *pstruct =
+            (const ur_queue_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES: {
+        const ur_mem_native_properties_t *pstruct =
+            (const ur_mem_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES: {
+        const ur_event_native_properties_t *pstruct =
+            (const ur_event_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES: {
+        const ur_platform_native_properties_t *pstruct =
+            (const ur_platform_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES: {
+        const ur_device_native_properties_t *pstruct =
+            (const ur_device_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES: {
+        const ur_program_native_properties_t *pstruct =
+            (const ur_program_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES: {
+        const ur_sampler_native_properties_t *pstruct =
+            (const ur_sampler_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC: {
+        const ur_queue_native_desc_t *pstruct =
+            (const ur_queue_native_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES: {
+        const ur_device_partition_properties_t *pstruct =
+            (const ur_device_partition_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES: {
+        const ur_kernel_arg_mem_obj_properties_t *pstruct =
+            (const ur_kernel_arg_mem_obj_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES: {
+        const ur_physical_mem_properties_t *pstruct =
+            (const ur_physical_mem_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES: {
+        const ur_kernel_arg_pointer_properties_t *pstruct =
+            (const ur_kernel_arg_pointer_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES: {
+        const ur_kernel_arg_sampler_properties_t *pstruct =
+            (const ur_kernel_arg_sampler_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES: {
+        const ur_kernel_exec_info_properties_t *pstruct =
+            (const ur_kernel_exec_info_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES: {
+        const ur_kernel_arg_value_properties_t *pstruct =
+            (const ur_kernel_arg_value_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES: {
+        const ur_kernel_arg_local_properties_t *pstruct =
+            (const ur_kernel_arg_local_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC: {
+        const ur_exp_command_buffer_desc_t *pstruct =
+            (const ur_exp_command_buffer_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES: {
+        const ur_exp_sampler_mip_properties_t *pstruct =
+            (const ur_exp_sampler_mip_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     switch (value) {
 
@@ -689,382 +1734,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     }
     return os;
 }
-inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_structure_type_t value) {
-    switch (value) {
-
-    case UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_DEVICE_BINARY:
-        os << "UR_STRUCTURE_TYPE_DEVICE_BINARY";
-        break;
-
-    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_IMAGE_DESC:
-        os << "UR_STRUCTURE_TYPE_IMAGE_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_BUFFER_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_BUFFER_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_BUFFER_REGION:
-        os << "UR_STRUCTURE_TYPE_BUFFER_REGION";
-        break;
-
-    case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_SAMPLER_DESC:
-        os << "UR_STRUCTURE_TYPE_SAMPLER_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_USM_DESC:
-        os << "UR_STRUCTURE_TYPE_USM_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_USM_HOST_DESC:
-        os << "UR_STRUCTURE_TYPE_USM_HOST_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_USM_DEVICE_DESC:
-        os << "UR_STRUCTURE_TYPE_USM_DEVICE_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_USM_POOL_DESC:
-        os << "UR_STRUCTURE_TYPE_USM_POOL_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC:
-        os << "UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_QUEUE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC:
-        os << "UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES";
-        break;
-
-    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
-        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
-        break;
-    default:
-        os << "unknown enumerator";
-        break;
-    }
-    return os;
-}
-namespace ur_params {
-inline void serializeStruct(std::ostream &os, const void *ptr) {
-    if (ptr == NULL) {
-        ur_params::serializePtr(os, ptr);
-        return;
-    }
-
-    enum ur_structure_type_t *value = (enum ur_structure_type_t *)ptr;
-    switch (*value) {
-
-    case UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES: {
-        const ur_platform_native_properties_t *pstruct =
-            (const ur_platform_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_DEVICE_BINARY: {
-        const ur_device_binary_t *pstruct = (const ur_device_binary_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES: {
-        const ur_device_partition_properties_t *pstruct =
-            (const ur_device_partition_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES: {
-        const ur_device_native_properties_t *pstruct =
-            (const ur_device_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES: {
-        const ur_context_properties_t *pstruct =
-            (const ur_context_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES: {
-        const ur_context_native_properties_t *pstruct =
-            (const ur_context_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_IMAGE_DESC: {
-        const ur_image_desc_t *pstruct = (const ur_image_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_BUFFER_PROPERTIES: {
-        const ur_buffer_properties_t *pstruct =
-            (const ur_buffer_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES: {
-        const ur_buffer_channel_properties_t *pstruct =
-            (const ur_buffer_channel_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES: {
-        const ur_buffer_alloc_location_properties_t *pstruct =
-            (const ur_buffer_alloc_location_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_BUFFER_REGION: {
-        const ur_buffer_region_t *pstruct = (const ur_buffer_region_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES: {
-        const ur_mem_native_properties_t *pstruct =
-            (const ur_mem_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_SAMPLER_DESC: {
-        const ur_sampler_desc_t *pstruct = (const ur_sampler_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES: {
-        const ur_sampler_native_properties_t *pstruct =
-            (const ur_sampler_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_USM_DESC: {
-        const ur_usm_desc_t *pstruct = (const ur_usm_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_USM_HOST_DESC: {
-        const ur_usm_host_desc_t *pstruct = (const ur_usm_host_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_USM_DEVICE_DESC: {
-        const ur_usm_device_desc_t *pstruct = (const ur_usm_device_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_USM_POOL_DESC: {
-        const ur_usm_pool_desc_t *pstruct = (const ur_usm_pool_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC: {
-        const ur_usm_pool_limits_desc_t *pstruct =
-            (const ur_usm_pool_limits_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES: {
-        const ur_physical_mem_properties_t *pstruct =
-            (const ur_physical_mem_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES: {
-        const ur_program_properties_t *pstruct =
-            (const ur_program_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES: {
-        const ur_program_native_properties_t *pstruct =
-            (const ur_program_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES: {
-        const ur_kernel_arg_value_properties_t *pstruct =
-            (const ur_kernel_arg_value_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES: {
-        const ur_kernel_arg_local_properties_t *pstruct =
-            (const ur_kernel_arg_local_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES: {
-        const ur_kernel_arg_pointer_properties_t *pstruct =
-            (const ur_kernel_arg_pointer_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES: {
-        const ur_kernel_exec_info_properties_t *pstruct =
-            (const ur_kernel_exec_info_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES: {
-        const ur_kernel_arg_sampler_properties_t *pstruct =
-            (const ur_kernel_arg_sampler_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES: {
-        const ur_kernel_arg_mem_obj_properties_t *pstruct =
-            (const ur_kernel_arg_mem_obj_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES: {
-        const ur_kernel_native_properties_t *pstruct =
-            (const ur_kernel_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_PROPERTIES: {
-        const ur_queue_properties_t *pstruct =
-            (const ur_queue_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES: {
-        const ur_queue_index_properties_t *pstruct =
-            (const ur_queue_index_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC: {
-        const ur_queue_native_desc_t *pstruct =
-            (const ur_queue_native_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES: {
-        const ur_queue_native_properties_t *pstruct =
-            (const ur_queue_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES: {
-        const ur_event_native_properties_t *pstruct =
-            (const ur_event_native_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC: {
-        const ur_exp_command_buffer_desc_t *pstruct =
-            (const ur_exp_command_buffer_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES: {
-        const ur_exp_sampler_mip_properties_t *pstruct =
-            (const ur_exp_sampler_mip_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-    default:
-        os << "unknown enumerator";
-        break;
-    }
-}
-} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_base_properties_t params) {
     os << "(struct ur_base_properties_t){";
@@ -8550,675 +9219,6 @@ inline std::ostream &operator<<(std::ostream &os,
 
     case UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED:
         os << "UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED";
-        break;
-    default:
-        os << "unknown enumerator";
-        break;
-    }
-    return os;
-}
-inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
-    switch (value) {
-
-    case UR_FUNCTION_CONTEXT_CREATE:
-        os << "UR_FUNCTION_CONTEXT_CREATE";
-        break;
-
-    case UR_FUNCTION_CONTEXT_RETAIN:
-        os << "UR_FUNCTION_CONTEXT_RETAIN";
-        break;
-
-    case UR_FUNCTION_CONTEXT_RELEASE:
-        os << "UR_FUNCTION_CONTEXT_RELEASE";
-        break;
-
-    case UR_FUNCTION_CONTEXT_GET_INFO:
-        os << "UR_FUNCTION_CONTEXT_GET_INFO";
-        break;
-
-    case UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE:
-        os << "UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER:
-        os << "UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER";
-        break;
-
-    case UR_FUNCTION_DEVICE_GET:
-        os << "UR_FUNCTION_DEVICE_GET";
-        break;
-
-    case UR_FUNCTION_DEVICE_GET_INFO:
-        os << "UR_FUNCTION_DEVICE_GET_INFO";
-        break;
-
-    case UR_FUNCTION_DEVICE_RETAIN:
-        os << "UR_FUNCTION_DEVICE_RETAIN";
-        break;
-
-    case UR_FUNCTION_DEVICE_RELEASE:
-        os << "UR_FUNCTION_DEVICE_RELEASE";
-        break;
-
-    case UR_FUNCTION_DEVICE_PARTITION:
-        os << "UR_FUNCTION_DEVICE_PARTITION";
-        break;
-
-    case UR_FUNCTION_DEVICE_SELECT_BINARY:
-        os << "UR_FUNCTION_DEVICE_SELECT_BINARY";
-        break;
-
-    case UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE:
-        os << "UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS:
-        os << "UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH:
-        os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_EVENTS_WAIT:
-        os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER:
-        os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ:
-        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE:
-        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT:
-        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT:
-        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY:
-        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT:
-        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL:
-        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ:
-        os << "UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE:
-        os << "UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY:
-        os << "UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP:
-        os << "UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_MEM_UNMAP:
-        os << "UR_FUNCTION_ENQUEUE_MEM_UNMAP";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_USM_FILL:
-        os << "UR_FUNCTION_ENQUEUE_USM_FILL";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_USM_MEMCPY:
-        os << "UR_FUNCTION_ENQUEUE_USM_MEMCPY";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_USM_PREFETCH:
-        os << "UR_FUNCTION_ENQUEUE_USM_PREFETCH";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_USM_ADVISE:
-        os << "UR_FUNCTION_ENQUEUE_USM_ADVISE";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE:
-        os << "UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ:
-        os << "UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ";
-        break;
-
-    case UR_FUNCTION_EVENT_GET_INFO:
-        os << "UR_FUNCTION_EVENT_GET_INFO";
-        break;
-
-    case UR_FUNCTION_EVENT_GET_PROFILING_INFO:
-        os << "UR_FUNCTION_EVENT_GET_PROFILING_INFO";
-        break;
-
-    case UR_FUNCTION_EVENT_WAIT:
-        os << "UR_FUNCTION_EVENT_WAIT";
-        break;
-
-    case UR_FUNCTION_EVENT_RETAIN:
-        os << "UR_FUNCTION_EVENT_RETAIN";
-        break;
-
-    case UR_FUNCTION_EVENT_RELEASE:
-        os << "UR_FUNCTION_EVENT_RELEASE";
-        break;
-
-    case UR_FUNCTION_EVENT_GET_NATIVE_HANDLE:
-        os << "UR_FUNCTION_EVENT_GET_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_EVENT_SET_CALLBACK:
-        os << "UR_FUNCTION_EVENT_SET_CALLBACK";
-        break;
-
-    case UR_FUNCTION_KERNEL_CREATE:
-        os << "UR_FUNCTION_KERNEL_CREATE";
-        break;
-
-    case UR_FUNCTION_KERNEL_SET_ARG_VALUE:
-        os << "UR_FUNCTION_KERNEL_SET_ARG_VALUE";
-        break;
-
-    case UR_FUNCTION_KERNEL_SET_ARG_LOCAL:
-        os << "UR_FUNCTION_KERNEL_SET_ARG_LOCAL";
-        break;
-
-    case UR_FUNCTION_KERNEL_GET_INFO:
-        os << "UR_FUNCTION_KERNEL_GET_INFO";
-        break;
-
-    case UR_FUNCTION_KERNEL_GET_GROUP_INFO:
-        os << "UR_FUNCTION_KERNEL_GET_GROUP_INFO";
-        break;
-
-    case UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO:
-        os << "UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO";
-        break;
-
-    case UR_FUNCTION_KERNEL_RETAIN:
-        os << "UR_FUNCTION_KERNEL_RETAIN";
-        break;
-
-    case UR_FUNCTION_KERNEL_RELEASE:
-        os << "UR_FUNCTION_KERNEL_RELEASE";
-        break;
-
-    case UR_FUNCTION_KERNEL_SET_ARG_POINTER:
-        os << "UR_FUNCTION_KERNEL_SET_ARG_POINTER";
-        break;
-
-    case UR_FUNCTION_KERNEL_SET_EXEC_INFO:
-        os << "UR_FUNCTION_KERNEL_SET_EXEC_INFO";
-        break;
-
-    case UR_FUNCTION_KERNEL_SET_ARG_SAMPLER:
-        os << "UR_FUNCTION_KERNEL_SET_ARG_SAMPLER";
-        break;
-
-    case UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ:
-        os << "UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ";
-        break;
-
-    case UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS:
-        os << "UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS";
-        break;
-
-    case UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE:
-        os << "UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_MEM_IMAGE_CREATE:
-        os << "UR_FUNCTION_MEM_IMAGE_CREATE";
-        break;
-
-    case UR_FUNCTION_MEM_BUFFER_CREATE:
-        os << "UR_FUNCTION_MEM_BUFFER_CREATE";
-        break;
-
-    case UR_FUNCTION_MEM_RETAIN:
-        os << "UR_FUNCTION_MEM_RETAIN";
-        break;
-
-    case UR_FUNCTION_MEM_RELEASE:
-        os << "UR_FUNCTION_MEM_RELEASE";
-        break;
-
-    case UR_FUNCTION_MEM_BUFFER_PARTITION:
-        os << "UR_FUNCTION_MEM_BUFFER_PARTITION";
-        break;
-
-    case UR_FUNCTION_MEM_GET_NATIVE_HANDLE:
-        os << "UR_FUNCTION_MEM_GET_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_READ_HOST_PIPE:
-        os << "UR_FUNCTION_ENQUEUE_READ_HOST_PIPE";
-        break;
-
-    case UR_FUNCTION_MEM_GET_INFO:
-        os << "UR_FUNCTION_MEM_GET_INFO";
-        break;
-
-    case UR_FUNCTION_MEM_IMAGE_GET_INFO:
-        os << "UR_FUNCTION_MEM_IMAGE_GET_INFO";
-        break;
-
-    case UR_FUNCTION_PLATFORM_GET:
-        os << "UR_FUNCTION_PLATFORM_GET";
-        break;
-
-    case UR_FUNCTION_PLATFORM_GET_INFO:
-        os << "UR_FUNCTION_PLATFORM_GET_INFO";
-        break;
-
-    case UR_FUNCTION_PLATFORM_GET_API_VERSION:
-        os << "UR_FUNCTION_PLATFORM_GET_API_VERSION";
-        break;
-
-    case UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE:
-        os << "UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_PROGRAM_CREATE_WITH_IL:
-        os << "UR_FUNCTION_PROGRAM_CREATE_WITH_IL";
-        break;
-
-    case UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY:
-        os << "UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY";
-        break;
-
-    case UR_FUNCTION_PROGRAM_BUILD:
-        os << "UR_FUNCTION_PROGRAM_BUILD";
-        break;
-
-    case UR_FUNCTION_PROGRAM_COMPILE:
-        os << "UR_FUNCTION_PROGRAM_COMPILE";
-        break;
-
-    case UR_FUNCTION_PROGRAM_LINK:
-        os << "UR_FUNCTION_PROGRAM_LINK";
-        break;
-
-    case UR_FUNCTION_PROGRAM_RETAIN:
-        os << "UR_FUNCTION_PROGRAM_RETAIN";
-        break;
-
-    case UR_FUNCTION_PROGRAM_RELEASE:
-        os << "UR_FUNCTION_PROGRAM_RELEASE";
-        break;
-
-    case UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER:
-        os << "UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER";
-        break;
-
-    case UR_FUNCTION_PROGRAM_GET_INFO:
-        os << "UR_FUNCTION_PROGRAM_GET_INFO";
-        break;
-
-    case UR_FUNCTION_PROGRAM_GET_BUILD_INFO:
-        os << "UR_FUNCTION_PROGRAM_GET_BUILD_INFO";
-        break;
-
-    case UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
-        os << "UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS";
-        break;
-
-    case UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE:
-        os << "UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_QUEUE_GET_INFO:
-        os << "UR_FUNCTION_QUEUE_GET_INFO";
-        break;
-
-    case UR_FUNCTION_QUEUE_CREATE:
-        os << "UR_FUNCTION_QUEUE_CREATE";
-        break;
-
-    case UR_FUNCTION_QUEUE_RETAIN:
-        os << "UR_FUNCTION_QUEUE_RETAIN";
-        break;
-
-    case UR_FUNCTION_QUEUE_RELEASE:
-        os << "UR_FUNCTION_QUEUE_RELEASE";
-        break;
-
-    case UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE:
-        os << "UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_QUEUE_FINISH:
-        os << "UR_FUNCTION_QUEUE_FINISH";
-        break;
-
-    case UR_FUNCTION_QUEUE_FLUSH:
-        os << "UR_FUNCTION_QUEUE_FLUSH";
-        break;
-
-    case UR_FUNCTION_INIT:
-        os << "UR_FUNCTION_INIT";
-        break;
-
-    case UR_FUNCTION_TEAR_DOWN:
-        os << "UR_FUNCTION_TEAR_DOWN";
-        break;
-
-    case UR_FUNCTION_SAMPLER_CREATE:
-        os << "UR_FUNCTION_SAMPLER_CREATE";
-        break;
-
-    case UR_FUNCTION_SAMPLER_RETAIN:
-        os << "UR_FUNCTION_SAMPLER_RETAIN";
-        break;
-
-    case UR_FUNCTION_SAMPLER_RELEASE:
-        os << "UR_FUNCTION_SAMPLER_RELEASE";
-        break;
-
-    case UR_FUNCTION_SAMPLER_GET_INFO:
-        os << "UR_FUNCTION_SAMPLER_GET_INFO";
-        break;
-
-    case UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE:
-        os << "UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_USM_HOST_ALLOC:
-        os << "UR_FUNCTION_USM_HOST_ALLOC";
-        break;
-
-    case UR_FUNCTION_USM_DEVICE_ALLOC:
-        os << "UR_FUNCTION_USM_DEVICE_ALLOC";
-        break;
-
-    case UR_FUNCTION_USM_SHARED_ALLOC:
-        os << "UR_FUNCTION_USM_SHARED_ALLOC";
-        break;
-
-    case UR_FUNCTION_USM_FREE:
-        os << "UR_FUNCTION_USM_FREE";
-        break;
-
-    case UR_FUNCTION_USM_GET_MEM_ALLOC_INFO:
-        os << "UR_FUNCTION_USM_GET_MEM_ALLOC_INFO";
-        break;
-
-    case UR_FUNCTION_USM_POOL_CREATE:
-        os << "UR_FUNCTION_USM_POOL_CREATE";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP";
-        break;
-
-    case UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION:
-        os << "UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION";
-        break;
-
-    case UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE:
-        os << "UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE";
-        break;
-
-    case UR_FUNCTION_USM_POOL_RETAIN:
-        os << "UR_FUNCTION_USM_POOL_RETAIN";
-        break;
-
-    case UR_FUNCTION_USM_POOL_RELEASE:
-        os << "UR_FUNCTION_USM_POOL_RELEASE";
-        break;
-
-    case UR_FUNCTION_USM_POOL_GET_INFO:
-        os << "UR_FUNCTION_USM_POOL_GET_INFO";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP";
-        break;
-
-    case UR_FUNCTION_USM_PITCHED_ALLOC_EXP:
-        os << "UR_FUNCTION_USM_PITCHED_ALLOC_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_"
-              "EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP";
-        break;
-
-    case UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP";
-        break;
-
-    case UR_FUNCTION_PLATFORM_GET_LAST_ERROR:
-        os << "UR_FUNCTION_PLATFORM_GET_LAST_ERROR";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_USM_FILL_2D:
-        os << "UR_FUNCTION_ENQUEUE_USM_FILL_2D";
-        break;
-
-    case UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D:
-        os << "UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D";
-        break;
-
-    case UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO:
-        os << "UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO";
-        break;
-
-    case UR_FUNCTION_VIRTUAL_MEM_RESERVE:
-        os << "UR_FUNCTION_VIRTUAL_MEM_RESERVE";
-        break;
-
-    case UR_FUNCTION_VIRTUAL_MEM_FREE:
-        os << "UR_FUNCTION_VIRTUAL_MEM_FREE";
-        break;
-
-    case UR_FUNCTION_VIRTUAL_MEM_MAP:
-        os << "UR_FUNCTION_VIRTUAL_MEM_MAP";
-        break;
-
-    case UR_FUNCTION_VIRTUAL_MEM_UNMAP:
-        os << "UR_FUNCTION_VIRTUAL_MEM_UNMAP";
-        break;
-
-    case UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS:
-        os << "UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS";
-        break;
-
-    case UR_FUNCTION_VIRTUAL_MEM_GET_INFO:
-        os << "UR_FUNCTION_VIRTUAL_MEM_GET_INFO";
-        break;
-
-    case UR_FUNCTION_PHYSICAL_MEM_CREATE:
-        os << "UR_FUNCTION_PHYSICAL_MEM_CREATE";
-        break;
-
-    case UR_FUNCTION_PHYSICAL_MEM_RETAIN:
-        os << "UR_FUNCTION_PHYSICAL_MEM_RETAIN";
-        break;
-
-    case UR_FUNCTION_PHYSICAL_MEM_RELEASE:
-        os << "UR_FUNCTION_PHYSICAL_MEM_RELEASE";
-        break;
-
-    case UR_FUNCTION_USM_IMPORT_EXP:
-        os << "UR_FUNCTION_USM_IMPORT_EXP";
-        break;
-
-    case UR_FUNCTION_USM_RELEASE_EXP:
-        os << "UR_FUNCTION_USM_RELEASE_EXP";
-        break;
-
-    case UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP:
-        os << "UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP";
-        break;
-
-    case UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP:
-        os << "UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP";
-        break;
-
-    case UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP:
-        os << "UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP";
         break;
     default:
         os << "unknown enumerator";

@@ -24,6 +24,232 @@
 extern "C" {
 #endif
 
+// Intel 'oneAPI' Unified Runtime function registry
+#if !defined(__GNUC__)
+#pragma region registry
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Defines unique stable identifiers for all functions
+typedef enum ur_function_t {
+    UR_FUNCTION_CONTEXT_CREATE = 1,                                            ///< Enumerator for ::urContextCreate
+    UR_FUNCTION_CONTEXT_RETAIN = 2,                                            ///< Enumerator for ::urContextRetain
+    UR_FUNCTION_CONTEXT_RELEASE = 3,                                           ///< Enumerator for ::urContextRelease
+    UR_FUNCTION_CONTEXT_GET_INFO = 4,                                          ///< Enumerator for ::urContextGetInfo
+    UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE = 5,                                 ///< Enumerator for ::urContextGetNativeHandle
+    UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE = 6,                         ///< Enumerator for ::urContextCreateWithNativeHandle
+    UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER = 7,                              ///< Enumerator for ::urContextSetExtendedDeleter
+    UR_FUNCTION_DEVICE_GET = 8,                                                ///< Enumerator for ::urDeviceGet
+    UR_FUNCTION_DEVICE_GET_INFO = 9,                                           ///< Enumerator for ::urDeviceGetInfo
+    UR_FUNCTION_DEVICE_RETAIN = 10,                                            ///< Enumerator for ::urDeviceRetain
+    UR_FUNCTION_DEVICE_RELEASE = 11,                                           ///< Enumerator for ::urDeviceRelease
+    UR_FUNCTION_DEVICE_PARTITION = 12,                                         ///< Enumerator for ::urDevicePartition
+    UR_FUNCTION_DEVICE_SELECT_BINARY = 13,                                     ///< Enumerator for ::urDeviceSelectBinary
+    UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE = 14,                                 ///< Enumerator for ::urDeviceGetNativeHandle
+    UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE = 15,                         ///< Enumerator for ::urDeviceCreateWithNativeHandle
+    UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS = 16,                             ///< Enumerator for ::urDeviceGetGlobalTimestamps
+    UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH = 17,                                    ///< Enumerator for ::urEnqueueKernelLaunch
+    UR_FUNCTION_ENQUEUE_EVENTS_WAIT = 18,                                      ///< Enumerator for ::urEnqueueEventsWait
+    UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER = 19,                         ///< Enumerator for ::urEnqueueEventsWaitWithBarrier
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ = 20,                                  ///< Enumerator for ::urEnqueueMemBufferRead
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE = 21,                                 ///< Enumerator for ::urEnqueueMemBufferWrite
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT = 22,                             ///< Enumerator for ::urEnqueueMemBufferReadRect
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT = 23,                            ///< Enumerator for ::urEnqueueMemBufferWriteRect
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY = 24,                                  ///< Enumerator for ::urEnqueueMemBufferCopy
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT = 25,                             ///< Enumerator for ::urEnqueueMemBufferCopyRect
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL = 26,                                  ///< Enumerator for ::urEnqueueMemBufferFill
+    UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ = 27,                                   ///< Enumerator for ::urEnqueueMemImageRead
+    UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE = 28,                                  ///< Enumerator for ::urEnqueueMemImageWrite
+    UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY = 29,                                   ///< Enumerator for ::urEnqueueMemImageCopy
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP = 30,                                   ///< Enumerator for ::urEnqueueMemBufferMap
+    UR_FUNCTION_ENQUEUE_MEM_UNMAP = 31,                                        ///< Enumerator for ::urEnqueueMemUnmap
+    UR_FUNCTION_ENQUEUE_USM_FILL = 32,                                         ///< Enumerator for ::urEnqueueUSMFill
+    UR_FUNCTION_ENQUEUE_USM_MEMCPY = 33,                                       ///< Enumerator for ::urEnqueueUSMMemcpy
+    UR_FUNCTION_ENQUEUE_USM_PREFETCH = 34,                                     ///< Enumerator for ::urEnqueueUSMPrefetch
+    UR_FUNCTION_ENQUEUE_USM_ADVISE = 35,                                       ///< Enumerator for ::urEnqueueUSMAdvise
+    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38,                     ///< Enumerator for ::urEnqueueDeviceGlobalVariableWrite
+    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39,                      ///< Enumerator for ::urEnqueueDeviceGlobalVariableRead
+    UR_FUNCTION_EVENT_GET_INFO = 40,                                           ///< Enumerator for ::urEventGetInfo
+    UR_FUNCTION_EVENT_GET_PROFILING_INFO = 41,                                 ///< Enumerator for ::urEventGetProfilingInfo
+    UR_FUNCTION_EVENT_WAIT = 42,                                               ///< Enumerator for ::urEventWait
+    UR_FUNCTION_EVENT_RETAIN = 43,                                             ///< Enumerator for ::urEventRetain
+    UR_FUNCTION_EVENT_RELEASE = 44,                                            ///< Enumerator for ::urEventRelease
+    UR_FUNCTION_EVENT_GET_NATIVE_HANDLE = 45,                                  ///< Enumerator for ::urEventGetNativeHandle
+    UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE = 46,                          ///< Enumerator for ::urEventCreateWithNativeHandle
+    UR_FUNCTION_EVENT_SET_CALLBACK = 47,                                       ///< Enumerator for ::urEventSetCallback
+    UR_FUNCTION_KERNEL_CREATE = 48,                                            ///< Enumerator for ::urKernelCreate
+    UR_FUNCTION_KERNEL_SET_ARG_VALUE = 49,                                     ///< Enumerator for ::urKernelSetArgValue
+    UR_FUNCTION_KERNEL_SET_ARG_LOCAL = 50,                                     ///< Enumerator for ::urKernelSetArgLocal
+    UR_FUNCTION_KERNEL_GET_INFO = 51,                                          ///< Enumerator for ::urKernelGetInfo
+    UR_FUNCTION_KERNEL_GET_GROUP_INFO = 52,                                    ///< Enumerator for ::urKernelGetGroupInfo
+    UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO = 53,                                ///< Enumerator for ::urKernelGetSubGroupInfo
+    UR_FUNCTION_KERNEL_RETAIN = 54,                                            ///< Enumerator for ::urKernelRetain
+    UR_FUNCTION_KERNEL_RELEASE = 55,                                           ///< Enumerator for ::urKernelRelease
+    UR_FUNCTION_KERNEL_SET_ARG_POINTER = 56,                                   ///< Enumerator for ::urKernelSetArgPointer
+    UR_FUNCTION_KERNEL_SET_EXEC_INFO = 57,                                     ///< Enumerator for ::urKernelSetExecInfo
+    UR_FUNCTION_KERNEL_SET_ARG_SAMPLER = 58,                                   ///< Enumerator for ::urKernelSetArgSampler
+    UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ = 59,                                   ///< Enumerator for ::urKernelSetArgMemObj
+    UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS = 60,                      ///< Enumerator for ::urKernelSetSpecializationConstants
+    UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE = 61,                                 ///< Enumerator for ::urKernelGetNativeHandle
+    UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE = 62,                         ///< Enumerator for ::urKernelCreateWithNativeHandle
+    UR_FUNCTION_MEM_IMAGE_CREATE = 63,                                         ///< Enumerator for ::urMemImageCreate
+    UR_FUNCTION_MEM_BUFFER_CREATE = 64,                                        ///< Enumerator for ::urMemBufferCreate
+    UR_FUNCTION_MEM_RETAIN = 65,                                               ///< Enumerator for ::urMemRetain
+    UR_FUNCTION_MEM_RELEASE = 66,                                              ///< Enumerator for ::urMemRelease
+    UR_FUNCTION_MEM_BUFFER_PARTITION = 67,                                     ///< Enumerator for ::urMemBufferPartition
+    UR_FUNCTION_MEM_GET_NATIVE_HANDLE = 68,                                    ///< Enumerator for ::urMemGetNativeHandle
+    UR_FUNCTION_ENQUEUE_READ_HOST_PIPE = 69,                                   ///< Enumerator for ::urEnqueueReadHostPipe
+    UR_FUNCTION_MEM_GET_INFO = 70,                                             ///< Enumerator for ::urMemGetInfo
+    UR_FUNCTION_MEM_IMAGE_GET_INFO = 71,                                       ///< Enumerator for ::urMemImageGetInfo
+    UR_FUNCTION_PLATFORM_GET = 72,                                             ///< Enumerator for ::urPlatformGet
+    UR_FUNCTION_PLATFORM_GET_INFO = 73,                                        ///< Enumerator for ::urPlatformGetInfo
+    UR_FUNCTION_PLATFORM_GET_API_VERSION = 74,                                 ///< Enumerator for ::urPlatformGetApiVersion
+    UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE = 75,                               ///< Enumerator for ::urPlatformGetNativeHandle
+    UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76,                       ///< Enumerator for ::urPlatformCreateWithNativeHandle
+    UR_FUNCTION_PROGRAM_CREATE_WITH_IL = 78,                                   ///< Enumerator for ::urProgramCreateWithIL
+    UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY = 79,                               ///< Enumerator for ::urProgramCreateWithBinary
+    UR_FUNCTION_PROGRAM_BUILD = 80,                                            ///< Enumerator for ::urProgramBuild
+    UR_FUNCTION_PROGRAM_COMPILE = 81,                                          ///< Enumerator for ::urProgramCompile
+    UR_FUNCTION_PROGRAM_LINK = 82,                                             ///< Enumerator for ::urProgramLink
+    UR_FUNCTION_PROGRAM_RETAIN = 83,                                           ///< Enumerator for ::urProgramRetain
+    UR_FUNCTION_PROGRAM_RELEASE = 84,                                          ///< Enumerator for ::urProgramRelease
+    UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER = 85,                             ///< Enumerator for ::urProgramGetFunctionPointer
+    UR_FUNCTION_PROGRAM_GET_INFO = 86,                                         ///< Enumerator for ::urProgramGetInfo
+    UR_FUNCTION_PROGRAM_GET_BUILD_INFO = 87,                                   ///< Enumerator for ::urProgramGetBuildInfo
+    UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 88,                     ///< Enumerator for ::urProgramSetSpecializationConstants
+    UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE = 89,                                ///< Enumerator for ::urProgramGetNativeHandle
+    UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE = 90,                        ///< Enumerator for ::urProgramCreateWithNativeHandle
+    UR_FUNCTION_QUEUE_GET_INFO = 91,                                           ///< Enumerator for ::urQueueGetInfo
+    UR_FUNCTION_QUEUE_CREATE = 92,                                             ///< Enumerator for ::urQueueCreate
+    UR_FUNCTION_QUEUE_RETAIN = 93,                                             ///< Enumerator for ::urQueueRetain
+    UR_FUNCTION_QUEUE_RELEASE = 94,                                            ///< Enumerator for ::urQueueRelease
+    UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE = 95,                                  ///< Enumerator for ::urQueueGetNativeHandle
+    UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE = 96,                          ///< Enumerator for ::urQueueCreateWithNativeHandle
+    UR_FUNCTION_QUEUE_FINISH = 97,                                             ///< Enumerator for ::urQueueFinish
+    UR_FUNCTION_QUEUE_FLUSH = 98,                                              ///< Enumerator for ::urQueueFlush
+    UR_FUNCTION_INIT = 99,                                                     ///< Enumerator for ::urInit
+    UR_FUNCTION_TEAR_DOWN = 100,                                               ///< Enumerator for ::urTearDown
+    UR_FUNCTION_SAMPLER_CREATE = 101,                                          ///< Enumerator for ::urSamplerCreate
+    UR_FUNCTION_SAMPLER_RETAIN = 102,                                          ///< Enumerator for ::urSamplerRetain
+    UR_FUNCTION_SAMPLER_RELEASE = 103,                                         ///< Enumerator for ::urSamplerRelease
+    UR_FUNCTION_SAMPLER_GET_INFO = 104,                                        ///< Enumerator for ::urSamplerGetInfo
+    UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE = 105,                               ///< Enumerator for ::urSamplerGetNativeHandle
+    UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE = 106,                       ///< Enumerator for ::urSamplerCreateWithNativeHandle
+    UR_FUNCTION_USM_HOST_ALLOC = 107,                                          ///< Enumerator for ::urUSMHostAlloc
+    UR_FUNCTION_USM_DEVICE_ALLOC = 108,                                        ///< Enumerator for ::urUSMDeviceAlloc
+    UR_FUNCTION_USM_SHARED_ALLOC = 109,                                        ///< Enumerator for ::urUSMSharedAlloc
+    UR_FUNCTION_USM_FREE = 110,                                                ///< Enumerator for ::urUSMFree
+    UR_FUNCTION_USM_GET_MEM_ALLOC_INFO = 111,                                  ///< Enumerator for ::urUSMGetMemAllocInfo
+    UR_FUNCTION_USM_POOL_CREATE = 112,                                         ///< Enumerator for ::urUSMPoolCreate
+    UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP = 113,                               ///< Enumerator for ::urCommandBufferCreateExp
+    UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION = 114,                             ///< Enumerator for ::urPlatformGetBackendOption
+    UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115,                    ///< Enumerator for ::urMemBufferCreateWithNativeHandle
+    UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116,                     ///< Enumerator for ::urMemImageCreateWithNativeHandle
+    UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE = 117,                                 ///< Enumerator for ::urEnqueueWriteHostPipe
+    UR_FUNCTION_USM_POOL_RETAIN = 118,                                         ///< Enumerator for ::urUSMPoolRetain
+    UR_FUNCTION_USM_POOL_RELEASE = 119,                                        ///< Enumerator for ::urUSMPoolRelease
+    UR_FUNCTION_USM_POOL_GET_INFO = 120,                                       ///< Enumerator for ::urUSMPoolGetInfo
+    UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP = 121,                               ///< Enumerator for ::urCommandBufferRetainExp
+    UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP = 122,                              ///< Enumerator for ::urCommandBufferReleaseExp
+    UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP = 123,                             ///< Enumerator for ::urCommandBufferFinalizeExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125,                 ///< Enumerator for ::urCommandBufferAppendKernelLaunchExp
+    UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 128,                              ///< Enumerator for ::urCommandBufferEnqueueExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129,                    ///< Enumerator for ::urCommandBufferAppendMemcpyUSMExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130,                ///< Enumerator for ::urCommandBufferAppendMembufferCopyExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP = 131,           ///< Enumerator for ::urCommandBufferAppendMembufferCopyRectExp
+    UR_FUNCTION_USM_PITCHED_ALLOC_EXP = 132,                                   ///< Enumerator for ::urUSMPitchedAllocExp
+    UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP = 133,      ///< Enumerator for ::urBindlessImagesUnsampledImageHandleDestroyExp
+    UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP = 134,        ///< Enumerator for ::urBindlessImagesSampledImageHandleDestroyExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP = 135,                      ///< Enumerator for ::urBindlessImagesImageAllocateExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP = 136,                          ///< Enumerator for ::urBindlessImagesImageFreeExp
+    UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP = 137,              ///< Enumerator for ::urBindlessImagesUnsampledImageCreateExp
+    UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP = 138,                ///< Enumerator for ::urBindlessImagesSampledImageCreateExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP = 139,                          ///< Enumerator for ::urBindlessImagesImageCopyExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP = 140,                      ///< Enumerator for ::urBindlessImagesImageGetInfoExp
+    UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP = 141,                    ///< Enumerator for ::urBindlessImagesMipmapGetLevelExp
+    UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP = 142,                         ///< Enumerator for ::urBindlessImagesMipmapFreeExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP = 143,                    ///< Enumerator for ::urBindlessImagesImportOpaqueFDExp
+    UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP = 144,                  ///< Enumerator for ::urBindlessImagesMapExternalArrayExp
+    UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP = 145,                     ///< Enumerator for ::urBindlessImagesReleaseInteropExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP = 146, ///< Enumerator for ::urBindlessImagesImportExternalSemaphoreOpaqueFDExp
+    UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147,          ///< Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
+    UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148,             ///< Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
+    UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149,           ///< Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
+    UR_FUNCTION_PLATFORM_GET_LAST_ERROR = 150,                                 ///< Enumerator for ::urPlatformGetLastError
+    UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,                                     ///< Enumerator for ::urEnqueueUSMFill2D
+    UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D = 152,                                   ///< Enumerator for ::urEnqueueUSMMemcpy2D
+    UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 153,                        ///< Enumerator for ::urVirtualMemGranularityGetInfo
+    UR_FUNCTION_VIRTUAL_MEM_RESERVE = 154,                                     ///< Enumerator for ::urVirtualMemReserve
+    UR_FUNCTION_VIRTUAL_MEM_FREE = 155,                                        ///< Enumerator for ::urVirtualMemFree
+    UR_FUNCTION_VIRTUAL_MEM_MAP = 156,                                         ///< Enumerator for ::urVirtualMemMap
+    UR_FUNCTION_VIRTUAL_MEM_UNMAP = 157,                                       ///< Enumerator for ::urVirtualMemUnmap
+    UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 158,                                  ///< Enumerator for ::urVirtualMemSetAccess
+    UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 159,                                    ///< Enumerator for ::urVirtualMemGetInfo
+    UR_FUNCTION_PHYSICAL_MEM_CREATE = 160,                                     ///< Enumerator for ::urPhysicalMemCreate
+    UR_FUNCTION_PHYSICAL_MEM_RETAIN = 161,                                     ///< Enumerator for ::urPhysicalMemRetain
+    UR_FUNCTION_PHYSICAL_MEM_RELEASE = 162,                                    ///< Enumerator for ::urPhysicalMemRelease
+    UR_FUNCTION_USM_IMPORT_EXP = 163,                                          ///< Enumerator for ::urUSMImportExp
+    UR_FUNCTION_USM_RELEASE_EXP = 164,                                         ///< Enumerator for ::urUSMReleaseExp
+    UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP = 165,                          ///< Enumerator for ::urUsmP2PEnablePeerAccessExp
+    UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP = 166,                         ///< Enumerator for ::urUsmP2PDisablePeerAccessExp
+    UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP = 167,                        ///< Enumerator for ::urUsmP2PPeerAccessGetInfoExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP = 168,               ///< Enumerator for ::urCommandBufferAppendMembufferWriteExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP = 169,                ///< Enumerator for ::urCommandBufferAppendMembufferReadExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP = 170,          ///< Enumerator for ::urCommandBufferAppendMembufferWriteRectExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP = 171,           ///< Enumerator for ::urCommandBufferAppendMembufferReadRectExp
+    /// @cond
+    UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_function_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Defines structure types
+typedef enum ur_structure_type_t {
+    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 0,               ///< ::ur_context_properties_t
+    UR_STRUCTURE_TYPE_IMAGE_DESC = 1,                       ///< ::ur_image_desc_t
+    UR_STRUCTURE_TYPE_BUFFER_PROPERTIES = 2,                ///< ::ur_buffer_properties_t
+    UR_STRUCTURE_TYPE_BUFFER_REGION = 3,                    ///< ::ur_buffer_region_t
+    UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES = 4,        ///< ::ur_buffer_channel_properties_t
+    UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES = 5, ///< ::ur_buffer_alloc_location_properties_t
+    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 6,               ///< ::ur_program_properties_t
+    UR_STRUCTURE_TYPE_USM_DESC = 7,                         ///< ::ur_usm_desc_t
+    UR_STRUCTURE_TYPE_USM_HOST_DESC = 8,                    ///< ::ur_usm_host_desc_t
+    UR_STRUCTURE_TYPE_USM_DEVICE_DESC = 9,                  ///< ::ur_usm_device_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_DESC = 10,                   ///< ::ur_usm_pool_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 11,            ///< ::ur_usm_pool_limits_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_BINARY = 12,                   ///< ::ur_device_binary_t
+    UR_STRUCTURE_TYPE_SAMPLER_DESC = 13,                    ///< ::ur_sampler_desc_t
+    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 14,                ///< ::ur_queue_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,          ///< ::ur_queue_index_properties_t
+    UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 16,       ///< ::ur_context_native_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 17,        ///< ::ur_kernel_native_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 18,         ///< ::ur_queue_native_properties_t
+    UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 19,           ///< ::ur_mem_native_properties_t
+    UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 20,         ///< ::ur_event_native_properties_t
+    UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 21,      ///< ::ur_platform_native_properties_t
+    UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 22,        ///< ::ur_device_native_properties_t
+    UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,       ///< ::ur_program_native_properties_t
+    UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,               ///< ::ur_queue_native_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,   ///< ::ur_kernel_arg_mem_obj_properties_t
+    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,         ///< ::ur_physical_mem_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 29,   ///< ::ur_kernel_arg_pointer_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES = 30,   ///< ::ur_kernel_arg_sampler_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES = 31,     ///< ::ur_kernel_exec_info_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES = 32,     ///< ::ur_kernel_arg_value_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,     ///< ::ur_kernel_arg_local_properties_t
+    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,     ///< ::ur_exp_command_buffer_desc_t
+    UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,  ///< ::ur_exp_sampler_mip_properties_t
+    /// @cond
+    UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_structure_type_t;
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime API common types
 #if !defined(__GNUC__)
 #pragma region common
@@ -229,51 +455,6 @@ typedef enum ur_result_t {
     /// @endcond
 
 } ur_result_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Defines structure types
-typedef enum ur_structure_type_t {
-    UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 0,       ///< ::ur_platform_native_properties_t
-    UR_STRUCTURE_TYPE_DEVICE_BINARY = 1,                    ///< ::ur_device_binary_t
-    UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 2,      ///< ::ur_device_partition_properties_t
-    UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 3,         ///< ::ur_device_native_properties_t
-    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 4,               ///< ::ur_context_properties_t
-    UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 5,        ///< ::ur_context_native_properties_t
-    UR_STRUCTURE_TYPE_IMAGE_DESC = 6,                       ///< ::ur_image_desc_t
-    UR_STRUCTURE_TYPE_BUFFER_PROPERTIES = 7,                ///< ::ur_buffer_properties_t
-    UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES = 8,        ///< ::ur_buffer_channel_properties_t
-    UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES = 9, ///< ::ur_buffer_alloc_location_properties_t
-    UR_STRUCTURE_TYPE_BUFFER_REGION = 10,                   ///< ::ur_buffer_region_t
-    UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 11,           ///< ::ur_mem_native_properties_t
-    UR_STRUCTURE_TYPE_SAMPLER_DESC = 12,                    ///< ::ur_sampler_desc_t
-    UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 13,       ///< ::ur_sampler_native_properties_t
-    UR_STRUCTURE_TYPE_USM_DESC = 14,                        ///< ::ur_usm_desc_t
-    UR_STRUCTURE_TYPE_USM_HOST_DESC = 15,                   ///< ::ur_usm_host_desc_t
-    UR_STRUCTURE_TYPE_USM_DEVICE_DESC = 16,                 ///< ::ur_usm_device_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_DESC = 17,                   ///< ::ur_usm_pool_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 18,            ///< ::ur_usm_pool_limits_desc_t
-    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 19,         ///< ::ur_physical_mem_properties_t
-    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 20,              ///< ::ur_program_properties_t
-    UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 21,       ///< ::ur_program_native_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES = 22,     ///< ::ur_kernel_arg_value_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 23,     ///< ::ur_kernel_arg_local_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 24,   ///< ::ur_kernel_arg_pointer_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES = 25,     ///< ::ur_kernel_exec_info_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES = 26,   ///< ::ur_kernel_arg_sampler_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,   ///< ::ur_kernel_arg_mem_obj_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 28,        ///< ::ur_kernel_native_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 29,                ///< ::ur_queue_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 30,          ///< ::ur_queue_index_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 31,               ///< ::ur_queue_native_desc_t
-    UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 32,         ///< ::ur_queue_native_properties_t
-    UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 33,         ///< ::ur_event_native_properties_t
-    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,     ///< ::ur_exp_command_buffer_desc_t
-    UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,  ///< ::ur_exp_sampler_mip_properties_t
-    /// @cond
-    UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
-    /// @endcond
-
-} ur_structure_type_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Base for all properties types
@@ -5184,187 +5365,6 @@ urEventSetCallback(
     ur_event_callback_t pfnNotify,  ///< [in] execution status of the event
     void *pUserData                 ///< [in][out][optional] pointer to data to be passed to callback.
 );
-
-#if !defined(__GNUC__)
-#pragma endregion
-#endif
-// Intel 'oneAPI' Unified Runtime function registry
-#if !defined(__GNUC__)
-#pragma region registry
-#endif
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Defines unique stable identifiers for all functions
-typedef enum ur_function_t {
-    UR_FUNCTION_CONTEXT_CREATE = 1,                                            ///< Enumerator for ::urContextCreate
-    UR_FUNCTION_CONTEXT_RETAIN = 2,                                            ///< Enumerator for ::urContextRetain
-    UR_FUNCTION_CONTEXT_RELEASE = 3,                                           ///< Enumerator for ::urContextRelease
-    UR_FUNCTION_CONTEXT_GET_INFO = 4,                                          ///< Enumerator for ::urContextGetInfo
-    UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE = 5,                                 ///< Enumerator for ::urContextGetNativeHandle
-    UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE = 6,                         ///< Enumerator for ::urContextCreateWithNativeHandle
-    UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER = 7,                              ///< Enumerator for ::urContextSetExtendedDeleter
-    UR_FUNCTION_DEVICE_GET = 8,                                                ///< Enumerator for ::urDeviceGet
-    UR_FUNCTION_DEVICE_GET_INFO = 9,                                           ///< Enumerator for ::urDeviceGetInfo
-    UR_FUNCTION_DEVICE_RETAIN = 10,                                            ///< Enumerator for ::urDeviceRetain
-    UR_FUNCTION_DEVICE_RELEASE = 11,                                           ///< Enumerator for ::urDeviceRelease
-    UR_FUNCTION_DEVICE_PARTITION = 12,                                         ///< Enumerator for ::urDevicePartition
-    UR_FUNCTION_DEVICE_SELECT_BINARY = 13,                                     ///< Enumerator for ::urDeviceSelectBinary
-    UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE = 14,                                 ///< Enumerator for ::urDeviceGetNativeHandle
-    UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE = 15,                         ///< Enumerator for ::urDeviceCreateWithNativeHandle
-    UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS = 16,                             ///< Enumerator for ::urDeviceGetGlobalTimestamps
-    UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH = 17,                                    ///< Enumerator for ::urEnqueueKernelLaunch
-    UR_FUNCTION_ENQUEUE_EVENTS_WAIT = 18,                                      ///< Enumerator for ::urEnqueueEventsWait
-    UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER = 19,                         ///< Enumerator for ::urEnqueueEventsWaitWithBarrier
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ = 20,                                  ///< Enumerator for ::urEnqueueMemBufferRead
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE = 21,                                 ///< Enumerator for ::urEnqueueMemBufferWrite
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT = 22,                             ///< Enumerator for ::urEnqueueMemBufferReadRect
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT = 23,                            ///< Enumerator for ::urEnqueueMemBufferWriteRect
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY = 24,                                  ///< Enumerator for ::urEnqueueMemBufferCopy
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT = 25,                             ///< Enumerator for ::urEnqueueMemBufferCopyRect
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL = 26,                                  ///< Enumerator for ::urEnqueueMemBufferFill
-    UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ = 27,                                   ///< Enumerator for ::urEnqueueMemImageRead
-    UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE = 28,                                  ///< Enumerator for ::urEnqueueMemImageWrite
-    UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY = 29,                                   ///< Enumerator for ::urEnqueueMemImageCopy
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP = 30,                                   ///< Enumerator for ::urEnqueueMemBufferMap
-    UR_FUNCTION_ENQUEUE_MEM_UNMAP = 31,                                        ///< Enumerator for ::urEnqueueMemUnmap
-    UR_FUNCTION_ENQUEUE_USM_FILL = 32,                                         ///< Enumerator for ::urEnqueueUSMFill
-    UR_FUNCTION_ENQUEUE_USM_MEMCPY = 33,                                       ///< Enumerator for ::urEnqueueUSMMemcpy
-    UR_FUNCTION_ENQUEUE_USM_PREFETCH = 34,                                     ///< Enumerator for ::urEnqueueUSMPrefetch
-    UR_FUNCTION_ENQUEUE_USM_ADVISE = 35,                                       ///< Enumerator for ::urEnqueueUSMAdvise
-    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38,                     ///< Enumerator for ::urEnqueueDeviceGlobalVariableWrite
-    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39,                      ///< Enumerator for ::urEnqueueDeviceGlobalVariableRead
-    UR_FUNCTION_EVENT_GET_INFO = 40,                                           ///< Enumerator for ::urEventGetInfo
-    UR_FUNCTION_EVENT_GET_PROFILING_INFO = 41,                                 ///< Enumerator for ::urEventGetProfilingInfo
-    UR_FUNCTION_EVENT_WAIT = 42,                                               ///< Enumerator for ::urEventWait
-    UR_FUNCTION_EVENT_RETAIN = 43,                                             ///< Enumerator for ::urEventRetain
-    UR_FUNCTION_EVENT_RELEASE = 44,                                            ///< Enumerator for ::urEventRelease
-    UR_FUNCTION_EVENT_GET_NATIVE_HANDLE = 45,                                  ///< Enumerator for ::urEventGetNativeHandle
-    UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE = 46,                          ///< Enumerator for ::urEventCreateWithNativeHandle
-    UR_FUNCTION_EVENT_SET_CALLBACK = 47,                                       ///< Enumerator for ::urEventSetCallback
-    UR_FUNCTION_KERNEL_CREATE = 48,                                            ///< Enumerator for ::urKernelCreate
-    UR_FUNCTION_KERNEL_SET_ARG_VALUE = 49,                                     ///< Enumerator for ::urKernelSetArgValue
-    UR_FUNCTION_KERNEL_SET_ARG_LOCAL = 50,                                     ///< Enumerator for ::urKernelSetArgLocal
-    UR_FUNCTION_KERNEL_GET_INFO = 51,                                          ///< Enumerator for ::urKernelGetInfo
-    UR_FUNCTION_KERNEL_GET_GROUP_INFO = 52,                                    ///< Enumerator for ::urKernelGetGroupInfo
-    UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO = 53,                                ///< Enumerator for ::urKernelGetSubGroupInfo
-    UR_FUNCTION_KERNEL_RETAIN = 54,                                            ///< Enumerator for ::urKernelRetain
-    UR_FUNCTION_KERNEL_RELEASE = 55,                                           ///< Enumerator for ::urKernelRelease
-    UR_FUNCTION_KERNEL_SET_ARG_POINTER = 56,                                   ///< Enumerator for ::urKernelSetArgPointer
-    UR_FUNCTION_KERNEL_SET_EXEC_INFO = 57,                                     ///< Enumerator for ::urKernelSetExecInfo
-    UR_FUNCTION_KERNEL_SET_ARG_SAMPLER = 58,                                   ///< Enumerator for ::urKernelSetArgSampler
-    UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ = 59,                                   ///< Enumerator for ::urKernelSetArgMemObj
-    UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS = 60,                      ///< Enumerator for ::urKernelSetSpecializationConstants
-    UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE = 61,                                 ///< Enumerator for ::urKernelGetNativeHandle
-    UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE = 62,                         ///< Enumerator for ::urKernelCreateWithNativeHandle
-    UR_FUNCTION_MEM_IMAGE_CREATE = 63,                                         ///< Enumerator for ::urMemImageCreate
-    UR_FUNCTION_MEM_BUFFER_CREATE = 64,                                        ///< Enumerator for ::urMemBufferCreate
-    UR_FUNCTION_MEM_RETAIN = 65,                                               ///< Enumerator for ::urMemRetain
-    UR_FUNCTION_MEM_RELEASE = 66,                                              ///< Enumerator for ::urMemRelease
-    UR_FUNCTION_MEM_BUFFER_PARTITION = 67,                                     ///< Enumerator for ::urMemBufferPartition
-    UR_FUNCTION_MEM_GET_NATIVE_HANDLE = 68,                                    ///< Enumerator for ::urMemGetNativeHandle
-    UR_FUNCTION_ENQUEUE_READ_HOST_PIPE = 69,                                   ///< Enumerator for ::urEnqueueReadHostPipe
-    UR_FUNCTION_MEM_GET_INFO = 70,                                             ///< Enumerator for ::urMemGetInfo
-    UR_FUNCTION_MEM_IMAGE_GET_INFO = 71,                                       ///< Enumerator for ::urMemImageGetInfo
-    UR_FUNCTION_PLATFORM_GET = 72,                                             ///< Enumerator for ::urPlatformGet
-    UR_FUNCTION_PLATFORM_GET_INFO = 73,                                        ///< Enumerator for ::urPlatformGetInfo
-    UR_FUNCTION_PLATFORM_GET_API_VERSION = 74,                                 ///< Enumerator for ::urPlatformGetApiVersion
-    UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE = 75,                               ///< Enumerator for ::urPlatformGetNativeHandle
-    UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76,                       ///< Enumerator for ::urPlatformCreateWithNativeHandle
-    UR_FUNCTION_PROGRAM_CREATE_WITH_IL = 78,                                   ///< Enumerator for ::urProgramCreateWithIL
-    UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY = 79,                               ///< Enumerator for ::urProgramCreateWithBinary
-    UR_FUNCTION_PROGRAM_BUILD = 80,                                            ///< Enumerator for ::urProgramBuild
-    UR_FUNCTION_PROGRAM_COMPILE = 81,                                          ///< Enumerator for ::urProgramCompile
-    UR_FUNCTION_PROGRAM_LINK = 82,                                             ///< Enumerator for ::urProgramLink
-    UR_FUNCTION_PROGRAM_RETAIN = 83,                                           ///< Enumerator for ::urProgramRetain
-    UR_FUNCTION_PROGRAM_RELEASE = 84,                                          ///< Enumerator for ::urProgramRelease
-    UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER = 85,                             ///< Enumerator for ::urProgramGetFunctionPointer
-    UR_FUNCTION_PROGRAM_GET_INFO = 86,                                         ///< Enumerator for ::urProgramGetInfo
-    UR_FUNCTION_PROGRAM_GET_BUILD_INFO = 87,                                   ///< Enumerator for ::urProgramGetBuildInfo
-    UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 88,                     ///< Enumerator for ::urProgramSetSpecializationConstants
-    UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE = 89,                                ///< Enumerator for ::urProgramGetNativeHandle
-    UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE = 90,                        ///< Enumerator for ::urProgramCreateWithNativeHandle
-    UR_FUNCTION_QUEUE_GET_INFO = 91,                                           ///< Enumerator for ::urQueueGetInfo
-    UR_FUNCTION_QUEUE_CREATE = 92,                                             ///< Enumerator for ::urQueueCreate
-    UR_FUNCTION_QUEUE_RETAIN = 93,                                             ///< Enumerator for ::urQueueRetain
-    UR_FUNCTION_QUEUE_RELEASE = 94,                                            ///< Enumerator for ::urQueueRelease
-    UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE = 95,                                  ///< Enumerator for ::urQueueGetNativeHandle
-    UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE = 96,                          ///< Enumerator for ::urQueueCreateWithNativeHandle
-    UR_FUNCTION_QUEUE_FINISH = 97,                                             ///< Enumerator for ::urQueueFinish
-    UR_FUNCTION_QUEUE_FLUSH = 98,                                              ///< Enumerator for ::urQueueFlush
-    UR_FUNCTION_INIT = 99,                                                     ///< Enumerator for ::urInit
-    UR_FUNCTION_TEAR_DOWN = 100,                                               ///< Enumerator for ::urTearDown
-    UR_FUNCTION_SAMPLER_CREATE = 101,                                          ///< Enumerator for ::urSamplerCreate
-    UR_FUNCTION_SAMPLER_RETAIN = 102,                                          ///< Enumerator for ::urSamplerRetain
-    UR_FUNCTION_SAMPLER_RELEASE = 103,                                         ///< Enumerator for ::urSamplerRelease
-    UR_FUNCTION_SAMPLER_GET_INFO = 104,                                        ///< Enumerator for ::urSamplerGetInfo
-    UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE = 105,                               ///< Enumerator for ::urSamplerGetNativeHandle
-    UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE = 106,                       ///< Enumerator for ::urSamplerCreateWithNativeHandle
-    UR_FUNCTION_USM_HOST_ALLOC = 107,                                          ///< Enumerator for ::urUSMHostAlloc
-    UR_FUNCTION_USM_DEVICE_ALLOC = 108,                                        ///< Enumerator for ::urUSMDeviceAlloc
-    UR_FUNCTION_USM_SHARED_ALLOC = 109,                                        ///< Enumerator for ::urUSMSharedAlloc
-    UR_FUNCTION_USM_FREE = 110,                                                ///< Enumerator for ::urUSMFree
-    UR_FUNCTION_USM_GET_MEM_ALLOC_INFO = 111,                                  ///< Enumerator for ::urUSMGetMemAllocInfo
-    UR_FUNCTION_USM_POOL_CREATE = 112,                                         ///< Enumerator for ::urUSMPoolCreate
-    UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP = 113,                               ///< Enumerator for ::urCommandBufferCreateExp
-    UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION = 114,                             ///< Enumerator for ::urPlatformGetBackendOption
-    UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115,                    ///< Enumerator for ::urMemBufferCreateWithNativeHandle
-    UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116,                     ///< Enumerator for ::urMemImageCreateWithNativeHandle
-    UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE = 117,                                 ///< Enumerator for ::urEnqueueWriteHostPipe
-    UR_FUNCTION_USM_POOL_RETAIN = 118,                                         ///< Enumerator for ::urUSMPoolRetain
-    UR_FUNCTION_USM_POOL_RELEASE = 119,                                        ///< Enumerator for ::urUSMPoolRelease
-    UR_FUNCTION_USM_POOL_GET_INFO = 120,                                       ///< Enumerator for ::urUSMPoolGetInfo
-    UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP = 121,                               ///< Enumerator for ::urCommandBufferRetainExp
-    UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP = 122,                              ///< Enumerator for ::urCommandBufferReleaseExp
-    UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP = 123,                             ///< Enumerator for ::urCommandBufferFinalizeExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125,                 ///< Enumerator for ::urCommandBufferAppendKernelLaunchExp
-    UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 128,                              ///< Enumerator for ::urCommandBufferEnqueueExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129,                    ///< Enumerator for ::urCommandBufferAppendMemcpyUSMExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130,                ///< Enumerator for ::urCommandBufferAppendMembufferCopyExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP = 131,           ///< Enumerator for ::urCommandBufferAppendMembufferCopyRectExp
-    UR_FUNCTION_USM_PITCHED_ALLOC_EXP = 132,                                   ///< Enumerator for ::urUSMPitchedAllocExp
-    UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP = 133,      ///< Enumerator for ::urBindlessImagesUnsampledImageHandleDestroyExp
-    UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP = 134,        ///< Enumerator for ::urBindlessImagesSampledImageHandleDestroyExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP = 135,                      ///< Enumerator for ::urBindlessImagesImageAllocateExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP = 136,                          ///< Enumerator for ::urBindlessImagesImageFreeExp
-    UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP = 137,              ///< Enumerator for ::urBindlessImagesUnsampledImageCreateExp
-    UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP = 138,                ///< Enumerator for ::urBindlessImagesSampledImageCreateExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP = 139,                          ///< Enumerator for ::urBindlessImagesImageCopyExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP = 140,                      ///< Enumerator for ::urBindlessImagesImageGetInfoExp
-    UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP = 141,                    ///< Enumerator for ::urBindlessImagesMipmapGetLevelExp
-    UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP = 142,                         ///< Enumerator for ::urBindlessImagesMipmapFreeExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP = 143,                    ///< Enumerator for ::urBindlessImagesImportOpaqueFDExp
-    UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP = 144,                  ///< Enumerator for ::urBindlessImagesMapExternalArrayExp
-    UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP = 145,                     ///< Enumerator for ::urBindlessImagesReleaseInteropExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP = 146, ///< Enumerator for ::urBindlessImagesImportExternalSemaphoreOpaqueFDExp
-    UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147,          ///< Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
-    UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148,             ///< Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
-    UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149,           ///< Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
-    UR_FUNCTION_PLATFORM_GET_LAST_ERROR = 150,                                 ///< Enumerator for ::urPlatformGetLastError
-    UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,                                     ///< Enumerator for ::urEnqueueUSMFill2D
-    UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D = 152,                                   ///< Enumerator for ::urEnqueueUSMMemcpy2D
-    UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 153,                        ///< Enumerator for ::urVirtualMemGranularityGetInfo
-    UR_FUNCTION_VIRTUAL_MEM_RESERVE = 154,                                     ///< Enumerator for ::urVirtualMemReserve
-    UR_FUNCTION_VIRTUAL_MEM_FREE = 155,                                        ///< Enumerator for ::urVirtualMemFree
-    UR_FUNCTION_VIRTUAL_MEM_MAP = 156,                                         ///< Enumerator for ::urVirtualMemMap
-    UR_FUNCTION_VIRTUAL_MEM_UNMAP = 157,                                       ///< Enumerator for ::urVirtualMemUnmap
-    UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 158,                                  ///< Enumerator for ::urVirtualMemSetAccess
-    UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 159,                                    ///< Enumerator for ::urVirtualMemGetInfo
-    UR_FUNCTION_PHYSICAL_MEM_CREATE = 160,                                     ///< Enumerator for ::urPhysicalMemCreate
-    UR_FUNCTION_PHYSICAL_MEM_RETAIN = 161,                                     ///< Enumerator for ::urPhysicalMemRetain
-    UR_FUNCTION_PHYSICAL_MEM_RELEASE = 162,                                    ///< Enumerator for ::urPhysicalMemRelease
-    UR_FUNCTION_USM_IMPORT_EXP = 163,                                          ///< Enumerator for ::urUSMImportExp
-    UR_FUNCTION_USM_RELEASE_EXP = 164,                                         ///< Enumerator for ::urUSMReleaseExp
-    UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP = 165,                          ///< Enumerator for ::urUsmP2PEnablePeerAccessExp
-    UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP = 166,                         ///< Enumerator for ::urUsmP2PDisablePeerAccessExp
-    UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP = 167,                        ///< Enumerator for ::urUsmP2PPeerAccessGetInfoExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP = 168,               ///< Enumerator for ::urCommandBufferAppendMembufferWriteExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP = 169,                ///< Enumerator for ::urCommandBufferAppendMembufferReadExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP = 170,          ///< Enumerator for ::urCommandBufferAppendMembufferWriteRectExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP = 171,           ///< Enumerator for ::urCommandBufferAppendMembufferReadRectExp
-    /// @cond
-    UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
-    /// @endcond
-
-} ur_function_t;
 
 #if !defined(__GNUC__)
 #pragma endregion

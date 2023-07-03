@@ -18,9 +18,21 @@ class quoted(str):
 def quoted_presenter(dumper, data):
     return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='"')
 
+def write_registry(data, path):
+    header = {'type': 'header', 'desc': quoted('Intel $OneApi Unified Runtime function registry'), 'ordinal': quoted(-1)}
+    data.insert(0, header)
+    with open(path, 'w') as fout:
+        yaml.add_representer(quoted, quoted_presenter)
+        yaml.dump_all(data, fout,
+            default_flow_style=False,
+            sort_keys=False,
+            explicit_start=True)
+        
+
 def generate_registry(path, specs):
     try:
-        existing_registry = list(util.yamlRead(path))[1]['etors']
+        contents = list(util.yamlRead(path))
+        existing_registry = contents[1]['etors']
         existing_etors = {etor["name"]: etor["value"] for etor in existing_registry}
         max_etor = int(max(existing_registry, key = lambda x : int(x["value"]))["value"])
         functions = [obj['class'][len('$x'):] + obj['name'] for s in specs for obj in s['objects'] if obj['type'] == 'function']
@@ -34,13 +46,9 @@ def generate_registry(path, specs):
             registry.append({'name': util.to_snake_case(fname).upper(), 'desc': 'Enumerator for $x'+fname, 'value': str(id)})
         registry = sorted(registry, key=lambda x: int(x['value']))
         wrapper = { 'name': ENUM_NAME, 'type': 'enum', 'desc': 'Defines unique stable identifiers for all functions' , 'etors': registry}
-        header = {'type': 'header', 'desc': quoted('Intel $OneApi Unified Runtime function registry'), 'ordinal': quoted(9)}
-        with open(path, 'w') as fout:
-            yaml.add_representer(quoted, quoted_presenter)
-            yaml.dump_all([header, wrapper], fout,
-                default_flow_style=False,
-                sort_keys=False,
-                explicit_start=True)
+        contents[1] =  wrapper
+        write_registry(contents[1:], path)
+
     except BaseException as e:
         print("Failed to generate registry.yml... %s", e)
         raise e
