@@ -494,7 +494,9 @@ template <typename CandT> constexpr int GetConversionPriority() {
                 std::is_same<std::remove_cv_t<CandT>, half_impl::half>::value) {
     // For floating point values we prioritize the largest representation.
     return 3100 + sizeof(CandT);
-  } else if constexpr (std::is_integral_v<CandT>) {
+  } else if constexpr (std::is_integral_v<CandT> ||
+                       std::is_same<std::remove_cv_t<CandT>,
+                                    std::byte>::value) {
     // For integrals we prefer the smallest possible implicit representation.
     return 3032 - sizeof(CandT);
   } else if constexpr (is_marray_v<CandT>) {
@@ -514,13 +516,12 @@ template <typename T, typename CandT1, typename CandT2>
 struct select_most_suitable_conversion {
   static constexpr bool CandT1_is_same = std::is_same_v<T, CandT1>;
   static constexpr bool CandT2_is_same = std::is_same_v<T, CandT2>;
-  static constexpr bool CandT1_takes_prio =
-      GetConversionPriority<CandT1>() >= GetConversionPriority<CandT2>();
   using type = std::conditional_t<
       CandT1_is_same, CandT1,
-      std::conditional_t<
-          CandT2_is_same, CandT2,
-          std::conditional_t<CandT1_takes_prio, CandT1, CandT2>>>;
+      std::conditional_t<CandT2_is_same, CandT2,
+                         std::conditional_t<GetConversionPriority<CandT1>() >=
+                                                GetConversionPriority<CandT2>(),
+                                            CandT1, CandT2>>>;
 };
 template <typename T, typename CandT>
 struct select_most_suitable_conversion<T, CandT, void> {

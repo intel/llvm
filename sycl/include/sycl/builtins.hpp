@@ -1115,13 +1115,20 @@ clamp(T x, T minval, T maxval) __NOEXC {
 // vgenfloath clamp (vgenfloath x, half minval, half maxval)
 // vgenfloatf clamp (vgenfloatf x, float minval, float maxval)
 // vgenfloatd clamp (vgenfloatd x, double minval, double maxval)
+// geninteger clamp (geninteger x, sgeninteger minval, sgeninteger maxval)
+// geninteger clamp (geninteger x, sgeninteger minval, sgeninteger maxval)
 template <typename T>
-std::enable_if_t<detail::is_vgenfloat_convertible<T>::value,
-                 typename detail::is_vgenfloat_convertible<T>::to_type>
+std::enable_if_t<detail::is_vgentype_convertible<T>::value,
+                 typename detail::is_vgentype_convertible<T>::to_type>
 clamp(T x, typename T::element_type minval,
       typename T::element_type maxval) __NOEXC {
-  using to_t = typename detail::is_vgenfloat_convertible<T>::to_type;
-  return __sycl_std::__invoke_fclamp<to_t>(x, to_t(minval), to_t(maxval));
+  using to_t = typename detail::is_vgentype_convertible<T>::to_type;
+  if constexpr (detail::is_vgenfloat<to_t>::value)
+    return __sycl_std::__invoke_fclamp<to_t>(x, to_t(minval), to_t(maxval));
+  else if constexpr (detail::is_vigeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_clamp<to_t>(x, to_t(minval), to_t(maxval));
+  else if constexpr (detail::is_vugeninteger<to_t>::value)
+    return __sycl_std::__invoke_u_clamp<to_t>(x, to_t(minval), to_t(maxval));
 }
 
 // svgenfloat degrees (svgenfloat radians)
@@ -1174,11 +1181,16 @@ std::enable_if_t<detail::is_svgentype_convertible<T>::value,
 // vgenfloatd max (vgenfloatd x, double y)
 // vgenfloath max (vgenfloath x, half y)
 template <typename T>
-std::enable_if_t<detail::is_vgenfloat_convertible<T>::value,
-                 typename detail::is_vgenfloat_convertible<T>::to_type>(max)(
+std::enable_if_t<detail::is_vgentype_convertible<T>::value,
+                 typename detail::is_vgentype_convertible<T>::to_type>(max)(
     T x, typename T::element_type y) __NOEXC {
-  using to_t = typename detail::is_vgenfloat_convertible<T>::to_type;
-  return __sycl_std::__invoke_fmax_common<to_t>(x, to_t(y));
+  using to_t = typename detail::is_vgentype_convertible<T>::to_type;
+  if constexpr (detail::is_vgenfloat<to_t>::value)
+    return __sycl_std::__invoke_fmax_common<to_t>(x, to_t(y));
+  else if constexpr (detail::is_vigeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_max<to_t>(x, to_t(y));
+  else if constexpr (detail::is_vugeninteger<to_t>::value)
+    return __sycl_std::__invoke_u_max<to_t>(x, to_t(y));
 }
 
 // svgenfloat min (svgenfloat x, svgenfloat y)
@@ -1201,11 +1213,16 @@ std::enable_if_t<detail::is_svgentype_convertible<T>::value,
 // vgenfloatd min (vgenfloatd x, double y)
 // vgenfloath min (vgenfloath x, half y)
 template <typename T>
-std::enable_if_t<detail::is_vgenfloat_convertible<T>::value,
-                 typename detail::is_vgenfloat_convertible<T>::to_type>(min)(
+std::enable_if_t<detail::is_vgentype_convertible<T>::value,
+                 typename detail::is_vgentype_convertible<T>::to_type>(min)(
     T x, typename T::element_type y) __NOEXC {
-  using to_t = typename detail::is_vgenfloat_convertible<T>::to_type;
-  return __sycl_std::__invoke_fmin_common<to_t>(x, to_t(y));
+  using to_t = typename detail::is_vgentype_convertible<T>::to_type;
+  if constexpr (detail::is_vgenfloat<to_t>::value)
+    return __sycl_std::__invoke_fmin_common<to_t>(x, to_t(y));
+  else if constexpr (detail::is_vigeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_min<to_t>(x, to_t(y));
+  else if constexpr (detail::is_vugeninteger<to_t>::value)
+    return __sycl_std::__invoke_u_min<to_t>(x, to_t(y));
 }
 
 // svgenfloat mix (svgenfloat x, svgenfloat y, svgenfloat a)
@@ -1412,22 +1429,6 @@ rhadd(T x, T y) __NOEXC {
     return __sycl_std::__invoke_u_rhadd<to_t>(x, y);
 }
 
-// geninteger clamp (geninteger x, sgeninteger minval, sgeninteger maxval)
-template <typename T>
-std::enable_if_t<detail::is_vigeninteger<T>::value, T>
-clamp(T x, typename T::element_type minval,
-      typename T::element_type maxval) __NOEXC {
-  return __sycl_std::__invoke_s_clamp<T>(x, T(minval), T(maxval));
-}
-
-// geninteger clamp (geninteger x, sgeninteger minval, sgeninteger maxval)
-template <typename T>
-std::enable_if_t<detail::is_vugeninteger<T>::value, T>
-clamp(T x, typename T::element_type minval,
-      typename T::element_type maxval) __NOEXC {
-  return __sycl_std::__invoke_u_clamp<T>(x, T(minval), T(maxval));
-}
-
 // geninteger clz (geninteger x)
 template <typename T>
 std::enable_if_t<detail::is_geninteger_convertible<T>::value,
@@ -1482,34 +1483,6 @@ mad_sat(T a, T b, T c) __NOEXC {
     return __sycl_std::__invoke_s_mad_sat<to_t>(a, b, c);
   else
     return __sycl_std::__invoke_u_mad_sat<to_t>(a, b, c);
-}
-
-// igeninteger max (vigeninteger x, sigeninteger y)
-template <typename T>
-std::enable_if_t<detail::is_vigeninteger<T>::value, T>(max)(
-    T x, typename T::element_type y) __NOEXC {
-  return __sycl_std::__invoke_s_max<T>(x, T(y));
-}
-
-// vugeninteger max (vugeninteger x, sugeninteger y)
-template <typename T>
-std::enable_if_t<detail::is_vugeninteger<T>::value, T>(max)(
-    T x, typename T::element_type y) __NOEXC {
-  return __sycl_std::__invoke_u_max<T>(x, T(y));
-}
-
-// vigeninteger min (vigeninteger x, sigeninteger y)
-template <typename T>
-std::enable_if_t<detail::is_vigeninteger<T>::value, T>(min)(
-    T x, typename T::element_type y) __NOEXC {
-  return __sycl_std::__invoke_s_min<T>(x, T(y));
-}
-
-// vugeninteger min (vugeninteger x, sugeninteger y)
-template <typename T>
-std::enable_if_t<detail::is_vugeninteger<T>::value, T>(min)(
-    T x, typename T::element_type y) __NOEXC {
-  return __sycl_std::__invoke_u_min<T>(x, T(y));
 }
 
 // geninteger mul_hi (geninteger x, geninteger y)
