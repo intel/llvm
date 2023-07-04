@@ -291,7 +291,9 @@ struct AccessorInvokeConstructorPattern
       AccessorTypeTag>::RaiseInvokeConstructorBasePattern;
 };
 
-class RaiseIDConstructor : public OpRewritePattern<LLVM::StoreOp> {
+template <typename TypeTag>
+class RaiseArrayConstructorBasePattern
+    : public OpRewritePattern<LLVM::StoreOp> {
 public:
   using OpRewritePattern<LLVM::StoreOp>::OpRewritePattern;
 
@@ -310,7 +312,7 @@ public:
     // type.
     auto allocTy = *alloc.getElemType();
     auto structAllocTy = dyn_cast<LLVM::LLVMStructType>(allocTy);
-    if (!structAllocTy || structAllocTy.getName() != "class.sycl::_V1::id")
+    if (!structAllocTy || structAllocTy.getName() != TypeTag::getTypeName())
       return failure();
 
     auto arrayTyOrNone = getNumAndTypeOfComponents(structAllocTy);
@@ -345,12 +347,11 @@ public:
       values.push_back(c.store.getValue());
     }
 
-    sycl::IDType::get(getContext(), numComponents, componentTy);
     rewriter.setInsertionPointAfter(components.back().store);
     rewriter.create<sycl::SYCLHostConstructorOp>(
         op->getLoc(), alloc, values,
         TypeAttr::get(
-            sycl::IDType::get(getContext(), numComponents, componentTy)));
+            TypeTag::SYCLType::get(getContext(), numComponents, componentTy)));
 
     llvm::for_each(components,
                    [&](Component &c) { rewriter.eraseOp(c.store); });
@@ -437,6 +438,30 @@ private:
     return true;
   }
 };
+
+struct IDTypeTag {
+  using SYCLType = mlir::sycl::IDType;
+
+  static llvm::StringRef getTypeName() { return "class.sycl::_V1::id"; }
+};
+
+struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
+  using RaiseArrayConstructorBasePattern<
+      IDTypeTag>::RaiseArrayConstructorBasePattern;
+};
+
+struct RangeTypeTag {
+  using SYCLType = mlir::sycl::RangeType;
+
+  static llvm::StringRef getTypeName() { return "class.sycl::_V1::range"; }
+};
+
+struct RaiseRangeConstructor
+    : public RaiseArrayConstructorBasePattern<RangeTypeTag> {
+  using RaiseArrayConstructorBasePattern<
+      RangeTypeTag>::RaiseArrayConstructorBasePattern;
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -449,8 +474,8 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
 
   RewritePatternSet rewritePatterns{context};
   rewritePatterns.add<RaiseKernelName, BufferInvokeConstructorPattern,
-                      AccessorInvokeConstructorPattern, RaiseIDConstructor>(
-      context);
+                      AccessorInvokeConstructorPattern, RaiseIDConstructor,
+                      RaiseRangeConstructor>(context);
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
   if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen)))
