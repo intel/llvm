@@ -33,7 +33,7 @@ func.func @test_folder_half(%arg0 : f16, %arg1 : !sycl_half) -> (!sycl_half, f16
 !sycl_vec_i32_4_ = !sycl.vec<[i32, 4], (vector<4xi32>)>
 
 // CHECK-LABEL: test_vector_of_native
-func.func @test_test_vector_of_native(%arg0 : vector<4xi32>, %arg1 : !sycl_vec_i32_4_) -> (!sycl_vec_i32_4_, vector<4xi32>) {
+func.func @test_vector_of_native(%arg0 : vector<4xi32>, %arg1 : !sycl_vec_i32_4_) -> (!sycl_vec_i32_4_, vector<4xi32>) {
   // CHECK: %{{.*}} = sycl.mlir.wrap %arg0 : vector<4xi32> to !sycl_vec_i32_4_
   %0 = sycl.mlir.wrap %arg0 : vector<4xi32> to !sycl_vec_i32_4_
   // CHECK: %{{.*}} = sycl.mlir.unwrap %arg1 : !sycl_vec_i32_4_ to vector<4xi32>
@@ -61,7 +61,7 @@ func.func @test_folder_vector_of_native(%arg0 : vector<4xi32>, %arg1 : !sycl_vec
 !sycl_vec_sycl_half_2_ = !sycl.vec<[!sycl_half, 2], (vector<2xf16>)>
 
 // CHECK-LABEL: test_vector_of_half
-func.func @test_test_vector_of_half(%arg0 : vector<2xf16>, %arg1 : !sycl_vec_sycl_half_2_) -> (!sycl_vec_sycl_half_2_, vector<2xf16>) {
+func.func @test_vector_of_half(%arg0 : vector<2xf16>, %arg1 : !sycl_vec_sycl_half_2_) -> (!sycl_vec_sycl_half_2_, vector<2xf16>) {
   // CHECK: %{{.*}} = sycl.mlir.wrap %arg0 : vector<2xf16> to !sycl_vec_sycl_half_2_
   %0 = sycl.mlir.wrap %arg0 : vector<2xf16> to !sycl_vec_sycl_half_2_
   // CHECK: %{{.*}} = sycl.mlir.unwrap %arg1 : !sycl_vec_sycl_half_2_ to vector<2xf16>
