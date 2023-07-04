@@ -58,6 +58,9 @@ runs:
     run: |
       cd ${{ inputs.path }}
       git fetch origin $DEFAULT_BRANCH
+      echo "FETCHED:"
+      git log -1 origin/$DEFAULT_BRANCH
+      echo "Merging it into the current workspace"
       # Set fake identity to fulfil git requirements
       git config --local user.email "actions@github.com"
       git config --local user.name "GitHub Actions"

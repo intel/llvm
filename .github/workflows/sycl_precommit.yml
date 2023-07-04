@@ -59,13 +59,11 @@ jobs:
   # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:
     needs: [detect_changes]
-    if: |
-      !contains(needs.detect_changes.outputs.filters, 'ci')
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "ocl_lin_intel"
+      lts_config: "lin_intel"
 
   linux_default:
     name: Linux
