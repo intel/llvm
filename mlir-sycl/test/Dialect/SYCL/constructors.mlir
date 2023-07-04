@@ -78,3 +78,40 @@ func.func @id_id(%arg0: memref<?x!sycl_id_1_>,
   func.return %id1, %id2, %id3
       : memref<1x!sycl_id_1_>, memref<1x!sycl_id_2_>, memref<1x!sycl_id_3_>
 }
+
+// CHECK-LABEL: func.func @range_index
+func.func @range_index(%arg0: index, %arg1: index, %arg2: index)
+    -> (memref<1x!sycl_range_1_>,
+        memref<1x!sycl_range_2_>,
+        memref<1x!sycl_range_3_>) {
+  %range1 = sycl.range.constructor(%arg0)
+      : (index) -> memref<1x!sycl_range_1_>
+  %range2 = sycl.range.constructor(%arg0, %arg1)
+      : (index, index) -> memref<1x!sycl_range_2_>
+  %range3 = sycl.range.constructor(%arg0, %arg1, %arg2)
+      : (index, index, index) -> memref<1x!sycl_range_3_>
+  func.return %range1, %range2, %range3
+      : memref<1x!sycl_range_1_>,
+        memref<1x!sycl_range_2_>,
+        memref<1x!sycl_range_3_>
+}
+
+// CHECK-LABEL: func.func @range_range
+func.func @range_range(%arg0: memref<?x!sycl_range_1_>,
+                       %arg1: memref<?x!sycl_range_2_>,
+                       %arg2: memref<?x!sycl_range_3_>)
+    -> (memref<1x!sycl_range_1_>,
+        memref<1x!sycl_range_2_>,
+        memref<1x!sycl_range_3_>) {
+  %range1 = sycl.range.constructor(%arg0)
+      : (memref<?x!sycl_range_1_>) -> memref<1x!sycl_range_1_>
+  %range2 = sycl.range.constructor(%arg1)
+      : (memref<?x!sycl_range_2_>) -> memref<1x!sycl_range_2_>
+  %range3 = sycl.range.constructor(%arg2)
+      : (memref<?x!sycl_range_3_>) -> memref<1x!sycl_range_3_>
+  func.return %range1, %range2, %range3
+      : memref<1x!sycl_range_1_>,
+        memref<1x!sycl_range_2_>,
+        memref<1x!sycl_range_3_>
+}
+

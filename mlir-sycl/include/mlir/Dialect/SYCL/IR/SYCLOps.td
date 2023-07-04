@@ -563,6 +563,40 @@ def SYCLRangeSizeOp
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// range.constructor OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLRangeConstructorOp : SYCLConstructor<"range"> {
+  let summary = "Operation returning a new sycl.range value";
+  let description = [{
+    This operation creates a new `sycl.range`. The following signatures are
+    provided:
+    ```mlir
+    # Initialize each member
+    (index) -> memref<1x!sycl_range_1>
+    (index, index) -> memref<1x!sycl_range_2>
+    (index, index, index) -> memref<1x!sycl_range_3>
+    # Copy constructor
+    (memref<?xsycl_range_N>) -> memref<1x!sycl_range_N>
+    ```
+    In addition of initializing the values, this operation also allocates the
+    object.
+  }];
+  let arguments = (ins Arg<Variadic<AnyType>, "Constructor arguments">:$Args);
+  let results =
+      (outs Res<MemRefRankOf<[SYCL_RangeType], [1]>, "constructed object">:$range);
+  let extraClassDeclaration = [{
+    /// Return the memory effects associated to each argument.
+    ///
+    /// Each argument will have `MemoryEffects::Read` if they're a
+    /// pointer/memref and no memory effect otherwise.
+    void getEffects(::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<
+                        ::mlir::MemoryEffects::Effect>> &effects);
+  }];
+  let hasVerifier = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // nd_range.get_global_range OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
