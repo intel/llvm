@@ -87,8 +87,14 @@ ${title}
 ## Macros
 ## -------------------------
  <%isempty = True%>
+ <%seen = list() %>
 %for obj in objects:
 %if re.match(r"macro", obj['type']):
+%if obj['name'] in seen:
+    <% continue %>
+%else:
+    <% seen.append(obj['name'])%>
+%endif
 %if isempty: # only display section title if there is content.
 %if needstitle:
 <%needstitle = False%>
@@ -188,10 +194,16 @@ ${th.make_type_name(n, tags, obj)}
 ## Macros
 ## -------------------------
  <%isempty = True%>
+ <%seen = list() %>
 %for obj in objects:
 %if not re.match(r"macro", obj['type']):
 <% continue %>
 %endif # macro
+%if obj['name'] in seen:
+    <% continue %>
+%else:
+    <% seen.append(obj['name']) %>
+%endif
 %if isempty:
 ${title} Macros
 --------------------------------------------------------------------------------
