@@ -170,11 +170,7 @@ namespace __sycl_std = __host_std;
 #define __SYCL_COMMA ,
 
 #define __SYCL_DEF_BUILTIN_VEC(TYPE)                                           \
-  __SYCL_BUILTIN_DEF(TYPE##2)                                                  \
-  __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
-  __SYCL_BUILTIN_DEF(TYPE##4)                                                  \
-  __SYCL_BUILTIN_DEF(TYPE##8)                                                  \
-  __SYCL_BUILTIN_DEF(TYPE##16)
+  template <int N> __SYCL_BUILTIN_DEF(vec<TYPE __SYCL_COMMA N>)
 
 #define __SYCL_DEF_BUILTIN_GEOVEC(TYPE)                                        \
   __SYCL_BUILTIN_DEF(TYPE##2)                                                  \
@@ -993,7 +989,7 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
 
 // genfloat fmax (genfloat x, sgenfloat y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fmax(TYPE x, TYPE::element_type y) __NOEXC {                     \
+  inline TYPE fmax(TYPE x, typename TYPE::element_type y) __NOEXC {            \
     return __sycl_std::__invoke_fmax<TYPE>(x, TYPE(y));                        \
   }
     __SYCL_DEF_BUILTIN_VGENFLOAT
@@ -1009,7 +1005,7 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
 
 // genfloat fmin (genfloat x, sgenfloat y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE fmin(TYPE x, TYPE::element_type y) __NOEXC {                     \
+  inline TYPE fmin(TYPE x, typename TYPE::element_type y) __NOEXC {            \
     return __sycl_std::__invoke_fmin<TYPE>(x, TYPE(y));                        \
   }
     __SYCL_DEF_BUILTIN_VGENFLOAT
@@ -2240,7 +2236,7 @@ __SYCL_DEF_BUILTIN_SGENFLOAT
 // half dot (vgengeohalf p0, vgengeohalf p1)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE::element_type dot(TYPE p0, TYPE p1) __NOEXC {                    \
-    return __sycl_std::__invoke_Dot<TYPE::element_type>(p0, p1);               \
+    return __sycl_std::__invoke_Dot<typename TYPE::element_type>(p0, p1);      \
   }
 __SYCL_DEF_BUILTIN_VGENGEOFLOAT
 #undef __SYCL_BUILTIN_DEF
@@ -2258,8 +2254,8 @@ __SYCL_DEF_BUILTIN_SGENFLOAT
 // double distance (vgengeodouble p0, vgengeodouble p1)
 // half distance (vgengeohalf p0, vgengeohalf p1)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE::element_type distance(TYPE p0, TYPE p1) __NOEXC {               \
-    return __sycl_std::__invoke_distance<TYPE::element_type>(p0, p1);          \
+  inline typename TYPE::element_type distance(TYPE p0, TYPE p1) __NOEXC {      \
+    return __sycl_std::__invoke_distance<typename TYPE::element_type>(p0, p1); \
   }
 __SYCL_DEF_BUILTIN_VGENGEOFLOAT
 #undef __SYCL_BUILTIN_DEF
@@ -2277,8 +2273,8 @@ __SYCL_DEF_BUILTIN_SGENFLOAT
 // double length (vgengeodouble p0, vgengeodouble p1)
 // half length (vgengeohalf p0, vgengeohalf p1)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE::element_type length(TYPE p) __NOEXC {                           \
-    return __sycl_std::__invoke_length<TYPE::element_type>(p);                 \
+  inline typename TYPE::element_type length(TYPE p) __NOEXC {                  \
+    return __sycl_std::__invoke_length<typename TYPE::element_type>(p);        \
   }
 __SYCL_DEF_BUILTIN_VGENGEOFLOAT
 #undef __SYCL_BUILTIN_DEF
@@ -2621,14 +2617,19 @@ __SYCL_DEF_BUILTIN_SGENTYPE
 
 // vgentype select(vgentype a, vgentype b, vigeninteger c)
 // vgentype select(vgentype a, vgentype b, vugeninteger c)
-// Non-standard:
-// sgentype select(sgentype a, sgentype b, sigeninteger c)
-// sgentype select(sgentype a, sgentype b, sugeninteger c)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE select(TYPE a, TYPE b, detail::same_size_int_t<TYPE, true> c)    \
       __NOEXC {                                                                \
     return __sycl_std::__invoke_select<TYPE>(a, b, c);                         \
-  }                                                                            \
+  }
+__SYCL_DEF_BUILTIN_VGENTYPE
+__SYCL_DEF_BUILTIN_SGENTYPE
+#undef __SYCL_BUILTIN_DEF
+
+// Non-standard:
+// sgentype select(sgentype a, sgentype b, sigeninteger c)
+// sgentype select(sgentype a, sgentype b, sugeninteger c)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE select(TYPE a, TYPE b, detail::same_size_int_t<TYPE, false> c)   \
       __NOEXC {                                                                \
     return __sycl_std::__invoke_select<TYPE>(a, b, c);                         \
@@ -2645,13 +2646,21 @@ __SYCL_DEF_BUILTIN_SGENTYPE
       detail::same_size_int_t<TYPE, true> b, TYPE c) __NOEXC {                 \
     return __sycl_std::__invoke_select<detail::same_size_int_t<TYPE, true>>(   \
         a, b, c);                                                              \
-  }                                                                            \
+  }
+__SYCL_DEF_BUILTIN_LONG_SCALAR
+__SYCL_DEF_BUILTIN_ULONG_SCALAR
+#undef __SYCL_BUILTIN_DEF
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline detail::same_size_int_t<TYPE, false> select(                          \
       detail::same_size_int_t<TYPE, false> a,                                  \
       detail::same_size_int_t<TYPE, false> b, TYPE c) __NOEXC {                \
     return __sycl_std::__invoke_select<detail::same_size_int_t<TYPE, false>>(  \
         a, b, c);                                                              \
-  }                                                                            \
+  }
+__SYCL_DEF_BUILTIN_LONG_SCALAR
+__SYCL_DEF_BUILTIN_ULONG_SCALAR
+#undef __SYCL_BUILTIN_DEF
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline detail::same_size_float_t<TYPE> select(                               \
       detail::same_size_float_t<TYPE> a, detail::same_size_float_t<TYPE> b,    \
       TYPE c) __NOEXC {                                                        \
