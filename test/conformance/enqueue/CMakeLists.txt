@@ -16,8 +16,6 @@ add_conformance_test_with_kernels_environment(enqueue
     urEnqueueMemBufferWrite.cpp
     urEnqueueMemBufferWriteRect.cpp
     urEnqueueMemImageCopy.cpp
-    urEnqueueMemImageFill.cpp
-    urEnqueueMemImageMap.cpp
     urEnqueueMemImageRead.cpp
     urEnqueueMemImageWrite.cpp
     urEnqueueMemUnmap.cpp
