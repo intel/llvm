@@ -115,6 +115,21 @@ using namespace clang::driver;
 using namespace clang;
 using namespace llvm::opt;
 
+// clang-offload-bundler is currently generating a 'standardized' target triple.
+// Triple's format - Architecture-Vendor-OS-Environment.
+// Bundle sections created by clang-offload-bundler contain the 'standardized'
+// triple. This routine transforms the triple specified by user as input to this
+// 'standardized' format to facilitate checks.
+static std::string standardizedTriple(std::string OrigTriple) {
+  if (OrigTriple.back() == '-') // Already standardized
+    return OrigTriple;
+  llvm::Triple t = llvm::Triple(OrigTriple);
+  return llvm::Triple(t.getArchName(), t.getVendorName(), t.getOSName(),
+                      t.getEnvironmentName())
+             .str() +
+         "-";
+}
+
 static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
                                                           const ArgList &Args) {
   auto OffloadTargets = Args.getAllArgValues(options::OPT_offload_EQ);
@@ -203,7 +218,7 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
     : Diags(Diags), VFS(std::move(VFS)), Mode(GCCMode),
       SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
       Offload(OffloadHostDevice), CXX20HeaderType(HeaderMode_None),
-      ModulesModeCXX20(false), LTOMode(LTOK_None),
+      ModulesModeCXX20(false), LTOMode(LTOK_None), OffloadLTOMode(LTOK_None),
       ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
       DriverTitle(Title), CCCPrintBindings(false), CCPrintOptions(false),
       CCLogDiagnostics(false), CCGenDiagnostics(false),
@@ -308,9 +323,14 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
     }
 
     // Deprecated options emit a diagnostic about deprecation, but are still
-    // supported until removed.
-    if (A->getOption().hasFlag(options::Deprecated)) {
-      Diag(diag::warn_drv_deprecated_option_release) << A->getAsString(Args);
+    // supported until removed. It's possible to have a deprecated option which
+    // aliases with a non-deprecated option, so always compute the argument
+    // actually used before checking for deprecation.
+    const Arg *Used = A;
+    while (Used->getAlias())
+      Used = Used->getAlias();
+    if (Used->getOption().hasFlag(options::Deprecated)) {
+      Diag(diag::warn_drv_deprecated_option_release) << Used->getAsString(Args);
       ContainsError |= Diags.getDiagnosticLevel(
                            diag::warn_drv_deprecated_option_release,
                            SourceLocation()) > DiagnosticsEngine::Warning;
@@ -1570,6 +1590,10 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
         }
     }
   }
+
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
+      CCCIsCC())
+    setDriverMode("g++");
 
   // Check for working directory option before accessing any files
   if (Arg *WD = Args.getLastArg(options::OPT_working_directory))
@@ -5966,7 +5990,7 @@ class OffloadingActionBuilder final {
             Arch = C.getDriver().MakeSYCLDeviceTriple("spir64_fpga").str();
           if (std::find(UniqueSections.begin(), UniqueSections.end(), Arch) ==
               UniqueSections.end())
-            UniqueSections.push_back(Arch);
+            UniqueSections.push_back(standardizedTriple(Arch));
         }
       }
 
@@ -5979,7 +6003,7 @@ class OffloadingActionBuilder final {
           SectionTriple += "-";
           SectionTriple += SyclTarget.BoundArch;
         }
-
+        SectionTriple = standardizedTriple(SectionTriple);
         // If any matching section is found, we are good.
         if (std::find(UniqueSections.begin(), UniqueSections.end(),
                       SectionTriple) != UniqueSections.end())
@@ -6950,7 +6974,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
            types::isSrcFile(I.first))) {
         // Unique ID is generated for source files and preprocessed files.
         SmallString<128> ResultID;
-        llvm::sys::fs::createUniquePath("%%%%%%%%%%%%%%%%", ResultID, false);
+        llvm::sys::fs::createUniquePath("uid%%%%%%%%%%%%%%%%", ResultID, false);
         addSYCLUniqueID(Args.MakeArgString(ResultID.str()), SrcFileName);
       }
       if (!types::isSrcFile(I.first))
