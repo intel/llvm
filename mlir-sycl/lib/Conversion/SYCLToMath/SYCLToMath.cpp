@@ -37,19 +37,28 @@ struct OneToOneMappingPattern : public OpConversionPattern<SYCLOpT> {
   LogicalResult
   matchAndRewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Type type = op.getType();
-
     // If `op` has a native MLIR type, we can just replace it with its
     // counterpart in the `math` dialect.
+    Type type = op.getType();
     if (type.isF32() || type.isF64()) {
       rewriter.replaceOpWithNewOp<MathOpT>(op, adaptor.getOperands());
       return success();
     }
 
-    // `op` is using a SYCL-specific type; we need to unwrap the operands and
-    // wrap the result.
-    assert(isSYCLType(type));
+    return failure();
+  }
+};
 
+template <typename SYCLOpT, typename MathOpT>
+struct UnwrapToNativeTypePattern : public OpConversionPattern<SYCLOpT> {
+  using OpConversionPattern<SYCLOpT>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // If `op` is using a SYCL-specific type, we need to unwrap the operands and
+    // wrap the result.
+    Type type = op.getType();
     if (isa<HalfType>(type)) {
       auto loc = op.getLoc();
       SmallVector<Value, 3> unwrappedOperands;
@@ -69,24 +78,30 @@ struct OneToOneMappingPattern : public OpConversionPattern<SYCLOpT> {
 
 void mlir::populateSYCLToMathConversionPatterns(RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
-  patterns.insert<OneToOneMappingPattern<SYCLCeilOp, math::CeilOp>,
-                  OneToOneMappingPattern<SYCLCopySignOp, math::CopySignOp>,
-                  OneToOneMappingPattern<SYCLCosOp, math::CosOp>,
-                  OneToOneMappingPattern<SYCLExpOp, math::ExpOp>,
-                  OneToOneMappingPattern<SYCLExp2Op, math::Exp2Op>,
-                  OneToOneMappingPattern<SYCLExpM1Op, math::ExpM1Op>,
-                  OneToOneMappingPattern<SYCLFabsOp, math::AbsFOp>,
-                  OneToOneMappingPattern<SYCLFloorOp, math::FloorOp>,
-                  OneToOneMappingPattern<SYCLFmaOp, math::FmaOp>,
-                  OneToOneMappingPattern<SYCLLogOp, math::LogOp>,
-                  OneToOneMappingPattern<SYCLLog10Op, math::Log10Op>,
-                  OneToOneMappingPattern<SYCLLog2Op, math::Log2Op>,
-                  OneToOneMappingPattern<SYCLPowOp, math::PowFOp>,
-                  OneToOneMappingPattern<SYCLRoundOp, math::RoundOp>,
-                  OneToOneMappingPattern<SYCLRsqrtOp, math::RsqrtOp>,
-                  OneToOneMappingPattern<SYCLSinOp, math::SinOp>,
-                  OneToOneMappingPattern<SYCLSqrtOp, math::SqrtOp>,
-                  OneToOneMappingPattern<SYCLTruncOp, math::TruncOp>>(context);
+#define MAP_OP(from, to)                                                       \
+  OneToOneMappingPattern<from, to>, UnwrapToNativeTypePattern<from, to>
+  // clang-format off
+  patterns.insert<
+      MAP_OP(SYCLCeilOp, math::CeilOp),
+      MAP_OP(SYCLCopySignOp, math::CopySignOp),
+      MAP_OP(SYCLCosOp, math::CosOp),
+      MAP_OP(SYCLExpOp, math::ExpOp),
+      MAP_OP(SYCLExp2Op, math::Exp2Op),
+      MAP_OP(SYCLExpM1Op, math::ExpM1Op),
+      MAP_OP(SYCLFabsOp, math::AbsFOp),
+      MAP_OP(SYCLFloorOp, math::FloorOp),
+      MAP_OP(SYCLFmaOp, math::FmaOp),
+      MAP_OP(SYCLLogOp, math::LogOp),
+      MAP_OP(SYCLLog10Op, math::Log10Op),
+      MAP_OP(SYCLLog2Op, math::Log2Op),
+      MAP_OP(SYCLPowOp, math::PowFOp),
+      MAP_OP(SYCLRoundOp, math::RoundOp),
+      MAP_OP(SYCLRsqrtOp, math::RsqrtOp),
+      MAP_OP(SYCLSinOp, math::SinOp),
+      MAP_OP(SYCLSqrtOp, math::SqrtOp),
+      MAP_OP(SYCLTruncOp, math::TruncOp)>(context);
+  // clang-format on
+#undef MAP_MATH_OP
 }
 
 namespace {
