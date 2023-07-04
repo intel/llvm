@@ -1436,7 +1436,7 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp viewOp,
   const auto idTy = cast<sycl::IDType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
   TypedValue<MemRefType> id =
-      sycl::constructSYCLID(idTy, globalIndexes, builder, loc);
+      sycl::createSYCLIDConstructorOp(idTy, globalIndexes, builder, loc);
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value globalAccSub =
       sycl::createSYCLAccessorSubscriptOp(accSub.getAcc(), id, builder, loc);

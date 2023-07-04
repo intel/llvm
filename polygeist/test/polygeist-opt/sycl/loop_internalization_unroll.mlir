@@ -45,71 +45,67 @@
 // CHECK-NEXT:        %[[VAL_28:.*]] = affine.apply [[MAP2]](%[[VAL_25]]){{\[}}%[[VAL_6]]]
 // CHECK-NEXT:        %[[VAL_29:.*]] = arith.addi %[[VAL_17]], %[[VAL_28]] : index
 // CHECK-NEXT:        %[[VAL_30:.*]] = arith.index_cast %[[VAL_29]] : index to i64
-// CHECK-NEXT:        %[[VAL_31:.*]] = memref.alloca() : memref<1x!sycl_id_1_>
+// CHECK-NEXT:        %[[VAL_31:.*]] = sycl.id.constructor(%[[VAL_29]]) : (index) -> memref<1x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_32:.*]] = arith.constant 0 : index
-// CHECK-NEXT:        %[[VAL_33:.*]] = arith.constant 0 : i32
-// CHECK-NEXT:        %[[VAL_34:.*]] = sycl.id.get %[[VAL_31]]{{\[}}%[[VAL_33]]] : (memref<1x!sycl_id_1_>, i32) -> memref<?xindex>
-// CHECK-NEXT:        memref.store %[[VAL_29]], %[[VAL_34]]{{\[}}%[[VAL_32]]] : memref<?xindex>
-// CHECK-NEXT:        %[[VAL_35:.*]] = arith.constant 0 : index
-// CHECK-NEXT:        %[[VAL_36:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_31]]] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
-// CHECK-NEXT:        %[[VAL_37:.*]] = memref.load %[[VAL_36]]{{\[}}%[[VAL_35]]] : memref<?xf32, 1>
-// CHECK-NEXT:        memref.store %[[VAL_37]], %[[VAL_27]]{{\[}}%[[VAL_17]]] : memref<?xf32, #sycl.access.address_space<local>>
+// CHECK-NEXT:        %[[VAL_33:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_31]]] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
+// CHECK-NEXT:        %[[VAL_34:.*]] = memref.load %[[VAL_33]]{{\[}}%[[VAL_32]]] : memref<?xf32, 1>
+// CHECK-NEXT:        memref.store %[[VAL_34]], %[[VAL_27]]{{\[}}%[[VAL_17]]] : memref<?xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:        spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 
 // COM: Calculate loop bounds:
-// CHECK-NEXT:        %[[VAL_38:.*]] = arith.muli %[[VAL_25]], %[[VAL_6]] : index
-// CHECK-NEXT:        %[[VAL_39:.*]] = arith.muli %[[VAL_25]], %[[VAL_6]] : index
-// CHECK-NEXT:        %[[VAL_40:.*]] = arith.addi %[[VAL_39]], %[[VAL_6]] : index
-// CHECK-NEXT:        %[[VAL_41:.*]] = arith.constant 256 : index
-// CHECK-NEXT:        %[[VAL_42:.*]] = arith.cmpi slt, %[[VAL_40]], %[[VAL_41]] : index
-// CHECK-NEXT:        %[[VAL_43:.*]] = arith.select %[[VAL_42]], %[[VAL_40]], %[[VAL_41]] : index
-// CHECK-NEXT:        %[[VAL_44:.*]] = arith.constant 1 : index
-// CHECK-NEXT:        %[[VAL_45:.*]] = arith.subi %[[VAL_43]], %[[VAL_38]] : index
-// CHECK-NEXT:        %[[VAL_46:.*]] = arith.constant 1 : index
-// CHECK-NEXT:        %[[VAL_47:.*]] = arith.subi %[[VAL_44]], %[[VAL_46]] : index
-// CHECK-NEXT:        %[[VAL_48:.*]] = arith.addi %[[VAL_45]], %[[VAL_47]] : index
-// CHECK-NEXT:        %[[VAL_49:.*]] = arith.divui %[[VAL_48]], %[[VAL_44]] : index
-// CHECK-NEXT:        %[[VAL_50:.*]] = arith.constant 2 : index
-// CHECK-NEXT:        %[[VAL_51:.*]] = arith.remsi %[[VAL_49]], %[[VAL_50]] : index
-// CHECK-NEXT:        %[[VAL_52:.*]] = arith.subi %[[VAL_49]], %[[VAL_51]] : index
-// CHECK-NEXT:        %[[VAL_53:.*]] = arith.muli %[[VAL_52]], %[[VAL_44]] : index
-// CHECK-NEXT:        %[[VAL_54:.*]] = arith.addi %[[VAL_38]], %[[VAL_53]] : index
-// CHECK-NEXT:        %[[VAL_55:.*]] = arith.muli %[[VAL_44]], %[[VAL_50]] : index
+// CHECK-NEXT:        %[[VAL_35:.*]] = arith.muli %[[VAL_25]], %[[VAL_6]] : index
+// CHECK-NEXT:        %[[VAL_36:.*]] = arith.muli %[[VAL_25]], %[[VAL_6]] : index
+// CHECK-NEXT:        %[[VAL_37:.*]] = arith.addi %[[VAL_36]], %[[VAL_6]] : index
+// CHECK-NEXT:        %[[VAL_38:.*]] = arith.constant 256 : index
+// CHECK-NEXT:        %[[VAL_39:.*]] = arith.cmpi slt, %[[VAL_37]], %[[VAL_38]] : index
+// CHECK-NEXT:        %[[VAL_40:.*]] = arith.select %[[VAL_39]], %[[VAL_37]], %[[VAL_38]] : index
+// CHECK-NEXT:        %[[VAL_41:.*]] = arith.constant 1 : index
+// CHECK-NEXT:        %[[VAL_42:.*]] = arith.subi %[[VAL_40]], %[[VAL_35]] : index
+// CHECK-NEXT:        %[[VAL_43:.*]] = arith.constant 1 : index
+// CHECK-NEXT:        %[[VAL_44:.*]] = arith.subi %[[VAL_41]], %[[VAL_43]] : index
+// CHECK-NEXT:        %[[VAL_45:.*]] = arith.addi %[[VAL_42]], %[[VAL_44]] : index
+// CHECK-NEXT:        %[[VAL_46:.*]] = arith.divui %[[VAL_45]], %[[VAL_41]] : index
+// CHECK-NEXT:        %[[VAL_47:.*]] = arith.constant 2 : index
+// CHECK-NEXT:        %[[VAL_48:.*]] = arith.remsi %[[VAL_46]], %[[VAL_47]] : index
+// CHECK-NEXT:        %[[VAL_49:.*]] = arith.subi %[[VAL_46]], %[[VAL_48]] : index
+// CHECK-NEXT:        %[[VAL_50:.*]] = arith.muli %[[VAL_49]], %[[VAL_41]] : index
+// CHECK-NEXT:        %[[VAL_51:.*]] = arith.addi %[[VAL_35]], %[[VAL_50]] : index
+// CHECK-NEXT:        %[[VAL_52:.*]] = arith.muli %[[VAL_41]], %[[VAL_47]] : index
 
 // COM: Tiled loop unrolled by 2:
-// CHECK-NEXT:        scf.for %[[VAL_56:.*]] = %[[VAL_38]] to %[[VAL_54]] step %[[VAL_55]] {
-// CHECK-NEXT:          %[[VAL_57:.*]] = arith.subi %[[VAL_56]], %[[VAL_28]] : index
-// CHECK-NEXT:          %[[VAL_58:.*]] = arith.index_cast %[[VAL_56]] : index to i64
-// CHECK-NEXT:          %[[VAL_59:.*]] = arith.index_cast %[[VAL_57]] : index to i64
-// CHECK-NEXT:          sycl.constructor @id(%[[VAL_19]], %[[VAL_58]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
-// CHECK-NEXT:          %[[VAL_60:.*]] = memref.load %[[VAL_27]]{{\[}}%[[VAL_57]]] : memref<?xf32, #sycl.access.address_space<local>>
-// CHECK-NEXT:          %[[VAL_61:.*]] = arith.constant 1 : index
-// CHECK-NEXT:          %[[VAL_62:.*]] = arith.muli %[[VAL_44]], %[[VAL_61]] : index
-// CHECK-NEXT:          %[[VAL_63:.*]] = arith.addi %[[VAL_56]], %[[VAL_62]] : index
-// CHECK-NEXT:          %[[VAL_64:.*]] = arith.subi %[[VAL_63]], %[[VAL_28]] : index
-// CHECK-NEXT:          %[[VAL_65:.*]] = arith.index_cast %[[VAL_63]] : index to i64
-// CHECK-NEXT:          %[[VAL_66:.*]] = arith.index_cast %[[VAL_64]] : index to i64
-// CHECK-NEXT:          sycl.constructor @id(%[[VAL_19]], %[[VAL_65]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
-// CHECK-NEXT:          %[[VAL_67:.*]] = memref.load %[[VAL_27]]{{\[}}%[[VAL_64]]] : memref<?xf32, #sycl.access.address_space<local>>
+// CHECK-NEXT:        scf.for %[[VAL_53:.*]] = %[[VAL_35]] to %[[VAL_51]] step %[[VAL_52]] {
+// CHECK-NEXT:          %[[VAL_54:.*]] = arith.subi %[[VAL_53]], %[[VAL_28]] : index
+// CHECK-NEXT:          %[[VAL_55:.*]] = arith.index_cast %[[VAL_53]] : index to i64
+// CHECK-NEXT:          %[[VAL_56:.*]] = arith.index_cast %[[VAL_54]] : index to i64
+// CHECK-NEXT:          sycl.constructor @id(%[[VAL_19]], %[[VAL_55]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
+// CHECK-NEXT:          %[[VAL_57:.*]] = memref.load %[[VAL_27]]{{\[}}%[[VAL_54]]] : memref<?xf32, #sycl.access.address_space<local>>
+// CHECK-NEXT:          %[[VAL_58:.*]] = arith.constant 1 : index
+// CHECK-NEXT:          %[[VAL_59:.*]] = arith.muli %[[VAL_41]], %[[VAL_58]] : index
+// CHECK-NEXT:          %[[VAL_60:.*]] = arith.addi %[[VAL_53]], %[[VAL_59]] : index
+// CHECK-NEXT:          %[[VAL_61:.*]] = arith.subi %[[VAL_60]], %[[VAL_28]] : index
+// CHECK-NEXT:          %[[VAL_62:.*]] = arith.index_cast %[[VAL_60]] : index to i64
+// CHECK-NEXT:          %[[VAL_63:.*]] = arith.index_cast %[[VAL_61]] : index to i64
+// CHECK-NEXT:          sycl.constructor @id(%[[VAL_19]], %[[VAL_62]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
+// CHECK-NEXT:          %[[VAL_64:.*]] = memref.load %[[VAL_27]]{{\[}}%[[VAL_61]]] : memref<?xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:        }
 
 // COM: Remainder loop after loop unrolling:
-// CHECK-NEXT:        scf.for %[[VAL_68:.*]] = %[[VAL_54]] to %[[VAL_43]] step %[[VAL_44]] {
-// CHECK-NEXT:          %[[VAL_69:.*]] = arith.subi %[[VAL_68]], %[[VAL_28]] : index
-// CHECK-NEXT:          %[[VAL_70:.*]] = arith.index_cast %[[VAL_68]] : index to i64
-// CHECK-NEXT:          %[[VAL_71:.*]] = arith.index_cast %[[VAL_69]] : index to i64
-// CHECK-NEXT:          sycl.constructor @id(%[[VAL_19]], %[[VAL_70]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
-// CHECK-NEXT:          %[[VAL_72:.*]] = memref.load %[[VAL_27]]{{\[}}%[[VAL_69]]] : memref<?xf32, #sycl.access.address_space<local>>
+// CHECK-NEXT:        scf.for %[[VAL_65:.*]] = %[[VAL_51]] to %[[VAL_40]] step %[[VAL_41]] {
+// CHECK-NEXT:          %[[VAL_66:.*]] = arith.subi %[[VAL_65]], %[[VAL_28]] : index
+// CHECK-NEXT:          %[[VAL_67:.*]] = arith.index_cast %[[VAL_65]] : index to i64
+// CHECK-NEXT:          %[[VAL_68:.*]] = arith.index_cast %[[VAL_66]] : index to i64
+// CHECK-NEXT:          sycl.constructor @id(%[[VAL_19]], %[[VAL_67]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
+// CHECK-NEXT:          %[[VAL_69:.*]] = memref.load %[[VAL_27]]{{\[}}%[[VAL_66]]] : memref<?xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:        }
 
 // CHECK-NEXT:        spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    } else {
-// CHECK-NEXT:      affine.for %[[VAL_73:.*]] = 0 to 256 {
-// CHECK-NEXT:        %[[VAL_74:.*]] = arith.index_cast %[[VAL_73]] : index to i64
-// CHECK-NEXT:        sycl.constructor @id(%[[VAL_19]], %[[VAL_74]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
-// CHECK-NEXT:        %[[VAL_75:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_19]]] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_id_1_>) -> memref<?xf32>
-// CHECK-NEXT:        %[[VAL_76:.*]] = affine.load %[[VAL_75]][0] : memref<?xf32>
+// CHECK-NEXT:      affine.for %[[VAL_70:.*]] = 0 to 256 {
+// CHECK-NEXT:        %[[VAL_71:.*]] = arith.index_cast %[[VAL_70]] : index to i64
+// CHECK-NEXT:        sycl.constructor @id(%[[VAL_19]], %[[VAL_71]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
+// CHECK-NEXT:        %[[VAL_72:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_19]]] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_id_1_>) -> memref<?xf32>
+// CHECK-NEXT:        %[[VAL_73:.*]] = affine.load %[[VAL_72]][0] : memref<?xf32>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
