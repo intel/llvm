@@ -8,4 +8,5 @@ add_conformance_test(platform
     urPlatformGet.cpp
     urPlatformGetBackendOption.cpp
     urPlatformGetInfo.cpp
+    urPlatformGetLastError.cpp
     urTearDown.cpp)
