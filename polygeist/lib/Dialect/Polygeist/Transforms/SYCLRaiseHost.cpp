@@ -446,9 +446,9 @@ private:
   findLastComponentInBlock(mlir::Block *block,
                            llvm::ArrayRef<Component> components) const {
     llvm::SmallPtrSet<Operation *, 3> stores;
-    for (const auto &c : components) {
+    for (const auto &c : components)
       stores.insert(c.store);
-    }
+
     auto lastComponent =
         std::find_if(block->rbegin(), block->rend(),
                      [&](Operation &op) { return stores.contains(&op); });
