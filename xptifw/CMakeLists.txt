@@ -13,10 +13,8 @@ if (NOT DEFINED XPTI_DIR) # don't overwrite if already set
   if (NOT DEFINED XPTI_SOURCE_DIR)
     # If XPTI_SOURCE_DIR is not provided then assume that xpti is in-tree and not external.
     set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR}/../xpti)
-    message(STATUS "Setting XPTI_DIR using relative path...")
   else()
     set(XPTI_DIR ${XPTI_SOURCE_DIR}/../xpti)
-    message(STATUS "Setting XPTI_DIR using XPTI_SOURCE_DIR from command...")
   endif()
 endif()
 
