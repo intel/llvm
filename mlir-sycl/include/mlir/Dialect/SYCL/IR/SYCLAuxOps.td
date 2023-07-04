@@ -20,8 +20,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 // Single-element API classes that can be represented by a built-in type.
-// TODO: Support vectors.
-def SingleElementClass : AnyTypeOf<[SYCL_HalfType]>;
+def SingleElementClass : AnyTypeOf<[SYCL_HalfType, SYCL_VecType]>;
 
 // Base class for auxiliary operations.
 class SYCL_AuxOp<string mnemonic, list<Trait> traits = []> :
