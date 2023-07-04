@@ -176,3 +176,67 @@ func.func @test2(%cond: i1, %val: i64, %arg1: memref<?x!sycl_nd_item_2>)  {
 
   return
 }
+
+// -----
+
+!sycl_array_2 = !sycl.array<[2], (memref<2xi64, 4>)>
+!sycl_id_2 = !sycl.id<[2], (!sycl_array_2)>
+!sycl_range_2 = !sycl.range<[2], (!sycl_array_2)>
+!sycl_accessor_impl_device_2 = !sycl.accessor_impl_device<[2], (!sycl_id_2, !sycl_range_2, !sycl_range_2)>
+!sycl_group_2 = !sycl.group<[2], (!sycl_range_2, !sycl_range_2, !sycl_range_2, !sycl_id_2)>
+!sycl_item_base_2 = !sycl.item_base<[2, true], (!sycl_range_2, !sycl_id_2, !sycl_id_2)>
+!sycl_accessor_2_f32_r_gb = !sycl.accessor<[2, f32, read, global_buffer], (!sycl_accessor_impl_device_2, !llvm.struct<(memref<?xf32, 2>)>)>
+!sycl_item_2 = !sycl.item<[2, true], (!sycl_item_base_2)>
+!sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
+
+gpu.module @device_func {
+
+// COM: Check the uniformity inter-procedurally.
+func.func private @test3(%cond: i1, %uniform_val: i64, %non_uniform_val : i64)  {
+  %alloca = memref.alloca() : memref<10xi64>
+
+  // COM: The stored value is known inter-procedurally to be uniform.
+  // CHECK: test3_load1, uniformity: uniform
+  %c0 = arith.constant 0 : index
+  memref.store %uniform_val, %alloca[%c0]: memref<10xi64>
+  %load1 = memref.load %alloca[%c0] { tag = "test3_load1" } : memref<10xi64>
+
+  // COM: The condition is known inter-procedurally to be uniform, uniform value is stored.
+  // CHECK: test3_load2, uniformity: uniform  
+  scf.if %cond {
+    memref.store %uniform_val, %alloca[%c0] : memref<10xi64>    
+  } else {
+    scf.yield
+  }
+  %load2 = memref.load %alloca[%c0] { tag = "test3_load2" } : memref<10xi64>
+
+  // COM: The stored value is known inter-procedurally to be non-uniform.
+  // CHECK: test3_load3, uniformity: non-uniform
+  memref.store %non_uniform_val, %alloca[%c0]: memref<10xi64>
+  %load3 = memref.load %alloca[%c0] { tag = "test3_load3" } : memref<10xi64>
+
+  // COM: The condition is uniform but the store only partially kills the previous def. 
+  // CHECK: test3_load4, uniformity: non-uniform  
+  scf.if %cond {
+    memref.store %uniform_val, %alloca[%c0] : memref<10xi64>
+  } else {
+    scf.yield
+  }
+  %load4 = memref.load %alloca[%c0] { tag = "test3_load4" } : memref<10xi64>  
+
+  return
+}
+
+gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_2>) kernel {
+  %c0_i64 = arith.constant 0 : i64
+  %c1_i64 = arith.constant 1 : i64  
+  %cond = arith.cmpi sgt, %c0_i64, %c1_i64 : i64
+
+  %c0_i32 = arith.constant 0 : i32  
+  %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
+
+  func.call @test3(%cond, %c1_i64, %tx) : (i1, i64, i64) -> ()
+  gpu.return
+}
+
+}

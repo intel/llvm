@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains a simple intra-procedural uniformity analysis which
-// attempts to classify values as either uniform (all threads agree on the
-// content of the value) or not uniform.
+// This file contains a dataflow analysis which attempts to classify values as
+// either uniform (all threads agree on the content of the value) or not
+// uniform.
 //
 //===----------------------------------------------------------------------===//
 
