@@ -586,7 +586,7 @@ def SYCLRangeConstructorOp : SYCLConstructor<"range"> {
   let results =
       (outs Res<MemRefRankOf<[SYCL_RangeType], [1]>, "constructed object">:$range);
   let extraClassDeclaration = [{
-    /// Return the memory effects associated to each argument.
+    /// Return the memory effects associated with each argument.
     ///
     /// Each argument will have `MemoryEffects::Read` if they're a
     /// pointer/memref and no memory effect otherwise.
@@ -682,7 +682,7 @@ def SYCLIDConstructorOp : SYCLConstructor<"id"> {
   let results =
       (outs Res<MemRefRankOf<[SYCL_IDType], [1]>, "constructed object">:$id);
   let extraClassDeclaration = [{
-    /// Return the memory effects associated to each argument.
+    /// Return the memory effects associated with each argument.
     ///
     /// Each argument will have `MemoryEffects::Read` if they're a
     /// pointer/memref and no memory effect otherwise.
