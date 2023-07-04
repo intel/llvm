@@ -11,12 +11,32 @@ gpu.module @device_functions {
 // CHECK-LABEL: llvm.mlir.global private unnamed_addr constant @kernel_ref("foo\00") {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
 llvm.mlir.global private unnamed_addr constant @kernel_ref("foo\00") {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
 
-// CHECK-LABEL: llvm.func @f() -> !llvm.ptr
-// CHECK-NEXT:    %[[VAL_0:.*]] = sycl.host.get_kernel @device_functions::@foo : !llvm.ptr
-// CHECK-NEXT:    llvm.return %[[VAL_0]] : !llvm.ptr
-llvm.func @f() -> !llvm.ptr {
+llvm.func @__gxx_personality_v0(...) -> i32
+
+// CHECK-LABEL:   llvm.func @f(
+// CHECK-SAME:                 %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                 %[[VAL_1:.*]]: i64, %[[VAL_2:.*]]: i64, %[[VAL_3:.*]]: i64) -> i32 attributes {personality = @__gxx_personality_v0} {
+// CHECK-NEXT:      %[[VAL_4:.*]] = arith.constant 0 : i32
+// CHECK-NEXT:      %[[VAL_5:.*]] = sycl.host.get_kernel @device_functions::@foo : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::handler", (i64)>
+// CHECK-NEXT:      sycl.host.handler.set_kernel %[[VAL_0]] -> @device_functions::@foo : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.invoke @_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE10_M_replaceEmmPKcm(%[[VAL_6]], %[[VAL_1]], %[[VAL_2]], %[[VAL_5]], %[[VAL_3]]) to ^bb2 unwind ^bb1 {RaiseSetKernelVisited} : (!llvm.ptr, i64, i64, !llvm.ptr, i64) -> !llvm.ptr
+// CHECK-NEXT:    ^bb1:
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.landingpad cleanup : !llvm.struct<(ptr, i32)>
+// CHECK-NEXT:      llvm.resume %[[VAL_8]] : !llvm.struct<(ptr, i32)>
+// CHECK-NEXT:    ^bb2:
+// CHECK-NEXT:      llvm.return %[[VAL_4]] : i32
+// CHECK-NEXT:    }
+llvm.func @f(%handler: !llvm.ptr, %pos: i64, %count: i64, %count2: i64) -> i32 attributes {personality = @__gxx_personality_v0} {
   %kn = llvm.mlir.addressof @kernel_ref : !llvm.ptr
-  llvm.return %kn : !llvm.ptr
+  %gep = llvm.getelementptr inbounds %handler[0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::handler", (i64)>
+  %set = llvm.invoke @_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE10_M_replaceEmmPKcm(%gep, %pos, %count, %kn, %count2) to ^bb1 unwind ^bb0 : (!llvm.ptr, i64, i64, !llvm.ptr, i64) -> !llvm.ptr
+^bb0:
+  %lp = llvm.landingpad cleanup : !llvm.struct<(ptr, i32)>
+  llvm.resume %lp : !llvm.struct<(ptr, i32)>
+^bb1:
+  %c0 = arith.constant 0 : i32
+  llvm.return %c0 : i32
 }
 
 // -----

@@ -25,6 +25,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
 
+#include <type_traits>
+
 namespace mlir {
 namespace polygeist {
 #define GEN_PASS_DEF_SYCLRAISEHOSTCONSTRUCTS
@@ -51,6 +53,106 @@ public:
 //===----------------------------------------------------------------------===//
 // Pattern
 //===----------------------------------------------------------------------===//
+
+constexpr StringLiteral stdNamespace = "std";
+
+/// Class holding results of calling `llvm::ItaniumPartialDemangler` member
+/// functions.
+///
+/// Result is owned by this type.
+class DemangleResult {
+public:
+  template <typename FuncTy,
+            typename = std::enable_if_t<std::is_same_v<
+                char *, std::invoke_result_t<FuncTy, char *, std::size_t *>>>>
+  static FailureOr<DemangleResult> get(FuncTy f) {
+    char *buf = nullptr;
+    std::size_t size = 0;
+    buf = f(buf, &size);
+    if (!buf)
+      return failure();
+    return DemangleResult(buf, size);
+  }
+
+  explicit operator StringRef() const { return {buf.get(), size - 1}; }
+
+private:
+  DemangleResult(char *buf, std::size_t size) : buf(buf), size(size) {}
+
+  std::unique_ptr<char[]> buf;
+  std::size_t size;
+};
+
+/// Returns whether function \p demangled is a member of type \p targetType in
+/// namespace \p targetNamespace.
+static bool isMemberFunction(StringRef demangled, StringRef targetNamespace,
+                             StringRef targetType) {
+  // Check demangled == targetNamespace::...::targetType
+  constexpr StringLiteral namespaceQualifier = "::";
+  return demangled.consume_front(targetNamespace) &&
+         demangled.consume_front(namespaceQualifier) &&
+         demangled.consume_back(targetType) &&
+         demangled.ends_with(namespaceQualifier);
+}
+
+/// Returns whether the function demangled by \p demangler is a member of type
+/// \p targetType in namespace \p targetNamespace.
+static bool isMemberFunction(const llvm::ItaniumPartialDemangler &demangler,
+                             StringRef targetNamespace, StringRef targetType) {
+  FailureOr<DemangleResult> demangled =
+      DemangleResult::get([&](char *buf, std::size_t *size) {
+        return demangler.getFunctionDeclContextName(buf, size);
+      });
+  return succeeded(demangled) &&
+         isMemberFunction(static_cast<StringRef>(*demangled), targetNamespace,
+                          targetType);
+}
+
+/// Returns whether the name of the function demangled by \p demangler matches
+/// \p targetName.
+static bool functionNameMatches(const llvm::ItaniumPartialDemangler &demangler,
+                                StringRef targetName) {
+  FailureOr<DemangleResult> demangled =
+      DemangleResult::get([&](char *buf, std::size_t *size) {
+        return demangler.getFunctionBaseName(buf, size);
+      });
+  return succeeded(demangled) &&
+         static_cast<StringRef>(*demangled) == targetName;
+}
+
+/// Calls `partialDemangle` on \p demangler using the name of the function
+/// referenced by \p ref.
+static LogicalResult partialDemangle(llvm::ItaniumPartialDemangler &demangler,
+                                     SymbolRefAttr ref) {
+  StringRef mangledCalleeName = ref.getLeafReference();
+  return failure(demangler.partialDemangle(mangledCalleeName.data()));
+}
+
+/// Calls `partialDemangle` on \p demangler using the name of the function
+/// called by \p op.
+static LogicalResult partialDemangle(llvm::ItaniumPartialDemangler &demangler,
+                                     CallOpInterface op) {
+  // Get the callable
+  auto callable = dyn_cast<SymbolRefAttr>(op.getCallableForCallee());
+  return callable ? partialDemangle(demangler, callable) : failure();
+}
+
+template <typename T> static auto getUsersOfType(Value value) {
+  constexpr auto filter = [](const OpOperand &operand) -> bool {
+    return isa<T>(operand.getOwner());
+  };
+  constexpr auto map = [](const OpOperand &operand) -> T {
+    return cast<T>(operand.getOwner());
+  };
+  return llvm::map_range(llvm::make_filter_range(value.getUsers(), filter),
+                         map);
+}
+
+/// Returns whether \p type is an `llvm.struct` type with name \p className.
+static bool isClassType(Type type, StringRef className) {
+  auto st = dyn_cast<LLVM::LLVMStructType>(type);
+  return st && st.isIdentified() && st.getName() == className;
+}
 
 namespace {
 struct RaiseKernelName : public OpRewritePattern<LLVM::AddressOfOp> {
@@ -136,9 +238,7 @@ public:
 
     // Check whether the type allocated for the first argument ('this') matches
     // the expected type.
-    auto allocTy = *alloc.getElemType();
-    auto structAllocTy = dyn_cast<LLVM::LLVMStructType>(allocTy);
-    if (!structAllocTy || structAllocTy.getName() != TypeTag::getTypeName())
+    if (!isClassType(*alloc.getElemType(), TypeTag::getTypeName()))
       return failure();
 
     if (constructor.getNumResults())
@@ -175,14 +275,15 @@ private:
     if (!Demangler.isCtorOrDtor())
       return false;
 
-    char *demangled = Demangler.finishDemangle(nullptr, 0);
-    if (!demangled)
+    FailureOr<DemangleResult> demangled =
+        DemangleResult::get([&](char *buf, std::size_t *size) {
+          return Demangler.finishDemangle(buf, size);
+        });
+    if (failed(demangled))
       // Demangling failed
       return false;
 
-    llvm::StringRef demangledName{demangled};
-    bool isDestructor = demangledName.contains('~');
-    free(demangled);
+    bool isDestructor = static_cast<StringRef>(*demangled).contains('~');
     return !isDestructor;
   }
 };
@@ -484,6 +585,86 @@ struct RaiseRangeConstructor
       RangeTypeTag>::RaiseArrayConstructorBasePattern;
 };
 
+/// Raise constructs assigning a kernel name to a handler to
+/// `sycl.host.handler.set_kernel`.
+///
+/// This pattern acts on `FunctionOpInterface` instances as it will not be
+/// removing the operations assigning the kernel name, but creating additional
+/// ones to mark the construct.
+class RaiseSetKernel : public OpInterfaceRewritePattern<FunctionOpInterface> {
+public:
+  using OpInterfaceRewritePattern<
+      FunctionOpInterface>::OpInterfaceRewritePattern;
+
+  LogicalResult matchAndRewrite(FunctionOpInterface op,
+                                PatternRewriter &rewriter) const final {
+    llvm::ItaniumPartialDemangler demangler;
+    bool changed = false;
+    // Go through each `sycl.host.get_kernel` introduced
+    op.walk([&](sycl::SYCLHostGetKernelOp getKernel) {
+      SymbolRefAttr symbolRef = getKernel.getKernelNameAttr();
+      // `llvm.invoke` operations using that are candidates for this pattern
+      for (auto invoke : getUsersOfType<LLVM::InvokeOp>(getKernel)) {
+        // We mark already visited `llvm.invoke` operations to avoid infinite
+        // recursion
+        constexpr StringLiteral alreadyVisitedAttrName =
+            "RaiseSetKernelVisited";
+        if (invoke->hasAttr(alreadyVisitedAttrName))
+          continue;
+        invoke->setAttr(alreadyVisitedAttrName, rewriter.getAttr<UnitAttr>());
+
+        // Arity check
+        constexpr unsigned expectedArity = 5;
+        if (invoke.getNumOperands() != expectedArity)
+          continue;
+
+        // Check the 4th argument (input `str`) is defined by the
+        // `sycl.host.get_kernel` operation
+        constexpr unsigned inputStringArgumentNumber = 3;
+        if (invoke.getOperand(inputStringArgumentNumber) != getKernel)
+          continue;
+
+        // Check the first (this) argument is a pointer to a member of a
+        // `sycl::handler`
+        Value handler = getHandlerFromThisArg(invoke);
+        if (!handler)
+          continue;
+
+        // Search for `std::basic_string<...>::replace` calls
+        constexpr StringLiteral targetType =
+            "basic_string<char, std::char_traits<char>, std::allocator<char>>";
+        constexpr StringLiteral targetFunction = "_M_replace";
+        if (!(succeeded(partialDemangle(demangler, invoke)) &&
+              demangler.isFunction() &&
+              functionNameMatches(demangler, targetFunction) &&
+              isMemberFunction(demangler, stdNamespace, targetType)))
+          continue;
+
+        // Introduce operation marking this construct
+        rewriter.updateRootInPlace(op, [&] {
+          OpBuilder::InsertionGuard IG(rewriter);
+          rewriter.setInsertionPoint(invoke);
+          rewriter.create<sycl::SYCLHostHandlerSetKernel>(invoke.getLoc(),
+                                                          handler, symbolRef);
+        });
+        changed = true;
+      }
+    });
+
+    return success(changed);
+  }
+
+private:
+  /// Return the handler being accessed through the `this` argument of the input
+  /// `llvm.invoke` \p op.
+  static Value getHandlerFromThisArg(LLVM::InvokeOp op) {
+    auto gep = op.getOperand(0).getDefiningOp<LLVM::GEPOp>();
+    return gep && isClassType(gep.getSourceElementType(),
+                              "class.sycl::_V1::handler")
+               ? gep.getBase()
+               : Value();
+  }
+};
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -498,6 +679,11 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   rewritePatterns.add<RaiseKernelName, BufferInvokeConstructorPattern,
                       AccessorInvokeConstructorPattern, RaiseIDConstructor,
                       RaiseRangeConstructor>(context);
+
+  // RaiseKernelName should be prioritized, as RaiseSetKernel depends on that.
+  rewritePatterns.add<RaiseKernelName>(context, /*benefit=*/2);
+  rewritePatterns.add<RaiseSetKernel>(context, /*benefit=*/1);
+
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
   if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen)))
