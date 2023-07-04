@@ -2292,28 +2292,28 @@ pi_result piextCommandBufferCreate(pi_context context, pi_device device,
   (void)ret_command_buffer;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
   (void)command_buffer;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
   (void)command_buffer;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextCommandBufferFinalize(pi_ext_command_buffer command_buffer) {
   (void)command_buffer;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextCommandBufferNDRangeKernel(
@@ -2333,7 +2333,7 @@ pi_result piextCommandBufferNDRangeKernel(
   (void)sync_point;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result
@@ -2351,7 +2351,7 @@ piextCommandBufferMemcpyUSM(pi_ext_command_buffer command_buffer, void *dst_ptr,
   (void)sync_point;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextCommandBufferMemBufferCopy(
@@ -2371,7 +2371,7 @@ pi_result piextCommandBufferMemBufferCopy(
   (void)sync_point;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextCommandBufferMemBufferCopyRect(
@@ -2397,7 +2397,7 @@ pi_result piextCommandBufferMemBufferCopyRect(
   (void)sync_point;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextCommandBufferMemBufferRead(
@@ -2415,7 +2415,7 @@ pi_result piextCommandBufferMemBufferRead(
   (void)sync_point;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextCommandBufferMemBufferReadRect(
@@ -2441,7 +2441,7 @@ pi_result piextCommandBufferMemBufferReadRect(
   (void)sync_point;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextCommandBufferMemBufferWrite(
@@ -2459,7 +2459,7 @@ pi_result piextCommandBufferMemBufferWrite(
   (void)sync_point;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextCommandBufferMemBufferWriteRect(
@@ -2485,7 +2485,7 @@ pi_result piextCommandBufferMemBufferWriteRect(
   (void)sync_point;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
@@ -2500,7 +2500,7 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
   (void)event;
 
   // Not implemented
-  return {};
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
