@@ -2184,6 +2184,18 @@ void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   }
 }
 
+pi_mem_obj_access AccessModeToPi(access::mode AccessorMode) {
+  switch (AccessorMode) {
+  case access::mode::read:
+    return PI_ACCESS_READ_ONLY;
+  case access::mode::write:
+  case access::mode::discard_write:
+    return PI_ACCESS_WRITE_ONLY;
+  default:
+    return PI_ACCESS_READ_WRITE;
+  }
+}
+
 void SetArgBasedOnType(
     const PluginPtr &Plugin, sycl::detail::pi::PiKernel Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
@@ -2263,18 +2275,6 @@ void SetArgBasedOnType(
   case kernel_param_kind_t::kind_invalid:
     throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
     break;
-  }
-}
-
-pi_mem_obj_access AccessModeToPi(access::mode AccessorMode) {
-  switch (AccessorMode) {
-  case access::mode::read:
-    return PI_ACCESS_READ_ONLY;
-  case access::mode::write:
-  case access::mode::discard_write:
-    return PI_ACCESS_WRITE_ONLY;
-  default:
-    return PI_ACCESS_READ_WRITE;
   }
 }
 
@@ -2811,7 +2811,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     NDRDescT *CopyNDRDesc = new NDRDescT(HostTask->MNDRDesc);
 
     ArgsBlob[0] = (void *)CopyReqs;
-    ArgsBlob[1] = (void *)CopyHostKernel->get();
+    ArgsBlob[1] = (void *)CopyHostKernel;
     ArgsBlob[2] = (void *)CopyNDRDesc;
 
     void **NextArg = ArgsBlob.data() + 3;

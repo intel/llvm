@@ -1235,7 +1235,7 @@ void MemoryManager::copy_from_device_global(
 }
 
 // Command buffer methods
-void MemoryManager::ext_oneapi_copy_cmd_buffer(
+void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, SYCLMemObjI *SYCLMemObj,
     void *SrcMem, unsigned int DimSrc, sycl::range<3> SrcSize,
@@ -1246,6 +1246,7 @@ void MemoryManager::ext_oneapi_copy_cmd_buffer(
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+  (void)DstAccessRange;
 
   const PluginPtr &Plugin = Context->getPlugin();
 
