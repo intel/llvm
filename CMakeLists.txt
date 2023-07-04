@@ -85,7 +85,7 @@ if(UR_ENABLE_TRACING)
     add_compile_definitions(UR_ENABLE_TRACING)
 
     # fetch xpti proxy library for the tracing layer
-    FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "sycl-nightly/20230304" "xpti")
+    FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "sycl-nightly/20230703" "xpti")
     FetchContent_MakeAvailable(xpti)
 
     # set -fPIC for xpti since we are linking it with a shared library
