@@ -300,13 +300,10 @@ public:
   LogicalResult matchAndRewrite(LLVM::StoreOp op,
                                 PatternRewriter &rewriter) const final {
     // The 'this*' is the address to which the element stores are performed.
-    auto alloc = dyn_cast_or_null<LLVM::AllocaOp>(op.getAddr().getDefiningOp());
+    auto alloc = op.getAddr().getDefiningOp<LLVM::AllocaOp>();
 
-    if (!alloc)
+    if (!alloc || !alloc.getElemType().has_value())
       return failure();
-
-    assert(alloc.getElemType().has_value() &&
-           "Expecting element type attribute for opaque alloca");
 
     // Check whether the type allocated for address operand matches the expected
     // type.
@@ -321,8 +318,8 @@ public:
       // Failed to identify the number of dimensions/components
       return failure();
 
-    auto numComponents = (*arrayTyOrNone).getNumElements();
-    auto componentTy = (*arrayTyOrNone).getElementType();
+    auto numComponents = arrayTyOrNone->getNumElements();
+    auto componentTy = arrayTyOrNone->getElementType();
 
     llvm::SmallVector<Component, 3> components;
     if (!identifyComponents(alloc, op->getBlock(), components))
@@ -450,8 +447,8 @@ private:
       stores.insert(c.store);
 
     auto lastComponent =
-        std::find_if(block->rbegin(), block->rend(),
-                     [&](Operation &op) { return stores.contains(&op); });
+        llvm::find_if(llvm::reverse(*block),
+                      [&](Operation &op) { return stores.contains(&op); });
     assert(lastComponent != block->rend() &&
            "Expected to find at least one store in the block");
     return &*lastComponent;
