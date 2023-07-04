@@ -83,3 +83,123 @@ llvm.func @raise_accessor() -> !llvm.ptr attributes {personality = @__gxx_person
 ^bb1:
   llvm.return %1 : !llvm.ptr
 }
+
+
+// -----
+
+// CHECK-LABEL: !sycl_id_1_ = !sycl.id<[1], (i64)>
+// CHECK-LABEL: !sycl_id_2_ = !sycl.id<[2], (i64)>
+// CHECK-LABEL: !sycl_id_3_ = !sycl.id<[3], (i64)>
+
+// CHECK-LABEL:   llvm.func @raise_id_1() -> !llvm.ptr {
+// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
+// CHECK:           %[[VAL_1:.*]] = arith.constant 42 : i64
+// CHECK:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           sycl.host.constructor(%[[VAL_2]], %[[VAL_1]]) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+llvm.func @raise_id_1() -> !llvm.ptr {
+  %0 = arith.constant 1 : i32
+  %1 = arith.constant 42 : i64
+  %2 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  llvm.store %1, %2 {alignment = 8 : i64} : i64, !llvm.ptr
+  llvm.return %2 : !llvm.ptr
+}
+
+
+// CHECK-LABEL:   llvm.func @raise_id_2() -> !llvm.ptr {
+// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
+// CHECK:           %[[VAL_1:.*]] = arith.constant 42 : i64
+// CHECK:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           sycl.host.constructor(%[[VAL_2]], %[[VAL_1]], %[[VAL_1]]) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+llvm.func @raise_id_2() -> !llvm.ptr {
+  %0 = arith.constant 1 : i32
+  %1 = arith.constant 42 : i64
+  %2 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  llvm.store %1, %2 {alignment = 8 : i64} : i64, !llvm.ptr
+  %3 = llvm.getelementptr inbounds %2[8] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %1, %3 {alignment = 8 : i64} : i64, !llvm.ptr
+  llvm.return %2 : !llvm.ptr
+}
+
+
+// CHECK-LABEL:   llvm.func @raise_id_3() -> !llvm.ptr {
+// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
+// CHECK:           %[[VAL_1:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_2:.*]] = llvm.call @_Z6numberv() : () -> i64
+// CHECK:           %[[VAL_3:.*]] = llvm.call @_Z6numberv() : () -> i64
+// CHECK:           %[[VAL_4:.*]] = llvm.call @_Z6numberv() : () -> i64
+// CHECK:           sycl.host.constructor(%[[VAL_1]], %[[VAL_2]], %[[VAL_3]], %[[VAL_4]]) {type = !sycl_id_3_} : (!llvm.ptr, i64, i64, i64) -> ()
+llvm.func @raise_id_3() -> !llvm.ptr {
+  %0 = arith.constant 1 : i32
+  %1 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %2 = llvm.call @_Z6numberv() : () -> i64
+  %3 = llvm.call @_Z6numberv() : () -> i64
+  %4 = llvm.call @_Z6numberv() : () -> i64
+  llvm.store %2, %1 {alignment = 8 : i64} : i64, !llvm.ptr
+  %5 = llvm.getelementptr inbounds %1[8] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %3, %5 {alignment = 8 : i64} : i64, !llvm.ptr
+  %6 = llvm.getelementptr inbounds %1[16] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %4, %6 {alignment = 8 : i64} : i64, !llvm.ptr
+  llvm.return %1 : !llvm.ptr
+}
+
+llvm.func @_Z6numberv() -> (i64)
+
+
+// ----- 
+
+// CHECK-LABEL: !sycl_range_1_ = !sycl.range<[1], (i64)>
+// CHECK-LABEL: !sycl_range_2_ = !sycl.range<[2], (i64)>
+// CHECK-LABEL: !sycl_range_3_ = !sycl.range<[3], (i64)>
+
+// CHECK-LABEL:   llvm.func @raise_range_1() -> !llvm.ptr {
+// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
+// CHECK:           %[[VAL_1:.*]] = arith.constant 42 : i64
+// CHECK:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           sycl.host.constructor(%[[VAL_2]], %[[VAL_1]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+llvm.func @raise_range_1() -> !llvm.ptr {
+  %0 = arith.constant 1 : i32
+  %1 = arith.constant 42 : i64
+  %2 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  llvm.store %1, %2 {alignment = 8 : i64} : i64, !llvm.ptr
+  llvm.return %2 : !llvm.ptr
+}
+
+
+// CHECK-LABEL:   llvm.func @raise_range_2() -> !llvm.ptr {
+// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
+// CHECK:           %[[VAL_1:.*]] = arith.constant 42 : i64
+// CHECK:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           sycl.host.constructor(%[[VAL_2]], %[[VAL_1]], %[[VAL_1]]) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
+llvm.func @raise_range_2() -> !llvm.ptr {
+  %0 = arith.constant 1 : i32
+  %1 = arith.constant 42 : i64
+  %2 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  llvm.store %1, %2 {alignment = 8 : i64} : i64, !llvm.ptr
+  %3 = llvm.getelementptr inbounds %2[8] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %1, %3 {alignment = 8 : i64} : i64, !llvm.ptr
+  llvm.return %2 : !llvm.ptr
+}
+
+
+// CHECK-LABEL:   llvm.func @raise_range_3() -> !llvm.ptr {
+// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
+// CHECK:           %[[VAL_1:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::range.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_2:.*]] = llvm.call @_Z6numberv() : () -> i64
+// CHECK:           %[[VAL_3:.*]] = llvm.call @_Z6numberv() : () -> i64
+// CHECK:           %[[VAL_4:.*]] = llvm.call @_Z6numberv() : () -> i64
+// CHECK:           sycl.host.constructor(%[[VAL_1]], %[[VAL_2]], %[[VAL_3]], %[[VAL_4]]) {type = !sycl_range_3_} : (!llvm.ptr, i64, i64, i64) -> ()
+llvm.func @raise_range_3() -> !llvm.ptr {
+  %0 = arith.constant 1 : i32
+  %1 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::range.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %2 = llvm.call @_Z6numberv() : () -> i64
+  %3 = llvm.call @_Z6numberv() : () -> i64
+  %4 = llvm.call @_Z6numberv() : () -> i64
+  llvm.store %2, %1 {alignment = 8 : i64} : i64, !llvm.ptr
+  %5 = llvm.getelementptr inbounds %1[8] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %3, %5 {alignment = 8 : i64} : i64, !llvm.ptr
+  %6 = llvm.getelementptr inbounds %1[16] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %4, %6 {alignment = 8 : i64} : i64, !llvm.ptr
+  llvm.return %1 : !llvm.ptr
+}
+
+llvm.func @_Z6numberv() -> (i64)

@@ -291,6 +291,199 @@ struct AccessorInvokeConstructorPattern
       AccessorTypeTag>::RaiseInvokeConstructorBasePattern;
 };
 
+template <typename TypeTag>
+class RaiseArrayConstructorBasePattern
+    : public OpRewritePattern<LLVM::StoreOp> {
+public:
+  using OpRewritePattern<LLVM::StoreOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(LLVM::StoreOp op,
+                                PatternRewriter &rewriter) const final {
+    // The 'this*' is the address to which the element stores are performed.
+    auto alloc = op.getAddr().getDefiningOp<LLVM::AllocaOp>();
+
+    if (!alloc || !alloc.getElemType().has_value())
+      return failure();
+
+    // Check whether the type allocated for address operand matches the expected
+    // type.
+    auto allocTy = *alloc.getElemType();
+    auto structAllocTy = dyn_cast<LLVM::LLVMStructType>(allocTy);
+    if (!structAllocTy ||
+        !TypeTag::getTypeName().match(structAllocTy.getName()))
+      return failure();
+
+    auto arrayTyOrNone = getNumAndTypeOfComponents(structAllocTy);
+    if (!arrayTyOrNone)
+      // Failed to identify the number of dimensions/components
+      return failure();
+
+    auto numComponents = arrayTyOrNone->getNumElements();
+    auto componentTy = arrayTyOrNone->getElementType();
+
+    llvm::SmallVector<Component, 3> components;
+    if (!identifyComponents(alloc, op->getBlock(), components))
+      // Multiple stores to the same component.
+      return failure();
+
+    if (components.size() != numComponents)
+      // Expected number of components not matched
+      return failure();
+
+    llvm::sort(components, [](const Component &LHS, const Component &RHS) {
+      return LHS.byteOffset < RHS.byteOffset;
+    });
+
+    assert(componentTy.getIntOrFloatBitWidth());
+    auto componentWidth = componentTy.getIntOrFloatBitWidth() / 8;
+    llvm::SmallVector<Value, 3> values;
+    for (auto &c : components) {
+      if ((c.byteOffset / componentWidth) > numComponents)
+        // Store outside the expected number of components.
+        return failure();
+
+      values.push_back(c.store.getValue());
+    }
+
+    // Find the last of the stores in the block and insert the constructor after
+    // it.
+    auto *lastStore = findLastComponentInBlock(op->getBlock(), components);
+    rewriter.setInsertionPointAfter(lastStore);
+    rewriter.create<sycl::SYCLHostConstructorOp>(
+        op->getLoc(), alloc, values,
+        TypeAttr::get(
+            TypeTag::SYCLType::get(getContext(), numComponents, componentTy)));
+
+    llvm::for_each(components,
+                   [&](Component &c) { rewriter.eraseOp(c.store); });
+    return success();
+  }
+
+private:
+  std::optional<LLVM::LLVMArrayType>
+  getNumAndTypeOfComponents(LLVM::LLVMStructType structTy) const {
+    if (structTy.getBody().empty())
+      return std::nullopt;
+
+    auto detailType =
+        dyn_cast<LLVM::LLVMStructType>(structTy.getBody().front());
+    static llvm::Regex arrayRegex{"class.sycl::_V1::detail::array(\\.[0-9]+)?"};
+    if (!detailType || !arrayRegex.match(detailType.getName()) ||
+        detailType.getBody().empty())
+      return std::nullopt;
+
+    auto arrayType =
+        dyn_cast<LLVM::LLVMArrayType>(detailType.getBody().front());
+
+    return arrayType;
+  }
+
+  struct Component {
+
+    Component(size_t offset, LLVM::StoreOp storeOp)
+        : byteOffset{offset}, store{storeOp} {}
+    size_t byteOffset;
+    LLVM::StoreOp store;
+  };
+
+  bool identifyComponents(LLVM::AllocaOp alloc, Block *block,
+                          llvm::SmallVectorImpl<Component> &components) const {
+    for (auto *user : alloc->getUsers()) {
+      if (!user->getBlock() || user->getBlock() != block)
+        continue;
+
+      if (auto gep = dyn_cast<LLVM::GEPOp>(user)) {
+        if (!gep.getDynamicIndices().empty())
+          continue;
+
+        auto constantIndices = gep.getRawConstantIndices();
+        if (constantIndices.size() != 1)
+          continue;
+
+        assert(gep.getElemType().has_value() &&
+               "Expecting element type to be set");
+        auto byteWidth = gep.getElemType()->getIntOrFloatBitWidth() / 8;
+
+        if (byteWidth == 0)
+          continue;
+
+        for (auto *gepUser : gep->getUsers()) {
+          if (auto store = dyn_cast<LLVM::StoreOp>(gepUser);
+              store && store.getAddr() == gep) {
+            if (!insertComponent(components,
+                                 byteWidth * constantIndices.front(), store))
+              // Another component with the same offset already exists.
+              return false;
+          }
+        }
+      }
+
+      if (auto store = dyn_cast<LLVM::StoreOp>(user)) {
+        if (store.getAddr() == alloc)
+          if (!insertComponent(components, 0, store))
+            // Another component with the same offset already exists.
+            return false;
+      }
+    }
+    return true;
+  }
+
+  bool insertComponent(llvm::SmallVectorImpl<Component> &components,
+                       size_t offset, LLVM::StoreOp store) const {
+    if (llvm::any_of(components,
+                     [&](Component &c) { return c.byteOffset == offset; }))
+      // Another component with the same offset exists.
+      return false;
+
+    components.emplace_back(offset, store);
+    return true;
+  }
+
+  Operation *
+  findLastComponentInBlock(mlir::Block *block,
+                           llvm::ArrayRef<Component> components) const {
+    llvm::SmallPtrSet<Operation *, 3> stores;
+    for (const auto &c : components)
+      stores.insert(c.store);
+
+    auto lastComponent =
+        llvm::find_if(llvm::reverse(*block),
+                      [&](Operation &op) { return stores.contains(&op); });
+    assert(lastComponent != block->rend() &&
+           "Expected to find at least one store in the block");
+    return &*lastComponent;
+  }
+};
+
+struct IDTypeTag {
+  using SYCLType = mlir::sycl::IDType;
+
+  static llvm::Regex &getTypeName() {
+    static llvm::Regex regex{"class.sycl::_V1::id(\\.[0-9]+])?"};
+    return regex;
+  }
+};
+
+struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
+  using RaiseArrayConstructorBasePattern<
+      IDTypeTag>::RaiseArrayConstructorBasePattern;
+};
+
+struct RangeTypeTag {
+  using SYCLType = mlir::sycl::RangeType;
+
+  static llvm::Regex &getTypeName() {
+    static llvm::Regex regex{"class.sycl::_V1::range(\\.[0-9]+])?"};
+    return regex;
+  }
+};
+
+struct RaiseRangeConstructor
+    : public RaiseArrayConstructorBasePattern<RangeTypeTag> {
+  using RaiseArrayConstructorBasePattern<
+      RangeTypeTag>::RaiseArrayConstructorBasePattern;
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -303,7 +496,8 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
 
   RewritePatternSet rewritePatterns{context};
   rewritePatterns.add<RaiseKernelName, BufferInvokeConstructorPattern,
-                      AccessorInvokeConstructorPattern>(context);
+                      AccessorInvokeConstructorPattern, RaiseIDConstructor,
+                      RaiseRangeConstructor>(context);
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
   if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen)))
