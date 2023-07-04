@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 7e16bb37cbb12450637e595749c3617151cbe851)
+  set(UNIFIED_RUNTIME_TAG c7b0caf4e3ce5330bd0669db6e8e498b48e8ad27)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -86,6 +86,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_interface_loader.cpp"
+    "ur/adapters/level_zero/command_buffer.hpp"
     "ur/adapters/level_zero/common.hpp"
     "ur/adapters/level_zero/context.hpp"
     "ur/adapters/level_zero/device.hpp"
@@ -97,6 +98,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/queue.hpp"
     "ur/adapters/level_zero/sampler.hpp"
     "ur/adapters/level_zero/usm.hpp"
+    "ur/adapters/level_zero/command_buffer.cpp"
     "ur/adapters/level_zero/common.cpp"
     "ur/adapters/level_zero/context.cpp"
     "ur/adapters/level_zero/device.cpp"
@@ -154,6 +156,8 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/tracing.cpp"
       "ur/adapters/cuda/ur_interface_loader.cpp"
       "ur/adapters/cuda/usm.cpp"
+      "ur/adapters/cuda/command_buffer.hpp"
+      "ur/adapters/cuda/command_buffer.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES

@@ -1181,6 +1181,44 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t _ur_ze_event_list_t::insert(_ur_ze_event_list_t &Other) {
+  if (this != &Other) {
+    // save of the previous object values
+    uint32_t PreLength = this->Length;
+    ze_event_handle_t *PreZeEventList = this->ZeEventList;
+    ur_event_handle_t *PreUrEventList = this->UrEventList;
+
+    // allocate new memory
+    uint32_t Length = PreLength + Other.Length;
+    this->ZeEventList = new ze_event_handle_t[Length];
+    this->UrEventList = new ur_event_handle_t[Length];
+
+    // copy elements
+    uint32_t TmpListLength = 0;
+    for (uint32_t I = 0; I < PreLength; I++) {
+      this->ZeEventList[TmpListLength] = std::move(PreZeEventList[I]);
+      this->UrEventList[TmpListLength] = std::move(PreUrEventList[I]);
+      TmpListLength += 1;
+    }
+    for (uint32_t I = 0; I < Other.Length; I++) {
+      this->ZeEventList[TmpListLength] = std::move(Other.ZeEventList[I]);
+      this->UrEventList[TmpListLength] = std::move(Other.UrEventList[I]);
+      TmpListLength += 1;
+    }
+    this->Length = TmpListLength;
+
+    // Free previous allocated memory
+    delete[] PreZeEventList;
+    delete[] PreUrEventList;
+    delete[] Other.ZeEventList;
+    delete[] Other.UrEventList;
+    Other.ZeEventList = nullptr;
+    Other.UrEventList = nullptr;
+    Other.Length = 0;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t _ur_ze_event_list_t::collectEventsForReleaseAndDestroyPiZeEventList(
     std::list<ur_event_handle_t> &EventsToBeReleased) {
   // acquire a lock before reading the length and list fields.
