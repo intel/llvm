@@ -290,7 +290,7 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNode(
 
   sycl::detail::EventImplPtr Event =
       sycl::detail::Scheduler::getInstance().addCG(
-          std::move(Node->getCGCopy()), AllocaQueue, CommandBuffer, Deps);
+          Node->getCGCopy(), AllocaQueue, CommandBuffer, Deps);
 
   return Event->getSyncPoint();
 }
@@ -444,8 +444,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       } else {
 
         sycl::detail::EventImplPtr EventImpl =
-            sycl::detail::Scheduler::getInstance().addCG(
-                std::move(NodeImpl->getCGCopy()), Queue);
+            sycl::detail::Scheduler::getInstance().addCG(NodeImpl->getCGCopy(),
+                                                         Queue);
 
         ScheduledEvents.push_back(EventImpl);
       }
