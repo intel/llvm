@@ -131,6 +131,12 @@ public:
   std::vector<AccessorImplHost *> &getRequirements() { return MData.MRequirements; }
   std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
 
+  virtual std::vector<std::shared_ptr<const void>>
+  getAuxiliaryResources() const {
+    return {};
+  }
+  virtual void clearAuxiliaryResources(){};
+
   virtual ~CG() = default;
 
 private:
@@ -186,9 +192,11 @@ public:
     return MStreams;
   }
 
-  std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const {
+  std::vector<std::shared_ptr<const void>>
+  getAuxiliaryResources() const override {
     return MAuxiliaryResources;
   }
+  void clearAuxiliaryResources() override { MAuxiliaryResources.clear(); }
 
   std::shared_ptr<detail::kernel_bundle_impl> getKernelBundle() {
     return MKernelBundle;
@@ -197,21 +205,28 @@ public:
   void clearStreams() { MStreams.clear(); }
   bool hasStreams() { return !MStreams.empty(); }
 
-  void clearAuxiliaryResources() { MAuxiliaryResources.clear(); }
-  bool hasAuxiliaryResources() { return !MAuxiliaryResources.empty(); }
 };
 
 /// "Copy memory" command group class.
 class CGCopy : public CG {
   void *MSrc;
   void *MDst;
+  std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
 
 public:
   CGCopy(CGTYPE CopyType, void *Src, void *Dst, CG::StorageInitHelper CGData,
+         std::vector<std::shared_ptr<const void>> AuxiliaryResources,
          detail::code_location loc = {})
-      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst) {}
+      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
+        MAuxiliaryResources{AuxiliaryResources} {}
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
+
+  std::vector<std::shared_ptr<const void>>
+  getAuxiliaryResources() const override {
+    return MAuxiliaryResources;
+  }
+  void clearAuxiliaryResources() override { MAuxiliaryResources.clear(); }
 };
 
 /// "Fill memory" command group class.
