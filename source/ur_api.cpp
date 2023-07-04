@@ -2161,7 +2161,7 @@ ur_result_t UR_APICALL urProgramCreateWithBinary(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point, the program passed
+///     - Following a successful call to this entry point, the program passed
 ///       will contain a binary of the ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type
 ///       for each device in `hContext`.
 ///
@@ -2196,9 +2196,9 @@ ur_result_t UR_APICALL urProgramBuild(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point `hProgram` will contain
-///       a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type for each
-///       device in `hContext`.
+///     - Following a successful call to this entry point `hProgram` will
+///       contain a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type
+///       for each device in `hContext`.
 ///
 /// @remarks
 ///   _Analogues_
@@ -2232,8 +2232,8 @@ ur_result_t UR_APICALL urProgramCompile(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point the program returned in
-///       `phProgram` will contain a binary of the
+///     - Following a successful call to this entry point the program returned
+///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `hContext`.
 ///
