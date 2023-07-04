@@ -297,19 +297,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
   // Populate descriptor
   CUDA_ARRAY3D_DESCRIPTOR array_desc = {};
 
-  RetErr = urCalculateNumChannels(pImageFormat->channelOrder,
-                                  &array_desc.NumChannels);
-  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
-    sycl::detail::ur::die("urBindlessImagesImageAllocateExp given "
-                          "unsupported channelType");
-  }
+  RetErr = UR_CHECK_ERROR(urCalculateNumChannels(pImageFormat->channelOrder,
+                                                 &array_desc.NumChannels));
 
-  RetErr = urToCudaImageChannelFormat(pImageFormat->channelType,
-                                      &array_desc.Format, nullptr);
-  if (RetErr == UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
-    sycl::detail::ur::die("urBindlessImagesImageAllocateExp given "
-                          "unsupported channelType");
-  }
+  RetErr = UR_CHECK_ERROR(urToCudaImageChannelFormat(
+      pImageFormat->channelType, &array_desc.Format, nullptr));
 
   array_desc.Flags = 0; // No flags required
   array_desc.Width = pImageDesc->width;
@@ -401,18 +393,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
   ur_result_t RetErr = UR_RESULT_SUCCESS;
 
   unsigned int NumChannels = 0;
-  RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
-  if (RetErr != UR_RESULT_SUCCESS) {
-    return RetErr;
-  }
+  RetErr = UR_CHECK_ERROR(
+      urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   CUarray_format format;
   size_t PixelTypeSizeBytes;
-  RetErr = urToCudaImageChannelFormat(pImageFormat->channelType, &format,
-                                      &PixelTypeSizeBytes);
-  if (RetErr != UR_RESULT_SUCCESS) {
-    return RetErr;
-  }
+  RetErr = UR_CHECK_ERROR(urToCudaImageChannelFormat(
+      pImageFormat->channelType, &format, &PixelTypeSizeBytes));
 
   try {
 
@@ -467,18 +454,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
   ScopedContext Active(hDevice->getContext());
 
   unsigned int NumChannels = 0;
-  RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
-  if (RetErr != UR_RESULT_SUCCESS) {
-    return RetErr;
-  }
+  RetErr = UR_CHECK_ERROR(
+      urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   CUarray_format format;
   size_t PixelTypeSizeBytes;
-  RetErr = urToCudaImageChannelFormat(pImageFormat->channelType, &format,
-                                      &PixelTypeSizeBytes);
-  if (RetErr != UR_RESULT_SUCCESS) {
-    return RetErr;
-  }
+  RetErr = UR_CHECK_ERROR(urToCudaImageChannelFormat(
+      pImageFormat->channelType, &format, &PixelTypeSizeBytes));
 
   try {
     CUDA_RESOURCE_DESC image_res_desc = {};
@@ -519,12 +501,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         image_res_desc.res.pitch2D.height = pImageDesc->height;
         image_res_desc.res.pitch2D.pitchInBytes = pImageDesc->rowPitch;
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
-        sycl::detail::ur::die("urBindlessImagesSampledImageCreateExp cannot "
-                              "create 3D image from USM");
+        // Cannot create 3D image from USM.
+        return UR_RESULT_ERROR_INVALID_VALUE;
       }
     } else {
-      sycl::detail::ur::die(
-          "urBindlessImagesSampledImageCreateExp unknown image memory type");
+      // Unknown image memory type.
+      return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
     RetErr = urTextureCreate(hContext, hSampler, pImageDesc, image_res_desc,
@@ -560,24 +542,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT((imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
+             imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST ||
+             imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
   ur_result_t RetErr = UR_RESULT_SUCCESS;
 
   unsigned int NumChannels = 0;
   size_t PixelTypeSizeBytes = 0;
 
-  RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
-  if (RetErr != UR_RESULT_SUCCESS) {
-    return RetErr;
-  }
+  RetErr = UR_CHECK_ERROR(
+      urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   // We need to get this now in bytes for calculating the total image size
   // later.
-  RetErr = urToCudaImageChannelFormat(pImageFormat->channelType, nullptr,
-                                      &PixelTypeSizeBytes);
-  if (RetErr != UR_RESULT_SUCCESS) {
-    return RetErr;
-  }
+  RetErr = UR_CHECK_ERROR(urToCudaImageChannelFormat(
+      pImageFormat->channelType, nullptr, &PixelTypeSizeBytes));
 
   size_t PixelSizeBytes = PixelTypeSizeBytes * NumChannels;
 
@@ -681,13 +662,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.Depth = copyExtent.depth;
         RetErr = UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
       }
-    } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) {
-      /// TODO: implemet device to device copy
     } else {
-      sycl::detail::ur::die("urBindlessImagesImageCopyExp given unsupported "
-                            "image copy imageCopyFlags");
+      /// imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE
+      /// TODO: implemet device to device copy
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
-
     if (phEvent) {
       auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
                                                      hQueue, Stream);
@@ -861,17 +840,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
   ur_result_t RetErr = UR_RESULT_SUCCESS;
 
   unsigned int NumChannels = 0;
-  RetErr = urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels);
-  if (RetErr != UR_RESULT_SUCCESS) {
-    return RetErr;
-  }
+  RetErr = UR_CHECK_ERROR(
+      urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   CUarray_format format;
-  RetErr =
-      urToCudaImageChannelFormat(pImageFormat->channelType, &format, nullptr);
-  if (RetErr != UR_RESULT_SUCCESS) {
-    return RetErr;
-  }
+  RetErr = UR_CHECK_ERROR(
+      urToCudaImageChannelFormat(pImageFormat->channelType, &format, nullptr));
 
   try {
     ScopedContext Active(hDevice->getContext());
