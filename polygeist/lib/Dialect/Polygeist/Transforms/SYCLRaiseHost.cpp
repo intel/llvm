@@ -238,9 +238,7 @@ public:
 
     // Check whether the type allocated for the first argument ('this') matches
     // the expected type.
-    auto allocTy = *alloc.getElemType();
-    auto structAllocTy = dyn_cast<LLVM::LLVMStructType>(allocTy);
-    if (!structAllocTy || structAllocTy.getName() != TypeTag::getTypeName())
+    if (!isClassType(*alloc.getElemType(), TypeTag::getTypeName()))
       return failure();
 
     if (constructor.getNumResults())
