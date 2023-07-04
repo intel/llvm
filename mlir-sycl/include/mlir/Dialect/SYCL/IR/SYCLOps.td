@@ -597,6 +597,38 @@ def SYCLRangeConstructorOp : SYCLConstructor<"range"> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// nd_range.constructor OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDRangeConstructorOp : SYCLConstructor<"nd_range"> {
+  let summary = "Operation returning a new sycl.nd_range value";
+  let description = [{
+    This operation creates a new `sycl.nd_range`. The following signatures are
+    provided:
+    ```mlir
+    # Initialize each member
+    (memref<?xsycl_range_N>, memref<?xsycl_range_N>) -> memref<1x!sycl_nd_range_N>
+    (memref<?xsycl_range_N>, memref<?xsycl_range_N>, memref<?xsycl_id_N>) -> memref<1x!sycl_nd_range_N>
+    # Copy constructor
+    (memref<?xsycl_nd_range_N>) -> memref<1x!sycl_nd_range_N>
+    ```
+    In addition of initializing the values, this operation also allocates the
+    object.
+  }];
+  let arguments = (ins Arg<Variadic<AnyType>, "Constructor arguments">:$Args);
+  let results =
+      (outs Res<MemRefRankOf<[SYCL_NdRangeType], [1]>, "constructed object">:$NDRange);
+  let extraClassDeclaration = [{
+    /// Return the memory effects associated to each argument.
+    ///
+    /// Each argument will have `MemoryEffects::Read`.
+    void getEffects(::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<
+                        ::mlir::MemoryEffects::Effect>> &effects);
+  }];
+  let hasVerifier = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // nd_range.get_global_range OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
