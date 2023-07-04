@@ -97,6 +97,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_queue.hpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.hpp"
     "ur/adapters/level_zero/ur_level_zero_usm.hpp"
+    "ur/adapters/level_zero/ur_level_zero_command_buffer.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_level_zero_common.cpp"
     "ur/adapters/level_zero/ur_level_zero_context.cpp"
@@ -109,6 +110,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_queue.cpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
     "ur/adapters/level_zero/ur_level_zero_usm.cpp"
+    "ur/adapters/level_zero/ur_level_zero_command_buffer.cpp"
   INCLUDE_DIRS
     ${sycl_inc_dir}
   LIBRARIES
@@ -157,6 +159,8 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/tracing.cpp"
       "ur/adapters/cuda/ur_interface_loader.cpp"
       "ur/adapters/cuda/usm.cpp"
+      "ur/adapters/cuda/command_buffer.hpp"
+      "ur/adapters/cuda/command_buffer.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES
