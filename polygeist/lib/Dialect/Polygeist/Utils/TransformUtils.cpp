@@ -254,6 +254,9 @@ Value polygeist::getCondition(Operation *op) {
   return TypeSwitch<Operation *, Value>(op)
       .Case<arith::SelectOp, LLVM::SelectOp, cf::CondBranchOp, LLVM::CondBrOp,
             scf::IfOp>([](auto branchOp) { return branchOp.getCondition(); })
+      // FIXME: condition in affine dialect is IntegerSetAttr not Value.
+      .Case<affine::AffineIfOp, affine::AffineForOp>(
+          [](auto) { return Value(); })
       .Default([](auto *op) {
         llvm::errs() << "op: " << *op << "\n";
         llvm_unreachable("Unhandled operation");

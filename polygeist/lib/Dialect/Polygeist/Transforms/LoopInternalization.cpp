@@ -62,6 +62,7 @@
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
+#include "mlir/Dialect/Polygeist/Analysis/UniformityAnalysis.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
@@ -222,8 +223,6 @@ bool isCandidateKernel(gpu::GPUFuncOp kernel) {
   return none_of(kernel.getArguments(), [](Value arg) {
     return isLocalAccessAddrSpace(arg.getType());
   });
-
-  // TODO: check uniformity.
 }
 
 /// A function is a candidate iff we can get the grid dimension.
@@ -234,7 +233,7 @@ bool isCandidateFunction(FunctionOpInterface func) {
 
 /// A loop nest is a candidate iff is perfect and contains only affine or scf
 /// for loops.
-bool isCandidateLoopNest(LoopLikeOpInterface loop) {
+bool isCandidateLoopNest(LoopLikeOpInterface loop, DataFlowSolver &solver) {
   if (!LoopTools::isOutermostLoop(loop))
     return false;
 
@@ -253,11 +252,20 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
       "Expecting single induction variable for affine for and scf for loops");
 
   // Cannot tile loop that yield values.
-  if (Operation *innermostLoopOp = *innermostLoop;
-      innermostLoopOp->getNumResults() > 0)
+  Operation *innermostLoopOp = *innermostLoop;
+  if (innermostLoopOp->getNumResults() > 0)
     return false;
 
-  return true;
+  // As the transformation inserts barriers, it requires uniform innermost loop.
+  Operation &loopFirstOp = innermostLoop->getLoopBody().front().front();
+  if (loopFirstOp.getNumResults() != 1)
+    return false;
+  const UniformityLattice *uniformity =
+      solver.lookupState<UniformityLattice>(loopFirstOp.getResult(0));
+  assert(uniformity && "expected uniformity information");
+  assert(!uniformity->getValue().isUninitialized() &&
+         "lattice element should be initialized");
+  return uniformity->getValue().isUniform();
 }
 
 /// An access is a candidate iff it is AffineLoadOp or AffineStoreOp, with int
@@ -1060,6 +1068,7 @@ void LoopInternalization::runOnOperation() {
   solver.load<dataflow::SparseConstantPropagation>();
   solver.load<dataflow::IntegerRangeAnalysis>();
   solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
+  solver.load<UniformityAnalysis>(aliasAnalysis);
   if (failed(solver.initializeAndRun(gpuModule))) {
     LLVM_DEBUG(llvm::dbgs()
                << DEBUG_TYPE ": Unable to run required dataflow analysis\n");
@@ -1099,7 +1108,7 @@ void LoopInternalization::runOnOperation() {
     // Select the ideal memory space for memref accesses in candidate loops
     // contained by this function.
     func->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
-      if (!isCandidateLoopNest(loop))
+      if (!isCandidateLoopNest(loop, solver))
         return;
 
       LLVM_DEBUG(llvm::dbgs()

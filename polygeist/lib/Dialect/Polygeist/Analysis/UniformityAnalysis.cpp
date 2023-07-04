@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -352,7 +353,9 @@ SetVector<Value> UniformityAnalysis::collectBranchConditions(
         getParentsOfType<RegionBranchOpInterface>(
             *mod.getOperation()->getBlock());
     for (RegionBranchOpInterface branchOp : enclosingBranches)
-      conditions.insert(getCondition(branchOp));
+      // FIXME: Remove the if statement when getCondition is fixed.
+      if (getCondition(branchOp))
+        conditions.insert(getCondition(branchOp));
   }
 
   LLVM_DEBUG({
@@ -417,7 +420,8 @@ bool UniformityAnalysis::anyModifierUniformityIs(
     return TypeSwitch<Operation *, bool>(def.getOperation())
         .Case<memref::AllocaOp>(
             [&](auto) { return Uniformity::isUniform(kind); })
-        .Case<memref::StoreOp, affine::AffineStoreOp>([&](auto storeOp) {
+        .Case<memref::StoreOp, affine::AffineStoreOp, sycl::SYCLConstructorOp,
+              sycl::SYCLIDConstructorOp>([&](auto storeOp) {
           return anyOfUniformityIs(storeOp.getOperands(), kind);
         })
         .Default([](auto *op) {
