@@ -6,6 +6,7 @@
 add_conformance_test(platform
     urInit.cpp
     urPlatformGet.cpp
+    urPlatformGetApiVersion.cpp
     urPlatformGetBackendOption.cpp
     urPlatformGetInfo.cpp
     urTearDown.cpp)
