@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_command_buffer.hpp - Level Zero Adapter -===//
+//===--------- command_buffer.hpp - Level Zero Adapter ---------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,10 +12,10 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "ur_level_zero_common.hpp"
+#include "common.hpp"
 
-#include "ur_level_zero_context.hpp"
-#include "ur_level_zero_queue.hpp"
+#include "context.hpp"
+#include "queue.hpp"
 
 struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   ur_exp_command_buffer_handle_t_(ur_context_handle_t Context,

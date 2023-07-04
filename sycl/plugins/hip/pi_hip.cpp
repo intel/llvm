@@ -5641,6 +5641,7 @@ pi_result hip_piextCommandBufferNDRangeKernel(
   (void)local_work_size;
   (void)num_sync_points_in_wait_list;
   (void)sync_point_wait_list;
+  (void)sync_point;
 
   sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
   return {};
@@ -5700,6 +5701,8 @@ pi_result hip_piextCommandBufferMemBufferCopyRect(
   (void)region;
   (void)src_row_pitch;
   (void)src_slice_pitch;
+  (void)dst_row_pitch;
+  (void)dst_slice_pitch;
   (void)num_sync_points_in_wait_list;
   (void)sync_point_wait_list;
   (void)sync_point;
