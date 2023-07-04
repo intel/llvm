@@ -160,7 +160,7 @@ etors:
       desc: "[uint32_t] Return SubGroup size required by Intel"
 --- #--------------------------------------------------------------------------
 type: enum
-desc: "Kernel Cache Configuartion."
+desc: "Kernel Cache Configuration."
 class: $xKernel
 name: $x_kernel_cache_config_t
 etors:

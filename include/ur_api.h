@@ -165,7 +165,7 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_DEVICE_LOST = 20,                                         ///< Device hung, reset, was removed, or adapter update occurred
     UR_RESULT_ERROR_DEVICE_REQUIRES_RESET = 21,                               ///< Device requires a reset
     UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE = 22,                           ///< Device currently in low power state
-    UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 23,                             ///< Device paritioning failed
+    UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 23,                             ///< Device partitioning failed
     UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT = 24,                      ///< Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
     UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE = 25,                              ///< Invalid work item size
     UR_RESULT_ERROR_INVALID_WORK_DIMENSION = 26,                              ///< Invalid work dimension
@@ -3469,7 +3469,7 @@ urProgramCreateWithBinary(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point, the program passed
+///     - Following a successful call to this entry point, the program passed
 ///       will contain a binary of the ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type
 ///       for each device in `hContext`.
 ///
@@ -3501,9 +3501,9 @@ urProgramBuild(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point `hProgram` will contain
-///       a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type for each
-///       device in `hContext`.
+///     - Following a successful call to this entry point `hProgram` will
+///       contain a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type
+///       for each device in `hContext`.
 ///
 /// @remarks
 ///   _Analogues_
@@ -3533,8 +3533,8 @@ urProgramCompile(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point the program returned in
-///       `phProgram` will contain a binary of the
+///     - Following a successful call to this entry point the program returned
+///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `hContext`.
 ///
@@ -4054,7 +4054,7 @@ typedef enum ur_kernel_sub_group_info_t {
 } ur_kernel_sub_group_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Kernel Cache Configuartion.
+/// @brief Kernel Cache Configuration.
 typedef enum ur_kernel_cache_config_t {
     UR_KERNEL_CACHE_CONFIG_DEFAULT = 0,    ///< No preference for SLM or data cache.
     UR_KERNEL_CACHE_CONFIG_LARGE_SLM = 1,  ///< Large Shared Local Memory (SLM) size.
