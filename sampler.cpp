@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_sampler.cpp - Level Zero Adapter ---------===//
+//===--------- sampler.cpp - Level Zero Adapter ----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include "ur_level_zero_sampler.hpp"
+#include "sampler.hpp"
 #include "ur_level_zero.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(

@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_command_buffer.cpp - Level Zero Adapter -===//
+//===--------- command_buffer.cpp - Level Zero Adapter ---------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include "ur_level_zero_command_buffer.hpp"
+#include "command_buffer.hpp"
 #include "ur_level_zero.hpp"
 
 /* Command-buffer Extension

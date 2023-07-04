@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_event.cpp - Level Zero Adapter -----------===//
+//===--------- event.cpp - Level Zero Adapter ------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,9 +11,9 @@
 #include <mutex>
 #include <string.h>
 
+#include "common.hpp"
+#include "event.hpp"
 #include "ur_level_zero.hpp"
-#include "ur_level_zero_common.hpp"
-#include "ur_level_zero_event.hpp"
 
 void printZeEventList(const _ur_ze_event_list_t &UrZeEventList) {
   urPrint("  NumEventsInWaitList %d:", UrZeEventList.Length);
