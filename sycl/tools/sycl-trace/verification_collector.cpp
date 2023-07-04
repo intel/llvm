@@ -33,6 +33,9 @@ void vPrintersInit() {
 
   auto &GS = USMAnalyzer::getInstance();
   GS.setupUSMHandlers();
+  // this environment variable is for proper testing only
+  GS.changeTerminationOnErrorState(
+      std::getenv("SYCL_TRACE_TERMINATE_ON_WARNING"));
 }
 
 void vPrintersFinish() {}

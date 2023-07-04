@@ -40,7 +40,8 @@ private:
   // piextUSMGetMemAllocInfo - could be more robust
   static void CheckPointerValidness(std::string ParameterDesc, const void *Ptr,
                                     size_t size, std::string FunctionName) {
-    void *PtrToValidate = *(void **)(const_cast<void *>(Ptr));
+    void *PtrToValidate = (const_cast<void *>(Ptr));
+
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();
     auto &OutStream = GS.getOutStream();
@@ -51,7 +52,7 @@ private:
       OutStream << PrintIndentation << FunctionName << " location: ";
       OutStream << " function " << GS.LastTracepoint.Function << " at ";
       OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
-                << "\n";
+                << std::endl;
       if (GS.TerminateOnError)
         std::terminate();
       return;
@@ -78,7 +79,7 @@ private:
           OutStream << PrintIndentation << FunctionName << " location: ";
           OutStream << " function " << GS.LastTracepoint.Function << " at ";
           OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
-                    << "\n";
+                    << std::endl;
           if (GS.TerminateOnError)
             std::terminate();
         }
@@ -95,7 +96,7 @@ private:
       OutStream << PrintIndentation << FunctionName << " location: ";
       OutStream << " function " << GS.LastTracepoint.Function << " at ";
       OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
-                << "\n";
+                << std::endl;
       if (GS.TerminateOnError)
         std::terminate();
     }
@@ -116,7 +117,7 @@ private:
       OutStream << PrintIndentation << FunctionName << " location: ";
       OutStream << " function " << GS.LastTracepoint.Function << " at ";
       OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
-                << "\n";
+                << std::endl;
       if (GS.TerminateOnError)
         std::terminate();
       return;
@@ -129,7 +130,7 @@ private:
       OutStream << PrintIndentation << FunctionName << " location: ";
       OutStream << " function " << GS.LastTracepoint.Function << " at ";
       OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
-                << "\n";
+                << std::endl;
       if (GS.TerminateOnError)
         std::terminate();
       return;
@@ -155,7 +156,7 @@ private:
           OutStream << PrintIndentation << FunctionName << " location: ";
           OutStream << " function " << GS.LastTracepoint.Function << " at ";
           OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
-                    << "\n";
+                    << std::endl;
           if (GS.TerminateOnError)
             std::terminate();
         }
@@ -171,7 +172,7 @@ private:
       OutStream << PrintIndentation << FunctionName << " location: ";
       OutStream << " function " << GS.LastTracepoint.Function << " at ";
       OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
-                << "\n";
+                << std::endl;
       if (GS.TerminateOnError)
         std::terminate();
     }
@@ -417,9 +418,11 @@ public:
                                         size_t arg_size,
                                         const void *arg_value) {
     // no clarity how to handle complex types so check only simple pointers here
-    if (arg_size == sizeof(arg_value))
+    if (arg_size == sizeof(arg_value)) {
+      void *Ptr = *(void **)(const_cast<void *>(arg_value));
       CheckPointerValidness(
-          "kernel parameter with index = " + std::to_string(arg_index),
-          arg_value, 0 /*no data how it will be used in kernel*/, "kernel");
+          "kernel parameter with index = " + std::to_string(arg_index), Ptr,
+          0 /*no data how it will be used in kernel*/, "kernel");
+    }
   }
 };
