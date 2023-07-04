@@ -29,7 +29,7 @@ public:
       : CuDevice(cuDevice), CuContext(cuContext), EvBase(evBase), RefCount{1},
         Platform(platform) {}
 
-  ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
+  ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
 
   native_type get() const noexcept { return CuDevice; };
 
