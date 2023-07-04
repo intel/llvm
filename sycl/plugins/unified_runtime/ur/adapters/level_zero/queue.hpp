@@ -21,8 +21,8 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "ur_level_zero_common.hpp"
-#include "ur_level_zero_device.hpp"
+#include "common.hpp"
+#include "device.hpp"
 
 extern "C" {
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue);

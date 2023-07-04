@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_device.hpp - Level Zero Adapter ----------===//
+//===--------- device.hpp - Level Zero Adapter -----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,7 +20,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "ur_level_zero_common.hpp"
+#include "common.hpp"
 
 enum EventsScope {
   // All events are created host-visible.
