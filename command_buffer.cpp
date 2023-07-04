@@ -127,6 +127,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
   (void)dstOrigin;
   (void)region;
   (void)srcRowPitch;
+  (void)srcSlicePitch;
+  (void)dstRowPitch;
+  (void)dstSlicePitch;
   (void)numSyncPointsInWaitList;
   (void)pSyncPointWaitList;
   (void)pSyncPoint;
