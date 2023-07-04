@@ -347,7 +347,10 @@ public:
       values.push_back(c.store.getValue());
     }
 
-    rewriter.setInsertionPointAfter(components.back().store);
+    // Find the last of the stores in the block and insert the constructor after
+    // it.
+    auto *lastStore = findLastComponentInBlock(op->getBlock(), components);
+    rewriter.setInsertionPointAfter(lastStore);
     rewriter.create<sycl::SYCLHostConstructorOp>(
         op->getLoc(), alloc, values,
         TypeAttr::get(
@@ -436,6 +439,21 @@ private:
 
     components.emplace_back(offset, store);
     return true;
+  }
+
+  Operation *
+  findLastComponentInBlock(mlir::Block *block,
+                           llvm::ArrayRef<Component> components) const {
+    llvm::SmallPtrSet<Operation *, 3> stores;
+    for (const auto &c : components) {
+      stores.insert(c.store);
+    }
+    auto lastComponent =
+        std::find_if(block->rbegin(), block->rend(),
+                     [&](Operation &op) { return stores.contains(&op); });
+    assert(lastComponent != block->rend() &&
+           "Expected to find at least one store in the block");
+    return &*lastComponent;
   }
 };
 
