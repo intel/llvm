@@ -50,7 +50,7 @@ struct OneToOneMappingPattern : public OpConversionPattern<SYCLOpT> {
     // wrap the result.
     assert(isSYCLType(type));
 
-    if (type.isa<HalfType>()) {
+    if (isa<HalfType>(type)) {
       auto loc = op.getLoc();
       SmallVector<Value, 3> unwrappedOperands;
       for (auto operand : adaptor.getOperands())
