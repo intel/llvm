@@ -142,7 +142,7 @@ class ur_result_v(IntEnum):
     ERROR_DEVICE_LOST = 20                          ## Device hung, reset, was removed, or adapter update occurred
     ERROR_DEVICE_REQUIRES_RESET = 21                ## Device requires a reset
     ERROR_DEVICE_IN_LOW_POWER_STATE = 22            ## Device currently in low power state
-    ERROR_DEVICE_PARTITION_FAILED = 23              ## Device paritioning failed
+    ERROR_DEVICE_PARTITION_FAILED = 23              ## Device partitioning failed
     ERROR_INVALID_DEVICE_PARTITION_COUNT = 24       ## Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
     ERROR_INVALID_WORK_ITEM_SIZE = 25               ## Invalid work item size
     ERROR_INVALID_WORK_DIMENSION = 26               ## Invalid work dimension
@@ -1572,7 +1572,7 @@ class ur_kernel_sub_group_info_t(c_int):
 
 
 ###############################################################################
-## @brief Kernel Cache Configuartion.
+## @brief Kernel Cache Configuration.
 class ur_kernel_cache_config_v(IntEnum):
     DEFAULT = 0                                     ## No preference for SLM or data cache.
     LARGE_SLM = 1                                   ## Large Shared Local Memory (SLM) size.

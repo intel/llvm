@@ -171,7 +171,7 @@ etors:
     - name: ERROR_DEVICE_IN_LOW_POWER_STATE
       desc: "Device currently in low power state"
     - name: ERROR_DEVICE_PARTITION_FAILED
-      desc: "Device paritioning failed"
+      desc: "Device partitioning failed"
     - name: ERROR_INVALID_DEVICE_PARTITION_COUNT
       desc: "Invalid counts provided with $X_DEVICE_PARTITION_BY_COUNTS"
     - name: ERROR_INVALID_WORK_ITEM_SIZE
