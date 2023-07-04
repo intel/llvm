@@ -21,7 +21,9 @@
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Regex.h"
 
 namespace mlir {
 namespace polygeist {
@@ -107,6 +109,188 @@ private:
                                        : std::nullopt;
   }
 };
+
+template <typename Derived, typename ConstructorOp, typename TypeTag,
+          bool PostProcess = false>
+class RaiseConstructorBasePattern : public OpRewritePattern<ConstructorOp> {
+public:
+  using OpRewritePattern<ConstructorOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ConstructorOp constructor,
+                                PatternRewriter &rewriter) const final {
+
+    if (constructor.getArgOperands().empty())
+      return failure();
+
+    // 'this*' is the first argument to the constructor call, if it is a
+    // constructor.
+    auto alloc = constructor.getArgOperands()
+                     .front()
+                     .template getDefiningOp<LLVM::AllocaOp>();
+
+    if (!alloc)
+      return failure();
+
+    assert(alloc.getElemType().has_value() &&
+           "Expecting element type attribute for opaque alloca");
+
+    // Check whether the type allocated for the first argument ('this') matches
+    // the expected type.
+    auto allocTy = *alloc.getElemType();
+    auto structAllocTy = dyn_cast<LLVM::LLVMStructType>(allocTy);
+    if (!structAllocTy || structAllocTy.getName() != TypeTag::getTypeName())
+      return failure();
+
+    if (constructor.getNumResults())
+      // Constructor should not return anything.
+      return failure();
+
+    if (!isConstructor(constructor))
+      // Invoke is not a constructor call.
+      return failure();
+
+    auto constructedType = TypeTag::getTypeFromConstructor(constructor);
+    if (!constructedType)
+      return failure();
+
+    rewriter.create<sycl::SYCLHostConstructorOp>(
+        constructor->getLoc(), constructor.getArgOperands().front(),
+        constructor.getArgOperands().drop_front(1),
+        TypeAttr::get(constructedType));
+
+    if constexpr (PostProcess)
+      static_cast<const Derived *>(this)->postprocess(constructor, rewriter);
+
+    rewriter.eraseOp(constructor);
+    return success();
+  }
+
+private:
+  bool isConstructor(ConstructorOp call) const {
+    CallInterfaceCallable callableOp = call.getCallableForCallee();
+    StringRef funcName = callableOp.get<SymbolRefAttr>().getLeafReference();
+
+    llvm::ItaniumPartialDemangler Demangler;
+    Demangler.partialDemangle(funcName.data());
+    if (!Demangler.isCtorOrDtor())
+      return false;
+
+    char *demangled = Demangler.finishDemangle(nullptr, 0);
+    if (!demangled)
+      // Demangling failed
+      return false;
+
+    llvm::StringRef demangledName{demangled};
+    bool isDestructor = demangledName.contains('~');
+    free(demangled);
+    return !isDestructor;
+  }
+};
+
+template <typename TypeTag>
+class RaiseInvokeConstructorBasePattern
+    : public RaiseConstructorBasePattern<
+          RaiseInvokeConstructorBasePattern<TypeTag>, LLVM::InvokeOp, TypeTag,
+          true> {
+public:
+  using RaiseConstructorBasePattern<RaiseInvokeConstructorBasePattern<TypeTag>,
+                                    LLVM::InvokeOp, TypeTag,
+                                    true>::RaiseConstructorBasePattern;
+
+  void postprocess(LLVM::InvokeOp invoke, PatternRewriter &rewriter) const {
+    rewriter.create<LLVM::BrOp>(invoke->getLoc(),
+                                invoke.getNormalDestOperands(),
+                                invoke.getNormalDest());
+  }
+};
+
+struct BufferTypeTag {
+
+  static llvm::StringRef getTypeName() { return "class.sycl::_V1::buffer"; }
+
+  static mlir::Type getTypeFromConstructor(CallOpInterface constructor) {
+    CallInterfaceCallable callableOp = constructor.getCallableForCallee();
+    StringRef constructorName =
+        callableOp.get<SymbolRefAttr>().getLeafReference();
+
+    auto demangledName = llvm::demangle(constructorName);
+
+    // Try to determine the dimensions of the buffer by parsing the template
+    // parameter from the demangled name of the constructor.
+    llvm::Regex bufferTemplate("buffer<.*, ([0-9]+)");
+    llvm::SmallVector<StringRef> matches;
+    bool regexMatch = bufferTemplate.match(demangledName, &matches);
+    if (!regexMatch)
+      return nullptr;
+    unsigned dimensions = std::stoul(matches[1].str());
+
+    // FIXME: There's currently no good way to obtain the element type of the
+    // buffer from the constructor call (or allocation). Parsing it from the
+    // demangled name, as done for 'dimensions' above, would require translation
+    // from C++ types to MLIR types, which is not available here.
+    Type elemTy = LLVM::LLVMVoidType::get(constructor->getContext());
+
+    return sycl::BufferType::get(constructor->getContext(), elemTy, dimensions);
+  }
+};
+
+struct BufferInvokeConstructorPattern
+    : public RaiseInvokeConstructorBasePattern<BufferTypeTag> {
+  using RaiseInvokeConstructorBasePattern<
+      BufferTypeTag>::RaiseInvokeConstructorBasePattern;
+};
+
+struct AccessorTypeTag {
+
+  static llvm::StringRef getTypeName() { return "class.sycl::_V1::accessor"; }
+
+  static mlir::Type getTypeFromConstructor(CallOpInterface constructor) {
+    CallInterfaceCallable callableOp = constructor.getCallableForCallee();
+    StringRef constructorName =
+        callableOp.get<SymbolRefAttr>().getLeafReference();
+
+    auto demangledName = llvm::demangle(constructorName);
+
+    // Try to determine the parameters of the accessor by parsing the template
+    // parameter from the demangled name of the constructor.
+    llvm::Regex accessorTemplate(
+        "accessor<.*, ([0-9]+), \\(sycl::_V1::access::mode\\)([0-9]+), "
+        "\\(sycl::_V1::access::target\\)([0-9]+)");
+    llvm::SmallVector<StringRef> matches;
+    bool regexMatch = accessorTemplate.match(demangledName, &matches);
+
+    if (!regexMatch)
+      return nullptr;
+
+    unsigned dimensions = std::stoul(matches[1].str());
+    unsigned mode = std::stoul(matches[2].str());
+    unsigned target = std::stoul(matches[3].str());
+
+    auto accessModeOrNone = mlir::sycl::symbolizeAccessMode(mode);
+    auto accessTargetOrNone = mlir::sycl::symbolizeTarget(target);
+    if (!accessModeOrNone || !accessTargetOrNone)
+      return nullptr;
+
+    sycl::AccessMode accessMode = *accessModeOrNone;
+    sycl::Target accessTarget = *accessTargetOrNone;
+
+    // FIXME: There's currently no good way to obtain the element type of the
+    // accessor from the constructor call (or allocation). Parsing it from the
+    // demangled name, as done for other parameters above, would require
+    // translation from C++ types to MLIR types, which is not available here.
+    Type elemTy = LLVM::LLVMVoidType::get(constructor->getContext());
+
+    return sycl::AccessorType::get(constructor.getContext(), elemTy, dimensions,
+                                   accessMode, accessTarget, {});
+  }
+};
+
+struct AccessorInvokeConstructorPattern
+    : public RaiseInvokeConstructorBasePattern<AccessorTypeTag> {
+  using RaiseInvokeConstructorBasePattern<
+      AccessorTypeTag>::RaiseInvokeConstructorBasePattern;
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -118,7 +302,8 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   MLIRContext *context = &getContext();
 
   RewritePatternSet rewritePatterns{context};
-  rewritePatterns.add<RaiseKernelName>(context);
+  rewritePatterns.add<RaiseKernelName, BufferInvokeConstructorPattern,
+                      AccessorInvokeConstructorPattern>(context);
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
   if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen)))
