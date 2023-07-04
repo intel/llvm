@@ -312,7 +312,8 @@ public:
     // type.
     auto allocTy = *alloc.getElemType();
     auto structAllocTy = dyn_cast<LLVM::LLVMStructType>(allocTy);
-    if (!structAllocTy || structAllocTy.getName() != TypeTag::getTypeName())
+    if (!structAllocTy ||
+        !TypeTag::getTypeName().match(structAllocTy.getName()))
       return failure();
 
     auto arrayTyOrNone = getNumAndTypeOfComponents(structAllocTy);
@@ -369,8 +370,8 @@ private:
 
     auto detailType =
         dyn_cast<LLVM::LLVMStructType>(structTy.getBody().front());
-    if (!detailType ||
-        detailType.getName() != "class.sycl::_V1::detail::array" ||
+    static llvm::Regex arrayRegex{"class.sycl::_V1::detail::array(\\.[0-9]+)?"};
+    if (!detailType || !arrayRegex.match(detailType.getName()) ||
         detailType.getBody().empty())
       return std::nullopt;
 
@@ -460,7 +461,10 @@ private:
 struct IDTypeTag {
   using SYCLType = mlir::sycl::IDType;
 
-  static llvm::StringRef getTypeName() { return "class.sycl::_V1::id"; }
+  static llvm::Regex &getTypeName() {
+    static llvm::Regex regex{"class.sycl::_V1::id(\\.[0-9]+])?"};
+    return regex;
+  }
 };
 
 struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
@@ -471,7 +475,10 @@ struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
 struct RangeTypeTag {
   using SYCLType = mlir::sycl::RangeType;
 
-  static llvm::StringRef getTypeName() { return "class.sycl::_V1::range"; }
+  static llvm::Regex &getTypeName() {
+    static llvm::Regex regex{"class.sycl::_V1::range(\\.[0-9]+])?"};
+    return regex;
+  }
 };
 
 struct RaiseRangeConstructor
