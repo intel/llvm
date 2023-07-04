@@ -2269,7 +2269,7 @@ void SetArgBasedOnType(
     MemObjData.mem_access = PI_ACCESS_READ_ONLY;
     MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
     Plugin->call<PiApiKind::piextKernelSetArgMemObj>(
-          Kernel, NextTrueIndex, &MemObjData, SpecConstsBufferArg);
+        Kernel, NextTrueIndex, &MemObjData, SpecConstsBufferArg);
     break;
   }
   case kernel_param_kind_t::kind_invalid:
