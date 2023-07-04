@@ -176,9 +176,19 @@ set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
+
+# Generate SYCL builtins
+add_custom_target(sycl-builtins-header
+  COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/source/builtins_generator.py ${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_gen.hpp
+  BYPRODUCTS "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_gen.hpp"
+  COMMENT "Generate SYCL builtin headers"
+)
+
+# Install generated headers.
 install(FILES
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp"
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_gen.hpp"
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
 
@@ -202,6 +212,7 @@ add_custom_target(sycl-headers
   DEPENDS ${OUT_HEADERS_IN_SYCL_DIR}
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
+          sycl-builtins-header
           boost_mp11-headers)
 
 add_custom_command(

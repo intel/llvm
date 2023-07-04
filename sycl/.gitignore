@@ -1,2 +1,3 @@
 include/sycl/version.hpp
 include/sycl/feature_test.hpp
+include/sycl/builtins_gen.hpp
