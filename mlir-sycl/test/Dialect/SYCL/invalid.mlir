@@ -352,6 +352,38 @@ func.func @test_id_constructor_wrong_sign(%arg: i32) -> memref<1x!sycl_id_1_> {
 
 // -----
 
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+
+func.func @test_range_constructor_bad_signature(%arg: i32) -> memref<1x!sycl_range_1_> {
+// expected-error @below {{'sycl.range.constructor' op expects a different signature. Check documentation for details}}
+  %0 = sycl.range.constructor(%arg) : (i32) -> memref<1x!sycl_range_1_>
+  func.return %0 : memref<1x!sycl_range_1_>
+}
+
+// -----
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+
+func.func @test_range_constructor_bad_num_dims(%arg: memref<1x!sycl_range_2_>) -> memref<1x!sycl_range_1_> {
+// expected-error @below {{'sycl.range.constructor' op expects input and output to have the same number of dimensions: 2 vs 1}}
+  %0 = sycl.range.constructor(%arg) : (memref<1x!sycl_range_2_>) -> memref<1x!sycl_range_1_>
+  func.return %0 : memref<1x!sycl_range_1_>
+}
+
+// -----
+
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+
+func.func @test_range_constructor_index_wrong_dims(%arg0: index)
+    -> memref<1x!sycl_range_2_> {
+// expected-error @below {{'sycl.range.constructor' op expects to be passed the same number of 'index' numbers as the number of dimensions of the input: 1 vs 2}}
+  %0 = sycl.range.constructor(%arg0) : (index) -> memref<1x!sycl_range_2_>
+  func.return %0 : memref<1x!sycl_range_2_>
+}
+
+// -----
+
 func.func @math_op_invalid_type(%arg0 : i32) {
   // expected-error @+1 {{op operand #0 must be 32-bit float or 64-bit float, but got 'i32'}}
   %0 = sycl.math.sin %arg0 : i32

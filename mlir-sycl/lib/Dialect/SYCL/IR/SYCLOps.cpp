@@ -18,6 +18,32 @@
 using namespace mlir;
 using namespace mlir::sycl;
 
+static LogicalResult checkNumIndices(Operation *op, unsigned numArgs,
+                                     unsigned dimensions) {
+  return numArgs == dimensions
+             ? success()
+             : op->emitOpError(
+                   "expects to be passed the same number of 'index' numbers as "
+                   "the number of dimensions of the input: ")
+                   << numArgs << " vs " << dimensions;
+}
+
+static LogicalResult emitBadSignatureError(Operation *op) {
+  return op->emitOpError(
+      "expects a different signature. Check documentation for details");
+}
+
+static LogicalResult checkSameDimensions(Operation *op, Type thisType,
+                                         Type inputType) {
+  unsigned thisDims = getDimensions(thisType);
+  unsigned inputDims = getDimensions(inputType);
+  return thisDims == inputDims
+             ? success()
+             : op->emitOpError("expects input and output to have the same "
+                               "number of dimensions: ")
+                   << inputDims << " vs " << thisDims;
+}
+
 bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
   if (Inputs.size() != 1 || Outputs.size() != 1)
     return false;
@@ -234,29 +260,60 @@ LogicalResult SYCLIDConstructorOp::verify() {
   unsigned dimensions = getDimensions(type);
   if (llvm::all_of(argTypes, [](Type type) { return isa<IndexType>(type); })) {
     // sycl.id.constructor({index}N) -> memref<1x!sycl_id_N>
-    if (argTypes.size() != dimensions) {
-      return emitOpError("expects to be passed the same number of 'index' "
-                         "numbers as the number of dimensions of the input: ")
-             << argTypes.size() << " vs " << dimensions;
-    }
-    return success();
+    return checkNumIndices(*this, argTypes.size(), dimensions);
   }
   if (argTypes.size() == 1) {
     if (auto MT = dyn_cast<MemRefType>(argTypes.front());
-        MT && isa<IDType, ItemType, RangeType>(MT.getElementType())) {
+        MT && isa<IDType, ItemType, RangeType>(MT.getElementType()))
       // sycl.id.constructor(memref<?x!sycl_[id|item|range]_N>) ->
       // memref<1x!sycl_id_N>
-      unsigned argDimensions = getDimensions(MT);
-      if (dimensions != argDimensions) {
-        return emitOpError("expects input and output to have the same number "
-                           "of dimensions: ")
-               << argDimensions << " vs " << dimensions;
-      }
-      return success();
-    }
+      return checkSameDimensions(*this, type, MT);
   }
-  return emitOpError(
-      "expects a different signature. Check documentation for details");
+  return emitBadSignatureError(*this);
+}
+
+LogicalResult SYCLRangeConstructorOp::verify() {
+  OperandRange::type_range argTypes = getArgs().getTypes();
+  MemRefType thisType = getRange().getType();
+  unsigned dimensions = getDimensions(thisType);
+  unsigned numArgs = getNumOperands();
+  switch (numArgs) {
+  case 1:
+    if (auto mt = dyn_cast<MemRefType>(argTypes.front())) {
+      if (auto rangeType = dyn_cast<RangeType>(mt.getElementType()))
+        // sycl.range.constructor(memref<?xsycl_range_N>) ->
+        // memref<1xsycl_range_N>
+        return checkSameDimensions(*this, thisType, rangeType);
+      break;
+    }
+    [[fallthrough]];
+  case 2:
+  case 3:
+    // sycl.range.constructor(index) -> memref<1xsycl_range_1>
+    // sycl.range.constructor(index, index) -> memref<1xsycl_range_2>
+    // sycl.range.constructor(index, index, index) -> memref<1xsycl_range_3>
+    if (llvm::all_of(argTypes, [](Type type) { return isa<IndexType>(type); }))
+      return checkNumIndices(*this, numArgs, dimensions);
+    [[fallthrough]];
+  default:
+    break;
+  }
+  return emitBadSignatureError(*this);
+}
+
+void SYCLRangeConstructorOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  auto *defaultResource = SideEffects::DefaultResource::get();
+  // All of the arguments will be scalars or read from
+  for (auto value : getArgs()) {
+    if (isa<MemRefType, LLVM::LLVMPointerType>(value.getType()))
+      effects.emplace_back(MemoryEffects::Read::get(), value, defaultResource);
+  }
+  // The result will be allocated and written to
+  Value range = getRange();
+  effects.emplace_back(MemoryEffects::Allocate::get(), range, defaultResource);
+  effects.emplace_back(MemoryEffects::Write::get(), range, defaultResource);
 }
 
 static Type getBodyType(Type type) {

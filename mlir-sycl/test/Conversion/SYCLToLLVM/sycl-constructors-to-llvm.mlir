@@ -252,3 +252,92 @@ func.func @id_id(%arg0: memref<?x!sycl_id_1_>,
   func.return %id1, %id2, %id3
       : memref<1x!sycl_id_1_>, memref<1x!sycl_id_2_>, memref<1x!sycl_id_3_>
 }
+
+// CHECK-LABEL:   llvm.func @range_index(
+// CHECK-SAME:                           %[[VAL_0:.*]]: i64, %[[VAL_1:.*]]: i64, %[[VAL_2:.*]]: i64) -> !llvm.struct<(ptr, ptr, ptr)> {
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_4]][0, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>
+// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_6]] : i64, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.alloca %[[VAL_7]] x !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.getelementptr inbounds %[[VAL_8]][0, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>
+// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_10]] : i64, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_11:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_12:.*]] = llvm.getelementptr inbounds %[[VAL_8]][0, 0, 0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>
+// CHECK-NEXT:      llvm.store %[[VAL_1]], %[[VAL_12]] : i64, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_13:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_14:.*]] = llvm.alloca %[[VAL_13]] x !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_15:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:      %[[VAL_16:.*]] = llvm.getelementptr inbounds %[[VAL_14]][0, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>
+// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_16]] : i64, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_17:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_18:.*]] = llvm.getelementptr inbounds %[[VAL_14]][0, 0, 0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>
+// CHECK-NEXT:      llvm.store %[[VAL_1]], %[[VAL_18]] : i64, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_19:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-NEXT:      %[[VAL_20:.*]] = llvm.getelementptr inbounds %[[VAL_14]][0, 0, 0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>
+// CHECK-NEXT:      llvm.store %[[VAL_2]], %[[VAL_20]] : i64, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_21:.*]] = llvm.mlir.undef : !llvm.struct<(ptr, ptr, ptr)>
+// CHECK-NEXT:      %[[VAL_22:.*]] = llvm.insertvalue %[[VAL_4]], %[[VAL_21]][0] : !llvm.struct<(ptr, ptr, ptr)>
+// CHECK-NEXT:      %[[VAL_23:.*]] = llvm.insertvalue %[[VAL_8]], %[[VAL_22]][1] : !llvm.struct<(ptr, ptr, ptr)>
+// CHECK-NEXT:      %[[VAL_24:.*]] = llvm.insertvalue %[[VAL_14]], %[[VAL_23]][2] : !llvm.struct<(ptr, ptr, ptr)>
+// CHECK-NEXT:      llvm.return %[[VAL_24]] : !llvm.struct<(ptr, ptr, ptr)>
+// CHECK-NEXT:    }
+func.func @range_index(%arg0: index, %arg1: index, %arg2: index)
+    -> (memref<1x!sycl_range_1_>,
+        memref<1x!sycl_range_2_>,
+        memref<1x!sycl_range_3_>) {
+  %range1 = sycl.range.constructor(%arg0)
+      : (index) -> memref<1x!sycl_range_1_>
+  %range2 = sycl.range.constructor(%arg0, %arg1)
+      : (index, index) -> memref<1x!sycl_range_2_>
+  %range3 = sycl.range.constructor(%arg0, %arg1, %arg2)
+      : (index, index, index) -> memref<1x!sycl_range_3_>
+  func.return %range1, %range2, %range3
+      : memref<1x!sycl_range_1_>,
+        memref<1x!sycl_range_2_>,
+        memref<1x!sycl_range_3_>
+}
+
+// CHECK-LABEL:   llvm.func @range_range(
+// CHECK-SAME:                           %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: !llvm.ptr) -> !llvm.struct<(ptr, ptr, ptr)> {
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.constant(8 : i64) : i64
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.mlir.constant(false) : i1
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_4]], %[[VAL_0]], %[[VAL_5]], %[[VAL_6]]) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.alloca %[[VAL_7]] x !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.mlir.constant(16 : i64) : i64
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.mlir.constant(false) : i1
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_8]], %[[VAL_1]], %[[VAL_9]], %[[VAL_10]]) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+// CHECK-NEXT:      %[[VAL_11:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_12:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_13:.*]] = llvm.mlir.constant(24 : i64) : i64
+// CHECK-NEXT:      %[[VAL_14:.*]] = llvm.mlir.constant(false) : i1
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_12]], %[[VAL_2]], %[[VAL_13]], %[[VAL_14]]) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+// CHECK-NEXT:      %[[VAL_15:.*]] = llvm.mlir.undef : !llvm.struct<(ptr, ptr, ptr)>
+// CHECK-NEXT:      %[[VAL_16:.*]] = llvm.insertvalue %[[VAL_4]], %[[VAL_15]][0] : !llvm.struct<(ptr, ptr, ptr)>
+// CHECK-NEXT:      %[[VAL_17:.*]] = llvm.insertvalue %[[VAL_8]], %[[VAL_16]][1] : !llvm.struct<(ptr, ptr, ptr)>
+// CHECK-NEXT:      %[[VAL_18:.*]] = llvm.insertvalue %[[VAL_12]], %[[VAL_17]][2] : !llvm.struct<(ptr, ptr, ptr)>
+// CHECK-NEXT:      llvm.return %[[VAL_18]] : !llvm.struct<(ptr, ptr, ptr)>
+// CHECK-NEXT:    }
+func.func @range_range(%arg0: memref<?x!sycl_range_1_>,
+                       %arg1: memref<?x!sycl_range_2_>,
+                       %arg2: memref<?x!sycl_range_3_>)
+    -> (memref<1x!sycl_range_1_>,
+        memref<1x!sycl_range_2_>,
+        memref<1x!sycl_range_3_>) {
+  %range1 = sycl.range.constructor(%arg0)
+      : (memref<?x!sycl_range_1_>) -> memref<1x!sycl_range_1_>
+  %range2 = sycl.range.constructor(%arg1)
+      : (memref<?x!sycl_range_2_>) -> memref<1x!sycl_range_2_>
+  %range3 = sycl.range.constructor(%arg2)
+      : (memref<?x!sycl_range_3_>) -> memref<1x!sycl_range_3_>
+  func.return %range1, %range2, %range3
+      : memref<1x!sycl_range_1_>,
+        memref<1x!sycl_range_2_>,
+        memref<1x!sycl_range_3_>
+}
