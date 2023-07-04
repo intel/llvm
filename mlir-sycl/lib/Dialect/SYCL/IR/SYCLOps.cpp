@@ -263,6 +263,12 @@ static Type getBodyType(Type type) {
   auto *ctx = type.getContext();
   return TypeSwitch<Type, Type>(type)
       .Case<HalfType>([&](auto) { return Float16Type::get(ctx); })
+      .Case<VecType>([&](auto vecTy) {
+        if (isa<HalfType>(vecTy.getDataType()))
+          return VectorType::get({vecTy.getNumElements()},
+                                 Float16Type::get(ctx));
+        return VectorType::get({vecTy.getNumElements()}, vecTy.getDataType());
+      })
       .Default({});
 }
 
