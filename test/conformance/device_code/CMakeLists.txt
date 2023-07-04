@@ -24,6 +24,7 @@ macro(add_device_binary SOURCE_FILE)
 endmacro()
 
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/bar.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/device_global.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/fill.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/fill_2d.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/fill_3d.cpp)
