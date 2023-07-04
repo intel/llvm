@@ -465,7 +465,7 @@ private:
   /// them as internal. They are then forwarded to command group and destroyed
   /// only after the command group finishes the work on device/host.
   ///
-  /// @param ReduObj is a pointer to object that must be stored.
+  /// @param ReduBuf is a pointer to buffer that must be stored.
   template <typename T, int Dimensions, typename AllocatorT, typename Enable>
   void
   addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT, Enable>>
