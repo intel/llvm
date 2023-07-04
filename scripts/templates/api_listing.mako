@@ -83,6 +83,27 @@ ${title}
 %endfor # obj in objects
 
 #################################################################
+## -------------------------
+## Macros
+## -------------------------
+ <%isempty = True%>
+%for obj in objects:
+%if re.match(r"macro", obj['type']):
+%if isempty: # only display section title if there is content.
+%if needstitle:
+<%needstitle = False%>
+${title}
+============================================================
+%endif
+* Macros
+
+<%isempty = False%>
+%endif
+    * :ref:`${th.make_type_name(n, tags, obj).replace("_", "-")}`
+%endif
+%endfor # obj in objects
+
+#################################################################
 ## Generate API documentation
 #################################################################
 ## -------------------------
@@ -160,6 +181,29 @@ ${th.make_type_name(n, tags, obj)}
 %endif
 
 %endif
+%endfor # obj in objects
+
+#################################################################
+## -------------------------
+## Macros
+## -------------------------
+ <%isempty = True%>
+%for obj in objects:
+%if not re.match(r"macro", obj['type']):
+<% continue %>
+%endif # macro
+%if isempty:
+${title} Macros
+--------------------------------------------------------------------------------
+<%isempty = False%>
+%endif # isempty
+.. _${th.make_type_name(n, tags, obj).replace("_", "-")}:
+
+${th.make_type_name(n, tags, obj)}
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. doxygendefine:: ${th.make_type_name(n, tags, obj)}
+    :project: UnifiedRuntime
 %endfor # obj in objects
 
 %endfor # s in specs
