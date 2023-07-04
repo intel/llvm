@@ -79,6 +79,8 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/tracing.cpp"
     "../unified_runtime/ur/adapters/cuda/ur_interface_loader.cpp"
     "../unified_runtime/ur/adapters/cuda/usm.cpp"
+    "../unified_runtime/ur/adapters/cuda/command_buffer.hpp"
+    "../unified_runtime/ur/adapters/cuda/command_buffer.cpp"
     "../unified_runtime/ur/adapters/cuda/usm_p2p.hpp"
     "../unified_runtime/ur/adapters/cuda/usm_p2p.cpp"
     # --- 
