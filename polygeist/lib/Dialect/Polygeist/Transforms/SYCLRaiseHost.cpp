@@ -277,14 +277,15 @@ private:
     if (!Demangler.isCtorOrDtor())
       return false;
 
-    char *demangled = Demangler.finishDemangle(nullptr, 0);
-    if (!demangled)
+    FailureOr<DemangleResult> demangled =
+        DemangleResult::get([&](char *buf, std::size_t *size) {
+          return Demangler.finishDemangle(buf, size);
+        });
+    if (failed(demangled))
       // Demangling failed
       return false;
 
-    llvm::StringRef demangledName{demangled};
-    bool isDestructor = demangledName.contains('~');
-    free(demangled);
+    bool isDestructor = static_cast<StringRef>(*demangled).contains('~');
     return !isDestructor;
   }
 };
