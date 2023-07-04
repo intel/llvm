@@ -22,6 +22,7 @@ struct ur_program_handle_t_ {
   size_t BinarySizeInBytes;
   std::atomic_uint32_t RefCount;
   ur_context_handle_t Context;
+  ur_device_handle_t Device; // A program is specific to a device in a context
 
   // Metadata
   std::unordered_map<std::string, std::tuple<uint32_t, uint32_t, uint32_t>>
@@ -34,7 +35,7 @@ struct ur_program_handle_t_ {
   std::string BuildOptions;
   ur_program_build_status_t BuildStatus = UR_PROGRAM_BUILD_STATUS_NONE;
 
-  ur_program_handle_t_(ur_context_handle_t Context);
+  ur_program_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device);
   ~ur_program_handle_t_();
 
   ur_result_t setMetadata(const ur_program_metadata_t *Metadata, size_t Length);
@@ -43,6 +44,7 @@ struct ur_program_handle_t_ {
 
   ur_result_t buildProgram(const char *BuildOptions);
   ur_context_handle_t getContext() const { return Context; };
+  ur_device_handle_t getDevice() const { return Device; };
 
   native_type get() const noexcept { return Module; };
 

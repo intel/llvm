@@ -17,7 +17,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   std::unique_ptr<ur_kernel_handle_t_> Kernel{nullptr};
 
   try {
-    ScopedContext Active(hProgram->getContext());
+    ScopedContext Active(hProgram->getDevice());
 
     CUfunction CuFunc;
     CUresult FunctionResult =
@@ -103,7 +103,7 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     size_t GroupSize[3] = {0, 0, 0};
     const auto &ReqdWGSizeMDMap =
-        hKernel->get_program()->KernelReqdWorkGroupSizeMD;
+        hKernel->getProgram()->KernelReqdWorkGroupSizeMD;
     const auto ReqdWGSizeMD = ReqdWGSizeMDMap.find(hKernel->getName());
     if (ReqdWGSizeMD != ReqdWGSizeMDMap.end()) {
       const auto ReqdWGSize = ReqdWGSizeMD->second;
@@ -214,7 +214,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
   case UR_KERNEL_INFO_CONTEXT:
     return ReturnValue(hKernel->getContext());
   case UR_KERNEL_INFO_PROGRAM:
-    return ReturnValue(hKernel->get_program());
+    return ReturnValue(hKernel->getProgram());
   case UR_KERNEL_INFO_ATTRIBUTES:
     return ReturnValue("");
   case UR_KERNEL_INFO_NUM_REGS: {
@@ -290,7 +290,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *Properties,
                      ur_mem_handle_t hArgValue) {
-  std::ignore = Properties;
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   // Below sets kernel arg when zero-sized buffers are handled.
   // In such case the corresponding memory is null.
@@ -301,10 +301,19 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    if (hArgValue->MemType == ur_mem_handle_t_::Type::Surface) {
+    // Allocating mem on given device if not already allocated
+    hArgValue->allocateMemObjOnDeviceIfNeeded(
+        hKernel->getProgram()->getDevice());
+
+    // Keep a record of the mem objs our kernel reads and writes we can do
+    // dependency analysis at urEnqueueKernelLaunch
+    hKernel->addMemObjArg(hArgValue, Properties->memoryAccess);
+
+    if (hArgValue->isImage()) {
+      ur_image_ *ArgImage = ur_cast<ur_image_ *>(hArgValue);
       CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
       UR_CHECK_ERROR(cuArray3DGetDescriptor(
-          &arrayDesc, hArgValue->Mem.SurfaceMem.getArray()));
+          &arrayDesc, ArgImage->Mem.SurfaceMem.getArray()));
       if (arrayDesc.Format != CU_AD_FORMAT_UNSIGNED_INT32 &&
           arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
           arrayDesc.Format != CU_AD_FORMAT_HALF &&
@@ -314,10 +323,12 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
-      CUsurfObject CuSurf = hArgValue->Mem.SurfaceMem.getSurface();
+      CUsurfObject CuSurf = ArgImage->Mem.SurfaceMem.getSurface();
       hKernel->setKernelArg(argIndex, sizeof(CuSurf), (void *)&CuSurf);
     } else {
-      CUdeviceptr CuPtr = hArgValue->Mem.BufferMem.get();
+      ur_buffer_ *ArgBuffer = ur_cast<ur_buffer_ *>(hArgValue);
+      CUdeviceptr CuPtr =
+          ArgBuffer->getNativePtr(hKernel->getProgram()->getDevice());
       hKernel->setKernelArg(argIndex, sizeof(CUdeviceptr), (void *)&CuPtr);
     }
   } catch (ur_result_t Err) {

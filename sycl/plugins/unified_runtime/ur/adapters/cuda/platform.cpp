@@ -50,9 +50,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
 /// There is only one CUDA platform, and contains all devices on the system.
 /// Triggers the CUDA Driver initialization (cuInit) the first time, so this
 /// must be the first PI API called.
-///
-/// However because multiple devices in a context is not currently supported,
-/// place each device in a separate platform.
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
@@ -60,7 +57,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
   try {
     static std::once_flag InitFlag;
     static uint32_t NumPlatforms = 1;
-    static std::vector<ur_platform_handle_t_> Platforms;
+    static ur_platform_handle_t_ Platform;
 
     UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
     UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_SIZE);
@@ -82,11 +79,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             return;
           }
           try {
-            // make one platform per device
-            NumPlatforms = NumDevices;
-            Platforms.resize(NumDevices);
-
-            for (int i = 0; i < NumDevices; ++i) {
+            for (auto i = 0; i < NumDevices; ++i) {
               CUdevice Device;
               Result = UR_CHECK_ERROR(cuDeviceGet(&Device, i));
               CUcontext Context;
@@ -100,10 +93,12 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
               // Use default stream to record base event counter
               Result = UR_CHECK_ERROR(cuEventRecord(EvBase, 0));
 
-              Platforms[i].Devices.emplace_back(new ur_device_handle_t_{
-                  Device, Context, EvBase, &Platforms[i]});
+              Platform.Devices.emplace_back(
+                  std::make_unique<ur_device_handle_t_>(Device, Context, EvBase,
+                                                        &Platform, i));
+
               {
-                const auto &Dev = Platforms[i].Devices.back().get();
+                const auto &Dev = Platform.Devices.back().get();
                 size_t MaxWorkGroupSize = 0u;
                 size_t MaxThreadsPerBlock[3] = {};
                 ur_result_t RetError = urDeviceGetInfo(
@@ -128,16 +123,14 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
             for (int i = 0; i < NumDevices; ++i) {
-              Platforms[i].Devices.clear();
+              Platform.Devices.clear();
             }
-            Platforms.clear();
             Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
           } catch (...) {
             // Clear and rethrow to allow retry
             for (int i = 0; i < NumDevices; ++i) {
-              Platforms[i].Devices.clear();
+              Platform.Devices.clear();
             }
-            Platforms.clear();
             throw;
           }
         },
@@ -148,9 +141,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
     }
 
     if (phPlatforms != nullptr) {
-      for (unsigned i = 0; i < std::min(NumEntries, NumPlatforms); ++i) {
-        phPlatforms[i] = &Platforms[i];
-      }
+      phPlatforms[0] = &Platform;
     }
 
     return Result;

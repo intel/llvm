@@ -7,9 +7,11 @@
 //===-----------------------------------------------------------------===//
 #pragma once
 
+#include <list>
 #include <ur/ur.hpp>
 #include <vector>
 
-struct ur_platform_handle_t_ {
+struct ur_platform_handle_t_ : public _ur_platform  {
+  // Devices associated with platform
   std::vector<std::unique_ptr<ur_device_handle_t_>> Devices;
 };

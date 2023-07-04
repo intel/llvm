@@ -28,6 +28,8 @@ public:
 
   ur_queue_handle_t getQueue() const noexcept { return Queue; }
 
+  ur_device_handle_t getDevice() const noexcept { return Queue->getDevice(); }
+
   CUstream getStream() const noexcept { return Stream; }
 
   uint32_t getComputeStreamToken() const noexcept { return StreamToken; }
@@ -158,6 +160,7 @@ ur_result_t forLatestEvents(const ur_event_handle_t *EventWaitList,
     return F(EventWaitList[0]);
   }
 
+  // TODO we should allocate this once instead of in every call
   std::vector<ur_event_handle_t> Events{EventWaitList,
                                         EventWaitList + NumEventsInWaitList};
   std::sort(Events.begin(), Events.end(),
@@ -165,15 +168,17 @@ ur_result_t forLatestEvents(const ur_event_handle_t *EventWaitList,
               // Tiered sort creating sublists of streams (smallest value first)
               // in which the corresponding events are sorted into a sequence of
               // newest first.
-              return Event0->getStream() < Event1->getStream() ||
-                     (Event0->getStream() == Event1->getStream() &&
-                      Event0->getEventID() > Event1->getEventID());
+              return !Event0 || !Event1 ||
+                     (Event0->getStream() < Event1->getStream() ||
+                      (Event0->getStream() == Event1->getStream() &&
+                       Event0->getEventID() > Event1->getEventID()));
             });
 
   CUstream LastSeenStream = 0;
   for (size_t i = 0; i < Events.size(); i++) {
     auto Event = Events[i];
-    if (!Event || (i != 0 && Event->getStream() == LastSeenStream)) {
+    if (!Event || Event->isCompleted() ||
+        (i != 0 && Event->getStream() == LastSeenStream)) {
       continue;
     }
 

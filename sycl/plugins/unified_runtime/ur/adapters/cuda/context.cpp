@@ -22,16 +22,14 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
                 const ur_context_properties_t *pProperties,
                 ur_context_handle_t *phContext) {
-  std::ignore = DeviceCount;
   std::ignore = pProperties;
 
-  assert(DeviceCount == 1);
   ur_result_t RetErr = UR_RESULT_SUCCESS;
 
   std::unique_ptr<ur_context_handle_t_> ContextPtr{nullptr};
   try {
     ContextPtr = std::unique_ptr<ur_context_handle_t_>(
-        new ur_context_handle_t_{*phDevices});
+        new ur_context_handle_t_{phDevices, DeviceCount});
     *phContext = ContextPtr.release();
   } catch (ur_result_t Err) {
     RetErr = Err;
@@ -50,7 +48,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(1);
   case UR_CONTEXT_INFO_DEVICES:
-    return ReturnValue(hContext->getDevice());
+    return ReturnValue(hContext->getDevices());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(hContext->getReferenceCount());
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
@@ -61,11 +59,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     return ReturnValue(Capabilities);
   }
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // Return the lowest compute capability of all devices in context
     int Major = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             hContext->getDevice()->get()) == CUDA_SUCCESS);
+    for (auto i = 0u; i < hContext->NumDevices; ++i) {
+      int Tmp = Major;
+      detail::ur::assertion(
+          cuDeviceGetAttribute(
+              &Tmp, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+              hContext->getDevices()[i]->get()) == CUDA_SUCCESS);
+      Major = i == 0 ? Tmp : std::min(Major, Tmp);
+    }
     uint32_t Capabilities =
         (Major >= 7) ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
@@ -112,9 +115,15 @@ urContextRetain(ur_context_handle_t hContext) {
   return UR_RESULT_SUCCESS;
 }
 
+// FIXME this only returns the native context of the first device in the SYCL
+// context
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
-  *phNativeContext = reinterpret_cast<ur_native_handle_t>(hContext->get());
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(phNativeContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  *phNativeContext =
+      reinterpret_cast<ur_native_handle_t>(hContext->getDevices()[0]);
   return UR_RESULT_SUCCESS;
 }
 
@@ -138,3 +147,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
   hContext->setExtendedDeleter(pfnDeleter, pUserData);
   return UR_RESULT_SUCCESS;
 }
+

@@ -30,10 +30,12 @@ private:
   bool MaxLocalMemSizeChosen{false};
 
 public:
+  size_t DeviceIndex;
+
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
-                      ur_platform_handle_t platform)
+                      ur_platform_handle_t platform, size_t deviceIndex)
       : CuDevice(cuDevice), CuContext(cuContext), EvBase(evBase), RefCount{1},
-        Platform(platform) {
+        Platform(platform), DeviceIndex{deviceIndex} {
 
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxBlockDimY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y, cuDevice));
@@ -60,13 +62,17 @@ public:
 
   native_type get() const noexcept { return CuDevice; };
 
-  CUcontext getContext() const noexcept { return CuContext; };
+  CUcontext getNativeContext() const noexcept { return CuContext; };
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   ur_platform_handle_t getPlatform() const noexcept { return Platform; };
 
   uint64_t getElapsedTime(CUevent) const;
+
+  // Returns the index of the device in question relative to the other devices
+  // in the platform
+  size_t getIndex() const { return DeviceIndex; }
 
   void saveMaxWorkItemSizes(size_t Size,
                             size_t *SaveMaxWorkItemSizes) noexcept {

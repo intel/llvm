@@ -11,6 +11,5 @@
 #include <cuda.h>
 #include <ur_api.h>
 
-ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
-                              uint32_t NumEventsInWaitList,
+ur_result_t enqueueEventsWait(CUstream Stream, uint32_t NumEventsInWaitList,
                               const ur_event_handle_t *EventWaitList);

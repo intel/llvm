@@ -29,7 +29,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(hContext);
+    // Using scoped context of first device is valid
+    // TODO(hdelan): add test to check that host memory is accessible on all
+    // devices in the context (without using memcpy)
+    ScopedContext Active(hContext->getDevices()[0]);
     Result = UR_CHECK_ERROR(cuMemAllocHost(ppMem, size));
   } catch (ur_result_t Err) {
     Result = Err;
@@ -56,7 +59,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(hContext);
+    ScopedContext Active(hDevice);
     Result = UR_CHECK_ERROR(cuMemAlloc((CUdeviceptr *)ppMem, size));
   } catch (ur_result_t Err) {
     return Err;
@@ -83,7 +86,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(hContext);
+    ScopedContext Active(hDevice);
     Result = UR_CHECK_ERROR(
         cuMemAllocManaged((CUdeviceptr *)ppMem, size, CU_MEM_ATTACH_GLOBAL));
   } catch (ur_result_t Err) {
@@ -104,7 +107,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
                                               void *pMem) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(hContext);
+    // ScopedContext Active(hContext); // Can I delete this?
     bool IsManaged;
     unsigned int Type;
     void *AttributeValues[2] = {&IsManaged, &Type};
@@ -137,7 +140,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   try {
-    ScopedContext Active(hContext);
+    // ScopedContext Active(hContext); // Can I delete this?
     switch (propName) {
     case UR_USM_ALLOC_INFO_TYPE: {
       unsigned int Value;

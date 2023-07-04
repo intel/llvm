@@ -230,7 +230,7 @@ struct ur_queue_handle_t_ {
 
   ur_context_handle_t_ *getContext() const { return Context; };
 
-  ur_device_handle_t_ *get_device() const { return Device; };
+  ur_device_handle_t_ *getDevice() const { return Device; };
 
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 

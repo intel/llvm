@@ -93,17 +93,17 @@ bool ur_event_handle_t_::isCompleted() const noexcept {
 
 uint64_t ur_event_handle_t_::getQueuedTime() const {
   assert(isStarted());
-  return Queue->get_device()->getElapsedTime(EvQueued);
+  return Queue->getDevice()->getElapsedTime(EvQueued);
 }
 
 uint64_t ur_event_handle_t_::getStartTime() const {
   assert(isStarted());
-  return Queue->get_device()->getElapsedTime(EvStart);
+  return Queue->getDevice()->getElapsedTime(EvStart);
 }
 
 uint64_t ur_event_handle_t_::getEndTime() const {
   assert(isStarted() && isRecorded());
-  return Queue->get_device()->getElapsedTime(EvEnd);
+  return Queue->getDevice()->getElapsedTime(EvEnd);
 }
 
 ur_result_t ur_event_handle_t_::record() {
@@ -227,7 +227,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   try {
     auto Context = phEventWaitList[0]->getContext();
-    ScopedContext Active(Context);
+    ScopedContext Active(
+        phEventWaitList[0]->getQueue()->getDevice());
 
     auto WaitFunc = [Context](ur_event_handle_t Event) -> ur_result_t {
       UR_ASSERT(Event, UR_RESULT_ERROR_INVALID_EVENT);
@@ -264,7 +265,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
     std::unique_ptr<ur_event_handle_t_> event_ptr{hEvent};
     ur_result_t Result = UR_RESULT_ERROR_INVALID_EVENT;
     try {
-      ScopedContext Active(hEvent->getContext());
+      ScopedContext Active(hEvent->getQueue()->getDevice());
       Result = hEvent->release();
     } catch (...) {
       Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;

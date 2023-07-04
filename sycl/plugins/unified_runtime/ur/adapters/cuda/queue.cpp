@@ -121,9 +121,13 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   try {
     std::unique_ptr<ur_queue_handle_t_> Queue{nullptr};
 
-    if (hContext->getDevice() != hDevice) {
-      *phQueue = nullptr;
-      return UR_RESULT_ERROR_INVALID_DEVICE;
+    {
+      auto ContextDevs = hContext->getDevices();
+      if (std::find(ContextDevs.begin(), ContextDevs.end(), hDevice) ==
+          ContextDevs.end()) {
+        *phQueue = nullptr;
+        return UR_RESULT_ERROR_INVALID_DEVICE;
+      }
     }
 
     unsigned int Flags = CU_STREAM_NON_BLOCKING;
@@ -182,7 +186,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
     if (!hQueue->backendHasOwnership())
       return UR_RESULT_SUCCESS;
 
-    ScopedContext Active(hQueue->getContext());
+    ScopedContext Active(hQueue->getDevice());
 
     hQueue->forEachStream([](CUstream S) {
       UR_CHECK_ERROR(cuStreamSynchronize(S));
@@ -201,7 +205,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext active(hQueue->getContext());
+    UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    ScopedContext Active(hQueue->getDevice());
 
     hQueue->syncStreams</*ResetUsed=*/true>([&Result](CUstream s) {
       Result = UR_CHECK_ERROR(cuStreamSynchronize(s));
@@ -232,7 +237,7 @@ urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
                        ur_native_handle_t *phNativeQueue) {
   std::ignore = pDesc;
 
-  ScopedContext Active(hQueue->getContext());
+  ScopedContext Active(hQueue->getDevice());
   *phNativeQueue =
       reinterpret_cast<ur_native_handle_t>(hQueue->getNextComputeStream());
   return UR_RESULT_SUCCESS;
@@ -246,7 +251,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 
   unsigned int CuFlags;
   CUstream CuStream = reinterpret_cast<CUstream>(hNativeQueue);
-  UR_ASSERT(hContext->getDevice() == hDevice, UR_RESULT_ERROR_INVALID_DEVICE);
+  {
+    auto ContextDevs = hContext->getDevices();
+    UR_ASSERT(std::find(ContextDevs.begin(), ContextDevs.end(), hDevice) !=
+                  ContextDevs.end(),
+              UR_RESULT_ERROR_INVALID_DEVICE);
+  }
 
   auto Return = UR_CHECK_ERROR(cuStreamGetFlags(CuStream, &CuFlags));
 

@@ -69,16 +69,16 @@ struct ur_context_handle_t_ {
 
   using native_type = CUcontext;
 
-  native_type CUContext;
-  ur_device_handle_t DeviceID;
+  std::vector<ur_device_handle_t> Devices;
+  uint32_t NumDevices{};
+
   std::atomic_uint32_t RefCount;
 
-  ur_context_handle_t_(ur_device_handle_t_ *DevID)
-      : CUContext{DevID->getContext()}, DeviceID{DevID}, RefCount{1} {
-    urDeviceRetain(DeviceID);
-  };
+  ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
+      : Devices{Devs, Devs + NumDevices}, NumDevices{NumDevices}, RefCount{
+                                                                      1} {};
 
-  ~ur_context_handle_t_() { urDeviceRelease(DeviceID); }
+  ~ur_context_handle_t_() {}
 
   void invokeExtendedDeleters() {
     std::lock_guard<std::mutex> Guard(Mutex);
@@ -93,9 +93,9 @@ struct ur_context_handle_t_ {
     ExtendedDeleters.emplace_back(deleter_data{Function, UserData});
   }
 
-  ur_device_handle_t getDevice() const noexcept { return DeviceID; }
-
-  native_type get() const noexcept { return CUContext; }
+  std::vector<ur_device_handle_t> getDevices() const noexcept {
+    return Devices;
+  }
 
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
@@ -108,18 +108,17 @@ private:
   std::vector<deleter_data> ExtendedDeleters;
 };
 
+// This will be important for changing from device to device
 namespace {
 class ScopedContext {
 public:
-  ScopedContext(ur_context_handle_t Context) {
-    if (!Context) {
-      throw UR_RESULT_ERROR_INVALID_CONTEXT;
-    }
-
-    setContext(Context->get());
-  }
-
   ScopedContext(CUcontext NativeContext) { setContext(NativeContext); }
+  ScopedContext(ur_device_handle_t Device) {
+    if (!Device) {
+      throw UR_RESULT_ERROR_INVALID_DEVICE;
+    }
+    setContext(Device->getNativeContext());
+  }
 
   ~ScopedContext() {}
 

@@ -14,6 +14,7 @@
 #include <cassert>
 #include <numeric>
 
+#include "memory.hpp"
 #include "program.hpp"
 
 /// Implementation of a UR Kernel for CUDA
@@ -45,6 +46,14 @@ struct ur_kernel_handle_t_ {
   size_t ReqdThreadsPerBlock[ReqdThreadsPerBlockDimensions];
   int RegsPerThread{0};
 
+  // The events that the kernel will need to wait on. Events will be pushed back
+  // onto this vector at urEnqueueKernelLaunch and cleared at the end so the
+  // same vec can be reused.
+  std::vector<ur_event_handle_t> CachedEvents;
+  static constexpr size_t CachedEventsSize =
+      64; // Initial capacity of CachedEvents
+          // TODO justify this number
+
   /// Structure that holds the arguments to the kernel.
   /// Note each argument size is known, since it comes
   /// from the kernel signature.
@@ -60,6 +69,14 @@ struct ur_kernel_handle_t_ {
     args_size_t ParamSizes;
     args_index_t Indices;
     args_size_t OffsetPerIndex;
+
+    // A struct to keep track of memargs so that we can do dependency analysis
+    // at urEnqueueKernelLaunch
+    struct mem_obj_arg {
+      ur_mem_handle_t_ *Mem;
+      ur_mem_flags_t AccessFlags;
+    };
+    std::vector<mem_obj_arg> MemObjArgs;
 
     std::uint32_t ImplicitOffsetArgs[3] = {0, 0, 0};
 
@@ -137,23 +154,26 @@ struct ur_kernel_handle_t_ {
         Name{Name}, Context{Context}, Program{Program}, RefCount{1} {
     urProgramRetain(Program);
     urContextRetain(Context);
-    /// Note: this code assumes that there is only one device per context
     ur_result_t RetError = urKernelGetGroupInfo(
-        this, Context->getDevice(),
+        this, Program->getDevice(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
         sizeof(ReqdThreadsPerBlock), ReqdThreadsPerBlock, nullptr);
     (void)RetError;
     assert(RetError == UR_RESULT_SUCCESS);
     UR_CHECK_ERROR(
         cuFuncGetAttribute(&RegsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS, Func));
+    CachedEvents.reserve(CachedEventsSize);
   }
 
   ~ur_kernel_handle_t_() {
     urProgramRelease(Program);
     urContextRelease(Context);
+    for (auto &Mem : Args.MemObjArgs) {
+      urMemRelease(Mem.Mem);
+    }
   }
 
-  ur_program_handle_t get_program() const noexcept { return Program; }
+  ur_program_handle_t getProgram() const noexcept { return Program; }
 
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
@@ -202,4 +222,16 @@ struct ur_kernel_handle_t_ {
   void clearLocalSize() { Args.clearLocalSize(); }
 
   size_t getRegsPerThread() const noexcept { return RegsPerThread; };
+
+  void addMemObjArg(ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
+    assert(hMem && "Invalid mem handle");
+    for (auto &MemObjArg : Args.MemObjArgs) {
+      if (hMem == MemObjArg.Mem) {
+        MemObjArg.AccessFlags |= Flags;
+        return;
+      }
+    }
+    Args.MemObjArgs.push_back(arguments::mem_obj_arg{hMem, Flags});
+    urMemRetain(hMem);
+  };
 };
