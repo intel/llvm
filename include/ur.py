@@ -789,7 +789,7 @@ class ur_device_info_v(IntEnum):
                                                     ## memory resources
     INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E   ## [::ur_bool_t] returns true if the device supports importing external
                                                     ## semaphore resources
-    INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x2010   ## [::ur_bool_t] returns true if the device supports exporting internal
+    INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F   ## [::ur_bool_t] returns true if the device supports exporting internal
                                                     ## event resources
 
 class ur_device_info_t(c_int):

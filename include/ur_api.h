@@ -1183,7 +1183,7 @@ typedef enum ur_device_info_t {
                                                                     ///< memory resources
     UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E,   ///< [::ur_bool_t] returns true if the device supports importing external
                                                                     ///< semaphore resources
-    UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x2010,   ///< [::ur_bool_t] returns true if the device supports exporting internal
+    UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F,   ///< [::ur_bool_t] returns true if the device supports exporting internal
                                                                     ///< event resources
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
