@@ -884,11 +884,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_UUID: {
     CUuuid UUID;
 #if (CUDA_VERSION >= 11040)
-      sycl::detail::ur::assertion(cuDeviceGetUuid_v2(&UUID, hDevice->get()) ==
-                                  CUDA_SUCCESS);
+    sycl::detail::ur::assertion(cuDeviceGetUuid_v2(&UUID, hDevice->get()) ==
+                                CUDA_SUCCESS);
 #else
-      sycl::detail::ur::assertion(cuDeviceGetUuid(&UUID, hDevice->get()) ==
-                                  CUDA_SUCCESS);
+    sycl::detail::ur::assertion(cuDeviceGetUuid(&UUID, hDevice->get()) ==
+                                CUDA_SUCCESS);
 #endif
     std::array<unsigned char, 16> Name;
     std::copy(UUID.bytes, UUID.bytes + 16, Name.begin());
