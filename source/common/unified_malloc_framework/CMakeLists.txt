@@ -16,6 +16,7 @@ if(UMF_BUILD_SHARED_LIBRARY)
                      "Do not use the shared library in production software.")
     add_library(unified_malloc_framework SHARED
         ${UMF_SOURCES})
+    target_compile_definitions(unified_malloc_framework PUBLIC UMF_SHARED_LIBRARY)
 else()
     add_library(unified_malloc_framework STATIC
         ${UMF_SOURCES})

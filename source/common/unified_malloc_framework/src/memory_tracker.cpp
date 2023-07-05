@@ -18,6 +18,10 @@
 #include <shared_mutex>
 #include <stdlib.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 // TODO: reimplement in C and optimize...
 struct umf_memory_tracker_t {
     enum umf_result_t add(void *pool, const void *ptr, size_t size) {
@@ -84,10 +88,29 @@ umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker, const void *ptr,
 
 extern "C" {
 
-umf_memory_tracker_handle_t umfMemoryTrackerGet(void) {
-    static umf_memory_tracker_t tracker;
-    return &tracker;
+#if defined(_WIN32) && defined(UMF_SHARED_LIBRARY)
+umf_memory_tracker_t *tracker = nullptr;
+BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
+    if (fdwReason == DLL_PROCESS_DETACH) {
+        delete tracker;
+    } else if (fdwReason == DLL_PROCESS_ATTACH) {
+        tracker = new umf_memory_tracker_t;
+    }
+    return TRUE;
 }
+#elif defined(_WIN32)
+umf_memory_tracker_t trackerInstance;
+umf_memory_tracker_t *tracker = &trackerInstance;
+#else
+umf_memory_tracker_t *tracker = nullptr;
+void __attribute__((constructor)) createLibTracker() {
+    tracker = new umf_memory_tracker_t;
+}
+
+void __attribute__((destructor)) deleteLibTracker() { delete tracker; }
+#endif
+
+umf_memory_tracker_handle_t umfMemoryTrackerGet(void) { return tracker; }
 
 void *umfMemoryTrackerGetPool(umf_memory_tracker_handle_t hTracker,
                               const void *ptr) {
