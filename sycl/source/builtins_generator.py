@@ -2,9 +2,11 @@ import itertools
 import sys
 
 class Vec:
-  def __init__(self, element_type, valid_sizes = [1,2,3,4,8,16]):
+  def __init__(self, element_type, valid_sizes = [1,2,3,4,8,16],
+               deprecation_message=None):
     self.element_type = element_type
     self.valid_sizes = valid_sizes
+    self.deprecation_message = deprecation_message
 
   def __str__(self):
     return f'vec<{self.element_type}, N>'
@@ -45,6 +47,10 @@ class InstantiatedUnsignedType:
 
   def __str__(self):
     return f'detail::make_unsigned_t<{self.signed_type}>'
+
+# Vector of long long is no longer defined by the spec. We deprecate it for now.
+deprecated_long_long_vec = Vec("long long", deprecation_message="SYCL builtin functions with vec<long long, N> has been deprecated. Please use vec<int64_t, N> or the corresponding long{N} alias.")
+deprecated_unsigned_long_long_vec = Vec("unsigned long long", deprecation_message="SYCL builtin functions with vec<unsigned long long, N> has been deprecated. Please use vec<uint64_t, N> or the corresponding ulong{N} alias.")
 
 ### GENTYPE DEFINITIONS
 # NOTE: Marray is currently explicitly defined.
@@ -89,6 +95,8 @@ vuint8n = [Vec("uint8_t")]
 vuint16n = [Vec("uint16_t")]
 vuint32n = [Vec("uint32_t")]
 vuint64n = [Vec("uint64_t")]
+vint64n_ext = [Vec("int64_t"), deprecated_long_long_vec]
+vuint64n_ext = [Vec("uint64_t"), deprecated_unsigned_long_long_vec]
 
 mint8n = []
 mint16n = []
@@ -108,16 +116,21 @@ geninteger = ["char", "signed char", "short", "int", "long", "long long",
               "unsigned char", "unsigned short", "unsigned int",
               "unsigned long", "unsigned long long",
               Vec("int8_t"), Vec("int16_t"), Vec("int32_t"), Vec("int64_t"),
-              Vec("uint8_t"), Vec("uint16_t"), Vec("uint32_t"), Vec("uint64_t")]
+              Vec("uint8_t"), Vec("uint16_t"), Vec("uint32_t"), Vec("uint64_t"),
+              deprecated_long_long_vec, deprecated_unsigned_long_long_vec]
 sigeninteger = ["char", "signed char", "short", "int", "long", "long long"]
-vigeninteger = [Vec("int8_t"), Vec("int16_t"), Vec("int32_t"), Vec("int64_t")]
+vigeninteger = [Vec("int8_t"), Vec("int16_t"), Vec("int32_t"), Vec("int64_t"),
+                deprecated_long_long_vec]
 migeninteger = []
 igeninteger = ["char", "signed char", "short", "int", "long", "long long",
-                Vec("int8_t"), Vec("int16_t"), Vec("int32_t"), Vec("int64_t")]
-vugeninteger = [Vec("uint8_t"), Vec("uint16_t"), Vec("uint32_t"), Vec("uint64_t")]
+                Vec("int8_t"), Vec("int16_t"), Vec("int32_t"), Vec("int64_t"),
+                deprecated_long_long_vec]
+vugeninteger = [Vec("uint8_t"), Vec("uint16_t"), Vec("uint32_t"), Vec("uint64_t"),
+               deprecated_unsigned_long_long_vec]
 sugeninteger = ["unsigned char", "unsigned short", "unsigned int",
                 "unsigned long", "unsigned long long"]
 ugeninteger = [Vec("uint8_t"), Vec("uint16_t"), Vec("uint32_t"), Vec("uint64_t"),
+               deprecated_unsigned_long_long_vec,
                "unsigned char", "unsigned short", "unsigned int",
                "unsigned long", "unsigned long long"]
 igenint32 = ["int32_t", Vec("int32_t")]
@@ -129,7 +142,8 @@ sgentype = ["char", "signed char", "short", "int", "long", "long long",
             "unsigned long", "unsigned long long", "float", "double", "half"]
 vgentype = [Vec("int8_t"), Vec("int16_t"), Vec("int32_t"), Vec("int64_t"),
             Vec("uint8_t"), Vec("uint16_t"), Vec("uint32_t"), Vec("uint64_t"),
-            Vec("float"), Vec("double"), Vec("half")]
+            Vec("float"), Vec("double"), Vec("half"),
+            deprecated_long_long_vec, deprecated_unsigned_long_long_vec]
 mgentype = []
 
 intptr = [MultiPtr("int"), RawPtr("int")]
@@ -180,10 +194,12 @@ builtin_types = {
   "vint16n" : vint16n,
   "vint32n" : vint32n,
   "vint64n" : vint64n,
+  "vint64n_ext" : vint64n_ext,
   "vuint8n" : vuint8n,
   "vuint16n" : vuint16n,
   "vuint32n" : vuint32n,
   "vuint64n" : vuint64n,
+  "vuint64n_ext" : vuint64n_ext,
   "mint8n" : mint8n,
   "mint16n" : mint16n,
   "mint32n" : mint32n,
@@ -416,7 +432,7 @@ sycl_builtins = [# Math functions
                  Def("modf", "half", ["half", "halfptr"]),
                  Def("nan", "vfloatn", ["vuint32n"]),
                  Def("nan", "float", ["unsigned int"]),
-                 Def("nan", "vdoublen", ["vuint64n"]),
+                 Def("nan", "vdoublen", ["vuint64n_ext"]),
                  Def("nan", "double", ["unsigned long"]),
                  Def("nan", "double", ["unsigned long long"]),
                  Def("nan", "vhalfn", ["vuint16n"]),
@@ -625,24 +641,24 @@ sycl_builtins = [# Math functions
                  Def("select", "vint8n", ["vint8n", "vint8n", "vint8n"]),
                  Def("select", "vint16n", ["vint16n", "vint16n", "vint16n"]),
                  Def("select", "vint32n", ["vint32n", "vint32n", "vint32n"]),
-                 Def("select", "vint64n", ["vint64n", "vint64n", "vint64n"]),
+                 Def("select", "vint64n_ext", ["vint64n_ext", "vint64n_ext", "vint64n_ext"]),
                  Def("select", "vuint8n", ["vuint8n", "vuint8n", "vint8n"]),
                  Def("select", "vuint16n", ["vuint16n", "vuint16n", "vint16n"]),
                  Def("select", "vuint32n", ["vuint32n", "vuint32n", "vint32n"]),
-                 Def("select", "vuint64n", ["vuint64n", "vuint64n", "vint64n"]),
+                 Def("select", "vuint64n_ext", ["vuint64n_ext", "vuint64n_ext", "vint64n_ext"]),
                  Def("select", "vfloatn", ["vfloatn", "vfloatn", "vint32n"]),
-                 Def("select", "vdoublen", ["vdoublen", "vdoublen", "vint64n"]),
+                 Def("select", "vdoublen", ["vdoublen", "vdoublen", "vint64n_ext"]),
                  Def("select", "vhalfn", ["vhalfn", "vhalfn", "vint16n"]),
                  Def("select", "vint8n", ["vint8n", "vint8n", "vuint8n"]),
                  Def("select", "vint16n", ["vint16n", "vint16n", "vuint16n"]),
                  Def("select", "vint32n", ["vint32n", "vint32n", "vuint32n"]),
-                 Def("select", "vint64n", ["vint64n", "vint64n", "vuint64n"]),
+                 Def("select", "vint64n_ext", ["vint64n_ext", "vint64n_ext", "vuint64n_ext"]),
                  Def("select", "vuint8n", ["vuint8n", "vuint8n", "vuint8n"]),
                  Def("select", "vuint16n", ["vuint16n", "vuint16n", "vuint16n"]),
                  Def("select", "vuint32n", ["vuint32n", "vuint32n", "vuint32n"]),
-                 Def("select", "vuint64n", ["vuint64n", "vuint64n", "vuint64n"]),
+                 Def("select", "vuint64n_ext", ["vuint64n_ext", "vuint64n_ext", "vuint64n_ext"]),
                  Def("select", "vfloatn", ["vfloatn", "vfloatn", "vuint32n"]),
-                 Def("select", "vdoublen", ["vdoublen", "vdoublen", "vuint64n"]),
+                 Def("select", "vdoublen", ["vdoublen", "vdoublen", "vuint64n_ext"]),
                  Def("select", "vhalfn", ["vhalfn", "vhalfn", "vuint16n"]),
                  Def("select", "sgentype", ["sgentype", "sgentype", "bool"], custom_invoke=custom_bool_select_invoke)]
 native_builtins = [Def("cos", "genfloatf", ["genfloatf"], invoke_prefix="native_"),
@@ -750,13 +766,21 @@ def get_func_prefix(return_type, arg_types):
     return "template <%s>" % (', '.join(template_args)) 
   return "inline"
 
+def get_deprecation(builtin, return_type, arg_types):
+  # TODO: Check builtin for deprecation message and prioritize that.
+  for t in [return_type] + arg_types:
+    if hasattr(t, 'deprecation_message') and t.deprecation_message:
+      return f'\n__SYCL_DEPRECATED("{t.deprecation_message}")\n'
+  return ''
+
 def generate_builtin(builtin, return_type, arg_types):
   func_prefix = get_func_prefix(return_type, arg_types)
+  func_deprecation = get_deprecation(builtin, return_type, arg_types)
   arg_names = ["a%i" % i for i in range(len(arg_types))]
   func_args = ', '.join(["%s %s" % arg for arg in zip(arg_types, arg_names)])
   invoke = builtin.get_invoke(return_type, arg_types, arg_names)
   return f"""
-{func_prefix} {return_type} {builtin.name}({func_args}) __NOEXC {{
+{func_prefix}{func_deprecation} {return_type} {builtin.name}({func_args}) __NOEXC {{
 {invoke}
 }}
 """
