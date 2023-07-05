@@ -10,6 +10,7 @@
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
+#include "clang/Basic/SYCLNativeCPUHelpers.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/Targets/SPIR.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
@@ -46,8 +47,10 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
+#include "llvm/SYCLLowerIR/EmitSYCLNativeCPUHeader.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
+#include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/Support/BuryPointer.h"
@@ -1071,6 +1074,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
+
+      if (LangOpts.SYCLIsNativeCPU) {
+        MPM.addPass(
+            EmitSYCLNativeCPUHeaderPass(getNativeCPUHeaderName(LangOpts)));
+        MPM.addPass(PrepareSYCLNativeCPUPass());
+      }
     }
   }
 
