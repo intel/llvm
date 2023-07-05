@@ -140,7 +140,7 @@ entry:
   ret void
 }
 ```
-As you can see, the `subhandler` steals the kernel's function name, and receive two pointer arguments: the first one points to the kernel arguments from the SYCL runtime, and the second one to the `__nativecpu_state` struct.
+As you can see, the `subhandler` steals the kernel's function name, and receives two pointer arguments: the first one points to the kernel arguments from the SYCL runtime, and the second one to the `__nativecpu_state` struct.
 
 ## Kernel registration
 
