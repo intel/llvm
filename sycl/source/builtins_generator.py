@@ -22,6 +22,7 @@ class MultiPtr:
 class RawPtr:
   def __init__(self, element_type):
     self.element_type = element_type
+    self.deprecation_message = "SYCL builtin functions with raw pointer arguments have been deprecated. Please use multi_ptr."
 
   def __str__(self):
     return f'{self.element_type}*'
@@ -49,8 +50,8 @@ class InstantiatedUnsignedType:
     return f'detail::make_unsigned_t<{self.signed_type}>'
 
 # Vector of long long is no longer defined by the spec. We deprecate it for now.
-deprecated_long_long_vec = Vec("long long", deprecation_message="SYCL builtin functions with vec<long long, N> has been deprecated. Please use vec<int64_t, N> or the corresponding long{N} alias.")
-deprecated_unsigned_long_long_vec = Vec("unsigned long long", deprecation_message="SYCL builtin functions with vec<unsigned long long, N> has been deprecated. Please use vec<uint64_t, N> or the corresponding ulong{N} alias.")
+deprecated_long_long_vec = Vec("long long", deprecation_message="SYCL builtin functions with vec<long long, N> arguments have been deprecated. Please use vec<int64_t, N> or the corresponding long{N} alias.")
+deprecated_unsigned_long_long_vec = Vec("unsigned long long", deprecation_message="SYCL builtin functions with vec<unsigned long long, N> arguments have been deprecated. Please use vec<uint64_t, N> or the corresponding ulong{N} alias.")
 
 ### GENTYPE DEFINITIONS
 # NOTE: Marray is currently explicitly defined.
@@ -760,27 +761,30 @@ def get_template_args(return_type, arg_types):
     result.append("access::decorated IsDecorated")
   return result
 
-def get_func_prefix(return_type, arg_types):
-  template_args = get_template_args(return_type, arg_types)
-  if template_args:
-    return "template <%s>" % (', '.join(template_args)) 
-  return "inline"
-
 def get_deprecation(builtin, return_type, arg_types):
   # TODO: Check builtin for deprecation message and prioritize that.
   for t in [return_type] + arg_types:
     if hasattr(t, 'deprecation_message') and t.deprecation_message:
-      return f'\n__SYCL_DEPRECATED("{t.deprecation_message}")\n'
+      return f'__SYCL_DEPRECATED("{t.deprecation_message}")\n'
   return ''
 
-def generate_builtin(builtin, return_type, arg_types):
-  func_prefix = get_func_prefix(return_type, arg_types)
+def get_func_prefix(builtin, return_type, arg_types):
+  template_args = get_template_args(return_type, arg_types)
   func_deprecation = get_deprecation(builtin, return_type, arg_types)
+  result = ""
+  if template_args:
+    result = result + "template <%s>\n" % (', '.join(template_args))
+  if func_deprecation:
+    result = result + func_deprecation
+  return result
+
+def generate_builtin(builtin, return_type, arg_types):
+  func_prefix = get_func_prefix(builtin, return_type, arg_types)
   arg_names = ["a%i" % i for i in range(len(arg_types))]
   func_args = ', '.join(["%s %s" % arg for arg in zip(arg_types, arg_names)])
   invoke = builtin.get_invoke(return_type, arg_types, arg_names)
   return f"""
-{func_prefix}{func_deprecation} {return_type} {builtin.name}({func_args}) __NOEXC {{
+{func_prefix}inline {return_type} {builtin.name}({func_args}) __NOEXC {{
 {invoke}
 }}
 """
