@@ -466,4 +466,3 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 // Utility function for setting a message and warning
 [[maybe_unused]] void setErrorMessage(const char *message,
                                       ur_result_t error_code);
-

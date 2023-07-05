@@ -285,4 +285,3 @@ ur_result_t zerPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
 }
-
