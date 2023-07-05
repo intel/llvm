@@ -18,10 +18,12 @@ namespace detail::usm {
 __SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Bytes,
                                  const context &Ctxt, const device &Dev,
                                  sycl::usm::alloc Kind,
+                                 const property_list &PropList,
                                  const code_location &CL);
 
 __SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Bytes,
                                      const context &Ctxt, sycl::usm::alloc Kind,
+                                     const property_list &PropList,
                                      const code_location &CL);
 
 __SYCL_EXPORT void free(void *Ptr, const context &Ctxt,
