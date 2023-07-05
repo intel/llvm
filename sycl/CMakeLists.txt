@@ -178,8 +178,9 @@ configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.h
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
 
 # Generate SYCL builtins
+find_package(Python3 REQUIRED)
 add_custom_target(sycl-builtins-header
-  COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/source/builtins_generator.py ${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_gen.hpp
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/builtins_generator.py ${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_gen.hpp
   BYPRODUCTS "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_gen.hpp"
   COMMENT "Generate SYCL builtin headers"
 )
