@@ -186,7 +186,7 @@ struct ur_mem_handle_t_ {
     urContextRetain(Context);
   }
 
-  /// Constructs the UR allocation for an sampled image object
+  /// Constructs the UR allocation for a sampled image object
   ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array, CUtexObject Tex,
                    ur_sampler_handle_t Sampler, ur_mem_type_t ImageType)
       : Context{Context}, RefCount{1}, MemType{Type::Texture} {

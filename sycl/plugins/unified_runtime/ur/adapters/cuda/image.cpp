@@ -26,20 +26,20 @@ ur_result_t urCalculateNumChannels(ur_image_channel_order_t order,
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_A:
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_R:
     *NumChannels = 1;
-    break;
+    return Err;
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RG:
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RA:
     *NumChannels = 2;
-    break;
+    return Err;
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGB:
     Err = UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
-    break;
+    return Err;
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGBA:
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_ARGB:
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_BGRA:
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_ABGR:
     *NumChannels = 4;
-    break;
+    return Err;
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RX:
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGX:
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGBX:
@@ -48,9 +48,8 @@ ur_result_t urCalculateNumChannels(ur_image_channel_order_t order,
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_LUMINANCE:
   default:
     Err = UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
-    break;
+    return Err;
   }
-  return Err;
 }
 
 /// Convert a UR image format to a CUDA image format and
@@ -111,7 +110,7 @@ cudaToUrImageChannelFormat(CUarray_format cuda_format,
 #define MAP(FROM, TO)                                                          \
   case FROM: {                                                                 \
     *return_image_channel_type = TO;                                           \
-    break;                                                                     \
+    return Err;                                                                \
   }
     MAP(CU_AD_FORMAT_UNSIGNED_INT8, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8);
     MAP(CU_AD_FORMAT_UNSIGNED_INT16, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16);
@@ -126,10 +125,8 @@ cudaToUrImageChannelFormat(CUarray_format cuda_format,
 #undef MAP
   default:
     Err = UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
-    break;
+    return Err;
   }
-
-  return Err;
 }
 
 ur_result_t urTextureCreate(ur_context_handle_t hContext,
@@ -245,6 +242,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
                                        widthInBytes, height, elementSizeBytes));
   } catch (ur_result_t error) {
     Result = error;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 
   return Result;
@@ -696,19 +695,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
       *(size_t *)pPropValue = ArrayDesc.Width;
     if (pPropSizeRet)
       *pPropSizeRet = sizeof(size_t);
-    break;
+    return RetErr;
   case UR_IMAGE_INFO_HEIGHT:
     if (pPropValue)
       *(size_t *)pPropValue = ArrayDesc.Height;
     if (pPropSizeRet)
       *pPropSizeRet = sizeof(size_t);
-    break;
+    return RetErr;
   case UR_IMAGE_INFO_DEPTH:
     if (pPropValue)
       *(size_t *)pPropValue = ArrayDesc.Depth;
     if (pPropSizeRet)
       *pPropSizeRet = sizeof(size_t);
-    break;
+    return RetErr;
   case UR_IMAGE_INFO_FORMAT:
     ur_image_channel_type_t ChannelType;
     ur_image_channel_order_t ChannelOrder;
@@ -732,13 +731,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     }
     if (pPropSizeRet)
       *pPropSizeRet = sizeof(ur_image_format_t);
-    break;
+    return RetErr;
   default:
     RetErr = UR_RESULT_ERROR_INVALID_VALUE;
-    break;
+    return RetErr;
   }
-
-  return RetErr;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(

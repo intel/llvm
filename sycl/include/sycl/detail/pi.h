@@ -97,7 +97,7 @@
 // 14.33 Added new parameter (memory object properties) to
 // piextKernelSetArgMemObj
 // 14.34 Added command-buffer extension methods
-// 14.35 Adding support for experimental bindless images. This includes
+// 14.35 Adding support for experimental bindless images. This includes:
 //       - Added device info queries
 //         - Device queries for bindless image support
 //           - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT
@@ -493,7 +493,7 @@ typedef enum {
   PI_IMAGE_INFO_SLICE_PITCH = 0x1113,
   PI_IMAGE_INFO_WIDTH = 0x1114,
   PI_IMAGE_INFO_HEIGHT = 0x1115,
-  PI_IMAGE_INFO_DEPTH = 0x1116,
+  PI_IMAGE_INFO_DEPTH = 0x1116
 } _pi_image_info;
 
 typedef enum {
@@ -543,6 +543,7 @@ typedef enum {
   PI_COMMAND_TYPE_SVM_UNMAP = 0x120D,
   PI_COMMAND_TYPE_EXT_COMMAND_BUFFER = 0x12A8,
   PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ = 0x418E,
+  PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE = 0x418F
 } _pi_command_type;
 
 typedef enum {
@@ -610,7 +611,7 @@ typedef enum {
 typedef enum {
   PI_IMAGE_COPY_HTOD = 0,
   PI_IMAGE_COPY_DTOH = 1,
-  PI_IMAGE_COPY_DTOD = 2,
+  PI_IMAGE_COPY_DTOD = 2
 } _pi_image_copy_flags;
 
 typedef enum { PI_BUFFER_CREATE_TYPE_REGION = 0x1220 } _pi_buffer_create_type;
@@ -1922,7 +1923,7 @@ __SYCL_EXPORT pi_result piextUSMSharedAlloc(void **result_ptr,
 /// \param device is the device the memory will be allocated on
 /// \param properties are optional allocation properties
 /// \param width_in_bytes is the width of the allocation in bytes
-/// \param height is the height of the allocation
+/// \param height is the height of the allocation in rows
 /// \param element_size_bytes is the size in bytes of an element in the
 /// allocation
 __SYCL_EXPORT pi_result piextUSMPitchedAlloc(
@@ -2473,7 +2474,7 @@ __SYCL_EXPORT pi_result piextMemImageAllocate(pi_context context,
                                               pi_image_desc *image_desc,
                                               pi_image_mem_handle *ret_mem);
 
-/// API to retrieve individual image from mipmap
+/// API to retrieve individual image from mipmap.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
@@ -2545,7 +2546,7 @@ __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
     float min_mipmap_level_clamp, float max_mipmap_level_clamp,
     float max_anisotropy, pi_sampler *result_sampler);
 
-/// API to copy image data Host to Device or Device to Host
+/// API to copy image data Host to Device or Device to Host.
 ///
 /// \param queue is the queue to submit to
 /// \param dst_ptr is the location the data will be copied to
@@ -2568,7 +2569,7 @@ __SYCL_EXPORT pi_result piextMemImageCopy(
     pi_image_region host_extent, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
-/// API to query an image memory handle for specific properties
+/// API to query an image memory handle for specific properties.
 ///
 /// \param mem_handle is the handle to the image memory
 /// \param param_name is the queried info name
@@ -2578,7 +2579,7 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(
     const pi_image_mem_handle mem_handle, pi_image_info param_name,
     void *param_value, size_t *param_value_size_ret);
 
-/// API to import external memory in the form of a file descriptor
+/// API to import external memory in the form of a file descriptor.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
@@ -2590,7 +2591,7 @@ __SYCL_EXPORT pi_result
 piextMemImportOpaqueFD(pi_context context, pi_device device, size_t size,
                        int file_descriptor, pi_interop_mem_handle *ret_handle);
 
-/// API to map an interop memory handle to an image memory handle
+/// API to map an interop memory handle to an image memory handle.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
@@ -2612,7 +2613,7 @@ __SYCL_EXPORT pi_result piextMemMapExternalArray(
 __SYCL_EXPORT pi_result piextMemReleaseInterop(
     pi_context context, pi_device device, pi_interop_mem_handle memory_handle);
 
-/// API to import an external semaphore in the form of a file descriptor
+/// API to import an external semaphore in the form of a file descriptor.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
@@ -2623,7 +2624,7 @@ __SYCL_EXPORT pi_result piextImportExternalSemaphoreOpaqueFD(
     pi_context context, pi_device device, int file_descriptor,
     pi_interop_semaphore_handle *ret_handle);
 
-/// API to destroy the external semaphore handle
+/// API to destroy the external semaphore handle.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
@@ -2633,7 +2634,7 @@ __SYCL_EXPORT pi_result
 piextDestroyExternalSemaphore(pi_context context, pi_device device,
                               pi_interop_semaphore_handle sem_handle);
 
-/// API to instruct the queue with a non-blocking wait on an external semaphore
+/// API to instruct the queue with a non-blocking wait on an external semaphore.
 ///
 /// \param command_queue is the queue instructed to wait
 /// \param sem_handle is the interop semaphore handle
@@ -2647,7 +2648,7 @@ __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
     pi_event *event);
 
 /// API to instruct the queue to signal the external semaphore handle once all
-/// previous commands have completed execution
+/// previous commands have completed execution.
 ///
 /// \param command_queue is the queue instructed to signal
 /// \param sem_handle is the interop semaphore handle to signal

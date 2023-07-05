@@ -2454,131 +2454,59 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
                            ur_image_desc_t *UrDesc) {
 
   switch (ImageFormat->image_channel_data_type) {
-  case PI_IMAGE_CHANNEL_TYPE_SNORM_INT8: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_SNORM_INT8;
-    break;
+#define MAP(FROM, TO)                                                          \
+  case FROM: {                                                                 \
+    UrFormat->channelType = TO;                                                \
+    break;                                                                     \
   }
-  case PI_IMAGE_CHANNEL_TYPE_SNORM_INT16: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_SNORM_INT16;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_INT8;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT16: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_INT16;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_INT_101010;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_FLOAT: {
-    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_FLOAT;
-    break;
-  }
+    MAP(PI_IMAGE_CHANNEL_TYPE_SNORM_INT8, UR_IMAGE_CHANNEL_TYPE_SNORM_INT8)
+    MAP(PI_IMAGE_CHANNEL_TYPE_SNORM_INT16, UR_IMAGE_CHANNEL_TYPE_SNORM_INT16)
+    MAP(PI_IMAGE_CHANNEL_TYPE_UNORM_INT8, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8)
+    MAP(PI_IMAGE_CHANNEL_TYPE_UNORM_INT16, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16)
+    MAP(PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
+        UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565)
+    MAP(PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555,
+        UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555)
+    MAP(PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010,
+        UR_IMAGE_CHANNEL_TYPE_INT_101010)
+    MAP(PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8)
+    MAP(PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16)
+    MAP(PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32)
+    MAP(PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8,
+        UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8)
+    MAP(PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16,
+        UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16)
+    MAP(PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32,
+        UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32)
+    MAP(PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT, UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT)
+    MAP(PI_IMAGE_CHANNEL_TYPE_FLOAT, UR_IMAGE_CHANNEL_TYPE_FLOAT)
+#undef MAP
   default: {
     die("piMemImageCreate: unsuppported image_channel_data_type.");
   }
   }
   switch (ImageFormat->image_channel_order) {
-  case PI_IMAGE_CHANNEL_ORDER_A: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_A;
-    break;
+#define MAP(FROM, TO)                                                          \
+  case FROM: {                                                                 \
+    UrFormat->channelOrder = TO;                                               \
+    break;                                                                     \
   }
-  case PI_IMAGE_CHANNEL_ORDER_R: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_R;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RG: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RG;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RA: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RA;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RGB: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RGB;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RGBA: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_BGRA: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_BGRA;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_ARGB: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_ARGB;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_ABGR: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_ABGR;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_INTENSITY: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_INTENSITY;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_LUMINANCE: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_LUMINANCE;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_Rx: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RX;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RGx: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RGX;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RGBx: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBX;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_sRGBA: {
-    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_SRGBA;
-    break;
-  }
+    MAP(PI_IMAGE_CHANNEL_ORDER_A, UR_IMAGE_CHANNEL_ORDER_A)
+    MAP(PI_IMAGE_CHANNEL_ORDER_R, UR_IMAGE_CHANNEL_ORDER_R)
+    MAP(PI_IMAGE_CHANNEL_ORDER_RG, UR_IMAGE_CHANNEL_ORDER_RG)
+    MAP(PI_IMAGE_CHANNEL_ORDER_RA, UR_IMAGE_CHANNEL_ORDER_RA)
+    MAP(PI_IMAGE_CHANNEL_ORDER_RGB, UR_IMAGE_CHANNEL_ORDER_RGB)
+    MAP(PI_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_ORDER_RGBA)
+    MAP(PI_IMAGE_CHANNEL_ORDER_BGRA, UR_IMAGE_CHANNEL_ORDER_BGRA)
+    MAP(PI_IMAGE_CHANNEL_ORDER_ARGB, UR_IMAGE_CHANNEL_ORDER_ARGB)
+    MAP(PI_IMAGE_CHANNEL_ORDER_ABGR, UR_IMAGE_CHANNEL_ORDER_ABGR)
+    MAP(PI_IMAGE_CHANNEL_ORDER_INTENSITY, UR_IMAGE_CHANNEL_ORDER_INTENSITY)
+    MAP(PI_IMAGE_CHANNEL_ORDER_LUMINANCE, UR_IMAGE_CHANNEL_ORDER_LUMINANCE)
+    MAP(PI_IMAGE_CHANNEL_ORDER_Rx, UR_IMAGE_CHANNEL_ORDER_RX)
+    MAP(PI_IMAGE_CHANNEL_ORDER_RGx, UR_IMAGE_CHANNEL_ORDER_RGX)
+    MAP(PI_IMAGE_CHANNEL_ORDER_RGBx, UR_IMAGE_CHANNEL_ORDER_RGBX)
+    MAP(PI_IMAGE_CHANNEL_ORDER_sRGBA, UR_IMAGE_CHANNEL_ORDER_SRGBA)
+#undef MAP
   default: {
     die("piMemImageCreate: unsuppported image_channel_data_type.");
   }
@@ -2593,34 +2521,19 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
   UrDesc->rowPitch = ImageDesc->image_row_pitch;
   UrDesc->slicePitch = ImageDesc->image_slice_pitch;
   switch (ImageDesc->image_type) {
-  case PI_MEM_TYPE_BUFFER: {
-    UrDesc->type = UR_MEM_TYPE_BUFFER;
-    break;
+#define MAP(FROM, TO)                                                          \
+  case FROM: {                                                                 \
+    UrDesc->type = TO;                                                         \
+    break;                                                                     \
   }
-  case PI_MEM_TYPE_IMAGE2D: {
-    UrDesc->type = UR_MEM_TYPE_IMAGE2D;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE3D: {
-    UrDesc->type = UR_MEM_TYPE_IMAGE3D;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE2D_ARRAY: {
-    UrDesc->type = UR_MEM_TYPE_IMAGE2D_ARRAY;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE1D: {
-    UrDesc->type = UR_MEM_TYPE_IMAGE1D;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE1D_ARRAY: {
-    UrDesc->type = UR_MEM_TYPE_IMAGE1D_ARRAY;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE1D_BUFFER: {
-    UrDesc->type = UR_MEM_TYPE_IMAGE1D_BUFFER;
-    break;
-  }
+    MAP(PI_MEM_TYPE_BUFFER, UR_MEM_TYPE_BUFFER)
+    MAP(PI_MEM_TYPE_IMAGE2D, UR_MEM_TYPE_IMAGE2D)
+    MAP(PI_MEM_TYPE_IMAGE3D, UR_MEM_TYPE_IMAGE3D)
+    MAP(PI_MEM_TYPE_IMAGE2D_ARRAY, UR_MEM_TYPE_IMAGE2D_ARRAY)
+    MAP(PI_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE1D)
+    MAP(PI_MEM_TYPE_IMAGE1D_ARRAY, UR_MEM_TYPE_IMAGE1D_ARRAY)
+    MAP(PI_MEM_TYPE_IMAGE1D_BUFFER, UR_MEM_TYPE_IMAGE1D_BUFFER)
+#undef MAP
   default: {
     die("piMemImageCreate: unsuppported image_type.");
   }
@@ -2904,9 +2817,8 @@ inline pi_result piextUSMPitchedAlloc(void **ResultPtr, size_t *ResultPitch,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   std::ignore = Properties;
   ur_usm_desc_t USMDesc{};
   ur_usm_pool_handle_t Pool{};
@@ -4282,9 +4194,8 @@ inline pi_result piextMemImageAllocate(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
 
   ur_image_format_t UrFormat{};
   ur_image_desc_t UrDesc{};
@@ -4307,11 +4218,9 @@ inline pi_result piextMemUnsampledImageCreate(
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(RetMem, PI_ERROR_INVALID_MEM_OBJECT);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_image_mem_handle_t UrImgMem =
-      reinterpret_cast<ur_exp_image_mem_handle_t>(ImgMem);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrImgMem = reinterpret_cast<ur_exp_image_mem_handle_t>(ImgMem);
 
   ur_image_format_t UrFormat{};
   ur_image_desc_t UrDesc{};
@@ -4337,18 +4246,15 @@ inline pi_result piextMemSampledImageCreate(
   PI_ASSERT(RetMem, PI_ERROR_INVALID_MEM_OBJECT);
   PI_ASSERT(Sampler, PI_ERROR_INVALID_SAMPLER);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_image_mem_handle_t UrImgMem =
-      reinterpret_cast<ur_exp_image_mem_handle_t>(ImgMem);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrImgMem = reinterpret_cast<ur_exp_image_mem_handle_t>(ImgMem);
 
   ur_image_format_t UrFormat{};
   ur_image_desc_t UrDesc{};
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
-  ur_sampler_handle_t UrSampler =
-      reinterpret_cast<ur_sampler_handle_t>(Sampler);
+  auto UrSampler = reinterpret_cast<ur_sampler_handle_t>(Sampler);
   ur_mem_handle_t *UrRetMem = reinterpret_cast<ur_mem_handle_t *>(RetMem);
   ur_exp_image_handle_t *UrRetHandle =
       reinterpret_cast<ur_exp_image_handle_t *>(RetHandle);
@@ -4368,8 +4274,7 @@ inline pi_result piextBindlessImageSamplerCreate(
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(RetSampler, PI_ERROR_INVALID_VALUE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   ur_sampler_desc_t UrProps{};
   UrProps.stype = UR_STRUCTURE_TYPE_SAMPLER_DESC;
 
@@ -4446,11 +4351,9 @@ inline pi_result piextMemMipmapGetLevel(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_image_mem_handle_t UrMipMem =
-      reinterpret_cast<ur_exp_image_mem_handle_t>(MipMem);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrMipMem = reinterpret_cast<ur_exp_image_mem_handle_t>(MipMem);
   ur_exp_image_mem_handle_t *UrRetMem =
       reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
 
@@ -4465,10 +4368,9 @@ inline pi_result piextMemImageFree(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_image_mem_handle_t UrMemoryHandle =
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrMemoryHandle =
       reinterpret_cast<ur_exp_image_mem_handle_t>(MemoryHandle);
 
   HANDLE_ERRORS(
@@ -4482,10 +4384,9 @@ inline pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_image_mem_handle_t UrMemoryHandle =
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrMemoryHandle =
       reinterpret_cast<ur_exp_image_mem_handle_t>(MemoryHandle);
 
   HANDLE_ERRORS(
@@ -4521,7 +4422,7 @@ piextMemImageCopy(pi_queue Queue, void *DstPtr, void *SrcPtr,
                   const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  auto UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
 
   ur_image_format_t UrFormat{};
   ur_image_desc_t UrDesc{};
@@ -4559,11 +4460,9 @@ inline pi_result piextMemUnsampledImageHandleDestroy(pi_context Context,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_image_handle_t UrHandle =
-      reinterpret_cast<ur_exp_image_handle_t>(Handle);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrHandle = reinterpret_cast<ur_exp_image_handle_t>(Handle);
 
   HANDLE_ERRORS(urBindlessImagesUnsampledImageHandleDestroyExp(
       UrContext, UrDevice, UrHandle));
@@ -4577,11 +4476,9 @@ inline pi_result piextMemSampledImageHandleDestroy(pi_context Context,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_image_handle_t UrHandle =
-      reinterpret_cast<ur_exp_image_handle_t>(Handle);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrHandle = reinterpret_cast<ur_exp_image_handle_t>(Handle);
 
   HANDLE_ERRORS(urBindlessImagesSampledImageHandleDestroyExp(
       UrContext, UrDevice, UrHandle));
@@ -4621,8 +4518,7 @@ static void pi2urImageInfoFlags(const pi_image_info PiFlags,
 inline pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
                                       pi_image_info ParamName, void *ParamValue,
                                       size_t *ParamValueSizeRet) {
-  ur_exp_image_mem_handle_t UrMemHandle =
-      reinterpret_cast<ur_exp_image_mem_handle_t>(MemHandle);
+  auto UrMemHandle = reinterpret_cast<ur_exp_image_mem_handle_t>(MemHandle);
 
   ur_image_info_t UrParamName{};
   pi2urImageInfoFlags(ParamName, &UrParamName);
@@ -4652,9 +4548,8 @@ inline pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   ur_exp_interop_mem_handle_t *UrRetHandle =
       reinterpret_cast<ur_exp_interop_mem_handle_t *>(RetHandle);
 
@@ -4672,16 +4567,14 @@ inline pi_result piextMemMapExternalArray(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
 
   ur_image_format_t UrFormat{};
   ur_image_desc_t UrDesc{};
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
-  ur_exp_interop_mem_handle_t UrMemHandle =
-      reinterpret_cast<ur_exp_interop_mem_handle_t>(MemHandle);
+  auto UrMemHandle = reinterpret_cast<ur_exp_interop_mem_handle_t>(MemHandle);
   ur_exp_image_mem_handle_t *UrRetMem =
       reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
 
@@ -4696,11 +4589,9 @@ inline pi_result piextMemReleaseInterop(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_interop_mem_handle_t UrExtMem =
-      reinterpret_cast<ur_exp_interop_mem_handle_t>(ExtMem);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrExtMem = reinterpret_cast<ur_exp_interop_mem_handle_t>(ExtMem);
 
   HANDLE_ERRORS(
       urBindlessImagesReleaseInteropExp(UrContext, UrDevice, UrExtMem));
@@ -4715,9 +4606,8 @@ piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   ur_exp_interop_semaphore_handle_t *UrRetHandle =
       reinterpret_cast<ur_exp_interop_semaphore_handle_t *>(RetHandle);
 
@@ -4733,10 +4623,9 @@ piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_interop_semaphore_handle_t UrSemHandle =
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrSemHandle =
       reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
 
   HANDLE_ERRORS(urBindlessImagesDestroyExternalSemaphoreExp(UrContext, UrDevice,
@@ -4752,8 +4641,8 @@ piextWaitExternalSemaphore(pi_queue Queue,
                            const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
-  ur_exp_interop_semaphore_handle_t UrSemHandle =
+  auto UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  auto UrSemHandle =
       reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
   const ur_event_handle_t *UrEventWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
@@ -4772,8 +4661,8 @@ piextSignalExternalSemaphore(pi_queue Queue,
                              const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
-  ur_exp_interop_semaphore_handle_t UrSemHandle =
+  auto UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  auto UrSemHandle =
       reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
   const ur_event_handle_t *UrEventWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
