@@ -761,33 +761,35 @@ class ur_device_info_v(IntEnum):
                                                     ## version than older devices.
     BINDLESS_IMAGES_SUPPORT_EXP = 0x2000            ## [::ur_bool_t] returns true if the device supports the creation of
                                                     ## bindless images
-    BINDLESS_IMAGES_1D_USM_SUPPORT_EXP = 0x2001     ## [::ur_bool_t] returns true if the device supports the creation of 1D
+    BINDLESS_IMAGES_SHARED_USM_SUPPORT = 0x2001     ## [::ur_bool_t] returns true if the device supports the creation of
+                                                    ## bindless images backed by shared USM
+    BINDLESS_IMAGES_1D_USM_SUPPORT_EXP = 0x2002     ## [::ur_bool_t] returns true if the device supports the creation of 1D
                                                     ## bindless images backed by USM
-    BINDLESS_IMAGES_2D_USM_SUPPORT_EXP = 0x2002     ## [::ur_bool_t] returns true if the device supports the creation of 2D
+    BINDLESS_IMAGES_2D_USM_SUPPORT_EXP = 0x2003     ## [::ur_bool_t] returns true if the device supports the creation of 2D
                                                     ## bindless images backed by USM
-    IMAGE_PITCH_ALIGN_EXP = 0x2003                  ## [uint32_t] returns the required alignment of the pitch between two
+    IMAGE_PITCH_ALIGN_EXP = 0x2004                  ## [uint32_t] returns the required alignment of the pitch between two
                                                     ## rows of an image in bytes
-    MAX_IMAGE_LINEAR_WIDTH_EXP = 0x2004             ## [size_t] returns the maximum linear width allowed for images allocated
+    MAX_IMAGE_LINEAR_WIDTH_EXP = 0x2005             ## [size_t] returns the maximum linear width allowed for images allocated
                                                     ## using USM
-    MAX_IMAGE_LINEAR_HEIGHT_EXP = 0x2005            ## [size_t] returns the maximum linear height allowed for images
+    MAX_IMAGE_LINEAR_HEIGHT_EXP = 0x2006            ## [size_t] returns the maximum linear height allowed for images
                                                     ## allocated using USM
-    MAX_IMAGE_LINEAR_PITCH_EXP = 0x2006             ## [size_t] returns the maximum linear pitch allowed for images allocated
+    MAX_IMAGE_LINEAR_PITCH_EXP = 0x2007             ## [size_t] returns the maximum linear pitch allowed for images allocated
                                                     ## using USM
-    MIPMAP_SUPPORT_EXP = 0x2007                     ## [::ur_bool_t] returns true if the device supports allocating mipmap
+    MIPMAP_SUPPORT_EXP = 0x2008                     ## [::ur_bool_t] returns true if the device supports allocating mipmap
                                                     ## resources
-    MIPMAP_ANISOTROPY_SUPPORT_EXP = 0x2008          ## [::ur_bool_t] returns true if the device supports sampling mipmap
+    MIPMAP_ANISOTROPY_SUPPORT_EXP = 0x2009          ## [::ur_bool_t] returns true if the device supports sampling mipmap
                                                     ## images with anisotropic filtering
-    MIPMAP_MAX_ANISOTROPY_EXP = 0x2009              ## [uint32_t] returns the maximum anisotropic ratio supported by the
+    MIPMAP_MAX_ANISOTROPY_EXP = 0x200A              ## [uint32_t] returns the maximum anisotropic ratio supported by the
                                                     ## device
-    MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP = 0x200A     ## [::ur_bool_t] returns true if the device supports using images created
+    MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP = 0x200B     ## [::ur_bool_t] returns true if the device supports using images created
                                                     ## from individual mipmap levels
-    INTEROP_MEMORY_IMPORT_SUPPORT_EXP = 0x200B      ## [::ur_bool_t] returns true if the device supports importing external
+    INTEROP_MEMORY_IMPORT_SUPPORT_EXP = 0x200C      ## [::ur_bool_t] returns true if the device supports importing external
                                                     ## memory resources
-    INTEROP_MEMORY_EXPORT_SUPPORT_EXP = 0x200C      ## [::ur_bool_t] returns true if the device supports exporting internal
+    INTEROP_MEMORY_EXPORT_SUPPORT_EXP = 0x200D      ## [::ur_bool_t] returns true if the device supports exporting internal
                                                     ## memory resources
-    INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200D   ## [::ur_bool_t] returns true if the device supports importing external
+    INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E   ## [::ur_bool_t] returns true if the device supports importing external
                                                     ## semaphore resources
-    INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200E   ## [::ur_bool_t] returns true if the device supports exporting internal
+    INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F   ## [::ur_bool_t] returns true if the device supports exporting internal
                                                     ## event resources
 
 class ur_device_info_t(c_int):
