@@ -8,7 +8,9 @@
 
 #pragma once
 
+#include "sycl/handler.hpp"
 #include <detail/kernel_bundle_impl.hpp>
+#include <memory>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
