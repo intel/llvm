@@ -851,6 +851,8 @@ Exceptions:
 
 |===
 
+:sycl-kernel-function: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sycl-kernel-function
+
 Table {counter: tableNumber}. Member functions of the `command_graph` class (executable graph update).
 [cols="2a,a"]
 |===
@@ -863,26 +865,26 @@ void
 update(const command_graph<graph_state::modifiable>& graph);
 ----
 
+
 |Updates the executable graph node inputs & outputs from a topologically
 identical modifiable graph. A topologically identical graph is one with the
 same structure of nodes and edges, and the nodes added in the same order to
 both graphs. Equivalent nodes in topologically identical graphs each have the
 same command, targeting the same device. There is the additional limitation that
 to update an executable graph, every node in the graph must be either a kernel
-command or a host-task.
+command or a host task.
 
 The only characteristics that can differ between two topologically identical
-graphs during an update are:
+graphs during an update are the arguments to kernel nodes. For example,
+the graph may capture different values for the USM pointers or accessors used
+in the graph. It is these kernels arguments in `graph` that constitute the
+inputs & outputs to update to.
 
-* The arguments to kernel nodes may be different between graphs. For example,
-  the graph may capture different values for the USM pointers or accessors used
-  in the graph. It is these kernels arguments in `graph` that constitute the
-  inputs & outputs to update to.
+Differences in the following characteristics between two graphs during an
+update results in undefined behavior:
 
-* The code that is executed in host-task nodes may be different between graphs,
-  and the update will reflect the code from `graph` host-tasks nodes. However,
-  any changes to executable code between kernel nodes are not counted as
-  topologically identical and is an exception with error code `invalid`.
+* Modifying the native C++ callable of a `host task` node.
+* Modifying the {sycl-kernel-function}[kernel function] of a kernel node.
 
 The effects of the update will be visible on the next submission of the
 executable graph without the need for additional user synchronization.
@@ -907,7 +909,7 @@ Exceptions:
 :handler-copy-functions: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.handler.copy
 
 * Throws synchronously with error code `invalid` if `graph` contains any node
-  which is not a kernel command or host-task, e.g.
+  which is not a kernel command or host task, e.g.
   {handler-copy-functions}[memory operations].
 
 * Throws synchronously with error code `invalid` if the context or device
