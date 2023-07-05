@@ -114,5 +114,6 @@ inline const OpenCLVersion V2_2(2, 2);
 inline const OpenCLVersion V3_0(3, 0);
 
 } // namespace OCLV
+struct _pi_ext_command_buffer {};
 
 #endif // PI_OPENCL_HPP

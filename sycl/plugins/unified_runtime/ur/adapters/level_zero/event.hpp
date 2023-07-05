@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_event.hpp - Level Zero Adapter -----------===//
+//===--------- event.hpp - Level Zero Adapter ------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,8 +22,8 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "ur_level_zero_common.hpp"
-#include "ur_level_zero_queue.hpp"
+#include "common.hpp"
+#include "queue.hpp"
 
 extern "C" {
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event);
@@ -111,6 +111,15 @@ struct _ur_ze_event_list_t {
     }
     return *this;
   }
+
+  // This function allows to merge two _ur_ze_event_lists
+  // The ur_ze_event_list "other" is added to the caller list.
+  // Note that new containers are allocated to contains the additional elements.
+  // Elements are moved to the new containers.
+  // other list can not be used after the call to this function.
+  ur_result_t insert(_ur_ze_event_list_t &Other);
+
+  bool isEmpty() const { return (this->ZeEventList == nullptr); }
 };
 
 void printZeEventList(const _ur_ze_event_list_t &PiZeEventList);
