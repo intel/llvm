@@ -2435,6 +2435,127 @@ protected:
 };
 
 //===----------------------------------------------------------------------===//
+// NDRangeConstructor - Convert `sycl.nd_range.constructor` to LLVM.
+//===----------------------------------------------------------------------===//
+
+// (!memref<?x!sycl_range_N_) -> !memref<?x!sycl_range_N_>
+using NDRangeCopyConstructorPattern =
+    CopyConstructorPattern<SYCLNDRangeConstructorOp>;
+
+template <>
+int64_t
+NDRangeCopyConstructorPattern::getSize(SYCLNDRangeConstructorOp op) const {
+  unsigned dimension = getDimensions(op.getNDRange().getType());
+  unsigned indexWidth =
+      BaseConstructorPattern<SYCLNDRangeConstructorOp>::getTypeConverter()
+          ->getIndexTypeBitwidth();
+  // 2 ranges + 1 id
+  return 3 * dimension * indexWidth / 8;
+}
+
+class NDRangeConstructorBase
+    : public BaseConstructorPattern<SYCLNDRangeConstructorOp>,
+      public GetMemberPattern<NDRangeGetGlobalRange>,
+      public GetMemberPattern<NDRangeGetLocalRange>,
+      public GetMemberPattern<NDRangeGetOffset> {
+public:
+  using BaseConstructorPattern<
+      SYCLNDRangeConstructorOp>::BaseConstructorPattern;
+
+  ~NDRangeConstructorBase() = default;
+
+protected:
+  /// Returns a pointer to the i-th element.
+  void initialize(Value alloca, SYCLNDRangeConstructorOp op, OpAdaptor adaptor,
+                  OpBuilder &builder) const final {
+    Location loc = op.getLoc();
+    LLVMTypeConverter *typeConverter =
+        ConvertOpToLLVMPattern<SYCLNDRangeConstructorOp>::getTypeConverter();
+    bool useOpaquePointers = typeConverter->useOpaquePointers();
+    unsigned dimensions = getDimensions(op.getNDRange().getType());
+    auto ndrTy = cast<LLVM::LLVMStructType>(
+        typeConverter->convertType(op.getNDRange().getType().getElementType()));
+    Type rangeTy = ndrTy.getBody()[0];
+    Type idTy = ndrTy.getBody()[2];
+
+    // Always copy-initialize global size
+    Value globalSizePtr = GetMemberPattern<NDRangeGetGlobalRange>::getRef(
+        builder, loc, (useOpaquePointers) ? ndrTy : rangeTy, alloca,
+        std::nullopt, useOpaquePointers);
+    memcpy(builder, loc, globalSizePtr, adaptor.getOperands()[0], dimensions);
+
+    // Always copy-initialize local size
+    Value localSizePtr = GetMemberPattern<NDRangeGetLocalRange>::getRef(
+        builder, loc, (useOpaquePointers) ? ndrTy : rangeTy, alloca,
+        std::nullopt, useOpaquePointers);
+    memcpy(builder, loc, localSizePtr, adaptor.getOperands()[1], dimensions);
+
+    // Offset initialization will depend on the constructor being handled
+    Value offsetPtr = GetMemberPattern<NDRangeGetOffset>::getRef(
+        builder, loc, (useOpaquePointers) ? ndrTy : idTy, alloca, std::nullopt,
+        useOpaquePointers);
+    initializeOffset(builder, loc, offsetPtr, adaptor, dimensions);
+  }
+
+  void memcpy(OpBuilder &builder, Location loc, Value dst, Value src,
+              unsigned dimensions) const {
+    Value len = getFieldsSize(builder, loc, dimensions);
+    Value isVolatile =
+        builder.create<LLVM::ConstantOp>(loc, builder.getI1Type(), 0);
+    builder.create<LLVM::MemcpyOp>(loc, dst, src, len, isVolatile);
+  }
+
+  /// Returns the size of this struct's fields498
+  Value getFieldsSize(OpBuilder &builder, Location loc,
+                      unsigned dimensions) const {
+    unsigned indexWidth =
+        ConvertOpToLLVMPattern<SYCLNDRangeConstructorOp>::getTypeConverter()
+            ->getIndexTypeBitwidth();
+    return builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
+                                            dimensions * indexWidth / 8);
+  }
+
+  virtual void initializeOffset(OpBuilder &builder, Location loc, Value dst,
+                                OpAdaptor adaptor,
+                                unsigned dimensions) const = 0;
+};
+
+class NDRangeNoOffsetConstructor : public NDRangeConstructorBase {
+public:
+  using NDRangeConstructorBase::NDRangeConstructorBase;
+
+  LogicalResult match(SYCLNDRangeConstructorOp op) const final {
+    return success(op.getNumOperands() == 2);
+  }
+
+protected:
+  void initializeOffset(OpBuilder &builder, Location loc, Value dst,
+                        [[maybe_unused]] OpAdaptor adaptor,
+                        unsigned dimensions) const final {
+    Value zero = builder.create<LLVM::ConstantOp>(loc, builder.getI8Type(), 0);
+    Value len = getFieldsSize(builder, loc, dimensions);
+    Value isVolatile =
+        builder.create<LLVM::ConstantOp>(loc, builder.getI1Type(), 0);
+    builder.create<LLVM::MemsetOp>(loc, dst, zero, len, isVolatile);
+  }
+};
+
+class NDRangeConstructorWithOffset : public NDRangeConstructorBase {
+public:
+  using NDRangeConstructorBase::NDRangeConstructorBase;
+
+  LogicalResult match(SYCLNDRangeConstructorOp op) const final {
+    return success(op.getNumOperands() == 3);
+  }
+
+protected:
+  void initializeOffset(OpBuilder &builder, Location loc, Value dst,
+                        OpAdaptor adaptor, unsigned dimensions) const final {
+    memcpy(builder, loc, dst, adaptor.getOperands()[2], dimensions);
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // GroupGetGroupRange - Converts `sycl.group.get_group_range` to LLVM.
 //===----------------------------------------------------------------------===//
 
@@ -2732,11 +2853,13 @@ populateSYCLToLLVMSPIRConversionPatterns(LLVMTypeConverter &typeConverter,
       NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
       NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,
       NDItemGetNDRange, NDRangeGetGroupRangePattern,
-      NDRangeGetLocalRangePattern, RangeGetRefPattern, RangeSizePattern,
-      SubscriptScalarOffsetND, GroupGetGroupIDDimPattern,
-      GroupGetGroupLinearIDPattern, GroupGetGroupRangePattern,
-      GroupGetLocalIDDimPattern, GroupGetLocalLinearIDPattern,
-      GroupGetLocalRangePattern, GroupGetMaxLocalRangePattern, ItemGetIDPattern,
+      NDRangeGetLocalRangePattern, NDRangeCopyConstructorPattern,
+      NDRangeNoOffsetConstructor, NDRangeConstructorWithOffset,
+      RangeGetRefPattern, RangeSizePattern, SubscriptScalarOffsetND,
+      GroupGetGroupIDDimPattern, GroupGetGroupLinearIDPattern,
+      GroupGetGroupRangePattern, GroupGetLocalIDDimPattern,
+      GroupGetLocalLinearIDPattern, GroupGetLocalRangePattern,
+      GroupGetMaxLocalRangePattern, ItemGetIDPattern,
       ItemNoOffsetGetLinearIDPattern, ItemOffsetGetLinearIDPattern,
       NDItemGetGlobalLinearIDPattern, NDItemGetGroupDimPattern,
       NDItemGetGroupLinearIDPattern, NDItemGetGroupRangePattern,

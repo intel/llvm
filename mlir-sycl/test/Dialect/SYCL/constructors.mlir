@@ -10,6 +10,9 @@
 !sycl_item_1_ = !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>
 !sycl_item_2_ = !sycl.item<[2, false], (!sycl.item_base<[2, false], (!sycl_range_2_, !sycl_id_2_)>)>
 !sycl_item_3_ = !sycl.item<[3, false], (!sycl.item_base<[3, false], (!sycl_range_3_, !sycl_id_3_)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+!sycl_nd_range_3_ = !sycl.nd_range<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
 
 // CHECK-LABEL: func.func @id_default
 func.func @id_default()
@@ -115,3 +118,77 @@ func.func @range_range(%arg0: memref<?x!sycl_range_1_>,
         memref<1x!sycl_range_3_>
 }
 
+// CHECK-LABEL: func.func @nd_range_with_offset
+func.func @nd_range_with_offset(%arg0: memref<?x!sycl_range_1_>,
+                                %arg1: memref<?x!sycl_range_1_>,
+                                %arg2: memref<?x!sycl_id_1_>,
+                                %arg3: memref<?x!sycl_range_2_>,
+                                %arg4: memref<?x!sycl_range_2_>,
+                                %arg5: memref<?x!sycl_id_2_>,
+                                %arg6: memref<?x!sycl_range_3_>,
+                                %arg7: memref<?x!sycl_range_3_>,
+                                %arg8: memref<?x!sycl_id_3_>)
+    -> (memref<1x!sycl_nd_range_1_>,
+        memref<1x!sycl_nd_range_2_>,
+	memref<1x!sycl_nd_range_3_>) {
+  %nd1 = sycl.nd_range.constructor(%arg0, %arg1, %arg2)
+      : (memref<?x!sycl_range_1_>,
+         memref<?x!sycl_range_1_>,
+	 memref<?x!sycl_id_1_>) -> memref<1x!sycl_nd_range_1_>
+  %nd2 = sycl.nd_range.constructor(%arg3, %arg4, %arg5)
+      : (memref<?x!sycl_range_2_>,
+         memref<?x!sycl_range_2_>,
+	 memref<?x!sycl_id_2_>) -> memref<1x!sycl_nd_range_2_>
+  %nd3 = sycl.nd_range.constructor(%arg6, %arg7, %arg8)
+      : (memref<?x!sycl_range_3_>,
+         memref<?x!sycl_range_3_>,
+	 memref<?x!sycl_id_3_>) -> memref<1x!sycl_nd_range_3_>
+  func.return %nd1, %nd2, %nd3
+      : memref<1x!sycl_nd_range_1_>,
+        memref<1x!sycl_nd_range_2_>,
+	memref<1x!sycl_nd_range_3_>
+}
+
+// CHECK-LABEL: func.func @nd_range_with_no_offset
+func.func @nd_range_with_no_offset(%arg0: memref<?x!sycl_range_1_>,
+                                   %arg1: memref<?x!sycl_range_1_>,
+                                   %arg2: memref<?x!sycl_range_2_>,
+                                   %arg3: memref<?x!sycl_range_2_>,
+                                   %arg4: memref<?x!sycl_range_3_>,
+                                   %arg5: memref<?x!sycl_range_3_>)
+    -> (memref<1x!sycl_nd_range_1_>,
+        memref<1x!sycl_nd_range_2_>,
+	memref<1x!sycl_nd_range_3_>) {
+  %nd1 = sycl.nd_range.constructor(%arg0, %arg1)
+      : (memref<?x!sycl_range_1_>,
+         memref<?x!sycl_range_1_>) -> memref<1x!sycl_nd_range_1_>
+  %nd2 = sycl.nd_range.constructor(%arg2, %arg3)
+      : (memref<?x!sycl_range_2_>,
+         memref<?x!sycl_range_2_>) -> memref<1x!sycl_nd_range_2_>
+  %nd3 = sycl.nd_range.constructor(%arg4, %arg5)
+      : (memref<?x!sycl_range_3_>,
+         memref<?x!sycl_range_3_>) -> memref<1x!sycl_nd_range_3_>
+  func.return %nd1, %nd2, %nd3
+      : memref<1x!sycl_nd_range_1_>,
+        memref<1x!sycl_nd_range_2_>,
+	memref<1x!sycl_nd_range_3_>
+}
+
+// CHECK-LABEL: func.func @nd_range_nd_range
+func.func @nd_range_nd_range(%arg0: memref<?x!sycl_nd_range_1_>,
+                             %arg1: memref<?x!sycl_nd_range_2_>,
+                             %arg2: memref<?x!sycl_nd_range_3_>)
+    -> (memref<1x!sycl_nd_range_1_>,
+        memref<1x!sycl_nd_range_2_>,
+	memref<1x!sycl_nd_range_3_>) {
+  %nd1 = sycl.nd_range.constructor(%arg0)
+      : (memref<?x!sycl_nd_range_1_>) -> memref<1x!sycl_nd_range_1_>
+  %nd2 = sycl.nd_range.constructor(%arg1)
+      : (memref<?x!sycl_nd_range_2_>) -> memref<1x!sycl_nd_range_2_>
+  %nd3 = sycl.nd_range.constructor(%arg2)
+      : (memref<?x!sycl_nd_range_3_>) -> memref<1x!sycl_nd_range_3_>
+  func.return %nd1, %nd2, %nd3
+      : memref<1x!sycl_nd_range_1_>,
+        memref<1x!sycl_nd_range_2_>,
+	memref<1x!sycl_nd_range_3_>
+}
