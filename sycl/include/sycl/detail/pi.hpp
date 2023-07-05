@@ -97,6 +97,7 @@ bool trace(TraceLevel level);
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dylib"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dylib"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dylib"
+#define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dylib"
 #else
 #error "Unsupported OS"
 #endif
