@@ -1,5 +1,5 @@
 """
- Copyright (C) 2022 Intel Corporation
+ Copyright (C) 2022-2023 Intel Corporation
 
  Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  See LICENSE.TXT
@@ -427,7 +427,7 @@ class function_traits:
 
 """
 Public:
-    substitues each tag['key'] with tag['value']
+    substitutes each tag['key'] with tag['value']
     if comment, then insert doxygen '::' notation at beginning (for autogen links)
 """
 def subt(namespace, tags, string, comment=False, remove_namespace=False):

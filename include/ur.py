@@ -476,7 +476,7 @@ class ur_device_info_v(IntEnum):
     MAX_READ_WRITE_IMAGE_ARGS = 32                  ## [uint32_t] max number of image objects arguments of a kernel declared
                                                     ## with the read_write qualifier
     IMAGE2D_MAX_WIDTH = 33                          ## [size_t] max width of Image2D object
-    IMAGE2D_MAX_HEIGHT = 34                         ## [size_t] max heigh of Image2D object
+    IMAGE2D_MAX_HEIGHT = 34                         ## [size_t] max height of Image2D object
     IMAGE3D_MAX_WIDTH = 35                          ## [size_t] max width of Image3D object
     IMAGE3D_MAX_HEIGHT = 36                         ## [size_t] max height of Image3D object
     IMAGE3D_MAX_DEPTH = 37                          ## [size_t] max depth of Image3D object
@@ -680,7 +680,7 @@ class ur_device_partition_value_t(Structure):
 class ur_device_partition_property_t(Structure):
     _fields_ = [
         ("type", ur_device_partition_t),                                ## [in] The partitioning type to be used.
-        ("value", ur_device_partition_value_t)                          ## [in] The paritioning value.
+        ("value", ur_device_partition_value_t)                          ## [in] The partitioning value.
     ]
 
 ###############################################################################

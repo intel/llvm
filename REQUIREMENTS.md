@@ -28,9 +28,9 @@
 
 ### Library Language Binding Requirements
 * DPC++ Language binding requirements
-  + Performance Libraries that execute on multiple Intel IP’s shall support the DPCP++ language binding as the primary mechanism for programing on multiple Intel Hardware IP’s
+  + Performance Libraries that execute on multiple Intel IP’s shall support the DPCP++ language binding as the primary mechanism for programming on multiple Intel Hardware IP’s
   + If the library supports DPC++ for a only a subset of functions for offload to an accelerator (e.g. ATS), all CPU functions should all support DPC++ Language bindings so that application developers can write their entire application in DPC++
-  + If a Library only supports only the CPU, but is likey to be used with another library the supports DPC++ on CPU and ATS, the library shall also support DPC++ 
+  + If a Library only supports only the CPU, but is likely to be used with another library the supports DPC++ on CPU and ATS, the library shall also support DPC++ 
 * Libraries may support other language bindings (C/C++/FORTRAN/JAVA/PYTHON, etc.) to support existing user base and use cases required by the developer domain
 
 ### Library API Deprecation Management

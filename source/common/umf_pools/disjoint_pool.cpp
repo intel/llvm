@@ -113,7 +113,7 @@ class Slab {
     // Hints where to start search for free chunk in a slab
     size_t FirstFreeChunkIdx = 0;
 
-    // Return the index of the first available chunk, SIZE_MAX otherwize
+    // Return the index of the first available chunk, SIZE_MAX otherwise
     size_t FindFirstAvailableChunkIdx() const;
 
     // Register/Unregister the slab in the global slab address map.

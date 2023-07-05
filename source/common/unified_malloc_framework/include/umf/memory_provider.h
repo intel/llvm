@@ -123,7 +123,7 @@ umfMemoryProviderPurgeLazy(umf_memory_provider_handle_t hProvider, void *ptr,
 
 ///
 /// \brief Discard physical pages within the virtual memory mapping associated at given addr and size.
-///        This call is synchronous and if it suceeds, pages are guaranteed to be zero-filled on the next access.
+///        This call is synchronous and if it succeeds, pages are guaranteed to be zero-filled on the next access.
 /// \param hProvider handle to the memory provider
 /// \param ptr beginning of the virtual memory range
 /// \param size size of the virtual memory range
@@ -135,7 +135,7 @@ umfMemoryProviderPurgeForce(umf_memory_provider_handle_t hProvider, void *ptr,
                             size_t size);
 
 ///
-/// \brief Retrive name of a given memory provider.
+/// \brief Retrieve name of a given memory provider.
 /// \param hProvider handle to the memory provider
 /// \param ppName [out] pointer to a string containing name of the provider
 const char *umfMemoryProviderGetName(umf_memory_provider_handle_t hProvider);

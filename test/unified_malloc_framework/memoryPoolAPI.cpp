@@ -286,7 +286,7 @@ TEST_F(test, getLastFailedMemoryProvider) {
                   umfMemoryProviderGetName(umfGetLastFailedMemoryProvider())),
               "provider2");
 
-    // succesfull provider should not be returned by umfGetLastFailedMemoryProvider
+    // successful provider should not be returned by umfGetLastFailedMemoryProvider
     allocResult = UMF_RESULT_SUCCESS;
     ptr = umfPoolMalloc(pool.get(), allocSize);
     ASSERT_NE(ptr, nullptr);
@@ -294,7 +294,7 @@ TEST_F(test, getLastFailedMemoryProvider) {
                   umfMemoryProviderGetName(umfGetLastFailedMemoryProvider())),
               "provider2");
 
-    // erorr in another thread should not impact umfGetLastFailedMemoryProvider on this thread
+    // error in another thread should not impact umfGetLastFailedMemoryProvider on this thread
     allocResult = UMF_RESULT_ERROR_UNKNOWN;
     std::thread t([&, hPool = pool.get()] {
         ptr = umfPoolMalloc(hPool, allocSize);
