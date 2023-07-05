@@ -2,7 +2,7 @@ import itertools
 import sys
 
 class Vec:
-  def __init__(self, element_type, valid_sizes = [1,2,3,4,8,16],
+  def __init__(self, element_type, valid_sizes = {1,2,3,4,8,16},
                deprecation_message=None):
     self.element_type = element_type
     self.valid_sizes = valid_sizes
@@ -58,21 +58,21 @@ deprecated_unsigned_long_long_vec = Vec("unsigned long long", deprecation_messag
 
 floatn = [Vec("float")]
 vfloatn = [Vec("float")]
-vfloat3or4 = [Vec("float", [3,4])]
+vfloat3or4 = [Vec("float", {3,4})]
 mfloatn = []
 mfloat3or4 = []
 genfloatf = ["float", Vec("float")]
 
 doublen = [Vec("double")]
 vdoublen = [Vec("double")]
-vdouble3or4 = [Vec("double", [3,4])]
+vdouble3or4 = [Vec("double", {3,4})]
 mdoublen = []
 mdouble3or4 = []
 genfloatd = ["double", Vec("double")]
 
 halfn = [Vec("half")]
 vhalfn = [Vec("half")]
-vhalf3or4 = [Vec("half", [3,4])]
+vhalf3or4 = [Vec("half", {3,4})]
 mhalfn = []
 mhalf3or4 = []
 genfloath = ["half", Vec("half")]
@@ -81,12 +81,13 @@ genfloat = ["float", "double", "half", Vec("float"), Vec("double"), Vec("half")]
 sgenfloat = ["float", "double", "half"]
 mgenfloat = []
 
-vgeofloat = [Vec("float", [2,3,4])]
-vgeodouble = [Vec("double", [2,3,4])]
-vgeohalf = [Vec("half", [2,3,4])]
-gengeofloat = ["float", Vec("float", [2,3,4])]
-gengeodouble = ["double", Vec("double", [2,3,4])]
-gengeohalf = ["half", Vec("half", [2,3,4])]
+# NOTE: Vec size 1 is non-standard.
+vgeofloat = [Vec("float", {1,2,3,4})]
+vgeodouble = [Vec("double", {1,2,3,4})]
+vgeohalf = [Vec("half", {1,2,3,4})]
+gengeofloat = ["float", Vec("float", {1,2,3,4})]
+gengeodouble = ["double", Vec("double", {1,2,3,4})]
+gengeohalf = ["half", Vec("half", {1,2,3,4})]
 
 vint8n = [Vec("int8_t")]
 vint16n = [Vec("int16_t")]
@@ -778,14 +779,30 @@ def get_func_prefix(builtin, return_type, arg_types):
     result = result + func_deprecation
   return result
 
+def get_vector_size_check(return_type, arg_types):
+  allowed_sizes = None
+  for t in [return_type] + arg_types:
+    if isinstance(t, MultiPtr) or isinstance(t, RawPtr):
+      t = t.element_type
+    if isinstance(t, Vec):
+      if allowed_sizes is None:
+        allowed_sizes = t.valid_sizes
+      else:
+        allowed_sizes = allowed_sizes.intersection(t.valid_sizes)
+  if allowed_sizes is not None:
+    allow_sizes_check = ' || '.join(['N == ' + str(s) for s in allowed_sizes])
+    return f'  static_assert({allow_sizes_check});\n'
+  return ''
+
 def generate_builtin(builtin, return_type, arg_types):
   func_prefix = get_func_prefix(builtin, return_type, arg_types)
   arg_names = ["a%i" % i for i in range(len(arg_types))]
   func_args = ', '.join(["%s %s" % arg for arg in zip(arg_types, arg_names)])
+  vec_size_check = get_vector_size_check(return_type, arg_types)
   invoke = builtin.get_invoke(return_type, arg_types, arg_names)
   return f"""
 {func_prefix}inline {return_type} {builtin.name}({func_args}) __NOEXC {{
-{invoke}
+{vec_size_check}{invoke}
 }}
 """
 
