@@ -416,6 +416,7 @@ bool SYCLUnwrapOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   Type sourceType = inputs.front();
   Type resultType = outputs.front();
   Type bodyType = getBodyType(sourceType);
+
   return bodyType && resultType == bodyType;
 }
 

@@ -84,3 +84,47 @@ func.func @test_math_ops_double(%arg0 : f64, %arg1 : f64, %arg2 : f64) {
 
   return
 }
+
+!sycl_half = !sycl.half<(f16)>
+
+// CHECK-LABEL: test_math_ops_half
+func.func @test_math_ops_half(%arg0 : !sycl_half, %arg1 : !sycl_half, %arg2 : !sycl_half) {
+  // CHECK: %{{.*}} = sycl.math.ceil %arg0 : !sycl_half
+  %c0 = sycl.math.ceil %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.copysign %arg0, %arg1 : !sycl_half
+  %c1 = sycl.math.copysign %arg0, %arg1 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.cos %arg0 : !sycl_half
+  %c2 = sycl.math.cos %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.exp %arg0 : !sycl_half
+  %e2 = sycl.math.exp %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.exp2 %arg0 : !sycl_half
+  %e0 = sycl.math.exp2 %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.expm1 %arg0 : !sycl_half
+  %e1 = sycl.math.expm1 %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.fabs %arg0 : !sycl_half
+  %f0 = sycl.math.fabs %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.floor %arg0 : !sycl_half
+  %f1 = sycl.math.floor %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.fma %arg0, %arg1, %arg2 : !sycl_half
+  %f2 = sycl.math.fma %arg0, %arg1, %arg2 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.log %arg0 : !sycl_half
+  %l2 = sycl.math.log %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.log10 %arg0 : !sycl_half
+  %l0 = sycl.math.log10 %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.log2 %arg0 : !sycl_half
+  %l1 = sycl.math.log2 %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.pow %arg0, %arg1 : !sycl_half
+  %p0 = sycl.math.pow %arg0, %arg1 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.round %arg0 : !sycl_half
+  %r0 = sycl.math.round %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.rsqrt %arg0 : !sycl_half
+  %r1 = sycl.math.rsqrt %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.sin %arg0 : !sycl_half
+  %s0 = sycl.math.sin %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.sqrt %arg0 : !sycl_half
+  %s1 = sycl.math.sqrt %arg0 : !sycl_half
+  // CHECK: %{{.*}} = sycl.math.trunc %arg0 : !sycl_half
+  %t0 = sycl.math.trunc %arg0 : !sycl_half
+
+  return
+}

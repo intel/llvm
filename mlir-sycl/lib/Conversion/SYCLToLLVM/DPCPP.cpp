@@ -2735,6 +2735,36 @@ protected:
 };
 
 //===----------------------------------------------------------------------===//
+// Wrap/UnwrapPattern - Converts `sycl.mlir.wrap` and `.unwrap` to LLVM.
+//===----------------------------------------------------------------------===//
+
+struct WrapPattern : public ConvertOpToLLVMPattern<SYCLWrapOp> {
+  using ConvertOpToLLVMPattern<SYCLWrapOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLWrapOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Type structType = typeConverter->convertType(op.getType());
+    Value undef = rewriter.create<LLVM::UndefOp>(op->getLoc(), structType);
+    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
+        op, undef, opAdaptor.getSource(), rewriter.getDenseI64ArrayAttr(0));
+    return success();
+  }
+};
+
+struct UnwrapPattern : public ConvertOpToLLVMPattern<SYCLUnwrapOp> {
+  using ConvertOpToLLVMPattern<SYCLUnwrapOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLUnwrapOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<LLVM::ExtractValueOp>(
+        op, opAdaptor.getSource(), rewriter.getDenseI64ArrayAttr(0));
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
 
@@ -2866,7 +2896,8 @@ populateSYCLToLLVMSPIRConversionPatterns(LLVMTypeConverter &typeConverter,
       NDItemGetLocalIDPattern, NDItemGetLocalRangeDimPattern,
       NDItemGetLocalRangePattern, NDRangeGetGlobalRangePattern, RangeGetPattern,
       RangeCopyConstructorPattern, RangeIndexConstructorPattern,
-      SubscriptIDOffset, SubscriptScalarOffset1D>(typeConverter);
+      SubscriptIDOffset, SubscriptScalarOffset1D, UnwrapPattern, WrapPattern>(
+      typeConverter);
   patterns.add<ConstructorPattern>(typeConverter);
 }
 
