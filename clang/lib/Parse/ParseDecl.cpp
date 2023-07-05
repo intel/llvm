@@ -2982,6 +2982,8 @@ Parser::getDeclSpecContextFromDeclaratorContext(DeclaratorContext Context) {
     return DeclSpecContext::DSC_condition;
   case DeclaratorContext::ConversionId:
     return DeclSpecContext::DSC_conv_operator;
+  case DeclaratorContext::CXXNew:
+    return DeclSpecContext::DSC_new;
   case DeclaratorContext::Prototype:
   case DeclaratorContext::ObjCResult:
   case DeclaratorContext::ObjCParameter:
@@ -2990,7 +2992,6 @@ Parser::getDeclSpecContextFromDeclaratorContext(DeclaratorContext Context) {
   case DeclaratorContext::Block:
   case DeclaratorContext::ForInit:
   case DeclaratorContext::SelectionInit:
-  case DeclaratorContext::CXXNew:
   case DeclaratorContext::CXXCatch:
   case DeclaratorContext::ObjCCatch:
   case DeclaratorContext::BlockLiteral:

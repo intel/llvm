@@ -308,7 +308,8 @@ def err_drv_incompatible_options : Error<
 
 // Sema && Serialization
 def warn_dup_category_def : Warning<
-  "duplicate definition of category %1 on interface %0">;
+  "duplicate definition of category %1 on interface %0">,
+  InGroup<DiagGroup<"objc-duplicate-category-definition">>;
 
 // Targets
 
