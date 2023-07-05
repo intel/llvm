@@ -8,6 +8,7 @@
 
 #include <clc/clc.h>
 #include <spirv/spirv.h>
+#include <spirv/spirv_types.h>
 
 #define BUILTIN_FENCE(semantics, scope_memory)                                 \
   if (semantics & 0x2)                                                         \
@@ -23,16 +24,16 @@
 
 _CLC_DEF _CLC_OVERLOAD void __mem_fence(unsigned int scope_memory,
                                         unsigned int semantics) {
-  switch (scope_memory) {
+  switch ((enum Scope)scope_memory) {
   default:
     BUILTIN_FENCE(semantics, "")
-  case 1: // Device
+  case Device:
     BUILTIN_FENCE(semantics, "agent")
-  case 2: // Workgroup
+  case Workgroup:
     BUILTIN_FENCE(semantics, "workgroup")
-  case 3: // Subgroup
+  case Subgroup:
     BUILTIN_FENCE(semantics, "wavefront")
-  case 4: // Invocation
+  case Invocation:
     BUILTIN_FENCE(semantics, "singlethread")
   }
 }
