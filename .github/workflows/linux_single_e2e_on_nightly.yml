@@ -17,6 +17,8 @@ on:
         type: string
       ref:
         type: string
+      reset_gpu:
+        type: string
 
 jobs:
   lin_e2e_only:
@@ -26,6 +28,11 @@ jobs:
       image: ${{ inputs.image }}
       options: --device=/dev/dri --privileged --cap-add SYS_ADMIN ${{ inputs.extra_image_opts }}
     steps:
+    - name: Reset GPU
+      if: inputs.reset_gpu == 'true'
+      run: |
+        sudo mount -t debugfs none /sys/kernel/debug
+        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
     - uses: actions/checkout@v3
       with:
         path: llvm

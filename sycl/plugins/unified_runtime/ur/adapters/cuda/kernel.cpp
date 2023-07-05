@@ -177,9 +177,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgValue(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                    size_t argSize, const void *pArgValue) {
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
+    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
+    const ur_kernel_arg_value_properties_t *pProperties,
+    const void *pArgValue) {
+  std::ignore = pProperties;
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -275,8 +277,11 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, const void *pArgValue) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                      const ur_kernel_arg_pointer_properties_t *pProperties,
+                      const void *pArgValue) {
+  std::ignore = pProperties;
   hKernel->setKernelArg(argIndex, sizeof(pArgValue), pArgValue);
   return UR_RESULT_SUCCESS;
 }
@@ -322,12 +327,15 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
 }
 
 // A NOP for the CUDA backend
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
-                    size_t propSize, const void *pPropValue) {
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
+    ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName, size_t propSize,
+    const ur_kernel_exec_info_properties_t *pProperties,
+    const void *pPropValue) {
   std::ignore = hKernel;
   std::ignore = propSize;
   std::ignore = pPropValue;
+  std::ignore = pProperties;
+
   switch (propName) {
   case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS:
   case UR_KERNEL_EXEC_INFO_USM_PTRS:
@@ -353,7 +361,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                      const ur_kernel_arg_sampler_properties_t *pProperties,
                       ur_sampler_handle_t hArgValue) {
+  std::ignore = pProperties;
+
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     uint32_t SamplerProps = hArgValue->Props;

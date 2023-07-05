@@ -22,14 +22,9 @@
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
     [[maybe_unused]] ur_usm_pool_handle_t pool, size_t size, void **ppMem) {
-  size_t DeviceMaxMemAllocSize = 0;
-  UR_ASSERT(urDeviceGetInfo(hContext->getDevice(),
-                            UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE, sizeof(size_t),
-                            static_cast<void *>(&DeviceMaxMemAllocSize),
-                            nullptr) == UR_RESULT_SUCCESS,
-            UR_RESULT_ERROR_INVALID_DEVICE);
-  UR_ASSERT(size > 0 && size <= DeviceMaxMemAllocSize,
-            UR_RESULT_ERROR_INVALID_USM_SIZE);
+  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
+                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
@@ -39,13 +34,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     Result = Err;
   }
 
-  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
-                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
-  assert(Result == UR_RESULT_SUCCESS &&
-         (!pUSMDesc || pUSMDesc->align == 0 ||
-          reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  if (Result == UR_RESULT_SUCCESS) {
+    assert((!pUSMDesc || pUSMDesc->align == 0 ||
+            reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  }
 
   return Result;
 }
@@ -56,14 +48,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_usm_desc_t *pUSMDesc, [[maybe_unused]] ur_usm_pool_handle_t pool,
     size_t size, void **ppMem) {
-  size_t DeviceMaxMemAllocSize = 0;
-  UR_ASSERT(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE,
-                            sizeof(size_t),
-                            static_cast<void *>(&DeviceMaxMemAllocSize),
-                            nullptr) == UR_RESULT_SUCCESS,
-            UR_RESULT_ERROR_INVALID_DEVICE);
-  UR_ASSERT(size > 0 && size <= DeviceMaxMemAllocSize,
-            UR_RESULT_ERROR_INVALID_USM_SIZE);
+  std::ignore = hDevice;
+  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
+                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
@@ -73,9 +61,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
     return Err;
   }
 
-  assert(Result == UR_RESULT_SUCCESS &&
-         (!pUSMDesc || pUSMDesc->align == 0 ||
-          reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  if (Result == UR_RESULT_SUCCESS) {
+    assert((!pUSMDesc || pUSMDesc->align == 0 ||
+            reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  }
 
   return Result;
 }
@@ -86,14 +75,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_usm_desc_t *pUSMDesc, [[maybe_unused]] ur_usm_pool_handle_t pool,
     size_t size, void **ppMem) {
-  size_t DeviceMaxMemAllocSize = 0;
-  UR_ASSERT(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE,
-                            sizeof(size_t),
-                            static_cast<void *>(&DeviceMaxMemAllocSize),
-                            nullptr) == UR_RESULT_SUCCESS,
-            UR_RESULT_ERROR_INVALID_DEVICE);
-  UR_ASSERT(size > 0 && size <= DeviceMaxMemAllocSize,
-            UR_RESULT_ERROR_INVALID_USM_SIZE);
+  std::ignore = hDevice;
+  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
+                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
@@ -104,9 +89,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     return Err;
   }
 
-  assert(Result == UR_RESULT_SUCCESS &&
-         (!pUSMDesc || pUSMDesc->align == 0 ||
-          reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  if (Result == UR_RESULT_SUCCESS) {
+    assert((!pUSMDesc || pUSMDesc->align == 0 ||
+            reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+  }
 
   return Result;
 }

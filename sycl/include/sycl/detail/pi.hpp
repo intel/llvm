@@ -72,6 +72,7 @@ bool trace(TraceLevel level);
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "pi_unified_runtime.dll"
+#define __SYCL_NATIVE_CPU_PLUGIN_NAME "pi_native_cpu.dll"
 #else
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
@@ -79,6 +80,7 @@ bool trace(TraceLevel level);
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dll"
+#define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dll"
 #endif
 #elif defined(__SYCL_RT_OS_LINUX)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
@@ -87,6 +89,7 @@ bool trace(TraceLevel level);
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.so"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.so"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.so"
+#define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.so"
 #elif defined(__SYCL_RT_OS_DARWIN)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dylib"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dylib"
@@ -148,6 +151,9 @@ using PiMemObjectType = ::pi_mem_type;
 using PiMemImageChannelOrder = ::pi_image_channel_order;
 using PiMemImageChannelType = ::pi_image_channel_type;
 using PiKernelCacheConfig = ::pi_kernel_cache_config;
+using PiExtSyncPoint = ::pi_ext_sync_point;
+using PiExtCommandBuffer = ::pi_ext_command_buffer;
+using PiExtCommandBufferDesc = ::pi_ext_command_buffer_desc;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
