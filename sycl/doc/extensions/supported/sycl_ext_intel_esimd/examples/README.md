@@ -230,7 +230,7 @@ is to show the basic ESIMD APIs in well known examples.
 
       // simd_view with even indices constructed from previous
       // simd_view of simd<float, VL> using the even-index elements.
-      // This results in a simd_view containing everything fourth element
+      // This results in a simd_view containing every fourth element
       // of vec_a.
       auto vec_a_mult_four_view = vec_a_even_elems_view.select<VL / 4, 2>(0);
       vec_a_mult_four_view *= 2;
