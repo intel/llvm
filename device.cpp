@@ -882,18 +882,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Value);
   }
   case UR_DEVICE_INFO_UUID: {
-    int DriverVersion = 0;
-    cuDriverGetVersion(&DriverVersion);
-    int Major = DriverVersion / 1000;
-    int Minor = DriverVersion % 1000 / 10;
     CUuuid UUID;
-    if ((Major > 11) || (Major == 11 && Minor >= 4)) {
-      sycl::detail::ur::assertion(cuDeviceGetUuid_v2(&UUID, hDevice->get()) ==
-                                  CUDA_SUCCESS);
-    } else {
-      sycl::detail::ur::assertion(cuDeviceGetUuid(&UUID, hDevice->get()) ==
-                                  CUDA_SUCCESS);
-    }
+#if (CUDA_VERSION >= 11040)
+    sycl::detail::ur::assertion(cuDeviceGetUuid_v2(&UUID, hDevice->get()) ==
+                                CUDA_SUCCESS);
+#else
+    sycl::detail::ur::assertion(cuDeviceGetUuid(&UUID, hDevice->get()) ==
+                                CUDA_SUCCESS);
+#endif
     std::array<unsigned char, 16> Name;
     std::copy(UUID.bytes, UUID.bytes + 16, Name.begin());
     return ReturnValue(Name.data(), 16);
