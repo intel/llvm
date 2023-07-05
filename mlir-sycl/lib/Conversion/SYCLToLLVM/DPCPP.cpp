@@ -2744,7 +2744,8 @@ struct WrapPattern : public ConvertOpToLLVMPattern<SYCLWrapOp> {
   LogicalResult
   matchAndRewrite(SYCLWrapOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Value undef = rewriter.create<LLVM::UndefOp>(op->getLoc(), op.getType());
+    Type structType = typeConverter->convertType(op.getType());
+    Value undef = rewriter.create<LLVM::UndefOp>(op->getLoc(), structType);
     rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
         op, undef, opAdaptor.getSource(), rewriter.getDenseI64ArrayAttr(0));
     return success();
