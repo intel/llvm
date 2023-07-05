@@ -154,6 +154,13 @@ static bool isClassType(Type type, StringRef className) {
   return st && st.isIdentified() && st.getName() == className;
 }
 
+/// Returns whether \p type is an `llvm.struct` type with a name matching 
+/// \p regex.
+static bool isClassType(Type type, llvm::Regex &regex) {
+  auto st = dyn_cast<LLVM::LLVMStructType>(type);
+  return st && st.isIdentified() && regex.match(st.getName());
+}
+
 namespace {
 struct RaiseKernelName : public OpRewritePattern<LLVM::AddressOfOp> {
 public:
@@ -307,7 +314,10 @@ public:
 
 struct BufferTypeTag {
 
-  static llvm::StringRef getTypeName() { return "class.sycl::_V1::buffer"; }
+  static llvm::Regex &getTypeName() {
+    static llvm::Regex regex{"class.sycl::_V1::buffer(\\.[0-9]+])?"};
+    return regex;
+  }
 
   static mlir::Type getTypeFromConstructor(CallOpInterface constructor) {
     CallInterfaceCallable callableOp = constructor.getCallableForCallee();
@@ -343,7 +353,10 @@ struct BufferInvokeConstructorPattern
 
 struct AccessorTypeTag {
 
-  static llvm::StringRef getTypeName() { return "class.sycl::_V1::accessor"; }
+  static llvm::Regex &getTypeName() {
+    static llvm::Regex regex{"class.sycl::_V1::accessor(\\.[0-9]+])?"};
+    return regex;
+  }
 
   static mlir::Type getTypeFromConstructor(CallOpInterface constructor) {
     CallInterfaceCallable callableOp = constructor.getCallableForCallee();
