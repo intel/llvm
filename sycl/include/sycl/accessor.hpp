@@ -1217,7 +1217,10 @@ protected:
       !IsConst || IsAccessReadOnly,
       "A const qualified DataT is only allowed for a read-only accessor");
 
-  using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
+  using ConcreteASPtrType = typename detail::DecoratedType<
+      typename std::conditional_t<IsAccessReadOnly && !IsConstantBuf,
+                                  const DataT, DataT>,
+      AS>::type *;
 
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
@@ -2299,7 +2302,12 @@ public:
   __SYCL2020_DEPRECATED(
       "accessor::get_pointer() is deprecated, please use get_multi_ptr()")
   global_ptr<DataT> get_pointer() const noexcept {
-    return global_ptr<DataT>(getPointerAdjusted());
+    if constexpr (IsAccessReadOnly)
+      return global_ptr<DataT>(
+          const_cast<typename detail::DecoratedType<DataT, AS>::type *>(
+              getPointerAdjusted()));
+    else
+      return global_ptr<DataT>(getPointerAdjusted());
   }
 
   template <access::target AccessTarget_ = AccessTarget,
