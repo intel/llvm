@@ -183,12 +183,6 @@ int main() {
   auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
   (void)BitCastRes;
 
-  // expected-warning@+1{{'submit_barrier' is deprecated: use 'ext_oneapi_submit_barrier' instead}}
-  Queue.submit_barrier();
-
-  // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
-  Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
-
   sycl::multi_ptr<int, sycl::access::address_space::global_space,
                   sycl::access::decorated::yes>
       a(nullptr);

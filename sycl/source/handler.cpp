@@ -732,11 +732,6 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
 }
 
-__SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-void handler::barrier(const std::vector<event> &WaitList) {
-  handler::ext_oneapi_barrier(WaitList);
-}
-
 using namespace sycl::detail;
 bool handler::DisableRangeRounding() {
   return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
