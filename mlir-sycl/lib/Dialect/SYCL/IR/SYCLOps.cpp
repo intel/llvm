@@ -468,7 +468,7 @@ LogicalResult SYCLHostHandlerSetNDRange::verify() {
                                  "the same number of dimensions");
       }
     }
-    [[fallthrough]];
+    break;
   default:
     break;
   }
