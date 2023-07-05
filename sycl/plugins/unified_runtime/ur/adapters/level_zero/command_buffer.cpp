@@ -535,7 +535,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-
   auto SrcBuffer = ur_cast<ur_mem_handle_t>(SrcMem);
   auto DstBuffer = ur_cast<ur_mem_handle_t>(DstMem);
 

@@ -2253,10 +2253,11 @@ void SetArgBasedOnType(
   }
   case kernel_param_kind_t::kind_specialization_constants_buffer: {
     if (IsHost) {
-      throw sycl::feature_not_supported(
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
           "SYCL2020 specialization constants are not yet supported on host "
-          "device",
-          PI_ERROR_INVALID_OPERATION);
+          "device " +
+              codeToString(PI_ERROR_INVALID_OPERATION));
     }
     assert(DeviceImageImpl != nullptr);
     sycl::detail::pi::PiMem SpecConstsBuffer =
@@ -2273,7 +2274,9 @@ void SetArgBasedOnType(
     break;
   }
   case kernel_param_kind_t::kind_invalid:
-    throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Invalid kernel param kind " +
+                              codeToString(PI_ERROR_INVALID_VALUE));
     break;
   }
 }
