@@ -186,13 +186,15 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piGetDeviceAndHostTimer, pi2ur::piGetDeviceAndHostTimer)
   _PI_CL(piPluginGetBackendOption, pi2ur::piPluginGetBackendOption)
 
-    // command-buffer
+  // command-buffer
   _PI_CL(piextCommandBufferCreate, pi2ur::piextCommandBufferCreate)
   _PI_CL(piextCommandBufferRetain, pi2ur::piextCommandBufferRetain)
   _PI_CL(piextCommandBufferRelease, pi2ur::piextCommandBufferRelease)
-  _PI_CL(piextCommandBufferNDRangeKernel, pi2ur::piextCommandBufferNDRangeKernel)
+  _PI_CL(piextCommandBufferNDRangeKernel,
+         pi2ur::piextCommandBufferNDRangeKernel)
   _PI_CL(piextCommandBufferMemcpyUSM, pi2ur::piextCommandBufferMemcpyUSM)
-  _PI_CL(piextCommandBufferMemBufferCopy, pi2ur::piextCommandBufferMemBufferCopy)
+  _PI_CL(piextCommandBufferMemBufferCopy,
+         pi2ur::piextCommandBufferMemBufferCopy)
   _PI_CL(piextCommandBufferMemBufferCopyRect,
          pi2ur::piextCommandBufferMemBufferCopyRect)
   _PI_CL(piextEnqueueCommandBuffer, pi2ur::piextEnqueueCommandBuffer)

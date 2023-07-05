@@ -20,9 +20,9 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 namespace detail {
-std::vector<RT::PiEvent> getOrWaitEvents(std::vector<sycl::event> DepEvents,
-                                         ContextImplPtr Context) {
-  std::vector<RT::PiEvent> Events;
+std::vector<sycl::detail::pi::PiEvent>
+getOrWaitEvents(std::vector<sycl::event> DepEvents, ContextImplPtr Context) {
+  std::vector<sycl::detail::pi::PiEvent> Events;
   for (auto SyclEvent : DepEvents) {
     auto SyclEventImplPtr = detail::getSyclObjImpl(SyclEvent);
     // throwaway events created with empty constructor will not have a context

@@ -372,10 +372,10 @@ public:
   /// \param Dependencies Optional list of dependency
   /// sync points when enqueuing to a command buffer.
   /// \return an event object to wait on for command group completion.
-  EventImplPtr addCG(std::unique_ptr<detail::CG> CommandGroup,
-                     const QueueImplPtr &Queue,
-                     RT::PiExtCommandBuffer CommandBuffer = nullptr,
-                     const std::vector<RT::PiExtSyncPoint> &Dependencies = {});
+  EventImplPtr
+  addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -540,11 +540,11 @@ protected:
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    GraphBuildResult
-    addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-          std::vector<Command *> &ToEnqueue,
-          RT::PiExtCommandBuffer CommandBuffer = nullptr,
-          const std::vector<RT::PiExtSyncPoint> &Dependencies = {});
+    GraphBuildResult addCG(
+        std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+        std::vector<Command *> &ToEnqueue,
+        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.

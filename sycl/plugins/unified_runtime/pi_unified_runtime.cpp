@@ -150,11 +150,12 @@ __SYCL_EXPORT pi_result piKernelCreate(pi_program Program,
 }
 
 // Special version of piKernelSetArg to accept pi_mem.
-__SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel Kernel,
-                                                pi_uint32 ArgIndex,
-                                                const pi_mem *ArgValue) {
+__SYCL_EXPORT pi_result piextKernelSetArgMemObj(
+    pi_kernel Kernel, pi_uint32 ArgIndex,
+    const pi_mem_obj_property *ArgProperties, const pi_mem *ArgValue) {
 
-  return pi2ur::piextKernelSetArgMemObj(Kernel, ArgIndex, ArgValue);
+  return pi2ur::piextKernelSetArgMemObj(Kernel, ArgIndex, ArgProperties,
+                                        ArgValue);
 }
 
 __SYCL_EXPORT pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
@@ -1035,12 +1036,12 @@ pi_result piextCommandBufferMemBufferCopyRect(
 }
 
 pi_result piextCommandBufferMemBufferRead(
-    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, size_t Offset, size_t Size,
-    void *Dst, pi_uint32 NumSyncPointsInWaitList,
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, size_t Offset,
+    size_t Size, void *Dst, pi_uint32 NumSyncPointsInWaitList,
     const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
-  return pi2ur::piextCommandBufferMemBufferRead(CommandBuffer, Buffer, Offset,
-                                                Size, Dst, NumSyncPointsInWaitList,
-                                                SyncPointWaitList, SyncPoint);
+  return pi2ur::piextCommandBufferMemBufferRead(
+      CommandBuffer, Buffer, Offset, Size, Dst, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextCommandBufferMemBufferReadRect(
@@ -1048,21 +1049,21 @@ pi_result piextCommandBufferMemBufferReadRect(
     pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
     pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
     size_t HostRowPitch, size_t HostSlicePitch, void *Ptr,
-    pi_uint32 NumSyncPointsInWaitList, const pi_ext_sync_point *SyncPointWaitList,
-    pi_ext_sync_point *SyncPoint) {
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
   return pi2ur::piextCommandBufferMemBufferReadRect(
       CommandBuffer, Buffer, BufferOffset, HostOffset, Region, BufferRowPitch,
-      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr, NumSyncPointsInWaitList,
-      SyncPointWaitList, SyncPoint);
+      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextCommandBufferMemBufferWrite(
     pi_ext_command_buffer CommandBuffer, pi_mem Buffer, size_t Offset,
     size_t Size, const void *Ptr, pi_uint32 NumSyncPointsInWaitList,
     const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
-  return pi2ur::piextCommandBufferMemBufferWrite(CommandBuffer, Buffer, Offset,
-                                                 Size, Ptr, NumSyncPointsInWaitList,
-                                                 SyncPointWaitList, SyncPoint);
+  return pi2ur::piextCommandBufferMemBufferWrite(
+      CommandBuffer, Buffer, Offset, Size, Ptr, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextCommandBufferMemBufferWriteRect(
@@ -1070,12 +1071,12 @@ pi_result piextCommandBufferMemBufferWriteRect(
     pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
     pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
     size_t HostRowPitch, size_t HostSlicePitch, const void *Ptr,
-    pi_uint32 NumSyncPointsInWaitList, const pi_ext_sync_point *SyncPointWaitList,
-    pi_ext_sync_point *SyncPoint) {
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
   return pi2ur::piextCommandBufferMemBufferWriteRect(
       CommandBuffer, Buffer, BufferOffset, HostOffset, Region, BufferRowPitch,
-      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr, NumSyncPointsInWaitList,
-      SyncPointWaitList, SyncPoint);
+      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,

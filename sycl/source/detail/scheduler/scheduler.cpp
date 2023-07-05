@@ -87,11 +87,10 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
 }
 
-EventImplPtr
-Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
-                 const QueueImplPtr &Queue,
-                 RT::PiExtCommandBuffer CommandBuffer,
-                 const std::vector<RT::PiExtSyncPoint> &Dependencies) {
+EventImplPtr Scheduler::addCG(
+    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
   EventImplPtr NewEvent = nullptr;
   const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;

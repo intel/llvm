@@ -25,6 +25,7 @@
 #define _PI_CUDA_PLUGIN_VERSION_STRING                                         \
   _PI_PLUGIN_VERSION_STRING(_PI_CUDA_PLUGIN_VERSION)
 
+#include <ur/adapters/cuda/command_buffer.hpp>
 #include <ur/adapters/cuda/context.hpp>
 #include <ur/adapters/cuda/device.hpp>
 #include <ur/adapters/cuda/event.hpp>

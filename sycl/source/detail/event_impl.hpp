@@ -57,7 +57,7 @@ public:
   ///
   /// \param Event is a valid instance of plug-in event.
   /// \param SyclContext is an instance of SYCL context.
-  event_impl(RT::PiEvent Event, const context &SyclContext);
+  event_impl(sycl::detail::pi::PiEvent Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
 
   /// Checks if this event is a SYCL host event.
@@ -115,12 +115,12 @@ public:
   /// invalid if event_impl was destroyed.
   ///
   /// \return a reference to an instance of plug-in event handle.
-  RT::PiEvent &getHandleRef();
+  sycl::detail::pi::PiEvent &getHandleRef();
   /// Returns raw interoperability event handle. Returned reference will be]
   /// invalid if event_impl was destroyed.
   ///
   /// \return a const reference to an instance of plug-in event handle.
-  const RT::PiEvent &getHandleRef() const;
+  const sycl::detail::pi::PiEvent &getHandleRef() const;
 
   /// Returns context that is associated with this event.
   ///
@@ -257,11 +257,13 @@ public:
   }
 
   // Sets a sync point which is used when this event represents an enqueue to a
-  // RT::PiExtCommandBuffer.
-  void setSyncPoint(RT::PiExtSyncPoint SyncPoint) { MSyncPoint = SyncPoint; }
+  // sycl::detail::pi::PiExtCommandBuffer.
+  void setSyncPoint(sycl::detail::pi::PiExtSyncPoint SyncPoint) {
+    MSyncPoint = SyncPoint;
+  }
 
   // Get the sync point associated with this event.
-  RT::PiExtSyncPoint getSyncPoint() const { return MSyncPoint; }
+  sycl::detail::pi::PiExtSyncPoint getSyncPoint() const { return MSyncPoint; }
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -277,7 +279,7 @@ protected:
   void ensureContextInitialized();
   bool MIsInitialized = true;
   bool MIsContextInitialized = false;
-  RT::PiEvent MEvent = nullptr;
+  sycl::detail::pi::PiEvent MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
   ContextImplPtr MContext;
@@ -309,11 +311,12 @@ protected:
   std::mutex MMutex;
   std::condition_variable cv;
 
-  // If this event represents a submission to a RT::PiExtCommandBuffer
-  // the sync point for that submission is stored here.
-  RT::PiExtSyncPoint MSyncPoint;
+  // If this event represents a submission to a
+  // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
+  // stored here.
+  sycl::detail::pi::PiExtSyncPoint MSyncPoint;
 
-  friend std::vector<RT::PiEvent>
+  friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,
                   std::shared_ptr<sycl::detail::context_impl> Context);
 };

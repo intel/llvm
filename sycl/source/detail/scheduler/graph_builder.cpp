@@ -930,8 +930,9 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
 
 Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-    std::vector<Command *> &ToEnqueue, RT::PiExtCommandBuffer CommandBuffer,
-    const std::vector<RT::PiExtSyncPoint> &Dependencies) {
+    std::vector<Command *> &ToEnqueue,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
@@ -1589,8 +1590,8 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   }
 
   createGraphForCommand(FusedKernelCmd.get(), FusedKernelCmd->getCG(), false,
-                        FusedKernelCmd->getCG().getRequirements(), FusedEventDeps,
-                        Queue, ToEnqueue);
+                        FusedKernelCmd->getCG().getRequirements(),
+                        FusedEventDeps, Queue, ToEnqueue);
 
   ToEnqueue.push_back(FusedKernelCmd.get());
 
