@@ -94,4 +94,20 @@ def SYCLHostHandlerSetKernel
   }];
 }
 
+def SYCLHostHandlerSetNDRange : SYCL_HostOp<"handler.set_nd_range"> {
+  let summary = [{
+    Operation assigning an nd-range to a `sycl::handler`, setting the nd-range
+    of the kernel to be launched.
+
+    The input nd-range can be specified either with a memref to a
+    `sycl.nd_range` or a memref to a `sycl.range` (global size) and an optional
+    memref to a `sycl.id` (offset).
+  }];
+  let arguments = (ins LLVM_AnyPointer:$handler, Variadic<AnyType>:$nd_range);
+  let assemblyFormat = [{
+    $handler `->` $nd_range attr-dict `:` type(operands)
+  }];
+  let hasVerifier = 1;
+}
+
 #endif // SYCL_HOST_OPS
