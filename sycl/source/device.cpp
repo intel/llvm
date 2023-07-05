@@ -208,5 +208,10 @@ pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
+bool device::ext_oneapi_architecture_is(
+    ext::oneapi::experimental::architecture arch) {
+  return impl->extOneapiArchitectureIs(arch);
+}
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

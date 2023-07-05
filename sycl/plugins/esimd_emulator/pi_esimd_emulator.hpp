@@ -218,4 +218,6 @@ struct _pi_kernel : _pi_object {
   _pi_kernel() {}
 };
 
+struct _pi_ext_command_buffer {};
+
 #include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>

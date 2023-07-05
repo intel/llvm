@@ -11,6 +11,7 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/id.hpp>
 
 namespace sycl {

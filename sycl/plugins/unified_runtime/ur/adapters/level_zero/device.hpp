@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_device.hpp - Level Zero Adapter ----------===//
+//===--------- device.hpp - Level Zero Adapter -----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,7 +20,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "ur_level_zero_common.hpp"
+#include "common.hpp"
 
 enum EventsScope {
   // All events are created host-visible.
@@ -168,4 +168,5 @@ struct ur_device_handle_t_ : _ur_object {
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
+  ZeCache<ZeStruct<ze_device_ip_version_ext_t>> ZeDeviceIpVersionExt;
 };
