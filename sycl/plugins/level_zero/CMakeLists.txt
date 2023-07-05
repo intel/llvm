@@ -114,7 +114,6 @@ add_sycl_plugin(level_zero
     "../unified_runtime/ur/adapters/level_zero/queue.hpp"
     "../unified_runtime/ur/adapters/level_zero/sampler.hpp"
     "../unified_runtime/ur/adapters/level_zero/usm.hpp"
-    "../unified_runtime/ur/adapters/level_zero/usm_p2p.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.cpp"
     "../unified_runtime/ur/adapters/level_zero/command_buffer.cpp"
     "../unified_runtime/ur/adapters/level_zero/common.cpp"

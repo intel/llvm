@@ -6,7 +6,6 @@
 //
 //===---------------------------------------------------------------===//
 
-#include "usm_p2p.hpp"
 #include "common.hpp"
 #include "context.hpp"
 

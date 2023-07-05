@@ -98,7 +98,6 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/queue.hpp"
     "ur/adapters/level_zero/sampler.hpp"
     "ur/adapters/level_zero/usm.hpp"
-    "ur/adapters/level_zero/usm_p2p.hpp"
     "ur/adapters/level_zero/command_buffer.cpp"
     "ur/adapters/level_zero/common.cpp"
     "ur/adapters/level_zero/context.cpp"
@@ -160,7 +159,6 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/usm.cpp"
       "ur/adapters/cuda/command_buffer.hpp"
       "ur/adapters/cuda/command_buffer.cpp"
-      "ur/adapters/cuda/usm_p2p.hpp"
       "ur/adapters/cuda/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
