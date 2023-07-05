@@ -9,7 +9,6 @@
 
 #include "ur_api.h"
 #include <cstdarg>
-#include <sycl/detail/cl.h>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
@@ -3896,7 +3895,7 @@ inline pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
      * PI_EVENT_QUEUED, change it to PI_EVENT_SUBMITTED. This change is needed
      * since sycl::info::event::event_command_status has no equivalent to
      * PI_EVENT_QUEUED. */
-    const auto param_value_int = static_cast<cl_int *>(ParamValue);
+    const auto param_value_int = static_cast<pi_int32 *>(ParamValue);
     if (*param_value_int == PI_EVENT_QUEUED) {
       *param_value_int = PI_EVENT_SUBMITTED;
     }

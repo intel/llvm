@@ -31,6 +31,4 @@
 #define _PI_OPENCL_PLUGIN_VERSION_STRING                                       \
   _PI_PLUGIN_VERSION_STRING(_PI_OPENCL_PLUGIN_VERSION)
 
-struct _pi_ext_command_buffer {};
-
 #endif // PI_OPENCL_HPP

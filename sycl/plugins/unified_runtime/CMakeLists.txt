@@ -8,9 +8,9 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
-          GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
-          GIT_TAG           ${UNIFIED_RUNTIME_TAG}
-          )
+    GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
+    GIT_TAG           ${UNIFIED_RUNTIME_TAG}
+  )
 
   # Disable errors from warnings while building the UR.
   # And remember origin flags before doing that.
@@ -40,7 +40,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 
   set(UNIFIED_RUNTIME_SOURCE_DIR
-          ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
+    ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
   set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 endif()
 
@@ -48,29 +48,29 @@ endif()
 add_library (UnifiedRuntime-Headers INTERFACE)
 
 target_include_directories(UnifiedRuntime-Headers
-        INTERFACE
-        "${UNIFIED_RUNTIME_INCLUDE_DIR}"
-        )
+  INTERFACE
+    "${UNIFIED_RUNTIME_INCLUDE_DIR}"
+)
 
 find_package(Threads REQUIRED)
 
 set(UNIFIED_RUNTIME_PLUGIN_ARGS
-        SOURCES
-        # These are short-term shared with Unified Runtime
-        # The two plugins define a few things differently so must
-        # be built separately. This difference is spelled in
-        # their "ur_bindings.hpp" files.
-        "ur_bindings.hpp"
-        "pi2ur.hpp"
-        "pi2ur.cpp"
-        # These below belong to Unified Runtime PI Plugin only
-        "pi_unified_runtime.hpp"
-        "pi_unified_runtime.cpp"
-        LIBRARIES
-        Threads::Threads
-        UnifiedRuntimeLoader
-        UnifiedRuntime-Headers
-        )
+  SOURCES
+    # These are short-term shared with Unified Runtime
+    # The two plugins define a few things differently so must
+    # be built separately. This difference is spelled in
+    # their "ur_bindings.hpp" files.
+    "ur_bindings.hpp"
+    "pi2ur.hpp"
+    "pi2ur.cpp"
+    # These below belong to Unified Runtime PI Plugin only
+    "pi_unified_runtime.hpp"
+    "pi_unified_runtime.cpp"
+  LIBRARIES
+    Threads::Threads
+    UnifiedRuntimeLoader
+    UnifiedRuntime-Headers
+)
 
 # We need for #include <ze_api.h> in common.h
 if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -86,56 +86,56 @@ add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
 if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   # Build level zero adapter
   add_sycl_library("ur_adapter_level_zero" SHARED
-          SOURCES
-          "ur/ur.hpp"
-          "ur/ur.cpp"
-          "ur/usm_allocator.hpp"
-          "ur/usm_allocator.cpp"
-          "ur/usm_allocator_config.cpp"
-          "ur/usm_allocator_config.hpp"
-          "ur/adapters/level_zero/ur_level_zero.hpp"
-          "ur/adapters/level_zero/ur_level_zero.cpp"
-          "ur/adapters/level_zero/ur_interface_loader.cpp"
-          "ur/adapters/level_zero/command_buffer.hpp"
-          "ur/adapters/level_zero/common.hpp"
-          "ur/adapters/level_zero/context.hpp"
-          "ur/adapters/level_zero/device.hpp"
-          "ur/adapters/level_zero/event.hpp"
-          "ur/adapters/level_zero/image.cpp"
-          "ur/adapters/level_zero/image.hpp"
-          "ur/adapters/level_zero/memory.hpp"
-          "ur/adapters/level_zero/kernel.hpp"
-          "ur/adapters/level_zero/platform.hpp"
-          "ur/adapters/level_zero/program.hpp"
-          "ur/adapters/level_zero/queue.hpp"
-          "ur/adapters/level_zero/sampler.hpp"
-          "ur/adapters/level_zero/usm.hpp"
-          "ur/adapters/level_zero/command_buffer.cpp"
-          "ur/adapters/level_zero/common.cpp"
-          "ur/adapters/level_zero/context.cpp"
-          "ur/adapters/level_zero/device.cpp"
-          "ur/adapters/level_zero/event.cpp"
-          "ur/adapters/level_zero/memory.cpp"
-          "ur/adapters/level_zero/kernel.cpp"
-          "ur/adapters/level_zero/platform.cpp"
-          "ur/adapters/level_zero/program.cpp"
-          "ur/adapters/level_zero/queue.cpp"
-          "ur/adapters/level_zero/sampler.cpp"
-          "ur/adapters/level_zero/usm.cpp"
-          "ur/adapters/level_zero/usm_p2p.cpp"
-          INCLUDE_DIRS
-          ${sycl_inc_dir}
-          LIBRARIES
-          UnifiedRuntime-Headers
-          LevelZeroLoader-Headers
-          LevelZeroLoader
-          Threads::Threads
-          )
+    SOURCES
+      "ur/ur.hpp"
+      "ur/ur.cpp"
+      "ur/usm_allocator.hpp"
+      "ur/usm_allocator.cpp"
+      "ur/usm_allocator_config.cpp"
+      "ur/usm_allocator_config.hpp"
+      "ur/adapters/level_zero/ur_level_zero.hpp"
+      "ur/adapters/level_zero/ur_level_zero.cpp"
+      "ur/adapters/level_zero/ur_interface_loader.cpp"
+      "ur/adapters/level_zero/command_buffer.hpp"
+      "ur/adapters/level_zero/common.hpp"
+      "ur/adapters/level_zero/context.hpp"
+      "ur/adapters/level_zero/device.hpp"
+      "ur/adapters/level_zero/event.hpp"
+      "ur/adapters/level_zero/image.cpp"
+      "ur/adapters/level_zero/image.hpp"
+      "ur/adapters/level_zero/memory.hpp"
+      "ur/adapters/level_zero/kernel.hpp"
+      "ur/adapters/level_zero/platform.hpp"
+      "ur/adapters/level_zero/program.hpp"
+      "ur/adapters/level_zero/queue.hpp"
+      "ur/adapters/level_zero/sampler.hpp"
+      "ur/adapters/level_zero/usm.hpp"
+      "ur/adapters/level_zero/command_buffer.cpp"
+      "ur/adapters/level_zero/common.cpp"
+      "ur/adapters/level_zero/context.cpp"
+      "ur/adapters/level_zero/device.cpp"
+      "ur/adapters/level_zero/event.cpp"
+      "ur/adapters/level_zero/memory.cpp"
+      "ur/adapters/level_zero/kernel.cpp"
+      "ur/adapters/level_zero/platform.cpp"
+      "ur/adapters/level_zero/program.cpp"
+      "ur/adapters/level_zero/queue.cpp"
+      "ur/adapters/level_zero/sampler.cpp"
+      "ur/adapters/level_zero/usm.cpp"
+      "ur/adapters/level_zero/usm_p2p.cpp"
+    INCLUDE_DIRS
+      ${sycl_inc_dir}
+    LIBRARIES
+      UnifiedRuntime-Headers
+      LevelZeroLoader-Headers
+      LevelZeroLoader
+      Threads::Threads
+  )
 
   set_target_properties("ur_adapter_level_zero" PROPERTIES
-          VERSION "0.0.0"
-          SOVERSION "0"
-          )
+      VERSION "0.0.0"
+      SOVERSION "0"
+  )
 endif()
 
 
@@ -186,9 +186,9 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   )
 
   set_target_properties("ur_adapter_cuda" PROPERTIES
-          VERSION "0.0.0"
-          SOVERSION "0"
-          )
+    VERSION "0.0.0"
+    SOVERSION "0"
+  )
 endif()
 
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -252,35 +252,35 @@ endif()
 
 # Build OpenCL adapter
 add_sycl_library("ur_adapter_opencl" SHARED
-        SOURCES
-        "ur/ur.hpp"
-        "ur/ur.cpp"
-        "ur/adapters/opencl/common.cpp"
-        "ur/adapters/opencl/common.hpp"
-        "ur/adapters/opencl/context.cpp"
-        "ur/adapters/opencl/context.hpp"
-        "ur/adapters/opencl/device.cpp"
-        "ur/adapters/opencl/device.hpp"
-        "ur/adapters/opencl/enqueue.cpp"
-        "ur/adapters/opencl/kernel.cpp"
-        "ur/adapters/opencl/platform.cpp"
-        "ur/adapters/opencl/platform.hpp"
-        "ur/adapters/opencl/program.cpp"
-        "ur/adapters/opencl/sampler.cpp"
-        "ur/adapters/opencl/memory.cpp"
-        "ur/adapters/opencl/event.cpp"
-        "ur/adapters/opencl/queue.cpp"
-        "ur/adapters/opencl/ur_interface_loader.cpp"
-        "ur/adapters/opencl/usm.cpp"
-        "ur/adapters/opencl/command_buffer.hpp"
-        "ur/adapters/opencl/command_buffer.cpp"
-        INCLUDE_DIRS
-        ${sycl_inc_dir}
-        LIBRARIES
-        UnifiedRuntime-Headers
-        Threads::Threads
-        OpenCL-ICD
-        )
+  SOURCES
+    "ur/ur.hpp"
+    "ur/ur.cpp"
+    "ur/adapters/opencl/common.cpp"
+    "ur/adapters/opencl/common.hpp"
+    "ur/adapters/opencl/context.cpp"
+    "ur/adapters/opencl/context.hpp"
+    "ur/adapters/opencl/device.cpp"
+    "ur/adapters/opencl/device.hpp"
+    "ur/adapters/opencl/enqueue.cpp"
+    "ur/adapters/opencl/kernel.cpp"
+    "ur/adapters/opencl/platform.cpp"
+    "ur/adapters/opencl/platform.hpp"
+    "ur/adapters/opencl/program.cpp"
+    "ur/adapters/opencl/sampler.cpp"
+    "ur/adapters/opencl/memory.cpp"
+    "ur/adapters/opencl/event.cpp"
+    "ur/adapters/opencl/queue.cpp"
+    "ur/adapters/opencl/ur_interface_loader.cpp"
+    "ur/adapters/opencl/usm.cpp"
+    "ur/adapters/opencl/command_buffer.hpp"
+    "ur/adapters/opencl/command_buffer.cpp"
+  INCLUDE_DIRS
+    ${sycl_inc_dir}
+  LIBRARIES
+    UnifiedRuntime-Headers
+    Threads::Threads
+    OpenCL-ICD
+)
 
 if (TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
@@ -289,17 +289,17 @@ if (TARGET UnifiedRuntimeLoader)
   # When UR is moved to its separate repo perhaps we should introduce new component,
   # e.g. unified-runtime-sycl-dev.
   install(TARGETS ur_loader
-          LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-          ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-          RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
-          )
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+  )
 endif()
 
 # Install the UR adapters too
 if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   install(TARGETS ur_adapter_level_zero
-          LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-          ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-          RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
-          )
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+)
 endif()
