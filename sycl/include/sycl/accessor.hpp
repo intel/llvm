@@ -2302,12 +2302,9 @@ public:
   __SYCL2020_DEPRECATED(
       "accessor::get_pointer() is deprecated, please use get_multi_ptr()")
   global_ptr<DataT> get_pointer() const noexcept {
-    if constexpr (IsAccessReadOnly)
-      return global_ptr<DataT>(
-          const_cast<typename detail::DecoratedType<DataT, AS>::type *>(
-              getPointerAdjusted()));
-    else
-      return global_ptr<DataT>(getPointerAdjusted());
+    return global_ptr<DataT>(
+        const_cast<typename detail::DecoratedType<DataT, AS>::type *>(
+            getPointerAdjusted()));
   }
 
   template <access::target AccessTarget_ = AccessTarget,
