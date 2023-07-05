@@ -154,7 +154,7 @@ static bool isClassType(Type type, StringRef className) {
   return st && st.isIdentified() && st.getName() == className;
 }
 
-/// Returns whether \p type is an `llvm.struct` type with a name matching 
+/// Returns whether \p type is an `llvm.struct` type with a name matching
 /// \p regex.
 static bool isClassType(Type type, llvm::Regex &regex) {
   auto st = dyn_cast<LLVM::LLVMStructType>(type);
