@@ -26,7 +26,7 @@ struct umf_memory_provider_ops_t {
     uint32_t version;
 
     ///
-    /// \brief Intializes memory pool.
+    /// \brief Initializes memory pool.
     /// \param params pool-specific params
     /// \param pool returns pointer to the pool
     /// \return UMF_RESULT_SUCCESS on success or appropriate error code on failure.

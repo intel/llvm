@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2022 Intel Corporation
+# Copyright (C) 2022-2023 Intel Corporation
 #
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
@@ -216,7 +216,7 @@ etors:
     - name: IMAGE2D_MAX_WIDTH
       desc: "[size_t] max width of Image2D object"
     - name: IMAGE2D_MAX_HEIGHT
-      desc: "[size_t] max heigh of Image2D object"
+      desc: "[size_t] max height of Image2D object"
     - name: IMAGE3D_MAX_WIDTH
       desc: "[size_t] max width of Image3D object"
     - name: IMAGE3D_MAX_HEIGHT
@@ -539,7 +539,7 @@ members:
       desc: "[in] The partitioning type to be used."
     - type: $x_device_partition_value_t
       name: value
-      desc: "[in] The paritioning value."
+      desc: "[in] The partitioning value."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Device Partition Properties"
