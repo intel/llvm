@@ -7050,6 +7050,10 @@ def fsycl_use_main_file_name : Flag<["-"], "fsycl-use-main-file-name">,
 def fsycl_allow_virtual_functions : Flag<["-"], "fsycl-allow-virtual-functions">,
   HelpText<"Allow virtual functions calls in code for SYCL device">,
   MarshallingInfoFlag<LangOpts<"SYCLAllowVirtualFunctions">>;
+def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
+  HelpText<"Perform device compilation for Native CPU.">,
+  Flags<[CC1Option, NoDriverOption]>,
+  MarshallingInfoFlag<LangOpts<"SYCLIsNativeCPU">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 
