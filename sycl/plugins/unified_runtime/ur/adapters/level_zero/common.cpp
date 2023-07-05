@@ -286,7 +286,3 @@ ur_result_t zerPluginGetLastError(char **message) {
   return ErrorMessageCode;
 }
 
-void sycl::detail::ur::die(const char *Message) {
-  std::cerr << "ur_die: " << Message << std::endl;
-  std::terminate();
-}
