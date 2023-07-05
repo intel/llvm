@@ -1,4 +1,4 @@
-//==-- annotated_ptr_specific_properties.hpp - SYCL properties specific for annotated_ptr --==//
+//===-------------- SYCL properties specific for annotated_ptr ------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -46,7 +46,6 @@ template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
 };
 
 } // namespace detail
-
 
 } // namespace experimental
 } // namespace oneapi

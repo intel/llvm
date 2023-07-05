@@ -335,7 +335,6 @@ struct check_property_list<T, Prop, Props...>
                 "Property is invalid for the given type.");
 };
 
-
 //===----------------------------------------------------------------------===//
 //   Utility type trait for annotated_arg/annotated_ptr deduction guide
 //===----------------------------------------------------------------------===//
