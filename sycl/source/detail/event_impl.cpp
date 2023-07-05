@@ -41,7 +41,7 @@ void event_impl::ensureContextInitialized() {
     QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
     this->setContextImpl(detail::getSyclObjImpl(HostQueue->get_context()));
   } else {
-    const device &SyclDevice = default_selector().select_device();
+    const device SyclDevice;
     this->setContextImpl(detail::queue_impl::getDefaultOrNew(
         detail::getSyclObjImpl(SyclDevice)));
   }
