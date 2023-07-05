@@ -4075,4 +4075,251 @@ inline pi_result piSamplerRelease(pi_sampler Sampler) {
 // Sampler
 ///////////////////////////////////////////////////////////////////////////////
 
+///////////////////////////////////////////////////////////////////////////////
+// Command-buffer extension
+
+inline pi_result
+piextCommandBufferCreate(pi_context Context, pi_device Device,
+                         const pi_ext_command_buffer_desc *Desc,
+                         pi_ext_command_buffer *RetCommandBuffer) {
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  const ur_exp_command_buffer_desc_t *UrDesc =
+      reinterpret_cast<const ur_exp_command_buffer_desc_t *>(Desc);
+  ur_exp_command_buffer_handle_t *UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t *>(RetCommandBuffer);
+
+  HANDLE_ERRORS(
+      urCommandBufferCreateExp(UrContext, UrDevice, UrDesc, UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferRetain(pi_ext_command_buffer CommandBuffer) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferRetainExp(UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextCommandBufferRelease(pi_ext_command_buffer CommandBuffer) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferReleaseExp(UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextCommandBufferFinalize(pi_ext_command_buffer CommandBuffer) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferFinalizeExp(UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer CommandBuffer, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+
+  HANDLE_ERRORS(urCommandBufferAppendKernelLaunchExp(
+      UrCommandBuffer, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
+      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemcpyUSM(
+    pi_ext_command_buffer CommandBuffer, void *DstPtr, const void *SrcPtr,
+    size_t Size, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferAppendMemcpyUSMExp(
+      UrCommandBuffer, DstPtr, SrcPtr, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer CommandBuffer, pi_mem SrcMem, pi_mem DstMem,
+    size_t SrcOffset, size_t DstOffset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_mem_handle_t UrSrcMem = reinterpret_cast<ur_mem_handle_t>(SrcMem);
+  ur_mem_handle_t UrDstMem = reinterpret_cast<ur_mem_handle_t>(DstMem);
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferCopyExp(
+      UrCommandBuffer, UrSrcMem, UrDstMem, SrcOffset, DstOffset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem SrcMem, pi_mem DstMem,
+    pi_buff_rect_offset SrcOrigin, pi_buff_rect_offset DstOrigin,
+    pi_buff_rect_region Region, size_t SrcRowPitch, size_t SrcSlicePitch,
+    size_t DstRowPitch, size_t DstSlicePitch, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_mem_handle_t UrSrcMem = reinterpret_cast<ur_mem_handle_t>(SrcMem);
+  ur_mem_handle_t UrDstMem = reinterpret_cast<ur_mem_handle_t>(DstMem);
+
+  ur_rect_offset_t UrSrcOrigin{SrcOrigin->x_bytes, SrcOrigin->y_scalar,
+                               SrcOrigin->z_scalar};
+  ur_rect_offset_t UrDstOrigin{DstOrigin->x_bytes, DstOrigin->y_scalar,
+                               DstOrigin->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferCopyRectExp(
+      UrCommandBuffer, UrSrcMem, UrDstMem, UrSrcOrigin, UrDstOrigin, UrRegion,
+      SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer,
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, void *Ptr,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+  ur_rect_offset_t UrBufferOffset{BufferOffset->x_bytes, BufferOffset->y_scalar,
+                                  BufferOffset->z_scalar};
+  ur_rect_offset_t UrHostOffset{HostOffset->x_bytes, HostOffset->y_scalar,
+                                HostOffset->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferReadRectExp(
+      UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
+      BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer CommandBuffer, pi_mem Src, size_t Offset, size_t Size,
+    void *Dst, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  PI_ASSERT(Src, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Src);
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferReadExp(
+      UrCommandBuffer, UrBuffer, Offset, Size, Dst, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer,
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, const void *Ptr,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+  ur_rect_offset_t UrBufferOffset{BufferOffset->x_bytes, BufferOffset->y_scalar,
+                                  BufferOffset->z_scalar};
+  ur_rect_offset_t UrHostOffset{HostOffset->x_bytes, HostOffset->y_scalar,
+                                HostOffset->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferWriteRectExp(
+      UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
+      BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
+      const_cast<void *>(Ptr), NumSyncPointsInWaitList, SyncPointWaitList,
+      SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, size_t Offset,
+    size_t Size, const void *Ptr, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferWriteExp(
+      UrCommandBuffer, UrBuffer, Offset, Size, const_cast<void *>(Ptr),
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
+                                           pi_queue Queue,
+                                           pi_uint32 NumEventsInWaitList,
+                                           const pi_event *EventWaitList,
+                                           pi_event *Event) {
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  const ur_event_handle_t *UrEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urCommandBufferEnqueueExp(
+      UrCommandBuffer, UrQueue, NumEventsInWaitList, UrEventWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+// Command-buffer extension
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace pi2ur
