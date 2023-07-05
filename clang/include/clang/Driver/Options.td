@@ -3137,6 +3137,11 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
 def ftarget_compile_fast : Flag<["-"], "ftarget-compile-fast">,
   Flags<[CoreOption]>, HelpText<"Experimental feature: Reduce target "
   "compilation time, with potential runtime performance trade-off.">;
+def ftarget_export_symbols : Flag<["-"], "ftarget-export-symbols">,
+  Flags<[CoreOption]>, HelpText<"Expose exported symbols in a generated "
+  "target library to allow for visibilty to other modules.">;
+def fno_target_export_symbols : Flag<["-"], "fno-target-export-symbols">,
+  Flags<[CoreOption]>;
 def : Flag<["-"], "fsycl-rdc">, Flags<[CoreOption]>, Alias<fgpu_rdc>;
 def : Flag<["-"], "fno-sycl-rdc">, Flags<[CoreOption]>, Alias<fno_gpu_rdc>;
 def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
@@ -6898,6 +6903,10 @@ def fsycl_use_main_file_name : Flag<["-"], "fsycl-use-main-file-name">,
 def fsycl_allow_virtual_functions : Flag<["-"], "fsycl-allow-virtual-functions">,
   HelpText<"Allow virtual functions calls in code for SYCL device">,
   MarshallingInfoFlag<LangOpts<"SYCLAllowVirtualFunctions">>;
+def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
+  HelpText<"Perform device compilation for Native CPU.">,
+  Flags<[CC1Option, NoDriverOption]>,
+  MarshallingInfoFlag<LangOpts<"SYCLIsNativeCPU">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 
