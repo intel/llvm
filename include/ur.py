@@ -761,7 +761,7 @@ class ur_device_info_v(IntEnum):
                                                     ## version than older devices.
     BINDLESS_IMAGES_SUPPORT_EXP = 0x2000            ## [::ur_bool_t] returns true if the device supports the creation of
                                                     ## bindless images
-    BINDLESS_IMAGES_SHARED_USM_SUPPORT = 0x2001     ## [::ur_bool_t] returns true if the device supports the creation of
+    BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001 ## [::ur_bool_t] returns true if the device supports the creation of
                                                     ## bindless images backed by shared USM
     BINDLESS_IMAGES_1D_USM_SUPPORT_EXP = 0x2002     ## [::ur_bool_t] returns true if the device supports the creation of 1D
                                                     ## bindless images backed by USM
@@ -789,7 +789,7 @@ class ur_device_info_v(IntEnum):
                                                     ## memory resources
     INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E   ## [::ur_bool_t] returns true if the device supports importing external
                                                     ## semaphore resources
-    INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F   ## [::ur_bool_t] returns true if the device supports exporting internal
+    INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x2010   ## [::ur_bool_t] returns true if the device supports exporting internal
                                                     ## event resources
 
 class ur_device_info_t(c_int):

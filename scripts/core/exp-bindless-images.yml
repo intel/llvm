@@ -32,7 +32,7 @@ etors:
     - name: BINDLESS_IMAGES_SUPPORT_EXP
       value: "0x2000"
       desc: "[$x_bool_t] returns true if the device supports the creation of bindless images"
-    - name: BINDLESS_IMAGES_SHARED_USM_SUPPORT
+    - name: BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP
       value: "0x2001"
       desc: "[$x_bool_t] returns true if the device supports the creation of bindless images backed by shared USM"
     - name: BINDLESS_IMAGES_1D_USM_SUPPORT_EXP
@@ -75,7 +75,7 @@ etors:
       value: "0x200E"
       desc: "[$x_bool_t] returns true if the device supports importing external semaphore resources"
     - name: INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP
-      value: "0x200F"
+      value: "0x2010"
       desc: "[$x_bool_t] returns true if the device supports exporting internal event resources"
 --- #--------------------------------------------------------------------------
 type: enum
