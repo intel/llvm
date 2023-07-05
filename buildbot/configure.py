@@ -20,8 +20,8 @@ def do_configure(args):
     if sys.platform != "darwin":
         llvm_external_projects += ';libdevice'
 
-    libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
-    libclc_nvidia_target_names = ';nvptx64--;nvptx64--nvidiacl'
+    libclc_amd_target_names = ';amdgcn--amdhsa'
+    libclc_nvidia_target_names = ';nvptx64--nvidiacl'
 
     sycl_enable_fusion = "OFF"
     if not args.disable_fusion:
