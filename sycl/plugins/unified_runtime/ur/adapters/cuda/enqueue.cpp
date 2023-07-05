@@ -143,21 +143,6 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
     GlobalSizeNormalized[i] = GlobalWorkSize[i];
   }
 
-  static auto IsPrime = [](size_t Number) -> bool {
-    auto LastNumToCheck = ceil(sqrt(Number));
-    if (Number < 2)
-      return false;
-    if (Number == 2)
-      return true;
-    if (Number % 2 == 0)
-      return false;
-    for (int i = 3; i <= LastNumToCheck; i += 2) {
-      if (Number % i == 0)
-        return false;
-    }
-    return true;
-  };
-
   cuDeviceGetAttribute(&MaxBlockDim[1], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
                        Device->get());
   cuDeviceGetAttribute(&MaxBlockDim[2], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
@@ -177,15 +162,6 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
       std::min(MaxThreadsPerBlock[0],
                std::min(GlobalSizeNormalized[0], size_t(MaxBlockDim[0])));
 
-  // When GlobalSizeNormalized[0] is prime threadPerBlock[0] will later
-  // computed as 1, which is not efficient configuration. In such case we use
-  // GlobalSizeNormalized[0] + 1 to compute threadPerBlock[0].
-  int Adjusted0DimGlobalWorkSize =
-      (IsPrime(GlobalSizeNormalized[0]) &&
-       (ThreadsPerBlock[0] != GlobalSizeNormalized[0]))
-          ? GlobalSizeNormalized[0] + 1
-          : GlobalSizeNormalized[0];
-
   static auto IsPowerOf2 = [](size_t Value) -> bool {
     return Value && !(Value & (Value - 1));
   };
@@ -194,7 +170,7 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
   // work group size to produce uniform work groups.
   // Additionally, for best compute utilisation, the local size has
   // to be a power of two.
-  while (0u != (Adjusted0DimGlobalWorkSize % ThreadsPerBlock[0]) ||
+  while (0u != (GlobalSizeNormalized[0] % ThreadsPerBlock[0]) ||
          !IsPowerOf2(ThreadsPerBlock[0])) {
     --ThreadsPerBlock[0];
   }
