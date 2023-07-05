@@ -384,9 +384,10 @@ event handler::finalize() {
     // Empty nodes are handled by Graph like standard nodes
     // For Standard mode (non-graph),
     // empty nodes are not sent to the scheduler to save time
-    if (MGraph || MQueue->getCommandGraph()){
-      CommandGroup.reset(new detail::CG(detail::CG::None, std::move(CGData), MCodeLoc));
-    } else{
+    if (MGraph || MQueue->getCommandGraph()) {
+      CommandGroup.reset(
+          new detail::CG(detail::CG::None, std::move(CGData), MCodeLoc));
+    } else {
       detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
       MLastEvent = detail::createSyclObjFromImpl<event>(Event);
       return MLastEvent;
