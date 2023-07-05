@@ -9657,7 +9657,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     // Prevent crash in the translator if input IR contains DIExpression
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
-    TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
+    TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.,llvm.get.rounding,llvm.set.rounding");
     bool CreatingSyclSPIRVFatObj =
         C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
         TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)

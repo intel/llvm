@@ -3503,6 +3503,33 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     return RValue::get(nullptr);
   }
 
+  case Builtin::BI__builtin_constrained_fadd: {
+    Value *Src0 = EmitScalarExpr(E->getArg(0));
+    Value *Src1 = EmitScalarExpr(E->getArg(1));
+    Value *Src2 = EmitScalarExpr(E->getArg(2));
+    Function *F = CGM.getIntrinsic(Intrinsic::experimental_constrained_fadd, Src0->getType());
+    auto *Src2CI = cast<ConstantInt>(Src2);
+    unsigned Temp = Src2CI->getZExtValue();
+    llvm::RoundingMode RoundingVal;
+    switch (Temp) {
+      case 0:
+        RoundingVal = llvm::RoundingMode::TowardZero;
+        break;
+      case 1:
+        RoundingVal = llvm::RoundingMode::NearestTiesToEven;
+        break;
+      case 2:
+        RoundingVal = llvm::RoundingMode::TowardPositive;
+        break;
+      case 3:
+        RoundingVal = llvm::RoundingMode::TowardNegative;
+        break;
+    }
+
+    Value *Result = Builder.CreateConstrainedFPCall(F, {Src0, Src1}, "", RoundingVal);
+    return RValue::get(Result);
+  }
+
   case Builtin::BI__builtin_fpclassify: {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
     // FIXME: for strictfp/IEEE-754 we need to not trap on SNaN here.

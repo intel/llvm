@@ -401,6 +401,9 @@ BUILTIN(__builtin_truncf16, "hh", "Fnc")
 BUILTIN(__builtin_flt_rounds, "i", "n")
 BUILTIN(__builtin_set_flt_rounds, "vi", "n")
 
+// Constrained FP ops
+BUILTIN(__builtin_constrained_fadd, "fffi", "n")
+
 // C99 complex builtins
 BUILTIN(__builtin_cabs, "dXd", "Fne")
 BUILTIN(__builtin_cabsf, "fXf", "Fne")
