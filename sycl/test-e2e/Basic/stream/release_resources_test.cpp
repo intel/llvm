@@ -1,4 +1,5 @@
-// Disable temporarily because of the flaky failure.
+// We can't safely release any resoureces on Windows, so the test is expected
+// to fail there. See comments in GlobalHandler::releaseDefaultContexts
 // UNSUPPORTED: windows
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
