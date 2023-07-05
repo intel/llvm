@@ -127,6 +127,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
   std::ignore = dstOrigin;
   std::ignore = region;
   std::ignore = srcRowPitch;
+  std::ignore = srcSlicePitch;
+  std::ignore = dstRowPitch;
+  std::ignore = dstSlicePitch;
   std::ignore = numSyncPointsInWaitList;
   std::ignore = pSyncPointWaitList;
   std::ignore = pSyncPoint;
