@@ -2027,12 +2027,16 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
 ///    access is generated, otherwise the access is aligned.
 /// @param acc The accessor.
 /// @param offset The offset to load from in bytes.
+/// @param Flags Specifies the alignment.
 /// @return A vector of loaded elements.
 ///
 template <typename Tx, int N, typename AccessorTy,
+          typename Flags = vector_aligned_tag,
           typename = std::enable_if_t<
+              is_simd_flag_type_v<Flags> &&
               sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>>
-__ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset) {
+__ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
+                                     Flags = {}) {
   return slm_block_load<Tx, N>(offset +
                                __ESIMD_DNS::localAccessorToOffset(acc));
 }
