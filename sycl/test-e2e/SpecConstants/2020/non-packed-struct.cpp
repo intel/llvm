@@ -26,11 +26,11 @@ int main() {
   {
     sycl::buffer buf(&data, sycl::range<1>{1});
     q.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access(cgh);
-      cgh.single_task([=](sycl::kernel_handler kh) {
-        acc[0] = kh.get_specialization_constant<spec_id>();
-      });
-    }).wait();
+       auto acc = buf.get_access(cgh);
+       cgh.single_task([=](sycl::kernel_handler kh) {
+         acc[0] = kh.get_specialization_constant<spec_id>();
+       });
+     }).wait();
   }
 
   assert(reference == data);
