@@ -202,6 +202,8 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/hip/kernel.hpp"
       "ur/adapters/hip/queue.cpp"
       "ur/adapters/hip/queue.hpp"
+      "ur/adapters/hip/command_buffer.hpp"
+      "ur/adapters/hip/command_buffer.cpp"
       "ur/adapters/hip/ur_interface_loader.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}

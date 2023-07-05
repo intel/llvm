@@ -39,6 +39,7 @@
 #include <string>
 #include <vector>
 
+#include <ur/adapters/hip/command_buffer.hpp>
 #include <ur/adapters/hip/context.hpp>
 #include <ur/adapters/hip/device.hpp>
 #include <ur/adapters/hip/event.hpp>
@@ -87,6 +88,10 @@ struct _pi_kernel : ur_kernel_handle_t_ {
 
 struct _pi_sampler : ur_sampler_handle_t_ {
   using ur_sampler_handle_t_::ur_sampler_handle_t_;
+};
+
+struct _pi_ext_command_buffer : ur_exp_command_buffer_handle_t_ {
+  using ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_;
 };
 
 #endif // PI_HIP_HPP
