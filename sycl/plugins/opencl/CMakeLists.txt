@@ -35,6 +35,8 @@ add_sycl_plugin(opencl
     "../unified_runtime/ur/adapters/opencl/program.cpp"
     "../unified_runtime/ur/adapters/opencl/event.cpp"
     "../unified_runtime/ur/adapters/opencl/queue.cpp"
+    "../unified_runtime/ur/adapters/opencl/command_buffer.hpp"
+    "../unified_runtime/ur/adapters/opencl/command_buffer.cpp"
     # ---
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "pi_opencl.cpp"

@@ -11,6 +11,7 @@
 #include <regex>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/pi.h>
+#include <sycl/detail/defines.hpp>
 #include <ur/ur.hpp>
 
 /**
@@ -156,6 +157,9 @@ template <class To, class From> To cast(From value) {
     return static_cast<To>(value);
   }
 }
+
+[[noreturn]] void die(const char *Message);
+
 } // namespace cl_adapter
 
 namespace cl_ext {

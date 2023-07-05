@@ -18,9 +18,9 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgValue(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                    size_t argSize, const void *pArgValue) {
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
+    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
+    const ur_kernel_arg_value_properties_t *, const void *pArgValue) {
 
   CL_RETURN_ON_FAILURE(clSetKernelArg(cl_adapter::cast<cl_kernel>(hKernel),
                                       cl_adapter::cast<cl_uint>(argIndex),
@@ -299,9 +299,9 @@ static ur_result_t USMSetIndirectAccess(ur_kernel_handle_t hKernel) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
-                    size_t propSize, const void *pPropValue) {
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
+    ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName, size_t propSize,
+    const ur_kernel_exec_info_properties_t *, const void *pPropValue) {
 
   switch (propName) {
   case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS: {
@@ -326,7 +326,8 @@ urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, const void *pArgValue) {
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
 
   cl_context CLContext;
   CL_RETURN_ON_FAILURE(clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
@@ -385,11 +386,10 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      ur_sampler_handle_t hArgValue) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hArgValue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_sampler_properties_t *, ur_sampler_handle_t hArgValue) {
+
   cl_int ret_err = clSetKernelArg(
       cl_adapter::cast<cl_kernel>(hKernel), cl_adapter::cast<cl_uint>(argIndex),
       sizeof(hArgValue), cl_adapter::cast<const cl_sampler *>(&hArgValue));

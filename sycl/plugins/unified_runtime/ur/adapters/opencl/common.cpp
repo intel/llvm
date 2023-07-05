@@ -64,9 +64,16 @@ ur_result_t map_cl_error_to_ur(cl_int result) {
     return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
   case CL_OUT_OF_RESOURCES:
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  case CL_INVALID_MEM_OBJECT:
+    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   }
+}
+
+void cl_adapter::die(const char *Message) {
+  std::cerr << "ur_die: " << Message << std::endl;
+  std::terminate();
 }
 
 /// Common API for getting the native handle of a UR object
