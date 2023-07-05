@@ -367,6 +367,7 @@ public:
   /// It's called by SYCL's queue.submit.
   ///
   /// \param CommandGroup is a unique_ptr to a command group to be added.
+  /// \param Queue Queue that is registering the command-group.
   /// \param CommandBuffer Optional command buffer to enqueue to instead of
   /// directly to the queue.
   /// \param Dependencies Optional list of dependency

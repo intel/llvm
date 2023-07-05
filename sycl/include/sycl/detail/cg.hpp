@@ -497,6 +497,8 @@ public:
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
 };
+
+/// "Execute command-buffer" command group class.
 class CGExecCommandBuffer : public CG {
 public:
   sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
