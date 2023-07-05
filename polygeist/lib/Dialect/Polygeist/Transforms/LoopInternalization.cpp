@@ -1352,7 +1352,6 @@ void LoopInternalization::transform(
   // Tile the loop.
   SmallVector<T> tiledNest;
   tile(loop, getTileSize(loop, workGroupSize, solver), tiledNest);
-  ++numTiled;
   LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
 
   // Rewrite selected memory accesses to use shared memory.
@@ -1388,6 +1387,8 @@ void LoopInternalization::transform(
   createWorkGroupBarrier(builder);
   builder.setInsertionPointAfter(loop);
   createWorkGroupBarrier(builder);
+
+  ++numLoopInternalized;
 
   // When work group size is unknown at compile time, unroll the tiled loop to
   // expose more optimization opportunities.

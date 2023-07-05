@@ -142,7 +142,7 @@ def LoopInternalization : Pass<"loop-internalization", "gpu::GPUModuleOp"> {
            /*default=*/"4", "The number of times the tiled loop is unrolled">
   ];
   let statistics = [
-    Statistic<"numTiled", "num-tiled", "Number of loops tiled">,
+    Statistic<"numLoopInternalized", "num-loop-internalized", "Number of loops internalized">,
   ];
   let dependentDialects =
       ["affine::AffineDialect", "memref::MemRefDialect", "scf::SCFDialect", 
