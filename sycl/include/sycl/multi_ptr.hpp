@@ -892,8 +892,8 @@ public:
   // Returns the underlying OpenCL C pointer
   pointer_t get() const { return m_Pointer; }
   pointer_t get_decorated() const { return m_Pointer; }
-  std::add_pointer_t<value_type> get_raw() const {
-    return reinterpret_cast<std::add_pointer_t<value_type>>(get());
+  std::add_pointer_t<element_type> get_raw() const {
+    return reinterpret_cast<std::add_pointer_t<element_type>>(get());
   }
 
   // Implicit conversion to the underlying pointer type
@@ -1007,6 +1007,7 @@ private:
 template <access::address_space Space>
 class multi_ptr<void, Space, access::decorated::legacy> {
 public:
+  using value_type = void;
   using element_type = void;
   using difference_type = std::ptrdiff_t;
 
@@ -1118,6 +1119,10 @@ public:
   using ReturnPtr = detail::const_if_const_AS<Space, void> *;
   // Returns the underlying OpenCL C pointer
   pointer_t get() const { return m_Pointer; }
+  pointer_t get_decorated() const { return m_Pointer; }
+  std::add_pointer_t<element_type> get_raw() const {
+    return reinterpret_cast<std::add_pointer_t<element_type>>(get());
+  }
 
   // Implicit conversion to the underlying pointer type
   operator ReturnPtr() const { return reinterpret_cast<ReturnPtr>(m_Pointer); };
@@ -1148,6 +1153,7 @@ private:
 template <access::address_space Space>
 class multi_ptr<const void, Space, access::decorated::legacy> {
 public:
+  using value_type = const void;
   using element_type = const void;
   using difference_type = std::ptrdiff_t;
 
@@ -1260,6 +1266,10 @@ public:
 
   // Returns the underlying OpenCL C pointer
   pointer_t get() const { return m_Pointer; }
+  pointer_t get_decorated() const { return m_Pointer; }
+  std::add_pointer_t<element_type> get_raw() const {
+    return reinterpret_cast<std::add_pointer_t<element_type>>(get());
+  }
 
   // Implicit conversion to the underlying pointer type
   operator const void *() const {

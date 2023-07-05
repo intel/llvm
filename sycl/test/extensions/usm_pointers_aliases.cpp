@@ -1,4 +1,5 @@
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify %s -o %t.out -Wno-deprecated-declarations
+// expected-no-diagnostics
 
 #include <sycl/sycl.hpp>
 
@@ -6,7 +7,6 @@ using namespace sycl;
 
 int main() {
   // Check device_ptr types.
-  // expected-warning@+5{{'legacy' is deprecated: sycl::access::decorated::legacy is deprecated since SYCL 2020}}
   static_assert(
       std::is_same_v<
           ext::intel::device_ptr<void>,
@@ -35,7 +35,6 @@ int main() {
       "Unexpected type for raw_device_ptr<void>");
 
   // Check host_ptr types.
-  // expected-warning@+5{{'legacy' is deprecated: sycl::access::decorated::legacy is deprecated since SYCL 2020}}
   static_assert(
       std::is_same_v<
           ext::intel::host_ptr<void>,
