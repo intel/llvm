@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o - %s | FileCheck %s
+// RUN: %clangxx -fsycl-device-only  -g -fexceptions -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o - %s | FileCheck %s
 
 // Checks that the subhandler is correctly emitted in the module
 #include <CL/sycl.hpp>
