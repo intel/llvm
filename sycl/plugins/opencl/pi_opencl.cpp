@@ -2727,10 +2727,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          piextCommandBufferMemBufferCopyRect)
   _PI_CL(piextCommandBufferMemBufferRead, piextCommandBufferMemBufferRead)
   _PI_CL(piextCommandBufferMemBufferReadRect,
-    ¦   ¦piextCommandBufferMemBufferReadRect)
+         piextCommandBufferMemBufferReadRect)
   _PI_CL(piextCommandBufferMemBufferWrite, piextCommandBufferMemBufferWrite)
   _PI_CL(piextCommandBufferMemBufferWriteRect,
-    ¦   ¦piextCommandBufferMemBufferWriteRect)
+         piextCommandBufferMemBufferWriteRect)
   _PI_CL(piextEnqueueCommandBuffer, piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
