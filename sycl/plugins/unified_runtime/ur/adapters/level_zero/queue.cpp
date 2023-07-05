@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_queue.cpp - Level Zero Adapter -----------===//
+//===--------- queue.cpp - Level Zero Adapter ------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,9 +11,9 @@
 #include <optional>
 #include <string.h>
 
+#include "common.hpp"
+#include "queue.hpp"
 #include "ur_level_zero.hpp"
-#include "ur_level_zero_common.hpp"
-#include "ur_level_zero_queue.hpp"
 
 /// @brief Cleanup events in the immediate lists of the queue.
 /// @param Queue Queue where events need to be cleaned up.
