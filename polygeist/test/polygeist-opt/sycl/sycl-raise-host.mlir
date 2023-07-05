@@ -223,3 +223,19 @@ llvm.func @raise_range_3() -> !llvm.ptr {
 }
 
 llvm.func @_Z6numberv() -> (i64)
+
+// ----- 
+
+// COM: Check the raising patterns are not applied to device code.
+
+// CHECK-LABEL: gpu.module @device_functions {
+// CHECK-NOT:   sycl.host
+gpu.module @device_functions {
+  llvm.func @raise_range_1() -> !llvm.ptr {
+    %0 = arith.constant 1 : i32
+    %1 = arith.constant 42 : i64
+    %2 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+    llvm.store %1, %2 {alignment = 8 : i64} : i64, !llvm.ptr
+    llvm.return %2 : !llvm.ptr
+  }
+}

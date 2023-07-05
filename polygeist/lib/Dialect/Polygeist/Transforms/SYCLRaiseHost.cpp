@@ -10,6 +10,9 @@
 // (mostly LLVM dialect) for the SYCL host side and raise them to types and
 // operations from the SYCL dialect to facilitate analysis in other passes.
 //
+// Note all patterns defined in this pass must inherit either OpHostRaisePattern
+// or OpInterfaceHostRaisePattern.
+//
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
@@ -155,9 +158,82 @@ static bool isClassType(Type type, StringRef className) {
 }
 
 namespace {
-struct RaiseKernelName : public OpRewritePattern<LLVM::AddressOfOp> {
+template <typename SourceOp>
+class OpOrInterfaceHostRaisePatternBase : public RewritePattern {
 public:
-  using OpRewritePattern<LLVM::AddressOfOp>::OpRewritePattern;
+  using RewritePattern::RewritePattern;
+
+  /// Wrappers around the RewritePattern methods that pass the derived op type.
+  void rewrite(Operation *op, PatternRewriter &rewriter) const final {
+    rewrite(cast<SourceOp>(op), rewriter);
+  }
+  LogicalResult match(Operation *op) const final {
+    // Do not run raising patterns in device code
+    return isInDeviceModule(op) ? failure() : match(cast<SourceOp>(op));
+  }
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const final {
+    // Do not run raising patterns in device code
+    return isInDeviceModule(op) ? failure()
+                                : matchAndRewrite(cast<SourceOp>(op), rewriter);
+  }
+
+  /// Rewrite and Match methods that operate on the SourceOp type. These must be
+  /// overridden by the derived pattern class.
+  virtual void rewrite(SourceOp op, PatternRewriter &rewriter) const {
+    llvm_unreachable("must override rewrite or matchAndRewrite");
+  }
+  virtual LogicalResult match(SourceOp op) const {
+    llvm_unreachable("must override match or matchAndRewrite");
+  }
+  virtual LogicalResult matchAndRewrite(SourceOp op,
+                                        PatternRewriter &rewriter) const {
+    if (succeeded(match(op))) {
+      rewrite(op, rewriter);
+      return success();
+    }
+    return failure();
+  }
+
+private:
+  static bool isInDeviceModule(Operation *op) {
+    return op->getParentOfType<gpu::GPUModuleOp>();
+  }
+};
+
+/// OpHostRaisePattern is a wrapper around RewritePattern that allows for
+/// matching and rewriting against an instance of a derived operation class as
+/// opposed to a raw Operation.
+///
+/// This pattern can only be applied to operations in host code.
+template <typename SourceOp>
+struct OpHostRaisePattern : public OpOrInterfaceHostRaisePatternBase<SourceOp> {
+  /// Patterns must specify the root operation name they match against, and can
+  /// also specify the benefit of the pattern matching and a list of generated
+  /// ops.
+  OpHostRaisePattern(MLIRContext *context, PatternBenefit benefit = 1,
+                     ArrayRef<StringRef> generatedNames = {})
+      : OpOrInterfaceHostRaisePatternBase<SourceOp>(
+            SourceOp::getOperationName(), benefit, context, generatedNames) {}
+};
+
+/// OpInterfaceHostRaisePattern is a wrapper around HostRaisePattern that allows
+/// for matching and rewriting against an instance of an operation interface
+/// instead of a raw Operation.
+///
+/// This pattern can only be applied to operations in host code.
+template <typename SourceOp>
+struct OpInterfaceHostRaisePattern
+    : public OpOrInterfaceHostRaisePatternBase<SourceOp> {
+  OpInterfaceHostRaisePattern(MLIRContext *context, PatternBenefit benefit = 1)
+      : OpOrInterfaceHostRaisePatternBase<SourceOp>(
+            Pattern::MatchInterfaceOpTypeTag(), SourceOp::getInterfaceID(),
+            benefit, context) {}
+};
+
+struct RaiseKernelName : public OpHostRaisePattern<LLVM::AddressOfOp> {
+public:
+  using OpHostRaisePattern<LLVM::AddressOfOp>::OpHostRaisePattern;
 
   LogicalResult matchAndRewrite(LLVM::AddressOfOp op,
                                 PatternRewriter &rewriter) const final {
@@ -214,9 +290,9 @@ private:
 
 template <typename Derived, typename ConstructorOp, typename TypeTag,
           bool PostProcess = false>
-class RaiseConstructorBasePattern : public OpRewritePattern<ConstructorOp> {
+class RaiseConstructorBasePattern : public OpHostRaisePattern<ConstructorOp> {
 public:
-  using OpRewritePattern<ConstructorOp>::OpRewritePattern;
+  using OpHostRaisePattern<ConstructorOp>::OpHostRaisePattern;
 
   LogicalResult matchAndRewrite(ConstructorOp constructor,
                                 PatternRewriter &rewriter) const final {
@@ -394,9 +470,9 @@ struct AccessorInvokeConstructorPattern
 
 template <typename TypeTag>
 class RaiseArrayConstructorBasePattern
-    : public OpRewritePattern<LLVM::StoreOp> {
+    : public OpHostRaisePattern<LLVM::StoreOp> {
 public:
-  using OpRewritePattern<LLVM::StoreOp>::OpRewritePattern;
+  using OpHostRaisePattern<LLVM::StoreOp>::OpHostRaisePattern;
 
   LogicalResult matchAndRewrite(LLVM::StoreOp op,
                                 PatternRewriter &rewriter) const final {
@@ -591,10 +667,10 @@ struct RaiseRangeConstructor
 /// This pattern acts on `FunctionOpInterface` instances as it will not be
 /// removing the operations assigning the kernel name, but creating additional
 /// ones to mark the construct.
-class RaiseSetKernel : public OpInterfaceRewritePattern<FunctionOpInterface> {
+class RaiseSetKernel : public OpInterfaceHostRaisePattern<FunctionOpInterface> {
 public:
-  using OpInterfaceRewritePattern<
-      FunctionOpInterface>::OpInterfaceRewritePattern;
+  using OpInterfaceHostRaisePattern<
+      FunctionOpInterface>::OpInterfaceHostRaisePattern;
 
   LogicalResult matchAndRewrite(FunctionOpInterface op,
                                 PatternRewriter &rewriter) const final {
