@@ -159,7 +159,8 @@ static bool isClassType(Type type, StringRef className) {
 
 namespace {
 template <typename SourceOp>
-struct OpOrInterfaceRaisePatternBase : public RewritePattern {
+class OpOrInterfaceRaisePatternBase : public RewritePattern {
+public:
   using RewritePattern::RewritePattern;
 
   /// Wrappers around the RewritePattern methods that pass the derived op type.
@@ -167,14 +168,14 @@ struct OpOrInterfaceRaisePatternBase : public RewritePattern {
     rewrite(cast<SourceOp>(op), rewriter);
   }
   LogicalResult match(Operation *op) const final {
-    return match(cast<SourceOp>(op));
+    // Do not run raising patterns in device code
+    return isInDeviceModule(op) ? failure() : match(cast<SourceOp>(op));
   }
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const final {
     // Do not run raising patterns in device code
-    if (op->getParentOfType<gpu::GPUModuleOp>())
-      return failure();
-    return matchAndRewrite(cast<SourceOp>(op), rewriter);
+    return isInDeviceModule(op) ? failure()
+                                : matchAndRewrite(cast<SourceOp>(op), rewriter);
   }
 
   /// Rewrite and Match methods that operate on the SourceOp type. These must be
@@ -192,6 +193,11 @@ struct OpOrInterfaceRaisePatternBase : public RewritePattern {
       return success();
     }
     return failure();
+  }
+
+private:
+  static bool isInDeviceModule(Operation *op) {
+    return op->getParentOfType<gpu::GPUModuleOp>();
   }
 };
 
