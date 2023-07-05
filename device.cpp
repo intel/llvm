@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_device.cpp - Level Zero Adapter ----------===//
+//===--------- device.cpp - Level Zero Adapter -----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include "ur_level_zero_device.hpp"
+#include "device.hpp"
 #include "ur_level_zero.hpp"
 #include <algorithm>
 #include <climits>

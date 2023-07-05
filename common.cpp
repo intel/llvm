@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_common.cpp - Level Zero Adapter ----------===//
+//===--------- common.cpp - Level Zero Adapter -----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include "ur_level_zero_common.hpp"
+#include "common.hpp"
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
