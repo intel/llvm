@@ -361,3 +361,214 @@ TEST_F(CommandGraphTest, RecordSubGraph) {
       sycl::detail::getSyclObjImpl(Node3MainGraph));
   ASSERT_EQ(Queue.get_context(), MainGraphExecImpl->getContext());
 }
+
+TEST_F(CommandGraphTest, InOrderQueue) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+
+  // Record in-order queue with three nodes
+  Graph.begin_recording(InOrderQueue);
+  auto Node1Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  auto PtrNode1 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode1, nullptr);
+  ASSERT_TRUE(PtrNode1->MPredecessors.empty());
+
+  auto Node2Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  auto PtrNode2 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode2, nullptr);
+  ASSERT_NE(PtrNode2, PtrNode1);
+  ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
+
+  auto Node3Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  auto PtrNode3 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode3, nullptr);
+  ASSERT_NE(PtrNode3, PtrNode2);
+  ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
+
+  Graph.end_recording(InOrderQueue);
+
+  // Finalize main graph and check schedule
+  auto GraphExec = Graph.finalize();
+  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
+  auto Schedule = GraphExecImpl->getSchedule();
+  auto ScheduleIt = Schedule.begin();
+  ASSERT_EQ(Schedule.size(), 3ul);
+  ASSERT_EQ(*ScheduleIt, PtrNode1);
+  ScheduleIt++;
+  ASSERT_EQ(*ScheduleIt, PtrNode2);
+  ScheduleIt++;
+  ASSERT_EQ(*ScheduleIt, PtrNode3);
+  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
+}
+
+TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+
+  // Record in-order queue with a regular node then empty node then a regular
+  // node
+  Graph.begin_recording(InOrderQueue);
+  auto Node1Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  auto PtrNode1 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode1, nullptr);
+  ASSERT_TRUE(PtrNode1->MPredecessors.empty());
+
+  auto Node2Graph = InOrderQueue.submit([&](sycl::handler &cgh) {});
+
+  auto PtrNode2 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode2, nullptr);
+  ASSERT_NE(PtrNode2, PtrNode1);
+  ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
+
+  auto Node3Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  auto PtrNode3 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode3, nullptr);
+  ASSERT_NE(PtrNode3, PtrNode2);
+  ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
+
+  Graph.end_recording(InOrderQueue);
+
+  // Finalize main graph and check schedule
+  // Note that empty nodes are not scheduled
+  auto GraphExec = Graph.finalize();
+  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
+  auto Schedule = GraphExecImpl->getSchedule();
+  auto ScheduleIt = Schedule.begin();
+  ASSERT_EQ(Schedule.size(), 2ul);
+  ASSERT_EQ(*ScheduleIt, PtrNode1);
+  ScheduleIt++;
+  ASSERT_EQ(*ScheduleIt, PtrNode3);
+  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
+}
+
+TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+
+  // Record in-order queue with an empty node then two regular nodes
+  Graph.begin_recording(InOrderQueue);
+  auto Node1Graph = InOrderQueue.submit([&](sycl::handler &cgh) {});
+
+  auto PtrNode1 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode1, nullptr);
+  ASSERT_TRUE(PtrNode1->MPredecessors.empty());
+
+  auto Node2Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  auto PtrNode2 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode2, nullptr);
+  ASSERT_NE(PtrNode2, PtrNode1);
+  ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
+
+  auto Node3Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  auto PtrNode3 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode3, nullptr);
+  ASSERT_NE(PtrNode3, PtrNode2);
+  ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
+
+  Graph.end_recording(InOrderQueue);
+
+  // Finalize main graph and check schedule
+  // Note that empty nodes are not scheduled
+  auto GraphExec = Graph.finalize();
+  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
+  auto Schedule = GraphExecImpl->getSchedule();
+  auto ScheduleIt = Schedule.begin();
+  ASSERT_EQ(Schedule.size(), 2ul);
+  ASSERT_EQ(*ScheduleIt, PtrNode2);
+  ScheduleIt++;
+  ASSERT_EQ(*ScheduleIt, PtrNode3);
+  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
+}
+
+TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+
+  // Record in-order queue with two regular nodes then an empty node
+  Graph.begin_recording(InOrderQueue);
+  auto Node1Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  auto PtrNode1 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode1, nullptr);
+  ASSERT_TRUE(PtrNode1->MPredecessors.empty());
+
+  auto Node2Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  auto PtrNode2 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode2, nullptr);
+  ASSERT_NE(PtrNode2, PtrNode1);
+  ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
+
+  auto Node3Graph = InOrderQueue.submit([&](sycl::handler &cgh) {});
+
+  auto PtrNode3 = sycl::detail::getSyclObjImpl(Graph)->getLastInorderNode(
+      sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode3, nullptr);
+  ASSERT_NE(PtrNode3, PtrNode2);
+  ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
+
+  Graph.end_recording(InOrderQueue);
+
+  // Finalize main graph and check schedule
+  // Note that empty nodes are not scheduled
+  auto GraphExec = Graph.finalize();
+  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
+  auto Schedule = GraphExecImpl->getSchedule();
+  auto ScheduleIt = Schedule.begin();
+  ASSERT_EQ(Schedule.size(), 2ul);
+  ASSERT_EQ(*ScheduleIt, PtrNode1);
+  ScheduleIt++;
+  ASSERT_EQ(*ScheduleIt, PtrNode2);
+  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
+}
