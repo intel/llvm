@@ -349,3 +349,87 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
 
   return UR_RESULT_SUCCESS;
 }
+
+// Function gets characters between delimeter's in str
+// then checks if they are equal to the sub_str.
+// returns true if there is at least one instance
+// returns false if there are no instances of the name
+static bool is_in_separated_string(const std::string &str, char delimiter,
+                                   const std::string &sub_str) {
+  size_t beg = 0;
+  size_t length = 0;
+  for (const auto &x : str) {
+    if (x == delimiter) {
+      if (str.substr(beg, length) == sub_str)
+        return true;
+
+      beg += length + 1;
+      length = 0;
+      continue;
+    }
+    length++;
+  }
+  if (length != 0)
+    if (str.substr(beg, length) == sub_str)
+      return true;
+
+  return false;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
+    ur_device_handle_t hDevice, ur_program_handle_t hProgram,
+    const char *pFunctionName, void **ppFunctionPointer) {
+  cl_context CLContext = nullptr;
+  CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
+                                        CL_PROGRAM_CONTEXT, sizeof(CLContext),
+                                        &CLContext, nullptr));
+
+  cl_ext::clGetDeviceFunctionPointer_fn FuncT = nullptr;
+
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<cl_ext::clGetDeviceFunctionPointer_fn>(
+          CLContext, cl_ext::ExtFuncPtrCache->clGetDeviceFunctionPointerCache,
+          cl_ext::clGetDeviceFunctionPointerName, &FuncT));
+
+  // Check if kernel name exists, to prevent opencl runtime throwing exception
+  // with cpu runtime
+  // TODO: Use fallback search method if extension does not exist once CPU
+  // runtime no longer throws exceptions and prints messages when given
+  // unavailable functions.
+  *ppFunctionPointer = 0;
+  size_t Size;
+  CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
+                                        PI_PROGRAM_INFO_KERNEL_NAMES, 0,
+                                        nullptr, &Size));
+
+  std::string ClResult(Size, ' ');
+
+  CL_RETURN_ON_FAILURE(clGetProgramInfo(
+      cl_adapter::cast<cl_program>(hProgram), PI_PROGRAM_INFO_KERNEL_NAMES,
+      ClResult.size(), &ClResult[0], nullptr));
+
+  // Get rid of the null terminator and search for kernel_name
+  // If function cannot be found return error code to indicate it
+  // exists
+  ClResult.pop_back();
+  if (!is_in_separated_string(ClResult, ';', pFunctionName))
+    return UR_RESULT_ERROR_INVALID_KERNEL_NAME;
+
+  ur_result_t ur_result = UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
+
+  // If clGetDeviceFunctionPointer is in list of extensions
+  if (FuncT) {
+    cl_int cl_result =
+        FuncT(cl_adapter::cast<cl_device_id>(hDevice),
+              cl_adapter::cast<cl_program>(hProgram), pFunctionName,
+              reinterpret_cast<cl_ulong *>(ppFunctionPointer));
+    // GPU runtime sometimes returns PI_ERROR_INVALID_ARG_VALUE if func address
+    // cannot be found even if kernel exits. As the kernel does exist return
+    // that the address is not available
+    if (cl_result == CL_INVALID_ARG_VALUE) {
+      *ppFunctionPointer = 0;
+      return UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
+    }
+  }
+  return ur_result;
+}

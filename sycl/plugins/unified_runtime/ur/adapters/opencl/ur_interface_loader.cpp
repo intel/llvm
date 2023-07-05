@@ -91,7 +91,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
   pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
   pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
   pDdiTable->pfnGetBuildInfo = urProgramGetBuildInfo;
-  pDdiTable->pfnGetFunctionPointer = nullptr;
+  pDdiTable->pfnGetFunctionPointer = urProgramGetFunctionPointer;
   pDdiTable->pfnGetInfo = urProgramGetInfo;
   pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
   pDdiTable->pfnLink = urProgramLink;
@@ -251,7 +251,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   pDdiTable->pfnPartition = urDevicePartition;
   pDdiTable->pfnRelease = urDeviceRelease;
   pDdiTable->pfnRetain = urDeviceRetain;
-  //  pDdiTable->pfnSelectBinary = nullptr;
+  pDdiTable->pfnSelectBinary = urDeviceSelectBinary;
   return UR_RESULT_SUCCESS;
 }
 

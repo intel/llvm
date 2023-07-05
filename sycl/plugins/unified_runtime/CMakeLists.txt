@@ -250,9 +250,10 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   endif()
 endif()
 
-# Build OpenCL adapter
-add_sycl_library("ur_adapter_opencl" SHARED
-  SOURCES
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  # Build OpenCL adapter
+  add_sycl_library("ur_adapter_opencl" SHARED
+    SOURCES
     "ur/ur.hpp"
     "ur/ur.cpp"
     "ur/adapters/opencl/common.cpp"
@@ -274,13 +275,14 @@ add_sycl_library("ur_adapter_opencl" SHARED
     "ur/adapters/opencl/usm.cpp"
     "ur/adapters/opencl/command_buffer.hpp"
     "ur/adapters/opencl/command_buffer.cpp"
-  INCLUDE_DIRS
+    INCLUDE_DIRS
     ${sycl_inc_dir}
-  LIBRARIES
+    LIBRARIES
     UnifiedRuntime-Headers
     Threads::Threads
     OpenCL-ICD
-)
+    )
+endif()
 
 if (TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)

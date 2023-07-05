@@ -33,33 +33,6 @@
 #include <string_view>
 #include <vector>
 
-#include "../unified_runtime/ur/adapters/opencl/common.hpp"
-#include "../unified_runtime/ur/adapters/opencl/device.hpp"
-#include "../unified_runtime/ur/adapters/opencl/platform.hpp"
-
-#define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
-  if (err != CL_SUCCESS) {                                                     \
-    if (ptr != nullptr)                                                        \
-      *ptr = nullptr;                                                          \
-    return cast<pi_result>(reterr);                                            \
-  }
-
-// TODO(ur) remove when other endpoints have been ported
-pi_result map_ur_error(ur_result_t result) {
-  switch (result) {
-  case UR_RESULT_SUCCESS:
-    return PI_SUCCESS;
-  case UR_RESULT_ERROR_OUT_OF_HOST_MEMORY:
-    return PI_ERROR_OUT_OF_HOST_MEMORY;
-  case UR_RESULT_ERROR_INVALID_VALUE:
-    return PI_ERROR_INVALID_VALUE;
-  case UR_RESULT_ERROR_INVALID_PLATFORM:
-    return PI_ERROR_INVALID_PLATFORM;
-  default:
-    return PI_ERROR_UNKNOWN;
-  }
-}
-
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value) {
   // TODO: see if more sanity checks are possible.
@@ -68,168 +41,6 @@ template <class To, class From> To cast(From value) {
 }
 
 extern "C" {
-
-pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *images,
-                                  pi_uint32 num_images,
-                                  pi_uint32 *selected_image_ind) {
-
-  // TODO: this is a bare-bones implementation for choosing a device image
-  // that would be compatible with the targeted device. An AOT-compiled
-  // image is preferred over SPIR-V for known devices (i.e. Intel devices)
-  // The implementation makes no effort to differentiate between multiple images
-  // for the given device, and simply picks the first one compatible
-  // Real implementation will use the same mechanism OpenCL ICD dispatcher
-  // uses. Something like:
-  //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_ERROR_INVALID_CONTEXT);
-  //     return context->dispatch->piextDeviceSelectIR(
-  //       ctx, images, num_images, selected_image);
-  // where context->dispatch is set to the dispatch table provided by PI
-  // plugin for platform/device the ctx was created for.
-
-  // Choose the binary target for the provided device
-  const char *image_target = nullptr;
-  // Get the type of the device
-  cl_device_type device_type;
-  constexpr pi_uint32 invalid_ind = std::numeric_limits<pi_uint32>::max();
-  cl_int ret_err =
-      clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
-                      sizeof(cl_device_type), &device_type, nullptr);
-  if (ret_err != CL_SUCCESS) {
-    *selected_image_ind = invalid_ind;
-    return cast<pi_result>(ret_err);
-  }
-
-  switch (device_type) {
-    // TODO: Factor out vendor specifics into a separate source
-    // E.g. sycl/source/detail/vendor/intel/detail/pi_opencl.cpp?
-
-    // We'll attempt to find an image that was AOT-compiled
-    // from a SPIR-V image into an image specific for:
-
-  case CL_DEVICE_TYPE_CPU: // OpenCL 64-bit CPU
-    image_target = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
-    break;
-  case CL_DEVICE_TYPE_GPU: // OpenCL 64-bit GEN GPU
-    image_target = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-    break;
-  case CL_DEVICE_TYPE_ACCELERATOR: // OpenCL 64-bit FPGA
-    image_target = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
-    break;
-  default:
-    // Otherwise, we'll attempt to find and JIT-compile
-    // a device-independent SPIR-V image
-    image_target = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64;
-    break;
-  }
-
-  // Find the appropriate device image, fallback to spirv if not found
-  pi_uint32 fallback = invalid_ind;
-  for (pi_uint32 i = 0; i < num_images; ++i) {
-    if (strcmp(images[i]->DeviceTargetSpec, image_target) == 0) {
-      *selected_image_ind = i;
-      return PI_SUCCESS;
-    }
-    if (strcmp(images[i]->DeviceTargetSpec,
-               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
-      fallback = i;
-  }
-  // Points to a spirv image, if such indeed was found
-  if ((*selected_image_ind = fallback) != invalid_ind)
-    return PI_SUCCESS;
-  // No image can be loaded for the given device
-  return PI_ERROR_INVALID_BINARY;
-}
-
-// Function gets characters between delimeter's in str
-// then checks if they are equal to the sub_str.
-// returns true if there is at least one instance
-// returns false if there are no instances of the name
-static bool is_in_separated_string(const std::string &str, char delimiter,
-                                   const std::string &sub_str) {
-  size_t beg = 0;
-  size_t length = 0;
-  for (const auto &x : str) {
-    if (x == delimiter) {
-      if (str.substr(beg, length) == sub_str)
-        return true;
-
-      beg += length + 1;
-      length = 0;
-      continue;
-    }
-    length++;
-  }
-  if (length != 0)
-    if (str.substr(beg, length) == sub_str)
-      return true;
-
-  return false;
-}
-
-pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
-                                        const char *func_name,
-                                        pi_uint64 *function_pointer_ret) {
-
-  cl_context CLContext = nullptr;
-  cl_int ret_err =
-      clGetProgramInfo(cast<cl_program>(program), CL_PROGRAM_CONTEXT,
-                       sizeof(CLContext), &CLContext, nullptr);
-
-  if (ret_err != CL_SUCCESS)
-    return cast<pi_result>(ret_err);
-
-  cl_ext::clGetDeviceFunctionPointer_fn FuncT = nullptr;
-  ret_err =
-      cl_ext::getExtFuncFromContext<cl_ext::clGetDeviceFunctionPointer_fn>(
-          CLContext, cl_ext::ExtFuncPtrCache->clGetDeviceFunctionPointerCache,
-          cl_ext::clGetDeviceFunctionPointerName, &FuncT);
-
-  pi_result pi_ret_err = PI_SUCCESS;
-
-  // Check if kernel name exists, to prevent opencl runtime throwing exception
-  // with cpu runtime
-  // TODO: Use fallback search method if extension does not exist once CPU
-  // runtime no longer throws exceptions and prints messages when given
-  // unavailable functions.
-  *function_pointer_ret = 0;
-  size_t Size;
-  cl_int Res =
-      clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
-                       0, nullptr, &Size);
-  if (Res != CL_SUCCESS)
-    return cast<pi_result>(Res);
-
-  std::string ClResult(Size, ' ');
-  Res =
-      clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
-                       ClResult.size(), &ClResult[0], nullptr);
-  if (Res != CL_SUCCESS)
-    return cast<pi_result>(Res);
-
-  // Get rid of the null terminator and search for kernel_name
-  // If function cannot be found return error code to indicate it
-  // exists
-  ClResult.pop_back();
-  if (!is_in_separated_string(ClResult, ';', func_name))
-    return PI_ERROR_INVALID_KERNEL_NAME;
-
-  pi_ret_err = PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
-
-  // If clGetDeviceFunctionPointer is in list of extensions
-  if (FuncT) {
-    pi_ret_err = cast<pi_result>(FuncT(cast<cl_device_id>(device),
-                                       cast<cl_program>(program), func_name,
-                                       function_pointer_ret));
-    // GPU runtime sometimes returns PI_ERROR_INVALID_ARG_VALUE if func address
-    // cannot be found even if kernel exits. As the kernel does exist return
-    // that the address is not available
-    if (pi_ret_err == CL_INVALID_ARG_VALUE) {
-      *function_pointer_ret = 0;
-      return PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
-    }
-  }
-  return pi_ret_err;
-}
 
 pi_result piextUSMImport(const void *ptr, size_t size, pi_context context) {
   std::ignore = ptr;
@@ -271,8 +82,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piDevicePartition, pi2ur::piDevicePartition)
   _PI_CL(piDeviceRetain, pi2ur::piDeviceRetain)
   _PI_CL(piDeviceRelease, pi2ur::piDeviceRelease)
-  _PI_CL(piextDeviceSelectBinary, piextDeviceSelectBinary)
-  _PI_CL(piextGetDeviceFunctionPointer, piextGetDeviceFunctionPointer)
+  _PI_CL(piextDeviceSelectBinary, pi2ur::piextDeviceSelectBinary)
+  _PI_CL(piextGetDeviceFunctionPointer, pi2ur::piextGetDeviceFunctionPointer)
   _PI_CL(piextDeviceGetNativeHandle, pi2ur::piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          pi2ur::piextDeviceCreateWithNativeHandle)
