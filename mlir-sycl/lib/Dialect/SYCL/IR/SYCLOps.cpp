@@ -451,5 +451,29 @@ SYCLHostHandlerSetKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
   return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
 }
 
+LogicalResult SYCLHostHandlerSetNDRange::verify() {
+  TypeRange ndRangeType = getNdRange().getTypes();
+  switch (ndRangeType.size()) {
+  case 1:
+    if (getMemRefElementType<NdRangeType>(ndRangeType[0]) ||
+        getMemRefElementType<RangeType>(ndRangeType[0]))
+      return success();
+    break;
+  case 2:
+    if (auto globalSizeType = getMemRefElementType<RangeType>(ndRangeType[0])) {
+      if (auto offsetType = getMemRefElementType<IDType>(ndRangeType[1])) {
+        return getDimensions(globalSizeType) == getDimensions(offsetType)
+                   ? success()
+                   : emitOpError("expects both global size and offset to have "
+                                 "the same number of dimensions");
+      }
+    }
+    [[fallthrough]];
+  default:
+    break;
+  }
+  return emitBadSignatureError(*this);
+}
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"
