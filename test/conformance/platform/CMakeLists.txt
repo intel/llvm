@@ -5,9 +5,11 @@
 
 add_conformance_test(platform
     urInit.cpp
+    urPlatformCreateWithNativeHandle.cpp
     urPlatformGet.cpp
     urPlatformGetApiVersion.cpp
     urPlatformGetBackendOption.cpp
     urPlatformGetInfo.cpp
     urPlatformGetLastError.cpp
+    urPlatformGetNativeHandle.cpp
     urTearDown.cpp)
