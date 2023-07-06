@@ -4,7 +4,7 @@
 #include <sycl/sycl.hpp>
 
 void foo(sycl::buffer<int, 1> &BufA) {
-  auto HostAcc = BufA.get_host_access();
+  auto HostAcc = BufA.get_access<sycl::access_mode::read>();
 
   sycl::accessor<char, 1, sycl::access::mode::read_write, sycl::target::local>
       *LocalAcc;
