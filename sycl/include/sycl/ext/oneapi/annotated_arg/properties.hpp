@@ -348,11 +348,14 @@ struct alignment_key {
 
 struct usm_kind_key {
   template <sycl::usm::alloc Kind>
-  using value_t = property_value<usm_kind_key, std::integral_constant<sycl::usm::alloc, Kind>>;
+  using value_t =
+      property_value<usm_kind_key,
+                     std::integral_constant<sycl::usm::alloc, Kind>>;
 };
 
 template <int K> inline constexpr alignment_key::value_t<K> alignment;
-template <sycl::usm::alloc Kind> inline constexpr usm_kind_key::value_t<Kind> usm_kind;
+template <sycl::usm::alloc Kind>
+inline constexpr usm_kind_key::value_t<Kind> usm_kind;
 
 template <> struct is_property_key<alignment_key> : std::true_type {};
 template <> struct is_property_key<usm_kind_key> : std::true_type {};
@@ -383,7 +386,8 @@ template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
   static constexpr int value = N;
 };
 
-template <sycl::usm::alloc Kind> struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
+template <sycl::usm::alloc Kind>
+struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
   static constexpr const char *name = "sycl-usm-kind";
   static constexpr sycl::usm::alloc value = Kind;
 };
