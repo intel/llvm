@@ -84,6 +84,6 @@ struct _pi_ext_command_buffer : ur_exp_command_buffer_handle_t_ {
 
 struct _pi_physical_mem : ur_physical_mem_handle_t_ {
   using ur_physical_mem_handle_t_::ur_physical_mem_handle_t_;
-}
+};
 
 #endif // PI_CUDA_HPP
