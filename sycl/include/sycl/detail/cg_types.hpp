@@ -13,7 +13,6 @@
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/interop_handle.hpp>
-#include <sycl/interop_handler.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>

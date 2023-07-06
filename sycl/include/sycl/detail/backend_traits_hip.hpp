@@ -34,9 +34,7 @@ namespace detail {
 
 // TODO the interops for context, device, event, platform and program
 // may be removed after removing the deprecated 'get_native()' methods
-// from the corresponding classes. The interop<backend, queue> specialization
-// is also used in the get_queue() method of the deprecated class
-// interop_handler and also can be removed after API cleanup.
+// from the corresponding classes.
 template <> struct interop<backend::ext_oneapi_hip, context> {
   using type = HIPcontext;
 };
