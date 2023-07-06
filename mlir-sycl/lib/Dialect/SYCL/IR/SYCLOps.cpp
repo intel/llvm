@@ -18,6 +18,39 @@
 using namespace mlir;
 using namespace mlir::sycl;
 
+static LogicalResult checkNumIndices(Operation *op, unsigned numArgs,
+                                     unsigned dimensions) {
+  return numArgs == dimensions
+             ? success()
+             : op->emitOpError(
+                   "expects to be passed the same number of 'index' numbers as "
+                   "the number of dimensions of the input: ")
+                   << numArgs << " vs " << dimensions;
+}
+
+static LogicalResult emitBadSignatureError(Operation *op) {
+  return op->emitOpError(
+      "expects a different signature. Check documentation for details");
+}
+
+static LogicalResult checkSameDimensions(Operation *op, Type thisType,
+                                         Type inputType) {
+  unsigned thisDims = getDimensions(thisType);
+  unsigned inputDims = getDimensions(inputType);
+  return thisDims == inputDims
+             ? success()
+             : op->emitOpError("expects input and output to have the same "
+                               "number of dimensions: ")
+                   << inputDims << " vs " << thisDims;
+}
+
+template <typename Ty> static Ty getMemRefElementType(Type ty) {
+  auto mt = dyn_cast<MemRefType>(ty);
+  if (!mt)
+    return {};
+  return dyn_cast<Ty>(mt.getElementType());
+}
+
 bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
   if (Inputs.size() != 1 || Outputs.size() != 1)
     return false;
@@ -234,29 +267,213 @@ LogicalResult SYCLIDConstructorOp::verify() {
   unsigned dimensions = getDimensions(type);
   if (llvm::all_of(argTypes, [](Type type) { return isa<IndexType>(type); })) {
     // sycl.id.constructor({index}N) -> memref<1x!sycl_id_N>
-    if (argTypes.size() != dimensions) {
-      return emitOpError("expects to be passed the same number of 'index' "
-                         "numbers as the number of dimensions of the input: ")
-             << argTypes.size() << " vs " << dimensions;
-    }
-    return success();
+    return checkNumIndices(*this, argTypes.size(), dimensions);
   }
   if (argTypes.size() == 1) {
     if (auto MT = dyn_cast<MemRefType>(argTypes.front());
-        MT && isa<IDType, ItemType, RangeType>(MT.getElementType())) {
+        MT && isa<IDType, ItemType, RangeType>(MT.getElementType()))
       // sycl.id.constructor(memref<?x!sycl_[id|item|range]_N>) ->
       // memref<1x!sycl_id_N>
-      unsigned argDimensions = getDimensions(MT);
-      if (dimensions != argDimensions) {
-        return emitOpError("expects input and output to have the same number "
-                           "of dimensions: ")
-               << argDimensions << " vs " << dimensions;
+      return checkSameDimensions(*this, type, MT);
+  }
+  return emitBadSignatureError(*this);
+}
+
+LogicalResult SYCLRangeConstructorOp::verify() {
+  OperandRange::type_range argTypes = getArgs().getTypes();
+  MemRefType thisType = getRange().getType();
+  unsigned dimensions = getDimensions(thisType);
+  unsigned numArgs = getNumOperands();
+  switch (numArgs) {
+  case 1:
+    if (auto mt = dyn_cast<MemRefType>(argTypes.front())) {
+      if (auto rangeType = dyn_cast<RangeType>(mt.getElementType()))
+        // sycl.range.constructor(memref<?xsycl_range_N>) ->
+        // memref<1xsycl_range_N>
+        return checkSameDimensions(*this, thisType, rangeType);
+      break;
+    }
+    [[fallthrough]];
+  case 2:
+  case 3:
+    // sycl.range.constructor(index) -> memref<1xsycl_range_1>
+    // sycl.range.constructor(index, index) -> memref<1xsycl_range_2>
+    // sycl.range.constructor(index, index, index) -> memref<1xsycl_range_3>
+    if (llvm::all_of(argTypes, [](Type type) { return isa<IndexType>(type); }))
+      return checkNumIndices(*this, numArgs, dimensions);
+    [[fallthrough]];
+  default:
+    break;
+  }
+  return emitBadSignatureError(*this);
+}
+
+void SYCLRangeConstructorOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  auto *defaultResource = SideEffects::DefaultResource::get();
+  // All of the arguments will be scalars or read from
+  for (auto value : getArgs()) {
+    if (isa<MemRefType, LLVM::LLVMPointerType>(value.getType()))
+      effects.emplace_back(MemoryEffects::Read::get(), value, defaultResource);
+  }
+  // The result will be allocated and written to
+  Value range = getRange();
+  effects.emplace_back(MemoryEffects::Allocate::get(), range, defaultResource);
+  effects.emplace_back(MemoryEffects::Write::get(), range, defaultResource);
+}
+
+static Type getBodyType(Type type) {
+  auto *ctx = type.getContext();
+  return TypeSwitch<Type, Type>(type)
+      .Case<HalfType>([&](auto) { return Float16Type::get(ctx); })
+      .Case<VecType>([&](auto vecTy) {
+        if (isa<HalfType>(vecTy.getDataType()))
+          return VectorType::get({vecTy.getNumElements()},
+                                 Float16Type::get(ctx));
+        return VectorType::get({vecTy.getNumElements()}, vecTy.getDataType());
+      })
+      .Default({});
+}
+
+LogicalResult SYCLNDRangeConstructorOp::verify() {
+  OperandRange::type_range argTypes = getArgs().getTypes();
+  MemRefType thisType = getNDRange().getType();
+  switch (argTypes.size()) {
+  case 1:
+    // sycl.nd_range.constructor(memref<?xsycl_nd_range_N>) ->
+    // memref<1x!sycl_nd_range_N>
+    if (auto nd = getMemRefElementType<NdRangeType>(argTypes.front()))
+      return checkSameDimensions(*this, thisType, nd);
+    break;
+  case 3:
+    // (memref<?xsycl_range_N>, memref<?xsycl_range_N>, memref<?xsycl_id_N>) ->
+    // memref<1x!sycl_nd_range_N>
+    if (auto id = getMemRefElementType<IDType>(argTypes[2])) {
+      if (LogicalResult sameDims = checkSameDimensions(*this, thisType, id);
+          failed(sameDims))
+        return sameDims;
+    } else {
+      break;
+    }
+    [[fallthrough]];
+  case 2:
+    // (memref<?xsycl_range_N>, memref<?xsycl_range_N>, ...) ->
+    // memref<1x!sycl_nd_range_N>
+    if (std::all_of(argTypes.begin(), argTypes.begin() + 2, [](Type type) {
+          return static_cast<bool>(getMemRefElementType<RangeType>(type));
+        })) {
+      // Check all inputs have the same number of dimensions as the output
+      for (Type type : argTypes) {
+        LogicalResult result = checkSameDimensions(*this, thisType, type);
+        if (failed(result))
+          return result;
       }
       return success();
     }
+    [[fallthrough]];
+  default:
+    break;
   }
-  return emitOpError(
-      "expects a different signature. Check documentation for details");
+  return emitBadSignatureError(*this);
+}
+
+void SYCLNDRangeConstructorOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  auto *defaultResource = SideEffects::DefaultResource::get();
+  // All of the arguments will be read from
+  for (auto value : getArgs())
+    effects.emplace_back(MemoryEffects::Read::get(), value, defaultResource);
+  // The result will be allocated and written to
+  Value ndRange = getNDRange();
+  effects.emplace_back(MemoryEffects::Allocate::get(), ndRange,
+                       defaultResource);
+  effects.emplace_back(MemoryEffects::Write::get(), ndRange, defaultResource);
+}
+
+bool SYCLWrapOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+
+  Type sourceType = inputs.front();
+  Type resultType = outputs.front();
+  Type bodyType = getBodyType(resultType);
+
+  return bodyType && sourceType == bodyType;
+}
+
+OpFoldResult SYCLWrapOp::fold(FoldAdaptor adaptor) {
+  if (auto unwrap = dyn_cast_or_null<SYCLUnwrapOp>(getSource().getDefiningOp()))
+    return unwrap.getSource();
+  return nullptr;
+}
+
+bool SYCLUnwrapOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+
+  Type sourceType = inputs.front();
+  Type resultType = outputs.front();
+  Type bodyType = getBodyType(sourceType);
+
+  return bodyType && resultType == bodyType;
+}
+
+OpFoldResult SYCLUnwrapOp::fold(FoldAdaptor adaptor) {
+  if (auto wrap = dyn_cast_or_null<SYCLWrapOp>(getSource().getDefiningOp()))
+    return wrap.getSource();
+  return nullptr;
+}
+
+static LogicalResult verifyReferencesKernel(SymbolUserOpInterface user,
+                                            SymbolTableCollection &symbolTable,
+                                            SymbolRefAttr symbol) {
+  auto kernel =
+      symbolTable.lookupNearestSymbolFrom<gpu::GPUFuncOp>(user, symbol);
+  if (!kernel || !kernel.isKernel())
+    return user->emitOpError("'")
+           << symbol << "' does not reference a valid kernel";
+  return success();
+}
+
+LogicalResult
+SYCLHostKernelNameOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
+}
+
+LogicalResult
+SYCLHostGetKernelOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
+}
+
+LogicalResult
+SYCLHostHandlerSetKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
+}
+
+LogicalResult SYCLHostHandlerSetNDRange::verify() {
+  TypeRange ndRangeType = getNdRange().getTypes();
+  switch (ndRangeType.size()) {
+  case 1:
+    if (getMemRefElementType<NdRangeType>(ndRangeType[0]) ||
+        getMemRefElementType<RangeType>(ndRangeType[0]))
+      return success();
+    break;
+  case 2:
+    if (auto globalSizeType = getMemRefElementType<RangeType>(ndRangeType[0])) {
+      if (auto offsetType = getMemRefElementType<IDType>(ndRangeType[1])) {
+        return getDimensions(globalSizeType) == getDimensions(offsetType)
+                   ? success()
+                   : emitOpError("expects both global size and offset to have "
+                                 "the same number of dimensions");
+      }
+    }
+    break;
+  default:
+    break;
+  }
+  return emitBadSignatureError(*this);
 }
 
 #define GET_OP_CLASSES

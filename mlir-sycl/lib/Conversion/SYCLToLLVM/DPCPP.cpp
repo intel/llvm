@@ -638,6 +638,84 @@ public:
   }
 };
 
+template <typename Op>
+class CopyConstructorPattern : public BaseConstructorPattern<Op> {
+public:
+  using BaseConstructorPattern<Op>::BaseConstructorPattern;
+
+  LogicalResult match(Op op) const final {
+    OperandRange::type_range types = op.getOperands().getTypes();
+    if (types.size() != 1)
+      return failure();
+    auto MT = dyn_cast<MemRefType>(types.front());
+    Type resElTy = op.getType().getElementType();
+    return success(MT && MT.getElementType() == resElTy);
+  }
+
+protected:
+  /// Returns the size to be passed to `llvm.intr.memcpy`
+  int64_t getSize(Op op) const;
+
+  // We can simply copy the source array into the new one using
+  // `llvm.intr.memcpy`.
+  void initialize(Value alloca, Op op, typename Op::Adaptor adaptor,
+                  OpBuilder &builder) const final {
+    Location loc = op.getLoc();
+    Value src = adaptor.getOperands()[0];
+    Value len = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
+                                                 getSize(op));
+    Value isVolatile =
+        builder.create<LLVM::ConstantOp>(loc, builder.getI1Type(), 0);
+    builder.create<LLVM::MemcpyOp>(loc, alloca, src, len, isVolatile);
+  }
+};
+
+template <typename Op>
+class BaseInitializeConstructorPattern : public BaseConstructorPattern<Op> {
+public:
+  using BaseConstructorPattern<Op>::BaseConstructorPattern;
+
+protected:
+  /// Returns a vector with the values the struct should be initialized with.
+  virtual SmallVector<Value> getValues(Op op, typename Op::Adaptor adaptor,
+                                       OpBuilder &builder) const = 0;
+  /// Returns a pointer to the i-th element.
+  virtual Value getElementPtr(Op op, Value alloca, int64_t i,
+                              OpBuilder &builder) const = 0;
+  /// Transforms the initial alloca value
+  virtual Value transform([[maybe_unused]] Op op, Value alloca,
+                          [[maybe_unused]] OpBuilder &builder) const {
+    return alloca;
+  }
+
+  void initialize(Value alloca, Op op, typename Op::Adaptor adaptor,
+                  OpBuilder &builder) const final {
+    Location loc = op.getLoc();
+    // Initial transformation
+    alloca = transform(op, alloca, builder);
+    // GEP + store loop
+    SmallVector<Value> values = getValues(op, adaptor, builder);
+    for (const auto &[i, value] : llvm::enumerate(values)) {
+      Value ptr = getElementPtr(op, alloca, i, builder);
+      builder.create<LLVM::StoreOp>(loc, value, ptr);
+    }
+  }
+};
+
+template <typename Op>
+class BaseUnrealizedConversionCastInitializeConstructorPattern
+    : public BaseInitializeConstructorPattern<Op> {
+public:
+  using BaseInitializeConstructorPattern<Op>::BaseInitializeConstructorPattern;
+
+protected:
+  Value transform(Op op, Value alloca, OpBuilder &builder) const final {
+    return builder
+        .create<UnrealizedConversionCastOp>(op.getLoc(), op.getType(), alloca)
+        .getOutputs()[0];
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // Type conversion
 //===----------------------------------------------------------------------===//
@@ -2160,73 +2238,41 @@ protected:
 };
 
 // (!memref<?x!sycl_id_N_) -> !memref<?x!sycl_id_N_>
-class IDCopyConstructorPattern
-    : public BaseConstructorPattern<SYCLIDConstructorOp> {
-public:
-  using BaseConstructorPattern<SYCLIDConstructorOp>::BaseConstructorPattern;
+using IDCopyConstructorPattern = CopyConstructorPattern<SYCLIDConstructorOp>;
 
-  LogicalResult match(SYCLIDConstructorOp op) const final {
-    OperandRange::type_range types = op.getOperands().getTypes();
-    if (types.size() != 1)
-      return failure();
-    auto MT = dyn_cast<MemRefType>(types.front());
-    return success(MT && isa<IDType>(MT.getElementType()));
-  }
+template <>
+int64_t IDCopyConstructorPattern::getSize(SYCLIDConstructorOp op) const {
+  unsigned dimension = getDimensions(op.getId().getType());
+  unsigned indexWidth =
+      BaseConstructorPattern<SYCLIDConstructorOp>::getTypeConverter()
+          ->getIndexTypeBitwidth();
+  return dimension * indexWidth / 8;
+}
+
+class IDConstructorBase
+    : public BaseUnrealizedConversionCastInitializeConstructorPattern<
+          SYCLIDConstructorOp> {
+public:
+  using BaseUnrealizedConversionCastInitializeConstructorPattern<
+      SYCLIDConstructorOp>::
+      BaseUnrealizedConversionCastInitializeConstructorPattern;
 
 protected:
-  // We can simply copy the source array into the new one using
-  // `llvm.intr.memcpy`.
-  void initialize(Value alloca, SYCLIDConstructorOp op, OpAdaptor adaptor,
-                  OpBuilder &builder) const final {
+  /// Returns a pointer to the i-th element.
+  virtual Value getElementPtr(SYCLIDConstructorOp op, Value alloca, int64_t i,
+                              OpBuilder &builder) const final {
     Location loc = op.getLoc();
-    Value src = adaptor.getOperands()[0];
-    unsigned dimension = getDimensions(op.getId().getType());
-    unsigned indexWidth =
-        BaseConstructorPattern<SYCLIDConstructorOp>::getTypeConverter()
-            ->getIndexTypeBitwidth();
-    Value len = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
-                                                 dimension * indexWidth / 8);
-    Value isVolatile =
-        builder.create<LLVM::ConstantOp>(loc, builder.getI1Type(), 0);
-    builder.create<LLVM::MemcpyOp>(loc, alloca, src, len, isVolatile);
-  }
-};
-
-class IDConstructorBase : public BaseConstructorPattern<SYCLIDConstructorOp> {
-public:
-  using BaseConstructorPattern<SYCLIDConstructorOp>::BaseConstructorPattern;
-
-protected:
-  /// Returns a vector with the values the array should be initialized with.
-  virtual SmallVector<Value> getValues(SYCLIDConstructorOp op,
-                                       OpAdaptor adaptor,
-                                       OpBuilder &builder) const = 0;
-
-  // We will initialize each element of the new allocated array using
-  // `sycl.id.get` and `llvm.store`.
-  void initialize(Value alloca, SYCLIDConstructorOp op, OpAdaptor adaptor,
-                  OpBuilder &builder) const final {
-    Location loc = op.getLoc();
-    // We need a `sycl` type to use `sycl.id.get`, so we
-    // `unrealized_conversion_cast` the allocated value.
-    alloca =
-        builder.create<UnrealizedConversionCastOp>(loc, op.getType(), alloca)
-            .getOutputs()[0];
-    SmallVector<Value> values = getValues(op, adaptor, builder);
     auto MT =
         MemRefType::get(/*shape=*/ShapedType::kDynamic, builder.getIndexType());
+    Value offset =
+        builder.create<LLVM::ConstantOp>(loc, builder.getI32Type(), i);
+    Value ptr = builder.create<SYCLIDGetOp>(loc, MT, alloca, offset);
+    /// Avoid inserting operations from the `memref` dialect by inserting this
+    /// `unrealized_conversion_cast`:
     Type PT = ConvertOpToLLVMPattern<SYCLIDConstructorOp>::getTypeConverter()
                   ->convertType(MT);
-    Type i32Ty = builder.getI32Type();
-    for (const auto &[i, value] : llvm::enumerate(values)) {
-      Value offset = builder.create<LLVM::ConstantOp>(loc, i32Ty, i);
-      Value ptr = builder.create<SYCLIDGetOp>(loc, MT, alloca, offset);
-      /// Avoid inserting operations from the `memref` dialect by inserting this
-      /// `unrealized_conversion_cast`:
-      ptr = builder.create<UnrealizedConversionCastOp>(loc, PT, ptr)
-                .getOutputs()[0];
-      builder.create<LLVM::StoreOp>(loc, value, ptr);
-    }
+    return builder.create<UnrealizedConversionCastOp>(loc, PT, ptr)
+        .getOutputs()[0];
   }
 };
 
@@ -2313,6 +2359,200 @@ class IDRangeConstructorPattern
 public:
   using IDStructConstructorPattern<RangeType,
                                    SYCLRangeGetOp>::IDStructConstructorPattern;
+};
+
+//===----------------------------------------------------------------------===//
+// RangeConstructor - Convert `sycl.range.constructor` to LLVM.
+//===----------------------------------------------------------------------===//
+
+// (!memref<?x!sycl_range_N_) -> !memref<?x!sycl_range_N_>
+using RangeCopyConstructorPattern =
+    CopyConstructorPattern<SYCLRangeConstructorOp>;
+
+template <>
+int64_t RangeCopyConstructorPattern::getSize(SYCLRangeConstructorOp op) const {
+  unsigned dimension = getDimensions(op.getRange().getType());
+  unsigned indexWidth =
+      BaseConstructorPattern<SYCLRangeConstructorOp>::getTypeConverter()
+          ->getIndexTypeBitwidth();
+  return dimension * indexWidth / 8;
+}
+
+class RangeConstructorBase
+    : public BaseUnrealizedConversionCastInitializeConstructorPattern<
+          SYCLRangeConstructorOp> {
+public:
+  using BaseUnrealizedConversionCastInitializeConstructorPattern<
+      SYCLRangeConstructorOp>::
+      BaseUnrealizedConversionCastInitializeConstructorPattern;
+
+protected:
+  /// Returns a pointer to the i-th element.
+  virtual Value getElementPtr(SYCLRangeConstructorOp op, Value alloca,
+                              int64_t i, OpBuilder &builder) const final {
+    Location loc = op.getLoc();
+    auto MT =
+        MemRefType::get(/*shape=*/ShapedType::kDynamic, builder.getIndexType());
+    Value offset =
+        builder.create<LLVM::ConstantOp>(loc, builder.getI32Type(), i);
+    Value ptr = builder.create<SYCLRangeGetOp>(loc, MT, alloca, offset);
+    /// Avoid inserting operations from the `memref` dialect by inserting this
+    /// `unrealized_conversion_cast`:
+    Type PT = ConvertOpToLLVMPattern<SYCLRangeConstructorOp>::getTypeConverter()
+                  ->convertType(MT);
+    return builder.create<UnrealizedConversionCastOp>(loc, PT, ptr)
+        .getOutputs()[0];
+  }
+};
+
+// ({index}N) -> memref<1x!sycl_id_N_>
+class RangeIndexConstructorPattern : public RangeConstructorBase {
+public:
+  using RangeConstructorBase::RangeConstructorBase;
+
+  LogicalResult match(SYCLRangeConstructorOp op) const final {
+    OperandRange::type_range types = op.getOperands().getTypes();
+    return success(!types.empty() && llvm::all_of(types, [](Type ty) {
+      return isa<IndexType>(ty);
+    }));
+  }
+
+protected:
+  SmallVector<Value> getValues(SYCLRangeConstructorOp op, OpAdaptor adaptor,
+                               OpBuilder &builder) const final {
+    Location loc = op.getLoc();
+    SmallVector<Value> values;
+    Type indexTy =
+        ConvertOpToLLVMPattern<SYCLRangeConstructorOp>::getTypeConverter()
+            ->getIndexType();
+    llvm::transform(
+        adaptor.getOperands(), std::back_inserter(values), [&](Value val) {
+          return builder.create<UnrealizedConversionCastOp>(loc, indexTy, val)
+              .getOutputs()[0];
+        });
+    return values;
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// NDRangeConstructor - Convert `sycl.nd_range.constructor` to LLVM.
+//===----------------------------------------------------------------------===//
+
+// (!memref<?x!sycl_range_N_) -> !memref<?x!sycl_range_N_>
+using NDRangeCopyConstructorPattern =
+    CopyConstructorPattern<SYCLNDRangeConstructorOp>;
+
+template <>
+int64_t
+NDRangeCopyConstructorPattern::getSize(SYCLNDRangeConstructorOp op) const {
+  unsigned dimension = getDimensions(op.getNDRange().getType());
+  unsigned indexWidth =
+      BaseConstructorPattern<SYCLNDRangeConstructorOp>::getTypeConverter()
+          ->getIndexTypeBitwidth();
+  // 2 ranges + 1 id
+  return 3 * dimension * indexWidth / 8;
+}
+
+class NDRangeConstructorBase
+    : public BaseConstructorPattern<SYCLNDRangeConstructorOp>,
+      public GetMemberPattern<NDRangeGetGlobalRange>,
+      public GetMemberPattern<NDRangeGetLocalRange>,
+      public GetMemberPattern<NDRangeGetOffset> {
+public:
+  using BaseConstructorPattern<
+      SYCLNDRangeConstructorOp>::BaseConstructorPattern;
+
+  ~NDRangeConstructorBase() = default;
+
+protected:
+  /// Returns a pointer to the i-th element.
+  void initialize(Value alloca, SYCLNDRangeConstructorOp op, OpAdaptor adaptor,
+                  OpBuilder &builder) const final {
+    Location loc = op.getLoc();
+    LLVMTypeConverter *typeConverter =
+        ConvertOpToLLVMPattern<SYCLNDRangeConstructorOp>::getTypeConverter();
+    bool useOpaquePointers = typeConverter->useOpaquePointers();
+    unsigned dimensions = getDimensions(op.getNDRange().getType());
+    auto ndrTy = cast<LLVM::LLVMStructType>(
+        typeConverter->convertType(op.getNDRange().getType().getElementType()));
+    Type rangeTy = ndrTy.getBody()[0];
+    Type idTy = ndrTy.getBody()[2];
+
+    // Always copy-initialize global size
+    Value globalSizePtr = GetMemberPattern<NDRangeGetGlobalRange>::getRef(
+        builder, loc, (useOpaquePointers) ? ndrTy : rangeTy, alloca,
+        std::nullopt, useOpaquePointers);
+    memcpy(builder, loc, globalSizePtr, adaptor.getOperands()[0], dimensions);
+
+    // Always copy-initialize local size
+    Value localSizePtr = GetMemberPattern<NDRangeGetLocalRange>::getRef(
+        builder, loc, (useOpaquePointers) ? ndrTy : rangeTy, alloca,
+        std::nullopt, useOpaquePointers);
+    memcpy(builder, loc, localSizePtr, adaptor.getOperands()[1], dimensions);
+
+    // Offset initialization will depend on the constructor being handled
+    Value offsetPtr = GetMemberPattern<NDRangeGetOffset>::getRef(
+        builder, loc, (useOpaquePointers) ? ndrTy : idTy, alloca, std::nullopt,
+        useOpaquePointers);
+    initializeOffset(builder, loc, offsetPtr, adaptor, dimensions);
+  }
+
+  void memcpy(OpBuilder &builder, Location loc, Value dst, Value src,
+              unsigned dimensions) const {
+    Value len = getFieldsSize(builder, loc, dimensions);
+    Value isVolatile =
+        builder.create<LLVM::ConstantOp>(loc, builder.getI1Type(), 0);
+    builder.create<LLVM::MemcpyOp>(loc, dst, src, len, isVolatile);
+  }
+
+  /// Returns the size of this struct's fields498
+  Value getFieldsSize(OpBuilder &builder, Location loc,
+                      unsigned dimensions) const {
+    unsigned indexWidth =
+        ConvertOpToLLVMPattern<SYCLNDRangeConstructorOp>::getTypeConverter()
+            ->getIndexTypeBitwidth();
+    return builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
+                                            dimensions * indexWidth / 8);
+  }
+
+  virtual void initializeOffset(OpBuilder &builder, Location loc, Value dst,
+                                OpAdaptor adaptor,
+                                unsigned dimensions) const = 0;
+};
+
+class NDRangeNoOffsetConstructor : public NDRangeConstructorBase {
+public:
+  using NDRangeConstructorBase::NDRangeConstructorBase;
+
+  LogicalResult match(SYCLNDRangeConstructorOp op) const final {
+    return success(op.getNumOperands() == 2);
+  }
+
+protected:
+  void initializeOffset(OpBuilder &builder, Location loc, Value dst,
+                        [[maybe_unused]] OpAdaptor adaptor,
+                        unsigned dimensions) const final {
+    Value zero = builder.create<LLVM::ConstantOp>(loc, builder.getI8Type(), 0);
+    Value len = getFieldsSize(builder, loc, dimensions);
+    Value isVolatile =
+        builder.create<LLVM::ConstantOp>(loc, builder.getI1Type(), 0);
+    builder.create<LLVM::MemsetOp>(loc, dst, zero, len, isVolatile);
+  }
+};
+
+class NDRangeConstructorWithOffset : public NDRangeConstructorBase {
+public:
+  using NDRangeConstructorBase::NDRangeConstructorBase;
+
+  LogicalResult match(SYCLNDRangeConstructorOp op) const final {
+    return success(op.getNumOperands() == 3);
+  }
+
+protected:
+  void initializeOffset(OpBuilder &builder, Location loc, Value dst,
+                        OpAdaptor adaptor, unsigned dimensions) const final {
+    memcpy(builder, loc, dst, adaptor.getOperands()[2], dimensions);
+  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -2495,6 +2735,36 @@ protected:
 };
 
 //===----------------------------------------------------------------------===//
+// Wrap/UnwrapPattern - Converts `sycl.mlir.wrap` and `.unwrap` to LLVM.
+//===----------------------------------------------------------------------===//
+
+struct WrapPattern : public ConvertOpToLLVMPattern<SYCLWrapOp> {
+  using ConvertOpToLLVMPattern<SYCLWrapOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLWrapOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Type structType = typeConverter->convertType(op.getType());
+    Value undef = rewriter.create<LLVM::UndefOp>(op->getLoc(), structType);
+    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
+        op, undef, opAdaptor.getSource(), rewriter.getDenseI64ArrayAttr(0));
+    return success();
+  }
+};
+
+struct UnwrapPattern : public ConvertOpToLLVMPattern<SYCLUnwrapOp> {
+  using ConvertOpToLLVMPattern<SYCLUnwrapOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLUnwrapOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<LLVM::ExtractValueOp>(
+        op, opAdaptor.getSource(), rewriter.getDenseI64ArrayAttr(0));
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
 
@@ -2613,17 +2883,21 @@ populateSYCLToLLVMSPIRConversionPatterns(LLVMTypeConverter &typeConverter,
       NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
       NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,
       NDItemGetNDRange, NDRangeGetGroupRangePattern,
-      NDRangeGetLocalRangePattern, RangeGetRefPattern, RangeSizePattern,
-      SubscriptScalarOffsetND, GroupGetGroupIDDimPattern,
-      GroupGetGroupLinearIDPattern, GroupGetGroupRangePattern,
-      GroupGetLocalIDDimPattern, GroupGetLocalLinearIDPattern,
-      GroupGetLocalRangePattern, GroupGetMaxLocalRangePattern, ItemGetIDPattern,
+      NDRangeGetLocalRangePattern, NDRangeCopyConstructorPattern,
+      NDRangeNoOffsetConstructor, NDRangeConstructorWithOffset,
+      RangeGetRefPattern, RangeSizePattern, SubscriptScalarOffsetND,
+      GroupGetGroupIDDimPattern, GroupGetGroupLinearIDPattern,
+      GroupGetGroupRangePattern, GroupGetLocalIDDimPattern,
+      GroupGetLocalLinearIDPattern, GroupGetLocalRangePattern,
+      GroupGetMaxLocalRangePattern, ItemGetIDPattern,
       ItemNoOffsetGetLinearIDPattern, ItemOffsetGetLinearIDPattern,
       NDItemGetGlobalLinearIDPattern, NDItemGetGroupDimPattern,
       NDItemGetGroupLinearIDPattern, NDItemGetGroupRangePattern,
       NDItemGetLocalIDPattern, NDItemGetLocalRangeDimPattern,
       NDItemGetLocalRangePattern, NDRangeGetGlobalRangePattern, RangeGetPattern,
-      SubscriptIDOffset, SubscriptScalarOffset1D>(typeConverter);
+      RangeCopyConstructorPattern, RangeIndexConstructorPattern,
+      SubscriptIDOffset, SubscriptScalarOffset1D, UnwrapPattern, WrapPattern>(
+      typeConverter);
   patterns.add<ConstructorPattern>(typeConverter);
 }
 

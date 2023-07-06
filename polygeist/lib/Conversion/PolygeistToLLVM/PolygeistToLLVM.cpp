@@ -983,26 +983,6 @@ struct LLVMOpLowering : public ConversionPattern {
   }
 };
 
-struct URLLVMOpLowering
-    : public ConvertOpToLLVMPattern<UnrealizedConversionCastOp> {
-  using ConvertOpToLLVMPattern<
-      UnrealizedConversionCastOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(UnrealizedConversionCastOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    if (op.use_empty()) {
-      rewriter.eraseOp(op);
-      return success();
-    }
-    if (op->getResult(0).getType() != op->getOperand(0).getType())
-      return failure();
-
-    rewriter.replaceOp(op, op->getOperands());
-    return success();
-  }
-};
-
 // FIXME: The following function and pattern with the "Old" suffix should be
 // removed once we drop typed pointer support.
 
@@ -1643,8 +1623,6 @@ struct ConvertPolygeistToLLVMPass
       patterns.add<GPUFuncOpToFuncOpConversion, GPUModuleOpToModuleOpConversion,
                    GPUReturnOpLowering, GPUModuleEndOpLowering>(converter);
 
-      patterns.add<URLLVMOpLowering>(converter);
-
       // cgeist already introduces these globals, so we can drop the ones coming
       // from the sycl to llvm conversion patterns. Add with a higher benefit so
       // that this is applied before the conversion to llvm pattern.
@@ -1735,14 +1713,8 @@ struct ConvertPolygeistToLLVMPass
               return std::nullopt;
             return convertedOperandTypes == op->getOperandTypes();
           });
-      /*
-      target.addDynamicallyLegalOp<UnrealizedConversionCastOp>(
-          [&](Operation *op) { return op->getOperand(0).getType() !=
-      op->getResult(0).getType(); });
-          */
 
       if (i == 1) {
-        target.addIllegalOp<UnrealizedConversionCastOp>();
         if (useOpaquePointers) {
           patterns.add<AsyncOpLowering>(converter);
         } else {

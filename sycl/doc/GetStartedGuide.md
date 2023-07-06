@@ -39,7 +39,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 ## Prerequisites
 
 * `git` - [Download](https://git-scm.com/downloads)
-* `cmake` version 3.14 or later - [Download](http://www.cmake.org/download/)
+* `cmake` version 3.20 or later - [Download](http://www.cmake.org/download/)
 * `python` - [Download](https://www.python.org/downloads/)
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
@@ -743,8 +743,6 @@ compiler and by adding the SYCL specific flags. For example assuming `clang++`
 is on the `PATH`, a minimal `CMakeLists.txt` file for the sample above would be:
 
 ```cmake
-cmake_minimum_required(VERSION 3.14)
-
 # Modifying the compiler should be done before the project line
 set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")

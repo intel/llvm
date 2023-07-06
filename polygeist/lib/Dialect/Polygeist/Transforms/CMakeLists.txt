@@ -26,8 +26,12 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRPolygeistOpsIncGen
   MLIRPolygeistPassIncGen
 
+  LINK_COMPONENTS
+  Demangle
+
   LINK_LIBS PUBLIC
   MLIRAffineDialect
+  MLIRAffineToStandard
   MLIRAsyncDialect
   MLIRAffineUtils
   MLIRFuncDialect

@@ -33,11 +33,7 @@
 
 // COM: Obtain a pointer to the beginning of the accessor %arg1.
 // CHECK-DAG:  [[C0_index:%.*]] = arith.constant 0 : index
-// CHECK-DAG:  [[ID_ALLOCA:%.*]] = memref.alloca() : memref<1x[[ID:!sycl_id_1_]]>
-// CHECK-DAG:  [[C0_i32:%.*]] = arith.constant 0 : i32
-// CHECK-DAG:  [[C0_index_:%.*]] = arith.constant 0 : index
-// CHECK-NEXT: [[ID_GET:%.*]] = sycl.id.get [[ID_ALLOCA]][[[C0_i32]]] : (memref<1x[[ID]]>, i32) -> memref<?xindex>
-// CHECK-NEXT: memref.store [[C0_index]], [[ID_GET]][[[C0_index_]]] : memref<?xindex>
+// CHECK-DAG:  [[ID_ALLOCA:%.*]] = sycl.id.constructor([[C0_index]]) : (index) -> memref<1x[[ID:!sycl_id_1_]]>
 // CHECK-NEXT: [[ARG1_BEGIN:%.*]] = sycl.accessor.subscript [[ARG1]][[[ID_ALLOCA]]] : (memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
 
 // COM: Obtain a pointer to the end of the accessor %arg1.
@@ -48,11 +44,7 @@
 // CHECK-DAG:  [[C0_i32:%.*]] = arith.constant 0 : i32
 // CHECK-DAG:  [[C1_index:%.*]] = arith.constant 1 : index
 // CHECK-NEXT: [[RANGE_GET:%.*]] = sycl.range.get [[RANGE_ALLOCA]][[[C0_i32]]] : (memref<1x[[RANGE]]>, i32) -> index
-// CHECK-NEXT: [[ID_ALLOCA:%.*]] = memref.alloca() : memref<1x[[ID:!sycl_id_1_]]>
-// CHECK-DAG:  [[C0_index:%.*]] = arith.constant 0 : index
-// CHECK-DAG:  [[C0_i32:%.*]] = arith.constant 0 : i32
-// CHECK-NEXT: [[ID_GET:%.*]] = sycl.id.get [[ID_ALLOCA]][[[C0_i32]]] : (memref<1x[[ID]]>, i32) -> memref<?xindex>
-// CHECK-NEXT: memref.store [[RANGE_GET]], [[ID_GET]][[[C0_index]]] : memref<?xindex>
+// CHECK-NEXT: [[ID_ALLOCA:%.*]] = sycl.id.constructor(%6) : (index) -> memref<1x[[ID:!sycl_id_1_]]>
 // CHECK-NEXT: [[ARG1_END:%.*]] = sycl.accessor.subscript [[ARG1]][[[ID_ALLOCA]]] : (memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
 
 // CHECK: [[ARG0_BEGIN:%.*]] = sycl.accessor.subscript [[ARG0]][{{.*}}] : (memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>

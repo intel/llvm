@@ -24,6 +24,7 @@
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVM.h"
+#include "mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
 #include "mlir/Dialect/Affine/Passes.h"
@@ -33,6 +34,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
+#include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
@@ -388,6 +390,8 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
   if (OptLevel != llvm::OptimizationLevel::O0) {
+    if (!SYCLUseHostModule.empty())
+      PM.addPass(polygeist::createSYCLHostRaisingPass());
     PM.addPass(polygeist::createArgumentPromotionPass());
     PM.addPass(polygeist::createKernelDisjointSpecializationPass(
         {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
@@ -729,6 +733,7 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
         ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
       }
       PM3.addPass(createConvertPolygeistToLLVM(ConvertOptions));
+      PM3.addPass(createReconcileUnrealizedCastsPass());
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       PM3.addPass(polygeist::createLegalizeForSPIRVPass());
 
@@ -1309,8 +1314,8 @@ int main(int argc, char **argv) {
   const Location Loc = Builder.getUnknownLoc();
   mlir::OwningOpRef<mlir::ModuleOp> Module(mlir::ModuleOp::create(Loc));
   Builder.setInsertionPointToEnd(Module->getBody());
-  auto DeviceModule = Builder.create<mlir::gpu::GPUModuleOp>(
-      Loc, MLIRASTConsumer::DeviceModuleName);
+  auto DeviceModule =
+      Builder.create<mlir::gpu::GPUModuleOp>(Loc, DeviceModuleName);
 
   llvm::DataLayout DL("");
   llvm::Triple Triple;

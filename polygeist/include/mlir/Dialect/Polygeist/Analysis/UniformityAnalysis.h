@@ -6,18 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains a simple intra-procedural uniformity analysis which
-// attempts to classify values as either uniform (all threads agree on the
-// content of the value) or not uniform.
+// This file contains a dataflow analysis which attempts to classify values as
+// either uniform (all threads agree on the content of the value) or not
+// uniform.
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_UNIFORMITYANALYSIS_H
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_UNIFORMITYANALYSIS_H
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
+#include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 
 namespace mlir {
+
+class LoopLikeOpInterface;
 namespace polygeist {
 
 //===----------------------------------------------------------------------===//
@@ -42,16 +46,20 @@ public:
   /// Whether the state is uninitialized.
   bool isUninitialized() const { return !kind.has_value(); }
 
-  /// Whether the state is [unknown | uniform | non-uniform].
-  bool isUnknown() const { return kind == Kind::Unknown; }
-  bool isUniform() const { return kind == Kind::Uniform; }
-  bool isNonUniform() const { return kind == Kind::NonUniform; }
-
   /// Get the uniformity of the value associated with this object.
   Kind getKind() const {
     assert(!isUninitialized() && "Uniformity is not initialized");
     return *kind;
   }
+
+  /// Whether the state is [unknown | uniform | non-uniform].
+  static bool isUnknown(Kind kind) { return kind == Kind::Unknown; }
+  static bool isUniform(Kind kind) { return kind == Kind::Uniform; }
+  static bool isNonUniform(Kind kind) { return kind == Kind::NonUniform; }
+
+  bool isUnknown() const { return Uniformity::isUnknown(getKind()); }
+  bool isUniform() const { return Uniformity::isUniform(getKind()); }
+  bool isNonUniform() const { return Uniformity::isNonUniform(getKind()); }
 
   /// Create a state where the uniformity info is uninitialized. This happens
   /// when the state hasn't been set during the analysis.
@@ -66,7 +74,7 @@ public:
   /// Create a state for \p val where the uniformity info is non-uniform.
   static Uniformity getNonUniform() { return Uniformity(Kind::NonUniform); }
 
-  /// Join two uniformity info
+  /// Join two uniformity info.
   static Uniformity join(const Uniformity &lhs, const Uniformity &rhs) {
     if (lhs.isUninitialized())
       return rhs;
@@ -108,8 +116,9 @@ class UniformityAnalysis
 public:
   using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
 
-  UniformityAnalysis(DataFlowSolver &solver)
-      : SparseDataFlowAnalysis<UniformityLattice>(solver) {}
+  UniformityAnalysis(DataFlowSolver &solver, AliasAnalysis &aliasAnalysis);
+
+  LogicalResult initialize(Operation *top) override;
 
   /// At an entry point, we cannot reason about uniformity.
   void setToEntryState(UniformityLattice *lattice) override {
@@ -121,6 +130,83 @@ public:
   void visitOperation(Operation *op,
                       ArrayRef<const UniformityLattice *> operands,
                       ArrayRef<UniformityLattice *> results) override;
+
+  /// Visit block arguments or operation results of an operation with region
+  /// control-flow for which values are not defined by region control-flow.
+  void visitNonControlFlowArguments(Operation *op,
+                                    const RegionSuccessor &successor,
+                                    ArrayRef<UniformityLattice *> argLattices,
+                                    unsigned firstIndex) override;
+
+private:
+  /// Analyze an operation \p op that has memory side effects and uniform
+  /// operands.
+  void analyzeMemoryEffects(Operation *op,
+                            ArrayRef<const UniformityLattice *> operands,
+                            ArrayRef<UniformityLattice *> results);
+
+  std::optional<Uniformity>
+  getInductionVariableUniformity(LoopLikeOpInterface loop);
+
+  /// Collect the branch conditions that dominate each of the modifiers \p
+  /// mods.
+  SetVector<Value>
+  collectBranchConditions(const ReachingDefinition::ModifiersTy &mods);
+
+  /// Return true if all the modifiers \p mods have operands with known
+  /// uniform that is initialized. The \p op argument is the operation the
+  /// modifiers are for.
+  bool canComputeUniformity(const ReachingDefinition::ModifiersTy &mods,
+                            Operation *op);
+
+  /// Return true if any of the modifiers \p mods store a value with
+  /// uniformity equal to \p kind.
+  bool anyModifierUniformityIs(const ReachingDefinition::ModifiersTy &mods,
+                               Uniformity::Kind kind);
+
+  /// Return true is any of the \p operands uniformity is uninitialized.
+  bool
+  anyOfUniformityIsUninitialized(ArrayRef<const UniformityLattice *> operands) {
+    return llvm::any_of(operands, [&](const UniformityLattice *lattice) {
+      return lattice->getValue().isUninitialized();
+    });
+  }
+
+  /// Return true is any of the \p values uniformity is uninitialized.
+  bool anyOfUniformityIsUninitialized(const ValueRange values) {
+    return llvm::any_of(values, [&](Value value) {
+      UniformityLattice *lattice = getLatticeElement(value);
+      return lattice->getValue().isUninitialized();
+    });
+  }
+
+  /// Return true if any of the \p operands has uniformity of the given \p
+  /// kind.
+  bool anyOfUniformityIs(ArrayRef<const UniformityLattice *> operands,
+                         Uniformity::Kind kind) {
+    return llvm::any_of(operands, [&](const UniformityLattice *lattice) {
+      return lattice->getValue().getKind() == kind;
+    });
+  }
+
+  /// Return true if any of the \p values has uniformity of the given \p kind.
+  bool anyOfUniformityIs(const ValueRange values, Uniformity::Kind kind) {
+    return llvm::any_of(values, [&](Value value) {
+      UniformityLattice *lattice = getLatticeElement(value);
+      return lattice->getValue().getKind() == kind;
+    });
+  }
+
+  /// Propagate \p uniformity to all \p results if necessary.
+  void propagateAllIfChanged(ArrayRef<UniformityLattice *> results,
+                             const Uniformity &uniformity);
+
+  /// Propagate \p uniformity to all \p values if necessary.
+  void propagateAllIfChanged(const ValueRange values,
+                             const Uniformity &uniformity);
+
+private:
+  DataFlowSolver internalSolver;
 };
 
 } // namespace polygeist

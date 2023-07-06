@@ -20,9 +20,8 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 ////////////////////////////////////////////////////////////////////////////////
 
 // Generic floating-point types (§4.17.1).
-// TODO: Add `sycl::half`.
 // TODO: Add vectors and marrays.
-def SYCLGenfloat : AnyTypeOf<[F32, F64]>;
+def SYCLGenfloat : AnyTypeOf<[F32, F64, SYCL_HalfType]>;
 
 // Trait to mark ops representing a SYCL math function (§4.17.5).
 def SYCLMathFunc : SYCLOpTrait<"SYCLMathFunc">;

@@ -4,6 +4,7 @@ if (TARGET MLIRArithmetic)
     MLIRCallInterfaces
     MLIRCastInterfaces
     MLIRControlFlowInterfaces
+    MLIRGPUDialect
     MLIRIR
     MLIRSideEffectInterfaces
     MLIRVectorInterfaces
@@ -18,6 +19,7 @@ else()
     MLIRCallInterfaces
     MLIRCastInterfaces
     MLIRControlFlowInterfaces
+    MLIRGPUDialect
     MLIRIR
     MLIRSideEffectInterfaces
     MLIRVectorInterfaces

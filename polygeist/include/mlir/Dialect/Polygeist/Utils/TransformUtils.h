@@ -101,6 +101,10 @@ template <typename T> SetVector<T> getParentsOfType(Block &block);
 template <typename T>
 SetVector<T> getOperationsOfType(FunctionOpInterface funcOp);
 
+/// Return the condition used by \p op if one is found and a null value
+/// otherwise.
+Value getCondition(Operation *op);
+
 //===----------------------------------------------------------------------===//
 // FunctionKernelInfo
 //===----------------------------------------------------------------------===//

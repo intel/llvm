@@ -9,6 +9,7 @@
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -247,6 +248,17 @@ SetVector<T> polygeist::getOperationsOfType(FunctionOpInterface funcOp) {
   SetVector<T> res;
   funcOp->walk([&](T op) { res.insert(op); });
   return res;
+}
+
+Value polygeist::getCondition(Operation *op) {
+  return TypeSwitch<Operation *, Value>(op)
+      .Case<arith::SelectOp, LLVM::SelectOp, cf::CondBranchOp, LLVM::CondBrOp,
+            scf::IfOp>([](auto branchOp) { return branchOp.getCondition(); })
+      .Default([](auto *op) {
+        llvm::errs() << "op: " << *op << "\n";
+        llvm_unreachable("Unhandled operation");
+        return nullptr;
+      });
 }
 
 namespace mlir {
@@ -821,7 +833,8 @@ static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   SmallVector<Value> zeroIndexes(idTy.getDimension(), zeroIndex);
-  TypedValue<MemRefType> id = constructSYCLID(idTy, zeroIndexes, builder, loc);
+  TypedValue<MemRefType> id =
+      createSYCLIDConstructorOp(idTy, zeroIndexes, builder, loc);
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
 }
 
@@ -853,7 +866,8 @@ static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
         (i == dim - 1) ? rangeGetOp
                        : builder.create<arith::SubIOp>(loc, rangeGetOp, one));
   }
-  TypedValue<MemRefType> id = constructSYCLID(idTy, indexes, builder, loc);
+  TypedValue<MemRefType> id =
+      createSYCLIDConstructorOp(idTy, indexes, builder, loc);
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
 }
 
@@ -898,9 +912,9 @@ VersionConditionBuilder::createSCFCondition(OpBuilder builder, Location loc,
 }
 
 // Explicit template instantiations.
-
 template SetVector<FunctionOpInterface> getParentsOfType(Block &);
 template SetVector<LoopLikeOpInterface> getParentsOfType(Block &);
+template SetVector<RegionBranchOpInterface> getParentsOfType(Block &);
 
 template SetVector<sycl::SYCLNDItemGetGlobalIDOp>
     getOperationsOfType(FunctionOpInterface);

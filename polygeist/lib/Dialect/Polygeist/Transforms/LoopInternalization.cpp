@@ -56,6 +56,7 @@
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
+#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
@@ -424,7 +425,7 @@ memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
 void tile(affine::AffineForOp loop, Value tileSize,
           SmallVectorImpl<affine::AffineForOp> &tiledNest) {
   SmallVector<affine::AffineForOp> newNestedLoops;
-  LogicalResult res =
+  [[maybe_unused]] LogicalResult res =
       tilePerfectlyNestedParametric({loop}, tileSize, &newNestedLoops);
   assert(res.succeeded() && "Expecting innermost loop to be tiled");
   tiledNest = SmallVector<affine::AffineForOp>(newNestedLoops.begin() + 1,
@@ -658,6 +659,50 @@ Value castToIndex(Value val) {
                                             builder.getIndexType(), val);
 }
 
+/// Unroll the given \p loop by \p factor.
+void unrollByFactor(LoopLikeOpInterface loop, unsigned factor) {
+  if (factor == 1)
+    return;
+
+  // Lowering affine for loop to scf for loop, as not all affine loops can be
+  // unrolled. Some affine loops (e.g., min expression upper bound) cannot be
+  // unrolled, as the lower bound of the residual loop cannot be expressed as an
+  // affine function.
+  if (Operation *loopOp = loop;
+      auto affineForOp = dyn_cast<affine::AffineForOp>(loopOp)) {
+    OpBuilder builder(affineForOp);
+    Location loc = affineForOp.getLoc();
+    Value lowerBound = lowerAffineLowerBound(affineForOp, builder);
+    Value upperBound = lowerAffineUpperBound(affineForOp, builder);
+    Value step =
+        builder.create<arith::ConstantIndexOp>(loc, affineForOp.getStep());
+    auto scfForOp = builder.create<scf::ForOp>(
+        loc, lowerBound, upperBound, step, affineForOp.getIterOperands());
+
+    // Replace scfForOp body with affineForOp body.
+    scfForOp.getBody()->getParent()->getBlocks().remove(scfForOp.getBody());
+    scfForOp.getRegion().getBlocks().splice(
+        scfForOp.getRegion().end(), affineForOp.getRegion().getBlocks());
+
+    // Replace affine::AffineYieldOp with scf::YieldOp.
+    Operation *yieldOp = scfForOp.getRegion().front().getTerminator();
+    assert(isa<affine::AffineYieldOp>(yieldOp) &&
+           "Expecting affine.yield operation");
+    OpBuilder yieldBuilder(yieldOp);
+    yieldBuilder.create<scf::YieldOp>(yieldOp->getLoc(),
+                                      yieldOp->getOperands());
+    yieldOp->erase();
+
+    affineForOp->replaceAllUsesWith(scfForOp);
+    affineForOp->erase();
+    loop = scfForOp;
+  }
+
+  [[maybe_unused]] LogicalResult res =
+      loopUnrollByFactor(cast<scf::ForOp>(loop), factor);
+  assert(res.succeeded() && "Expecting tiled loop to be unrolled");
+}
+
 //===----------------------------------------------------------------------===//
 // WorkGroupSize
 //===----------------------------------------------------------------------===//
@@ -745,9 +790,8 @@ class MemorySelector {
 
 public:
   MemorySelector(MemoryAccessAnalysis &memAccessAnalysis,
-                 AliasAnalysis &aliasAnalysis, DataFlowSolver &solver)
-      : memAccessAnalysis(memAccessAnalysis), aliasAnalysis(aliasAnalysis),
-        solver(solver) {}
+                 AliasAnalysis &aliasAnalysis)
+      : memAccessAnalysis(memAccessAnalysis), aliasAnalysis(aliasAnalysis) {}
 
   /// The kind of accesses to consider.
   enum class AccessKind { ReadOnly, WriteOnly, ReadWrite };
@@ -774,7 +818,6 @@ private:
 private:
   MemoryAccessAnalysis &memAccessAnalysis;
   AliasAnalysis &aliasAnalysis;
-  DataFlowSolver &solver;
 
   /// The preferred memory space for each memref access.
   DenseMap<Value, MemorySpace> memRefAccessToMemSpace;
@@ -790,6 +833,7 @@ operator<<(raw_ostream &os, const MemorySelector::AccessKind &accessKind) {
   case MemorySelector::AccessKind::ReadWrite:
     return os << "read-write";
   }
+  llvm_unreachable("Unexpected MemorySelector::AccessKind");
 }
 
 [[maybe_unused]] raw_ostream &
@@ -1094,7 +1138,7 @@ void LoopInternalization::selectMemorySpace(
   // Use the memory selector to determine the ideal memory space for memref
   // accesses in the innermost loop.
   // TODO: allow memory selection on read-write accesses.
-  MemorySelector memorySelector(memAccessAnalysis, aliasAnalysis, solver);
+  MemorySelector memorySelector(memAccessAnalysis, aliasAnalysis);
   memorySelector.analyze(loop, MemorySelector::AccessKind::ReadOnly);
 
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
@@ -1308,7 +1352,6 @@ void LoopInternalization::transform(
   // Tile the loop.
   SmallVector<T> tiledNest;
   tile(loop, getTileSize(loop, workGroupSize, solver), tiledNest);
-  ++numTiled;
   LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
 
   // Rewrite selected memory accesses to use shared memory.
@@ -1344,6 +1387,13 @@ void LoopInternalization::transform(
   createWorkGroupBarrier(builder);
   builder.setInsertionPointAfter(loop);
   createWorkGroupBarrier(builder);
+
+  ++numLoopInternalized;
+
+  // When work group size is unknown at compile time, unroll the tiled loop to
+  // expose more optimization opportunities.
+  if (!workGroupSize.isKnown())
+    unrollByFactor(loop, unrollFactor);
 }
 
 void LoopInternalization::promote(Operation *memref, memref::ViewOp viewOp,
@@ -1387,7 +1437,7 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp viewOp,
   const auto idTy = cast<sycl::IDType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
   TypedValue<MemRefType> id =
-      sycl::constructSYCLID(idTy, globalIndexes, builder, loc);
+      sycl::createSYCLIDConstructorOp(idTy, globalIndexes, builder, loc);
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value globalAccSub =
       sycl::createSYCLAccessorSubscriptOp(accSub.getAcc(), id, builder, loc);

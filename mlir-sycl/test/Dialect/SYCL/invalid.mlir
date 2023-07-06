@@ -310,9 +310,11 @@ func.func @test_vec_nonscalar(%v: !sycl.vec<[!sycl_vec_i8_1_, 2], (vector<2x1xi8
 // -----
 
 func.func @test_host_constructor() -> !llvm.ptr {
+  %0 = llvm.mlir.constant(1 : i32) : i32
+  %1 = llvm.alloca %0 x i32 : (i32) -> !llvm.ptr
 // expected-error @below {{'sycl.host.constructor' op expecting a sycl type as constructed type. Got 'i32'}}
-  %0 = sycl.host.constructor() {type = i32} : () -> !llvm.ptr
-  return %0 : !llvm.ptr
+  sycl.host.constructor(%1) {type = i32} : (!llvm.ptr) -> ()
+  return %1 : !llvm.ptr
 }
 
 // -----
@@ -350,8 +352,227 @@ func.func @test_id_constructor_wrong_sign(%arg: i32) -> memref<1x!sycl_id_1_> {
 
 // -----
 
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+
+func.func @test_range_constructor_bad_signature(%arg: i32) -> memref<1x!sycl_range_1_> {
+// expected-error @below {{'sycl.range.constructor' op expects a different signature. Check documentation for details}}
+  %0 = sycl.range.constructor(%arg) : (i32) -> memref<1x!sycl_range_1_>
+  func.return %0 : memref<1x!sycl_range_1_>
+}
+
+// -----
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+
+func.func @test_range_constructor_bad_num_dims(%arg: memref<1x!sycl_range_2_>) -> memref<1x!sycl_range_1_> {
+// expected-error @below {{'sycl.range.constructor' op expects input and output to have the same number of dimensions: 2 vs 1}}
+  %0 = sycl.range.constructor(%arg) : (memref<1x!sycl_range_2_>) -> memref<1x!sycl_range_1_>
+  func.return %0 : memref<1x!sycl_range_1_>
+}
+
+// -----
+
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+
+func.func @test_range_constructor_index_wrong_dims(%arg0: index)
+    -> memref<1x!sycl_range_2_> {
+// expected-error @below {{'sycl.range.constructor' op expects to be passed the same number of 'index' numbers as the number of dimensions of the input: 1 vs 2}}
+  %0 = sycl.range.constructor(%arg0) : (index) -> memref<1x!sycl_range_2_>
+  func.return %0 : memref<1x!sycl_range_2_>
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test_nd_constructor_bad_signature(%arg: i32) -> memref<1x!sycl_nd_range_1_> {
+// expected-error @below {{'sycl.nd_range.constructor' op expects a different signature. Check documentation for details}}
+  %0 = sycl.nd_range.constructor(%arg) : (i32) -> memref<1x!sycl_nd_range_1_>
+  func.return %0 : memref<1x!sycl_nd_range_1_>
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test_nd_range_default() -> memref<1x!sycl_nd_range_1_> {
+// expected-error @below {{'sycl.nd_range.constructor' op expects a different signature. Check documentation for details}}
+  %nd1 = sycl.nd_range.constructor() : () -> memref<1x!sycl_nd_range_1_>
+  func.return %nd1 : memref<1x!sycl_nd_range_1_>
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test_nd_constructor_bad_local_size(%globalSize: memref<?x!sycl_range_1_>, %localSize: memref<?x!sycl_range_2_>, %offset: memref<?x!sycl_id_1_>) -> memref<1x!sycl_nd_range_1_> {
+// expected-error @below {{'sycl.nd_range.constructor' op expects input and output to have the same number of dimensions: 2 vs 1}}
+  %0 = sycl.nd_range.constructor(%globalSize, %localSize, %offset) : (memref<?x!sycl_range_1_>, memref<?x!sycl_range_2_>, memref<?x!sycl_id_1_>) -> memref<1x!sycl_nd_range_1_>
+  func.return %0 : memref<1x!sycl_nd_range_1_>
+}
+
+// -----
+
 func.func @math_op_invalid_type(%arg0 : i32) {
-  // expected-error @+1 {{op operand #0 must be 32-bit float or 64-bit float, but got 'i32'}}
+  // expected-error @+1 {{op operand #0 must be 32-bit float or 64-bit float or sycl::half, but got 'i32'}}
   %0 = sycl.math.sin %arg0 : i32
   return
+}
+
+// -----
+
+// COM: Check inexistent symbol.
+
+// expected-error @below {{'sycl.host.kernel_name' op '@kernels::@k0' does not reference a valid kernel}}
+sycl.host.kernel_name @kernel_ref -> @kernels::@k0
+
+// -----
+
+// COM: Check inexistent symbol.
+
+func.func @f() -> !llvm.ptr {
+  // expected-error @below {{'sycl.host.get_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  %0 = sycl.host.get_kernel @kernels::@k0 : !llvm.ptr
+  func.return %0 : !llvm.ptr
+}
+
+// -----
+
+// COM: Check function is not a gpu.func
+
+// expected-error @below {{'sycl.host.kernel_name' op '@f0' does not reference a valid kernel}}
+sycl.host.kernel_name @kernel_ref -> @f0
+
+func.func @f0() {
+  func.return
+}
+
+// -----
+
+// COM: Check function is not a gpu.func
+
+func.func @f() -> !llvm.ptr {
+  // expected-error @below {{'sycl.host.get_kernel' op '@f0' does not reference a valid kernel}}
+  %0 = sycl.host.get_kernel @f0 : !llvm.ptr
+  func.return %0 : !llvm.ptr
+}
+
+func.func @f0() {
+  func.return
+}
+
+// -----
+
+// COM: Check function is not a kernel
+
+gpu.module @kernels {
+  gpu.func @k0() {
+    gpu.return
+  }
+}
+
+// expected-error @below {{'sycl.host.kernel_name' op '@kernels::@k0' does not reference a valid kernel}}
+sycl.host.kernel_name @kernel_ref -> @kernels::@k0
+
+// -----
+
+// COM: Check function is not a kernel
+
+gpu.module @kernels {
+  gpu.func @k0() {
+    gpu.return
+  }
+}
+
+func.func @f() -> !llvm.ptr {
+  // expected-error @below {{'sycl.host.get_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  %0 = sycl.host.get_kernel @kernels::@k0 : !llvm.ptr
+  func.return %0 : !llvm.ptr
+}
+
+// -----
+
+// COM: Check inexistent symbol.
+
+func.func @f(%handler: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.handler.set_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  sycl.host.handler.set_kernel %handler -> @kernels::@k0 : !llvm.ptr
+  func.return
+}
+
+// -----
+
+// COM: Check function is not a gpu.func
+
+func.func @f(%handler: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.handler.set_kernel' op '@f0' does not reference a valid kernel}}
+  sycl.host.handler.set_kernel %handler -> @f0 : !llvm.ptr
+  func.return
+}
+
+func.func @f0() {
+  func.return
+}
+
+// -----
+
+// COM: Check function is not a kernel
+
+func.func @f(%handler: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.handler.set_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  sycl.host.handler.set_kernel %handler -> @kernels::@k0 : !llvm.ptr
+  func.return
+}
+
+gpu.module @kernels {
+  gpu.func @k0() {
+    gpu.return
+  }
+}
+
+// -----
+
+func.func @test_wrap(%arg0 : f32) {
+  // expected-error @below {{'sycl.mlir.wrap' op operand type 'f32' and result type '!sycl.half<(f16)>' are cast incompatible}}
+  %0 = sycl.mlir.wrap %arg0 : f32 to !sycl.half<(f16)>
+  return
+}
+
+// -----
+
+func.func @test_unwrap(%arg0 : !sycl.half<(f16)>) {
+  // expected-error @below {{'sycl.mlir.unwrap' op operand type '!sycl.half<(f16)>' and result type 'i16' are cast incompatible}}
+  %0 = sycl.mlir.unwrap %arg0 : !sycl.half<(f16)> to i16
+  return
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @set_nd_range_bad_signature(%handler: !llvm.ptr, %nd_range: memref<?x!sycl_nd_range_1_>, %offset: memref<?x!sycl_id_1_>) {
+// expected-error @below {{'sycl.host.handler.set_nd_range' op expects a different signature. Check documentation for details}}
+  sycl.host.handler.set_nd_range %handler -> %nd_range, %offset : !llvm.ptr, memref<?x!sycl_nd_range_1_>, memref<?x!sycl_id_1_>
+  func.return
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+
+func.func @set_nd_range_bad_signature(%handler: !llvm.ptr, %range: memref<?x!sycl_range_2_>, %offset: memref<?x!sycl_id_1_>) {
+// expected-error @below {{'sycl.host.handler.set_nd_range' op expects both global size and offset to have the same number of dimensions}}
+  sycl.host.handler.set_nd_range %handler -> %range, %offset : !llvm.ptr, memref<?x!sycl_range_2_>, memref<?x!sycl_id_1_>
+  func.return
 }

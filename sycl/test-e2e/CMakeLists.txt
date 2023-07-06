@@ -61,25 +61,13 @@ endif() # Standalone.
 
 file(STRINGS "xfail_tests.txt" XFAIL_TESTS_LIST)
 string(REPLACE ";" "\;" XFAIL_TESTS "${XFAIL_TESTS_LIST}")
-string(REPLACE ";" "\|" FILTER_OUT_TESTS "${XFAIL_TESTS_LIST}")
-# Filter out xfail tests on GPU to avoid running incorrect code on GPU.
-if ("${TARGET_DEVICES}" STREQUAL "gpu")
-  add_custom_target(check-sycl-e2e
-    COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --filter-out '${FILTER_OUT_TESTS}' .
-    COMMENT "Running SYCL End-to-End tests"
-    DEPENDS ${SYCL_E2E_TEST_DEPS}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    USES_TERMINAL
-  )
-else()
-  add_custom_target(check-sycl-e2e
-    COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --xfail '${XFAIL_TESTS}' .
-    COMMENT "Running SYCL End-to-End tests"
-    DEPENDS ${SYCL_E2E_TEST_DEPS}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    USES_TERMINAL
-  )
-endif()
+add_custom_target(check-sycl-e2e
+  COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --xfail '${XFAIL_TESTS}' .
+  COMMENT "Running SYCL End-to-End tests"
+  DEPENDS ${SYCL_E2E_TEST_DEPS}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  USES_TERMINAL
+)
 
 add_subdirectory(External)
 add_subdirectory(ExtraTests)

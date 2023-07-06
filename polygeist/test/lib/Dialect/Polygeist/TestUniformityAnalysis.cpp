@@ -8,7 +8,6 @@
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
-#include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/UniformityAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Pass/Pass.h"
@@ -30,9 +29,13 @@ struct TestUniformityAnalysisPass
   }
 
   void runOnOperation() override {
+    AliasAnalysis &aliasAnalysis = getAnalysis<mlir::AliasAnalysis>();
+    aliasAnalysis.addAnalysisImplementation(
+        sycl::AliasAnalysis(false /* relaxedAliasing*/));
+
     DataFlowSolver solver;
     solver.load<DeadCodeAnalysis>();
-    solver.load<UniformityAnalysis>();
+    solver.load<UniformityAnalysis>(aliasAnalysis);
 
     Operation *op = getOperation();
     if (failed(solver.initializeAndRun(op)))
@@ -49,7 +52,7 @@ struct TestUniformityAnalysisPass
       assert(!uniformity->getValue().isUninitialized() &&
              "lattice element should be initialized");
 
-      llvm::errs() << tag.getValue() << ", " << *uniformity << "\n";
+      llvm::errs() << tag.getValue() << ", uniformity: " << *uniformity << "\n";
     });
   }
 };

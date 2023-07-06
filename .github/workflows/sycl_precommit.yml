@@ -15,8 +15,7 @@ on:
     - '**.rst'
     # For CI-related files we explicitly skip all the jobs below even if there
     # were other (non-ignored) files modified in this PR.
-    - '.github/workflows/**'
-    - 'devops/**'
+    - 'devops/*/**'
 
 permissions:
   contents: read
@@ -29,11 +28,10 @@ jobs:
     needs: [detect_changes]
     if: |
       !contains(needs.detect_changes.outputs.filters, 'ci')
-    runs-on: cuda
+    runs-on: [Linux, build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
-      # actions/checkout fails without "--privileged".
-      options: -u 1001:1001 --privileged
+      options: -u 1001:1001
     steps:
     - uses: actions/checkout@v3
       with:
@@ -41,6 +39,9 @@ jobs:
         sparse-checkout: |
           devops/actions/cached_checkout
           devops/actions/clang-format
+          devops/actions/cleanup
+    - name: Register cleanup after job is finished
+      uses: ./devops/actions/cleanup
     - name: 'PR commits + 2'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 2 ))" >> "${GITHUB_ENV}"
     - uses: ./devops/actions/cached_checkout
@@ -58,13 +59,11 @@ jobs:
   # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:
     needs: [detect_changes]
-    if: |
-      !contains(needs.detect_changes.outputs.filters, 'ci')
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "ocl_lin_intel"
+      lts_config: "lin_intel"
 
   linux_default:
     name: Linux
@@ -74,7 +73,7 @@ jobs:
     if: |
       always()
       && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
-      && contains(needs.detect_changes.outputs.filters, 'sycl')
+      && contains(needs.detect_changes.outputs.filters, 'test_build')
       && !contains(needs.detect_changes.outputs.filters, 'ci')
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit

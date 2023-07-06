@@ -1187,9 +1187,20 @@ mlir::Operation *MLIRScanner::createSYCLMathOp(llvm::StringRef FunctionName,
     return nullptr;
   }
 
+  // Math function detected, we need to dereference any `memref<?x!sycl_half>`
+  // operands.
+  SmallVector<Value, 3> MathFuncOperands(Operands);
+  if (ReturnType.isa<sycl::HalfType>()) {
+    for (auto &Operand : MathFuncOperands)
+      if (auto Ty = Operand.getType().dyn_cast<MemRefType>();
+          Ty && Ty.getElementType().isa<sycl::HalfType>())
+        Operand = Builder.create<affine::AffineLoadOp>(
+            Loc, Operand, Builder.getConstantAffineMap(0), ValueRange{});
+  }
+
   StringRef OpName(Iter->second);
   return tryToCreateOperation(Builder, Loc, Builder.getStringAttr(OpName),
-                              Operands, /*types=*/ReturnType);
+                              MathFuncOperands, /*types=*/ReturnType);
 }
 
 Operation *MLIRScanner::createSYCLBuiltinOp(const clang::FunctionDecl *Callee,

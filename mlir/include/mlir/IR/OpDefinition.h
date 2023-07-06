@@ -1135,6 +1135,11 @@ public:
   }
 };
 
+/// This class adds a property indicating that the operation yields non-uniform
+/// results.
+template <typename ConcreteType>
+class ResultsNonUniform : public TraitBase<ConcreteType, ResultsNonUniform> {};
+
 /// This class verifies that any results of the specified op have a signless
 /// integer or index type, a vector thereof, or a tensor thereof.
 template <typename ConcreteType>

@@ -37,8 +37,10 @@ SYCLRangeGetOp createSYCLRangeGetOp(Type resTy, TypedValue<MemRefType> range,
                                     Location loc);
 
 /// Construct sycl.id with id type \p idTy and indexes \p indexes.
-TypedValue<MemRefType> constructSYCLID(IDType idTy, ArrayRef<Value> indexes,
-                                       OpBuilder builder, Location loc);
+TypedValue<MemRefType> createSYCLIDConstructorOp(IDType idTy,
+                                                 ValueRange indexes,
+                                                 OpBuilder builder,
+                                                 Location loc);
 
 /// Create sycl.accessor.subscript with accessor \p accessor and id \p id.
 SYCLAccessorSubscriptOp createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,

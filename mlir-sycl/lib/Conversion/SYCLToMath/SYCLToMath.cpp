@@ -33,11 +33,39 @@ namespace {
 template <typename SYCLOpT, typename MathOpT>
 struct OneToOneMappingPattern : public OpConversionPattern<SYCLOpT> {
   using OpConversionPattern<SYCLOpT>::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+
+  LogicalResult match(SYCLOpT op) const override {
+    Type type = op.getType();
+    return success(type.isF32() || type.isF64());
+  }
+
+  void rewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
+               ConversionPatternRewriter &rewriter) const override {
+    // `op` has a native MLIR type, hence we can just replace it with its
+    // counterpart in the `math` dialect.
     rewriter.replaceOpWithNewOp<MathOpT>(op, adaptor.getOperands());
-    return success();
+  }
+};
+
+template <typename SYCLOpT, typename MathOpT>
+struct UnwrapHalfPattern : public OpConversionPattern<SYCLOpT> {
+  using OpConversionPattern<SYCLOpT>::OpConversionPattern;
+
+  LogicalResult match(SYCLOpT op) const override {
+    return success(isa<HalfType>(op.getType()));
+  }
+
+  void rewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
+               ConversionPatternRewriter &rewriter) const override {
+    // `op` is using the `sycl::half` type, hence we need to unwrap the operands
+    // and wrap the result.
+    auto loc = op.getLoc();
+    SmallVector<Value, 3> unwrappedOperands;
+    for (auto operand : adaptor.getOperands())
+      unwrappedOperands.push_back(
+          rewriter.create<SYCLUnwrapOp>(loc, rewriter.getF16Type(), operand));
+    auto math = rewriter.create<MathOpT>(loc, unwrappedOperands);
+    rewriter.replaceOpWithNewOp<SYCLWrapOp>(op, op.getType(), math.getResult());
   }
 };
 
@@ -45,24 +73,30 @@ struct OneToOneMappingPattern : public OpConversionPattern<SYCLOpT> {
 
 void mlir::populateSYCLToMathConversionPatterns(RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
-  patterns.insert<OneToOneMappingPattern<SYCLCeilOp, math::CeilOp>,
-                  OneToOneMappingPattern<SYCLCopySignOp, math::CopySignOp>,
-                  OneToOneMappingPattern<SYCLCosOp, math::CosOp>,
-                  OneToOneMappingPattern<SYCLExpOp, math::ExpOp>,
-                  OneToOneMappingPattern<SYCLExp2Op, math::Exp2Op>,
-                  OneToOneMappingPattern<SYCLExpM1Op, math::ExpM1Op>,
-                  OneToOneMappingPattern<SYCLFabsOp, math::AbsFOp>,
-                  OneToOneMappingPattern<SYCLFloorOp, math::FloorOp>,
-                  OneToOneMappingPattern<SYCLFmaOp, math::FmaOp>,
-                  OneToOneMappingPattern<SYCLLogOp, math::LogOp>,
-                  OneToOneMappingPattern<SYCLLog10Op, math::Log10Op>,
-                  OneToOneMappingPattern<SYCLLog2Op, math::Log2Op>,
-                  OneToOneMappingPattern<SYCLPowOp, math::PowFOp>,
-                  OneToOneMappingPattern<SYCLRoundOp, math::RoundOp>,
-                  OneToOneMappingPattern<SYCLRsqrtOp, math::RsqrtOp>,
-                  OneToOneMappingPattern<SYCLSinOp, math::SinOp>,
-                  OneToOneMappingPattern<SYCLSqrtOp, math::SqrtOp>,
-                  OneToOneMappingPattern<SYCLTruncOp, math::TruncOp>>(context);
+#define MAP_OP(from, to)                                                       \
+  OneToOneMappingPattern<from, to>, UnwrapHalfPattern<from, to>
+  // clang-format off
+  patterns.insert<
+      MAP_OP(SYCLCeilOp, math::CeilOp),
+      MAP_OP(SYCLCopySignOp, math::CopySignOp),
+      MAP_OP(SYCLCosOp, math::CosOp),
+      MAP_OP(SYCLExpOp, math::ExpOp),
+      MAP_OP(SYCLExp2Op, math::Exp2Op),
+      MAP_OP(SYCLExpM1Op, math::ExpM1Op),
+      MAP_OP(SYCLFabsOp, math::AbsFOp),
+      MAP_OP(SYCLFloorOp, math::FloorOp),
+      MAP_OP(SYCLFmaOp, math::FmaOp),
+      MAP_OP(SYCLLogOp, math::LogOp),
+      MAP_OP(SYCLLog10Op, math::Log10Op),
+      MAP_OP(SYCLLog2Op, math::Log2Op),
+      MAP_OP(SYCLPowOp, math::PowFOp),
+      MAP_OP(SYCLRoundOp, math::RoundOp),
+      MAP_OP(SYCLRsqrtOp, math::RsqrtOp),
+      MAP_OP(SYCLSinOp, math::SinOp),
+      MAP_OP(SYCLSqrtOp, math::SqrtOp),
+      MAP_OP(SYCLTruncOp, math::TruncOp)>(context);
+  // clang-format on
+#undef MAP_MATH_OP
 }
 
 namespace {

@@ -20,5 +20,15 @@ int main() {
   auto InvalidPropertyList4 = sycl::ext::oneapi::experimental::properties(
       sycl::ext::oneapi::experimental::bar,
       sycl::ext::oneapi::experimental::bar);
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Conflicting properties in property list.}}
+  auto InvalidPropertyList5 = sycl::ext::oneapi::experimental::properties(
+      sycl::ext::oneapi::experimental::boo<int>,
+      sycl::ext::oneapi::experimental::fir(3.14, false));
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Conflicting properties in property list.}}
+  auto InvalidPropertyList6 = sycl::ext::oneapi::experimental::properties(
+      sycl::ext::oneapi::experimental::foo{0},
+      sycl::ext::oneapi::experimental::boo<int>,
+      sycl::ext::oneapi::experimental::bar,
+      sycl::ext::oneapi::experimental::fir(3.14, false));
   return 0;
 }

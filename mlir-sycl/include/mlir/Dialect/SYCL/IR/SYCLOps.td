@@ -162,11 +162,13 @@ class SYCL3DGridOp<string mnemonic, list<Trait> traits = []>
   let assemblyFormat = "attr-dict `:` type($result)";
 }
 
-class SYCL3DIDGridOp<string mnemonic> : SYCL3DGridOp<mnemonic> {
+class SYCL3DIDGridOp<string mnemonic, list<Trait> traits = []> 
+    : SYCL3DGridOp<mnemonic, traits> {
   let results = (outs SYCL_IDType:$result);
 }
 
-class SYCL3DRangeGridOp<string mnemonic> : SYCL3DGridOp<mnemonic> {
+class SYCL3DRangeGridOp<string mnemonic, list<Trait> traits = []> 
+    : SYCL3DGridOp<mnemonic, traits> {
   let results = (outs SYCL_RangeType:$result);
 }
 
@@ -179,7 +181,7 @@ def SYCLNumWorkItemsOp : SYCL3DRangeGridOp<"num_work_items"> {
   }];
 }
 
-def SYCLGlobalIDOp : SYCL3DIDGridOp<"global_id"> {
+def SYCLGlobalIDOp : SYCL3DIDGridOp<"global_id", [ResultsNonUniform]> {
   let summary = "Retrieve the global ID of the item.";
   let description = [{
     This operation returns the global ID of the item in the index space. If the
@@ -188,7 +190,7 @@ def SYCLGlobalIDOp : SYCL3DIDGridOp<"global_id"> {
   }];
 }
 
-def SYCLLocalIDOp : SYCL3DIDGridOp<"local_id"> {
+def SYCLLocalIDOp : SYCL3DIDGridOp<"local_id", [ResultsNonUniform]> {
   let summary = "Retrieve the local ID of the item.";
   let description = [{
     This operation returns the local ID of the item within the work-group. If
@@ -227,7 +229,7 @@ def SYCLWorkGroupSizeOp : SYCL3DRangeGridOp<"work_group_size"> {
   }];
 }
 
-def SYCLWorkGroupIDOp : SYCL3DIDGridOp<"work_group_id"> {
+def SYCLWorkGroupIDOp : SYCL3DIDGridOp<"work_group_id", [ResultsNonUniform]> {
   let summary = "Retrieve the ID of the work-group.";
   let description = [{
     This operation returns the ID of the work-group. If the optional argument is
@@ -256,14 +258,14 @@ def SYCLSubGroupSizeOp : SYCL1DGridOp<"sub_group_size"> {
   }];
 }
 
-def SYCLSubGroupIDOp : SYCL1DGridOp<"sub_group_id"> {
+def SYCLSubGroupIDOp : SYCL1DGridOp<"sub_group_id", [ResultsNonUniform]> {
   let summary = "Retrieve the ID of the sub-group.";
   let description = [{
     This operation returns the ID of the sub-group.
   }];
 }
 
-def SYCLSubGroupLocalIDOp : SYCL1DGridOp<"sub_group_local_id"> {
+def SYCLSubGroupLocalIDOp : SYCL1DGridOp<"sub_group_local_id", [ResultsNonUniform]> {
   let summary = "Retrieve the local ID of the sub-group.";
   let description = [{
     This operation returns the local ID of the sub-group.
@@ -561,6 +563,72 @@ def SYCLRangeSizeOp
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// range.constructor OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLRangeConstructorOp : SYCLConstructor<"range"> {
+  let summary = "Operation returning a new sycl.range value";
+  let description = [{
+    This operation creates a new `sycl.range`. The following signatures are
+    provided:
+    ```mlir
+    # Initialize each member
+    (index) -> memref<1x!sycl_range_1>
+    (index, index) -> memref<1x!sycl_range_2>
+    (index, index, index) -> memref<1x!sycl_range_3>
+    # Copy constructor
+    (memref<?xsycl_range_N>) -> memref<1x!sycl_range_N>
+    ```
+    In addition of initializing the values, this operation also allocates the
+    object.
+  }];
+  let arguments = (ins Arg<Variadic<AnyType>, "Constructor arguments">:$Args);
+  let results =
+      (outs Res<MemRefRankOf<[SYCL_RangeType], [1]>, "constructed object">:$range);
+  let extraClassDeclaration = [{
+    /// Return the memory effects associated with each argument.
+    ///
+    /// Each argument will have `MemoryEffects::Read` if they're a
+    /// pointer/memref and no memory effect otherwise.
+    void getEffects(::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<
+                        ::mlir::MemoryEffects::Effect>> &effects);
+  }];
+  let hasVerifier = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_range.constructor OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDRangeConstructorOp : SYCLConstructor<"nd_range"> {
+  let summary = "Operation returning a new sycl.nd_range value";
+  let description = [{
+    This operation creates a new `sycl.nd_range`. The following signatures are
+    provided:
+    ```mlir
+    # Initialize each member
+    (memref<?xsycl_range_N>, memref<?xsycl_range_N>) -> memref<1x!sycl_nd_range_N>
+    (memref<?xsycl_range_N>, memref<?xsycl_range_N>, memref<?xsycl_id_N>) -> memref<1x!sycl_nd_range_N>
+    # Copy constructor
+    (memref<?xsycl_nd_range_N>) -> memref<1x!sycl_nd_range_N>
+    ```
+    In addition of initializing the values, this operation also allocates the
+    object.
+  }];
+  let arguments = (ins Arg<Variadic<AnyType>, "Constructor arguments">:$Args);
+  let results =
+      (outs Res<MemRefRankOf<[SYCL_NdRangeType], [1]>, "constructed object">:$NDRange);
+  let extraClassDeclaration = [{
+    /// Return the memory effects associated to each argument.
+    ///
+    /// Each argument will have `MemoryEffects::Read`.
+    void getEffects(::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<
+                        ::mlir::MemoryEffects::Effect>> &effects);
+  }];
+  let hasVerifier = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // nd_range.get_global_range OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -646,7 +714,7 @@ def SYCLIDConstructorOp : SYCLConstructor<"id"> {
   let results =
       (outs Res<MemRefRankOf<[SYCL_IDType], [1]>, "constructed object">:$id);
   let extraClassDeclaration = [{
-    /// Return the memory effects associated to each argument.
+    /// Return the memory effects associated with each argument.
     ///
     /// Each argument will have `MemoryEffects::Read` if they're a
     /// pointer/memref and no memory effect otherwise.
@@ -688,7 +756,7 @@ def SYCLIDGetOp
 def SYCLItemGetIDOp
     : SYCLMethodOpInterfaceImpl<"item.get_id", "ItemType",
                                 ["get_id", "operator[]", "operator unsigned long"],
-                                [SYCLGetID]> {
+                                [SYCLGetID, ResultsNonUniform]> {
   let summary = "Call to item::get_id/operator[]/operator size_t";
   let description = [{
     This operation represents a call to the item::get_id/operator[]/operator size_t functions.
@@ -729,7 +797,8 @@ def SYCLItemGetRangeOp
 
 def SYCLItemGetLinearIDOp
     : SYCLMethodOpInterfaceImpl<"item.get_linear_id", "ItemType",
-                                ["get_linear_id"]> {
+                                ["get_linear_id"], 
+                                [ResultsNonUniform]> {
   let summary = "Call to item::get_linear_id";
   let description = [{
     This operation represents a call to the item::get_linear_id function.
@@ -749,7 +818,7 @@ def SYCLItemGetLinearIDOp
 def SYCLNDItemGetGlobalIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_global_id", "NdItemType",
                                 ["get_global_id"], 
-                                [SYCLGetID]> {
+                                [SYCLGetID, ResultsNonUniform]> {
   let summary = "Call to nd_item::get_global_id";
   let description = [{
     This operation represents a call to the nd_item::get_global_id function.
@@ -769,7 +838,8 @@ def SYCLNDItemGetGlobalIDOp
 
 def SYCLNDItemGetGlobalLinearIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_global_linear_id", "NdItemType",
-                                ["get_global_linear_id"]> {
+                                ["get_global_linear_id"], 
+                                [ResultsNonUniform]> {
   let summary = "Call to nd_item::get_global_linear_id";
   let description = [{
     This operation represents a call to the nd_item::get_global_linear_id function.
@@ -789,7 +859,7 @@ def SYCLNDItemGetGlobalLinearIDOp
 def SYCLNDItemGetLocalIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_local_id", "NdItemType",
                                 ["get_local_id"], 
-                                [SYCLGetID]> {
+                                [SYCLGetID, ResultsNonUniform]> {
   let summary = "Call to nd_item::get_local_id";
   let description = [{
     This operation represents a call to the nd_item::get_local_id function.
@@ -809,7 +879,8 @@ def SYCLNDItemGetLocalIDOp
 
 def SYCLNDItemGetLocalLinearIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_local_linear_id", "NdItemType",
-                                ["get_local_linear_id"]> {
+                                ["get_local_linear_id"],
+                                [ResultsNonUniform]> {
   let summary = "Call to nd_item::get_local_linear_id";
   let description = [{
     This operation represents a call to the nd_item::get_local_linear_id function.
@@ -849,7 +920,8 @@ def SYCLNDItemGetGroupOp
 
 def SYCLNDItemGetGroupLinearIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_group_linear_id", "NdItemType",
-                                ["get_group_linear_id"]> {
+                                ["get_group_linear_id"],
+                                [ResultsNonUniform]> {
   let summary = "Call to nd_item::get_group_linear_id";
   let description = [{
     This operation represents a call to the nd_item::get_group_linear_id function.
@@ -951,7 +1023,7 @@ def SYCLNDItemGetNdRangeOp
 def SYCLGroupGetGroupIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_group_id", "GroupType",
                                 ["get_group_id", "operator[]"],
-                                [SYCLGetID]> {
+                                [SYCLGetID, ResultsNonUniform]> {
   let summary = "Call to group::get_group_id/operator[]";
   let description = [{
     This operation represents a call to the group::get_group_id/operator[] functions.
@@ -972,7 +1044,7 @@ def SYCLGroupGetGroupIDOp
 def SYCLGroupGetLocalIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_local_id", "GroupType",
                                 ["get_local_id"],
-                                [SYCLGetID]> {
+                                [SYCLGetID,  ResultsNonUniform]> {
   let summary = "Call to group::get_local_id";
   let description = [{
     This operation represents a call to the group::get_local_id function.
@@ -1053,7 +1125,8 @@ def SYCLGroupGetMaxLocalRangeOp
 
 def SYCLGroupGetGroupLinearIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_group_linear_id", "GroupType",
-                                ["get_group_linear_id"]> {
+                                ["get_group_linear_id"],
+                                [ResultsNonUniform]> {
   let summary = "Call to group::get_group_linear_id";
   let description = [{
     This operation represents a call to the group::get_group_linear_id function.
@@ -1072,7 +1145,8 @@ def SYCLGroupGetGroupLinearIDOp
 
 def SYCLGroupGetLocalLinearIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_local_linear_id", "GroupType",
-                                ["get_local_linear_id"]> {
+                                ["get_local_linear_id"],
+                                [ResultsNonUniform]> {
   let summary = "Call to group::get_local_linear_id";
   let description = [{
     This operation represents a call to the group::get_local_linear_id function.
@@ -1123,6 +1197,7 @@ def SYCLGroupGetLocalLinearRangeOp
   let results = (outs I64:$Res);
 }
 
+include "mlir/Dialect/SYCL/IR/SYCLAuxOps.td"
 include "mlir/Dialect/SYCL/IR/SYCLHostOps.td"
 include "mlir/Dialect/SYCL/IR/SYCLMathOps.td"
 
