@@ -514,13 +514,13 @@ public:
   id<3> &getOffset();
   range<3> &getAccessRange();
   range<3> &getMemoryRange();
-  void *getPtr();
+  void *getPtr() noexcept;
   unsigned int getElemSize() const;
 
   const id<3> &getOffset() const;
   const range<3> &getAccessRange() const;
   const range<3> &getMemoryRange() const;
-  void *getPtr() const;
+  void *getPtr() const noexcept;
   bool isPlaceholder() const;
 
   detail::AccHostDataT &getAccData();
