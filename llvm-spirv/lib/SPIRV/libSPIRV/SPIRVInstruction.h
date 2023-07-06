@@ -81,11 +81,11 @@ public:
 
 class SPIRVComponentOperands {
 public:
-  SPIRVComponentOperands(){};
+  SPIRVComponentOperands() {}
   SPIRVComponentOperands(const std::vector<SPIRVValue *> &TheOperands)
-      : Operands(TheOperands){};
+      : Operands(TheOperands) {}
   SPIRVComponentOperands(std::vector<SPIRVValue *> &&TheOperands)
-      : Operands(std::move(TheOperands)){};
+      : Operands(std::move(TheOperands)) {}
   std::vector<SPIRVValue *> getCompOperands() { return Operands; }
   std::vector<SPIRVType *> getCompOperandTypes() {
     std::vector<SPIRVType *> Tys;
@@ -2266,7 +2266,7 @@ public:
       : SPIRVInstruction(3, OC, TheBB), Object(TheObject), Size(TheSize) {
     validate();
     assert(TheBB && "Invalid BB");
-  };
+  }
   // Incomplete constructor
   SPIRVLifetime()
       : SPIRVInstruction(OC), Object(SPIRVID_INVALID), Size(SPIRVWORD_MAX) {
@@ -2276,8 +2276,8 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityKernel);
   }
-  SPIRVValue *getObject() { return getValue(Object); };
-  SPIRVWord getSize() { return Size; };
+  SPIRVValue *getObject() { return getValue(Object); }
+  SPIRVWord getSize() { return Size; }
 
 protected:
   void validate() const override {
