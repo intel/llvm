@@ -66,7 +66,6 @@ public:
     CopyUSM = 10,
     FillUSM = 11,
     PrefetchUSM = 12,
-    CodeplayInteropTask = 13,
     CodeplayHostTask = 14,
     AdviseUSM = 15,
     Copy2DUSM = 16,
@@ -314,17 +313,6 @@ public:
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
   pi_mem_advice getAdvice() { return MAdvice; }
-};
-
-class CGInteropTask : public CG {
-public:
-  std::unique_ptr<InteropTask> MInteropTask;
-
-  CGInteropTask(std::unique_ptr<InteropTask> InteropTask,
-                CG::StorageInitHelper CGData, CGTYPE Type,
-                detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MInteropTask(std::move(InteropTask)) {}
 };
 
 class CGHostTask : public CG {

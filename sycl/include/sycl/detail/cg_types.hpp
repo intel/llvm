@@ -217,14 +217,6 @@ public:
   virtual ~HostKernelBase() = default;
 };
 
-class InteropTask {
-  std::function<void(sycl::interop_handler)> MFunc;
-
-public:
-  InteropTask(std::function<void(sycl::interop_handler)> Func) : MFunc(Func) {}
-  void call(sycl::interop_handler &h) { MFunc(h); }
-};
-
 class HostTask {
   std::function<void()> MHostTask;
   std::function<void(interop_handle)> MInteropTask;

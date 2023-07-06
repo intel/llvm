@@ -15,7 +15,6 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/detail/defines.hpp>
@@ -48,29 +47,6 @@ template <> struct interop<backend::opencl, queue> {
 
 template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
-};
-
-// TODO the interops for accessor is used in the already deprecated class
-// interop_handler and can be removed after API cleanup.
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::opencl,
-               accessor<DataT, Dimensions, AccessMode, access::target::device,
-                        access::placeholder::false_t>> {
-  using type = cl_mem;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::constant_buffer,
-                                         access::placeholder::false_t>> {
-  using type = cl_mem;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::opencl,
-               accessor<DataT, Dimensions, AccessMode, access::target::image,
-                        access::placeholder::false_t>> {
-  using type = cl_mem;
 };
 
 template <typename DataT, int Dimensions, typename AllocatorT>
