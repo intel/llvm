@@ -41,7 +41,7 @@ public:
         cuDevice));
   }
 
-  ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
+  ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
 
   native_type get() const noexcept { return CuDevice; };
 
