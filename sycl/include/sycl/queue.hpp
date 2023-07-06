@@ -18,6 +18,7 @@
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
@@ -2345,9 +2346,9 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
       // which won't be properly resolved in separate compile use-case
 #ifndef NDEBUG
       if (AH->Flag == __SYCL_ASSERT_START)
-        throw sycl::runtime_error(
-            "Internal Error. Invalid value in assert description.",
-            PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Internal Error. Invalid value in assert description.");
 #endif
 
       if (AH->Flag) {
