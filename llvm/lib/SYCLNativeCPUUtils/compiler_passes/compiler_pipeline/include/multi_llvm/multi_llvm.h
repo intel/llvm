@@ -63,9 +63,9 @@ inline llvm::InlineResult InlineFunction(llvm::CallInst *CI,
 #endif
 }
 
-inline llvm::StructType *getStructTypeByName(llvm::Module &module,
+inline llvm::StructType *getStructTypeByName(llvm::LLVMContext &ctx,
                                              llvm::StringRef name) {
-  return llvm::StructType::getTypeByName(module.getContext(), name);
+  return llvm::StructType::getTypeByName(ctx, name);
 }
 
 inline llvm::DILocation *getDILocation(unsigned Line, unsigned Column,
