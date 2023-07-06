@@ -1108,9 +1108,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
   ret_err = cl_adapter::getPlatformVersion(platform, platVer);
 
   if (platVer < OCLV::V2_1 || devVer < OCLV::V2_1) {
-    cl_adapter::setErrorMessage(
-        "OpenCL version for device and/or platform is less than 2.1",
-        UR_RESULT_ERROR_INVALID_OPERATION);
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 

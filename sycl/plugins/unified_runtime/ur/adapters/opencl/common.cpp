@@ -9,25 +9,17 @@
 #include "common.hpp"
 
 namespace cl_adapter {
-// Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
-thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
-thread_local char ErrorMessage[cl_adapter::MaxMessageSize];
 
-// Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *message,
-                                      ur_result_t error_code) {
+/* Global variables for urPlatformGetLastError() */
+thread_local int32_t ErrorMessageCode = 0;
+thread_local char ErrorMessage[MaxMessageSize];
+
+[[maybe_unused]] void setErrorMessage(const char *message, int32_t error_code) {
   assert(strlen(message) <= cl_adapter::MaxMessageSize);
   strcpy(cl_adapter::ErrorMessage, message);
   ErrorMessageCode = error_code;
 }
 } // namespace cl_adapter
-
-// Returns plugin specific error and warning messages; common implementation
-// that can be shared between adapters
-ur_result_t urGetLastResult(ur_platform_handle_t, const char **ppMessage) {
-  *ppMessage = &cl_adapter::ErrorMessage[0];
-  return cl_adapter::ErrorMessageCode;
-}
 
 ur_result_t map_cl_error_to_ur(cl_int result) {
   switch (result) {

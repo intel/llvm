@@ -186,8 +186,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetLastError(
     ur_platform_handle_t hPlatform, const char **ppMessage, int32_t *pError) {
+
   std::ignore = hPlatform;
-  std::ignore = ppMessage;
-  std::ignore = pError;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  *ppMessage = cl_adapter::ErrorMessage;
+  *pError = cl_adapter::ErrorMessageCode;
+
+  return UR_RESULT_SUCCESS;
 }
