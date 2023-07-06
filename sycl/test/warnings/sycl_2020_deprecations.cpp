@@ -170,14 +170,6 @@ int main() {
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
 
-  // expected-warning@+1{{'level_zero' is deprecated: use 'ext_oneapi_level_zero' instead}}
-  auto LevelZeroBackend = sycl::backend::level_zero;
-  (void)LevelZeroBackend;
-
-  // expected-warning@+1{{'esimd_cpu' is deprecated: use 'ext_intel_esimd_emulator' instead}}
-  auto ESIMDCPUBackend = sycl::backend::esimd_cpu;
-  (void)ESIMDCPUBackend;
-
   // expected-warning@+1{{'submit_barrier' is deprecated: use 'ext_oneapi_submit_barrier' instead}}
   Queue.submit_barrier();
 
