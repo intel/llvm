@@ -178,8 +178,6 @@ void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
   constexpr uint16_t NotificationTraceType =
       (uint16_t)xpti::trace_point_type_t::function_with_args_end;
   if (xptiCheckTraceEnabled(PiDebugCallStreamID, NotificationTraceType)) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
-
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
                                        &Plugin};
 

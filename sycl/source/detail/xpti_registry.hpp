@@ -173,7 +173,7 @@ public:
 
   XPTIScope &
   addMetadata(const std::function<void(xpti::trace_event_data_t *)> &Callback) {
-    if (xptiCheckTraceEnabled(MStreamID) && MTP) {
+    if (xptiTraceEnabled() && MTP) {
       auto TEvent = const_cast<xpti::trace_event_data_t *>(MTP->trace_event());
       Callback(TEvent);
     }
