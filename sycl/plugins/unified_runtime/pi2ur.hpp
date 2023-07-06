@@ -4325,7 +4325,7 @@ inline pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
 ///////////////////////////////////////////////////////////////////////////////
 // usm-p2p
 
-pi_result piextEnablePeerAccess(pi_device command_device,
+inline pi_result piextEnablePeerAccess(pi_device command_device,
                                 pi_device peer_device) {
   auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
   auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
@@ -4335,7 +4335,7 @@ pi_result piextEnablePeerAccess(pi_device command_device,
   return PI_SUCCESS;
 }
 
-pi_result piextDisablePeerAccess(pi_device command_device,
+inline pi_result piextDisablePeerAccess(pi_device command_device,
                                  pi_device peer_device) {
   auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
   auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
@@ -4345,7 +4345,7 @@ pi_result piextDisablePeerAccess(pi_device command_device,
   return PI_SUCCESS;
 }
 
-pi_result piextPeerAccessGetInfo(pi_device command_device,
+inline pi_result piextPeerAccessGetInfo(pi_device command_device,
                                  pi_device peer_device, pi_peer_attr attr,
                                  size_t param_value_size, void *param_value,
                                  size_t *param_value_size_ret) {
