@@ -478,6 +478,12 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
+  if (MGraph) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait cannot be called for a queue which is "
+                          "recording to a command graph.");
+  }
+
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
   std::vector<event> SharedEvents;
   {

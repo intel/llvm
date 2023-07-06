@@ -439,6 +439,8 @@ event handler::finalize() {
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(EventImpl, NodeImpl);
 
+    EventImpl->setCommandGraph(GraphImpl);
+
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
 
@@ -878,18 +880,25 @@ void handler::depends_on(event Event) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
   }
+  if (auto Graph = getCommandGraph(); Graph) {
+    auto EventGraph = EventImpl->getCommandGraph();
+    if (EventGraph == nullptr) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Graph nodes cannot depend on events from outside the graph.");
+    }
+    if (EventGraph != Graph) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Graph nodes cannot depend on events from another graph.");
+    }
+  }
   CGData.MEvents.push_back(EventImpl);
 }
 
 void handler::depends_on(const std::vector<event> &Events) {
   for (const event &Event : Events) {
-    auto EventImpl = detail::getSyclObjImpl(Event);
-    if (EventImpl->isDiscarded()) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Queue operation cannot depend on discarded event.");
-    }
-    CGData.MEvents.push_back(EventImpl);
+    depends_on(Event);
   }
 }
 
@@ -1064,11 +1073,20 @@ void handler::ext_oneapi_graph(
     }
     // Associate an event with the subgraph node.
     auto SubgraphEvent = std::make_shared<event_impl>();
+    SubgraphEvent->setCommandGraph(ParentGraph);
     ParentGraph->addEventForNode(SubgraphEvent, MSubgraphNode);
   } else {
     // Set the exec graph for execution during finalize.
     MExecGraph = GraphImpl;
   }
+}
+
+std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+handler::getCommandGraph() const {
+  if (MGraph) {
+    return MGraph;
+  }
+  return MQueue->getCommandGraph();
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
