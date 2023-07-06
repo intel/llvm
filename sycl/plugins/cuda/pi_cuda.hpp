@@ -25,6 +25,7 @@
 #define _PI_CUDA_PLUGIN_VERSION_STRING                                         \
   _PI_PLUGIN_VERSION_STRING(_PI_CUDA_PLUGIN_VERSION)
 
+#include <ur/adapters/cuda/command_buffer.hpp>
 #include <ur/adapters/cuda/context.hpp>
 #include <ur/adapters/cuda/device.hpp>
 #include <ur/adapters/cuda/event.hpp>
@@ -77,8 +78,12 @@ struct _pi_sampler : ur_sampler_handle_t_ {
   using ur_sampler_handle_t_::ur_sampler_handle_t_;
 };
 
+struct _pi_ext_command_buffer : ur_exp_command_buffer_handle_t_ {
+  using ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_;
+};
+
 struct _pi_physical_mem : ur_physical_mem_handle_t_ {
   using ur_physical_mem_handle_t_::ur_physical_mem_handle_t_;
-};
+}
 
 #endif // PI_CUDA_HPP
