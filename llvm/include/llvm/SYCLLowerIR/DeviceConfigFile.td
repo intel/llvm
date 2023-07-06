@@ -50,6 +50,7 @@ def AspectExt_intel_memory_clock_rate : Aspect<"ext_intel_memory_clock_rate">;
 def AspectExt_intel_memory_bus_width : Aspect<"ext_intel_memory_bus_width">;
 def AspectEmulated : Aspect<"emulated">;
 def AspectExt_intel_legacy_image : Aspect<"ext_intel_legacy_image">;
+def AspectExt_virtual_mem : Aspect<"ext_oneapi_virtual_mem">;
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
@@ -94,7 +95,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_native_assert, AspectHost_debuggable, AspectExt_intel_gpu_hw_threads_per_eu,
     AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_bfloat16_math_functions, AspectExt_intel_free_memory,
     AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectEmulated,
-    AspectExt_intel_legacy_image],
+    AspectExt_intel_legacy_image, AspectExt_virtual_mem],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
