@@ -27,8 +27,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-context::context(const property_list &PropList)
-    : context(device{}, PropList) {}
+context::context(const property_list &PropList) : context(device{}, PropList) {}
 
 context::context(const async_handler &AsyncHandler,
                  const property_list &PropList)
