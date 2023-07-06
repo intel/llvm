@@ -239,22 +239,7 @@ public:
           MTraceType == (uint16_t)xpti::trace_point_type_t::diagnostics)
         return;
 
-      // The definition of the following trace point types have an error and
-      // cannot be fixed until the next ABI breakage window. Until then, we
-      // expclicity handle these cases. Once the types mem_alloc_end,
-      // mem_release_end and offload_alloc_*_destruct have been defined
-      // correctly, then all we need is (MTraceType = MTraceType | 1)
-      if (MTraceType == (uint16_t)xpti::trace_point_type_t::mem_alloc_begin) {
-        MTraceType = (uint16_t)xpti::trace_point_type_t::mem_alloc_end;
-      } else if (MTraceType ==
-                 (uint16_t)xpti::trace_point_type_t::mem_release_begin) {
-        MTraceType = (uint16_t)xpti::trace_point_type_t::mem_release_end;
-      } else if (MTraceType == (uint16_t)xpti::trace_point_type_t::
-                                   offload_alloc_memory_object_construct) {
-        MTraceType = (uint16_t)
-            xpti::trace_point_type_t::offload_alloc_memory_object_destruct;
-      } else
-        MTraceType = MTraceType | 1;
+      MTraceType = MTraceType | 1;
 
       // Only notify for a trace type that has a begin/end
       xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
