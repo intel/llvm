@@ -1100,6 +1100,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   };
 
   Arg *SYCLTargets = getArgRequiringSYCLRuntime(options::OPT_fsycl_targets_EQ);
+  Arg *SYCLStandard = getArgRequiringSYCLRuntime(options::OPT_sycl_std_EQ);
   Arg *SYCLLinkTargets =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_link_targets_EQ);
   Arg *SYCLAddTargets =
