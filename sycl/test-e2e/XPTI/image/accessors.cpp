@@ -21,36 +21,26 @@ int main() {
     // CHECK:{{[0-9]+}}|Create unsampled image|[[UIMGID:[0-9,a-f,x]+]]|0x{{[0-9,a-f]+}}|1|{3,0,0}|7|{{.*}}accessors.cpp:[[# @LINE + 1]]:30
     sycl::unsampled_image<1> UImg(sycl::image_format::r32b32g32a32_uint, 3);
 
-    try {
-      Q.submit([&](sycl::handler &CGH) {
-        // CHECK:{{[0-9]+}}|Construct unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1|1024|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
-        auto A1 = UImg.get_access<sycl::uint4, mode::read,
-                                  sycl::image_target::host_task>(CGH);
-      });
-    } catch (...) {
-      // host_task image accessors are currently not implementation and will
-      // throw. We ignore these for now.
-    }
+    Q.submit([&](sycl::handler &CGH) {
+      // CHECK:{{[0-9]+}}|Construct unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1|1024|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
+      auto A1 = UImg.get_access<sycl::uint4, mode::read,
+                                sycl::image_target::host_task>(CGH);
+    });
 
-    try {
-      Q.submit([&](sycl::handler &CGH) {
-        // CHECK:{{[0-9]+}}|Construct unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1|1025|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
-        auto A1 = UImg.get_access<sycl::uint4, mode::write,
-                                  sycl::image_target::host_task>(CGH);
-      });
-    } catch (...) {
-      // host_task image accessors are currently not implementation and will
-      // throw. We ignore these for now.
-    }
+    Q.submit([&](sycl::handler &CGH) {
+      // CHECK:{{[0-9]+}}|Construct unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1|1025|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
+      auto A1 = UImg.get_access<sycl::uint4, mode::write,
+                                sycl::image_target::host_task>(CGH);
+    });
 
-    // CHECK:{{[0-9]+}}|Construct unsampled image host accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1024|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
+    // CHECK:{{[0-9]+}}|Construct host unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1024|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
     { auto HA = UImg.get_host_access<sycl::int4, mode::read>(); }
-    // CHECK:{{[0-9]+}}|Construct unsampled image host accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1025|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
+    // CHECK:{{[0-9]+}}|Construct host unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1025|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
     { auto HA = UImg.get_host_access<sycl::float4, mode::write>(); }
-    // CHECK:{{[0-9]+}}|Construct unsampled image host accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1026|{{.*}}vec{{.*}}|8|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
+    // CHECK:{{[0-9]+}}|Construct host unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1026|{{.*}}vec{{.*}}|8|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
     { auto HA = UImg.get_host_access<sycl::half4, mode::read_write>(); }
   }
-  // CHECK:{{[0-9]+}}|Destruct unsampled image|[[UIMGID]]
+  // CHECK:{{[0-9]+}}|Destruct image|[[UIMGID]]
 
   /* Sampled images */
   {
@@ -65,23 +55,18 @@ int main() {
                                 sycl::image_format::r16g16b16a16_sint, Sampler,
                                 SampledImgElemCount);
 
-    try {
-      Q.submit([&](sycl::handler &CGH) {
-        // CHECK:{{[0-9]+}}|Construct sampled image accessor|[[SIMGID]]|0x{{[0-9,a-f]+}}|1|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 2]]:13
-        auto A1 =
-            SImg.get_access<sycl::uint4, sycl::image_target::host_task>(CGH);
-      });
-    } catch (...) {
-      // host_task image accessors are currently not implementation and will
-      // throw. We ignore these for now.
-    }
+    Q.submit([&](sycl::handler &CGH) {
+      // CHECK:{{[0-9]+}}|Construct sampled image accessor|[[SIMGID]]|0x{{[0-9,a-f]+}}|1|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 2]]:11
+      auto A1 =
+          SImg.get_access<sycl::uint4, sycl::image_target::host_task>(CGH);
+    });
 
-    // CHECK:{{[0-9]+}}|Construct sampled image host accessor|[[SIMGID]]|0x{{[0-9,a-f]+}}|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
+    // CHECK:{{[0-9]+}}|Construct host sampled image accessor|[[SIMGID]]|0x{{[0-9,a-f]+}}|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
     { auto HA = SImg.get_host_access<sycl::int4>(); }
-    // CHECK:{{[0-9]+}}|Construct sampled image host accessor|[[SIMGID]]|0x{{[0-9,a-f]+}}|{{.*}}vec{{.*}}|8|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
+    // CHECK:{{[0-9]+}}|Construct host sampled image accessor|[[SIMGID]]|0x{{[0-9,a-f]+}}|{{.*}}vec{{.*}}|8|{{.*}}accessors.cpp:[[# @LINE + 1]]:17
     { auto HA = SImg.get_host_access<sycl::half4>(); }
   }
-  // CHECK:{{[0-9]+}}|Destruct sampled image|[[SIMGID]]
+  // CHECK:{{[0-9]+}}|Destruct image|[[SIMGID]]
 
   return 0;
 }

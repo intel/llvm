@@ -249,19 +249,10 @@ public:
       } else if (MTraceType ==
                  (uint16_t)xpti::trace_point_type_t::mem_release_begin) {
         MTraceType = (uint16_t)xpti::trace_point_type_t::mem_release_end;
-      } else if (MTraceType ==
-                 (uint16_t)
-                     xpti::trace_point_type_t::offload_alloc_buffer_construct) {
-        MTraceType =
-            (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_destruct;
       } else if (MTraceType == (uint16_t)xpti::trace_point_type_t::
-                                   offload_alloc_sampled_image_construct) {
+                                   offload_alloc_memory_object_construct) {
         MTraceType = (uint16_t)
-            xpti::trace_point_type_t::offload_alloc_sampled_image_destruct;
-      } else if (MTraceType == (uint16_t)xpti::trace_point_type_t::
-                                   offload_alloc_unsampled_image_construct) {
-        MTraceType = (uint16_t)
-            xpti::trace_point_type_t::offload_alloc_unsampled_image_destruct;
+            xpti::trace_point_type_t::offload_alloc_memory_object_destruct;
       } else
         MTraceType = MTraceType | 1;
 
