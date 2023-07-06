@@ -67,6 +67,7 @@ Enums
 
 * ${x}_device_info_t
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP
     * ${X}_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP
@@ -158,6 +159,8 @@ Changelog
 |          || Removed 3D USM capabilities.                            |
 |          || Added mip filter mode.                                  |
 +----------+----------------------------------------------------------+
+| 3.0      | Added device query for bindless images on shared USM    |
++----------+---------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
