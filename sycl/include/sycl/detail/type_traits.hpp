@@ -263,6 +263,8 @@ using is_gen_based_on_type_sizeof =
 template <typename> struct is_vec : std::false_type {};
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
 
+template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
+
 template <typename> struct get_vec_size {
   static constexpr int size = 1;
 };

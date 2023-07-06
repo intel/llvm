@@ -2,14 +2,27 @@ import itertools
 import sys
 
 class Vec:
-  def __init__(self, element_type, valid_sizes = {1,2,3,4,8,16},
+  def __init__(self, valid_types, valid_sizes = {1,2,3,4,8,16},
                deprecation_message=None):
-    self.element_type = element_type
+    self.valid_types = valid_types
     self.valid_sizes = valid_sizes
     self.deprecation_message = deprecation_message
 
+class InstantiatedVecArg:
+  def __init__(self, template_name, vec_type):
+    self.template_name = template_name
+    self.vec_type = vec_type
+
   def __str__(self):
-    return f'vec<{self.element_type}, N>'
+    return self.template_name
+
+class InstantiatedVecReturnType:
+  def __init__(self, related_arg_type, vec_type):
+    self.related_arg_type = related_arg_type
+    self.vec_type = vec_type
+
+  def __str__(self):
+    return f'detail::vec_return_t<{self.related_arg_type}>'
 
 class MultiPtr:
   def __init__(self, element_type):
@@ -28,77 +41,93 @@ class RawPtr:
     return f'{self.element_type}*'
 
 class ElementType:
-  pass
+  def __init__(self, parent_idx):
+    self.parent_idx = parent_idx
 
 class InstantiatedElementType:
-  def __init__(self, referenced_type):
+  def __init__(self, referenced_type, parent_idx):
     self.referenced_type = referenced_type
+    self.parent_idx = parent_idx
 
   def __str__(self):
-    if isinstance(self.referenced_type, Vec):
-      return self.referenced_type.element_type
+    if isinstance(self.referenced_type, InstantiatedVecArg) or isinstance(self.referenced_type, InstantiatedVecReturnType):
+      return f'typename {self.referenced_type}::element_type'
     return self.referenced_type
 
 class UnsignedType:
-  pass
+  def __init__(self, parent_idx):
+    self.parent_idx = parent_idx
 
 class InstantiatedUnsignedType:
-  def __init__(self, signed_type):
+  def __init__(self, signed_type, parent_idx):
     self.signed_type = signed_type
+    self.parent_idx = parent_idx
 
   def __str__(self):
     return f'detail::make_unsigned_t<{self.signed_type}>'
 
-# Vector of long long is no longer defined by the spec. We deprecate it for now.
-deprecated_long_long_vec = Vec("long long", deprecation_message="SYCL builtin functions with vec<long long, N> arguments have been deprecated. Please use vec<int64_t, N> or the corresponding long{N} alias.")
-deprecated_unsigned_long_long_vec = Vec("unsigned long long", deprecation_message="SYCL builtin functions with vec<unsigned long long, N> arguments have been deprecated. Please use vec<uint64_t, N> or the corresponding ulong{N} alias.")
+class SameSizeIntType:
+  def __init__(self, signed, parent_idx):
+    self.signed = signed
+    self.parent_idx = parent_idx
+
+class InstantiatedSameSizeIntType:
+  def __init__(self, parent_type, signed, parent_idx):
+    self.parent_type = parent_type
+    self.signed = signed
+    self.parent_idx = parent_idx
+
+  def __str__(self):
+    signedness = 'signed' if self.signed else 'unsigned'
+    return f'detail::same_size_{signedness}_int_t<{self.parent_type}>'
 
 ### GENTYPE DEFINITIONS
 # NOTE: Marray is currently explicitly defined.
 
-floatn = [Vec("float")]
-vfloatn = [Vec("float")]
-vfloat3or4 = [Vec("float", {3,4})]
+floatn = [Vec(["float"])]
+vfloatn = [Vec(["float"])]
+vfloat3or4 = [Vec(["float"], {3,4})]
 mfloatn = []
 mfloat3or4 = []
-genfloatf = ["float", Vec("float")]
+genfloatf = ["float", Vec(["float"])]
 
-doublen = [Vec("double")]
-vdoublen = [Vec("double")]
-vdouble3or4 = [Vec("double", {3,4})]
+doublen = [Vec(["double"])]
+vdoublen = [Vec(["double"])]
+vdouble3or4 = [Vec(["double"], {3,4})]
 mdoublen = []
 mdouble3or4 = []
-genfloatd = ["double", Vec("double")]
+genfloatd = ["double", Vec(["double"])]
 
-halfn = [Vec("half")]
-vhalfn = [Vec("half")]
-vhalf3or4 = [Vec("half", {3,4})]
+halfn = [Vec(["half"])]
+vhalfn = [Vec(["half"])]
+vhalf3or4 = [Vec(["half"], {3,4})]
 mhalfn = []
 mhalf3or4 = []
-genfloath = ["half", Vec("half")]
+genfloath = ["half", Vec(["half"])]
 
-genfloat = ["float", "double", "half", Vec("float"), Vec("double"), Vec("half")]
+genfloat = ["float", "double", "half", Vec(["float", "double", "half"])]
+vgenfloat = [Vec(["float", "double", "half"])]
 sgenfloat = ["float", "double", "half"]
 mgenfloat = []
 
 # NOTE: Vec size 1 is non-standard.
-vgeofloat = [Vec("float", {1,2,3,4})]
-vgeodouble = [Vec("double", {1,2,3,4})]
-vgeohalf = [Vec("half", {1,2,3,4})]
-gengeofloat = ["float", Vec("float", {1,2,3,4})]
-gengeodouble = ["double", Vec("double", {1,2,3,4})]
-gengeohalf = ["half", Vec("half", {1,2,3,4})]
+vgeofloat = [Vec(["float"], {1,2,3,4})]
+vgeodouble = [Vec(["double"], {1,2,3,4})]
+vgeohalf = [Vec(["half"], {1,2,3,4})]
+gengeofloat = ["float", Vec(["float"], {1,2,3,4})]
+gengeodouble = ["double", Vec(["double"], {1,2,3,4})]
+gengeohalf = ["half", Vec(["half"], {1,2,3,4})]
 
-vint8n = [Vec("int8_t")]
-vint16n = [Vec("int16_t")]
-vint32n = [Vec("int32_t")]
-vint64n = [Vec("int64_t")]
-vuint8n = [Vec("uint8_t")]
-vuint16n = [Vec("uint16_t")]
-vuint32n = [Vec("uint32_t")]
-vuint64n = [Vec("uint64_t")]
-vint64n_ext = [Vec("int64_t"), deprecated_long_long_vec]
-vuint64n_ext = [Vec("uint64_t"), deprecated_unsigned_long_long_vec]
+vint8n = [Vec(["int8_t"])]
+vint16n = [Vec(["int16_t"])]
+vint32n = [Vec(["int32_t"])]
+vint64n = [Vec(["int64_t"])]
+vuint8n = [Vec(["uint8_t"])]
+vuint16n = [Vec(["uint16_t"])]
+vuint32n = [Vec(["uint32_t"])]
+vuint64n = [Vec(["uint64_t"])]
+vint64n_ext = [Vec(["int64_t", "long long"])]
+vuint64n_ext = [Vec(["uint64_t", "unsigned long long"])]
 
 mint8n = []
 mint16n = []
@@ -117,52 +146,52 @@ mbooln = []
 geninteger = ["char", "signed char", "short", "int", "long", "long long",
               "unsigned char", "unsigned short", "unsigned int",
               "unsigned long", "unsigned long long",
-              Vec("int8_t"), Vec("int16_t"), Vec("int32_t"), Vec("int64_t"),
-              Vec("uint8_t"), Vec("uint16_t"), Vec("uint32_t"), Vec("uint64_t"),
-              deprecated_long_long_vec, deprecated_unsigned_long_long_vec]
+              Vec(["int8_t", "int16_t", "int32_t", "int64_t", "uint8_t",
+                  "uint16_t","uint32_t","uint64_t", "long long", "unsigned long long"])]
 sigeninteger = ["char", "signed char", "short", "int", "long", "long long"]
-vigeninteger = [Vec("int8_t"), Vec("int16_t"), Vec("int32_t"), Vec("int64_t"),
-                deprecated_long_long_vec]
+vigeninteger = [Vec(["int8_t", "int16_t", "int32_t", "int64_t", "long long"])]
 migeninteger = []
 igeninteger = ["char", "signed char", "short", "int", "long", "long long",
-                Vec("int8_t"), Vec("int16_t"), Vec("int32_t"), Vec("int64_t"),
-                deprecated_long_long_vec]
-vugeninteger = [Vec("uint8_t"), Vec("uint16_t"), Vec("uint32_t"), Vec("uint64_t"),
-               deprecated_unsigned_long_long_vec]
+                Vec(["int8_t", "int16_t", "int32_t", "int64_t", "long long"])]
+vugeninteger = [Vec(["uint8_t", "uint16_t", "uint32_t", "uint64_t", "unsigned long long"])]
 sugeninteger = ["unsigned char", "unsigned short", "unsigned int",
                 "unsigned long", "unsigned long long"]
-ugeninteger = [Vec("uint8_t"), Vec("uint16_t"), Vec("uint32_t"), Vec("uint64_t"),
-               deprecated_unsigned_long_long_vec,
+ugeninteger = [Vec(["uint8_t", "uint16_t", "uint32_t", "uint64_t", "unsigned long long"]),
                "unsigned char", "unsigned short", "unsigned int",
                "unsigned long", "unsigned long long"]
-igenint32 = ["int32_t", Vec("int32_t")]
-ugenint32 = ["uint32_t", Vec("uint32_t")]
-genint32 = ["int32_t", "uint32_t", Vec("int32_t"), Vec("uint32_t")]
+igenint32 = ["int32_t", Vec(["int32_t"])]
+ugenint32 = ["uint32_t", Vec(["uint32_t"])]
+genint32 = ["int32_t", "uint32_t", Vec(["int32_t", "uint32_t"])]
 
 sgentype = ["char", "signed char", "short", "int", "long", "long long",
             "unsigned char", "unsigned short", "unsigned int",
             "unsigned long", "unsigned long long", "float", "double", "half"]
-vgentype = [Vec("int8_t"), Vec("int16_t"), Vec("int32_t"), Vec("int64_t"),
-            Vec("uint8_t"), Vec("uint16_t"), Vec("uint32_t"), Vec("uint64_t"),
-            Vec("float"), Vec("double"), Vec("half"),
-            deprecated_long_long_vec, deprecated_unsigned_long_long_vec]
+vgentype = [Vec(["int8_t", "int16_t", "int32_t", "int64_t", "uint8_t", "uint16_t",
+                 "uint32_t", "uint64_t", "float", "double", "half", "long long",
+                 "unsigned long long"])]
 mgentype = []
 
 intptr = [MultiPtr("int"), RawPtr("int")]
 floatptr = [MultiPtr("float"), RawPtr("float")]
 doubleptr = [MultiPtr("double"), RawPtr("double")]
 halfptr = [MultiPtr("half"), RawPtr("half")]
-vfloatnptr = [MultiPtr(Vec("float")), RawPtr(Vec("float"))]
-vdoublenptr = [MultiPtr(Vec("double")), RawPtr(Vec("double"))]
-vhalfnptr = [MultiPtr(Vec("half")), RawPtr(Vec("half"))]
+vfloatnptr = [MultiPtr(Vec(["float"])), RawPtr(Vec(["float"]))]
+vdoublenptr = [MultiPtr(Vec(["double"])), RawPtr(Vec(["double"]))]
+vhalfnptr = [MultiPtr(Vec(["half"])), RawPtr(Vec(["half"]))]
+vgenfloatptr = [MultiPtr(Vec(["float", "double", "half"])),
+                RawPtr(Vec(["float", "double", "half"]))]
 mfloatnptr = []
 mdoublenptr = []
 mhalfnptr = []
 mintnptr = []
-vint32ptr = [MultiPtr(Vec("int32_t")), RawPtr(Vec("int32_t"))]
+vint32ptr = [MultiPtr(Vec(["int32_t"])), RawPtr(Vec(["int32_t"]))]
 
-elementtype = [ElementType()]
-unsignedtype = [UnsignedType()]
+# To help resolve template arguments, these are given the index of their parent
+# argument.
+elementtype0 = [ElementType(0)]
+unsignedtype0 = [UnsignedType(0)]
+samesizesignedint0 = [SameSizeIntType(True, 0)]
+samesizeunsignedint0 = [SameSizeIntType(False, 0)]
 
 builtin_types = {
   "floatn" : floatn,
@@ -184,6 +213,7 @@ builtin_types = {
   "mhalf3or4" : mhalf3or4,
   "genfloath" : genfloath,
   "genfloat" : genfloat,
+  "vgenfloat" : vgenfloat,
   "sgenfloat" : sgenfloat,
   "mgenfloat" : mgenfloat,
   "vgeofloat" : vgeofloat,
@@ -236,13 +266,16 @@ builtin_types = {
   "vfloatnptr" : vfloatnptr,
   "vdoublenptr" : vdoublenptr,
   "vhalfnptr" : vhalfnptr,
+  "vgenfloatptr" : vgenfloatptr,
   "mfloatnptr" : mfloatnptr,
   "mdoublenptr" : mdoublenptr,
   "mhalfnptr" : mhalfnptr,
   "mintnptr" : mintnptr,
   "vint32nptr" : vint32ptr,
-  "elementtype" : elementtype,
-  "unsignedtype" : unsignedtype,
+  "elementtype0" : elementtype0,
+  "unsignedtype0" : unsignedtype0,
+  "samesizesignedint0" : samesizesignedint0,
+  "samesizeunsignedint0" : samesizeunsignedint0,
   "char" : ["char"],
   "signed char" : ["signed char"],
   "short" : ["short"],
@@ -270,10 +303,16 @@ builtin_types = {
 
 ### BUILTINS
 
+def find_first_vec_arg(arg_types):
+  for arg_type in arg_types:
+    if isinstance(arg_type, InstantiatedVecArg):
+      return arg_type
+  return None
+
 class Def:
   def __init__(self, name, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
-               convert_args=[]):
+               convert_args=[], vec_size_alias=None):
     self.name = name
     self.return_type = return_type
     self.arg_types = arg_types
@@ -290,6 +329,7 @@ class Def:
     # Alternatively, the second element can be a string representation of the
     # conversion function or type.
     self.convert_args = convert_args
+    self.vec_size_alias = vec_size_alias
 
   def get_invoke_args(self, arg_types, arg_names):
     result = arg_names
@@ -304,6 +344,10 @@ class Def:
       return self.custom_invoke(return_type, arg_types, arg_names)
     invoke_args = self.get_invoke_args(arg_types, arg_names)
     result = ""
+    if self.vec_size_alias:
+      vec_arg = find_first_vec_arg(arg_types)
+      if vec_arg:
+        result = result + f'  constexpr int {self.vec_size_alias} = detail::get_vec_size<{vec_arg.template_name}>::size;'
     if self.fast_math_invoke_name:
       result = result + f"""  if constexpr (detail::use_fast_math_v<{arg_types[0]}>)
     return __sycl_std::__invoke_{self.fast_math_invoke_name}<{return_type}>({invoke_args});\n"""
@@ -335,7 +379,7 @@ def custom_signed_abs_scalar_invoke(return_type, _, arg_names):
 
 def custom_signed_abs_vector_invoke(return_type, _, arg_names):
   args = ' ,'.join(arg_names)
-  return f'return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}).template convert<{return_type.element_type}>();'
+  return f'return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}).template convert<typename {return_type}::element_type>();'
 
 def get_custom_any_all_invoke(invoke_name):
   return (lambda _, arg_types, arg_names: f"""  return detail::rel_sign_bit_test_ret_t<{arg_types[0]}>(
@@ -383,40 +427,28 @@ sycl_builtins = [# Math functions
                  Def("fmin", "vdoublen", ["vdoublen", "double"], convert_args=[(1,0)]),
                  Def("fmin", "vhalfn", ["vhalfn", "half"], convert_args=[(1,0)]),
                  Def("fmod", "genfloat", ["genfloat", "genfloat"]),
-                 Def("fract", "vfloatn", ["vfloatn", "vfloatnptr"]),
+                 Def("fract", "vgenfloat", ["vgenfloat", "vgenfloatptr"]),
                  Def("fract", "float", ["float", "floatptr"]),
-                 Def("fract", "vdoublen", ["vdoublen", "vdoublenptr"]),
                  Def("fract", "double", ["double", "doubleptr"]),
-                 Def("fract", "vhalfn", ["vhalfn", "vhalfnptr"]),
                  Def("fract", "half", ["half", "halfptr"]),
-                 Def("frexp", "vfloatn", ["vfloatn", "vint32nptr"]),
+                 Def("frexp", "vgenfloat", ["vgenfloat", "vint32nptr"]),
                  Def("frexp", "float", ["float", "intptr"]),
-                 Def("frexp", "vdoublen", ["vdoublen", "vint32nptr"]),
                  Def("frexp", "double", ["double", "intptr"]),
-                 Def("frexp", "vhalfn", ["vhalfn", "vint32nptr"]),
                  Def("frexp", "half", ["half", "intptr"]),
                  Def("hypot", "genfloat", ["genfloat", "genfloat"]),
-                 Def("ilogb", "vint32n", ["vfloatn"]),
+                 Def("ilogb", "vint32n", ["vgenfloat"]),
                  Def("ilogb", "int", ["float"]),
-                 Def("ilogb", "vint32n", ["vdoublen"]),
                  Def("ilogb", "int", ["double"]),
-                 Def("ilogb", "vint32n", ["vhalfn"]),
                  Def("ilogb", "int", ["half"]),
-                 Def("ldexp", "vfloatn", ["vfloatn", "vint32n"]),
-                 Def("ldexp", "floatn", ["floatn", "int"], convert_args=[(1,"vec<int, N>")]),
+                 Def("ldexp", "vgenfloat", ["vgenfloat", "vint32n"]),
+                 Def("ldexp", "vgenfloat", ["vgenfloat", "int"], convert_args=[(1,"vec<int, N>")], vec_size_alias="N"),
                  Def("ldexp", "float", ["float", "int"]),
-                 Def("ldexp", "vdoublen", ["vdoublen", "vint32n"]),
-                 Def("ldexp", "doublen", ["doublen", "int"], convert_args=[(1,"vec<int, N>")]),
                  Def("ldexp", "double", ["double", "int"]),
-                 Def("ldexp", "vhalfn", ["vhalfn", "vint32n"]),
-                 Def("ldexp", "halfn", ["halfn", "int"], convert_args=[(1,"vec<int, N>")]),
                  Def("ldexp", "half", ["half", "int"]),
                  Def("lgamma", "genfloat", ["genfloat"]),
-                 Def("lgamma_r", "vfloatn", ["vfloatn", "vint32nptr"]),
+                 Def("lgamma_r", "vgenfloat", ["vgenfloat", "vint32nptr"]),
                  Def("lgamma_r", "float", ["float", "intptr"]),
-                 Def("lgamma_r", "vdoublen", ["vdoublen", "vint32nptr"]),
                  Def("lgamma_r", "double", ["double", "intptr"]),
-                 Def("lgamma_r", "vhalfn", ["vhalfn", "vint32nptr"]),
                  Def("lgamma_r", "half", ["half", "intptr"]),
                  Def("log", "genfloat", ["genfloat"], fast_math_invoke_name="native_log"),
                  Def("log2", "genfloat", ["genfloat"], fast_math_invoke_name="native_log2"),
@@ -426,11 +458,9 @@ sycl_builtins = [# Math functions
                  Def("mad", "genfloat", ["genfloat", "genfloat", "genfloat"]),
                  Def("maxmag", "genfloat", ["genfloat", "genfloat"]),
                  Def("minmag", "genfloat", ["genfloat", "genfloat"]),
-                 Def("modf", "vfloatn", ["vfloatn", "vfloatnptr"]),
+                 Def("modf", "vgenfloat", ["vgenfloat", "vgenfloatptr"]),
                  Def("modf", "float", ["float", "floatptr"]),
-                 Def("modf", "vdoublen", ["vdoublen", "vdoublenptr"]),
                  Def("modf", "double", ["double", "doubleptr"]),
-                 Def("modf", "vhalfn", ["vhalfn", "vhalfnptr"]),
                  Def("modf", "half", ["half", "halfptr"]),
                  Def("nan", "vfloatn", ["vuint32n"]),
                  Def("nan", "float", ["unsigned int"]),
@@ -441,31 +471,25 @@ sycl_builtins = [# Math functions
                  Def("nan", "half", ["unsigned short"]),
                  Def("nextafter", "genfloat", ["genfloat", "genfloat"]),
                  Def("pow", "genfloat", ["genfloat", "genfloat"]),
-                 Def("pown", "vfloatn", ["vfloatn", "vint32n"]),
+                 Def("pown", "vgenfloat", ["vgenfloat", "vint32n"]),
                  Def("pown", "float", ["float", "int"]),
-                 Def("pown", "vdoublen", ["vdoublen", "vint32n"]),
                  Def("pown", "double", ["double", "int"]),
-                 Def("pown", "vhalfn", ["vhalfn", "vint32n"]),
                  Def("pown", "half", ["half", "int"]),
                  Def("powr", "genfloat", ["genfloat", "genfloat"], fast_math_invoke_name="native_powr"),
                  Def("remainder", "genfloat", ["genfloat", "genfloat"]),
-                 Def("remquo", "vfloatn", ["vfloatn", "vfloatn", "vint32nptr"]),
+                 Def("remquo", "vgenfloat", ["vgenfloat", "vgenfloat", "vint32nptr"]),
                  Def("remquo", "float", ["float", "float", "intptr"]),
-                 Def("remquo", "vdoublen", ["vdoublen", "vdoublen", "vint32nptr"]),
                  Def("remquo", "double", ["double", "double", "intptr"]),
-                 Def("remquo", "vhalfn", ["vhalfn", "vhalfn", "vint32nptr"]),
                  Def("remquo", "half", ["half", "half", "intptr"]),
                  Def("rint", "genfloat", ["genfloat"]),
-                 Def("rootn", "vfloatn", ["vfloatn", "vint32n"]),
+                 Def("rootn", "vgenfloat", ["vgenfloat", "vint32n"]),
                  Def("rootn", "float", ["float", "int"]),
-                 Def("rootn", "vdoublen", ["vdoublen", "vint32n"]),
                  Def("rootn", "double", ["double", "int"]),
-                 Def("rootn", "vhalfn", ["vhalfn", "vint32n"]),
                  Def("rootn", "half", ["half", "int"]),
                  Def("round", "genfloat", ["genfloat"]),
                  Def("rsqrt", "genfloat", ["genfloat"], fast_math_invoke_name="native_rsqrt"),
                  Def("sin", "genfloat", ["genfloat"], fast_math_invoke_name="native_sin"),
-                 Def("sincos", "vfloatn", ["vfloatn", "vfloatnptr"]),
+                 Def("sincos", "vgenfloat", ["vgenfloat", "vgenfloatptr"]),
                  Def("sincos", "float", ["float", "floatptr"]),
                  Def("sincos", "vdoublen", ["vdoublen", "vdoublenptr"]),
                  Def("sincos", "double", ["double", "doubleptr"]),
@@ -483,7 +507,7 @@ sycl_builtins = [# Math functions
                  Def("abs", "sigeninteger", ["sigeninteger"], custom_invoke=custom_signed_abs_scalar_invoke),
                  Def("abs", "vigeninteger", ["vigeninteger"], custom_invoke=custom_signed_abs_vector_invoke),
                  Def("abs", "ugeninteger", ["ugeninteger"], invoke_prefix="u_"),
-                 Def("abs_diff", "unsignedtype", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
+                 Def("abs_diff", "unsignedtype0", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
                  Def("abs_diff", "ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_"),
                  Def("add_sat", "igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
                  Def("add_sat", "ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_"),
@@ -493,8 +517,8 @@ sycl_builtins = [# Math functions
                  Def("rhadd", "ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_"),
                  Def("clamp", "igeninteger", ["igeninteger", "igeninteger", "igeninteger"], invoke_prefix="s_"),
                  Def("clamp", "ugeninteger", ["ugeninteger", "ugeninteger", "ugeninteger"], invoke_prefix="u_"),
-                 Def("clamp", "vigeninteger", ["vigeninteger", "elementtype", "elementtype"], invoke_prefix="s_"),
-                 Def("clamp", "vugeninteger", ["vugeninteger", "elementtype", "elementtype"], invoke_prefix="u_"),
+                 Def("clamp", "vigeninteger", ["vigeninteger", "elementtype0", "elementtype0"], invoke_prefix="s_"),
+                 Def("clamp", "vugeninteger", ["vugeninteger", "elementtype0", "elementtype0"], invoke_prefix="u_"),
                  Def("clz", "geninteger", ["geninteger"]),
                  Def("ctz", "geninteger", ["geninteger"]),
                  Def("mad_hi", "igeninteger", ["igeninteger", "igeninteger", "igeninteger"], invoke_prefix="s_"),
@@ -503,12 +527,12 @@ sycl_builtins = [# Math functions
                  Def("mad_sat", "ugeninteger", ["ugeninteger", "ugeninteger", "ugeninteger"], invoke_prefix="u_"),
                  Def("(max)", "igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_max"),
                  Def("(max)", "ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_max"),
-                 Def("(max)", "vigeninteger", ["vigeninteger", "elementtype"], invoke_name="s_max"),
-                 Def("(max)", "vugeninteger", ["vugeninteger", "elementtype"], invoke_name="u_max"),
+                 Def("(max)", "vigeninteger", ["vigeninteger", "elementtype0"], invoke_name="s_max"),
+                 Def("(max)", "vugeninteger", ["vugeninteger", "elementtype0"], invoke_name="u_max"),
                  Def("(min)", "igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_min"),
                  Def("(min)", "ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_min"),
-                 Def("(min)", "vigeninteger", ["vigeninteger", "elementtype"], invoke_name="s_min"),
-                 Def("(min)", "vugeninteger", ["vugeninteger", "elementtype"], invoke_name="u_min"),
+                 Def("(min)", "vigeninteger", ["vigeninteger", "elementtype0"], invoke_name="s_min"),
+                 Def("(min)", "vugeninteger", ["vugeninteger", "elementtype0"], invoke_name="u_min"),
                  Def("mul_hi", "igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
                  Def("mul_hi", "ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_"),
                  Def("rotate", "geninteger", ["geninteger", "geninteger"]),
@@ -578,61 +602,33 @@ sycl_builtins = [# Math functions
                  Def("fast_normalize", "gengeofloat", ["gengeofloat"]),
                  Def("fast_normalize", "gengeodouble", ["gengeodouble"]),
                  # Relational functions
-                 RelDef("isequal", "vint16n", ["vhalfn", "vhalfn"], invoke_name="FOrdEqual"),
-                 RelDef("isequal", "vint32n", ["vfloatn", "vfloatn"], invoke_name="FOrdEqual"),
-                 RelDef("isequal", "vint64n", ["vdoublen", "vdoublen"], invoke_name="FOrdEqual"),
+                 RelDef("isequal", "samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdEqual"),
                  RelDef("isequal", "bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdEqual"),
-                 RelDef("isnotequal", "vint16n", ["vhalfn", "vhalfn"], invoke_name="FUnordNotEqual"),
-                 RelDef("isnotequal", "vint32n", ["vfloatn", "vfloatn"], invoke_name="FUnordNotEqual"),
-                 RelDef("isnotequal", "vint64n", ["vdoublen", "vdoublen"], invoke_name="FUnordNotEqual"),
+                 RelDef("isnotequal", "samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FUnordNotEqual"),
                  RelDef("isnotequal", "bool", ["sgenfloat", "sgenfloat"], invoke_name="FUnordNotEqual"),
-                 RelDef("isgreater", "vint16n", ["vhalfn", "vhalfn"], invoke_name="FOrdGreaterThan"),
-                 RelDef("isgreater", "vint32n", ["vfloatn", "vfloatn"], invoke_name="FOrdGreaterThan"),
-                 RelDef("isgreater", "vint64n", ["vdoublen", "vdoublen"], invoke_name="FOrdGreaterThan"),
+                 RelDef("isgreater", "samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdGreaterThan"),
                  RelDef("isgreater", "bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdGreaterThan"),
-                 RelDef("isgreaterequal", "vint16n", ["vhalfn", "vhalfn"], invoke_name="FOrdGreaterThanEqual"),
-                 RelDef("isgreaterequal", "vint32n", ["vfloatn", "vfloatn"], invoke_name="FOrdGreaterThanEqual"),
-                 RelDef("isgreaterequal", "vint64n", ["vdoublen", "vdoublen"], invoke_name="FOrdGreaterThanEqual"),
+                 RelDef("isgreaterequal", "samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdGreaterThanEqual"),
                  RelDef("isgreaterequal", "bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdGreaterThanEqual"),
-                 RelDef("isless", "vint16n", ["vhalfn", "vhalfn"], invoke_name="FOrdLessThan"),
-                 RelDef("isless", "vint32n", ["vfloatn", "vfloatn"], invoke_name="FOrdLessThan"),
-                 RelDef("isless", "vint64n", ["vdoublen", "vdoublen"], invoke_name="FOrdLessThan"),
+                 RelDef("isless", "samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdLessThan"),
                  RelDef("isless", "bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdLessThan"),
-                 RelDef("islessequal", "vint16n", ["vhalfn", "vhalfn"], invoke_name="FOrdLessThanEqual"),
-                 RelDef("islessequal", "vint32n", ["vfloatn", "vfloatn"], invoke_name="FOrdLessThanEqual"),
-                 RelDef("islessequal", "vint64n", ["vdoublen", "vdoublen"], invoke_name="FOrdLessThanEqual"),
+                 RelDef("islessequal", "samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdLessThanEqual"),
                  RelDef("islessequal", "bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdLessThanEqual"),
-                 RelDef("islessgreater", "vint16n", ["vhalfn", "vhalfn"], invoke_name="FOrdNotEqual"),
-                 RelDef("islessgreater", "vint32n", ["vfloatn", "vfloatn"], invoke_name="FOrdNotEqual"),
-                 RelDef("islessgreater", "vint64n", ["vdoublen", "vdoublen"], invoke_name="FOrdNotEqual"),
+                 RelDef("islessgreater", "samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdNotEqual"),
                  RelDef("islessgreater", "bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdNotEqual"),
-                 RelDef("isfinite", "vint16n", ["vhalfn"], invoke_name="IsFinite"),
-                 RelDef("isfinite", "vint32n", ["vfloatn"], invoke_name="IsFinite"),
-                 RelDef("isfinite", "vint64n", ["vdoublen"], invoke_name="IsFinite"),
+                 RelDef("isfinite", "samesizesignedint0", ["vgenfloat"], invoke_name="IsFinite"),
                  RelDef("isfinite", "bool", ["sgenfloat"], invoke_name="IsFinite"),
-                 RelDef("isinf", "vint16n", ["vhalfn"], invoke_name="IsInf"),
-                 RelDef("isinf", "vint32n", ["vfloatn"], invoke_name="IsInf"),
-                 RelDef("isinf", "vint64n", ["vdoublen"], invoke_name="IsInf"),
+                 RelDef("isinf", "samesizesignedint0", ["vgenfloat"], invoke_name="IsInf"),
                  RelDef("isinf", "bool", ["sgenfloat"], invoke_name="IsInf"),
-                 RelDef("isnan", "vint16n", ["vhalfn"], invoke_name="IsNan"),
-                 RelDef("isnan", "vint32n", ["vfloatn"], invoke_name="IsNan"),
-                 RelDef("isnan", "vint64n", ["vdoublen"], invoke_name="IsNan"),
+                 RelDef("isnan", "samesizesignedint0", ["vgenfloat"], invoke_name="IsNan"),
                  RelDef("isnan", "bool", ["sgenfloat"], invoke_name="IsNan"),
-                 RelDef("isnormal", "vint16n", ["vhalfn"], invoke_name="IsNormal"),
-                 RelDef("isnormal", "vint32n", ["vfloatn"], invoke_name="IsNormal"),
-                 RelDef("isnormal", "vint64n", ["vdoublen"], invoke_name="IsNormal"),
+                 RelDef("isnormal", "samesizesignedint0", ["vgenfloat"], invoke_name="IsNormal"),
                  RelDef("isnormal", "bool", ["sgenfloat"], invoke_name="IsNormal"),
-                 RelDef("isordered", "vint16n", ["vhalfn", "vhalfn"], invoke_name="Ordered"),
-                 RelDef("isordered", "vint32n", ["vfloatn", "vfloatn"], invoke_name="Ordered"),
-                 RelDef("isordered", "vint64n", ["vdoublen", "vdoublen"], invoke_name="Ordered"),
+                 RelDef("isordered", "samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="Ordered"),
                  RelDef("isordered", "bool", ["sgenfloat", "sgenfloat"], invoke_name="Ordered"),
-                 RelDef("isunordered", "vint16n", ["vhalfn", "vhalfn"], invoke_name="Unordered"),
-                 RelDef("isunordered", "vint32n", ["vfloatn", "vfloatn"], invoke_name="Unordered"),
-                 RelDef("isunordered", "vint64n", ["vdoublen", "vdoublen"], invoke_name="Unordered"),
+                 RelDef("isunordered", "samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="Unordered"),
                  RelDef("isunordered", "bool", ["sgenfloat", "sgenfloat"], invoke_name="Unordered"),
-                 RelDef("signbit", "vint16n", ["vhalfn"], invoke_name="SignBitSet"),
-                 RelDef("signbit", "vint32n", ["vfloatn"], invoke_name="SignBitSet"),
-                 RelDef("signbit", "vint64n", ["vdoublen"], invoke_name="SignBitSet"),
+                 RelDef("signbit", "samesizesignedint0", ["vgenfloat"], invoke_name="SignBitSet"),
                  RelDef("signbit", "bool", ["sgenfloat"], invoke_name="SignBitSet"),
                  Def("any", "int", ["vigeninteger"], custom_invoke=get_custom_any_all_invoke("Any")),
                  Def("any", "bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return detail::Boolean<1>(int(detail::msbIsSet({arg_names[0]})));')),
@@ -698,28 +694,51 @@ builtins_groups = [(None, sycl_builtins),
 
 ### GENERATION
 
-def lookup_geninteger(mappings):
-  if "geninteger" in mappings:
-    return mappings["geninteger"]
-  elif "igeninteger" in mappings:
-    return mappings["igeninteger"]
-  elif "ugeninteger" in mappings:
-    return mappings["ugeninteger"]
-  elif "vigeninteger" in mappings:
-    return mappings["vigeninteger"]
-  elif "vugeninteger" in mappings:
-    return mappings["vugeninteger"]
-  raise ValueError("No valid element type found.")
-
-def select_from_mapping(mappings, arg_type):
+def select_from_mapping(mappings, arg_types, arg_type):
   mapping = mappings[arg_type]
   # In some cases we may need to limit definitions to smaller than geninteger so
   # check for the different possible ones.
   if isinstance(mapping, ElementType):
-    return InstantiatedElementType(lookup_geninteger(mappings))
+    parent_mapping = mappings[arg_types[mapping.parent_idx]]
+    return InstantiatedElementType(parent_mapping, mapping.parent_idx)
   if isinstance(mapping, UnsignedType):
-    return InstantiatedUnsignedType(lookup_geninteger(mappings))
+    parent_mapping = mappings[arg_types[mapping.parent_idx]]
+    return InstantiatedUnsignedType(parent_mapping, mapping.parent_idx)
+  if isinstance(mapping, SameSizeIntType):
+    parent_mapping = mappings[arg_types[mapping.parent_idx]]
+    return InstantiatedSameSizeIntType(parent_mapping, mapping.signed, mapping.parent_idx)
   return mapping
+
+def instantiate_arg(idx, arg):
+  if isinstance(arg, Vec):
+    return InstantiatedVecArg(f'T{idx}', arg)
+  if isinstance(arg, MultiPtr):
+    return MultiPtr(instantiate_arg(idx, arg.element_type))
+  if isinstance(arg, RawPtr):
+    return RawPtr(instantiate_arg(idx, arg.element_type))
+  if isinstance(arg, InstantiatedElementType):
+    return InstantiatedElementType(instantiate_arg(arg.parent_idx, arg.referenced_type), arg.parent_idx)
+  if isinstance(arg, InstantiatedUnsignedType):
+    return InstantiatedUnsignedType(instantiate_arg(arg.parent_idx, arg.signed_type), arg.parent_idx)
+  if isinstance(arg, InstantiatedSameSizeIntType):
+    return InstantiatedSameSizeIntType(instantiate_arg(arg.parent_idx, arg.parent_type), arg.signed, arg.parent_idx)
+  return arg
+
+def instantiate_return_type(return_type, instantiated_args):
+  if isinstance(return_type, Vec):
+    first_vec = find_first_vec_arg(instantiated_args)
+    return InstantiatedVecReturnType(str(first_vec), return_type)
+  if isinstance(return_type, MultiPtr):
+    return MultiPtr(instantiate_return_type(return_type.element_type, instantiated_args))
+  if isinstance(return_type, RawPtr):
+    return RawPtr(instantiate_return_type(return_type.element_type, instantiated_args))
+  if isinstance(return_type, InstantiatedElementType):
+    return InstantiatedElementType(instantiate_return_type(return_type.referenced_type, instantiated_args), return_type.parent_idx)
+  if isinstance(return_type, InstantiatedUnsignedType):
+    return InstantiatedUnsignedType(instantiate_return_type(return_type.signed_type, instantiated_args), return_type.parent_idx)
+  if isinstance(return_type, InstantiatedSameSizeIntType):
+    return InstantiatedSameSizeIntType(instantiate_return_type(return_type.parent_type, instantiated_args), return_type.signed, return_type.parent_idx)
+  return return_type
 
 def type_combinations(return_type, arg_types):
   unique_types = list(dict.fromkeys(arg_types + [return_type]))
@@ -728,9 +747,11 @@ def type_combinations(return_type, arg_types):
   result = []
   for combination in combinations:
     mappings = dict(zip(unique_types, combination))
-    mapped_return_type = select_from_mapping(mappings, return_type)
-    mapped_arg_types = [select_from_mapping(mappings, arg_type) for arg_type in arg_types]
-    result.append((mapped_return_type, mapped_arg_types))
+    mapped_return_type = select_from_mapping(mappings, arg_types, return_type)
+    mapped_arg_types = [select_from_mapping(mappings, arg_types, arg_type) for arg_type in arg_types]
+    instantiated_arg_types = [instantiate_arg(idx, arg_type) for idx, arg_type in enumerate(mapped_arg_types)]
+    instantiated_return_type = instantiate_return_type(mapped_return_type, instantiated_arg_types)
+    result.append((instantiated_return_type, instantiated_arg_types))
   return result
 
 def any_vector(types):
@@ -745,21 +766,37 @@ def any_multi_ptr(types):
       return True
   return False
 
-def get_template_args(return_type, arg_types):
-  has_vector = False
-  has_multi_ptr = False
-  for t in ([return_type] + arg_types):
-    if isinstance(t, Vec):
-      has_vector = True
-    if isinstance(t, MultiPtr):
-      has_multi_ptr = True
-
+def get_all_vec_args(arg_types):
   result = []
-  if has_vector:
-    result.append("int N")
-  if has_multi_ptr:
-    result.append("access::address_space Space")
-    result.append("access::decorated IsDecorated")
+  for arg_type in arg_types:
+    if isinstance(arg_type, InstantiatedVecArg):
+      result.append(arg_type)
+    if isinstance(arg_type, MultiPtr) or isinstance(arg_type, RawPtr):
+      result = result + get_all_vec_args([arg_type.element_type])
+  return result
+
+def get_vec_arg_requirement(vec_arg):
+  valid_type_str = ', '.join(vec_arg.vec_type.valid_types)
+  valid_sizes_str = ', '.join(map(str, vec_arg.vec_type.valid_sizes))
+  checks = [f'detail::is_vec_v<{vec_arg}>',
+            f'detail::is_valid_vec_type_v<{vec_arg.template_name}, {valid_type_str}>',
+            f'detail::is_valid_vec_size_v<{vec_arg.template_name}, {valid_sizes_str}>']
+  return '(' + (' && '.join(checks)) + ')'
+
+def get_func_return(return_type, arg_types):
+  vec_args = get_all_vec_args(arg_types)
+  if len(vec_args) > 0:
+    conjunc_reqs = ' && '.join([get_vec_arg_requirement(vec_arg) for vec_arg in vec_args])
+    return f'std::enable_if_t<{conjunc_reqs}, {return_type}>'
+  return str(return_type)
+
+def get_template_args(return_type, arg_types):
+  vec_args = get_all_vec_args(arg_types)
+  result = [f'typename {vec_arg.template_name}' for vec_arg in vec_args]
+  for t in ([return_type] + arg_types):
+    if isinstance(t, MultiPtr):
+      result.append('access::address_space Space')
+      result.append('access::decorated IsDecorated')
   return result
 
 def get_deprecation(builtin, return_type, arg_types):
@@ -777,32 +814,19 @@ def get_func_prefix(builtin, return_type, arg_types):
     result = result + "template <%s>\n" % (', '.join(template_args))
   if func_deprecation:
     result = result + func_deprecation
+  if not template_args:
+    result = result + "inline "
   return result
-
-def get_vector_size_check(return_type, arg_types):
-  allowed_sizes = None
-  for t in [return_type] + arg_types:
-    if isinstance(t, MultiPtr) or isinstance(t, RawPtr):
-      t = t.element_type
-    if isinstance(t, Vec):
-      if allowed_sizes is None:
-        allowed_sizes = t.valid_sizes
-      else:
-        allowed_sizes = allowed_sizes.intersection(t.valid_sizes)
-  if allowed_sizes is not None:
-    allow_sizes_check = ' || '.join(['N == ' + str(s) for s in allowed_sizes])
-    return f'  static_assert({allow_sizes_check});\n'
-  return ''
 
 def generate_builtin(builtin, return_type, arg_types):
   func_prefix = get_func_prefix(builtin, return_type, arg_types)
+  func_return = get_func_return(return_type, arg_types)
   arg_names = ["a%i" % i for i in range(len(arg_types))]
   func_args = ', '.join(["%s %s" % arg for arg in zip(arg_types, arg_names)])
-  vec_size_check = get_vector_size_check(return_type, arg_types)
   invoke = builtin.get_invoke(return_type, arg_types, arg_names)
   return f"""
-{func_prefix}inline {return_type} {builtin.name}({func_args}) __NOEXC {{
-{vec_size_check}{invoke}
+{func_prefix}{func_return} {builtin.name}({func_args}) __NOEXC {{
+{invoke}
 }}
 """
 
@@ -833,10 +857,10 @@ if __name__ == "__main__":
 
 #include <sycl/detail/boolean.hpp>
 #include <sycl/detail/builtins.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/pointers.hpp>
 #include <sycl/types.hpp>
+
+#include <sycl/builtins_utils.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
@@ -844,39 +868,6 @@ if __name__ == "__main__":
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define __sycl_std
-#else
-namespace __sycl_std = __host_std;
-#endif
-
-namespace detail {
-#ifdef __FAST_MATH__
-  template <typename T> struct use_fast_math : is_genfloatf<T> {};
-#else
-  template <typename> struct use_fast_math : std::false_type {};
-#endif
-  template <typename T> static constexpr bool use_fast_math_v = use_fast_math<T>::value;
-
-  // sycl::select(sgentype a, sgentype b, bool c) calls OpenCL built-in
-  // select(sgentype a, sgentype b, igentype c). This type trait makes the
-  // proper conversion for argument c from bool to igentype, based on sgentype
-  // == T.
-  template <typename T>
-  using get_select_opencl_builtin_c_arg_type = typename std::conditional_t<
-      sizeof(T) == 1, char,
-      std::conditional_t<
-          sizeof(T) == 2, short,
-          std::conditional_t<
-              (detail::is_contained<
-                   T, detail::type_list<long, unsigned long>>::value &&
-               (sizeof(T) == 4 || sizeof(T) == 8)),
-              long, // long and ulong are 32-bit on
-                    // Windows and 64-bit on Linux
-              std::conditional_t<
-                  sizeof(T) == 4, int,
-                  std::conditional_t<sizeof(T) == 8, long long, void>>>>>;
-} // namespace detail
 """)
 
     for (namespace, builtins) in builtins_groups:
