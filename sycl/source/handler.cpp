@@ -273,8 +273,7 @@ event handler::finalize() {
 
   std::unique_ptr<detail::CG> CommandGroup;
   switch (type) {
-  case detail::CG::Kernel:
-  case detail::CG::RunOnHostIntel: {
+  case detail::CG::Kernel: {
     // Copy kernel name here instead of move so that it's available after
     // running of this method by reductions implementation. This allows for
     // assert feature to check if kernel uses assertions

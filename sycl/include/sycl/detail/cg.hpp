@@ -62,20 +62,19 @@ public:
     BarrierWaitlist = 6,
     Fill = 7,
     UpdateHost = 8,
-    RunOnHostIntel = 9,
-    CopyUSM = 10,
-    FillUSM = 11,
-    PrefetchUSM = 12,
-    CodeplayInteropTask = 13,
-    CodeplayHostTask = 14,
-    AdviseUSM = 15,
-    Copy2DUSM = 16,
-    Fill2DUSM = 17,
-    Memset2DUSM = 18,
-    CopyToDeviceGlobal = 19,
-    CopyFromDeviceGlobal = 20,
-    ReadWriteHostPipe = 21,
-    ExecCommandBuffer = 22,
+    CopyUSM = 9,
+    FillUSM = 10,
+    PrefetchUSM = 11,
+    CodeplayInteropTask = 12,
+    CodeplayHostTask = 13,
+    AdviseUSM = 14,
+    Copy2DUSM = 15,
+    Fill2DUSM = 16,
+    Memset2DUSM = 17,
+    CopyToDeviceGlobal = 18,
+    CopyFromDeviceGlobal = 19,
+    ReadWriteHostPipe = 20,
+    ExecCommandBuffer = 21,
   };
 
   struct StorageInitHelper {
@@ -186,7 +185,7 @@ public:
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
-    assert((getType() == RunOnHostIntel || getType() == Kernel) &&
+    assert(getType() == Kernel &&
            "Wrong type of exec kernel CG.");
   }
 
