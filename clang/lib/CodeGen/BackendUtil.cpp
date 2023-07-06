@@ -297,6 +297,14 @@ static TargetLibraryInfoImpl *createTLII(llvm::Triple &TargetTriple,
   default:
     break;
   }
+  switch (CodeGenOpts.getAltMathLib()) {
+  case CodeGenOptions::altSVML:
+    TLII->addAltMathFunctionsFromLib(
+        TargetLibraryInfoImpl::AltMathLibrary::TestAltMathLibrary);
+    break;
+  default:
+    break;
+  }
   return TLII;
 }
 
