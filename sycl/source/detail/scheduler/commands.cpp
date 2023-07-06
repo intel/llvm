@@ -2206,8 +2206,6 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
-      if (Req->MAccessRange == range<3>({0, 0, 0}))
-        break;
       assert(getMemAllocationFunc != nullptr &&
              "We should have caught this earlier.");
 
