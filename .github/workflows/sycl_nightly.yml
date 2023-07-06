@@ -27,6 +27,7 @@ jobs:
       build_artifact_suffix: default-2204
       build_configure_extra_args: '--hip --cuda --enable-esimd-emulator'
       merge: false
+      retention-days: 90
 
   ubuntu2204_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'
@@ -44,6 +45,8 @@ jobs:
     name: Windows
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
+    with:
+      retention-days: 90
 
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'

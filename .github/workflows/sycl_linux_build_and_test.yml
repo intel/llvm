@@ -82,6 +82,10 @@ on:
         description: 'Merge default branch after the checkout'
         type: boolean
         default: true
+      retention-days:
+        description: 'Artifacts retention period'
+        type: string
+        default: 3
 
 jobs:
   build:
@@ -197,6 +201,7 @@ jobs:
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: ${{ inputs.artifact_archive_name }}
+        retention-days: ${{ inputs.retention-days }}
 
   aws-start:
     name: Start AWS

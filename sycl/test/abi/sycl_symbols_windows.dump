@@ -29,8 +29,8 @@
 ??$get_info@U?$max_work_item_sizes@$01@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$range@$01@12@XZ
 ??$get_info@U?$max_work_item_sizes@$02@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$range@$02@12@XZ
 ??$get_info@Uaddress_bits@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
-??$get_info@Uarchitecture@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AW4architecture@experimental@oneapi@ext@23@XZ
 ??$get_info@Uarchitecture@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AW4architecture@experimental@oneapi@ext@12@XZ
+??$get_info@Uarchitecture@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AW4architecture@experimental@oneapi@ext@23@XZ
 ??$get_info@Uaspects@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uatomic64@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uatomic_fence_order_capabilities@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$vector@W4memory_order@_V1@sycl@@V?$allocator@W4memory_order@_V1@sycl@@@std@@@std@@XZ
@@ -1164,7 +1164,7 @@
 ?handleRelease@buffer_plain@detail@_V1@sycl@@IEBAXXZ
 ?has@device@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?has@platform@_V1@sycl@@QEBA_NW4aspect@23@@Z
-?hasUserDataPtr@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
+?hasUserDataPtr@SYCLMemObjT@detail@_V1@sycl@@UEBA_NXZ
 ?has_context@exception@_V1@sycl@@QEBA_NXZ
 ?has_extension@device@_V1@sycl@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?has_extension@opencl@_V1@sycl@@YA_NAEBVdevice@23@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
@@ -1181,9 +1181,9 @@
 ?isBackendSupportedFillSize@handler@_V1@sycl@@CA_N_K@Z
 ?isConstOrGlobal@handler@_V1@sycl@@CA_NW4target@access@23@@Z
 ?isDeviceGlobalUsedInKernel@detail@_V1@sycl@@YA_NPEBX@Z
-?isHostPointerReadOnly@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
+?isHostPointerReadOnly@SYCLMemObjT@detail@_V1@sycl@@UEBA_NXZ
 ?isImageOrImageArray@handler@_V1@sycl@@CA_NW4target@access@23@@Z
-?isInterop@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
+?isInterop@SYCLMemObjT@detail@_V1@sycl@@UEBA_NXZ
 ?isOutOfRange@detail@_V1@sycl@@YA_NV?$vec@H$03@23@W4addressing_mode@23@V?$range@$02@23@@Z
 ?isPathPresent@OSUtil@detail@_V1@sycl@@SA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?isPlaceholder@AccessorBaseHost@detail@_V1@sycl@@QEBA_NXZ
@@ -4935,6 +4935,7 @@
 ?updateHostMemory@SYCLMemObjT@detail@_V1@sycl@@IEAAXXZ
 ?useHostPtr@SYCLMemObjT@detail@_V1@sycl@@QEAA_NXZ
 ?use_kernel_bundle@handler@_V1@sycl@@QEAAXAEBV?$kernel_bundle@$01@23@@Z
+?usesPinnedHostMemory@SYCLMemObjT@detail@_V1@sycl@@UEBA_NXZ
 ?verifyKernelInvoc@handler@_V1@sycl@@AEAAXAEBVkernel@23@@Z
 ?verifyUsedKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?wait@event@_V1@sycl@@QEAAXXZ

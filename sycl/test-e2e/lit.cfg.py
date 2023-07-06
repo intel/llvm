@@ -243,7 +243,8 @@ available_devices = {'opencl': ('cpu', 'gpu', 'acc'),
                      'ext_oneapi_cuda':('gpu'),
                      'ext_oneapi_level_zero':('gpu'),
                      'ext_oneapi_hip':('gpu'),
-                     'ext_intel_esimd_emulator':('gpu')}
+                     'ext_intel_esimd_emulator':('gpu'),
+                     'native_cpu':('cpu')}
 for d in config.sycl_devices:
      be, dev = d.split(':')
      if be not in available_devices or dev not in available_devices[be]:
