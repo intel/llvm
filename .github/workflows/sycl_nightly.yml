@@ -43,6 +43,7 @@ jobs:
     name: Windows
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
+    needs: test_matrix
     with:
       retention-days: 90
       lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
