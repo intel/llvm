@@ -2574,6 +2574,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         os << "UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP";
         break;
 
+    case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP";
+        break;
+
     case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP";
         break;
@@ -4191,6 +4195,20 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
     } break;
 
     case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
