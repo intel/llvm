@@ -1049,10 +1049,8 @@ private:
 };
 
 void LoopInternalization::runOnOperation() {
-  getOperation()->walk([&](Operation *Op) {
-    if (auto gpuModule = dyn_cast<gpu::GPUModuleOp>(Op))
-      runOnGPUModule(gpuModule);
-  });
+  getOperation()->walk(
+      [&](gpu::GPUModuleOp gpuModule) { runOnGPUModule(gpuModule); });
 }
 
 void LoopInternalization::runOnGPUModule(gpu::GPUModuleOp gpuModule) {
@@ -1309,6 +1307,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
 
   // Reserve static shared local memory for this function.
   auto gpuModule = func->getParentOfType<gpu::GPUModuleOp>();
+  assert(gpuModule && "Expecting valid GPUModuleOp");
   memref::GlobalOp wgSharedLocalMemory = getWorkGroupSharedLocalMemory(
       gpuModule, std::holds_alternative<unsigned>(reqdSharedMemory)
                      ? std::get<unsigned>(reqdSharedMemory)
