@@ -1,0 +1,260 @@
+:extension_name: SPV_INTEL_cache_controls
+:capability_name: CacheControlsINTEL
+:capability_token: 6441
+:load_control_decoration: CacheControlLoadINTEL
+:load_control_decoration_token: 6442
+:store_control_decoration: CacheControlStoreINTEL
+:store_control_decoration_token: 6443
+:cache_flush_inst: OpCacheFlushINTEL
+:cache_flush_inst_token: 6444
+
+{extension_name}
+================
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+- Andrzej Ratajewski, Intel +
+- Ben Ashbaugh, Intel +
+- Dmitry Sidorov, Intel +
+- Victor Mustya, Intel +
+
+== Notice
+
+Copyright (c) 2023 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2023-07-06
+| Revision           | 1
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification, Version 1.6, Revision 2.
+
+This extension requires SPIR-V 1.0
+
+== Overview
+
+This extension allows user to decorate memory access instructions with explicit cache controls.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{capability_name}
+----
+
+== New Decorations
+
+[subs="attributes"]
+----
+{load_control_decoration}
+{store_control_decoration}
+----
+
+== New Instructions
+
+[subs="attributes"]
+----
+{cache_flush_inst}
+----
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+| *{capability_name}*  | {capability_token}
+| *{load_control_decoration}* | {load_control_decoration_token}
+| *{store_control_decoration}* | {store_control_decoration_token}
+| *{cache_flush_inst}* | {cache_flush_inst_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.6, Revision 2
+
+=== Validation Rules
+
+Modify Section 2.16.3, Kernel Validation Rules, adding the following statements.
+
+* Decoration rules
+
+** A *{load_control_decoration}* Decoration must be applied only as follows:
+
+*** Only *OpTypePointer* values can be decorated.
+*** Pointer types of the decorated instructions must have *UniformConstant*, *CrossWorkgroup* or *Generic* storage class.
+*** Two *CacheControlLoadINTEL* decorations decorating the same _Pointer_ must have different _Cache Level_ values.
+
+** A *{store_control_decoration}* Decoration must be applied only as follows:
+
+*** Only *OpTypePointer* values can be decorated.
+*** Pointer types of the decorated instructions must have *CrossWorkgroup* or *Generic* storage class.
+*** Two *CacheControlStoreINTEL* decorations decorating the same _Pointer_ must have different _Cache Level_ values.
+
+Modify Section 3, Binary form, add new sub-sections after 3.18 Access Qualifier.
+
+--
+[[Load_Cache_Control]]*3.XX Load Cache Controls*
+
+[cols="^.^1,15,15,30",options="header",width = "80%"]
+|====
+2+^.^| Cache Control ^| Enabling Capabilities ^| Description
+| 0 | *Uncached* | | Bypass cache.
+| 1 | *Cached* | | Fetch data into the cache.
+| 2 | *Streaming* | | Fetch data into LRU position of the cache.
+| 3 | *Invalidate After Read* | | Invalidate data after load, drop "dirty" data.
+|====
+
+[[Store_Cache_Control]]*3.XX Store Cache Controls*
+
+[cols="^.^1,15,15,30",options="header",width = "80%"]
+|====
+2+^.^| Cache Control ^| Enabling Capabilities ^| Description
+| 0 | *Uncached* |
+| Bypass cache.
+| 1 | *Write-Through* |
+| Immediately write data to the next furthest cache, mark the line in the
+current cache as "not dirty".
+| 2 | *Write-Back* |
+| Write data into the current cache, mark the line as "dirty", on eviction
+"dirty" data will be written into the furthest next cache.
+| 3 | *Streaming* |
+| Same as *Write-Through*, but cache data at LRU position of the cache.
+|====
+--
+
+=== Decorations
+
+Modify Section 3.20, Decoration, adding rows to the Decoration table:
+
+--
+[cols="1,20,5,5,10",options="header",width = "80%"]
+|====
+  2+^| Decoration  2+| Extra Operands | Enabling Capabilities
+| {load_control_decoration_token} | *{load_control_decoration}* +
+Apply the cache controls to a _Pointer_ or or a _Vector_ of pointers.
+The pointer must point to the *UniformConstant*, *CrossWorkgroup* or *Generic* _Storage Class_. +
+ +
+_Cache Level_ is an unsigned 32-bit integer telling the cache level to which the control applies.
+The value `1` indicates the cache level closest to the processing unit, the value `2` indicates
+the next furthest cache level, etc. +
+ +
+If the exact _Load Cache Control_ value is unsupported, the consumer applies the closest match.
+| <<Literal, 'Literal'>> +
+_Cache Level_
+| <<Load_Cache_Control, 'Load_Cache_Control'>> +
+_Cache Control_
+| *{capability_name}*
+| {store_control_decoration_token} | *{store_control_decoration}* +
+Apply the cache controls to a _Pointer_ or or a _Vector_ of pointers.
+The pointer must point to the *CrossWorkgroup* or *Generic* _Storage Class_. +
+ +
+_Cache Level_ is an unsigned 32-bit integer telling the cache level to which the control applies.
+The value `1` indicates the cache level closest to the processing unit, the value `2` indicates
+the next furthest cache level, etc. +
+ +
+If the exact _Store Cache Control_ value is unsupported, the consumer applies the closest match.
+| <<Literal, 'Literal'>> +
+_Cache Level_
+| <<Store_Cache_Control, 'Store_Cache_Control'>> +
+_Cache Control_
+| *{capability_name}*
+|====
+--
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares
+| {capability_token} | *{capability_name}* |
+|====
+--
+
+=== Instructions
+
+--
+[cols="1,1,3*3",width="100%"]
+|=====
+4+|[[{cache_flush_inst}]]*{cache_flush_inst}* +
+ +
+All data from the cache are invalidated. Dirty data are evicted into the next
+furthest cache level. +
+ +
+_Cache Level_ is an unsigned 32-bit integer telling the cache level to which the control applies.
+The value `1` indicates the cache level closest to the processing unit, the value `2` indicates
+the next furthest cache level, etc. +
+ +
+If _Semantics_ is not *None*, this instruction also serves as an *OpMemoryBarrier* instruction,
+and also performs and adheres to the description and semantics of an *OpMemoryBarrier*
+instruction with the same _Memory_ and _Semantics_ operands. This allows atomically specifying
+both a cache flush and a memory barrier (that is, without needing two instructions).
+If _Semantics_ *None*, _Memory_ is ignored.
+
+1+|Capability: +
+*{capability_name}*
+1+| 4 | {cache_flush_inst_token}
+| <<Literal, 'Literal'>> +
+_Cache Level_
+| 'Scope <id>' +
+'Memory'
+| 'Memory Semantics <id>' +
+'Semantics'
+|=====
+--
+
+== Issues
+
+None
+
+Revision History
+----------------
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2023-07-06|Victor Mustya|Initial public revision
+|========================================
