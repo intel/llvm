@@ -147,7 +147,10 @@ static const RISCVSupportedExtension SupportedExperimentalExtensions[] = {
     {"zcmp", RISCVExtensionVersion{1, 0}},
     {"zcmt", RISCVExtensionVersion{1, 0}},
     {"zfa", RISCVExtensionVersion{0, 2}},
+    {"zfbfmin", RISCVExtensionVersion{0, 6}},
     {"zicond", RISCVExtensionVersion{1, 0}},
+    {"zvfbfmin", RISCVExtensionVersion{0, 6}},
+    {"zvfbfwma", RISCVExtensionVersion{0, 6}},
     {"zvfh", RISCVExtensionVersion{0, 1}},
     {"ztso", RISCVExtensionVersion{0, 1}},
 
@@ -696,9 +699,10 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
 
   auto StdExtsItr = StdExts.begin();
   auto StdExtsEnd = StdExts.end();
-  auto GoToNextExt = [](StringRef::iterator &I, unsigned ConsumeLength) {
+  auto GoToNextExt = [](StringRef::iterator &I, unsigned ConsumeLength,
+                        StringRef::iterator E) {
     I += 1 + ConsumeLength;
-    if (*I == '_')
+    if (I != E && *I == '_')
       ++I;
   };
   for (auto I = Exts.begin(), E = Exts.end(); I != E;) {
@@ -734,7 +738,7 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
                                      ExperimentalExtensionVersionCheck)) {
       if (IgnoreUnknown) {
         consumeError(std::move(E));
-        GoToNextExt(I, ConsumeLength);
+        GoToNextExt(I, ConsumeLength, Exts.end());
         continue;
       }
       return std::move(E);
@@ -744,7 +748,7 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
     // Currently LLVM supports only "mafdcvh".
     if (!isSupportedExtension(StringRef(&C, 1))) {
       if (IgnoreUnknown) {
-        GoToNextExt(I, ConsumeLength);
+        GoToNextExt(I, ConsumeLength, Exts.end());
         continue;
       }
       return createStringError(errc::invalid_argument,
@@ -755,7 +759,7 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
 
     // Consume full extension name and version, including any optional '_'
     // between this extension and the next
-    GoToNextExt(I, ConsumeLength);
+    GoToNextExt(I, ConsumeLength, Exts.end());
   }
 
   // Handle other types of extensions other than the standard
@@ -866,11 +870,6 @@ Error RISCVISAInfo::checkDependency() {
     return createStringError(errc::invalid_argument,
                              "'f' and 'zfinx' extensions are incompatible");
 
-  if (Exts.count("zvfh") && !Exts.count("zfh") && !Exts.count("zfhmin"))
-    return createStringError(
-        errc::invalid_argument,
-        "'zvfh' requires 'zfh' or 'zfhmin extension to also be specified");
-
   if (HasZvl && !HasVector)
     return createStringError(
         errc::invalid_argument,
@@ -917,7 +916,7 @@ Error RISCVISAInfo::checkDependency() {
 
 static const char *ImpliedExtsD[] = {"f"};
 static const char *ImpliedExtsF[] = {"zicsr"};
-static const char *ImpliedExtsV[] = {"zvl128b", "zve64d", "f", "d"};
+static const char *ImpliedExtsV[] = {"zvl128b", "zve64d"};
 static const char *ImpliedExtsXTHeadVdot[] = {"v"};
 static const char *ImpliedExtsXsfvcp[] = {"zve32x"};
 static const char *ImpliedExtsZcb[] = {"zca"};
@@ -925,6 +924,7 @@ static const char *ImpliedExtsZcmp[] = {"zca"};
 static const char *ImpliedExtsZcmt[] = {"zca"};
 static const char *ImpliedExtsZdinx[] = {"zfinx"};
 static const char *ImpliedExtsZfa[] = {"f"};
+static const char *ImpliedExtsZfbfmin[] = {"f"};
 static const char *ImpliedExtsZfh[] = {"f"};
 static const char *ImpliedExtsZfhmin[] = {"f"};
 static const char *ImpliedExtsZfinx[] = {"zicsr"};
@@ -941,7 +941,9 @@ static const char *ImpliedExtsZve32x[] = {"zvl32b", "zicsr"};
 static const char *ImpliedExtsZve64d[] = {"zve64f", "d"};
 static const char *ImpliedExtsZve64f[] = {"zve64x", "zve32f"};
 static const char *ImpliedExtsZve64x[] = {"zve32x", "zvl64b"};
-static const char *ImpliedExtsZvfh[] = {"zve32f"};
+static const char *ImpliedExtsZvfbfmin[] = {"zve32f"};
+static const char *ImpliedExtsZvfbfwma[] = {"zve32f"};
+static const char *ImpliedExtsZvfh[] = {"zve32f", "zfhmin"};
 static const char *ImpliedExtsZvkn[] = {"zvbb", "zvbc", "zvkned", "zvknhb",
                                         "zvkt"};
 static const char *ImpliedExtsZvkng[] = {"zvkg", "zvkn"};
@@ -984,6 +986,7 @@ static constexpr ImpliedExtsEntry ImpliedExts[] = {
     {{"zcmt"}, {ImpliedExtsZcmt}},
     {{"zdinx"}, {ImpliedExtsZdinx}},
     {{"zfa"}, {ImpliedExtsZfa}},
+    {{"zfbfmin"}, {ImpliedExtsZfbfmin}},
     {{"zfh"}, {ImpliedExtsZfh}},
     {{"zfhmin"}, {ImpliedExtsZfhmin}},
     {{"zfinx"}, {ImpliedExtsZfinx}},
@@ -999,6 +1002,8 @@ static constexpr ImpliedExtsEntry ImpliedExts[] = {
     {{"zve64d"}, {ImpliedExtsZve64d}},
     {{"zve64f"}, {ImpliedExtsZve64f}},
     {{"zve64x"}, {ImpliedExtsZve64x}},
+    {{"zvfbfmin"}, {ImpliedExtsZvfbfmin}},
+    {{"zvfbfwma"}, {ImpliedExtsZvfbfwma}},
     {{"zvfh"}, {ImpliedExtsZvfh}},
     {{"zvkn"}, {ImpliedExtsZvkn}},
     {{"zvkng"}, {ImpliedExtsZvkng}},

@@ -31,8 +31,8 @@
 !Filename = !llvm.ptr<i8>
 
 #DCSR = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ],
-  dimOrdering = affine_map<(i,j) -> (i,j)>
+  lvlTypes = [ "compressed", "compressed" ],
+  dimToLvl = affine_map<(i,j) -> (i,j)>
 }>
 
 #eltwise_mult = {

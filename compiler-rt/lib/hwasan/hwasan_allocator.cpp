@@ -149,8 +149,9 @@ void HwasanAllocatorInit() {
   atomic_store_relaxed(&hwasan_allocator_tagging_enabled,
                        !flags()->disable_allocator_tagging);
   SetAllocatorMayReturnNull(common_flags()->allocator_may_return_null);
-  allocator.Init(common_flags()->allocator_release_to_os_interval_ms,
-                 GetAliasRegionStart());
+  allocator.InitLinkerInitialized(
+      common_flags()->allocator_release_to_os_interval_ms,
+      GetAliasRegionStart());
   for (uptr i = 0; i < sizeof(tail_magic); i++)
     tail_magic[i] = GetCurrentThread()->GenerateRandomTag();
   if (common_flags()->max_allocation_size_mb) {
@@ -165,8 +166,11 @@ void HwasanAllocatorLock() { allocator.ForceLock(); }
 
 void HwasanAllocatorUnlock() { allocator.ForceUnlock(); }
 
-void AllocatorSwallowThreadLocalCache(AllocatorCache *cache) {
+void AllocatorThreadStart(AllocatorCache *cache) { allocator.InitCache(cache); }
+
+void AllocatorThreadFinish(AllocatorCache *cache) {
   allocator.SwallowCache(cache);
+  allocator.DestroyCache(cache);
 }
 
 static uptr TaggedSize(uptr size) {
@@ -261,7 +265,7 @@ static void *HwasanAllocate(StackTrace *stack, uptr orig_size, uptr alignment,
                                                   : __lsan::kDirectlyLeaked);
 #endif
   meta->SetAllocated(StackDepotPut(*stack), orig_size);
-  RunMallocHooks(user_ptr, size);
+  RunMallocHooks(user_ptr, orig_size);
   return user_ptr;
 }
 
@@ -288,8 +292,6 @@ static bool CheckInvalidFree(StackTrace *stack, void *untagged_ptr,
 
 static void HwasanDeallocate(StackTrace *stack, void *tagged_ptr) {
   CHECK(tagged_ptr);
-  RunFreeHooks(tagged_ptr);
-
   void *untagged_ptr = UntagPtr(tagged_ptr);
 
   if (CheckInvalidFree(stack, untagged_ptr, tagged_ptr))
@@ -304,6 +306,9 @@ static void HwasanDeallocate(StackTrace *stack, void *tagged_ptr) {
     ReportInvalidFree(stack, reinterpret_cast<uptr>(tagged_ptr));
     return;
   }
+
+  RunFreeHooks(tagged_ptr);
+
   uptr orig_size = meta->GetRequestedSize();
   u32 free_context_id = StackDepotPut(*stack);
   u32 alloc_context_id = meta->GetAllocStackId();
@@ -435,6 +440,15 @@ static uptr AllocationSize(const void *p) {
     return 0;
   Metadata *b = (Metadata *)allocator.GetMetaData(beg);
   return b->GetRequestedSize();
+}
+
+static uptr AllocationSizeFast(const void *p) {
+  const void *untagged_ptr = UntagPtr(p);
+  void *aligned_ptr = reinterpret_cast<void *>(
+      RoundDownTo(reinterpret_cast<uptr>(untagged_ptr), kShadowAlignment));
+  Metadata *meta =
+      reinterpret_cast<Metadata *>(allocator.GetMetaData(aligned_ptr));
+  return meta->GetRequestedSize();
 }
 
 void *hwasan_malloc(uptr size, StackTrace *stack) {
@@ -674,5 +688,12 @@ const void *__sanitizer_get_allocated_begin(const void *p) {
 }
 
 uptr __sanitizer_get_allocated_size(const void *p) { return AllocationSize(p); }
+
+uptr __sanitizer_get_allocated_size_fast(const void *p) {
+  DCHECK_EQ(p, __sanitizer_get_allocated_begin(p));
+  uptr ret = AllocationSizeFast(p);
+  DCHECK_EQ(ret, __sanitizer_get_allocated_size(p));
+  return ret;
+}
 
 void __sanitizer_purge_allocator() { allocator.ForceReleaseToOS(); }

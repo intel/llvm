@@ -451,9 +451,11 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__STDC_VERSION__", "199409L");
   } else {
     //   -- __cplusplus
-    // FIXME: Use correct value for C++23.
-    if (LangOpts.CPlusPlus23)
-      Builder.defineMacro("__cplusplus", "202101L");
+    if (LangOpts.CPlusPlus26)
+      // FIXME: Use correct value for C++26.
+      Builder.defineMacro("__cplusplus", "202400L");
+    else if (LangOpts.CPlusPlus23)
+      Builder.defineMacro("__cplusplus", "202302L");
     //      [C++20] The integer literal 202002L.
     else if (LangOpts.CPlusPlus20)
       Builder.defineMacro("__cplusplus", "202002L");
@@ -1307,12 +1309,12 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
       Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
     }
-
-    if (LangOpts.SYCLESIMDForceStatelessMem)
-      Builder.defineMacro("__ESIMD_FORCE_STATELESS_MEM");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");
+
+  if (LangOpts.SYCLESIMDForceStatelessMem)
+    Builder.defineMacro("__ESIMD_FORCE_STATELESS_MEM");
 
   // OpenCL definitions.
   if (LangOpts.OpenCL) {
@@ -1329,6 +1331,10 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__GLIBCXX_TYPE_INT_N_0", "__int128");
     Builder.defineMacro("__GLIBCXX_BITSIZE_INT_N_0", "128");
   }
+
+  // ELF targets define __ELF__
+  if (TI.getTriple().isOSBinFormatELF())
+    Builder.defineMacro("__ELF__");
 
   // Get other target #defines.
   TI.getTargetDefines(LangOpts, Builder);

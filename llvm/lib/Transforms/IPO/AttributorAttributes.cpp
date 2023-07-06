@@ -161,6 +161,7 @@ PIPE_OPERATOR(AAWillReturn)
 PIPE_OPERATOR(AANoReturn)
 PIPE_OPERATOR(AAReturnedValues)
 PIPE_OPERATOR(AANonNull)
+PIPE_OPERATOR(AAMustProgress)
 PIPE_OPERATOR(AANoAlias)
 PIPE_OPERATOR(AADereferenceable)
 PIPE_OPERATOR(AAAlign)
@@ -1124,8 +1125,7 @@ struct AAPointerInfoImpl
     // outlive a GPU kernel. This is true for shared, constant, and local
     // globals on AMD and NVIDIA GPUs.
     auto HasKernelLifetime = [&](Value *V, Module &M) {
-      Triple T(M.getTargetTriple());
-      if (!(T.isAMDGPU() || T.isNVPTX()))
+      if (!AA::isGPU(M))
         return false;
       switch (AA::GPUAddressSpace(V->getType()->getPointerAddressSpace())) {
       case AA::GPUAddressSpace::Shared:
@@ -2855,6 +2855,77 @@ struct AANonNullCallSiteReturned final
 };
 } // namespace
 
+/// ------------------------ Must-Progress Attributes --------------------------
+namespace {
+struct AAMustProgressImpl : public AAMustProgress {
+  AAMustProgressImpl(const IRPosition &IRP, Attributor &A)
+      : AAMustProgress(IRP, A) {}
+
+  /// See AbstractAttribute::getAsStr()
+  const std::string getAsStr() const override {
+    return getAssumed() ? "mustprogress" : "may-not-progress";
+  }
+};
+
+struct AAMustProgressFunction final : AAMustProgressImpl {
+  AAMustProgressFunction(const IRPosition &IRP, Attributor &A)
+      : AAMustProgressImpl(IRP, A) {}
+
+  /// See AbstractAttribute::updateImpl(...).
+  ChangeStatus updateImpl(Attributor &A) override {
+    const auto &WillReturnAA =
+        A.getAAFor<AAWillReturn>(*this, getIRPosition(), DepClassTy::OPTIONAL);
+    if (WillReturnAA.isKnownWillReturn())
+      return indicateOptimisticFixpoint();
+    if (WillReturnAA.isAssumedWillReturn())
+      return ChangeStatus::UNCHANGED;
+
+    auto CheckForMustProgress = [&](AbstractCallSite ACS) {
+      IRPosition IPos = IRPosition::callsite_function(*ACS.getInstruction());
+      const auto &MustProgressAA =
+          A.getAAFor<AAMustProgress>(*this, IPos, DepClassTy::OPTIONAL);
+      return MustProgressAA.isAssumedMustProgress();
+    };
+
+    bool AllCallSitesKnown = true;
+    if (!A.checkForAllCallSites(CheckForMustProgress, *this,
+                                /* RequireAllCallSites */ true,
+                                AllCallSitesKnown))
+      return indicatePessimisticFixpoint();
+
+    return ChangeStatus::UNCHANGED;
+  }
+
+  /// See AbstractAttribute::trackStatistics()
+  void trackStatistics() const override {
+    STATS_DECLTRACK_FN_ATTR(mustprogress)
+  }
+};
+
+/// MustProgress attribute deduction for a call sites.
+struct AAMustProgressCallSite final : AAMustProgressImpl {
+  AAMustProgressCallSite(const IRPosition &IRP, Attributor &A)
+      : AAMustProgressImpl(IRP, A) {}
+
+  /// See AbstractAttribute::updateImpl(...).
+  ChangeStatus updateImpl(Attributor &A) override {
+    // TODO: Once we have call site specific value information we can provide
+    //       call site specific liveness information and then it makes
+    //       sense to specialize attributes for call sites arguments instead of
+    //       redirecting requests to the callee argument.
+    const IRPosition &FnPos = IRPosition::function(*getAnchorScope());
+    const auto &FnAA =
+        A.getAAFor<AAMustProgress>(*this, FnPos, DepClassTy::OPTIONAL);
+    return clampStateAndIndicateChange(getState(), FnAA.getState());
+  }
+
+  /// See AbstractAttribute::trackStatistics()
+  void trackStatistics() const override {
+    STATS_DECLTRACK_CS_ATTR(mustprogress);
+  }
+};
+} // namespace
+
 /// ------------------------ No-Recurse Attributes ----------------------------
 
 namespace {
@@ -4268,11 +4339,20 @@ struct AAIsDeadFloating : public AAIsDeadValueImpl {
 
     Instruction *I = dyn_cast<Instruction>(&getAssociatedValue());
     if (!isAssumedSideEffectFree(A, I)) {
-      if (!isa_and_nonnull<StoreInst>(I))
+      if (!isa_and_nonnull<StoreInst>(I) && !isa_and_nonnull<FenceInst>(I))
         indicatePessimisticFixpoint();
       else
         removeAssumedBits(HAS_NO_EFFECT);
     }
+  }
+
+  bool isDeadFence(Attributor &A, FenceInst &FI) {
+    const auto *ExecDomainAA = A.lookupAAFor<AAExecutionDomain>(
+        IRPosition::function(*FI.getFunction()), *this, DepClassTy::NONE);
+    if (!ExecDomainAA || !ExecDomainAA->isNoOpFence(FI))
+      return false;
+    A.recordDependence(*ExecDomainAA, *this, DepClassTy::OPTIONAL);
+    return true;
   }
 
   bool isDeadStore(Attributor &A, StoreInst &SI,
@@ -4328,6 +4408,9 @@ struct AAIsDeadFloating : public AAIsDeadValueImpl {
     if (isa_and_nonnull<StoreInst>(I))
       if (isValidState())
         return "assumed-dead-store";
+    if (isa_and_nonnull<FenceInst>(I))
+      if (isValidState())
+        return "assumed-dead-fence";
     return AAIsDeadValueImpl::getAsStr();
   }
 
@@ -4336,6 +4419,9 @@ struct AAIsDeadFloating : public AAIsDeadValueImpl {
     Instruction *I = dyn_cast<Instruction>(&getAssociatedValue());
     if (auto *SI = dyn_cast_or_null<StoreInst>(I)) {
       if (!isDeadStore(A, *SI))
+        return indicatePessimisticFixpoint();
+    } else if (auto *FI = dyn_cast_or_null<FenceInst>(I)) {
+      if (!isDeadFence(A, *FI))
         return indicatePessimisticFixpoint();
     } else {
       if (!isAssumedSideEffectFree(A, I))
@@ -4370,6 +4456,11 @@ struct AAIsDeadFloating : public AAIsDeadValueImpl {
             AssumeOnlyInst.insert(cast<Instruction>(Usr));
           A.deleteAfterManifest(*AOI);
         }
+        return ChangeStatus::CHANGED;
+      }
+      if (auto *FI = dyn_cast<FenceInst>(I)) {
+        assert(isDeadFence(A, *FI));
+        A.deleteAfterManifest(*FI);
         return ChangeStatus::CHANGED;
       }
       if (isAssumedSideEffectFree(A, I) && !isa<InvokeInst>(I)) {
@@ -8662,7 +8753,8 @@ protected:
   /// Determine the underlying locations kinds for \p Ptr, e.g., globals or
   /// arguments, and update the state and access map accordingly.
   void categorizePtrValue(Attributor &A, const Instruction &I, const Value &Ptr,
-                          AAMemoryLocation::StateType &State, bool &Changed);
+                          AAMemoryLocation::StateType &State, bool &Changed,
+                          unsigned AccessAS = 0);
 
   /// Used to allocate access sets.
   BumpPtrAllocator &Allocator;
@@ -8670,14 +8762,24 @@ protected:
 
 void AAMemoryLocationImpl::categorizePtrValue(
     Attributor &A, const Instruction &I, const Value &Ptr,
-    AAMemoryLocation::StateType &State, bool &Changed) {
+    AAMemoryLocation::StateType &State, bool &Changed, unsigned AccessAS) {
   LLVM_DEBUG(dbgs() << "[AAMemoryLocation] Categorize pointer locations for "
                     << Ptr << " ["
                     << getMemoryLocationsAsStr(State.getAssumed()) << "]\n");
 
   auto Pred = [&](Value &Obj) {
+    unsigned ObjectAS = Obj.getType()->getPointerAddressSpace();
     // TODO: recognize the TBAA used for constant accesses.
     MemoryLocationsKind MLK = NO_LOCATIONS;
+
+    // Filter accesses to constant (GPU) memory if we have an AS at the access
+    // site or the object is known to actually have the associated AS.
+    if ((AccessAS == (unsigned)AA::GPUAddressSpace::Constant ||
+         (ObjectAS == (unsigned)AA::GPUAddressSpace::Constant &&
+          isIdentifiedObject(&Obj))) &&
+        AA::isGPU(*I.getModule()))
+      return true;
+
     if (isa<UndefValue>(&Obj))
       return true;
     if (isa<Argument>(&Obj)) {
@@ -8701,8 +8803,8 @@ void AAMemoryLocationImpl::categorizePtrValue(
       else
         MLK = NO_GLOBAL_EXTERNAL_MEM;
     } else if (isa<ConstantPointerNull>(&Obj) &&
-               !NullPointerIsDefined(getAssociatedFunction(),
-                                     Ptr.getType()->getPointerAddressSpace())) {
+               (!NullPointerIsDefined(getAssociatedFunction(), AccessAS) ||
+                !NullPointerIsDefined(getAssociatedFunction(), ObjectAS))) {
       return true;
     } else if (isa<AllocaInst>(&Obj)) {
       MLK = NO_LOCAL_MEM;
@@ -8840,7 +8942,8 @@ AAMemoryLocationImpl::categorizeAccessedLocations(Attributor &A, Instruction &I,
     LLVM_DEBUG(
         dbgs() << "[AAMemoryLocation] Categorize memory access with pointer: "
                << I << " [" << *Ptr << "]\n");
-    categorizePtrValue(A, I, *Ptr, AccessedLocs, Changed);
+    categorizePtrValue(A, I, *Ptr, AccessedLocs, Changed,
+                       Ptr->getType()->getPointerAddressSpace());
     return AccessedLocs.getAssumed();
   }
 
@@ -11868,6 +11971,7 @@ const char AANoUnwind::ID = 0;
 const char AANoSync::ID = 0;
 const char AANoFree::ID = 0;
 const char AANonNull::ID = 0;
+const char AAMustProgress::ID = 0;
 const char AANoRecurse::ID = 0;
 const char AANonConvergent::ID = 0;
 const char AAWillReturn::ID = 0;
@@ -11998,6 +12102,7 @@ CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAReturnedValues)
 CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAMemoryLocation)
 CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(AACallEdges)
 CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAAssumptionInfo)
+CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAMustProgress)
 
 CREATE_VALUE_ABSTRACT_ATTRIBUTE_FOR_POSITION(AANonNull)
 CREATE_VALUE_ABSTRACT_ATTRIBUTE_FOR_POSITION(AANoAlias)

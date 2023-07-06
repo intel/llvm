@@ -30,7 +30,6 @@ Design Documents for the oneAPI DPC++ Compiler
    design/CompilerAndRuntimeDesign
    design/KernelParameterPassing
    design/PluginInterface
-   design/SpecializationConstants
    design/SYCL2020-SpecializationConstants
    design/KernelProgramCache
    design/GlobalObjectsInRuntime
@@ -49,7 +48,9 @@ Design Documents for the oneAPI DPC++ Compiler
    design/KernelFusionJIT
    design/NonRelocatableDeviceCode
    design/DeviceAspectTraitDesign
+   design/DeviceConfigFile
    design/PropagateCompilerFlagsToRuntime
+   design/SYCLNativeCPU
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
 

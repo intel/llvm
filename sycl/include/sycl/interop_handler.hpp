@@ -33,8 +33,9 @@ public:
 
   template <backend BackendName = backend::opencl>
   auto get_queue() const -> typename detail::interop<BackendName, queue>::type {
+    int32_t NativeHandleDesc;
     return reinterpret_cast<typename detail::interop<BackendName, queue>::type>(
-        GetNativeQueue());
+        GetNativeQueue(NativeHandleDesc));
   }
 
   template <backend BackendName = backend::opencl, typename DataT, int Dims,
@@ -70,7 +71,8 @@ private:
 
   __SYCL_EXPORT pi_native_handle
   GetNativeMem(detail::AccessorImplHost *Req) const;
-  __SYCL_EXPORT pi_native_handle GetNativeQueue() const;
+  __SYCL_EXPORT pi_native_handle
+  GetNativeQueue(int32_t &NativeHandleDesc) const;
 };
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

@@ -5,7 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -I%S/.. -o %t.out
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -I%S/.. -o %t.out
 // RUN: %{run} %t.out %S/points.csv
 
 #include "kmeans.h"
@@ -74,10 +75,10 @@ bool verify_result(Centroid4 *centroids4, // gpu centroids result
   int k = 0;
   int j = 0;
   for (auto i = 0; i < NUM_CENTROIDS_ACTUAL; i++) {
-    float errX = fabs(centroids4[j].x[k] - centroids[i].x) /
-                 max(fabs(centroids4[j].x[k]), fabs(centroids[i].x));
-    float errY = fabs(centroids4[j].y[k] - centroids[i].y) /
-                 max(fabs(centroids4[j].y[k]), fabs(centroids[i].y));
+    float errX = std::fabs(centroids4[j].x[k] - centroids[i].x) /
+                 max(std::fabs(centroids4[j].x[k]), std::fabs(centroids[i].x));
+    float errY = std::fabs(centroids4[j].y[k] - centroids[i].y) /
+                 max(std::fabs(centroids4[j].y[k]), std::fabs(centroids[i].y));
     float errSize =
         abs(centroids4[j].num_points[k] - centroids[i].num_points) /
         max(abs(centroids4[j].num_points[k]), abs(centroids[i].num_points));

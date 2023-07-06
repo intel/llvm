@@ -52,9 +52,8 @@ mlirAttributeIsASparseTensorEncodingAttr(MlirAttribute attr);
 /// Creates a `sparse_tensor.encoding` attribute with the given parameters.
 MLIR_CAPI_EXPORTED MlirAttribute mlirSparseTensorEncodingAttrGet(
     MlirContext ctx, intptr_t lvlRank,
-    enum MlirSparseTensorDimLevelType const *dimLevelTypes,
-    MlirAffineMap dimOrdering, MlirAffineMap higherOrdering, int posWidth,
-    int crdWidth);
+    enum MlirSparseTensorDimLevelType const *lvlTypes, MlirAffineMap dimToLvl,
+    int posWidth, int crdWidth);
 
 /// Returns the level-rank of the `sparse_tensor.encoding` attribute.
 MLIR_CAPI_EXPORTED intptr_t
@@ -62,15 +61,12 @@ mlirSparseTensorEncodingGetLvlRank(MlirAttribute attr);
 
 /// Returns a specified level-type of the `sparse_tensor.encoding` attribute.
 MLIR_CAPI_EXPORTED enum MlirSparseTensorDimLevelType
-mlirSparseTensorEncodingAttrGetDimLevelType(MlirAttribute attr, intptr_t lvl);
+mlirSparseTensorEncodingAttrGetLvlType(MlirAttribute attr, intptr_t lvl);
 
-/// Returns the dimension-ordering of the `sparse_tensor.encoding` attribute.
+/// Returns the dimension-to-level mapping of the `sparse_tensor.encoding`
+/// attribute.
 MLIR_CAPI_EXPORTED MlirAffineMap
-mlirSparseTensorEncodingAttrGetDimOrdering(MlirAttribute attr);
-
-/// Returns the higher-ordering of the `sparse_tensor.encoding` attribute.
-MLIR_CAPI_EXPORTED MlirAffineMap
-mlirSparseTensorEncodingAttrGetHigherOrdering(MlirAttribute attr);
+mlirSparseTensorEncodingAttrGetDimToLvl(MlirAttribute attr);
 
 /// Returns the position bitwidth of the `sparse_tensor.encoding` attribute.
 MLIR_CAPI_EXPORTED int

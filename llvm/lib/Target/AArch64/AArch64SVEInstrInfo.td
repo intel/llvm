@@ -408,16 +408,22 @@ def AArch64sub_m1 : PatFrags<(ops node:$pred, node:$op1, node:$op2),
 def AArch64mla_m1 : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
                              [(int_aarch64_sve_mla node:$pred, node:$op1, node:$op2, node:$op3),
                               // add(a, select(mask, mul(b, c), splat(0))) -> mla(a, mask, b, c)
-                              (add node:$op1, (vselect node:$pred, (AArch64mul_p_oneuse (SVEAllActive), node:$op2, node:$op3), (SVEDup0)))]>;
+                              (add node:$op1, (vselect node:$pred, (AArch64mul_p_oneuse (SVEAllActive), node:$op2, node:$op3), (SVEDup0))),
+                              // select(mask, add(a, mul(b, c)), a) -> mla(a, mask, b, c)
+                              (vselect node:$pred, (add node:$op1, (AArch64mul_p_oneuse (SVEAllActive), node:$op2, node:$op3)), node:$op1)]>;
 // pattern for generating pseudo for MLA_ZPmZZ/MAD_ZPmZZ
 def AArch64mla_p : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
-                            [(add node:$op1, (AArch64mul_p_oneuse node:$pred, node:$op2, node:$op3))]>;
+                            [(int_aarch64_sve_mla_u node:$pred, node:$op1, node:$op2, node:$op3),
+                             (add node:$op1, (AArch64mul_p_oneuse node:$pred, node:$op2, node:$op3))]>;
 def AArch64mls_m1 : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
                              [(int_aarch64_sve_mls node:$pred, node:$op1, node:$op2, node:$op3),
                               // sub(a, select(mask, mul(b, c), splat(0))) -> mls(a, mask, b, c)
-                              (sub node:$op1, (vselect node:$pred, (AArch64mul_p_oneuse (SVEAllActive), node:$op2, node:$op3), (SVEDup0)))]>;
+                              (sub node:$op1, (vselect node:$pred, (AArch64mul_p_oneuse (SVEAllActive), node:$op2, node:$op3), (SVEDup0))),
+                              // select(mask, sub(a, mul(b, c)), a) -> mls(a, mask, b, c)
+                              (vselect node:$pred, (sub node:$op1, (AArch64mul_p_oneuse (SVEAllActive), node:$op2, node:$op3)), node:$op1)]>;
 def AArch64mls_p : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
-                             [(sub node:$op1, (AArch64mul_p_oneuse node:$pred, node:$op2, node:$op3))]>;
+                             [(int_aarch64_sve_mls_u node:$pred, node:$op1, node:$op2, node:$op3),
+                              (sub node:$op1, (AArch64mul_p_oneuse node:$pred, node:$op2, node:$op3))]>;
 def AArch64eor3 : PatFrags<(ops node:$op1, node:$op2, node:$op3),
                            [(int_aarch64_sve_eor3 node:$op1, node:$op2, node:$op3),
                             (xor node:$op1, (xor node:$op2, node:$op3))]>;
@@ -3752,7 +3758,7 @@ defm SDOT_ZZZI_HtoS : sve2p1_two_way_dot_vvi<"sdot", 0b0, int_aarch64_sve_sdot_l
 defm UDOT_ZZZI_HtoS : sve2p1_two_way_dot_vvi<"udot", 0b1, int_aarch64_sve_udot_lane_x2>;
 
 defm CNTP_XCI : sve2p1_pcount_pn<"cntp", 0b000>;
-defm PEXT_PCI : sve2p1_pred_as_ctr_to_mask<"pext">;
+defm PEXT_PCI : sve2p1_pred_as_ctr_to_mask<"pext", int_aarch64_sve_pext>;
 defm PEXT_2PCI : sve2p1_pred_as_ctr_to_mask_pair<"pext">;
 defm PTRUE_C  : sve2p1_ptrue_pn<"ptrue">;
 
@@ -3834,6 +3840,59 @@ defm STNT1B_4Z_IMM : sve2p1_mem_cst_si_4z<"stnt1b", 0b00, 0b1, ZZZZ_b_mul_r>;
 defm STNT1H_4Z_IMM : sve2p1_mem_cst_si_4z<"stnt1h", 0b01, 0b1, ZZZZ_h_mul_r>;
 defm STNT1W_4Z_IMM : sve2p1_mem_cst_si_4z<"stnt1w", 0b10, 0b1, ZZZZ_s_mul_r>;
 defm STNT1D_4Z_IMM : sve2p1_mem_cst_si_4z<"stnt1d", 0b11, 0b1, ZZZZ_d_mul_r>;
+
+multiclass store_pn_x2<ValueType Ty, SDPatternOperator Store,
+                        Instruction RegImmInst> {
+  def : Pat<(Store (Ty ZPR:$vec0), (Ty ZPR:$vec1),
+                   (aarch64svcount PPR:$PNg), GPR64:$base),
+            (RegImmInst (REG_SEQUENCE ZPR2Mul2, Ty:$vec0, zsub0, Ty:$vec1, zsub1),
+                         PPR:$PNg, GPR64:$base, (i64 0))>;
+}
+
+// Stores of 2 consecutive vectors
+defm : store_pn_x2<nxv16i8, int_aarch64_sve_st1_pn_x2, ST1B_2Z_IMM>;
+defm : store_pn_x2<nxv8i16, int_aarch64_sve_st1_pn_x2, ST1H_2Z_IMM>;
+defm : store_pn_x2<nxv4i32, int_aarch64_sve_st1_pn_x2, ST1W_2Z_IMM>;
+defm : store_pn_x2<nxv2i64, int_aarch64_sve_st1_pn_x2, ST1D_2Z_IMM>;
+defm : store_pn_x2<nxv16i8, int_aarch64_sve_stnt1_pn_x2, STNT1B_2Z_IMM>;
+defm : store_pn_x2<nxv8i16, int_aarch64_sve_stnt1_pn_x2, STNT1H_2Z_IMM>;
+defm : store_pn_x2<nxv4i32, int_aarch64_sve_stnt1_pn_x2, STNT1W_2Z_IMM>;
+defm : store_pn_x2<nxv2i64, int_aarch64_sve_stnt1_pn_x2, STNT1D_2Z_IMM>;
+defm : store_pn_x2<nxv8f16, int_aarch64_sve_st1_pn_x2, ST1H_2Z_IMM>;
+defm : store_pn_x2<nxv8bf16, int_aarch64_sve_st1_pn_x2, ST1H_2Z_IMM>;
+defm : store_pn_x2<nxv4f32, int_aarch64_sve_st1_pn_x2, ST1W_2Z_IMM>;
+defm : store_pn_x2<nxv2f64, int_aarch64_sve_st1_pn_x2, ST1D_2Z_IMM>;
+defm : store_pn_x2<nxv8f16, int_aarch64_sve_stnt1_pn_x2, STNT1H_2Z_IMM>;
+defm : store_pn_x2<nxv8bf16, int_aarch64_sve_stnt1_pn_x2, STNT1H_2Z_IMM>;
+defm : store_pn_x2<nxv4f32, int_aarch64_sve_stnt1_pn_x2, STNT1W_2Z_IMM>;
+defm : store_pn_x2<nxv2f64, int_aarch64_sve_stnt1_pn_x2, STNT1D_2Z_IMM>;
+
+multiclass store_pn_x4<ValueType Ty, SDPatternOperator Store,
+                        Instruction RegImmInst> {
+  def : Pat<(Store (Ty ZPR:$vec0), (Ty ZPR:$vec1), (Ty ZPR:$vec2), (Ty ZPR:$vec3),
+                   (aarch64svcount PPR:$PNg), GPR64:$base),
+            (RegImmInst (REG_SEQUENCE ZPR4Mul4, Ty:$vec0, zsub0, Ty:$vec1, zsub1,
+                                                Ty:$vec2, zsub2, Ty:$vec3, zsub3),
+                        PPR:$PNg, GPR64:$base, (i64 0))>;
+}
+
+// Stores of 4 consecutive vectors
+defm : store_pn_x4<nxv16i8, int_aarch64_sve_st1_pn_x4, ST1B_4Z_IMM>;
+defm : store_pn_x4<nxv8i16, int_aarch64_sve_st1_pn_x4, ST1H_4Z_IMM>;
+defm : store_pn_x4<nxv4i32, int_aarch64_sve_st1_pn_x4, ST1W_4Z_IMM>;
+defm : store_pn_x4<nxv2i64, int_aarch64_sve_st1_pn_x4, ST1D_4Z_IMM>;
+defm : store_pn_x4<nxv16i8, int_aarch64_sve_stnt1_pn_x4, STNT1B_4Z_IMM>;
+defm : store_pn_x4<nxv8i16, int_aarch64_sve_stnt1_pn_x4, STNT1H_4Z_IMM>;
+defm : store_pn_x4<nxv4i32, int_aarch64_sve_stnt1_pn_x4, STNT1W_4Z_IMM>;
+defm : store_pn_x4<nxv2i64, int_aarch64_sve_stnt1_pn_x4, STNT1D_4Z_IMM>;
+defm : store_pn_x4<nxv8f16, int_aarch64_sve_st1_pn_x4, ST1H_4Z_IMM>;
+defm : store_pn_x4<nxv8bf16, int_aarch64_sve_st1_pn_x4, ST1H_4Z_IMM>;
+defm : store_pn_x4<nxv4f32, int_aarch64_sve_st1_pn_x4, ST1W_4Z_IMM>;
+defm : store_pn_x4<nxv2f64, int_aarch64_sve_st1_pn_x4, ST1D_4Z_IMM>;
+defm : store_pn_x4<nxv8f16, int_aarch64_sve_stnt1_pn_x4, STNT1H_4Z_IMM>;
+defm : store_pn_x4<nxv8bf16, int_aarch64_sve_stnt1_pn_x4, STNT1H_4Z_IMM>;
+defm : store_pn_x4<nxv4f32, int_aarch64_sve_stnt1_pn_x4, STNT1W_4Z_IMM>;
+defm : store_pn_x4<nxv2f64, int_aarch64_sve_stnt1_pn_x4, STNT1D_4Z_IMM>;
 
 defm WHILEGE_2PXX : sve2p1_int_while_rr_pair<"whilege", 0b000>;
 defm WHILEGT_2PXX : sve2p1_int_while_rr_pair<"whilegt", 0b001>;

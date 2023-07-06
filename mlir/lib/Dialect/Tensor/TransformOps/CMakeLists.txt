@@ -10,9 +10,9 @@ add_mlir_dialect_library(MLIRTensorTransformOps
   LINK_LIBS PUBLIC
   MLIRAffineDialect
   MLIRIR
-  MLIRPDLDialect
   MLIRSCFDialect
   MLIRTensorDialect
   MLIRTensorTransforms
+  MLIRTensorUtils
   MLIRTransformDialect
 )

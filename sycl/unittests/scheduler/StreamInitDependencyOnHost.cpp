@@ -29,9 +29,11 @@ public:
     case detail::CG::RunOnHostIntel: {
       CommandGroup.reset(new detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
-          getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
-          getKernelName(), getOSModuleHandle(), getStreamStorage(),
+          std::move(MImpl->MKernelBundle),
+          detail::CG::StorageInitHelper(getArgsStorage(), getAccStorage(),
+                                        getSharedPtrStorage(),
+                                        getRequirements(), getEvents()),
+          getArgs(), getKernelName(), getStreamStorage(),
           std::move(MImpl->MAuxiliaryResources), getCGType(), {},
           getCodeLoc()));
       break;

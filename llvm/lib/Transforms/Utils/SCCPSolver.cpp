@@ -17,6 +17,7 @@
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/ValueLattice.h"
 #include "llvm/Analysis/ValueLatticeUtils.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
@@ -386,7 +387,9 @@ class SCCPInstVisitor : public InstVisitor<SCCPInstVisitor> {
   using Edge = std::pair<BasicBlock *, BasicBlock *>;
   DenseSet<Edge> KnownFeasibleEdges;
 
-  DenseMap<Function *, AnalysisResultsForFn> AnalysisResults;
+  DenseMap<Function *, LoopInfo *> FnLoopInfo;
+  DenseMap<Function *, std::unique_ptr<PredicateInfo>> FnPredicateInfo;
+
   DenseMap<Value *, SmallPtrSet<User *, 2>> AdditionalUsers;
 
   LLVMContext &Ctx;
@@ -612,6 +615,7 @@ private:
   void visitCastInst(CastInst &I);
   void visitSelectInst(SelectInst &I);
   void visitUnaryOperator(Instruction &I);
+  void visitFreezeInst(FreezeInst &I);
   void visitBinaryOperator(Instruction &I);
   void visitCmpInst(CmpInst &I);
   void visitExtractValueInst(ExtractValueInst &EVI);
@@ -649,8 +653,12 @@ private:
   void visitInstruction(Instruction &I);
 
 public:
-  void addAnalysis(Function &F, AnalysisResultsForFn A) {
-    AnalysisResults.insert({&F, std::move(A)});
+  void addLoopInfo(Function &F, LoopInfo &LI) {
+    FnLoopInfo.insert({&F, &LI});
+  }
+
+  void addPredicateInfo(Function &F, DominatorTree &DT, AssumptionCache &AC) {
+    FnPredicateInfo.insert({&F, std::make_unique<PredicateInfo>(F, DT, AC)});
   }
 
   void visitCallInst(CallInst &I) { visitCallBase(I); }
@@ -658,23 +666,17 @@ public:
   bool markBlockExecutable(BasicBlock *BB);
 
   const PredicateBase *getPredicateInfoFor(Instruction *I) {
-    auto A = AnalysisResults.find(I->getParent()->getParent());
-    if (A == AnalysisResults.end())
+    auto It = FnPredicateInfo.find(I->getParent()->getParent());
+    if (It == FnPredicateInfo.end())
       return nullptr;
-    return A->second.PredInfo->getPredicateInfoFor(I);
+    return It->second->getPredicateInfoFor(I);
   }
 
   const LoopInfo &getLoopInfo(Function &F) {
-    auto A = AnalysisResults.find(&F);
-    assert(A != AnalysisResults.end() && A->second.LI &&
+    auto It = FnLoopInfo.find(&F);
+    assert(It != FnLoopInfo.end() && It->second &&
            "Need LoopInfo analysis results for function.");
-    return *A->second.LI;
-  }
-
-  DomTreeUpdater getDTU(Function &F) {
-    auto A = AnalysisResults.find(&F);
-    assert(A != AnalysisResults.end() && "Need analysis results for function.");
-    return {A->second.DT, A->second.PDT, DomTreeUpdater::UpdateStrategy::Lazy};
+    return *It->second;
   }
 
   SCCPInstVisitor(const DataLayout &DL,
@@ -1404,6 +1406,30 @@ void SCCPInstVisitor::visitUnaryOperator(Instruction &I) {
   markOverdefined(&I);
 }
 
+void SCCPInstVisitor::visitFreezeInst(FreezeInst &I) {
+  // If this freeze returns a struct, just mark the result overdefined.
+  // TODO: We could do a lot better than this.
+  if (I.getType()->isStructTy())
+    return (void)markOverdefined(&I);
+
+  ValueLatticeElement V0State = getValueState(I.getOperand(0));
+  ValueLatticeElement &IV = ValueState[&I];
+  // resolvedUndefsIn might mark I as overdefined. Bail out, even if we would
+  // discover a concrete value later.
+  if (SCCPSolver::isOverdefined(IV))
+    return (void)markOverdefined(&I);
+
+  // If something is unknown/undef, wait for it to resolve.
+  if (V0State.isUnknownOrUndef())
+    return;
+
+  if (SCCPSolver::isConstant(V0State) &&
+      isGuaranteedNotToBeUndefOrPoison(getConstant(V0State)))
+    return (void)markConstant(IV, &I, getConstant(V0State));
+
+  markOverdefined(&I);
+}
+
 // Handle Binary Operators.
 void SCCPInstVisitor::visitBinaryOperator(Instruction &I) {
   ValueLatticeElement V1State = getValueState(I.getOperand(0));
@@ -1950,8 +1976,13 @@ SCCPSolver::SCCPSolver(
 
 SCCPSolver::~SCCPSolver() = default;
 
-void SCCPSolver::addAnalysis(Function &F, AnalysisResultsForFn A) {
-  return Visitor->addAnalysis(F, std::move(A));
+void SCCPSolver::addLoopInfo(Function &F, LoopInfo &LI) {
+  Visitor->addLoopInfo(F, LI);
+}
+
+void SCCPSolver::addPredicateInfo(Function &F, DominatorTree &DT,
+                                  AssumptionCache &AC) {
+  Visitor->addPredicateInfo(F, DT, AC);
 }
 
 bool SCCPSolver::markBlockExecutable(BasicBlock *BB) {
@@ -1965,8 +1996,6 @@ const PredicateBase *SCCPSolver::getPredicateInfoFor(Instruction *I) {
 const LoopInfo &SCCPSolver::getLoopInfo(Function &F) {
   return Visitor->getLoopInfo(F);
 }
-
-DomTreeUpdater SCCPSolver::getDTU(Function &F) { return Visitor->getDTU(F); }
 
 void SCCPSolver::trackValueOfGlobalVariable(GlobalVariable *GV) {
   Visitor->trackValueOfGlobalVariable(GV);

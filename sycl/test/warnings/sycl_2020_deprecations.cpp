@@ -166,28 +166,9 @@ int main() {
   // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
   using PE = sycl::info::platform::extensions;
 
-  // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
-  // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
-  // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
-  sycl::ext::oneapi::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
-                             sycl::ONEAPI::memory_scope::work_group);
-
   // expected-error@+1{{no member named 'INTEL' in namespace 'sycl'}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
-
-  // expected-warning@+1{{'level_zero' is deprecated: use 'ext_oneapi_level_zero' instead}}
-  auto LevelZeroBackend = sycl::backend::level_zero;
-  (void)LevelZeroBackend;
-
-  // expected-warning@+1{{'esimd_cpu' is deprecated: use 'ext_intel_esimd_emulator' instead}}
-  auto ESIMDCPUBackend = sycl::backend::esimd_cpu;
-  (void)ESIMDCPUBackend;
-
-  sycl::half Val = 1.0f;
-  // expected-warning@+1{{'bit_cast<unsigned short, sycl::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
-  auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
-  (void)BitCastRes;
 
   // expected-warning@+1{{'submit_barrier' is deprecated: use 'ext_oneapi_submit_barrier' instead}}
   Queue.submit_barrier();

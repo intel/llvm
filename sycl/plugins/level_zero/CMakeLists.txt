@@ -4,7 +4,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   message(STATUS "Download Level Zero loader and headers from github.com")
 
   set(LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
-  set(LEVEL_ZERO_LOADER_TAG v1.8.8)
+  set(LEVEL_ZERO_LOADER_TAG v1.11.0)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
@@ -32,6 +32,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-extra-semi")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-non-virtual-dtor")
   endif()
 
   FetchContent_MakeAvailable(level-zero-loader)
@@ -101,27 +102,31 @@ add_sycl_plugin(level_zero
     "../unified_runtime/ur/usm_allocator_config.cpp"
     "../unified_runtime/ur/usm_allocator_config.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_common.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_context.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_device.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_event.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_mem.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_module.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_platform.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_program.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_queue.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_sampler.hpp"
+    "../unified_runtime/ur/adapters/level_zero/command_buffer.hpp"
+    "../unified_runtime/ur/adapters/level_zero/common.hpp"
+    "../unified_runtime/ur/adapters/level_zero/context.hpp"
+    "../unified_runtime/ur/adapters/level_zero/device.hpp"
+    "../unified_runtime/ur/adapters/level_zero/event.hpp"
+    "../unified_runtime/ur/adapters/level_zero/memory.hpp"
+    "../unified_runtime/ur/adapters/level_zero/kernel.hpp"
+    "../unified_runtime/ur/adapters/level_zero/platform.hpp"
+    "../unified_runtime/ur/adapters/level_zero/program.hpp"
+    "../unified_runtime/ur/adapters/level_zero/queue.hpp"
+    "../unified_runtime/ur/adapters/level_zero/sampler.hpp"
+    "../unified_runtime/ur/adapters/level_zero/usm.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_common.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_context.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_device.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_event.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_mem.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_module.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_platform.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_program.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_queue.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_sampler.cpp"
+    "../unified_runtime/ur/adapters/level_zero/command_buffer.cpp"
+    "../unified_runtime/ur/adapters/level_zero/common.cpp"
+    "../unified_runtime/ur/adapters/level_zero/context.cpp"
+    "../unified_runtime/ur/adapters/level_zero/device.cpp"
+    "../unified_runtime/ur/adapters/level_zero/event.cpp"
+    "../unified_runtime/ur/adapters/level_zero/memory.cpp"
+    "../unified_runtime/ur/adapters/level_zero/kernel.cpp"
+    "../unified_runtime/ur/adapters/level_zero/platform.cpp"
+    "../unified_runtime/ur/adapters/level_zero/program.cpp"
+    "../unified_runtime/ur/adapters/level_zero/queue.cpp"
+    "../unified_runtime/ur/adapters/level_zero/sampler.cpp"
+    "../unified_runtime/ur/adapters/level_zero/usm.cpp"
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
     "pi_level_zero.hpp"
@@ -139,18 +144,6 @@ add_sycl_plugin(level_zero
     Threads::Threads
     ${XPTI_LIBS}
 )
-
-#FIXME: We should stop shipping level zero headers as part of the
-#       toolchain installation. Instead these should be avaialble in the system.
-#       We keep shipping it until all environments are updated.
-if (TARGET ze_loader)
-  file(GLOB LEVEL_ZERO_API_HEADERS "${LEVEL_ZERO_INCLUDE_DIR}/*.h")
-  install(FILES ${LEVEL_ZERO_API_HEADERS}
-      DESTINATION ${CMAKE_INSTALL_PREFIX}/include/sycl/level_zero/
-      COMPONENT level-zero-sycl-dev
-  )
-endif()
-# end of FIXME
 
 add_dependencies(pi_level_zero ze-api)
 

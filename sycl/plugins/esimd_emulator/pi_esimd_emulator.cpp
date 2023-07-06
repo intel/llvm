@@ -819,6 +819,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_IMAGE_SRGB:
     // The sRGB images are not supported on the ESIMD emulator.
     return ReturnValue(pi_bool{false});
+  case PI_DEVICE_INFO_ATOMIC_64:
+    return ReturnValue(pi_bool{false});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
@@ -832,7 +834,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_64)
     CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
     CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
     CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES)
@@ -972,10 +973,7 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_VALUE;
   return piQueueCreate(Context, Device, Flags, Queue);
 }
-pi_result piextQueueCreate2(pi_context Context, pi_device Device,
-                            pi_queue_properties *Properties, pi_queue *Queue) {
-  return piextQueueCreate(Context, Device, Properties, Queue);
-}
+
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   ARG_UNUSED(Device);
@@ -1044,22 +1042,13 @@ pi_result piQueueFlush(pi_queue) {
   CONTINUE_NO_IMPLEMENTATION;
 }
 
-pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
+pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *, int32_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextQueueGetNativeHandle2(pi_queue, pi_native_handle *, int32_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                           pi_device, bool, pi_queue *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextQueueCreateWithNativeHandle2(pi_native_handle, int32_t,
-                                            pi_context, pi_device, bool,
-                                            pi_queue_properties *, pi_queue *) {
+pi_result piextQueueCreateWithNativeHandle(pi_native_handle, int32_t,
+                                           pi_context, pi_device, bool,
+                                           pi_queue_properties *, pi_queue *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1420,7 +1409,8 @@ pi_result piKernelSetArg(pi_kernel, pi_uint32, size_t, const void *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextKernelSetArgMemObj(pi_kernel, pi_uint32, const pi_mem *) {
+pi_result piextKernelSetArgMemObj(pi_kernel, pi_uint32,
+                                  const pi_mem_obj_property *, const pi_mem *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -2106,6 +2096,86 @@ pi_result piextEnqueueDeviceGlobalVariableRead(pi_queue, pi_program,
                                                const char *, pi_bool, size_t,
                                                size_t, void *, pi_uint32,
                                                const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferCreate(pi_context, pi_device,
+                                   const pi_ext_command_buffer_desc *,
+                                   pi_ext_command_buffer *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferRetain(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferRelease(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferFinalize(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferNDRangeKernel(pi_ext_command_buffer, pi_kernel,
+                                          pi_uint32, const size_t *,
+                                          const size_t *, const size_t *,
+                                          pi_uint32, const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemcpyUSM(pi_ext_command_buffer, void *,
+                                      const void *, size_t, pi_uint32,
+                                      const pi_ext_sync_point *,
+                                      pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferCopy(pi_ext_command_buffer, pi_mem, pi_mem,
+                                          size_t, size_t, size_t, pi_uint32,
+                                          const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer, pi_mem, pi_mem, pi_buff_rect_offset,
+    pi_buff_rect_offset, pi_buff_rect_region, size_t, size_t, size_t, size_t,
+    pi_uint32, const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferRead(pi_ext_command_buffer, pi_mem, size_t,
+                                          size_t, void *, pi_uint32,
+                                          const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer, pi_mem, pi_buff_rect_offset, pi_buff_rect_offset,
+    pi_buff_rect_region, size_t, size_t, size_t, size_t, void *, pi_uint32,
+    const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferWrite(pi_ext_command_buffer, pi_mem,
+                                           size_t, size_t, const void *,
+                                           pi_uint32, const pi_ext_sync_point *,
+                                           pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer, pi_mem, pi_buff_rect_offset, pi_buff_rect_offset,
+    pi_buff_rect_region, size_t, size_t, size_t, size_t, const void *,
+    pi_uint32, const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer, pi_queue, pi_uint32,
+                                    const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 

@@ -1,4 +1,4 @@
-//===-- Unittests for strtod ---------------------------------------------===//
+//===-- Unittests for strtod ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,7 @@
 #include "src/errno/libc_errno.h"
 #include "src/stdlib/strtod.h"
 
-#include "test/UnitTest/FPMatcher.h"
+#include "test/UnitTest/ErrnoSetterMatcher.h"
 #include "test/UnitTest/RoundingModeUtils.h"
 #include "test/UnitTest/Test.h"
 
@@ -19,6 +19,9 @@
 
 using __llvm_libc::fputil::testing::ForceRoundingModeTest;
 using __llvm_libc::fputil::testing::RoundingMode;
+
+using __llvm_libc::testing::ErrnoSetterMatcher::Fails;
+using __llvm_libc::testing::ErrnoSetterMatcher::Succeeds;
 
 class LlvmLibcStrToDTest : public __llvm_libc::testing::Test,
                            ForceRoundingModeTest<RoundingMode::Nearest> {
@@ -46,10 +49,12 @@ public:
 
     libc_errno = 0;
     double result = __llvm_libc::strtod(inputString, &str_end);
-
+    if (expectedErrno == 0)
+      EXPECT_THAT(result, Succeeds<double>(static_cast<double>(expected_fp)));
+    else
+      EXPECT_THAT(result, Fails<double>(expectedErrno,
+                                        static_cast<double>(expected_fp)));
     EXPECT_EQ(str_end - inputString, expectedStrLen);
-    EXPECT_FP_EQ(result, static_cast<double>(expected_fp));
-    EXPECT_EQ(libc_errno, expectedErrno);
   }
 };
 
@@ -222,6 +227,11 @@ TEST_F(LlvmLibcStrToDTest, FuzzFailures) {
 
   // Same as above but for hex.
   run_test("0x0164810157p2047", 17, uint64_t(0x7ff0000000000000), ERANGE);
+
+  // This test ensures that only the correct number of characters is accepted.
+  // An exponent symbol followed by a sign isn't a valid exponent.
+  run_test("2e+", 1, uint64_t(0x4000000000000000));
+  run_test("0x2p+", 3, uint64_t(0x4000000000000000));
 
   // This bug was in the handling of very large exponents in the exponent
   // marker. Previously anything greater than 10,000 would be set to 10,000.

@@ -85,7 +85,7 @@ MCContext::MCContext(const Triple &TheTriple, const MCAsmInfo *mai,
     Env = IsMachO;
     break;
   case Triple::COFF:
-    if (!TheTriple.isOSWindows())
+    if (!TheTriple.isOSWindows() && !TheTriple.isUEFI())
       report_fatal_error(
           "Cannot initialize MC for non-Windows COFF object files.");
 
@@ -845,9 +845,6 @@ MCSectionSPIRV *MCContext::getSPIRVSection() {
   auto *F = new MCDataFragment();
   Result->getFragmentList().insert(Result->begin(), F);
   F->setParent(Result);
-
-  if (Begin)
-    Begin->setFragment(F);
 
   return Result;
 }

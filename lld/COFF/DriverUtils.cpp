@@ -270,13 +270,13 @@ void LinkerDriver::parseManifest(StringRef arg) {
     ctx.config.manifest = Configuration::No;
     return;
   }
-  if (!arg.startswith_insensitive("embed"))
+  if (!arg.starts_with_insensitive("embed"))
     fatal("invalid option " + arg);
   ctx.config.manifest = Configuration::Embed;
   arg = arg.substr(strlen("embed"));
   if (arg.empty())
     return;
-  if (!arg.startswith_insensitive(",id="))
+  if (!arg.starts_with_insensitive(",id="))
     fatal("invalid option " + arg);
   arg = arg.substr(strlen(",id="));
   if (arg.getAsInteger(0, ctx.config.manifestID))
@@ -294,12 +294,12 @@ void LinkerDriver::parseManifestUAC(StringRef arg) {
     arg = arg.ltrim();
     if (arg.empty())
       return;
-    if (arg.startswith_insensitive("level=")) {
+    if (arg.starts_with_insensitive("level=")) {
       arg = arg.substr(strlen("level="));
       std::tie(ctx.config.manifestLevel, arg) = arg.split(" ");
       continue;
     }
-    if (arg.startswith_insensitive("uiaccess=")) {
+    if (arg.starts_with_insensitive("uiaccess=")) {
       arg = arg.substr(strlen("uiaccess="));
       std::tie(ctx.config.manifestUIAccess, arg) = arg.split(" ");
       continue;
@@ -322,7 +322,7 @@ void LinkerDriver::parseSwaprun(StringRef arg) {
     else
       error("/swaprun: invalid argument: " + swaprun);
     // To catch trailing commas, e.g. `/spawrun:cd,`
-    if (newArg.empty() && arg.endswith(","))
+    if (newArg.empty() && arg.ends_with(","))
       error("/swaprun: missing argument");
     arg = newArg;
   } while (!arg.empty());
@@ -592,7 +592,7 @@ Export LinkerDriver::parseExport(StringRef arg) {
       e.isPrivate = true;
       continue;
     }
-    if (tok.startswith("@")) {
+    if (tok.starts_with("@")) {
       int32_t ord;
       if (tok.substr(1).getAsInteger(0, ord))
         goto err;
@@ -616,9 +616,9 @@ static StringRef undecorate(COFFLinkerContext &ctx, StringRef sym) {
   // as-is with the leading underscore (with type IMPORT_NAME).
   // In MinGW mode, a decorated stdcall function gets the underscore
   // removed, just like normal cdecl functions.
-  if (sym.startswith("_") && sym.contains('@') && !ctx.config.mingw)
+  if (sym.starts_with("_") && sym.contains('@') && !ctx.config.mingw)
     return sym;
-  return sym.startswith("_") ? sym.substr(1) : sym;
+  return sym.starts_with("_") ? sym.substr(1) : sym;
 }
 
 // Convert stdcall/fastcall style symbols into unsuffixed symbols,
@@ -628,8 +628,8 @@ static StringRef killAt(StringRef sym, bool prefix) {
     return sym;
   // Strip any trailing stdcall suffix
   sym = sym.substr(0, sym.find('@', 1));
-  if (!sym.startswith("@")) {
-    if (prefix && !sym.startswith("_"))
+  if (!sym.starts_with("@")) {
+    if (prefix && !sym.starts_with("_"))
       return saver().save("_" + sym);
     return sym;
   }
@@ -904,14 +904,14 @@ ParsedDirectives ArgParser::parseDirectives(StringRef s) {
   SmallVector<StringRef, 16> tokens;
   cl::TokenizeWindowsCommandLineNoCopy(s, saver(), tokens);
   for (StringRef tok : tokens) {
-    if (tok.startswith_insensitive("/export:") ||
-        tok.startswith_insensitive("-export:"))
+    if (tok.starts_with_insensitive("/export:") ||
+        tok.starts_with_insensitive("-export:"))
       result.exports.push_back(tok.substr(strlen("/export:")));
-    else if (tok.startswith_insensitive("/include:") ||
-             tok.startswith_insensitive("-include:"))
+    else if (tok.starts_with_insensitive("/include:") ||
+             tok.starts_with_insensitive("-include:"))
       result.includes.push_back(tok.substr(strlen("/include:")));
-    else if (tok.startswith_insensitive("/exclude-symbols:") ||
-             tok.startswith_insensitive("-exclude-symbols:"))
+    else if (tok.starts_with_insensitive("/exclude-symbols:") ||
+             tok.starts_with_insensitive("-exclude-symbols:"))
       result.excludes.push_back(tok.substr(strlen("/exclude-symbols:")));
     else {
       // Copy substrings that are not valid C strings. The tokenizer may have

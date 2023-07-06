@@ -13,7 +13,7 @@
 class ComplexClass {
 public:
   ~ComplexClass() {
-    auto Device = sycl::default_selector{}.select_device();
+    sycl::device Device;
     sycl::queue Queue{Device};
     sycl::buffer<int, 1> Buf{sycl::range<1>{16}};
     Queue.submit([&](sycl::handler &CGH) {

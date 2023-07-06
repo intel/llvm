@@ -750,7 +750,7 @@ class VectorType;
         ComplexDeinterleavingOperation Operation, Type *Ty) const override;
 
     Value *createComplexDeinterleavingIR(
-        Instruction *I, ComplexDeinterleavingOperation OperationType,
+        IRBuilderBase &B, ComplexDeinterleavingOperation OperationType,
         ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
         Value *Accumulator = nullptr) const override;
 
@@ -767,9 +767,6 @@ class VectorType;
     const TargetRegisterInfo *RegInfo;
 
     const InstrItineraryData *Itins;
-
-    /// ARMPCLabelIndex - Keep track of the number of ARM PC labels created.
-    unsigned ARMPCLabelIndex;
 
     // TODO: remove this, and have shouldInsertFencesForAtomic do the proper
     // check.
@@ -972,8 +969,6 @@ class VectorType;
                                 MachineBasicBlock *DispatchBB, int FI) const;
 
     void EmitSjLjDispatchBlock(MachineInstr &MI, MachineBasicBlock *MBB) const;
-
-    bool RemapAddSubWithFlags(MachineInstr &MI, MachineBasicBlock *BB) const;
 
     MachineBasicBlock *EmitStructByval(MachineInstr &MI,
                                        MachineBasicBlock *MBB) const;

@@ -45,7 +45,7 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle) {
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, nullptr, false,
+  return detail::make_queue(NativeHandle, 0, Context, nullptr, false, {},
                             ContextImpl->get_async_handler(), backend::opencl);
 }
 
@@ -61,7 +61,7 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
 
   std::shared_ptr<sycl::detail::platform_impl> PlatformImpl =
       getSyclObjImpl(SyclPlatform);
-  detail::RT::PiPlatform PluginPlatform = PlatformImpl->getHandleRef();
+  sycl::detail::pi::PiPlatform PluginPlatform = PlatformImpl->getHandleRef();
   const PluginPtr &Plugin = PlatformImpl->getPlugin();
 
   // Manual invocation of plugin API to avoid using deprecated
@@ -92,7 +92,7 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
 
   std::shared_ptr<sycl::detail::device_impl> DeviceImpl =
       getSyclObjImpl(SyclDevice);
-  detail::RT::PiDevice PluginDevice = DeviceImpl->getHandleRef();
+  sycl::detail::pi::PiDevice PluginDevice = DeviceImpl->getHandleRef();
   const PluginPtr &Plugin = DeviceImpl->getPlugin();
 
   // Manual invocation of plugin API to avoid using deprecated

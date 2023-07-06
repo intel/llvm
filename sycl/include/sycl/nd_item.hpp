@@ -29,6 +29,10 @@ namespace detail {
 class Builder;
 }
 
+namespace ext::oneapi::experimental {
+template <int dimensions> class root_group;
+}
+
 /// Identifies an instance of the function object executing at each point in an
 /// nd_range.
 ///
@@ -196,6 +200,11 @@ public:
 
   template <typename... eventTN> void wait_for(eventTN... events) const {
     Group.wait_for(events...);
+  }
+
+  sycl::ext::oneapi::experimental::root_group<dimensions>
+  ext_oneapi_get_root_group() const {
+    return sycl::ext::oneapi::experimental::root_group<dimensions>{*this};
   }
 
   nd_item(const nd_item &rhs) = default;

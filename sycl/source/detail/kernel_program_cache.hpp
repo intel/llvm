@@ -70,10 +70,12 @@ public:
     BuildResult(T *P, BuildState S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
-  using ProgramWithBuildStateT = BuildResult<RT::PiProgram>;
-  using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
-                                     std::pair<RT::PiDevice, std::string>>;
-  using CommonProgramKeyT = std::pair<std::uintptr_t, RT::PiDevice>;
+  using ProgramWithBuildStateT = BuildResult<sycl::detail::pi::PiProgram>;
+  using ProgramCacheKeyT =
+      std::pair<std::pair<SerializedObj, std::uintptr_t>,
+                std::pair<sycl::detail::pi::PiDevice, std::string>>;
+  using CommonProgramKeyT =
+      std::pair<std::uintptr_t, sycl::detail::pi::PiDevice>;
 
   struct ProgramCache {
     std::map<ProgramCacheKeyT, ProgramWithBuildStateT> Cache;
@@ -84,15 +86,17 @@ public:
 
   using ContextPtr = context_impl *;
 
-  using KernelArgMaskPairT = std::pair<RT::PiKernel, const KernelArgMask *>;
+  using KernelArgMaskPairT =
+      std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>;
   using KernelByNameT = std::map<std::string, BuildResult<KernelArgMaskPairT>>;
-  using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
+  using KernelCacheT = std::map<sycl::detail::pi::PiProgram, KernelByNameT>;
 
   using KernelFastCacheKeyT =
-      std::tuple<SerializedObj, OSModuleHandle, RT::PiDevice, std::string,
+      std::tuple<SerializedObj, sycl::detail::pi::PiDevice, std::string,
                  std::string>;
-  using KernelFastCacheValT = std::tuple<RT::PiKernel, std::mutex *,
-                                         const KernelArgMask *, RT::PiProgram>;
+  using KernelFastCacheValT =
+      std::tuple<sycl::detail::pi::PiKernel, std::mutex *,
+                 const KernelArgMask *, sycl::detail::pi::PiProgram>;
   using KernelFastCacheT = std::map<KernelFastCacheKeyT, KernelFastCacheValT>;
 
   ~KernelProgramCache();
@@ -126,7 +130,8 @@ public:
   }
 
   std::pair<BuildResult<KernelArgMaskPairT> *, bool>
-  getOrInsertKernel(RT::PiProgram Program, const std::string &KernelName) {
+  getOrInsertKernel(sycl::detail::pi::PiProgram Program,
+                    const std::string &KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
     auto Inserted = Cache.emplace(

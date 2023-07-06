@@ -38,8 +38,9 @@ static const PluginPtr &getPlugin(backend Backend) {
   case backend::ext_oneapi_cuda:
     return pi::getPlugin<backend::ext_oneapi_cuda>();
   default:
-    throw sycl::runtime_error{"getPlugin: Unsupported backend",
-                              PI_ERROR_INVALID_OPERATION};
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "getPlugin: Unsupported backend " +
+                              detail::codeToString(PI_ERROR_INVALID_OPERATION));
   }
 }
 
@@ -57,6 +58,8 @@ backend convertBackend(pi_platform_backend PiBackend) {
     return backend::ext_oneapi_hip;
   case PI_EXT_PLATFORM_BACKEND_ESIMD:
     return backend::ext_intel_esimd_emulator;
+  case PI_EXT_PLATFORM_BACKEND_NATIVE_CPU:
+    return backend::ext_native_cpu;
   }
   throw sycl::runtime_error{"convertBackend: Unsupported backend",
                             PI_ERROR_INVALID_OPERATION};
@@ -99,48 +102,18 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
       std::make_shared<context_impl>(PiContext, Handler, Plugin));
 }
 
-queue make_queue_impl(pi_native_handle NativeHandle, const context &Context,
-                      RT::PiDevice Device, bool KeepOwnership,
-                      const async_handler &Handler, backend Backend) {
-  const auto &Plugin = getPlugin(Backend);
-  const auto &ContextImpl = getSyclObjImpl(Context);
-  // Create PI queue first.
-  pi::PiQueue PiQueue = nullptr;
-  Plugin->call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), Device, !KeepOwnership,
-      &PiQueue);
-  // Construct the SYCL queue from PI queue.
-  return detail::createSyclObjFromImpl<queue>(
-      std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));
-}
-
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &Context, const device *Device,
-                               bool KeepOwnership, const async_handler &Handler,
-                               backend Backend) {
-  if (Device) {
-    const auto &DeviceImpl = getSyclObjImpl(*Device);
-    return make_queue_impl(NativeHandle, Context, DeviceImpl->getHandleRef(),
-                           KeepOwnership, Handler, Backend);
-  } else {
-    return make_queue_impl(NativeHandle, Context, nullptr, KeepOwnership,
-                           Handler, Backend);
-  }
-}
-
-__SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
-                                int32_t NativeHandleDesc,
-                                const context &Context, const device *Device,
-                                bool KeepOwnership,
-                                const property_list &PropList,
-                                const async_handler &Handler, backend Backend) {
-  const auto &DeviceImpl = getSyclObjImpl(*Device);
-  RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
+                               int32_t NativeHandleDesc, const context &Context,
+                               const device *Device, bool KeepOwnership,
+                               const property_list &PropList,
+                               const async_handler &Handler, backend Backend) {
+  sycl::detail::pi::PiDevice PiDevice =
+      Device ? getSyclObjImpl(*Device)->getHandleRef() : nullptr;
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
   // Create PI properties from SYCL properties.
-  RT::PiQueueProperties Properties[] = {
+  sycl::detail::pi::PiQueueProperties Properties[] = {
       PI_QUEUE_FLAGS,
       queue_impl::createPiQueueProperties(
           PropList, PropList.has_property<property::queue::in_order>()
@@ -155,7 +128,7 @@ __SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
 
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
-  Plugin->call<PiApiKind::piextQueueCreateWithNativeHandle2>(
+  Plugin->call<PiApiKind::piextQueueCreateWithNativeHandle>(
       NativeHandle, NativeHandleDesc, ContextImpl->getHandleRef(), PiDevice,
       !KeepOwnership, Properties, &PiQueue);
   // Construct the SYCL queue from PI queue.
@@ -226,10 +199,9 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
     case (PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT):
     case (PI_PROGRAM_BINARY_TYPE_LIBRARY):
       if (State == bundle_state::input)
-        // TODO SYCL2020 exception
-        throw sycl::runtime_error(errc::invalid,
-                                  "Program and kernel_bundle state mismatch",
-                                  PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Program and kernel_bundle state mismatch " +
+                                  detail::codeToString(PI_ERROR_INVALID_VALUE));
       if (State == bundle_state::executable)
         Plugin->call<errc::build, PiApiKind::piProgramLink>(
             ContextImpl->getHandleRef(), 1, &Dev, nullptr, 1, &PiProgram,
@@ -237,10 +209,9 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
       break;
     case (PI_PROGRAM_BINARY_TYPE_EXECUTABLE):
       if (State == bundle_state::input || State == bundle_state::object)
-        // TODO SYCL2020 exception
-        throw sycl::runtime_error(errc::invalid,
-                                  "Program and kernel_bundle state mismatch",
-                                  PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Program and kernel_bundle state mismatch " +
+                                  detail::codeToString(PI_ERROR_INVALID_VALUE));
       break;
     }
   }
@@ -294,9 +265,10 @@ kernel make_kernel(const context &TargetContext,
   pi::PiProgram PiProgram = nullptr;
   if (Backend == backend::ext_oneapi_level_zero) {
     if (KernelBundleImpl->size() != 1)
-      throw sycl::runtime_error{
-          "make_kernel: kernel_bundle must have single program image",
-          PI_ERROR_INVALID_PROGRAM};
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::runtime),
+          "make_kernel: kernel_bundle must have single program image " +
+              detail::codeToString(PI_ERROR_INVALID_PROGRAM));
 
     const device_image<bundle_state::executable> &DeviceImage =
         *KernelBundle.begin();

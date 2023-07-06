@@ -189,8 +189,8 @@ func.func @vector_multi_reduction_to_scalar(%arg0: vector<2x3xf32>, %acc: f32) -
 //       CHECK:   return %{{.+}}
 
 transform.sequence failures(propagate) {
-^bb1(%module_op: !pdl.operation):
-  transform.vector.lower_multi_reduction %module_op
-    lowering_strategy = "innerparallel"
-      : (!pdl.operation) -> !pdl.operation
+^bb1(%module_op: !transform.any_op):
+  transform.apply_patterns to %module_op {
+    transform.apply_patterns.vector.lower_multi_reduction lowering_strategy = "innerparallel"
+  } : !transform.any_op
 }

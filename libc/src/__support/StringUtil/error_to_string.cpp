@@ -6,18 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/__support/StringUtil/error_to_string.h"
+#include "error_to_string.h"
+#include "platform_errors.h"
 
-#include "src/errno/libc_errno.h" // For error macros
-
-#include "src/__support/CPP/array.h"
 #include "src/__support/CPP/span.h"
 #include "src/__support/CPP/string_view.h"
 #include "src/__support/CPP/stringstream.h"
 #include "src/__support/StringUtil/message_mapper.h"
 #include "src/__support/integer_to_string.h"
-
-#include "src/__support/StringUtil/tables/error_table.h"
+#include "src/__support/macros/attributes.h"
 
 #include <stddef.h>
 
@@ -35,7 +32,7 @@ constexpr size_t max_buff_size() {
 // This is to hold error strings that have to be custom built. It may be
 // rewritten on every call to strerror (or other error to string function).
 constexpr size_t ERR_BUFFER_SIZE = max_buff_size();
-thread_local char error_buffer[ERR_BUFFER_SIZE];
+LIBC_THREAD_LOCAL char error_buffer[ERR_BUFFER_SIZE];
 
 constexpr size_t TOTAL_STR_LEN = total_str_len(PLATFORM_ERRORS);
 

@@ -11,55 +11,55 @@
 // TODO: support lib path.
 
 #DCSR = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ]
+  lvlTypes = [ "compressed", "compressed" ]
 }>
 
 #DCSR_SLICE = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ],
-  slice = [ (0, 4, 1), (0, 8, 1) ]
+  lvlTypes = [ "compressed", "compressed" ],
+  dimSlices = [ (0, 4, 1), (0, 8, 1) ]
 }>
 
 #CSR = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed" ]
+  lvlTypes = [ "dense", "compressed" ]
 }>
 
 #CSR_SLICE = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed" ],
-  slice = [ (0, 4, 1), (0, 8, 1) ]
+  lvlTypes = [ "dense", "compressed" ],
+  dimSlices = [ (0, 4, 1), (0, 8, 1) ]
 }>
 
 #COO = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed-nu", "singleton" ]
+  lvlTypes = [ "compressed-nu", "singleton" ]
 }>
 
 #CSR_SLICE_1 = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed" ],
-  slice = [ (0, 4, 2), (0, 4, 1) ]
+  lvlTypes = [ "dense", "compressed" ],
+  dimSlices = [ (0, 4, 2), (0, 4, 1) ]
 }>
 
 #DCSR_SLICE_1 = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ],
-  slice = [ (0, 4, 2), (1, 4, 1) ]
+  lvlTypes = [ "compressed", "compressed" ],
+  dimSlices = [ (0, 4, 2), (1, 4, 1) ]
 }>
 
 #COO_SLICE_1 = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed-nu", "singleton" ],
-  slice = [ (0, 4, 2), (0, 4, 1) ]
+  lvlTypes = [ "compressed-nu", "singleton" ],
+  dimSlices = [ (0, 4, 2), (0, 4, 1) ]
 }>
 
 #COO_SLICE_2 = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed-nu", "singleton" ],
-  slice = [ (0, 4, 2), (1, 4, 1) ]
+  lvlTypes = [ "compressed-nu", "singleton" ],
+  dimSlices = [ (0, 4, 2), (1, 4, 1) ]
 }>
 
 #CSR_SLICE_dyn = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed" ],
-  slice = [ (?, 4, ?), (?, 4, ?) ]
+  lvlTypes = [ "dense", "compressed" ],
+  dimSlices = [ (?, 4, ?), (?, 4, ?) ]
 }>
 
 #DCSR_SLICE_dyn = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ],
-  slice = [ (?, 4, ?), (?, 4, ?) ]
+  lvlTypes = [ "compressed", "compressed" ],
+  dimSlices = [ (?, 4, ?), (?, 4, ?) ]
 }>
 
 module {

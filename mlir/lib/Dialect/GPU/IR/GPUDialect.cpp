@@ -146,6 +146,10 @@ struct GPUInlinerInterface : public DialectInlinerInterface {
 void GPUDialect::initialize() {
   addTypes<AsyncTokenType>();
   addTypes<MMAMatrixType>();
+  addTypes<SparseEnvHandleType>();
+  addTypes<SparseDnVecHandleType>();
+  addTypes<SparseDnMatHandleType>();
+  addTypes<SparseSpMatHandleType>();
   addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/GPU/IR/GPUOps.cpp.inc"
@@ -155,6 +159,21 @@ void GPUDialect::initialize() {
 #include "mlir/Dialect/GPU/IR/GPUOpsAttributes.cpp.inc"
       >();
   addInterfaces<GPUInlinerInterface>();
+}
+
+static std::string getSparseHandleKeyword(SparseHandleKind kind) {
+  switch (kind) {
+  case SparseHandleKind::Env:
+    return "sparse.env_handle";
+  case SparseHandleKind::DnVec:
+    return "sparse.dnvec_handle";
+  case SparseHandleKind::DnMat:
+    return "sparse.dnmat_handle";
+  case SparseHandleKind::SpMat:
+    return "sparse.spmat_handle";
+  }
+  llvm_unreachable("unknown sparse handle kind");
+  return "";
 }
 
 Type GPUDialect::parseType(DialectAsmParser &parser) const {
@@ -200,13 +219,31 @@ Type GPUDialect::parseType(DialectAsmParser &parser) const {
                                      shape, elementType, operand);
   }
 
+  if (keyword == getSparseHandleKeyword(SparseHandleKind::Env))
+    return SparseEnvHandleType::get(context);
+  if (keyword == getSparseHandleKeyword(SparseHandleKind::DnVec))
+    return SparseDnVecHandleType::get(context);
+  if (keyword == getSparseHandleKeyword(SparseHandleKind::DnMat))
+    return SparseDnMatHandleType::get(context);
+  if (keyword == getSparseHandleKeyword(SparseHandleKind::SpMat))
+    return SparseSpMatHandleType::get(context);
+
   parser.emitError(parser.getNameLoc(), "unknown gpu type: " + keyword);
   return Type();
 }
-
+// TODO: print refined type here. Notice that should be corresponding to the
+// parser
 void GPUDialect::printType(Type type, DialectAsmPrinter &os) const {
   TypeSwitch<Type>(type)
       .Case<AsyncTokenType>([&](Type) { os << "async.token"; })
+      .Case<SparseEnvHandleType>(
+          [&](Type) { os << getSparseHandleKeyword(SparseHandleKind::Env); })
+      .Case<SparseDnVecHandleType>(
+          [&](Type) { os << getSparseHandleKeyword(SparseHandleKind::DnVec); })
+      .Case<SparseDnMatHandleType>(
+          [&](Type) { os << getSparseHandleKeyword(SparseHandleKind::DnMat); })
+      .Case<SparseSpMatHandleType>(
+          [&](Type) { os << getSparseHandleKeyword(SparseHandleKind::SpMat); })
       .Case<MMAMatrixType>([&](MMAMatrixType fragTy) {
         os << "mma_matrix<";
         auto shape = fragTy.getShape();
@@ -220,7 +257,7 @@ void GPUDialect::printType(Type type, DialectAsmPrinter &os) const {
 
 LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
                                                    NamedAttribute attr) {
-  if (!attr.getValue().isa<UnitAttr>() ||
+  if (!llvm::isa<UnitAttr>(attr.getValue()) ||
       attr.getName() != getContainerModuleAttrName())
     return success();
 
@@ -368,14 +405,14 @@ static LogicalResult verifyAttributions(Operation *op,
                                         ArrayRef<BlockArgument> attributions,
                                         gpu::AddressSpace memorySpace) {
   for (Value v : attributions) {
-    auto type = v.getType().dyn_cast<MemRefType>();
+    auto type = llvm::dyn_cast<MemRefType>(v.getType());
     if (!type)
       return op->emitOpError() << "expected memref type in attribution";
 
     // We can only verify the address space if it hasn't already been lowered
     // from the AddressSpaceAttr to a target-specific numeric value.
     auto addressSpace =
-        type.getMemorySpace().dyn_cast_or_null<gpu::AddressSpaceAttr>();
+        llvm::dyn_cast_or_null<gpu::AddressSpaceAttr>(type.getMemorySpace());
     if (!addressSpace)
       continue;
     if (addressSpace.getValue() != memorySpace)
@@ -395,7 +432,7 @@ static bool verifyReduceOpAndType(gpu::AllReduceOperation opName,
   return (opName != gpu::AllReduceOperation::AND &&
           opName != gpu::AllReduceOperation::OR &&
           opName != gpu::AllReduceOperation::XOR) ||
-         resType.isa<IntegerType>();
+         llvm::isa<IntegerType>(resType);
 }
 
 LogicalResult gpu::AllReduceOp::verifyRegions() {
@@ -431,6 +468,27 @@ LogicalResult gpu::AllReduceOp::verifyRegions() {
   return success();
 }
 
+static bool canMakeGroupOpUniform(Operation *op) {
+  auto launchOp = dyn_cast<gpu::LaunchOp>(op->getParentOp());
+  if (!launchOp)
+    return false;
+
+  Region &body = launchOp.getBody();
+  assert(!body.empty() && "Invalid region");
+
+  // Only convert ops in gpu::launch entry block for now.
+  return op->getBlock() == &body.front();
+}
+
+OpFoldResult gpu::AllReduceOp::fold(FoldAdaptor /*adaptor*/) {
+  if (!getUniform() && canMakeGroupOpUniform(*this)) {
+    setUniform(true);
+    return getResult();
+  }
+
+  return nullptr;
+}
+
 // TODO: Support optional custom attributes (without dialect prefix).
 static ParseResult parseAllReduceOperation(AsmParser &parser,
                                            AllReduceOperationAttr &attr) {
@@ -462,6 +520,15 @@ LogicalResult gpu::SubgroupReduceOp::verify() {
                        << "` accumulator is only compatible with Integer type";
   }
   return success();
+}
+
+OpFoldResult gpu::SubgroupReduceOp::fold(FoldAdaptor /*adaptor*/) {
+  if (!getUniform() && canMakeGroupOpUniform(*this)) {
+    setUniform(true);
+    return getResult();
+  }
+
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1156,7 +1223,7 @@ static void printAttributions(OpAsmPrinter &p, StringRef keyword,
         size_t attributionIndex = pair.index();
         DictionaryAttr attrs;
         if (attributes && attributionIndex < attributes.size())
-          attrs = attributes[attributionIndex].cast<DictionaryAttr>();
+          attrs = llvm::cast<DictionaryAttr>(attributes[attributionIndex]);
         if (attrs)
           p.printOptionalAttrDict(attrs.getValue());
       });
@@ -1191,10 +1258,10 @@ void GPUFuncOp::print(OpAsmPrinter &p) {
 
 static DictionaryAttr getAttributionAttrs(GPUFuncOp op, unsigned index,
                                           StringAttr attrName) {
-  auto allAttrs = op->getAttr(attrName).dyn_cast_or_null<ArrayAttr>();
+  auto allAttrs = llvm::dyn_cast_or_null<ArrayAttr>(op->getAttr(attrName));
   if (!allAttrs || index >= allAttrs.size())
     return DictionaryAttr();
-  return allAttrs[index].cast<DictionaryAttr>();
+  return llvm::cast<DictionaryAttr>(allAttrs[index]);
 }
 
 DictionaryAttr GPUFuncOp::getworkgroupAttributionAttrs(unsigned index) {
@@ -1208,7 +1275,7 @@ DictionaryAttr GPUFuncOp::getPrivateAttributionAttrs(unsigned index) {
 static void setAttributionAttrs(GPUFuncOp op, unsigned index,
                                 DictionaryAttr value, StringAttr attrName) {
   MLIRContext *ctx = op.getContext();
-  auto allAttrs = op->getAttr(attrName).dyn_cast_or_null<ArrayAttr>();
+  auto allAttrs = llvm::dyn_cast_or_null<ArrayAttr>(op->getAttr(attrName));
   SmallVector<Attribute> elements;
   if (allAttrs)
     elements.append(allAttrs.begin(), allAttrs.end());
@@ -1349,7 +1416,7 @@ static LogicalResult verifyKnownLaunchSizeAttr(gpu::GPUFuncOp op,
   auto maybeAttr = op->getAttr(attrName);
   if (!maybeAttr)
     return success();
-  auto array = maybeAttr.dyn_cast<DenseI32ArrayAttr>();
+  auto array = llvm::dyn_cast<DenseI32ArrayAttr>(maybeAttr);
   if (!array)
     return op.emitOpError(attrName + " must be a dense i32 array");
   if (array.size() != 3)
@@ -1506,9 +1573,9 @@ static bool isLastMemrefDimUnitStride(MemRefType type) {
 LogicalResult SubgroupMmaLoadMatrixOp::verify() {
   auto srcType = getSrcMemref().getType();
   auto resType = getRes().getType();
-  auto resMatrixType = resType.cast<gpu::MMAMatrixType>();
+  auto resMatrixType = llvm::cast<gpu::MMAMatrixType>(resType);
   auto operand = resMatrixType.getOperand();
-  auto srcMemrefType = srcType.cast<MemRefType>();
+  auto srcMemrefType = llvm::cast<MemRefType>(srcType);
 
   if (!isLastMemrefDimUnitStride(srcMemrefType))
     return emitError(
@@ -1528,8 +1595,8 @@ LogicalResult SubgroupMmaLoadMatrixOp::verify() {
 LogicalResult SubgroupMmaStoreMatrixOp::verify() {
   auto srcType = getSrc().getType();
   auto dstType = getDstMemref().getType();
-  auto srcMatrixType = srcType.cast<gpu::MMAMatrixType>();
-  auto dstMemrefType = dstType.cast<MemRefType>();
+  auto srcMatrixType = llvm::cast<gpu::MMAMatrixType>(srcType);
+  auto dstMemrefType = llvm::cast<MemRefType>(dstType);
 
   if (!isLastMemrefDimUnitStride(dstMemrefType))
     return emitError(
@@ -1549,9 +1616,9 @@ LogicalResult SubgroupMmaStoreMatrixOp::verify() {
 LogicalResult SubgroupMmaComputeOp::verify() {
   enum OperandMap { A, B, C };
   SmallVector<MMAMatrixType, 3> opTypes;
-  opTypes.push_back(getOpA().getType().cast<MMAMatrixType>());
-  opTypes.push_back(getOpB().getType().cast<MMAMatrixType>());
-  opTypes.push_back(getOpC().getType().cast<MMAMatrixType>());
+  opTypes.push_back(llvm::cast<MMAMatrixType>(getOpA().getType()));
+  opTypes.push_back(llvm::cast<MMAMatrixType>(getOpB().getType()));
+  opTypes.push_back(llvm::cast<MMAMatrixType>(getOpC().getType()));
 
   if (!opTypes[A].getOperand().equals("AOp") ||
       !opTypes[B].getOperand().equals("BOp") ||
@@ -1658,7 +1725,7 @@ void WaitOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 
 LogicalResult AllocOp::verify() {
-  auto memRefType = getMemref().getType().cast<MemRefType>();
+  auto memRefType = llvm::cast<MemRefType>(getMemref().getType());
 
   if (static_cast<int64_t>(getDynamicSizes().size()) !=
       memRefType.getNumDynamicDims())
@@ -1689,7 +1756,7 @@ struct SimplifyDimOfAllocOp : public OpRewritePattern<memref::DimOp> {
     if (!index)
       return failure();
 
-    auto memrefType = dimOp.getSource().getType().dyn_cast<MemRefType>();
+    auto memrefType = llvm::dyn_cast<MemRefType>(dimOp.getSource().getType());
     if (!memrefType || !memrefType.isDynamicDim(index.value()))
       return failure();
 

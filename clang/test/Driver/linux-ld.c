@@ -1259,6 +1259,22 @@
 // CHECK-ANDROID-32: "-dynamic-linker" "/system/bin/linker"
 // CHECK-ANDROID-64: "-dynamic-linker" "/system/bin/linker64"
 //
+// Test that Android 14 and newer use linker_hwasan64 for hwasan builds
+// RUN: %clang -### %s -no-pie 2>&1 \
+// RUN:     -fsanitize=hwaddress \
+// RUN:     --target=x86_64-linux-android33 \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/basic_android_tree/sysroot \
+// RUN:   | FileCheck --check-prefix=CHECK-ANDROID-OLD %s
+// RUN: %clang -### %s -no-pie 2>&1 \
+// RUN:     -fsanitize=hwaddress \
+// RUN:     --target=x86_64-linux-android34 \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/basic_android_tree/sysroot \
+// RUN:   | FileCheck --check-prefix=CHECK-ANDROID-NEW %s
+// CHECK-ANDROID-OLD: "-dynamic-linker" "/system/bin/linker64"
+// CHECK-ANDROID-NEW: "-dynamic-linker" "/system/bin/linker_hwasan64"
+//
 // Test that -pthread does not add -lpthread on Android.
 // RUN: %clang -### %s -no-pie 2>&1 \
 // RUN:     --target=arm-linux-androideabi -pthread \
@@ -1791,15 +1807,14 @@
 // CHECK-LD-GENTOO-X32: "-lc"
 // CHECK-LD-GENTOO-X32: "-lgcc" "--as-needed" "-lgcc_s" "--no-as-needed"
 
-// RUN: %clang -### %s -no-pie 2>&1 \
+// RUN: %clang -### %s -no-pie -fuse-ld=ld 2>&1 \
 // RUN:     --target=x86_64-unknown-linux-gnu \
 // RUN:     --gcc-toolchain="%S/Inputs/rhel_7_tree/opt/rh/devtoolset-7/root/usr" \
-// RUN:     --sysroot=%S/Inputs/rhel_7_tree \
+// RUN:     --sysroot="%S/Inputs/rhel_7_tree/opt/rh/devtoolset-7/root" \
 // RUN:   | FileCheck --check-prefix=CHECK-LD-RHEL7-DTS %s
-// CHECK-LD-RHEL7-DTS: "{{.*}}ld{{(.exe)?}}" "--sysroot=[[SYSROOT:[^"]+]]"
-// CHECK-LD-RHLE7-DTS: Selected GCC installation: [[GCC_INSTALL:[[SYSROOT]]/lib/gcc/x86_64-redhat-linux/7]]
+// CHECK-LD-RHEL7-DTS: "-isysroot" "[[SYSROOT:[^"]+]]"
 // CHECK-LD-RHEL7-DTS-NOT: /usr/bin/ld
-// CHECK-LD-RHLE7-DTS: [[GCC_INSTALL]/../../../bin/ld
+// CHECK-LD-RHEL7-DTS: [[SYSROOT]]/usr/lib/gcc/x86_64-redhat-linux/7/../../../../bin/ld
 
 // Check whether gcc7 install works fine on Amazon Linux AMI
 // RUN: %clang -### %s -no-pie 2>&1 \

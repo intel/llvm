@@ -20,7 +20,7 @@ add_libc_test(
     libc.src.__support.common
 )
 
-# This test fails with a segmentation fault on NVPTX.
+# These tests fails with an illegal instruction
 if(NOT LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX)
   add_libc_test(
     high_precision_decimal_test
@@ -32,19 +32,19 @@ if(NOT LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX)
       libc.src.__support.high_precision_decimal
       libc.src.__support.uint128
   )
-endif()
 
-add_libc_test(
-  str_to_float_test
-  SUITE
-    libc-support-tests
-  SRCS
-    str_to_float_test.cpp
-  DEPENDS
-    libc.src.__support.str_to_float
-    libc.src.__support.uint128
-    libc.src.errno.errno
-)
+  add_libc_test(
+    str_to_float_test
+    SUITE
+      libc-support-tests
+    SRCS
+      str_to_float_test.cpp
+    DEPENDS
+      libc.src.__support.str_to_float
+      libc.src.__support.uint128
+      libc.src.errno.errno
+  )
+endif()
 
 add_libc_test(
   integer_to_string_test
@@ -55,6 +55,8 @@ add_libc_test(
   DEPENDS
     libc.src.__support.integer_to_string
     libc.src.__support.CPP.string_view
+    libc.src.__support.uint
+    libc.src.__support.uint128
 )
 
 # The GPU does not support varargs currently.
@@ -91,10 +93,10 @@ add_libc_test(
     libc.src.__support.fixedvector
 )
 
+# This test fails with a segmentation fault on NVPTX.
+if(NOT LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX)
 add_libc_test(
   char_vector_test
-  # This test relies on 'realloc' which is not implemented for hermetic tests.
-  UNIT_TEST_ONLY
   SUITE
     libc-support-tests
   SRCS
@@ -102,6 +104,7 @@ add_libc_test(
   DEPENDS
     libc.src.__support.char_vector
 )
+endif()
 
 add_executable(
   libc_str_to_float_comparison_test

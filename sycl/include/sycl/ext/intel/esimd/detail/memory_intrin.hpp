@@ -540,13 +540,13 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
                          (Op == __ESIMD_NS::atomic_op::fsub)) {
       Oldval[AddrIdx] =
           __ESIMD_DNS::atomic_sub<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::minsint) ||
-                         (Op == __ESIMD_NS::atomic_op::min) ||
+    } else if constexpr ((Op == __ESIMD_NS::atomic_op::smin) ||
+                         (Op == __ESIMD_NS::atomic_op::umin) ||
                          (Op == __ESIMD_NS::atomic_op::fmin)) {
       Oldval[AddrIdx] =
           __ESIMD_DNS::atomic_min<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::maxsint) ||
-                         (Op == __ESIMD_NS::atomic_op::max) ||
+    } else if constexpr ((Op == __ESIMD_NS::atomic_op::smax) ||
+                         (Op == __ESIMD_NS::atomic_op::umax) ||
                          (Op == __ESIMD_NS::atomic_op::fmax)) {
       Oldval[AddrIdx] =
           __ESIMD_DNS::atomic_max<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
@@ -1164,10 +1164,6 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// getter methods returning surface index are not available when stateless
-// memory accesses are enforced.
-#ifndef __ESIMD_FORCE_STATELESS_MEM
-
 // \brief Converts given value to a surface index.
 // The input must always be a result of
 //   detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc)
@@ -1178,27 +1174,27 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 // or
 //   image{1,2,3}d_t OpenCL type for an image
 // But when doing code generation, FE replaces e.g. '__read_only image2d_t' FE
-// type with '%opencl.image2d_ro_t addrspace(1) *' LLVM type.
-// image2d_t can neither be reinterpret_cast'ed from pointer to intptr_t
-// (because it is not a pointer at FE translation time), nor it can be
-// bit_cast'ed to intptr_t (because it is not trivially copyable). This
-// intrinsic takes advantage of the fact that in LLVM IR 'obj' is always a
-// pointer, where we can do ptr to uint32_t conversion.
-// This intrinsic can be called only from the device code, as
+// type with '%opencl.image2d_ro_t addrspace(1) *' LLVM type or a Target
+// Extension Type if using opaque pointers. These types can neither be
+// reinterpret_cast'ed from pointer to intptr_t (because they are not a pointer
+// at FE translation time), nor can they be bit_cast'ed to intptr_t (because
+// they are not trivially copyable). This function takes advantage of the fact
+// that in SPIR-V 'obj' is always a pointer, where we can do ptr to uint32_t
+// conversion. This function can be called only from the device code, as
 // accessor => memory handle translation for host is different.
 // @param acc the SYCL accessor.
 // Returns the binding table index value.
 template <typename MemObjTy>
-__ESIMD_INTRIN __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
+ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
 #ifdef __SYCL_DEVICE_ONLY__
-    ;
+{
+  return __spirv_ConvertPtrToU<MemObjTy, uint32_t>(obj);
+}
 #else  // __SYCL_DEVICE_ONLY__
 {
   return sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_surface_index_ptr(
       __ESIMD_DNS::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
-
-#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @endcond ESIMD_DETAIL

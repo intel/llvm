@@ -9,15 +9,23 @@
 #include "mlir/Transforms/Mem2Reg.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/Dominance.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Value.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/MemorySlotInterfaces.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/GenericIteratedDominanceFrontier.h"
 
 namespace mlir {
 #define GEN_PASS_DEF_MEM2REG
 #include "mlir/Transforms/Passes.h.inc"
 } // namespace mlir
+
+#define DEBUG_TYPE "mem2reg"
 
 using namespace mlir;
 
@@ -42,7 +50,10 @@ using namespace mlir;
 /// this, the value stored can be well defined at block boundaries, allowing
 /// the propagation of replacement through blocks.
 ///
-/// This pass computes this transformation in four main steps:
+/// This pass computes this transformation in four main steps. The two first
+/// steps are performed during an analysis phase that does not mutate IR.
+///
+/// The two steps of the analysis phase are the following:
 /// - A first step computes the list of operations that transitively use the
 /// memory slot we would like to promote. The purpose of this phase is to
 /// identify which uses must be removed to promote the slot, either by rewiring
@@ -60,6 +71,9 @@ using namespace mlir;
 /// existing. Computing this information in advance allows making sure the
 /// terminators that will forward values are capable of doing so (inability to
 /// do so aborts promotion at this step).
+///
+/// At this point, promotion is guaranteed to happen, and the mutation phase can
+/// begin with the following steps:
 /// - A third step computes the reaching definition of the memory slot at each
 /// blocking user. This is the core of the mem2reg algorithm, also known as
 /// load-store forwarding. This analyses loads and stores and propagates which
@@ -73,10 +87,6 @@ using namespace mlir;
 /// - The final fourth step uses the reaching definition to remove blocking uses
 /// in topological order.
 ///
-/// The two first steps do not mutate IR because promotion can still be aborted
-/// at this point. Once the two last steps are reached, promotion is guaranteed
-/// to succeed, allowing to start mutating IR.
-///
 /// For further reading, chapter three of SSA-based Compiler Design [1]
 /// showcases SSA construction, where mem2reg is an adaptation of the same
 /// process.
@@ -86,26 +96,32 @@ using namespace mlir;
 
 namespace {
 
-/// The SlotPromoter handles the state of promoting a memory slot. It wraps a
-/// slot and its associated allocator, along with analysis results related to
-/// the slot.
-class SlotPromoter {
+/// Information computed during promotion analysis used to perform actual
+/// promotion.
+struct MemorySlotPromotionInfo {
+  /// Blocks for which at least two definitions of the slot values clash.
+  SmallPtrSet<Block *, 8> mergePoints;
+  /// Contains, for each operation, which uses must be eliminated by promotion.
+  /// This is a DAG structure because if an operation must eliminate some of
+  /// its uses, it is because the defining ops of the blocking uses requested
+  /// it. The defining ops therefore must also have blocking uses or be the
+  /// starting point of the bloccking uses.
+  DenseMap<Operation *, SmallPtrSet<OpOperand *, 4>> userToBlockingUses;
+};
+
+/// Computes information for basic slot promotion. This will check that direct
+/// slot promotion can be performed, and provide the information to execute the
+/// promotion. This does not mutate IR.
+class MemorySlotPromotionAnalyzer {
 public:
-  SlotPromoter(MemorySlot slot, PromotableAllocationOpInterface allocator,
-               OpBuilder &builder, DominanceInfo &dominance);
+  MemorySlotPromotionAnalyzer(MemorySlot slot, DominanceInfo &dominance)
+      : slot(slot), dominance(dominance) {}
 
-  /// Prepare data for the promotion of the slot while checking if it can be
-  /// promoted. Succeeds if the slot can be promoted. This method does not
-  /// mutate IR.
-  LogicalResult prepareSlotPromotion();
-
-  /// Actually promotes the slot by mutating IR. This method must only be
-  /// called after a successful call to `SlotPromoter::prepareSlotPromotion`.
-  /// Promoting a slot does not invalidate the preparation of other slots.
-  void promoteSlot();
+  /// Computes the information for slot promotion if promotion is possible,
+  /// returns nothing otherwise.
+  std::optional<MemorySlotPromotionInfo> computeInfo();
 
 private:
-  /// This is the first step of the promotion algorithm.
   /// Computes the transitive uses of the slot that block promotion. This finds
   /// uses that would block the promotion, checks that the operation has a
   /// solution to remove the blocking use, and potentially forwards the analysis
@@ -113,7 +129,8 @@ private:
   /// uses (typically, removing its users because it will delete itself to
   /// resolve its own blocking uses). This will fail if one of the transitive
   /// users cannot remove a requested use, and should prevent promotion.
-  LogicalResult computeBlockingUses();
+  LogicalResult computeBlockingUses(
+      DenseMap<Operation *, SmallPtrSet<OpOperand *, 4>> &userToBlockingUses);
 
   /// Computes in which blocks the value stored in the slot is actually used,
   /// meaning blocks leading to a load. This method uses `definingBlocks`, the
@@ -122,30 +139,47 @@ private:
   SmallPtrSet<Block *, 16>
   computeSlotLiveIn(SmallPtrSetImpl<Block *> &definingBlocks);
 
-  /// This is the second step of the promotion algorithm.
   /// Computes the points in which multiple re-definitions of the slot's value
   /// (stores) may conflict.
-  void computeMergePoints();
+  void computeMergePoints(SmallPtrSetImpl<Block *> &mergePoints);
 
   /// Ensures predecessors of merge points can properly provide their current
   /// definition of the value stored in the slot to the merge point. This can
   /// notably be an issue if the terminator used does not have the ability to
   /// forward values through block operands.
-  bool areMergePointsUsable();
+  bool areMergePointsUsable(SmallPtrSetImpl<Block *> &mergePoints);
 
+  MemorySlot slot;
+  DominanceInfo &dominance;
+};
+
+/// The MemorySlotPromoter handles the state of promoting a memory slot. It
+/// wraps a slot and its associated allocator. This will perform the mutation of
+/// IR.
+class MemorySlotPromoter {
+public:
+  MemorySlotPromoter(MemorySlot slot, PromotableAllocationOpInterface allocator,
+                     RewriterBase &rewriter, DominanceInfo &dominance,
+                     MemorySlotPromotionInfo info,
+                     const Mem2RegStatistics &statistics);
+
+  /// Actually promotes the slot by mutating IR. Promoting a slot DOES
+  /// invalidate the MemorySlotPromotionInfo of other slots. Preparation of
+  /// promotion info should NOT be performed in batches.
+  void promoteSlot();
+
+private:
   /// Computes the reaching definition for all the operations that require
   /// promotion. `reachingDef` is the value the slot should contain at the
   /// beginning of the block. This method returns the reached definition at the
   /// end of the block.
   Value computeReachingDefInBlock(Block *block, Value reachingDef);
 
-  /// This is the third step of the promotion algorithm.
   /// Computes the reaching definition for all the operations that require
   /// promotion. `reachingDef` corresponds to the initial value the
   /// slot will contain before any write, typically a poison value.
   void computeReachingDefInRegion(Region *region, Value reachingDef);
 
-  /// This is the fourth step of the promotion algorithm.
   /// Removes the blocking uses of the slot, in topological order.
   void removeBlockingUses();
 
@@ -155,32 +189,29 @@ private:
 
   MemorySlot slot;
   PromotableAllocationOpInterface allocator;
-  OpBuilder &builder;
-  /// Potentially non-initialized default value. Use `lazyDefaultValue` to
+  RewriterBase &rewriter;
+  /// Potentially non-initialized default value. Use `getLazyDefaultValue` to
   /// initialize it on demand.
   Value defaultValue;
-  /// Blocks where multiple definitions of the slot value clash.
-  SmallPtrSet<Block *, 8> mergePoints;
-  /// Contains, for each operation, which uses must be eliminated by promotion.
-  /// This is a DAG structure because an operation that must eliminate some of
-  /// its uses always comes from a request from an operation that must
-  /// eliminate some of its own uses.
-  DenseMap<Operation *, SmallPtrSet<OpOperand *, 4>> userToBlockingUses;
   /// Contains the reaching definition at this operation. Reaching definitions
   /// are only computed for promotable memory operations with blocking uses.
   DenseMap<PromotableMemOpInterface, Value> reachingDefs;
   DominanceInfo &dominance;
+  MemorySlotPromotionInfo info;
+  const Mem2RegStatistics &statistics;
 };
 
 } // namespace
 
-SlotPromoter::SlotPromoter(MemorySlot slot,
-                           PromotableAllocationOpInterface allocator,
-                           OpBuilder &builder, DominanceInfo &dominance)
-    : slot(slot), allocator(allocator), builder(builder), dominance(dominance) {
+MemorySlotPromoter::MemorySlotPromoter(
+    MemorySlot slot, PromotableAllocationOpInterface allocator,
+    RewriterBase &rewriter, DominanceInfo &dominance,
+    MemorySlotPromotionInfo info, const Mem2RegStatistics &statistics)
+    : slot(slot), allocator(allocator), rewriter(rewriter),
+      dominance(dominance), info(std::move(info)), statistics(statistics) {
 #ifndef NDEBUG
   auto isResultOrNewBlockArgument = [&]() {
-    if (BlockArgument arg = slot.ptr.dyn_cast<BlockArgument>())
+    if (BlockArgument arg = dyn_cast<BlockArgument>(slot.ptr))
       return arg.getOwner()->getParentOp() == allocator;
     return slot.ptr.getDefiningOp() == allocator;
   };
@@ -191,16 +222,17 @@ SlotPromoter::SlotPromoter(MemorySlot slot,
 #endif // NDEBUG
 }
 
-Value SlotPromoter::getLazyDefaultValue() {
+Value MemorySlotPromoter::getLazyDefaultValue() {
   if (defaultValue)
     return defaultValue;
 
-  OpBuilder::InsertionGuard guard(builder);
-  builder.setInsertionPointToStart(slot.ptr.getParentBlock());
-  return defaultValue = allocator.getDefaultValue(slot, builder);
+  RewriterBase::InsertionGuard guard(rewriter);
+  rewriter.setInsertionPointToStart(slot.ptr.getParentBlock());
+  return defaultValue = allocator.getDefaultValue(slot, rewriter);
 }
 
-LogicalResult SlotPromoter::computeBlockingUses() {
+LogicalResult MemorySlotPromotionAnalyzer::computeBlockingUses(
+    DenseMap<Operation *, SmallPtrSet<OpOperand *, 4>> &userToBlockingUses) {
   // The promotion of an operation may require the promotion of further
   // operations (typically, removing operations that use an operation that must
   // delete itself). We thus need to start from the use of the slot pointer and
@@ -216,7 +248,7 @@ LogicalResult SlotPromoter::computeBlockingUses() {
 
   // Then, propagate the requirements for the removal of uses. The
   // topologically-sorted forward slice allows for all blocking uses of an
-  // operation to have been computed before we reach it. Operations are
+  // operation to have been computed before it is reached. Operations are
   // traversed in topological order of their uses, starting from the slot
   // pointer.
   SetVector<Operation *> forwardSlice;
@@ -232,7 +264,7 @@ LogicalResult SlotPromoter::computeBlockingUses() {
     // If the operation decides it cannot deal with removing the blocking uses,
     // promotion must fail.
     if (auto promotable = dyn_cast<PromotableOpInterface>(user)) {
-      if (!promotable.canUsesBeRemoved(slot, blockingUses, newBlockingUses))
+      if (!promotable.canUsesBeRemoved(blockingUses, newBlockingUses))
         return failure();
     } else if (auto promotable = dyn_cast<PromotableMemOpInterface>(user)) {
       if (!promotable.canUsesBeRemoved(slot, blockingUses, newBlockingUses))
@@ -254,9 +286,9 @@ LogicalResult SlotPromoter::computeBlockingUses() {
   }
 
   // Because this pass currently only supports analysing the parent region of
-  // the slot pointer, if a promotable memory op that needs promotion is
-  // outside of this region, promotion must fail because it will be impossible
-  // to provide a valid `reachingDef` for it.
+  // the slot pointer, if a promotable memory op that needs promotion is outside
+  // of this region, promotion must fail because it will be impossible to
+  // provide a valid `reachingDef` for it.
   for (auto &[toPromote, _] : userToBlockingUses)
     if (isa<PromotableMemOpInterface>(toPromote) &&
         toPromote->getParentRegion() != slot.ptr.getParentRegion())
@@ -265,8 +297,8 @@ LogicalResult SlotPromoter::computeBlockingUses() {
   return success();
 }
 
-SmallPtrSet<Block *, 16>
-SlotPromoter::computeSlotLiveIn(SmallPtrSetImpl<Block *> &definingBlocks) {
+SmallPtrSet<Block *, 16> MemorySlotPromotionAnalyzer::computeSlotLiveIn(
+    SmallPtrSetImpl<Block *> &definingBlocks) {
   SmallPtrSet<Block *, 16> liveIn;
 
   // The worklist contains blocks in which it is known that the slot value is
@@ -323,7 +355,8 @@ SlotPromoter::computeSlotLiveIn(SmallPtrSetImpl<Block *> &definingBlocks) {
 }
 
 using IDFCalculator = llvm::IDFCalculatorBase<Block, false>;
-void SlotPromoter::computeMergePoints() {
+void MemorySlotPromotionAnalyzer::computeMergePoints(
+    SmallPtrSetImpl<Block *> &mergePoints) {
   if (slot.ptr.getParentRegion()->hasOneBlock())
     return;
 
@@ -346,7 +379,8 @@ void SlotPromoter::computeMergePoints() {
   mergePoints.insert(mergePointsVec.begin(), mergePointsVec.end());
 }
 
-bool SlotPromoter::areMergePointsUsable() {
+bool MemorySlotPromotionAnalyzer::areMergePointsUsable(
+    SmallPtrSetImpl<Block *> &mergePoints) {
   for (Block *mergePoint : mergePoints)
     for (Block *pred : mergePoint->getPredecessors())
       if (!isa<BranchOpInterface>(pred->getTerminator()))
@@ -355,10 +389,36 @@ bool SlotPromoter::areMergePointsUsable() {
   return true;
 }
 
-Value SlotPromoter::computeReachingDefInBlock(Block *block, Value reachingDef) {
+std::optional<MemorySlotPromotionInfo>
+MemorySlotPromotionAnalyzer::computeInfo() {
+  MemorySlotPromotionInfo info;
+
+  // First, find the set of operations that will need to be changed for the
+  // promotion to happen. These operations need to resolve some of their uses,
+  // either by rewiring them or simply deleting themselves. If any of them
+  // cannot find a way to resolve their blocking uses, we abort the promotion.
+  if (failed(computeBlockingUses(info.userToBlockingUses)))
+    return {};
+
+  // Then, compute blocks in which two or more definitions of the allocated
+  // variable may conflict. These blocks will need a new block argument to
+  // accomodate this.
+  computeMergePoints(info.mergePoints);
+
+  // The slot can be promoted if the block arguments to be created can
+  // actually be populated with values, which may not be possible depending
+  // on their predecessors.
+  if (!areMergePointsUsable(info.mergePoints))
+    return {};
+
+  return info;
+}
+
+Value MemorySlotPromoter::computeReachingDefInBlock(Block *block,
+                                                    Value reachingDef) {
   for (Operation &op : block->getOperations()) {
     if (auto memOp = dyn_cast<PromotableMemOpInterface>(op)) {
-      if (userToBlockingUses.contains(memOp))
+      if (info.userToBlockingUses.contains(memOp))
         reachingDefs.insert({memOp, reachingDef});
 
       if (Value stored = memOp.getStored(slot))
@@ -369,8 +429,8 @@ Value SlotPromoter::computeReachingDefInBlock(Block *block, Value reachingDef) {
   return reachingDef;
 }
 
-void SlotPromoter::computeReachingDefInRegion(Region *region,
-                                              Value reachingDef) {
+void MemorySlotPromoter::computeReachingDefInRegion(Region *region,
+                                                    Value reachingDef) {
   if (region->hasOneBlock()) {
     computeReachingDefInBlock(&region->front(), reachingDef);
     return;
@@ -392,23 +452,51 @@ void SlotPromoter::computeReachingDefInRegion(Region *region,
     DfsJob job = dfsStack.pop_back_val();
     Block *block = job.block->getBlock();
 
-    if (mergePoints.contains(block)) {
-      BlockArgument blockArgument =
-          block->addArgument(slot.elemType, slot.ptr.getLoc());
-      builder.setInsertionPointToStart(block);
-      allocator.handleBlockArgument(slot, blockArgument, builder);
+    if (info.mergePoints.contains(block)) {
+      // If the block is a merge point, we need to add a block argument to hold
+      // the selected reaching definition. This has to be a bit complicated
+      // because of RewriterBase limitations: we need to create a new block with
+      // the extra block argument, move the content of the block to the new
+      // block, and replace the block with the new block in the merge point set.
+      SmallVector<Type> argTypes;
+      SmallVector<Location> argLocs;
+      for (BlockArgument arg : block->getArguments()) {
+        argTypes.push_back(arg.getType());
+        argLocs.push_back(arg.getLoc());
+      }
+      argTypes.push_back(slot.elemType);
+      argLocs.push_back(slot.ptr.getLoc());
+      Block *newBlock = rewriter.createBlock(block, argTypes, argLocs);
+
+      info.mergePoints.erase(block);
+      info.mergePoints.insert(newBlock);
+
+      rewriter.replaceAllUsesWith(block, newBlock);
+      rewriter.mergeBlocks(block, newBlock,
+                           newBlock->getArguments().drop_back());
+
+      block = newBlock;
+
+      BlockArgument blockArgument = block->getArguments().back();
+      rewriter.setInsertionPointToStart(block);
+      allocator.handleBlockArgument(slot, blockArgument, rewriter);
       job.reachingDef = blockArgument;
+
+      if (statistics.newBlockArgumentAmount)
+        (*statistics.newBlockArgumentAmount)++;
     }
 
     job.reachingDef = computeReachingDefInBlock(block, job.reachingDef);
 
     if (auto terminator = dyn_cast<BranchOpInterface>(block->getTerminator())) {
       for (BlockOperand &blockOperand : terminator->getBlockOperands()) {
-        if (mergePoints.contains(blockOperand.get())) {
+        if (info.mergePoints.contains(blockOperand.get())) {
           if (!job.reachingDef)
             job.reachingDef = getLazyDefaultValue();
-          terminator.getSuccessorOperands(blockOperand.getOperandNumber())
-              .append(job.reachingDef);
+          rewriter.updateRootInPlace(terminator, [&]() {
+            terminator.getSuccessorOperands(blockOperand.getOperandNumber())
+                .append(job.reachingDef);
+          });
         }
       }
     }
@@ -418,9 +506,9 @@ void SlotPromoter::computeReachingDefInRegion(Region *region,
   }
 }
 
-void SlotPromoter::removeBlockingUses() {
+void MemorySlotPromoter::removeBlockingUses() {
   llvm::SetVector<Operation *> usersToRemoveUses;
-  for (auto &user : llvm::make_first_range(userToBlockingUses))
+  for (auto &user : llvm::make_first_range(info.userToBlockingUses))
     usersToRemoveUses.insert(user);
   SetVector<Operation *> sortedUsersToRemoveUses =
       mlir::topologicalSort(usersToRemoveUses);
@@ -434,30 +522,30 @@ void SlotPromoter::removeBlockingUses() {
       if (!reachingDef)
         reachingDef = getLazyDefaultValue();
 
-      builder.setInsertionPointAfter(toPromote);
-      if (toPromoteMemOp.removeBlockingUses(slot, userToBlockingUses[toPromote],
-                                            builder, reachingDef) ==
-          DeletionKind::Delete)
+      rewriter.setInsertionPointAfter(toPromote);
+      if (toPromoteMemOp.removeBlockingUses(
+              slot, info.userToBlockingUses[toPromote], rewriter,
+              reachingDef) == DeletionKind::Delete)
         toErase.push_back(toPromote);
 
       continue;
     }
 
     auto toPromoteBasic = cast<PromotableOpInterface>(toPromote);
-    builder.setInsertionPointAfter(toPromote);
-    if (toPromoteBasic.removeBlockingUses(slot, userToBlockingUses[toPromote],
-                                          builder) == DeletionKind::Delete)
+    rewriter.setInsertionPointAfter(toPromote);
+    if (toPromoteBasic.removeBlockingUses(info.userToBlockingUses[toPromote],
+                                          rewriter) == DeletionKind::Delete)
       toErase.push_back(toPromote);
   }
 
   for (Operation *toEraseOp : toErase)
-    toEraseOp->erase();
+    rewriter.eraseOp(toEraseOp);
 
   assert(slot.ptr.use_empty() &&
          "after promotion, the slot pointer should not be used anymore");
 }
 
-void SlotPromoter::promoteSlot() {
+void MemorySlotPromoter::promoteSlot() {
   computeReachingDefInRegion(slot.ptr.getParentRegion(), {});
 
   // Now that reaching definitions are known, remove all users.
@@ -465,7 +553,7 @@ void SlotPromoter::promoteSlot() {
 
   // Update terminators in dead branches to forward default if they are
   // succeeded by a merge points.
-  for (Block *mergePoint : mergePoints) {
+  for (Block *mergePoint : info.mergePoints) {
     for (BlockOperand &use : mergePoint->getUses()) {
       auto user = cast<BranchOpInterface>(use.getOwner());
       SuccessorOperands succOperands =
@@ -473,91 +561,71 @@ void SlotPromoter::promoteSlot() {
       assert(succOperands.size() == mergePoint->getNumArguments() ||
              succOperands.size() + 1 == mergePoint->getNumArguments());
       if (succOperands.size() + 1 == mergePoint->getNumArguments())
-        succOperands.append(getLazyDefaultValue());
+        rewriter.updateRootInPlace(
+            user, [&]() { succOperands.append(getLazyDefaultValue()); });
     }
   }
 
-  allocator.handlePromotionComplete(slot, defaultValue);
-}
+  LLVM_DEBUG(llvm::dbgs() << "[mem2reg] Promoted memory slot: " << slot.ptr
+                          << "\n");
 
-LogicalResult SlotPromoter::prepareSlotPromotion() {
-  // First, find the set of operations that will need to be changed for the
-  // promotion to happen. These operations need to resolve some of their uses,
-  // either by rewiring them or simply deleting themselves. If any of them
-  // cannot find a way to resolve their blocking uses, we abort the promotion.
-  if (failed(computeBlockingUses()))
-    return failure();
+  if (statistics.promotedAmount)
+    (*statistics.promotedAmount)++;
 
-  // Then, compute blocks in which two or more definitions of the allocated
-  // variable may conflict. These blocks will need a new block argument to
-  // accomodate this.
-  computeMergePoints();
-
-  // The slot can be promoted if the block arguments to be created can
-  // actually be populated with values, which may not be possible depending
-  // on their predecessors.
-  return success(areMergePointsUsable());
+  allocator.handlePromotionComplete(slot, defaultValue, rewriter);
 }
 
 LogicalResult mlir::tryToPromoteMemorySlots(
-    ArrayRef<PromotableAllocationOpInterface> allocators, OpBuilder &builder,
-    DominanceInfo &dominance) {
-  // Actual promotion may invalidate the dominance analysis, so slot promotion
-  // is prepated in batches.
-  SmallVector<SlotPromoter> toPromote;
+    ArrayRef<PromotableAllocationOpInterface> allocators,
+    RewriterBase &rewriter, Mem2RegStatistics statistics) {
+  bool promotedAny = false;
+
   for (PromotableAllocationOpInterface allocator : allocators) {
     for (MemorySlot slot : allocator.getPromotableSlots()) {
       if (slot.ptr.use_empty())
         continue;
 
-      SlotPromoter promoter(slot, allocator, builder, dominance);
-      if (succeeded(promoter.prepareSlotPromotion()))
-        toPromote.emplace_back(std::move(promoter));
+      DominanceInfo dominance;
+      MemorySlotPromotionAnalyzer analyzer(slot, dominance);
+      std::optional<MemorySlotPromotionInfo> info = analyzer.computeInfo();
+      if (info) {
+        MemorySlotPromoter(slot, allocator, rewriter, dominance,
+                           std::move(*info), statistics)
+            .promoteSlot();
+        promotedAny = true;
+      }
     }
   }
 
-  for (SlotPromoter &promoter : toPromote)
-    promoter.promoteSlot();
+  return success(promotedAny);
+}
 
-  return success(!toPromote.empty());
+LogicalResult
+Mem2RegPattern::matchAndRewrite(PromotableAllocationOpInterface allocator,
+                                PatternRewriter &rewriter) const {
+  hasBoundedRewriteRecursion();
+  return tryToPromoteMemorySlots({allocator}, rewriter, statistics);
 }
 
 namespace {
 
 struct Mem2Reg : impl::Mem2RegBase<Mem2Reg> {
+  using impl::Mem2RegBase<Mem2Reg>::Mem2RegBase;
+
   void runOnOperation() override {
     Operation *scopeOp = getOperation();
-    bool changed = false;
 
-    for (Region &region : scopeOp->getRegions()) {
-      if (region.getBlocks().empty())
-        continue;
+    Mem2RegStatistics statictics{&promotedAmount, &newBlockArgumentAmount};
 
-      OpBuilder builder(&region.front(), region.front().begin());
+    GreedyRewriteConfig config;
+    config.enableRegionSimplification = enableRegionSimplification;
 
-      // Promoting a slot can allow for further promotion of other slots,
-      // promotion is tried until no promotion succeeds.
-      while (true) {
-        DominanceInfo &dominance = getAnalysis<DominanceInfo>();
+    RewritePatternSet rewritePatterns(&getContext());
+    rewritePatterns.add<Mem2RegPattern>(&getContext(), statictics);
+    FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
-        SmallVector<PromotableAllocationOpInterface> allocators;
-        // Build a list of allocators to attempt to promote the slots of.
-        for (Block &block : region)
-          for (Operation &op : block.getOperations())
-            if (auto allocator = dyn_cast<PromotableAllocationOpInterface>(op))
-              allocators.emplace_back(allocator);
-
-        // Attempt promoting until no promotion succeeds.
-        if (failed(tryToPromoteMemorySlots(allocators, builder, dominance)))
-          break;
-
-        changed = true;
-        getAnalysisManager().invalidate({});
-      }
-    }
-
-    if (!changed)
-      markAllAnalysesPreserved();
+    if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen, config)))
+      signalPassFailure();
   }
 };
 

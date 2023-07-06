@@ -402,7 +402,7 @@ bool MIRParserImpl::initializeCallSiteInfo(
   MachineFunction &MF = PFS.MF;
   SMDiagnostic Error;
   const LLVMTargetMachine &TM = MF.getTarget();
-  for (auto YamlCSInfo : YamlMF.CallSitesInfo) {
+  for (auto &YamlCSInfo : YamlMF.CallSitesInfo) {
     yaml::CallSiteInfo::MachineInstrLoc MILoc = YamlCSInfo.CallLocation;
     if (MILoc.BlockNum >= MF.size())
       return error(Twine(MF.getName()) +
@@ -801,6 +801,24 @@ bool MIRParserImpl::initializeFrameInfo(PerFunctionMIParsingState &PFS,
       return true;
     if (parseStackObjectsDebugInfo(PFS, Object, ObjectIdx))
       return true;
+  }
+
+  for (const auto &Object : YamlMF.EntryValueObjects) {
+    SMDiagnostic Error;
+    Register Reg;
+    if (parseNamedRegisterReference(PFS, Reg, Object.EntryValueRegister.Value,
+                                    Error))
+      return error(Error, Object.EntryValueRegister.SourceRange);
+    if (!Reg.isPhysical())
+      return error(Object.EntryValueRegister.SourceRange.Start,
+                   "Expected physical register for entry value field");
+    std::optional<VarExprLoc> MaybeInfo = parseVarExprLoc(
+        PFS, Object.DebugVar, Object.DebugExpr, Object.DebugLoc);
+    if (!MaybeInfo)
+      return true;
+    if (MaybeInfo->DIVar || MaybeInfo->DIExpr || MaybeInfo->DILoc)
+      PFS.MF.setVariableDbgInfo(MaybeInfo->DIVar, MaybeInfo->DIExpr,
+                                Reg.asMCReg(), MaybeInfo->DILoc);
   }
 
   // Initialize the ordinary frame objects.

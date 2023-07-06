@@ -61,30 +61,12 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
 
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<queue>
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle NativeHandle,
-                               bool KeepOwnership) {
-  const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, nullptr, KeepOwnership,
-                            ContextImpl->get_async_handler(),
-                            backend::ext_oneapi_level_zero);
-}
-
 __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
-                               pi_native_handle NativeHandle,
-                               bool KeepOwnership) {
+                               pi_native_handle NativeHandle, bool IsImmCmdList,
+                               bool KeepOwnership,
+                               const property_list &Properties) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, &Device, KeepOwnership,
-                            ContextImpl->get_async_handler(),
-                            backend::ext_oneapi_level_zero);
-}
-
-__SYCL_EXPORT queue make_queue2(const context &Context, const device &Device,
-                                pi_native_handle NativeHandle,
-                                bool IsImmCmdList, bool KeepOwnership,
-                                const property_list &Properties) {
-  const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue2(
+  return detail::make_queue(
       NativeHandle, IsImmCmdList, Context, &Device, KeepOwnership, Properties,
       ContextImpl->get_async_handler(), backend::ext_oneapi_level_zero);
 }

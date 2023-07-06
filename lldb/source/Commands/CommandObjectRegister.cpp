@@ -79,9 +79,8 @@ public:
     if (!m_exe_ctx.HasProcessScope())
       return;
 
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eRegisterCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eRegisterCompletion, request, nullptr);
   }
 
   Options *GetOptions() override { return &m_option_group; }
@@ -171,8 +170,9 @@ protected:
       const size_t set_array_size = m_command_options.set_indexes.GetSize();
       if (set_array_size > 0) {
         for (size_t i = 0; i < set_array_size; ++i) {
-          set_idx = m_command_options.set_indexes[i]->GetUInt64Value().value_or(
-              UINT32_MAX);
+          set_idx =
+              m_command_options.set_indexes[i]->GetValueAs<uint64_t>().value_or(
+                  UINT32_MAX);
           if (set_idx < reg_ctx->GetRegisterSetCount()) {
             if (!DumpRegisterSet(m_exe_ctx, strm, reg_ctx, set_idx)) {
               if (errno)
@@ -341,9 +341,8 @@ public:
     if (!m_exe_ctx.HasProcessScope() || request.GetCursorIndex() != 0)
       return;
 
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eRegisterCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eRegisterCompletion, request, nullptr);
   }
 
 protected:

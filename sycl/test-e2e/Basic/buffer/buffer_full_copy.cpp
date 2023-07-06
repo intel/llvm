@@ -39,7 +39,7 @@ void check_copy_device_to_host(sycl::queue &Queue) {
   // Create host accessor with full access range
   // Check whether data was corrupted or not.
   {
-    auto acc = simple_buffer.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc(simple_buffer, sycl::read_only);
     for (int i = 0; i < size; ++i) {
       for (int j = 0; j < size; ++j)
         if (offset <= i && i < offset + 2 && offset <= j && j < offset + 2) {
@@ -60,7 +60,7 @@ void check_fill(sycl::queue &Queue) {
 
   // fill with offset
   {
-    auto acc = buf_1.get_access<sycl::access::mode::write>();
+    sycl::host_accessor acc(buf_1, sycl::write_only);
     for (int i = 0; i < size; ++i) {
       acc[i] = i + 1;
       expected_res_1[i] = offset <= i && i < size / 2 + offset ? 1337.0 : i + 1;
@@ -75,7 +75,7 @@ void check_fill(sycl::queue &Queue) {
   e.wait();
 
   {
-    auto acc_1 = buf_1.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc_1(buf_1, sycl::read_only);
     for (int i = 0; i < size; ++i)
       assert(expected_res_1[i] == acc_1[i]);
   }
@@ -90,7 +90,7 @@ void check_copy_host_to_device(sycl::queue &Queue) {
 
   // copy acc 2 acc with offset
   {
-    auto acc = buf_1.get_access<sycl::access::mode::write>();
+    sycl::host_accessor acc(buf_1, sycl::write_only);
     for (int i = 0; i < size; ++i) {
       acc[i] = i + 1;
       expected_res_1[i] = i + 1;
@@ -108,8 +108,8 @@ void check_copy_host_to_device(sycl::queue &Queue) {
   e.wait();
 
   {
-    auto acc_1 = buf_1.get_access<sycl::access::mode::read>();
-    auto acc_2 = buf_2.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc_1(buf_1, sycl::read_only);
+    sycl::host_accessor acc_2(buf_2, sycl::read_only);
 
     // check that there was no data corruption/loss
     for (int i = 0; i < size; ++i)
@@ -126,7 +126,7 @@ void check_copy_host_to_device(sycl::queue &Queue) {
 
   // copy acc 2 acc with offset for 2D buffers
   {
-    auto acc = buf_3.get_access<sycl::access::mode::write>();
+    sycl::host_accessor acc(buf_3, sycl::write_only);
     for (int i = 0; i < size; ++i) {
       for (int j = 0; j < size; ++j) {
         acc[i][j] = i * size + j + 1;
@@ -149,8 +149,8 @@ void check_copy_host_to_device(sycl::queue &Queue) {
   e.wait();
 
   {
-    auto acc_1 = buf_3.get_access<sycl::access::mode::read>();
-    auto acc_2 = buf_4.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc_1(buf_3, sycl::read_only);
+    sycl::host_accessor acc_2(buf_4, sycl::read_only);
 
     // check that there was no data corruption/loss
     for (int i = 0; i < size; ++i) {
@@ -171,7 +171,7 @@ void check_copy_host_to_device(sycl::queue &Queue) {
 
   // copy acc 2 acc with offset for 3D buffers
   {
-    auto acc = buf_5.get_access<sycl::access::mode::write>();
+    sycl::host_accessor acc(buf_5, sycl::write_only);
     for (int i = 0; i < size; ++i) {
       for (int j = 0; j < size; ++j) {
         for (int k = 0; k < size; ++k) {
@@ -198,8 +198,8 @@ void check_copy_host_to_device(sycl::queue &Queue) {
   e.wait();
 
   {
-    auto acc_1 = buf_5.get_access<sycl::access::mode::read>();
-    auto acc_2 = buf_6.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc_1(buf_5, sycl::read_only);
+    sycl::host_accessor acc_2(buf_6, sycl::read_only);
 
     // check that there was no data corruption/loss
     for (int i = 0; i < size; ++i)

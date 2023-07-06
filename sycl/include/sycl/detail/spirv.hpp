@@ -152,7 +152,7 @@ template <typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
   return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
 }
-template <typename Group>
+
 bool GroupAll(const ext::oneapi::experimental::opportunistic_group &,
               bool pred) {
   return __spirv_GroupNonUniformAll(
@@ -238,10 +238,11 @@ using EnableIfGenericBroadcast = std::enable_if_t<
 // FIXME: Disable widening once all backends support all data types.
 template <typename T>
 using WidenOpenCLTypeTo32_t = std::conditional_t<
-    std::is_same<T, cl_char>() || std::is_same<T, cl_short>(), cl_int,
-    std::conditional_t<std::is_same<T, cl_uchar>() ||
-                           std::is_same<T, cl_ushort>(),
-                       cl_uint, T>>;
+    std::is_same<T, opencl::cl_char>() || std::is_same<T, opencl::cl_short>(),
+    opencl::cl_int,
+    std::conditional_t<std::is_same<T, opencl::cl_uchar>() ||
+                           std::is_same<T, opencl::cl_ushort>(),
+                       opencl::cl_uint, T>>;
 
 // Broadcast with scalar local index
 // Work-group supports any integral type
@@ -1022,8 +1023,10 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
 template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>>
-ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
-#if defined(__SPIR__)
+ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
+#if defined(__NVPTX__)
+  __nvvm_bar_warp_sync(detail::ExtractMask(detail::GetMask(g))[0]);
+#else
   // SPIR-V does not define an instruction to synchronize partial groups.
   // However, most (possibly all?) of the current SPIR-V targets execute
   // work-items in lockstep, so we can probably get away with a MemoryBarrier.
@@ -1033,8 +1036,6 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
                             __spv::MemorySemanticsMask::SubgroupMemory |
                             __spv::MemorySemanticsMask::WorkgroupMemory |
                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
-#elif defined(__NVPTX__)
-  // TODO: Call syncwarp with appropriate mask extracted from the group
 #endif
 }
 
@@ -1059,12 +1060,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     OCLT Ret = __spirv_Group##Instruction(group_scope<Group>::value,           \
                                           static_cast<unsigned int>(Op), Arg); \
@@ -1077,12 +1078,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     /* ballot_group partitions its parent into two groups (0 and 1) */         \
     /* We have to force each group down different control flow */              \
@@ -1105,12 +1106,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     constexpr auto Scope = group_scope<ParentGroup>::value;                    \
     /* SPIR-V only defines a ClusteredReduce, with no equivalents for scan. */ \
@@ -1139,12 +1140,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     OCLT Ret = __spirv_GroupNonUniform##Instruction(                           \
         group_scope<Group>::value, static_cast<unsigned int>(Op), Arg);        \
@@ -1169,6 +1170,9 @@ __SYCL_GROUP_COLLECTIVE_OVERLOAD(CMulINTEL)
 __SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseOrKHR)
 __SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseXorKHR)
 __SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseAndKHR)
+
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalAndKHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOrKHR)
 
 } // namespace spirv
 } // namespace detail

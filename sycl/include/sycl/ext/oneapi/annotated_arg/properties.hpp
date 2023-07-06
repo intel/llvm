@@ -369,6 +369,24 @@ template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
 
 } // namespace detail
 
+//===----------------------------------------------------------------------===//
+//   Utility type trait for annotated_arg/annotated_ptr deduction guide
+//===----------------------------------------------------------------------===//
+//
+namespace detail {
+// Deduce a `properties<>` type from given variadic properties
+template <typename... Args> struct DeducedProperties {
+  using type = decltype(properties{std::declval<Args>()...});
+};
+
+// Partial specialization for deducing a `properties<>` type by forwarding the
+// given `properties<>` type
+template <typename... Args>
+struct DeducedProperties<detail::properties_t<Args...>> {
+  using type = detail::properties_t<Args...>;
+};
+} // namespace detail
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

@@ -93,9 +93,9 @@ struct ShapeCastOpFolder : public OpRewritePattern<vector::ShapeCastOp> {
                                 PatternRewriter &rewriter) const override {
     // Check if 'shapeCastOp' has vector source/result type.
     auto sourceVectorType =
-        shapeCastOp.getSource().getType().dyn_cast_or_null<VectorType>();
+        dyn_cast_or_null<VectorType>(shapeCastOp.getSource().getType());
     auto resultVectorType =
-        shapeCastOp.getResult().getType().dyn_cast_or_null<VectorType>();
+        dyn_cast_or_null<VectorType>(shapeCastOp.getResult().getType());
     if (!sourceVectorType || !resultVectorType)
       return failure();
 
@@ -105,7 +105,7 @@ struct ShapeCastOpFolder : public OpRewritePattern<vector::ShapeCastOp> {
     if (!sourceShapeCastOp)
       return failure();
     auto operandSourceVectorType =
-        sourceShapeCastOp.getSource().getType().cast<VectorType>();
+        cast<VectorType>(sourceShapeCastOp.getSource().getType());
     auto operandResultVectorType = sourceShapeCastOp.getType();
 
     // Check if shape cast operations invert each other.
@@ -342,7 +342,7 @@ struct CombineContractBroadcast
       if (!broadcast)
         continue;
       // contractionOp can only take vector as operands.
-      auto srcType = broadcast.getSourceType().dyn_cast<VectorType>();
+      auto srcType = dyn_cast<VectorType>(broadcast.getSourceType());
       if (!srcType ||
           srcType.getRank() == broadcast.getResultVectorType().getRank())
         continue;
@@ -455,7 +455,7 @@ struct ReorderCastOpsOnBroadcast
       return failure();
 
     Type castResTy = getElementTypeOrSelf(op->getResult(0));
-    if (auto vecTy = bcastOp.getSourceType().dyn_cast<VectorType>())
+    if (auto vecTy = dyn_cast<VectorType>(bcastOp.getSourceType()))
       castResTy = VectorType::get(vecTy.getShape(), castResTy);
     auto *castOp =
         rewriter.create(op->getLoc(), op->getName().getIdentifier(),
@@ -530,7 +530,7 @@ struct ReorderElementwiseOpsOnTranspose final
         // This is a constant. Create a reverse transpose op for it.
         auto vectorType = VectorType::get(
             srcType.getShape(),
-            operand.getType().cast<VectorType>().getElementType());
+            cast<VectorType>(operand.getType()).getElementType());
         srcValues.push_back(rewriter.create<vector::TransposeOp>(
             operand.getLoc(), vectorType, operand,
             rewriter.getI64ArrayAttr(invOrder)));
@@ -539,7 +539,7 @@ struct ReorderElementwiseOpsOnTranspose final
 
     auto vectorType = VectorType::get(
         srcType.getShape(),
-        op->getResultTypes()[0].cast<VectorType>().getElementType());
+        cast<VectorType>(op->getResultTypes()[0]).getElementType());
     Operation *elementwiseOp =
         rewriter.create(op->getLoc(), op->getName().getIdentifier(), srcValues,
                         vectorType, op->getAttrs());
@@ -693,7 +693,7 @@ struct BubbleDownBitCastForStridedSliceExtract
     }
 
     SmallVector<int64_t> dims =
-        llvm::to_vector<4>(extractOp.getType().cast<VectorType>().getShape());
+        llvm::to_vector<4>(cast<VectorType>(extractOp.getType()).getShape());
     dims.back() = dims.back() / expandRatio;
     VectorType newExtractType =
         VectorType::get(dims, castSrcType.getElementType());
@@ -996,7 +996,7 @@ public:
   LogicalResult matchAndRewrite(vector::CreateMaskOp op,
                                 PatternRewriter &rewriter) const override {
     auto dstType = op.getType();
-    if (dstType.cast<VectorType>().isScalable())
+    if (cast<VectorType>(dstType).isScalable())
       return failure();
     int64_t rank = dstType.getRank();
     if (rank > 1)
@@ -1026,7 +1026,7 @@ class DropInnerMostUnitDims : public OpRewritePattern<vector::TransferReadOp> {
     if (readOp.getMask())
       return failure();
 
-    auto srcType = readOp.getSource().getType().dyn_cast<MemRefType>();
+    auto srcType = dyn_cast<MemRefType>(readOp.getSource().getType());
     if (!srcType || !srcType.hasStaticShape())
       return failure();
 
@@ -1060,13 +1060,13 @@ class DropInnerMostUnitDims : public OpRewritePattern<vector::TransferReadOp> {
 
     MemRefType resultMemrefType;
     MemRefLayoutAttrInterface layout = srcType.getLayout();
-    if (layout.isa<AffineMapAttr>() && layout.isIdentity()) {
+    if (isa<AffineMapAttr>(layout) && layout.isIdentity()) {
       resultMemrefType = MemRefType::get(
           srcType.getShape().drop_back(dimsToDrop), srcType.getElementType(),
           nullptr, srcType.getMemorySpace());
     } else {
       MemRefLayoutAttrInterface updatedLayout;
-      if (auto strided = layout.dyn_cast<StridedLayoutAttr>()) {
+      if (auto strided = dyn_cast<StridedLayoutAttr>(layout)) {
         auto strides =
             llvm::to_vector(strided.getStrides().drop_back(dimsToDrop));
         updatedLayout = StridedLayoutAttr::get(strided.getContext(),
@@ -1099,7 +1099,7 @@ class DropInnerMostUnitDims : public OpRewritePattern<vector::TransferReadOp> {
         loc, resultMemrefType, readOp.getSource(), offsets, srcType.getShape(),
         strides);
     auto permMap = getTransferMinorIdentityMap(
-        rankedReducedView.getType().cast<ShapedType>(), resultTargetVecType);
+        cast<ShapedType>(rankedReducedView.getType()), resultTargetVecType);
     Value result = rewriter.create<vector::TransferReadOp>(
         loc, resultTargetVecType, rankedReducedView,
         readOp.getIndices().drop_back(dimsToDrop), AffineMapAttr::get(permMap),
@@ -1212,7 +1212,53 @@ private:
   FilterConstraintType filter;
 };
 
+/// Pattern to fold arithmetic extensions on floating point data types into
+/// vector contraction operations. linalg.matmul introduces arithmetic
+/// extensions on its operands. Please mlir snippets below for more details.
+/// ```mlir
+///   "linalg.matmul"(%lhs, %rhs, %acc) ({
+///      ^bb0(%arg1: f16, %arg2: f16, %arg3: f32):
+///        %lhs_f32 = "arith.extf"(%arg1) : (f16) -> f32
+///        %rhs_f32 = "arith.extf"(%arg2) : (f16) -> f32
+///        %mul = "arith.mulf"(%lhs_f32, %rhs_f32) : (f32, f32) -> f32
+///        %acc = "arith.addf"(%arg3, %mul) : (f32, f32) -> f32
+///        "linalg.yield"(%acc) : (f32) -> ()
+///     })
+/// ```
+/// This restricts the native usage of mixed precision NVIDIA Ampere Tensor
+/// Cores, i.e, `mma.sync.*.f32.f16.f16.f32` and `mma.sync.*.f32.bf16.bf16.f32`.
+/// This pattern folds the arithmetic extensions into the vector contraction and
+/// enables the usage of native mixed precision Tensor Core instructions.
+struct FoldArithExtIntoContractionOp
+    : public OpRewritePattern<vector::ContractionOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(vector::ContractionOp contractOp,
+                                PatternRewriter &rewriter) const override {
+
+    auto lhsDefOp = contractOp.getLhs().getDefiningOp<arith::ExtFOp>();
+    auto rhsDefOp = contractOp.getRhs().getDefiningOp<arith::ExtFOp>();
+
+    if (!lhsDefOp || !rhsDefOp) {
+      return rewriter.notifyMatchFailure(contractOp,
+                                         "no defining op on contract operands");
+    }
+
+    rewriter.replaceOpWithNewOp<vector::ContractionOp>(
+        contractOp, lhsDefOp->getOperand(0), rhsDefOp->getOperand(0),
+        contractOp.getAcc(), contractOp.getIndexingMapsAttr(),
+        contractOp.getIteratorTypesAttr());
+
+    return success();
+  }
+};
+
 } // namespace
+
+void mlir::vector::populateFoldArithExtensionPatterns(
+    RewritePatternSet &patterns) {
+  patterns.add<FoldArithExtIntoContractionOp>(patterns.getContext());
+}
 
 void mlir::vector::populateVectorMaskMaterializationPatterns(
     RewritePatternSet &patterns, bool force32BitVectorIndices,

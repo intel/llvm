@@ -69,7 +69,7 @@ int main() {
       for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),
                      range<3>(32, 3, 4), range<3>(7, 9, 11)}) {
         Res = Kernel.get_info<info::kernel_device_specific::max_sub_group_size>(
-            Device, r);
+            Device);
         Expected =
             std::find(sg_sizes.begin(), sg_sizes.end(), Res) != sg_sizes.end();
         exit_if_not_equal<bool>(Expected, true, "max_sub_group_size");

@@ -341,6 +341,17 @@ bool CheckCallable(InterpState &S, CodePtr OpPC, const Function *F) {
   return true;
 }
 
+bool CheckCallDepth(InterpState &S, CodePtr OpPC) {
+  if ((S.Current->getDepth() + 1) > S.getLangOpts().ConstexprCallDepth) {
+    S.FFDiag(S.Current->getSource(OpPC),
+             diag::note_constexpr_depth_limit_exceeded)
+        << S.getLangOpts().ConstexprCallDepth;
+    return false;
+  }
+
+  return true;
+}
+
 bool CheckThis(InterpState &S, CodePtr OpPC, const Pointer &This) {
   if (!This.isZero())
     return true;
@@ -369,11 +380,11 @@ bool CheckPure(InterpState &S, CodePtr OpPC, const CXXMethodDecl *MD) {
 }
 
 static void DiagnoseUninitializedSubobject(InterpState &S, const SourceInfo &SI,
-                                           QualType SubObjType,
-                                           SourceLocation SubObjLoc) {
-  S.FFDiag(SI, diag::note_constexpr_uninitialized) << true << SubObjType;
-  if (SubObjLoc.isValid())
-    S.Note(SubObjLoc, diag::note_constexpr_subobject_declared_here);
+                                           const FieldDecl *SubObjDecl) {
+  assert(SubObjDecl && "Subobject declaration does not exist");
+  S.FFDiag(SI, diag::note_constexpr_uninitialized) << SubObjDecl;
+  S.Note(SubObjDecl->getLocation(),
+         diag::note_constexpr_subobject_declared_here);
 }
 
 static bool CheckFieldsInitialized(InterpState &S, CodePtr OpPC,
@@ -386,7 +397,7 @@ static bool CheckArrayInitialized(InterpState &S, CodePtr OpPC,
   size_t NumElems = CAT->getSize().getZExtValue();
   QualType ElemType = CAT->getElementType();
 
-  if (isa<RecordType>(ElemType.getTypePtr())) {
+  if (ElemType->isRecordType()) {
     const Record *R = BasePtr.getElemRecord();
     for (size_t I = 0; I != NumElems; ++I) {
       Pointer ElemPtr = BasePtr.atIndex(I).narrow();
@@ -400,8 +411,8 @@ static bool CheckArrayInitialized(InterpState &S, CodePtr OpPC,
   } else {
     for (size_t I = 0; I != NumElems; ++I) {
       if (!BasePtr.atIndex(I).isInitialized()) {
-        DiagnoseUninitializedSubobject(S, S.Current->getSource(OpPC), ElemType,
-                                       BasePtr.getFieldDesc()->getLocation());
+        DiagnoseUninitializedSubobject(S, S.Current->getSource(OpPC),
+                                       BasePtr.getField());
         Result = false;
       }
     }
@@ -426,8 +437,7 @@ static bool CheckFieldsInitialized(InterpState &S, CodePtr OpPC,
           cast<ConstantArrayType>(FieldType->getAsArrayTypeUnsafe());
       Result &= CheckArrayInitialized(S, OpPC, FieldPtr, CAT);
     } else if (!FieldPtr.isInitialized()) {
-      DiagnoseUninitializedSubobject(S, S.Current->getSource(OpPC),
-                                     F.Decl->getType(), F.Decl->getLocation());
+      DiagnoseUninitializedSubobject(S, S.Current->getSource(OpPC), F.Decl);
       Result = false;
     }
   }

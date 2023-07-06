@@ -29,7 +29,8 @@ namespace {
 // requires. Hence, as a work around for this problem, we use a simple allocator
 // which just hands out continuous blocks from a statically allocated chunk of
 // memory.
-static uint8_t memory[16384];
+static constexpr uint64_t MEMORY_SIZE = 65336;
+static uint8_t memory[MEMORY_SIZE];
 static uint8_t *ptr = memory;
 
 } // anonymous namespace
@@ -68,14 +69,25 @@ void *malloc(size_t s) {
   s = ((s + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
   void *mem = ptr;
   ptr += s;
-  return mem;
+  return static_cast<uint64_t>(ptr - memory) >= MEMORY_SIZE ? nullptr : mem;
 }
 
 void free(void *) {}
 
-void *realloc(void *ptr, size_t s) {
-  free(ptr);
-  return malloc(s);
+void *realloc(void *mem, size_t s) {
+  if (mem == nullptr)
+    return malloc(s);
+  uint8_t *newmem = reinterpret_cast<uint8_t *>(malloc(s));
+  if (newmem == nullptr)
+    return nullptr;
+  uint8_t *oldmem = reinterpret_cast<uint8_t *>(mem);
+  // We use a simple for loop to copy the data over.
+  // If |s| is less the previous alloc size, the copy works as expected.
+  // If |s| is greater than the previous alloc size, then garbage is copied
+  // over to the additional part in the new memory block.
+  for (size_t i = 0; i < s; ++i)
+    newmem[i] = oldmem[i];
+  return newmem;
 }
 
 // The unit test framework uses pure virtual functions. Since hermetic tests

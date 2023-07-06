@@ -49,7 +49,6 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace unittest {
 
 namespace detail = sycl::detail;
-namespace RT = detail::pi;
 
 /// The macro below defines a proxy functions for each PI API call.
 /// This proxy function calls all the functions registered in CallBefore*
@@ -95,20 +94,21 @@ inline constexpr size_t CallStackSize = 16;
                                                                                \
   /*Overrides a plugin PI function with a given one */                         \
   template <detail::PiApiKind PiApiOffset>                                     \
-  inline void setFuncPtr(RT::PiPlugin *MPlugin, decltype(&::api) FuncPtr);     \
+  inline void setFuncPtr(sycl::detail::pi::PiPlugin *MPlugin,                  \
+                         decltype(&::api) FuncPtr);                            \
   template <>                                                                  \
-  inline void setFuncPtr<detail::PiApiKind::api>(RT::PiPlugin * MPlugin,       \
-                                                 decltype(&::api) FuncPtr) {   \
+  inline void setFuncPtr<detail::PiApiKind::api>(                              \
+      sycl::detail::pi::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {        \
     CallOriginal_##api = FuncPtr;                                              \
   }                                                                            \
                                                                                \
   /*Adds a function to be called before the PI function*/                      \
   template <detail::PiApiKind PiApiOffset>                                     \
-  inline void setFuncPtrBefore(RT::PiPlugin *MPlugin,                          \
+  inline void setFuncPtrBefore(sycl::detail::pi::PiPlugin *MPlugin,            \
                                decltype(&::api) FuncPtr);                      \
   template <>                                                                  \
   inline void setFuncPtrBefore<detail::PiApiKind::api>(                        \
-      RT::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {                      \
+      sycl::detail::pi::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {        \
     /* Find free slot */                                                       \
     size_t I = 0;                                                              \
     for (; I < CallStackSize && CallBefore_##api[I]; ++I)                      \
@@ -119,11 +119,11 @@ inline constexpr size_t CallStackSize = 16;
                                                                                \
   /*Adds a function to be called after the PI function*/                       \
   template <detail::PiApiKind PiApiOffset>                                     \
-  inline void setFuncPtrAfter(RT::PiPlugin *MPlugin,                           \
+  inline void setFuncPtrAfter(sycl::detail::pi::PiPlugin *MPlugin,             \
                               decltype(&::api) FuncPtr);                       \
   template <>                                                                  \
   inline void setFuncPtrAfter<detail::PiApiKind::api>(                         \
-      RT::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {                      \
+      sycl::detail::pi::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {        \
     /* Find free slot */                                                       \
     size_t I = 0;                                                              \
     for (; I < CallStackSize && CallAfter_##api[I]; ++I)                       \
@@ -248,7 +248,7 @@ public:
   }
 
   template <detail::PiApiKind PiApiOffset>
-  using FuncPtrT = typename RT::PiFuncInfo<PiApiOffset>::FuncPtrT;
+  using FuncPtrT = typename sycl::detail::pi::PiFuncInfo<PiApiOffset>::FuncPtrT;
   template <detail::PiApiKind PiApiOffset>
   using SignatureT = typename std::remove_pointer<FuncPtrT<PiApiOffset>>::type;
 
@@ -352,9 +352,10 @@ public:
 
     assert(Plugins.empty() && "Clear failed to remove all plugins.");
 
-    auto RTPlugin = std::make_shared<RT::PiPlugin>(
-        RT::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
-                     getProxyMockedFunctionPointers()});
+    auto RTPlugin =
+        std::make_shared<sycl::detail::pi::PiPlugin>(sycl::detail::pi::PiPlugin{
+            "pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
+            getProxyMockedFunctionPointers()});
 
     MMockPluginPtr = std::make_shared<detail::plugin>(RTPlugin, Backend,
                                                       /*Library=*/nullptr);
@@ -385,7 +386,7 @@ private:
   std::optional<pi_plugin::FunctionPointers> OrigFuncTable;
   // Extracted at initialization for convenience purposes. The resource
   // itself is owned by the platform instance.
-  RT::PiPlugin *MPiPluginMockPtr;
+  sycl::detail::pi::PiPlugin *MPiPluginMockPtr;
 
   // Marker to indicate if the mock was moved.
   bool MIsMoved = false;

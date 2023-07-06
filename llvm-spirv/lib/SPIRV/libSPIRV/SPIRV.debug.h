@@ -4,6 +4,7 @@
 #include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
 #include "llvm/BinaryFormat/Dwarf.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 
 namespace SPIRVDebug {
 
@@ -56,6 +57,8 @@ enum Instruction {
   InstCount                     = 37,
   FunctionDefinition            = 101,
   SourceContinued               = 102,
+  BuildIdentifier               = 105,
+  StoragePath                   = 106,
   EntryPoint                    = 107,
   Module                        = 200,
   TypeSubrange                  = 201,
@@ -287,6 +290,12 @@ enum ImportedEntityTag {
   ImportedDeclaration = 1,
 };
 
+enum FileChecksumKind {
+  MD5 = 0,
+  SHA1 = 1,
+  SHA256 = 2,
+};
+
 namespace Operand {
 
 namespace CompilationUnit {
@@ -305,7 +314,27 @@ namespace Source {
 enum {
   FileIdx         = 0,
   TextIdx         = 1,
-  MinOperandCount = 1
+  // For NonSemantic.Shader.DebugInfo.200
+  ChecksumKind    = 1,
+  ChecksumValue   = 2,
+  TextNonSemIdx   = 3,
+  MinOperandCount = 1,
+  MaxOperandCount = 4
+};
+}
+
+namespace BuildIdentifier {
+enum {
+  IdentifierIdx = 0,
+  FlagsIdx      = 1,
+  OperandCount  = 2
+};
+}
+
+namespace StoragePath {
+enum {
+  PathIdx       = 0,
+  OperandCount  = 1
 };
 }
 
@@ -436,6 +465,7 @@ enum {
 }
 
 namespace TypeMember {
+namespace OpenCL {
 enum {
   NameIdx         = 0,
   TypeIdx         = 1,
@@ -450,6 +480,22 @@ enum {
   MinOperandCount = 9
 };
 }
+
+namespace NonSemantic {
+enum {
+  NameIdx         = 0,
+  TypeIdx         = 1,
+  SourceIdx       = 2,
+  LineIdx         = 3,
+  ColumnIdx       = 4,
+  OffsetIdx       = 5,
+  SizeIdx         = 6,
+  FlagsIdx        = 7,
+  ValueIdx        = 8,
+  MinOperandCount = 8
+};
+}
+} // namespace TypeMember
 
 namespace TypeInheritance {
 enum {
@@ -905,7 +951,7 @@ inline bool hasDbgInstParentScopeIdx(const uint32_t Kind,
     ParentScopeIdx = TypeEnum::ParentIdx;
     return true;
   case SPIRVDebug::TypeComposite:
-    ParentScopeIdx = TypeMember::ParentIdx;
+    ParentScopeIdx = TypeMember::OpenCL::ParentIdx;
     return true;
   case SPIRVDebug::TypeInheritance:
     ParentScopeIdx = TypeInheritance::ParentIdx;
@@ -1337,6 +1383,15 @@ template <>
 inline void DbgImportedEntityMap::init() {
   add(dwarf::DW_TAG_imported_module,      SPIRVDebug::ImportedModule);
   add(dwarf::DW_TAG_imported_declaration, SPIRVDebug::ImportedDeclaration);
+}
+
+typedef SPIRVMap<llvm::DIFile::ChecksumKind, SPIRVDebug::FileChecksumKind>
+  DbgChecksumKindMap;
+template <>
+inline void DbgChecksumKindMap::init() {
+  add(llvm::DIFile::CSK_MD5,    SPIRVDebug::MD5);
+  add(llvm::DIFile::CSK_SHA1,   SPIRVDebug::SHA1);
+  add(llvm::DIFile::CSK_SHA256, SPIRVDebug::SHA256);
 }
 
 } // namespace SPIRV

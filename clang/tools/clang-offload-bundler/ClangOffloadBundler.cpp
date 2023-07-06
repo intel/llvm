@@ -101,6 +101,12 @@ int main(int argc, const char **argv) {
                 cl::desc("[<offload kind>-<target triple>,...]"),
                 cl::cat(ClangOffloadBundlerCategory));
 
+  cl::list<std::string> ExcludedTargetNames(
+      "excluded-targets", cl::CommaSeparated,
+      cl::desc("[<target name>,...]. List of targets that are excluded from "
+               "unbundling."),
+      cl::cat(ClangOffloadBundlerCategory));
+
   cl::opt<std::string> FilesType(
       "type", cl::Required,
       cl::desc("Type of the files to be bundled/unbundled/checked.\n"
@@ -202,6 +208,7 @@ int main(int argc, const char **argv) {
   BundlerConfig.ObjcopyPath = "";
 
   BundlerConfig.TargetNames = TargetNames;
+  BundlerConfig.ExcludedTargetNames = ExcludedTargetNames;
   BundlerConfig.InputFileNames = InputFileNames;
   BundlerConfig.OutputFileNames = OutputFileNames;
 
@@ -369,6 +376,12 @@ int main(int argc, const char **argv) {
     }
   }
 
+  // check -excluded-targets without unbundle
+  if (!ExcludedTargetNames.empty() && !Unbundle)
+    reportError(createStringError(errc::invalid_argument,
+                                  "-excluded-targets option should be used "
+                                  "only in conjunction with -unbundle"));
+
   // Verify that the offload kinds and triples are known. We also check that we
   // have exactly one host target.
   unsigned Index = 0u;
@@ -377,6 +390,8 @@ int main(int argc, const char **argv) {
   llvm::DenseSet<StringRef> ParsedTargets;
   // Map {offload-kind}-{triple} to target IDs.
   std::map<std::string, std::set<StringRef>> TargetIDs;
+  // Standardize target names to include env field
+  std::vector<std::string> StandardizedTargetNames;
   for (StringRef Target : TargetNames) {
     if (ParsedTargets.contains(Target)) {
       reportError(createStringError(errc::invalid_argument,
@@ -387,6 +402,8 @@ int main(int argc, const char **argv) {
     auto OffloadInfo = OffloadTargetInfo(Target, BundlerConfig);
     bool KindIsValid = OffloadInfo.isOffloadKindValid();
     bool TripleIsValid = OffloadInfo.isTripleValid();
+
+    StandardizedTargetNames.push_back(OffloadInfo.str());
 
     if (!KindIsValid || !TripleIsValid) {
       SmallVector<char, 128u> Buf;
@@ -412,6 +429,9 @@ int main(int argc, const char **argv) {
 
     ++Index;
   }
+
+  BundlerConfig.TargetNames = StandardizedTargetNames;
+
   for (const auto &TargetID : TargetIDs) {
     if (auto ConflictingTID =
             clang::getConflictTargetIDCombination(TargetID.second)) {

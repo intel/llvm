@@ -117,6 +117,72 @@ define void @pow_test(float %0, float %1, <8 x float> %2, <8 x float> %3) {
   %6 = call <8 x float> @llvm.pow.v8f32(<8 x float> %2, <8 x float> %3)
   ret void
 }
+
+; CHECK-LABEL: llvm.func @rint_test
+define void @rint_test(float %0, double %1, <8 x float> %2, <8 x double> %3) {
+  ; CHECK: llvm.intr.rint(%{{.*}}) : (f32) -> f32
+  %5 = call float @llvm.rint.f32(float %0)
+  ; CHECK: llvm.intr.rint(%{{.*}}) : (f64) -> f64
+  %6 = call double @llvm.rint.f64(double %1)
+  ; CHECK: llvm.intr.rint(%{{.*}}) : (vector<8xf32>) -> vector<8xf32>
+  %7 = call <8 x float> @llvm.rint.v8f32(<8 x float> %2)
+  ; CHECK: llvm.intr.rint(%{{.*}}) : (vector<8xf64>) -> vector<8xf64>
+  %8 = call <8 x double> @llvm.rint.v8f64(<8 x double> %3)
+  ret void
+}
+; CHECK-LABEL: llvm.func @nearbyint_test
+define void @nearbyint_test(float %0, double %1, <8 x float> %2, <8 x double> %3) {
+  ; CHECK: llvm.intr.nearbyint(%{{.*}}) : (f32) -> f32
+  %5 = call float @llvm.nearbyint.f32(float %0)
+  ; CHECK: llvm.intr.nearbyint(%{{.*}}) : (f64) -> f64
+  %6 = call double @llvm.nearbyint.f64(double %1)
+  ; CHECK: llvm.intr.nearbyint(%{{.*}}) : (vector<8xf32>) -> vector<8xf32>
+  %7 = call <8 x float> @llvm.nearbyint.v8f32(<8 x float> %2)
+  ; CHECK: llvm.intr.nearbyint(%{{.*}}) : (vector<8xf64>) -> vector<8xf64>
+  %8 = call <8 x double> @llvm.nearbyint.v8f64(<8 x double> %3)
+  ret void
+}
+; CHECK-LABEL: llvm.func @lround_test
+define void @lround_test(float %0, double %1) {
+  ; CHECK: llvm.intr.lround(%{{.*}}) : (f32) -> i32
+  %3 = call i32 @llvm.lround.i32.f32(float %0)
+  ; CHECK: llvm.intr.lround(%{{.*}}) : (f32) -> i64
+  %4 = call i64 @llvm.lround.i64.f32(float %0)
+  ; CHECK: llvm.intr.lround(%{{.*}}) : (f64) -> i32
+  %5 = call i32 @llvm.lround.i32.f64(double %1)
+  ; CHECK: llvm.intr.lround(%{{.*}}) : (f64) -> i64
+  %6 = call i64 @llvm.lround.i64.f64(double %1)
+  ret void
+}
+; CHECK-LABEL: llvm.func @llround_test
+define void @llround_test(float %0, double %1) {
+  ; CHECK: llvm.intr.llround(%{{.*}}) : (f32) -> i64
+  %3 = call i64 @llvm.llround.i64.f32(float %0)
+  ; CHECK: llvm.intr.llround(%{{.*}}) : (f64) -> i64
+  %4 = call i64 @llvm.llround.i64.f64(double %1)
+  ret void
+}
+; CHECK-LABEL: llvm.func @lrint_test
+define void @lrint_test(float %0, double %1) {
+  ; CHECK: llvm.intr.lrint(%{{.*}}) : (f32) -> i32
+  %3 = call i32 @llvm.lrint.i32.f32(float %0)
+  ; CHECK: llvm.intr.lrint(%{{.*}}) : (f32) -> i64
+  %4 = call i64 @llvm.lrint.i64.f32(float %0)
+  ; CHECK: llvm.intr.lrint(%{{.*}}) : (f64) -> i32
+  %5 = call i32 @llvm.lrint.i32.f64(double %1)
+  ; CHECK: llvm.intr.lrint(%{{.*}}) : (f64) -> i64
+  %6 = call i64 @llvm.lrint.i64.f64(double %1)
+  ret void
+}
+; CHECK-LABEL: llvm.func @llrint_test
+define void @llrint_test(float %0, double %1) {
+  ; CHECK: llvm.intr.llrint(%{{.*}}) : (f32) -> i64
+  %3 = call i64 @llvm.llrint.i64.f32(float %0)
+  ; CHECK: llvm.intr.llrint(%{{.*}}) : (f64) -> i64
+  %4 = call i64 @llvm.llrint.i64.f64(double %1)
+  ret void
+}
+
 ; CHECK-LABEL:  llvm.func @bitreverse_test
 define void @bitreverse_test(i32 %0, <8 x i32> %1) {
   ; CHECK:   llvm.intr.bitreverse(%{{.*}}) : (i32) -> i32
@@ -448,6 +514,60 @@ define void @umul_with_overflow_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3)
   ret void
 }
 
+; CHECK-LABEL:  llvm.func @sadd_sat_test
+define void @sadd_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.sadd.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.sadd.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.sadd.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.sadd.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @uadd_sat_test
+define void @uadd_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.uadd.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.uadd.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.uadd.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.uadd.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @ssub_sat_test
+define void @ssub_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.ssub.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.ssub.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.ssub.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.ssub.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @usub_sat_test
+define void @usub_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.usub.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.usub.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.usub.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.usub.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @sshl_sat_test
+define void @sshl_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.sshl.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.sshl.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.sshl.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.sshl.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @ushl_sat_test
+define void @ushl_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.ushl.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.ushl.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.ushl.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.ushl.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
 ; CHECK-LABEL: llvm.func @va_intrinsics_test
 define void @va_intrinsics_test(ptr %0, ptr %1) {
 ; CHECK: llvm.intr.vastart %{{.*}}
@@ -464,6 +584,39 @@ define void @va_intrinsics_test(ptr %0, ptr %1) {
 define void @assume(i1 %true) {
   ; CHECK:  "llvm.intr.assume"(%[[TRUE]]) : (i1) -> ()
   call void @llvm.assume(i1 %true)
+  ret void
+}
+
+; CHECK-LABEL: @is_constant
+; CHECK-SAME:  %[[VAL:[a-zA-Z0-9]+]]
+define void @is_constant(i32 %0) {
+  ; CHECK:  "llvm.intr.is.constant"(%[[VAL]]) : (i32) -> i1
+  %2 = call i1 @llvm.is.constant.i32(i32 %0)
+  ret void
+}
+
+; CHECK-LABEL: @expect
+; CHECK-SAME:  %[[VAL:[a-zA-Z0-9]+]]
+define void @expect(i32 %0) {
+  ; CHECK:  %[[EXP:.+]] = llvm.mlir.constant(42 : i32) : i32
+  ; CHECK:  llvm.intr.expect %[[VAL]], %[[EXP]] : i32
+  %2 = call i32 @llvm.expect.i32(i32 %0, i32 42)
+  ret void
+}
+
+; CHECK-LABEL: @expect_with_probability
+; CHECK-SAME:  %[[VAL:[a-zA-Z0-9]+]]
+define void @expect_with_probability(i16 %0) {
+  ; CHECK:  %[[EXP:.+]] = llvm.mlir.constant(42 : i16) : i16
+  ; CHECK:  llvm.intr.expect.with.probability %[[VAL]], %[[EXP]], 5.000000e-01 : i16
+  %2 = call i16 @llvm.expect.with.probability.i16(i16 %0, i16 42, double 0.5)
+  ret void
+}
+
+; CHECK-LABEL: llvm.func @threadlocal_test
+define void @threadlocal_test(ptr %0) {
+  ; CHECK: "llvm.intr.threadlocal.address"(%{{.*}}) : (!llvm.ptr) -> !llvm.ptr
+  %local = call ptr @llvm.threadlocal.address.p0(ptr %0)
   ret void
 }
 
@@ -701,6 +854,26 @@ declare float @llvm.copysign.f32(float, float)
 declare <8 x float> @llvm.copysign.v8f32(<8 x float>, <8 x float>)
 declare float @llvm.pow.f32(float, float)
 declare <8 x float> @llvm.pow.v8f32(<8 x float>, <8 x float>)
+declare float @llvm.rint.f32(float)
+declare double @llvm.rint.f64(double)
+declare <8 x float> @llvm.rint.v8f32(<8 x float>)
+declare <8 x double> @llvm.rint.v8f64(<8 x double>)
+declare float @llvm.nearbyint.f32(float)
+declare double @llvm.nearbyint.f64(double)
+declare <8 x float> @llvm.nearbyint.v8f32(<8 x float>)
+declare <8 x double> @llvm.nearbyint.v8f64(<8 x double>)
+declare i32 @llvm.lround.i32.f32(float)
+declare i64 @llvm.lround.i64.f32(float)
+declare i32 @llvm.lround.i32.f64(double)
+declare i64 @llvm.lround.i64.f64(double)
+declare i64 @llvm.llround.i64.f32(float)
+declare i64 @llvm.llround.i64.f64(double)
+declare i32 @llvm.lrint.i32.f32(float)
+declare i64 @llvm.lrint.i64.f32(float)
+declare i32 @llvm.lrint.i32.f64(double)
+declare i64 @llvm.lrint.i64.f64(double)
+declare i64 @llvm.llrint.i64.f32(float)
+declare i64 @llvm.llrint.i64.f64(double)
 declare i32 @llvm.bitreverse.i32(i32)
 declare <8 x i32> @llvm.bitreverse.v8i32(<8 x i32>)
 declare i32 @llvm.bswap.i32(i32)
@@ -774,6 +947,22 @@ declare { i32, i1 } @llvm.smul.with.overflow.i32(i32, i32)
 declare { <8 x i32>, <8 x i1> } @llvm.smul.with.overflow.v8i32(<8 x i32>, <8 x i32>)
 declare { i32, i1 } @llvm.umul.with.overflow.i32(i32, i32)
 declare { <8 x i32>, <8 x i1> } @llvm.umul.with.overflow.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.sadd.sat.i32(i32, i32)
+declare <8 x i32> @llvm.sadd.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.uadd.sat.i32(i32, i32)
+declare <8 x i32> @llvm.uadd.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.ssub.sat.i32(i32, i32)
+declare <8 x i32> @llvm.ssub.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.usub.sat.i32(i32, i32)
+declare <8 x i32> @llvm.usub.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.sshl.sat.i32(i32, i32)
+declare <8 x i32> @llvm.sshl.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.ushl.sat.i32(i32, i32)
+declare <8 x i32> @llvm.ushl.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i1 @llvm.is.constant.i32(i32)
+declare i32 @llvm.expect.i32(i32, i32)
+declare i16 @llvm.expect.with.probability.i16(i16, i16, double immarg)
+declare nonnull ptr @llvm.threadlocal.address.p0(ptr nonnull)
 declare token @llvm.coro.id(i32, ptr readnone, ptr nocapture readonly, ptr)
 declare ptr @llvm.coro.begin(token, ptr writeonly)
 declare i64 @llvm.coro.size.i64()

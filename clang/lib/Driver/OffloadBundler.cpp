@@ -59,6 +59,7 @@
 #include <set>
 #include <string>
 #include <system_error>
+#include <unordered_set>
 #include <utility>
 
 using namespace llvm;
@@ -71,6 +72,8 @@ using namespace clang;
 /// Section name which holds target symbol names.
 #define SYMBOLS_SECTION_NAME ".tgtsym"
 
+#define DEBUG_TYPE "clang-offload-bundler"
+
 OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
                                      const OffloadBundlerConfig &BC)
     : BundlerConfig(BC) {
@@ -82,12 +85,25 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
   if (clang::StringToCudaArch(TripleOrGPU.second) != clang::CudaArch::UNKNOWN) {
     auto KindTriple = TripleOrGPU.first.split('-');
     this->OffloadKind = KindTriple.first;
-    this->Triple = llvm::Triple(KindTriple.second);
-    this->TargetID = Target.substr(Target.find(TripleOrGPU.second));
+
+    // Enforce optional env field to standardize bundles
+    llvm::Triple t = llvm::Triple(KindTriple.second);
+    this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
+                                t.getOSName(), t.getEnvironmentName());
+
+    if (TripleOrGPU.second.empty())
+      this->TargetID = "";
+    else
+      this->TargetID = Target.substr(Target.find(TripleOrGPU.second));
   } else {
     auto KindTriple = TargetFeatures.first.split('-');
     this->OffloadKind = KindTriple.first;
-    this->Triple = llvm::Triple(KindTriple.second);
+
+    // Enforce optional env field to standardize bundles
+    llvm::Triple t = llvm::Triple(KindTriple.second);
+    this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
+                                t.getOSName(), t.getEnvironmentName());
+
     this->TargetID = "";
   }
 }
@@ -107,11 +123,11 @@ bool OffloadTargetInfo::isOffloadKindCompatible(
   if (OffloadKind == TargetOffloadKind)
     return true;
   if (BundlerConfig.HipOpenmpCompatible) {
-    bool HIPCompatibleWithOpenMP = OffloadKind.startswith_insensitive("hip") &&
+    bool HIPCompatibleWithOpenMP = OffloadKind.starts_with_insensitive("hip") &&
                                    TargetOffloadKind == "openmp";
     bool OpenMPCompatibleWithHIP =
         OffloadKind == "openmp" &&
-        TargetOffloadKind.startswith_insensitive("hip");
+        TargetOffloadKind.starts_with_insensitive("hip");
     return HIPCompatibleWithOpenMP || OpenMPCompatibleWithHIP;
   }
   return false;
@@ -1015,6 +1031,10 @@ class ArchiveFileHandler final : public FileHandler {
           .Case("a", OutputType::Archive)
           .Default(OutputType::Unknown);
 
+  // Set contains indexes of Children that should be skipped during
+  // unbundling.
+  std::unordered_set<size_t> ExcludedChildIndexes;
+
 public:
   ArchiveFileHandler(const OffloadBundlerConfig &BC) : BundlerConfig(BC) {}
   ~ArchiveFileHandler() = default;
@@ -1029,8 +1049,10 @@ public:
     Ar = std::move(*ArOrErr);
 
     // Read all children.
+    ssize_t ChildIndex = -1;
     Error Err = Error::success();
     for (auto &C : Ar->children(Err)) {
+      ++ChildIndex;
       auto BinOrErr = C.getAsBinary();
       if (!BinOrErr) {
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
@@ -1041,6 +1063,16 @@ public:
       auto &Bin = BinOrErr.get();
       if (!Bin->isObject())
         continue;
+
+      auto CheckOrErr = CheckIfObjectFileContainsExcludedTargets(C);
+      if (!CheckOrErr)
+        return CheckOrErr.takeError();
+
+      if (*CheckOrErr) {
+        LLVM_DEBUG(outs() << "Add child to ban list. Index: " << ChildIndex
+                          << "\n");
+        ExcludedChildIndexes.emplace(ChildIndex);
+      }
 
       auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
       auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
@@ -1099,7 +1131,14 @@ public:
 
     // Read all children.
     Error Err = Error::success();
+    ssize_t ChildIndex = -1;
     for (auto &C : Ar->children(Err)) {
+      ++ChildIndex;
+      if (ExcludedChildIndexes.count(ChildIndex)) {
+        LLVM_DEBUG(outs() << "Skip Child. Index: " << ChildIndex << "\n");
+        continue;
+      }
+
       auto BinOrErr = C.getAsBinary();
       if (!BinOrErr) {
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
@@ -1214,6 +1253,58 @@ public:
 
   Error WriteBundle(raw_fd_ostream &OS, MemoryBuffer &Input) override {
     llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+
+private:
+  // NOTE: mostly a copy-paste of ReadHeader method.
+  Expected<std::vector<std::string>>
+  ReadTargetsFromChild(const Archive::Child &C) {
+    Expected<std::unique_ptr<Binary>> BinOrErr = C.getAsBinary();
+    if (!BinOrErr)
+      return BinOrErr.takeError();
+
+    std::unique_ptr<Binary> &Bin = BinOrErr.get();
+    auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+    std::unique_ptr<MemoryBuffer> Buf =
+        MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+    ObjectFileHandler OFH(std::move(Obj), BundlerConfig);
+    if (Error Err = OFH.ReadHeader(*Buf))
+      return {std::move(Err)};
+    Expected<std::optional<StringRef>> NameOrErr = OFH.ReadBundleStart(*Buf);
+    if (!NameOrErr)
+      return NameOrErr.takeError();
+
+    std::vector<std::string> Targets;
+    while (*NameOrErr) {
+      if (*NameOrErr)
+        Targets.emplace_back((**NameOrErr).str());
+      NameOrErr = OFH.ReadBundleStart(*Buf);
+      if (!NameOrErr)
+        return NameOrErr.takeError();
+    }
+
+    return Targets;
+  }
+
+  // Function reads targets from Child and checks whether one of Targets
+  // is in Excluded list.
+  Expected<bool>
+  CheckIfObjectFileContainsExcludedTargets(const Archive::Child &C) {
+    if (BundlerConfig.ExcludedTargetNames.empty())
+      return false;
+
+    auto TargetNamesOrErr = ReadTargetsFromChild(C);
+    if (!TargetNamesOrErr)
+      return TargetNamesOrErr.takeError();
+
+    auto TargetNames = TargetNamesOrErr.get();
+    const auto &ExcludedTargets = BundlerConfig.ExcludedTargetNames;
+    return std::any_of(TargetNames.begin(), TargetNames.end(),
+                       [&ExcludedTargets](const std::string &Target) {
+                         auto It = std::find(ExcludedTargets.begin(),
+                                             ExcludedTargets.end(), Target);
+                         return It != ExcludedTargets.end();
+                       });
   }
 };
 
@@ -1499,34 +1590,34 @@ Error OffloadBundler::UnbundleFiles() {
   return Error::success();
 }
 
-// Unbundle the files. Return true if an error was found.
+// Unbundle the files. Return false if an error was found.
 Expected<bool>
 clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
   // Open Input file.
   ErrorOr<std::unique_ptr<MemoryBuffer>> CodeOrErr =
       MemoryBuffer::getFileOrSTDIN(BundlerConfig.InputFileNames.front());
   if (std::error_code EC = CodeOrErr.getError())
-    return createFileError(BundlerConfig.InputFileNames.front(), EC);
+    return false;
   MemoryBuffer &Input = *CodeOrErr.get();
 
   // Select the right files handler.
   Expected<std::unique_ptr<FileHandler>> FileHandlerOrErr =
       CreateFileHandler(Input, BundlerConfig);
   if (!FileHandlerOrErr)
-    return FileHandlerOrErr.takeError();
+    return false;
 
   std::unique_ptr<FileHandler> &FH = *FileHandlerOrErr;
 
   // Quit if we don't have a handler.
   if (!FH)
-    return true;
+    return false;
 
   // Seed temporary filename generation with the stem of the input file.
   FH->SetTempFileNameBase(llvm::sys::path::stem(BundlerConfig.InputFileNames.front()));
 
   // Read the header of the bundled file.
   if (Error Err = FH->ReadHeader(Input))
-    return std::move(Err);
+    return false;
 
   StringRef triple = BundlerConfig.TargetNames.front();
 
@@ -1537,13 +1628,15 @@ clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
     Expected<std::optional<StringRef>> CurTripleOrErr =
         FH->ReadBundleStart(Input);
     if (!CurTripleOrErr)
-      return CurTripleOrErr.takeError();
+      return false;
 
     // We don't have more bundles.
     if (!*CurTripleOrErr)
       break;
 
-    if (*CurTripleOrErr == triple) {
+    StringRef CurTriple = **CurTripleOrErr;
+    if (OffloadTargetInfo(CurTriple, BundlerConfig).Triple.str() ==
+        OffloadTargetInfo(triple, BundlerConfig).Triple.str()) {
       found = true;
       break;
     }

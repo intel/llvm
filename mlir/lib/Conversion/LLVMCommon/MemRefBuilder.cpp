@@ -24,8 +24,7 @@ using namespace mlir;
 MemRefDescriptor::MemRefDescriptor(Value descriptor)
     : StructBuilder(descriptor) {
   assert(value != nullptr && "value cannot be null");
-  indexType = value.getType()
-                  .cast<LLVM::LLVMStructType>()
+  indexType = cast<LLVM::LLVMStructType>(value.getType())
                   .getBody()[kOffsetPosInMemRefDescriptor];
 }
 
@@ -193,10 +192,9 @@ void MemRefDescriptor::setConstantStride(OpBuilder &builder, Location loc,
 }
 
 LLVM::LLVMPointerType MemRefDescriptor::getElementPtrType() {
-  return value.getType()
-      .cast<LLVM::LLVMStructType>()
-      .getBody()[kAlignedPtrPosInMemRefDescriptor]
-      .cast<LLVM::LLVMPointerType>();
+  return cast<LLVM::LLVMPointerType>(
+      cast<LLVM::LLVMStructType>(value.getType())
+          .getBody()[kAlignedPtrPosInMemRefDescriptor]);
 }
 
 Value MemRefDescriptor::bufferPtr(OpBuilder &builder, Location loc,
@@ -207,17 +205,19 @@ Value MemRefDescriptor::bufferPtr(OpBuilder &builder, Location loc,
   auto [strides, offsetCst] = getStridesAndOffset(type);
 
   Value ptr = alignedPtr(builder, loc);
-  // Skip if offset is zero.
-  if (offsetCst != 0) {
-    Type indexType = converter.getIndexType();
-    Value offsetVal =
-        ShapedType::isDynamic(offsetCst)
-            ? offset(builder, loc)
-            : createIndexAttrConstant(builder, loc, indexType, offsetCst);
-    Type elementType = converter.convertType(type.getElementType());
-    ptr = builder.create<LLVM::GEPOp>(loc, ptr.getType(), elementType, ptr,
-                                      offsetVal);
-  }
+  // For zero offsets, we already have the base pointer.
+  if (offsetCst == 0)
+    return ptr;
+
+  // Otherwise add the offset to the aligned base.
+  Type indexType = converter.getIndexType();
+  Value offsetVal =
+      ShapedType::isDynamic(offsetCst)
+          ? offset(builder, loc)
+          : createIndexAttrConstant(builder, loc, indexType, offsetCst);
+  Type elementType = converter.convertType(type.getElementType());
+  ptr = builder.create<LLVM::GEPOp>(loc, ptr.getType(), elementType, ptr,
+                                    offsetVal);
   return ptr;
 }
 

@@ -1,27 +1,25 @@
-// UNSUPPORTED: hip
-//
 // RUN: %{build} -o %t.out
-//
+
 // The purpose of all tests is to make sure in-order semantics works correctly
 // using discard_events and alternating event and eventless kernel calls in
 // different ways.
-//
+
 // The test checks that eventless kernel calls work correctly after several
 // event kernel calls.
 // RUN: %{run} %t.out accessor-usm
-//
+
 // The test checks that event kernel calls work correctly after several
 // eventless kernel calls.
 // RUN: %{run} %t.out usm-accessor
-//
+
 // The test checks that alternating event and eventless kernel calls work
 // correctly.
 // RUN: %{run} %t.out mixed
-//
+
 // The test checks that piEnqueueMemBufferMap and piEnqueueMemUnmap work
 // correctly when we alternate between event and eventless kernel calls.
 // RUN: %{run} %t.out map-unmap
-//
+
 // Note that the tests use buffer functionality and if you have problems with
 // the tests, please check if they pass without the discard_events property, if
 // they don't pass then it's most likely a general issue unrelated to
@@ -85,7 +83,7 @@ void RunTest_USM_Accessor(sycl::queue Q) {
   TestHelper(Q, [&](sycl::range<1> Range, int *Harray,
                     sycl::buffer<int, 1> Buf) {
     {
-      auto HostAcc = Buf.get_access<sycl::access::mode::read_write>();
+      sycl::host_accessor HostAcc(Buf);
       for (size_t i = 0; i < BUFFER_SIZE; ++i) {
         HostAcc[i] = 0;
       }
@@ -105,7 +103,7 @@ void RunTest_USM_Accessor(sycl::queue Q) {
       assert(Harray[i] == expected);
     }
     {
-      auto HostAcc = Buf.get_access<sycl::access::mode::read>();
+      sycl::host_accessor HostAcc(Buf, sycl::read_only);
       for (size_t i = 0; i < BUFFER_SIZE; ++i) {
         int expected = MAX_ITER_NUM2;
         assert(HostAcc[i] == expected);
@@ -118,7 +116,7 @@ void RunTest_Accessor_USM(sycl::queue Q) {
   TestHelper(
       Q, [&](sycl::range<1> Range, int *Harray, sycl::buffer<int, 1> Buf) {
         {
-          auto HostAcc = Buf.get_access<sycl::access::mode::read_write>();
+          sycl::host_accessor HostAcc(Buf);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             HostAcc[i] = 0;
           }
@@ -138,7 +136,7 @@ void RunTest_Accessor_USM(sycl::queue Q) {
           assert(Harray[i] == expected);
         }
         {
-          auto HostAcc = Buf.get_access<sycl::access::mode::read>();
+          sycl::host_accessor HostAcc(Buf, sycl::read_only);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             int expected = MAX_ITER_NUM1;
             assert(HostAcc[i] == expected);
@@ -151,7 +149,7 @@ void RunTest_Mixed(sycl::queue Q) {
   TestHelper(
       Q, [&](sycl::range<1> Range, int *Harray, sycl::buffer<int, 1> Buf) {
         {
-          auto HostAcc = Buf.get_access<sycl::access::mode::read_write>();
+          sycl::host_accessor HostAcc(Buf);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             HostAcc[i] = 0;
           }
@@ -176,7 +174,7 @@ void RunTest_Mixed(sycl::queue Q) {
           assert(Harray[i] == expected);
         }
         {
-          auto HostAcc = Buf.get_access<sycl::access::mode::read>();
+          sycl::host_accessor HostAcc(Buf, sycl::read_only);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             int expected = MAX_ITER_NUM1 + MAX_ITER_NUM2;
             assert(HostAcc[i] == expected);
@@ -208,7 +206,7 @@ void RunTest_MemBufferMapUnMap(sycl::queue Q) {
         {
           // waiting for all queue operations in piEnqueueMemBufferMap and then
           // checking buffer
-          auto HostAcc = Buf.get_access<sycl::access::mode::read_write>();
+          sycl::host_accessor HostAcc(Buf);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             int expected = i;
             assert(HostAcc[i] == expected);
@@ -247,7 +245,7 @@ void RunTest_MemBufferMapUnMap(sycl::queue Q) {
           assert(Harray[i] == expected);
         }
         {
-          auto HostAcc = Buf.get_access<sycl::access::mode::read>();
+          sycl::host_accessor HostAcc(Buf, sycl::read_only);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             int expected = i + 110;
             assert(HostAcc[i] == expected);

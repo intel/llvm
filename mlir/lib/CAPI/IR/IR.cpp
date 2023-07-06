@@ -172,7 +172,7 @@ MlirAttribute mlirLocationGetAttribute(MlirLocation location) {
 }
 
 MlirLocation mlirLocationFromAttribute(MlirAttribute attribute) {
-  return wrap(Location(unwrap(attribute).cast<LocationAttr>()));
+  return wrap(Location(llvm::cast<LocationAttr>(unwrap(attribute))));
 }
 
 MlirLocation mlirLocationFileLineColGet(MlirContext context,
@@ -727,33 +727,33 @@ bool mlirValueEqual(MlirValue value1, MlirValue value2) {
 }
 
 bool mlirValueIsABlockArgument(MlirValue value) {
-  return unwrap(value).isa<BlockArgument>();
+  return llvm::isa<BlockArgument>(unwrap(value));
 }
 
 bool mlirValueIsAOpResult(MlirValue value) {
-  return unwrap(value).isa<OpResult>();
+  return llvm::isa<OpResult>(unwrap(value));
 }
 
 MlirBlock mlirBlockArgumentGetOwner(MlirValue value) {
-  return wrap(unwrap(value).cast<BlockArgument>().getOwner());
+  return wrap(llvm::cast<BlockArgument>(unwrap(value)).getOwner());
 }
 
 intptr_t mlirBlockArgumentGetArgNumber(MlirValue value) {
   return static_cast<intptr_t>(
-      unwrap(value).cast<BlockArgument>().getArgNumber());
+      llvm::cast<BlockArgument>(unwrap(value)).getArgNumber());
 }
 
 void mlirBlockArgumentSetType(MlirValue value, MlirType type) {
-  unwrap(value).cast<BlockArgument>().setType(unwrap(type));
+  llvm::cast<BlockArgument>(unwrap(value)).setType(unwrap(type));
 }
 
 MlirOperation mlirOpResultGetOwner(MlirValue value) {
-  return wrap(unwrap(value).cast<OpResult>().getOwner());
+  return wrap(llvm::cast<OpResult>(unwrap(value)).getOwner());
 }
 
 intptr_t mlirOpResultGetResultNumber(MlirValue value) {
   return static_cast<intptr_t>(
-      unwrap(value).cast<OpResult>().getResultNumber());
+      llvm::cast<OpResult>(unwrap(value)).getResultNumber());
 }
 
 MlirType mlirValueGetType(MlirValue value) {
@@ -832,6 +832,10 @@ MlirTypeID mlirTypeGetTypeID(MlirType type) {
   return wrap(unwrap(type).getTypeID());
 }
 
+MlirDialect mlirTypeGetDialect(MlirType type) {
+  return wrap(&unwrap(type).getDialect());
+}
+
 bool mlirTypeEqual(MlirType t1, MlirType t2) {
   return unwrap(t1) == unwrap(t2);
 }
@@ -857,7 +861,7 @@ MlirContext mlirAttributeGetContext(MlirAttribute attribute) {
 
 MlirType mlirAttributeGetType(MlirAttribute attribute) {
   Attribute attr = unwrap(attribute);
-  if (auto typedAttr = attr.dyn_cast<TypedAttr>())
+  if (auto typedAttr = llvm::dyn_cast<TypedAttr>(attr))
     return wrap(typedAttr.getType());
   return wrap(NoneType::get(attr.getContext()));
 }

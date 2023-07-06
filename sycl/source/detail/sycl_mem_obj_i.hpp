@@ -44,7 +44,8 @@ public:
   // Method returns a pointer to host allocation if Context is host one and
   // cl_mem obect if not.
   virtual void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                            void *HostPtr, RT::PiEvent &InteropEvent) = 0;
+                            void *HostPtr,
+                            sycl::detail::pi::PiEvent &InteropEvent) = 0;
 
   // Should be used for memory object created without use_host_ptr property.
   virtual void *allocateHostMem() = 0;
@@ -60,6 +61,14 @@ public:
 
   // Returns size of object in bytes
   virtual size_t getSizeInBytes() const noexcept = 0;
+
+  virtual bool isInterop() const = 0;
+
+  virtual bool hasUserDataPtr() const = 0;
+
+  virtual bool isHostPointerReadOnly() const = 0;
+
+  virtual bool usesPinnedHostMemory() const = 0;
 
   // Returns the context which is passed if a memory object is created using
   // interoperability constructor, nullptr otherwise.

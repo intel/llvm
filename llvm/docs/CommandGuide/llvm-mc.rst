@@ -16,7 +16,7 @@ specified architecture and generate object file or executable as a output
 for a specified architecture. 
 
 :program:`llvm-mc` provide powerful set of the tool for working with the machine code such 
-as encoding of their instruction and their internal representation, dissasemble 
+as encoding of their instruction and their internal representation, disassemble
 string to bytes etc. 
 
 The choice of architecture for the output assembly code is automatically
@@ -138,8 +138,6 @@ End-user Options
 .. option:: --print-imm-hex      
 
  Prefer hex format for immediate values.
- For example, on x86 targets --output-asm-variant=0 prints in AT&T syntax, and --output-asm-variant=1 prints in 
- Intel/MASM syntax.
 
 .. option::  --preserve-comments 
 
@@ -147,8 +145,9 @@ End-user Options
 
 .. option:: --output-asm-variant=<uint>
 
- Syntax variant to use for output printing.
-
+ Syntax variant to use for output printing. For example, on x86 targets
+ --output-asm-variant=0 prints in AT&T syntax, and --output-asm-variant=1 prints
+ in Intel/MASM syntax.
 
 .. option:: --compress-debug-sections=[none|zlib|zstd]
 

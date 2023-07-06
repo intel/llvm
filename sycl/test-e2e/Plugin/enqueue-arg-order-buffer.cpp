@@ -265,7 +265,7 @@ void testcopyH2DBuffer() {
                                     range<2>(height, width));
     buffer<float, 2> buffer_to_2D(data_to_2D.data(), range<2>(height, width));
 
-    device Dev{default_selector{}};
+    device Dev;
     context myCtx{Dev};
     context otherCtx{Dev};
 
@@ -294,7 +294,7 @@ void testcopyH2DBuffer() {
     buffer<float, 3> buffer_to_3D(data_to_3D.data(),
                                   range<3>(depth, height, width));
 
-    device Dev{default_selector{}};
+    device Dev;
     context myCtx{Dev};
     context otherCtx{Dev};
 

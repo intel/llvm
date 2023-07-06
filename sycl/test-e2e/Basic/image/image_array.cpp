@@ -100,8 +100,8 @@ int main() {
         ResAcc[GET_RANGE] |= sycl::range<1>(ImgAcc.get_range()[0]) !=
                              ImgArrayAcc[CoordI.y()].get_range();
 
-        ResAcc[GET_COUNT] |= (ImgAcc.get_count() / ImgSize[1]) !=
-                             ImgArrayAcc[CoordI.y()].get_count();
+        ResAcc[GET_COUNT] |=
+            (ImgAcc.size() / ImgSize[1]) != ImgArrayAcc[CoordI.y()].size();
       });
     });
 

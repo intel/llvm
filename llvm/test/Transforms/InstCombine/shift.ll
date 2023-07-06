@@ -1743,12 +1743,6 @@ define void @ashr_out_of_range(ptr %A) {
 ; https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=26135
 define void @ashr_out_of_range_1(ptr %A) {
 ; CHECK-LABEL: @ashr_out_of_range_1(
-; CHECK-NEXT:    [[L:%.*]] = load i177, ptr [[A:%.*]], align 4
-; CHECK-NEXT:    [[G11:%.*]] = getelementptr i177, ptr [[A]], i64 -1
-; CHECK-NEXT:    [[B24_LOBIT:%.*]] = ashr i177 [[L]], 175
-; CHECK-NEXT:    [[TMP1:%.*]] = trunc i177 [[B24_LOBIT]] to i64
-; CHECK-NEXT:    [[G62:%.*]] = getelementptr i177, ptr [[G11]], i64 [[TMP1]]
-; CHECK-NEXT:    store i177 0, ptr [[G62]], align 4
 ; CHECK-NEXT:    ret void
 ;
   %L = load i177, ptr %A, align 4
@@ -1771,12 +1765,11 @@ define void @ashr_out_of_range_1(ptr %A) {
 define void @ossfuzz_38078(i32 %arg, i32 %arg1, ptr %ptr, ptr %ptr2, ptr %ptr3, ptr %ptr4, ptr %ptr5, ptr %ptr6, ptr %ptr7) {
 ; CHECK-LABEL: @ossfuzz_38078(
 ; CHECK-NEXT:  bb:
-; CHECK-NEXT:    [[I2:%.*]] = add nsw i32 [[ARG:%.*]], [[ARG1:%.*]]
-; CHECK-NEXT:    [[B3:%.*]] = or i32 [[I2]], 2147483647
 ; CHECK-NEXT:    [[G1:%.*]] = getelementptr i32, ptr [[PTR:%.*]], i64 -1
-; CHECK-NEXT:    [[I5:%.*]] = icmp eq i32 [[I2]], 0
+; CHECK-NEXT:    [[I2:%.*]] = sub i32 0, [[ARG1:%.*]]
+; CHECK-NEXT:    [[I5:%.*]] = icmp eq i32 [[I2]], [[ARG:%.*]]
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[I5]])
-; CHECK-NEXT:    store volatile i32 [[B3]], ptr [[G1]], align 4
+; CHECK-NEXT:    store volatile i32 2147483647, ptr [[G1]], align 4
 ; CHECK-NEXT:    br label [[BB:%.*]]
 ; CHECK:       BB:
 ; CHECK-NEXT:    unreachable

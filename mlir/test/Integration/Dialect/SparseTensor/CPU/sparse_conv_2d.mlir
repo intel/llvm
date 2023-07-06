@@ -26,12 +26,12 @@
 // REDEFINE: FileCheck %s
 // RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
-#DCSR = #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ] }>
-#CSR = #sparse_tensor.encoding<{dimLevelType = ["dense", "compressed"]}>
-#CDR = #sparse_tensor.encoding<{dimLevelType = ["compressed", "dense"]}>
+#DCSR = #sparse_tensor.encoding<{ lvlTypes = [ "compressed", "compressed" ] }>
+#CSR = #sparse_tensor.encoding<{lvlTypes = ["dense", "compressed"]}>
+#CDR = #sparse_tensor.encoding<{lvlTypes = ["compressed", "dense"]}>
 #CSC = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed" ],
-  dimOrdering = affine_map<(i,j) -> (j,i)>
+  lvlTypes = [ "dense", "compressed" ],
+  dimToLvl = affine_map<(i,j) -> (j,i)>
 }>
 
 // An example of a 2D convolution with a sparse filter.

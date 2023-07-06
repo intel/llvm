@@ -82,25 +82,30 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                sub_b;
            myparams2::joint_matrix_accumulator<sub_group> sub_c;
 
-           joint_matrix_load(sg, sub_c,
-                             accC.get_pointer() + (sg_startx * TM) * N +
-                                 sg_starty / SG_SZ * TN,
-                             N, layout::row_major);
+           joint_matrix_load(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
-                 sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
+                 sg, sub_a,
+                 accA.template get_multi_ptr<access::decorated::no>() +
+                     (sg_startx * TM) * K + k * TK,
                  K);
              // Assuming B data is already in VNNI format.
-             joint_matrix_load(sg, sub_b,
-                               accB.get_pointer() + (k * TK / 4) * (N * 4) +
-                                   sg_starty / SG_SZ * TN * 4,
-                               N * 4);
+             joint_matrix_load(
+                 sg, sub_b,
+                 accB.template get_multi_ptr<access::decorated::no>() +
+                     (k * TK / 4) * (N * 4) + sg_starty / SG_SZ * TN * 4,
+                 N * 4);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
-           joint_matrix_store(sg, sub_c,
-                              accC.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, layout::row_major);
+           joint_matrix_store(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
          }); // parallel for
    }).wait();
 }

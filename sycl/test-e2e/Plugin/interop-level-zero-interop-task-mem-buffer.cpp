@@ -30,6 +30,8 @@ int main() {
             void *device_ptr =
                 ih.get_mem<backend::ext_oneapi_level_zero>(buffer_acc);
             ze_memory_allocation_properties_t memAllocProperties{};
+            memAllocProperties.stype =
+                ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;
             ze_result_t res = zeMemGetAllocProperties(
                 ze_context, device_ptr, &memAllocProperties, nullptr);
             assert(res == ZE_RESULT_SUCCESS);

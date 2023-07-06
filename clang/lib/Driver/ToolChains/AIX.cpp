@@ -122,6 +122,17 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-bnoentry");
   }
 
+  if (Args.hasFlag(options::OPT_mxcoff_roptr, options::OPT_mno_xcoff_roptr,
+                   false)) {
+    if (Args.hasArg(options::OPT_shared))
+      D.Diag(diag::err_roptr_cannot_build_shared);
+
+    // The `-mxcoff-roptr` option places constants in RO sections as much as
+    // possible. Then `-bforceimprw` changes such sections to RW if they contain
+    // imported symbols that need to be resolved.
+    CmdArgs.push_back("-bforceimprw");
+  }
+
   // PGO instrumentation generates symbols belonging to special sections, and
   // the linker needs to place all symbols in a particular section together in
   // memory; the AIX linker does that under an option.
@@ -396,6 +407,18 @@ void AIX::AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
   }
 
   llvm_unreachable("Unexpected C++ library type; only libc++ is supported.");
+}
+
+void AIX::addClangTargetOptions(
+    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CC1Args,
+    Action::OffloadKind DeviceOffloadingKind) const {
+  Args.AddLastArg(CC1Args, options::OPT_mignore_xcoff_visibility);
+  Args.AddLastArg(CC1Args, options::OPT_mdefault_visibility_export_mapping_EQ);
+  Args.addOptInFlag(CC1Args, options::OPT_mxcoff_roptr, options::OPT_mno_xcoff_roptr);
+
+  if (Args.hasFlag(options::OPT_fxl_pragma_pack,
+                   options::OPT_fno_xl_pragma_pack, true))
+    CC1Args.push_back("-fxl-pragma-pack");
 }
 
 void AIX::addProfileRTLibs(const llvm::opt::ArgList &Args,

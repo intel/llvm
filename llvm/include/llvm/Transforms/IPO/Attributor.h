@@ -119,6 +119,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Alignment.h"
@@ -163,6 +164,9 @@ enum class GPUAddressSpace : unsigned {
   Constant = 4,
   Local = 5,
 };
+
+/// Return true iff \p M target a GPU (and we can use GPU AS reasoning).
+bool isGPU(const Module &M);
 
 /// Flags to distinguish intra-procedural queries from *potentially*
 /// inter-procedural queries. Not that information can be valid for both and
@@ -263,18 +267,24 @@ struct RangeTy {
   }
 
   RangeTy &operator&=(const RangeTy &R) {
-    if (Offset == Unassigned)
-      Offset = R.Offset;
-    else if (R.Offset != Unassigned && R.Offset != Offset)
+    if (R.isUnassigned())
+      return *this;
+    if (isUnassigned())
+      return *this = R;
+    if (Offset == Unknown || R.Offset == Unknown)
       Offset = Unknown;
-
-    if (Size == Unassigned)
-      Size = R.Size;
-    else if (Size == Unknown || R.Size == Unknown)
+    if (Size == Unknown || R.Size == Unknown)
       Size = Unknown;
-    else if (R.Size != Unassigned)
+    if (offsetAndSizeAreUnknown())
+      return *this;
+    if (Offset == Unknown) {
       Size = std::max(Size, R.Size);
-
+    } else if (Size == Unknown) {
+      Offset = std::min(Offset, R.Offset);
+    } else {
+      Offset = std::min(Offset, R.Offset);
+      Size = std::max(Offset + Size, R.Offset + R.Size) - Offset;
+    }
     return *this;
   }
 
@@ -2498,8 +2508,8 @@ struct AbstractState {
 ///
 /// The interface ensures that the assumed bits are always a subset of the known
 /// bits. Users can only add known bits and, except through adding known bits,
-/// they can only remove assumed bits. This should guarantee monotoniticy and
-/// thereby the existence of a fixpoint (if used corretly). The fixpoint is
+/// they can only remove assumed bits. This should guarantee monotonicity and
+/// thereby the existence of a fixpoint (if used correctly). The fixpoint is
 /// reached when the assumed and known state/bits are equal. Users can
 /// force/inidicate a fixpoint. If an optimistic one is indicated, the known
 /// state will catch up with the assumed one, for a pessimistic fixpoint it is
@@ -3393,6 +3403,38 @@ struct AANoSync
   const char *getIdAddr() const override { return &ID; }
 
   /// This function should return true if the type of the \p AA is AANoSync
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
+  /// Unique ID (due to the unique address)
+  static const char ID;
+};
+
+/// An abstract interface for all nonnull attributes.
+struct AAMustProgress
+    : public IRAttribute<Attribute::MustProgress,
+                         StateWrapper<BooleanState, AbstractAttribute>> {
+  AAMustProgress(const IRPosition &IRP, Attributor &A) : IRAttribute(IRP) {}
+
+  /// Return true if we assume that the underlying value is nonnull.
+  bool isAssumedMustProgress() const { return getAssumed(); }
+
+  /// Return true if we know that underlying value is nonnull.
+  bool isKnownMustProgress() const { return getKnown(); }
+
+  /// Create an abstract attribute view for the position \p IRP.
+  static AAMustProgress &createForPosition(const IRPosition &IRP,
+                                           Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAMustProgress"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAMustProgress
   static bool classof(const AbstractAttribute *AA) {
     return (AA->getIdAddr() == &ID);
   }
@@ -5137,6 +5179,10 @@ struct AAExecutionDomain
   getExecutionDomain(const CallBase &CB) const = 0;
   virtual ExecutionDomainTy getFunctionExecutionDomain() const = 0;
 
+  /// Helper function to determine if \p FI is a no-op given the information
+  /// about its execution from \p ExecDomainAA.
+  virtual bool isNoOpFence(const FenceInst &FI) const = 0;
+
   /// This function should return true if the type of the \p AA is
   /// AAExecutionDomain.
   static bool classof(const AbstractAttribute *AA) {
@@ -5554,8 +5600,8 @@ struct AAPointerInfo : public AbstractAttribute {
     /// The instruction responsible for the access.
     Instruction *RemoteI;
 
-    /// The value written, if any. `llvm::none` means "not known yet", `nullptr`
-    /// cannot be determined.
+    /// The value written, if any. `std::nullopt` means "not known yet",
+    /// `nullptr` cannot be determined.
     std::optional<Value *> Content;
 
     /// Set of potential ranges accessed from the base pointer.

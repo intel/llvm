@@ -248,7 +248,6 @@ private:
   OperandMatchResultTy tryParseOptionalShiftExtend(OperandVector &Operands);
   OperandMatchResultTy tryParseBarrierOperand(OperandVector &Operands);
   OperandMatchResultTy tryParseBarriernXSOperand(OperandVector &Operands);
-  OperandMatchResultTy tryParseMRSSystemRegister(OperandVector &Operands);
   OperandMatchResultTy tryParseSysReg(OperandVector &Operands);
   OperandMatchResultTy tryParseSysCROperand(OperandVector &Operands);
   template <bool IsSVEPrefetch = false>
@@ -3486,7 +3485,7 @@ AArch64AsmParser::tryParseMatrixRegister(OperandVector &Operands) {
 
   StringRef Name = Tok.getString();
 
-  if (Name.equals_insensitive("za") || Name.startswith_insensitive("za.")) {
+  if (Name.equals_insensitive("za") || Name.starts_with_insensitive("za.")) {
     Lex(); // eat "za[.(b|h|s|d)]"
     unsigned ElementWidth = 0;
     auto DotPosition = Name.find('.');
@@ -3678,10 +3677,24 @@ static const struct Extension {
     {"cssc", {AArch64::FeatureCSSC}},
     {"rcpc3", {AArch64::FeatureRCPC3}},
     {"gcs", {AArch64::FeatureGCS}},
-    // FIXME: Unsupported extensions
-    {"lor", {}},
-    {"rdma", {}},
-    {"profile", {}},
+    {"bf16", {AArch64::FeatureBF16}},
+    {"compnum", {AArch64::FeatureComplxNum}},
+    {"dotprod", {AArch64::FeatureDotProd}},
+    {"f32mm", {AArch64::FeatureMatMulFP32}},
+    {"f64mm", {AArch64::FeatureMatMulFP64}},
+    {"fp16", {AArch64::FeatureFullFP16}},
+    {"fp16fml", {AArch64::FeatureFP16FML}},
+    {"i8mm", {AArch64::FeatureMatMulInt8}},
+    {"lor", {AArch64::FeatureLOR}},
+    {"profile", {AArch64::FeatureSPE}},
+    // "rdma" is the name documented by binutils for the feature, but
+    // binutils also accepts incomplete prefixes of features, so "rdm"
+    // works too. Support both spellings here.
+    {"rdm", {AArch64::FeatureRDM}},
+    {"rdma", {AArch64::FeatureRDM}},
+    {"sb", {AArch64::FeatureSB}},
+    {"ssbs", {AArch64::FeatureSSBS}},
+    {"tme", {AArch64::FeatureTME}},
 };
 
 static void setRequiredFeatureString(FeatureBitset FBS, std::string &Str) {
@@ -3868,7 +3881,7 @@ bool AArch64AsmParser::parseSyspAlias(StringRef Name, SMLoc NameLoc,
   SMLoc S = Tok.getLoc();
 
   if (Mnemonic == "tlbip") {
-    bool HasnXSQualifier = Op.endswith_insensitive("nXS");
+    bool HasnXSQualifier = Op.ends_with_insensitive("nXS");
     if (HasnXSQualifier) {
       Op = Op.drop_back(3);
     }
@@ -4463,7 +4476,7 @@ AArch64AsmParser::tryParseVectorList(OperandVector &Operands,
     if (RegTok.isNot(AsmToken::Identifier) ||
         ParseRes == MatchOperand_ParseFail ||
         (ParseRes == MatchOperand_NoMatch && NoMatchIsError &&
-         !RegTok.getString().startswith_insensitive("za"))) {
+         !RegTok.getString().starts_with_insensitive("za"))) {
       Error(Loc, "vector register expected");
       return MatchOperand_ParseFail;
     }
@@ -6907,10 +6920,11 @@ bool AArch64AsmParser::parseDirectiveArch(SMLoc L) {
   ExpandCryptoAEK(*ArchInfo, RequestedExtensions);
 
   FeatureBitset Features = STI.getFeatureBits();
+  setAvailableFeatures(ComputeAvailableFeatures(Features));
   for (auto Name : RequestedExtensions) {
     bool EnableFeature = true;
 
-    if (Name.startswith_insensitive("no")) {
+    if (Name.starts_with_insensitive("no")) {
       EnableFeature = false;
       Name = Name.substr(2);
     }
@@ -6944,7 +6958,7 @@ bool AArch64AsmParser::parseDirectiveArchExtension(SMLoc L) {
     return true;
 
   bool EnableFeature = true;
-  if (Name.startswith_insensitive("no")) {
+  if (Name.starts_with_insensitive("no")) {
     EnableFeature = false;
     Name = Name.substr(2);
   }
@@ -7006,7 +7020,7 @@ bool AArch64AsmParser::parseDirectiveCPU(SMLoc L) {
 
     bool EnableFeature = true;
 
-    if (Name.startswith_insensitive("no")) {
+    if (Name.starts_with_insensitive("no")) {
       EnableFeature = false;
       Name = Name.substr(2);
     }

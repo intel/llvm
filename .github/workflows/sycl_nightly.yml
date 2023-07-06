@@ -11,6 +11,7 @@ on:
 
 jobs:
   test_matrix:
+    if: github.repository == 'intel/llvm'
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
@@ -24,7 +25,9 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default-2204
-      build_configure_extra_args: ''
+      build_configure_extra_args: '--hip --cuda --enable-esimd-emulator'
+      merge: false
+      retention-days: 90
 
   ubuntu2204_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'
@@ -36,11 +39,14 @@ jobs:
       build_cache_suffix: opaque_pointers
       build_artifact_suffix: opaque_pointers-2204
       build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
+      merge: false
 
   windows_default:
     name: Windows
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
+    with:
+      retention-days: 90
 
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
@@ -78,3 +84,16 @@ jobs:
         tags: |
           ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers-${{ github.sha }}
           ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers
+    - name: Build and Push Container (Build image)
+      uses: ./devops/actions/build_container
+      with:
+        push: ${{ github.event_name != 'pull_request' }}
+        file: ubuntu2204_preinstalled
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        build-args: |
+          base_image=ghcr.io/intel/llvm/ubuntu2204_build
+          base_tag=latest
+        tags: |
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build-${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build

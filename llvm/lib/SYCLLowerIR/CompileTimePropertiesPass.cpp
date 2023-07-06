@@ -10,6 +10,7 @@
 
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 
 #include "llvm/ADT/APInt.h"
@@ -27,6 +28,8 @@ namespace {
 
 constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 constexpr StringRef SYCL_PIPELINED_ATTR = "sycl-pipelined";
+constexpr StringRef SYCL_REGISTER_ALLOC_MODE_ATTR = "sycl-register-alloc-mode";
+constexpr StringRef SYCL_GRF_SIZE_ATTR = "sycl-grf-size";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
@@ -175,14 +178,15 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
 /// Tries to generate a SPIR-V execution mode metadata node from an attribute.
 /// If the attribute is unknown \c None will be returned.
 ///
-/// @param M     [in] the LLVM module.
 /// @param Attr  [in] the LLVM attribute to generate metadata for.
+/// @param F     [in] the LLVM function.
 ///
 /// @returns a pair with the name of the resulting metadata and a pointer to
 ///          the metadata node with its values if the attribute has a
 ///          corresponding SPIR-V execution mode. Otherwise \c None is returned.
 std::optional<std::pair<std::string, MDNode *>>
-attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
+attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
+  Module &M = *F.getParent();
   LLVMContext &Ctx = M.getContext();
   const DataLayout &DLayout = M.getDataLayout();
 
@@ -266,6 +270,28 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
   if (AttrKindStr == "sycl-register-map-interface")
     return std::pair<std::string, MDNode *>("ip_interface",
                                             getIpInterface("csr", Ctx, Attr));
+
+  if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
+       AttrKindStr == SYCL_GRF_SIZE_ATTR) &&
+      !llvm::esimd::isESIMD(F)) {
+    // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
+    uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
+    if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
+      assert((PropVal == 0 || PropVal == 128 || PropVal == 256) &&
+             "Unsupported GRF Size");
+      // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
+      static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
+      static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
+      if (PropVal == 128)
+        PropVal = SMALL_GRF_REGALLOCMODE_VAL;
+      else if (PropVal == 256)
+        PropVal = LARGE_GRF_REGALLOCMODE_VAL;
+    }
+    Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
+        Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)))};
+    return std::pair<std::string, MDNode *>("RegisterAllocMode",
+                                            MDNode::get(Ctx, AttrMDArgs));
+  }
 
   return std::nullopt;
 }
@@ -420,7 +446,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
       } else if (MDNode *SPIRVMetadata =
                      attributeToDecorateMetadata(Ctx, Attribute))
         MDOps.push_back(SPIRVMetadata);
-      else if (auto NamedMetadata = attributeToExecModeMetadata(M, Attribute))
+      else if (auto NamedMetadata = attributeToExecModeMetadata(Attribute, F))
         NamedMDOps.push_back(*NamedMetadata);
     }
 

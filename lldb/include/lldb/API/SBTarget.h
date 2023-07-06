@@ -22,6 +22,12 @@
 #include "lldb/API/SBValue.h"
 #include "lldb/API/SBWatchpoint.h"
 
+namespace lldb_private {
+namespace python {
+class SWIGBridge;
+}
+} // namespace lldb_private
+
 namespace lldb {
 
 class SBPlatform;
@@ -41,10 +47,6 @@ public:
   SBTarget();
 
   SBTarget(const lldb::SBTarget &rhs);
-
-#ifndef SWIG
-  SBTarget(const lldb::TargetSP &target_sp);
-#endif
 
   // Destructor
   ~SBTarget();
@@ -325,6 +327,10 @@ public:
   const char *GetTriple();
   
   const char *GetABIName();
+
+  const char *GetLabel() const;
+
+  SBError SetLabel(const char *label);
 
   /// Architecture data byte width accessor
   ///
@@ -917,10 +923,12 @@ public:
 protected:
   friend class SBAddress;
   friend class SBBlock;
+  friend class SBBreakpoint;
   friend class SBBreakpointList;
   friend class SBBreakpointNameImpl;
   friend class SBDebugger;
   friend class SBExecutionContext;
+  friend class SBFrame;
   friend class SBFunction;
   friend class SBInstruction;
   friend class SBModule;
@@ -932,8 +940,12 @@ protected:
   friend class SBValue;
   friend class SBVariablesOptions;
 
+  friend class lldb_private::python::SWIGBridge;
+
   // Constructors are private, use static Target::Create function to create an
   // instance of this class.
+
+  SBTarget(const lldb::TargetSP &target_sp);
 
   lldb::TargetSP GetSP() const;
 

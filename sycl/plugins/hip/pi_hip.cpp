@@ -345,7 +345,7 @@ int getAttribute(pi_device device, hipDeviceAttribute_t attribute) {
 void simpleGuessLocalWorkSize(size_t *threadsPerBlock,
                               const size_t *global_work_size,
                               const size_t maxThreadsPerBlock[3],
-                              pi_kernel kernel) {
+                              [[maybe_unused]] pi_kernel kernel) {
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
@@ -616,6 +616,11 @@ pi_uint64 _pi_event::get_queued_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
 
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  PI_CHECK_ERROR(hipEventSynchronize(evStart_));
+  PI_CHECK_ERROR(hipEventSynchronize(evEnd_));
+
   PI_CHECK_ERROR(hipEventElapsedTime(&miliSeconds, evStart_, evEnd_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
@@ -623,6 +628,11 @@ pi_uint64 _pi_event::get_queued_time() const {
 pi_uint64 _pi_event::get_start_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  PI_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
+  PI_CHECK_ERROR(hipEventSynchronize(evStart_));
 
   PI_CHECK_ERROR(
       hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evStart_));
@@ -632,6 +642,11 @@ pi_uint64 _pi_event::get_start_time() const {
 pi_uint64 _pi_event::get_end_time() const {
   float miliSeconds = 0.0f;
   assert(is_started() && is_recorded());
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  PI_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
+  PI_CHECK_ERROR(hipEventSynchronize(evEnd_));
 
   PI_CHECK_ERROR(
       hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evEnd_));
@@ -932,7 +947,7 @@ pi_result hip_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
   }
 }
 
-pi_result hip_piPlatformGetInfo(pi_platform platform,
+pi_result hip_piPlatformGetInfo([[maybe_unused]] pi_platform platform,
                                 pi_platform_info param_name,
                                 size_t param_value_size, void *param_value,
                                 size_t *param_value_size_ret) {
@@ -1112,7 +1127,7 @@ pi_result hip_piextDeviceSelectBinary(pi_device device,
   return PI_ERROR_INVALID_BINARY;
 }
 
-pi_result hip_piextGetDeviceFunctionPointer(pi_device device,
+pi_result hip_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
                                             pi_program program,
                                             const char *func_name,
                                             pi_uint64 *func_pointer_ret) {
@@ -1986,8 +2001,23 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    static_cast<uint32_t>(max_registers));
   }
 
+  case PI_DEVICE_INFO_PCI_ADDRESS: {
+    constexpr size_t AddressBufferSize = 13;
+    char AddressBuffer[AddressBufferSize];
+    sycl::detail::pi::assertion(
+        hipDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
+        hipSuccess);
+    // A typical PCI address is 12 bytes + \0: "1234:67:90.2", but the HIP API
+    // is not guaranteed to use this format. In practice, it uses this format,
+    // at least in 5.3-5.5. To be on the safe side, we make sure the terminating
+    // \0 is set.
+    AddressBuffer[AddressBufferSize - 1] = '\0';
+    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) > 0);
+    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
+                        param_value_size, param_value, param_value_size_ret,
+                        AddressBuffer);
+  }
   // TODO: Investigate if this information is available on HIP.
-  case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case PI_DEVICE_INFO_GPU_SLICES:
@@ -2060,12 +2090,13 @@ pi_result hip_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// \param[out] retcontext Set to created context on success.
 ///
 /// \return PI_SUCCESS on success, otherwise an error return code.
-pi_result hip_piContextCreate(const pi_context_properties *properties,
-                              pi_uint32 num_devices, const pi_device *devices,
-                              void (*pfn_notify)(const char *errinfo,
-                                                 const void *private_info,
-                                                 size_t cb, void *user_data),
-                              void *user_data, pi_context *retcontext) {
+pi_result hip_piContextCreate(
+    const pi_context_properties *properties,
+    [[maybe_unused]] pi_uint32 num_devices, const pi_device *devices,
+    [[maybe_unused]] void (*pfn_notify)(const char *errinfo,
+                                        const void *private_info, size_t cb,
+                                        [[maybe_unused]] void *user_data),
+    [[maybe_unused]] void *user_data, pi_context *retcontext) {
 
   assert(devices != nullptr);
   // TODO: How to implement context callback?
@@ -2124,7 +2155,7 @@ pi_result hip_piContextCreate(const pi_context_properties *properties,
     static std::once_flag initFlag;
     std::call_once(
         initFlag,
-        [](pi_result &err) {
+        [](pi_result &) {
           // Use default stream to record base event counter
           PI_CHECK_ERROR(
               hipEventCreateWithFlags(&_pi_platform::evBase_, hipEventDefault));
@@ -2228,9 +2259,10 @@ pi_result hip_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// Can trigger a manual copy depending on the mode.
 /// \TODO Implement USE_HOST_PTR using cuHostRegister
 ///
-pi_result hip_piMemBufferCreate(pi_context context, pi_mem_flags flags,
-                                size_t size, void *host_ptr, pi_mem *ret_mem,
-                                const pi_mem_properties *properties) {
+pi_result
+hip_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
+                      void *host_ptr, pi_mem *ret_mem,
+                      [[maybe_unused]] const pi_mem_properties *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
   assert((properties == nullptr || *properties == 0) &&
@@ -2373,9 +2405,10 @@ pi_result hip_piMemRelease(pi_mem memObj) {
 /// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
 /// as an offset over an existing HIP allocation.
 ///
-pi_result hip_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
-                                   pi_buffer_create_type buffer_create_type,
-                                   void *buffer_create_info, pi_mem *memObj) {
+pi_result hip_piMemBufferPartition(
+    pi_mem parent_buffer, pi_mem_flags flags,
+    [[maybe_unused]] pi_buffer_create_type buffer_create_type,
+    void *buffer_create_info, pi_mem *memObj) {
   assert((parent_buffer != nullptr) && "PI_ERROR_INVALID_MEM_OBJECT");
   assert(parent_buffer->is_buffer() && "PI_ERROR_INVALID_MEM_OBJECTS");
   assert(!parent_buffer->is_sub_buffer() && "PI_ERROR_INVALID_MEM_OBJECT");
@@ -2708,18 +2741,13 @@ pi_result hip_piQueueFlush(pi_queue command_queue) {
 ///
 /// \return PI_SUCCESS
 pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
-                                        pi_native_handle *nativeHandle) {
+                                        pi_native_handle *nativeHandle,
+                                        int32_t *NativeHandleDesc) {
+  *NativeHandleDesc = 0;
   ScopedContext active(queue->get_context());
   *nativeHandle =
       reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
   return PI_SUCCESS;
-}
-
-pi_result hip_piextQueueGetNativeHandle2(pi_queue queue,
-                                         pi_native_handle *nativeHandle,
-                                         int32_t *NativeHandleDesc) {
-  (void)NativeHandleDesc;
-  return hip_piextQueueGetNativeHandle(queue, nativeHandle);
 }
 
 /// Created a PI queue object from a HIP queue handle.
@@ -2734,29 +2762,20 @@ pi_result hip_piextQueueGetNativeHandle2(pi_queue queue,
 ///
 ///
 /// \return TBD
-pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                               pi_context context,
-                                               pi_device device,
-                                               bool ownNativeHandle,
-                                               pi_queue *queue) {
-  (void)nativeHandle;
-  (void)context;
-  (void)device;
-  (void)queue;
-  (void)ownNativeHandle;
-  sycl::detail::pi::die(
-      "Creation of PI queue from native handle not implemented");
-  return {};
-}
-
-pi_result hip_piextQueueCreateWithNativeHandle2(
+pi_result hip_piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
     pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
     pi_queue *queue) {
+  (void)nativeHandle;
   (void)NativeHandleDesc;
+  (void)context;
+  (void)device;
+  (void)ownNativeHandle;
   (void)Properties;
-  return hip_piextQueueCreateWithNativeHandle(nativeHandle, context, device,
-                                              ownNativeHandle, queue);
+  (void)queue;
+  sycl::detail::pi::die(
+      "Creation of PI queue from native handle not implemented");
+  return {};
 }
 
 pi_result hip_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -2943,10 +2962,19 @@ pi_result hip_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
 }
 
 pi_result hip_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
+                                      const pi_mem_obj_property *arg_properties,
                                       const pi_mem *arg_value) {
+  std::ignore = arg_properties;
 
   assert(kernel != nullptr);
   assert(arg_value != nullptr);
+
+  // Below sets kernel arg when zero-sized buffers are handled.
+  // In such case the corresponding memory is null.
+  if (*arg_value == nullptr) {
+    kernel->set_kernel_arg(arg_index, 0, nullptr);
+    return PI_SUCCESS;
+  }
 
   pi_result retErr = PI_SUCCESS;
   try {
@@ -3369,11 +3397,11 @@ pi_result hip_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
 /// used later on to extract functions (kernels).
 /// See \ref _pi_program for implementation details.
 ///
-pi_result hip_piProgramBuild(pi_program program, pi_uint32 num_devices,
-                             const pi_device *device_list, const char *options,
-                             void (*pfn_notify)(pi_program program,
-                                                void *user_data),
-                             void *user_data) {
+pi_result hip_piProgramBuild(
+    pi_program program, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const char *options,
+    [[maybe_unused]] void (*pfn_notify)(pi_program program, void *user_data),
+    [[maybe_unused]] void *user_data) {
 
   assert(program != nullptr);
   assert(num_devices == 1 || num_devices == 0);
@@ -3412,10 +3440,11 @@ pi_result hip_piProgramCreate(pi_context context, const void *il, size_t length,
 /// Note: Only supports one device
 ///
 pi_result hip_piProgramCreateWithBinary(
-    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
-    const size_t *lengths, const unsigned char **binaries,
-    size_t num_metadata_entries, const pi_device_binary_property *metadata,
-    pi_int32 *binary_status, pi_program *program) {
+    pi_context context, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const size_t *lengths,
+    const unsigned char **binaries, size_t num_metadata_entries,
+    const pi_device_binary_property *metadata, pi_int32 *binary_status,
+    pi_program *program) {
   (void)num_metadata_entries;
   (void)metadata;
   (void)binary_status;
@@ -3513,10 +3542,12 @@ pi_result hip_piProgramLink(pi_context context, pi_uint32 num_devices,
 /// \TODO Implement asynchronous compilation
 ///
 pi_result hip_piProgramCompile(
-    pi_program program, pi_uint32 num_devices, const pi_device *device_list,
-    const char *options, pi_uint32 num_input_headers,
+    pi_program program, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const char *options,
+    [[maybe_unused]] pi_uint32 num_input_headers,
     const pi_program *input_headers, const char **header_include_names,
-    void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
+    [[maybe_unused]] void (*pfn_notify)(pi_program program, void *user_data),
+    [[maybe_unused]] void *user_data) {
   (void)input_headers;
   (void)header_include_names;
 
@@ -5086,9 +5117,10 @@ pi_result hip_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
 
 /// USM: Implements USM Host allocations using HIP Pinned Memory
 ///
-pi_result hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
-                                pi_usm_mem_properties *properties, size_t size,
-                                pi_uint32 alignment) {
+pi_result
+hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
+                      [[maybe_unused]] pi_usm_mem_properties *properties,
+                      size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(properties == nullptr || *properties == 0);
@@ -5108,10 +5140,11 @@ pi_result hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
 
 /// USM: Implements USM device allocations using a normal HIP device pointer
 ///
-pi_result hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
-                                  pi_device device,
-                                  pi_usm_mem_properties *properties,
-                                  size_t size, pi_uint32 alignment) {
+pi_result
+hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
+                        [[maybe_unused]] pi_device device,
+                        [[maybe_unused]] pi_usm_mem_properties *properties,
+                        size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
@@ -5132,10 +5165,11 @@ pi_result hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
 /// USM: Implements USM Shared allocations using HIP Managed Memory
 ///
-pi_result hip_piextUSMSharedAlloc(void **result_ptr, pi_context context,
-                                  pi_device device,
-                                  pi_usm_mem_properties *properties,
-                                  size_t size, pi_uint32 alignment) {
+pi_result
+hip_piextUSMSharedAlloc(void **result_ptr, pi_context context,
+                        [[maybe_unused]] pi_device device,
+                        [[maybe_unused]] pi_usm_mem_properties *properties,
+                        size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
@@ -5297,7 +5331,8 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
 }
 
 /// USM: memadvise API to govern behavior of automatic migration mechanisms
-pi_result hip_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
+pi_result hip_piextUSMEnqueueMemAdvise(pi_queue queue,
+                                       [[maybe_unused]] const void *ptr,
                                        size_t length, pi_mem_advice advice,
                                        pi_event *event) {
   (void)length;
@@ -5558,6 +5593,226 @@ pi_result hip_piextEnqueueWriteHostPipe(
   sycl::detail::pi::die("hip_piextEnqueueWriteHostPipe not implemented");
   return {};
 }
+pi_result
+hip_piextCommandBufferCreate(pi_context context, pi_device device,
+                             const pi_ext_command_buffer_desc *desc,
+                             pi_ext_command_buffer *ret_command_buffer) {
+  (void)context;
+  (void)device;
+  (void)desc;
+  (void)ret_command_buffer;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferFinalize(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)kernel;
+  (void)work_dim;
+  (void)global_work_offset;
+  (void)global_work_size;
+  (void)local_work_size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result
+hip_piextCommandBufferMemcpyUSM(pi_ext_command_buffer command_buffer,
+                                void *dst_ptr, const void *src_ptr, size_t size,
+                                pi_uint32 num_sync_points_in_wait_list,
+                                const pi_ext_sync_point *sync_point_wait_list,
+                                pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)dst_ptr;
+  (void)src_ptr;
+  (void)size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    size_t src_offset, size_t dst_offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)src_buffer;
+  (void)dst_buffer;
+  (void)src_offset;
+  (void)dst_offset;
+  (void)size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
+    pi_buff_rect_region region, size_t src_row_pitch, size_t src_slice_pitch,
+    size_t dst_row_pitch, size_t dst_slice_pitch,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)src_buffer;
+  (void)dst_buffer;
+  (void)src_origin;
+  (void)dst_origin;
+  (void)region;
+  (void)src_row_pitch;
+  (void)src_slice_pitch;
+  (void)dst_row_pitch;
+  (void)dst_slice_pitch;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)offset;
+  (void)size;
+  (void)dst;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)buffer_offset;
+  (void)host_offset;
+  (void)region;
+  (void)buffer_row_pitch;
+  (void)buffer_slice_pitch;
+  (void)host_row_pitch;
+  (void)host_slice_pitch;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)offset;
+  (void)size;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)buffer_offset;
+  (void)host_offset;
+  (void)region;
+  (void)buffer_row_pitch;
+  (void)buffer_slice_pitch;
+  (void)host_row_pitch;
+  (void)host_slice_pitch;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
+                                        pi_queue queue,
+                                        pi_uint32 num_events_in_wait_list,
+                                        const pi_event *event_wait_list,
+                                        pi_event *event) {
+  (void)command_buffer;
+  (void)queue;
+  (void)num_events_in_wait_list;
+  (void)event_wait_list;
+  (void)event;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
 
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // Windows: dynamically loaded plugins might have been unloaded already
@@ -5649,17 +5904,13 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, hip_piQueueCreate)
   _PI_CL(piextQueueCreate, hip_piextQueueCreate)
-  _PI_CL(piextQueueCreate2, hip_piextQueueCreate)
   _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
   _PI_CL(piQueueFinish, hip_piQueueFinish)
   _PI_CL(piQueueFlush, hip_piQueueFlush)
   _PI_CL(piQueueRetain, hip_piQueueRetain)
   _PI_CL(piQueueRelease, hip_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, hip_piextQueueGetNativeHandle)
-  _PI_CL(piextQueueGetNativeHandle2, hip_piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle, hip_piextQueueCreateWithNativeHandle)
-  _PI_CL(piextQueueCreateWithNativeHandle2,
-         hip_piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, hip_piMemBufferCreate)
   _PI_CL(piMemImageCreate, hip_piMemImageCreate)
@@ -5752,6 +6003,23 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Host Pipe
   _PI_CL(piextEnqueueReadHostPipe, hip_piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, hip_piextEnqueueWriteHostPipe)
+
+  // command-buffer
+  _PI_CL(piextCommandBufferCreate, hip_piextCommandBufferCreate)
+  _PI_CL(piextCommandBufferRetain, hip_piextCommandBufferRetain)
+  _PI_CL(piextCommandBufferRelease, hip_piextCommandBufferRelease)
+  _PI_CL(piextCommandBufferNDRangeKernel, hip_piextCommandBufferNDRangeKernel)
+  _PI_CL(piextCommandBufferMemcpyUSM, hip_piextCommandBufferMemcpyUSM)
+  _PI_CL(piextCommandBufferMemBufferCopy, hip_piextCommandBufferMemBufferCopy)
+  _PI_CL(piextCommandBufferMemBufferCopyRect,
+         hip_piextCommandBufferMemBufferCopyRect)
+  _PI_CL(piextCommandBufferMemBufferRead, hip_piextCommandBufferMemBufferRead)
+  _PI_CL(piextCommandBufferMemBufferReadRect,
+         hip_piextCommandBufferMemBufferReadRect)
+  _PI_CL(piextCommandBufferMemBufferWrite, hip_piextCommandBufferMemBufferWrite)
+  _PI_CL(piextCommandBufferMemBufferWriteRect,
+         hip_piextCommandBufferMemBufferWriteRect)
+  _PI_CL(piextEnqueueCommandBuffer, hip_piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
