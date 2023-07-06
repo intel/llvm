@@ -134,7 +134,8 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
   assert(ThreadsPerBlock != nullptr);
   assert(GlobalWorkSize != nullptr);
   assert(Kernel != nullptr);
-  int MinGrid, MaxBlockSize, MaxBlockDim[3];
+  int MinGrid, MaxBlockSize;
+  size_t MaxBlockDim[3];
 
   // The below assumes a three dimensional range but this is not guaranteed by
   // UR.
@@ -143,24 +144,20 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
     GlobalSizeNormalized[i] = GlobalWorkSize[i];
   }
 
-  cuDeviceGetAttribute(&MaxBlockDim[1], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
-                       Device->get());
-  cuDeviceGetAttribute(&MaxBlockDim[2], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
-                       Device->get());
+  MaxBlockDim[1] = Device->getMaxBlockDimY();
+  MaxBlockDim[2] = Device->getMaxBlockDimZ();
 
   UR_CHECK_ERROR(
       cuOccupancyMaxPotentialBlockSize(&MinGrid, &MaxBlockSize, Kernel->get(),
                                        NULL, LocalSize, MaxThreadsPerBlock[0]));
 
-  ThreadsPerBlock[2] =
-      std::min(GlobalSizeNormalized[2], size_t(MaxBlockDim[2]));
-  ThreadsPerBlock[1] = std::min(
-      GlobalSizeNormalized[1],
-      std::min(MaxBlockSize / ThreadsPerBlock[2], size_t(MaxBlockDim[1])));
+  ThreadsPerBlock[2] = std::min(GlobalSizeNormalized[2], MaxBlockDim[2]);
+  ThreadsPerBlock[1] =
+      std::min(GlobalSizeNormalized[1],
+               std::min(MaxBlockSize / ThreadsPerBlock[2], MaxBlockDim[1]));
   MaxBlockDim[0] = MaxBlockSize / (ThreadsPerBlock[1] * ThreadsPerBlock[2]);
-  ThreadsPerBlock[0] =
-      std::min(MaxThreadsPerBlock[0],
-               std::min(GlobalSizeNormalized[0], size_t(MaxBlockDim[0])));
+  ThreadsPerBlock[0] = std::min(
+      MaxThreadsPerBlock[0], std::min(GlobalSizeNormalized[0], MaxBlockDim[0]));
 
   static auto IsPowerOf2 = [](size_t Value) -> bool {
     return Value && !(Value & (Value - 1));
@@ -183,16 +180,7 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
 bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
                                      ur_kernel_handle_t Kernel,
                                      size_t BlockSize) {
-  int MaxRegsPerBlock{0};
-  UR_CHECK_ERROR(cuDeviceGetAttribute(
-      &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
-      Device->get()));
-
-  int RegsPerThread{0};
-  UR_CHECK_ERROR(cuFuncGetAttribute(&RegsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS,
-                                    Kernel->get()));
-
-  return BlockSize * RegsPerThread > size_t(MaxRegsPerBlock);
+  return BlockSize * Kernel->getRegsPerThread() > Device->getMaxRegsPerBlock();
 }
 
 /// Enqueues a wait on the given CUstream for all specified events (See
@@ -311,7 +299,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   size_t MaxWorkGroupSize = 0u;
   size_t MaxThreadsPerBlock[3] = {};
   bool ProvidedLocalWorkGroupSize = (pLocalWorkSize != nullptr);
-  int32_t LocalSize = hKernel->getLocalSize();
+  uint32_t LocalSize = hKernel->getLocalSize();
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
@@ -362,7 +350,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     if (MaxWorkGroupSize <
-        size_t(ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2])) {
+        ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
       return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
     }
 
