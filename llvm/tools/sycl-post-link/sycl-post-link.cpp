@@ -974,6 +974,7 @@ processInputModule(std::unique_ptr<Module> M) {
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
     SmallVector<module_split::ModuleDesc, 2> MMs =
         handleESIMD(std::move(MDesc), Modified, SplitOccurred);
+    assert(MMs.size() && "at least one module is expected after ESIMD split");
 
     if (IROutputOnly) {
       if (SplitOccurred) {
