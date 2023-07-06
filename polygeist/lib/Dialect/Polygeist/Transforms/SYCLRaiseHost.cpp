@@ -157,6 +157,13 @@ static bool isClassType(Type type, StringRef className) {
   return st && st.isIdentified() && st.getName() == className;
 }
 
+/// Returns whether \p type is an `llvm.struct` type with a name matching
+/// \p regex.
+static bool isClassType(Type type, const llvm::Regex &regex) {
+  auto st = dyn_cast<LLVM::LLVMStructType>(type);
+  return st && st.isIdentified() && regex.match(st.getName());
+}
+
 namespace {
 template <typename SourceOp>
 class OpOrInterfaceHostRaisePatternBase : public RewritePattern {
@@ -314,7 +321,7 @@ public:
 
     // Check whether the type allocated for the first argument ('this') matches
     // the expected type.
-    if (!isClassType(*alloc.getElemType(), TypeTag::getTypeName()))
+    if (!isClassType(*alloc.getElemType(), tag.getTypeName()))
       return failure();
 
     if (constructor.getNumResults())
@@ -325,7 +332,7 @@ public:
       // Invoke is not a constructor call.
       return failure();
 
-    auto constructedType = TypeTag::getTypeFromConstructor(constructor);
+    auto constructedType = tag.getTypeFromConstructor(constructor);
     if (!constructedType)
       return failure();
 
@@ -362,6 +369,8 @@ private:
     bool isDestructor = static_cast<StringRef>(*demangled).contains('~');
     return !isDestructor;
   }
+
+  TypeTag tag;
 };
 
 template <typename TypeTag>
@@ -381,11 +390,13 @@ public:
   }
 };
 
-struct BufferTypeTag {
+class BufferTypeTag {
+public:
+  BufferTypeTag() : regex{"class.sycl::_V1::buffer(\\.[0-9]+])?"} {}
 
-  static llvm::StringRef getTypeName() { return "class.sycl::_V1::buffer"; }
+  const llvm::Regex &getTypeName() const { return regex; }
 
-  static mlir::Type getTypeFromConstructor(CallOpInterface constructor) {
+  mlir::Type getTypeFromConstructor(CallOpInterface constructor) const {
     CallInterfaceCallable callableOp = constructor.getCallableForCallee();
     StringRef constructorName =
         callableOp.get<SymbolRefAttr>().getLeafReference();
@@ -409,6 +420,9 @@ struct BufferTypeTag {
 
     return sycl::BufferType::get(constructor->getContext(), elemTy, dimensions);
   }
+
+private:
+  llvm::Regex regex;
 };
 
 struct BufferInvokeConstructorPattern
@@ -417,11 +431,13 @@ struct BufferInvokeConstructorPattern
       BufferTypeTag>::RaiseInvokeConstructorBasePattern;
 };
 
-struct AccessorTypeTag {
+class AccessorTypeTag {
+public:
+  AccessorTypeTag() : regex{"class.sycl::_V1::accessor(\\.[0-9]+])?"} {}
 
-  static llvm::StringRef getTypeName() { return "class.sycl::_V1::accessor"; }
+  const llvm::Regex &getTypeName() const { return regex; }
 
-  static mlir::Type getTypeFromConstructor(CallOpInterface constructor) {
+  mlir::Type getTypeFromConstructor(CallOpInterface constructor) const {
     CallInterfaceCallable callableOp = constructor.getCallableForCallee();
     StringRef constructorName =
         callableOp.get<SymbolRefAttr>().getLeafReference();
@@ -460,6 +476,9 @@ struct AccessorTypeTag {
     return sycl::AccessorType::get(constructor.getContext(), elemTy, dimensions,
                                    accessMode, accessTarget, {});
   }
+
+private:
+  llvm::Regex regex;
 };
 
 struct AccessorInvokeConstructorPattern
@@ -485,12 +504,11 @@ public:
     // Check whether the type allocated for address operand matches the expected
     // type.
     auto allocTy = *alloc.getElemType();
-    auto structAllocTy = dyn_cast<LLVM::LLVMStructType>(allocTy);
-    if (!structAllocTy ||
-        !TypeTag::getTypeName().match(structAllocTy.getName()))
+    if (!isClassType(allocTy, tag.getTypeName()))
       return failure();
 
-    auto arrayTyOrNone = getNumAndTypeOfComponents(structAllocTy);
+    auto arrayTyOrNone =
+        getNumAndTypeOfComponents(cast<LLVM::LLVMStructType>(allocTy));
     if (!arrayTyOrNone)
       // Failed to identify the number of dimensions/components
       return failure();
@@ -630,15 +648,20 @@ private:
            "Expected to find at least one store in the block");
     return &*lastComponent;
   }
+
+  TypeTag tag;
 };
 
-struct IDTypeTag {
+class IDTypeTag {
+public:
   using SYCLType = mlir::sycl::IDType;
 
-  static llvm::Regex &getTypeName() {
-    static llvm::Regex regex{"class.sycl::_V1::id(\\.[0-9]+])?"};
-    return regex;
-  }
+  IDTypeTag() : regex{"class.sycl::_V1::id(\\.[0-9]+])?"} {}
+
+  const llvm::Regex &getTypeName() const { return regex; }
+
+private:
+  llvm::Regex regex;
 };
 
 struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
@@ -646,13 +669,16 @@ struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
       IDTypeTag>::RaiseArrayConstructorBasePattern;
 };
 
-struct RangeTypeTag {
+class RangeTypeTag {
+public:
   using SYCLType = mlir::sycl::RangeType;
 
-  static llvm::Regex &getTypeName() {
-    static llvm::Regex regex{"class.sycl::_V1::range(\\.[0-9]+])?"};
-    return regex;
-  }
+  RangeTypeTag() : regex{"class.sycl::_V1::range(\\.[0-9]+])?"} {}
+
+  const llvm::Regex &getTypeName() const { return regex; }
+
+private:
+  llvm::Regex regex;
 };
 
 struct RaiseRangeConstructor
