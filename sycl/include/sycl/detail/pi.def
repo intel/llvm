@@ -158,4 +158,19 @@ _PI_API(piextEnqueueDeviceGlobalVariableRead)
 
 _PI_API(piPluginGetBackendOption)
 
+// command-buffer Extension
+_PI_API(piextCommandBufferCreate)
+_PI_API(piextCommandBufferRetain)
+_PI_API(piextCommandBufferRelease)
+_PI_API(piextCommandBufferFinalize)
+_PI_API(piextCommandBufferNDRangeKernel)
+_PI_API(piextCommandBufferMemcpyUSM)
+_PI_API(piextCommandBufferMemBufferCopy)
+_PI_API(piextCommandBufferMemBufferCopyRect)
+_PI_API(piextCommandBufferMemBufferWrite)
+_PI_API(piextCommandBufferMemBufferWriteRect)
+_PI_API(piextCommandBufferMemBufferRead)
+_PI_API(piextCommandBufferMemBufferReadRect)
+_PI_API(piextEnqueueCommandBuffer)
+
 #undef _PI_API

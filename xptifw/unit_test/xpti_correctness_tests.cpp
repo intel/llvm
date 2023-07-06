@@ -256,6 +256,227 @@ TEST_F(xptiCorrectnessTest, xptiNotifySubscribersForDefaultTracePointTypes) {
   NOTIFY(StreamID, (uint16_t)xpti::trace_point_type_t::signal, GE);
 }
 
+TEST_F(xptiCorrectnessTest, xptiCheckTraceEnabledForDefaultTracePointTypes) {
+  uint64_t Instance;
+  xpti::payload_t p("foo", "foo.cpp", 1, 0, (void *)13);
+  xptiForceSetTraceEnabled(true);
+
+  uint8_t StreamID1 = xptiRegisterStream("test_foo");
+  uint8_t StreamID2 = xptiRegisterStream("foo");
+  auto Result = xptiRegisterCallback(
+      StreamID1, (uint16_t)xpti::trace_point_type_t::graph_create, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID1, (uint16_t)xpti::trace_point_type_t::node_create, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID1, (uint16_t)xpti::trace_point_type_t::edge_create, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID1, (uint16_t)xpti::trace_point_type_t::region_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID1, (uint16_t)xpti::trace_point_type_t::region_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID1, (uint16_t)xpti::trace_point_type_t::task_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID1, (uint16_t)xpti::trace_point_type_t::task_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID1, (uint16_t)xpti::trace_point_type_t::barrier_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID1, (uint16_t)xpti::trace_point_type_t::barrier_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID2, (uint16_t)xpti::trace_point_type_t::lock_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID2, (uint16_t)xpti::trace_point_type_t::lock_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID2, (uint16_t)xpti::trace_point_type_t::transfer_begin,
+      tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID2, (uint16_t)xpti::trace_point_type_t::transfer_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID2, (uint16_t)xpti::trace_point_type_t::thread_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID2, (uint16_t)xpti::trace_point_type_t::thread_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID2, (uint16_t)xpti::trace_point_type_t::wait_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID2, (uint16_t)xpti::trace_point_type_t::wait_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID2, (uint16_t)xpti::trace_point_type_t::signal, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  auto GE =
+      xptiMakeEvent("foo", &p, 0, (xpti::trace_activity_type_t)1, &Instance);
+  EXPECT_NE(GE, nullptr);
+
+  if (xptiCheckTraceEnabled(StreamID1)) {
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::graph_create, GE);
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::node_create, GE);
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::edge_create, GE);
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::region_begin, GE);
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::region_end, GE);
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::task_begin, GE);
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::task_end, GE);
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::barrier_begin, GE);
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::barrier_end, GE);
+  }
+
+  if (xptiCheckTraceEnabled(StreamID2)) {
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::lock_begin, GE);
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::lock_end, GE);
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::transfer_begin, GE);
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::transfer_end, GE);
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::thread_begin, GE);
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::thread_end, GE);
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::wait_begin, GE);
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::wait_end, GE);
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::signal, GE);
+  }
+
+  if (xptiCheckTraceEnabled(StreamID1,
+                            (uint16_t)xpti::trace_point_type_t::graph_create)) {
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::graph_create, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID2, (uint16_t)xpti::trace_point_type_t::graph_create);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID1,
+                            (uint16_t)xpti::trace_point_type_t::node_create)) {
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::node_create, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID2, (uint16_t)xpti::trace_point_type_t::node_create);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID1,
+                            (uint16_t)xpti::trace_point_type_t::edge_create)) {
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::edge_create, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID2, (uint16_t)xpti::trace_point_type_t::edge_create);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID1,
+                            (uint16_t)xpti::trace_point_type_t::region_begin)) {
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::region_begin, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID2, (uint16_t)xpti::trace_point_type_t::region_begin);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID1,
+                            (uint16_t)xpti::trace_point_type_t::region_end)) {
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::region_end, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID2, (uint16_t)xpti::trace_point_type_t::region_end);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID1,
+                            (uint16_t)xpti::trace_point_type_t::task_begin)) {
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::task_begin, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID2, (uint16_t)xpti::trace_point_type_t::task_begin);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID1,
+                            (uint16_t)xpti::trace_point_type_t::task_end)) {
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::task_end, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID2, (uint16_t)xpti::trace_point_type_t::task_end);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(
+          StreamID1, (uint16_t)xpti::trace_point_type_t::barrier_begin)) {
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::barrier_begin, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID2, (uint16_t)xpti::trace_point_type_t::barrier_begin);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID1,
+                            (uint16_t)xpti::trace_point_type_t::barrier_end)) {
+    NOTIFY(StreamID1, (uint16_t)xpti::trace_point_type_t::barrier_end, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID2, (uint16_t)xpti::trace_point_type_t::barrier_end);
+    EXPECT_NE(Check, true);
+  }
+
+  if (xptiCheckTraceEnabled(StreamID2,
+                            (uint16_t)xpti::trace_point_type_t::lock_begin)) {
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::lock_begin, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID1, (uint16_t)xpti::trace_point_type_t::lock_begin);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID2,
+                            (uint16_t)xpti::trace_point_type_t::lock_end)) {
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::lock_end, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID1, (uint16_t)xpti::trace_point_type_t::lock_end);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(
+          StreamID2, (uint16_t)xpti::trace_point_type_t::transfer_begin)) {
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::transfer_begin, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID1, (uint16_t)xpti::trace_point_type_t::transfer_begin);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID2,
+                            (uint16_t)xpti::trace_point_type_t::transfer_end)) {
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::transfer_end, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID1, (uint16_t)xpti::trace_point_type_t::transfer_end);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID2,
+                            (uint16_t)xpti::trace_point_type_t::thread_begin)) {
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::thread_begin, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID1, (uint16_t)xpti::trace_point_type_t::thread_begin);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID2,
+                            (uint16_t)xpti::trace_point_type_t::thread_end)) {
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::thread_end, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID1, (uint16_t)xpti::trace_point_type_t::thread_end);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID2,
+                            (uint16_t)xpti::trace_point_type_t::wait_begin)) {
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::wait_begin, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID1, (uint16_t)xpti::trace_point_type_t::wait_begin);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID2,
+                            (uint16_t)xpti::trace_point_type_t::wait_end)) {
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::wait_end, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID1, (uint16_t)xpti::trace_point_type_t::wait_end);
+    EXPECT_NE(Check, true);
+  }
+  if (xptiCheckTraceEnabled(StreamID2,
+                            (uint16_t)xpti::trace_point_type_t::signal)) {
+    NOTIFY(StreamID2, (uint16_t)xpti::trace_point_type_t::signal, GE);
+    auto Check = xptiCheckTraceEnabled(
+        StreamID1, (uint16_t)xpti::trace_point_type_t::signal);
+    EXPECT_NE(Check, true);
+  }
+}
+
 TEST_F(xptiCorrectnessTest, xptiInitializeForUserDefinedTracePointTypes) {
   // We will test functionality of a subscriber
   // without actually creating a plugin
