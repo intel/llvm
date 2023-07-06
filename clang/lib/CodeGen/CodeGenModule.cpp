@@ -894,6 +894,10 @@ void CodeGenModule::Release() {
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
   }
 
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsNativeCPU) {
+    getModule().addModuleFlag(llvm::Module::Error, "is-native-cpu", 1);
+  }
+
   if (LangOpts.EHAsynch)
     getModule().addModuleFlag(llvm::Module::Warning, "eh-asynch", 1);
 
@@ -2110,6 +2114,10 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
       Fn->setMetadata("kernel_arg_exclusive_ptr",
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
+    }
+    if (LangOpts.SYCLIsNativeCPU) {
+      Fn->setMetadata("kernel_arg_type",
+                      llvm::MDNode::get(VMContext, argTypeNames));
     }
   } else {
     if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
