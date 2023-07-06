@@ -7,6 +7,7 @@ include "mlir/Dialect/LLVMIR/LLVMEnums.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/MemorySlotInterfaces.td"
+include "mlir/IR/BuiltinTypes.td"
 
 // Operations that correspond to LLVM intrinsics. With MLIR operation set being
 // extendable, there is no reason to introduce a hard boundary between "core"
@@ -778,6 +779,43 @@ def LLVM_masked_expandload : LLVM_IntrOp<"masked.expandload", [0], [], [], 1> {
 def LLVM_masked_compressstore
     : LLVM_IntrOp<"masked.compressstore", [], [0], [], 0> {
   let arguments = (ins LLVM_AnyVector, LLVM_AnyPointer, LLVM_VectorOf<I1>);
+}
+
+//
+// Annotate intrinsics.
+//
+
+def LLVM_VarAnnotation
+    : LLVM_ZeroResultIntrOp<"var.annotation", [0, 1],
+        [AllTypesMatch<["annotation", "fileName", "args"]>]> {
+  let arguments = (ins LLVM_AnyPointer:$val,
+                       LLVM_AnyPointer:$annotation,
+		       LLVM_AnyPointer:$fileName,
+		       I32:$line,
+		       LLVM_AnyPointer:$args);
+}
+
+def LLVM_PtrAnnotation
+    : LLVM_OneResultIntrOp<"ptr.annotation", [0], [2],
+        [AllTypesMatch<["res", "ptr"]>,
+	 AllTypesMatch<["annotation", "fileName", "args"]>]> {
+  let arguments = (ins LLVM_PointerTo<Builtin_Integer>:$ptr,
+                       LLVM_AnyPointer:$annotation,
+		       LLVM_AnyPointer:$fileName,
+		       I32:$line,
+		       LLVM_AnyPointer:$args);
+  let results = (outs LLVM_PointerTo<Builtin_Integer>:$res);
+}
+
+def LLVM_Annotation
+    : LLVM_OneResultIntrOp<"annotation", [0], [2],
+        [AllTypesMatch<["res", "integer"]>,
+	 AllTypesMatch<["annotation", "fileName"]>]> {
+  let arguments = (ins Builtin_Integer:$integer,
+                       LLVM_AnyPointer:$annotation,
+		       LLVM_AnyPointer:$fileName,
+		       I32:$line);
+  let results = (outs Builtin_Integer:$res);
 }
 
 //
