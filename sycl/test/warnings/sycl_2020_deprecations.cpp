@@ -170,14 +170,6 @@ int main() {
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
 
-  // expected-warning@+1{{'level_zero' is deprecated: use 'ext_oneapi_level_zero' instead}}
-  auto LevelZeroBackend = sycl::backend::level_zero;
-  (void)LevelZeroBackend;
-
-  // expected-warning@+1{{'esimd_cpu' is deprecated: use 'ext_intel_esimd_emulator' instead}}
-  auto ESIMDCPUBackend = sycl::backend::esimd_cpu;
-  (void)ESIMDCPUBackend;
-
   sycl::half Val = 1.0f;
   // expected-warning@+1{{'bit_cast<unsigned short, sycl::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
   auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
