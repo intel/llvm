@@ -299,6 +299,12 @@ DEVICE_EXTERN_C_INLINE
 long long int __devicelib_imf_llmin(long long int, long long int);
 
 DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_max(int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_min(int, int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned long long int __devicelib_imf_ullmax(unsigned long long int,
                                               unsigned long long int);
 
@@ -321,6 +327,12 @@ DEVICE_EXTERN_C_INLINE
 long long int __imf_llmin(long long int x, long long int y) {
   return __devicelib_imf_llmin(x, y);
 }
+
+DEVICE_EXTERN_C_INLINE
+int __imf_max(int x, int y) { return __devicelib_imf_max(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+int __imf_min(int x, int y) { return __devicelib_imf_min(x, y); }
 
 DEVICE_EXTERN_C_INLINE
 unsigned long long int __imf_ullmax(unsigned long long int x,
@@ -423,6 +435,9 @@ DEVICE_EXTERN_C_INLINE
 int __devicelib_imf_rhadd(int, int);
 
 DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_hadd(int, int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_uhadd(int, int);
 
 DEVICE_EXTERN_C_INLINE
@@ -430,6 +445,9 @@ unsigned int __devicelib_imf_urhadd(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
 int __imf_rhadd(int x, int y) { return __devicelib_imf_rhadd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+int __imf_hadd(int x, int y) { return __devicelib_imf_hadd(x, y); }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_uhadd(unsigned int x, unsigned int y) {

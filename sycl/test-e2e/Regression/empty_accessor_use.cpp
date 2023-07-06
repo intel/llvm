@@ -15,7 +15,7 @@ int main() {
   assert(Buf.size() == 1);
   Q.submit([&](handler &CGH) {
     accessor Acc{Buf, CGH, range<3>{0, 0, 0}, read_write};
-    // assert(Acc.empty());
+    assert(Acc.empty());
     CGH.single_task([=] {
       if (!Acc.empty())
         Acc[id<3>{0, 0, 0}] = 42;

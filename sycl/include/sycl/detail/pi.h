@@ -92,11 +92,14 @@
 // 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
 // 12.31 Added PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP device
 // info query.
-// 12.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
+// 13.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
 // piextQueueGetNativeHandle
+// 14.33 Added new parameter (memory object properties) to
+// piextKernelSetArgMemObj
+// 14.34 Added command-buffer extension methods
 
-#define _PI_H_VERSION_MAJOR 13
-#define _PI_H_VERSION_MINOR 32
+#define _PI_H_VERSION_MAJOR 14
+#define _PI_H_VERSION_MINOR 34
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -216,6 +219,7 @@ typedef enum {
   PI_EXT_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
   PI_EXT_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
   PI_EXT_PLATFORM_BACKEND_ESIMD = 5,      ///< The backend is ESIMD
+  PI_EXT_PLATFORM_BACKEND_NATIVE_CPU = 6, ///< The backend is NATIVE_CPU
 } _pi_platform_backend;
 
 typedef enum {
@@ -317,6 +321,7 @@ typedef enum {
   // Intel UUID extension.
   PI_DEVICE_INFO_UUID = 0x106A,
   // These are Intel-specific extensions.
+  PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION = 0x4250,
   PI_DEVICE_INFO_DEVICE_ID = 0x4251,
   PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
   PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,
@@ -474,6 +479,7 @@ typedef enum {
   PI_COMMAND_TYPE_SVM_MEMFILL = 0x120B,
   PI_COMMAND_TYPE_SVM_MAP = 0x120C,
   PI_COMMAND_TYPE_SVM_UNMAP = 0x120D,
+  PI_COMMAND_TYPE_EXT_COMMAND_BUFFER = 0x12A8,
   PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ = 0x418E,
   PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE = 0x418F
 } _pi_command_type;
@@ -1709,13 +1715,38 @@ __SYCL_EXPORT pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                           const pi_event *event_wait_list,
                                           pi_event *event);
 
+#ifndef PI_BIT
+#define PI_BIT(_i) (1 << _i)
+#endif // PI_BIT
+
+typedef enum {
+  PI_ACCESS_READ_WRITE = PI_BIT(0),
+  PI_ACCESS_WRITE_ONLY = PI_BIT(1),
+  PI_ACCESS_READ_ONLY = PI_BIT(2)
+} _pi_mem_obj_access;
+using pi_mem_obj_access = _pi_mem_obj_access;
+typedef uint32_t pi_mem_access_flag;
+
+typedef enum {
+  PI_KERNEL_ARG_MEM_OBJ_ACCESS = 27,
+  PI_ENUM_FORCE_UINT32 = 0x7fffffff
+} _pi_mem_obj_property_type;
+using pi_mem_obj_property_type = _pi_mem_obj_property_type;
+
+typedef struct {
+  pi_mem_obj_property_type type;
+  void *pNext;
+  pi_mem_access_flag mem_access;
+} _pi_mem_obj_property;
+using pi_mem_obj_property = _pi_mem_obj_property;
+
 // Extension to allow backends to process a PI memory object before adding it
 // as an argument for a kernel.
 // Note: This is needed by the CUDA backend to extract the device pointer to
 // the memory as the kernels uses it rather than the PI object itself.
-__SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel kernel,
-                                                pi_uint32 arg_index,
-                                                const pi_mem *arg_value);
+__SYCL_EXPORT pi_result piextKernelSetArgMemObj(
+    pi_kernel kernel, pi_uint32 arg_index,
+    const pi_mem_obj_property *arg_properties, const pi_mem *arg_value);
 
 // Extension to allow backends to process a PI sampler object before adding it
 // as an argument for a kernel.
@@ -2099,6 +2130,228 @@ __SYCL_EXPORT pi_result piPluginGetBackendOption(pi_platform platform,
 __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
                                                 uint64_t *DeviceTime,
                                                 uint64_t *HostTime);
+
+/// Command buffer extension
+struct _pi_ext_command_buffer;
+struct _pi_ext_sync_point;
+using pi_ext_command_buffer = _pi_ext_command_buffer *;
+using pi_ext_sync_point = pi_uint32;
+
+typedef enum {
+  PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC = 0
+} pi_ext_structure_type;
+
+struct pi_ext_command_buffer_desc final {
+  pi_ext_structure_type stype;
+  const void *pNext;
+  pi_queue_properties *properties;
+};
+
+/// API to create a command-buffer.
+/// \param context The context to associate the command-buffer with.
+/// \param device The device to associate the command-buffer with.
+/// \param desc Descriptor for the new command-buffer.
+/// \param ret_command_buffer Pointer to fill with the address of the new
+/// command-buffer.
+__SYCL_EXPORT pi_result
+piextCommandBufferCreate(pi_context context, pi_device device,
+                         const pi_ext_command_buffer_desc *desc,
+                         pi_ext_command_buffer *ret_command_buffer);
+
+/// API to increment the reference count of the command-buffer
+/// \param command_buffer The command_buffer to retain.
+__SYCL_EXPORT pi_result
+piextCommandBufferRetain(pi_ext_command_buffer command_buffer);
+
+/// API to decrement the reference count of the command-buffer. After the
+/// command_buffer reference count becomes zero and has finished execution, the
+/// command-buffer is deleted.
+/// \param command_buffer The command_buffer to release.
+__SYCL_EXPORT pi_result
+piextCommandBufferRelease(pi_ext_command_buffer command_buffer);
+
+/// API to stop command-buffer recording such that no more commands can be
+/// appended, and makes the command-buffer ready to enqueue on a command-queue.
+/// \param command_buffer The command_buffer to finalize.
+__SYCL_EXPORT pi_result
+piextCommandBufferFinalize(pi_ext_command_buffer command_buffer);
+
+/// API to append a kernel execution command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param kernel The kernel to append.
+/// \param work_dim Dimension of the kernel execution.
+/// \param global_work_offset Offset to use when executing kernel.
+/// \param global_work_size Global work size to use when executing kernel.
+/// \param local_work_size Local work size to use when executing kernel.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this kernel execution.
+__SYCL_EXPORT pi_result piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM memcpy command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param dst_ptr is the location the data will be copied
+/// \param src_ptr is the data to be copied
+/// \param size is number of bytes to copy
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemcpyUSM(
+    pi_ext_command_buffer command_buffer, void *dst_ptr, const void *src_ptr,
+    size_t size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer copy command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param src_buffer is the data to be copied
+/// \param dst_buffer is the location the data will be copied
+/// \param src_offset offset into \p src_buffer
+/// \param dst_offset offset into \p dst_buffer
+/// \param size is number of bytes to copy
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    size_t src_offset, size_t dst_offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a rectangular mem buffer copy command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param src_buffer is the data to be copied
+/// \param dst_buffer is the location the data will be copied
+/// \param src_origin offset for the start of the region to copy in src_buffer
+/// \param dst_origin offset for the start of the region to copy in dst_buffer
+/// \param region The size of the region to be copied
+/// \param src_row_pitch Row pitch for the src data
+/// \param src_slice_pitch Slice pitch for the src data
+/// \param dst_row_pitch Row pitch for the dst data
+/// \param dst_slice_pitch Slice pitch for the dst data
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
+    pi_buff_rect_region region, size_t src_row_pitch, size_t src_slice_pitch,
+    size_t dst_row_pitch, size_t dst_slice_pitch,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer read command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the data to be read
+/// \param offset offset into \p buffer
+/// \param size is number of bytes to read
+/// \param dst is the pointer to the destination
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a rectangular mem buffer read command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the data to be read
+/// \param buffer_offset offset for the start of the region to read in buffer
+/// \param host_offset offset for the start of the region to be written from ptr
+/// \param region The size of the region to read
+/// \param buffer_row_pitch Row pitch for the source buffer data
+/// \param buffer_slice_pitch Slice pitch for the source buffer data
+/// \param host_row_pitch Row pitch for the destination data ptr
+/// \param host_slice_pitch Slice pitch for the destination data ptr
+/// \param ptr is the location the data will be written
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer write command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the location to write the data
+/// \param offset offset into \p buffer
+/// \param size is number of bytes to write
+/// \param ptr is the pointer to the source
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, const void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a rectangular mem buffer write command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the location to write the data
+/// \param buffer_offset offset for the start of the region to write in buffer
+/// \param host_offset offset for the start of the region to be read from ptr
+/// \param region The size of the region to write
+/// \param buffer_row_pitch Row pitch for the buffer data
+/// \param buffer_slice_pitch Slice pitch for the buffer data
+/// \param host_row_pitch Row pitch for the source data ptr
+/// \param host_slice_pitch Slice pitch for the source data ptr
+/// \param ptr is the pointer to the source
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    const void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to submit the command-buffer to queue for execution, returns an error if
+/// the command-buffer is not finalized or another instance of the same
+/// command-buffer is currently executing.
+/// \param command_buffer The command-buffer to be submitted.
+/// \param queue The PI queue to submit on.
+/// \param num_events_in_wait_list The number of events that this execution
+/// depends on.
+/// \param event_wait_list List of pi_events to wait on.
+/// \param event The pi_event associated with this enqueue.
+__SYCL_EXPORT pi_result
+piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer, pi_queue queue,
+                          pi_uint32 num_events_in_wait_list,
+                          const pi_event *event_wait_list, pi_event *event);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

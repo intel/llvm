@@ -2178,6 +2178,18 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   }
 }
 
+pi_mem_obj_access AccessModeToPi(access::mode AccessorMode) {
+  switch (AccessorMode) {
+  case access::mode::read:
+    return PI_ACCESS_READ_ONLY;
+  case access::mode::write:
+  case access::mode::discard_write:
+    return PI_ACCESS_WRITE_ONLY;
+  default:
+    return PI_ACCESS_READ_WRITE;
+  }
+}
+
 static pi_result SetKernelParamsAndLaunch(
     const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
@@ -2210,8 +2222,11 @@ static pi_result SetKernelParamsAndLaunch(
         Plugin->call<PiApiKind::piKernelSetArg>(
             Kernel, NextTrueIndex, sizeof(sycl::detail::pi::PiMem), &MemArg);
       } else {
+        pi_mem_obj_property MemObjData{};
+        MemObjData.mem_access = AccessModeToPi(Req->MAccessMode);
+        MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
         Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                         &MemArg);
+                                                         &MemObjData, &MemArg);
       }
       break;
     }
@@ -2248,8 +2263,12 @@ static pi_result SetKernelParamsAndLaunch(
       // Avoid taking an address of nullptr
       sycl::detail::pi::PiMem *SpecConstsBufferArg =
           SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
-      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                       SpecConstsBufferArg);
+
+      pi_mem_obj_property MemObjData{};
+      MemObjData.mem_access = PI_ACCESS_READ_ONLY;
+      MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
+      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(
+          Kernel, NextTrueIndex, &MemObjData, SpecConstsBufferArg);
       break;
     }
     case kernel_param_kind_t::kind_invalid:
