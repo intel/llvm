@@ -15,6 +15,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
@@ -239,6 +240,16 @@ public:
   ///
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const __SYCL_WARN_IMAGE_ASPECT(Aspect);
+
+  /// Indicates if the SYCL device architecture equals to the one passed to
+  /// the function.
+  ///
+  /// \param arch is one of the architectures from architecture enum described
+  /// in sycl_ext_oneapi_device_architecture specification.
+  ///
+  /// \return true if the SYCL device architecture equals to the one passed to
+  /// the function.
+  bool ext_oneapi_architecture_is(ext::oneapi::experimental::architecture arch);
 
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)

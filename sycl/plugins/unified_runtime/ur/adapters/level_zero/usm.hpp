@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_usm.hpp - Level Zero Adapter -------------===//
+//===--------- usm.hpp - Level Zero Adapter --------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===-----------------------------------------------------------------===//
 #pragma once
 
-#include "ur_level_zero_common.hpp"
+#include "common.hpp"
 
 struct ur_usm_pool_handle_t_ : _ur_object {
   bool zeroInit;
