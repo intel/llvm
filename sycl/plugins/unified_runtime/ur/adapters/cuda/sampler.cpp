@@ -56,17 +56,15 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
   case UR_SAMPLER_INFO_CONTEXT:
     return ReturnValue(hSampler->Context);
   case UR_SAMPLER_INFO_NORMALIZED_COORDS: {
-    bool NormCoordsProp = static_cast<bool>(hSampler->Props);
+    bool NormCoordsProp = hSampler->isNormalizedCoords();
     return ReturnValue(NormCoordsProp);
   }
   case UR_SAMPLER_INFO_FILTER_MODE: {
-    auto FilterProp =
-        static_cast<ur_sampler_filter_mode_t>((hSampler->Props >> 1) & 0x1);
+    ur_sampler_filter_mode_t FilterProp = hSampler->getFilterMode();
     return ReturnValue(FilterProp);
   }
   case UR_SAMPLER_INFO_ADDRESSING_MODE: {
-    auto AddressingProp =
-        static_cast<ur_sampler_addressing_mode_t>(hSampler->Props >> 2);
+    ur_sampler_addressing_mode_t AddressingProp = hSampler->getAddressingMode();
     return ReturnValue(AddressingProp);
   }
   default:

@@ -35,4 +35,20 @@ struct ur_sampler_handle_t_ {
   uint32_t decrementReferenceCount() noexcept { return --RefCount; }
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
+
+  ur_bool_t isNormalizedCoords() const noexcept {
+    return static_cast<ur_bool_t>(Props & 0b1);
+  }
+
+  ur_sampler_filter_mode_t getFilterMode() const noexcept {
+    return static_cast<ur_sampler_filter_mode_t>((Props >> 1) & 0b1);
+  }
+
+  ur_sampler_addressing_mode_t getAddressingMode() const noexcept {
+    return static_cast<ur_sampler_addressing_mode_t>((Props >> 2) & 0b111);
+  }
+
+  ur_sampler_filter_mode_t getMipFilterMode() const noexcept {
+    return static_cast<ur_sampler_filter_mode_t>((Props >> 5) & 0b1);
+  }
 };

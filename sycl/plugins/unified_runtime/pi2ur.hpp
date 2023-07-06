@@ -4489,27 +4489,19 @@ inline pi_result piextMemSampledImageHandleDestroy(pi_context Context,
 static void pi2urImageInfoFlags(const pi_image_info PiFlags,
                                 ur_image_info_t *UrFlags) {
   switch (PiFlags) {
-  case PI_IMAGE_INFO_FORMAT:
-    *UrFlags = UR_IMAGE_INFO_FORMAT;
-    break;
-  case PI_IMAGE_INFO_ELEMENT_SIZE:
-    *UrFlags = UR_IMAGE_INFO_ELEMENT_SIZE;
-    break;
-  case PI_IMAGE_INFO_ROW_PITCH:
-    *UrFlags = UR_IMAGE_INFO_ROW_PITCH;
-    break;
-  case PI_IMAGE_INFO_SLICE_PITCH:
-    *UrFlags = UR_IMAGE_INFO_SLICE_PITCH;
-    break;
-  case PI_IMAGE_INFO_WIDTH:
-    *UrFlags = UR_IMAGE_INFO_WIDTH;
-    break;
-  case PI_IMAGE_INFO_HEIGHT:
-    *UrFlags = UR_IMAGE_INFO_HEIGHT;
-    break;
-  case PI_IMAGE_INFO_DEPTH:
-    *UrFlags = UR_IMAGE_INFO_DEPTH;
-    break;
+#define MAP(FROM, TO) \
+  case FROM: { \
+    *UrFlags = TO; \
+    return;\
+  }
+MAP(PI_IMAGE_INFO_FORMAT, UR_IMAGE_INFO_FORMAT)
+MAP(PI_IMAGE_INFO_ELEMENT_SIZE, UR_IMAGE_INFO_ELEMENT_SIZE)
+MAP(PI_IMAGE_INFO_ROW_PITCH, UR_IMAGE_INFO_ROW_PITCH)
+MAP(PI_IMAGE_INFO_SLICE_PITCH, UR_IMAGE_INFO_SLICE_PITCH)
+MAP(PI_IMAGE_INFO_WIDTH, UR_IMAGE_INFO_WIDTH)
+MAP(PI_IMAGE_INFO_HEIGHT, UR_IMAGE_INFO_HEIGHT)
+MAP(PI_IMAGE_INFO_DEPTH, UR_IMAGE_INFO_DEPTH)
+#undef MAP
   default:
     die("pi2urImageInfoFlags: Unsupported use case");
   }
