@@ -4326,7 +4326,8 @@ inline pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
 // usm-p2p
 
 inline pi_result piextEnablePeerAccess(pi_device command_device,
-                                pi_device peer_device) {
+                                       pi_device peer_device)
+{
   auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
   auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
 
@@ -4336,7 +4337,8 @@ inline pi_result piextEnablePeerAccess(pi_device command_device,
 }
 
 inline pi_result piextDisablePeerAccess(pi_device command_device,
-                                 pi_device peer_device) {
+                                        pi_device peer_device)
+{
   auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
   auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
 
@@ -4346,23 +4348,28 @@ inline pi_result piextDisablePeerAccess(pi_device command_device,
 }
 
 inline pi_result piextPeerAccessGetInfo(pi_device command_device,
-                                 pi_device peer_device, pi_peer_attr attr,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
+                                        pi_device peer_device, pi_peer_attr attr,
+                                        size_t param_value_size, void *param_value,
+                                        size_t *param_value_size_ret)
+{
   auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
   auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
 
   ur_exp_peer_info_t propName;
-  switch (attr) {
-  case PI_PEER_ACCESS_SUPPORTED: {
+  switch (attr)
+  {
+  case PI_PEER_ACCESS_SUPPORTED:
+  {
     propName = UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED;
     break;
   }
-  case PI_PEER_ATOMICS_SUPPORTED: {
+  case PI_PEER_ATOMICS_SUPPORTED:
+  {
     propName = UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED;
     break;
   }
-  default: {
+  default:
+  {
     return PI_ERROR_INVALID_VALUE;
   }
   }
