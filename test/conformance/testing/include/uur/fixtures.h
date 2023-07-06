@@ -993,6 +993,22 @@ struct urKernelExecutionTest : urKernelTest {
     std::vector<ur_mem_handle_t> buffer_args;
     uint32_t current_arg_index = 0;
 };
+
+template <class T> struct GlobalVar {
+    std::string name;
+    T value;
+};
+
+struct urGlobalVariableTest : uur::urKernelExecutionTest {
+    void SetUp() override {
+        program_name = "device_global";
+        global_var = {"_Z7dev_var", 0};
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
+    }
+
+    GlobalVar<int> global_var;
+};
+
 } // namespace uur
 
 #endif // UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED
