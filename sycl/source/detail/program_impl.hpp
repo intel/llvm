@@ -99,7 +99,7 @@ public:
   ///
   /// \param Context is a pointer to SYCL context impl.
   /// \param Kernel is a raw PI kernel handle.
-  program_impl(ContextImplPtr Context, RT::PiKernel Kernel);
+  program_impl(ContextImplPtr Context, sycl::detail::pi::PiKernel Kernel);
 
   ~program_impl();
 
@@ -131,10 +131,10 @@ public:
 
   /// \return a reference to a raw PI program handle. PI program is not
   /// retained before return.
-  RT::PiProgram &getHandleRef() { return MProgram; }
+  sycl::detail::pi::PiProgram &getHandleRef() { return MProgram; }
   /// \return a constant reference to a raw PI program handle. PI program is
   /// not retained before return.
-  const RT::PiProgram &getHandleRef() const { return MProgram; }
+  const sycl::detail::pi::PiProgram &getHandleRef() const { return MProgram; }
 
   /// \return true if this SYCL program is a host program.
   bool is_host() const { return MContext->is_host(); }
@@ -306,9 +306,6 @@ public:
   /// \return the current state of this SYCL program.
   program_state get_state() const { return MState; }
 
-  void set_spec_constant_impl(const char *Name, const void *ValAddr,
-                              size_t ValSize);
-
   /// Takes current values of specialization constants and "injects" them into
   /// the underlying native program program via specialization constant
   /// managemment PI APIs. The native program passed as non-null argument
@@ -317,8 +314,9 @@ public:
   ///        resolve spec constant name to SPIR-V integer ID
   /// \param NativePrg if not null, used as the flush target, otherwise MProgram
   ///        is used
-  void flush_spec_constants(const RTDeviceBinaryImage &Img,
-                            RT::PiProgram NativePrg = nullptr) const;
+  void
+  flush_spec_constants(const RTDeviceBinaryImage &Img,
+                       sycl::detail::pi::PiProgram NativePrg = nullptr) const;
 
   void stableSerializeSpecConstRegistry(SerializedObj &Dst) const {
     detail::stableSerializeSpecConstRegistry(SpecConstRegistry, Dst);
@@ -338,7 +336,7 @@ public:
 private:
   // Deligating Constructor used in Implementation.
   program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,
-               RT::PiProgram Program);
+               sycl::detail::pi::PiProgram Program);
   /// Checks feature support for specific devices.
   ///
   /// If there's at least one device that does not support this feature,
@@ -382,7 +380,7 @@ private:
   void build(const std::string &Options);
 
   /// \return a vector of devices managed by the plugin.
-  std::vector<RT::PiDevice> get_pi_devices() const;
+  std::vector<sycl::detail::pi::PiDevice> get_pi_devices() const;
 
   /// \param Options is a string containing OpenCL C build options.
   /// \return true if caching is allowed for this program and build options.
@@ -397,7 +395,7 @@ private:
   /// \param KernelName is a string containing PI kernel name.
   /// \return an instance of PI kernel with specific name. If kernel is
   /// unavailable, an invalid_object_error exception is thrown.
-  std::pair<RT::PiKernel, const KernelArgMask *>
+  std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>
   get_pi_kernel_arg_mask_pair(const std::string &KernelName) const;
 
   /// \return a vector of sorted in ascending order SYCL devices.
@@ -415,7 +413,7 @@ private:
   /// \param State is a program state to match against.
   void throw_if_state_is_not(program_state State) const;
 
-  RT::PiProgram MProgram = nullptr;
+  sycl::detail::pi::PiProgram MProgram = nullptr;
   program_state MState = program_state::none;
   std::mutex MMutex;
   ContextImplPtr MContext;

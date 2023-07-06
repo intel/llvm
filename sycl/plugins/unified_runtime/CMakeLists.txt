@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 4a9e53b0d7b15d9b0239864d13999f32e6c73bac)
+  set(UNIFIED_RUNTIME_TAG c7b0caf4e3ce5330bd0669db6e8e498b48e8ad27)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -71,7 +71,7 @@ add_sycl_plugin(unified_runtime
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
-    LevelZeroLoader-Headers # we need for #include <ze_api.h> in ur_level_zero_common.h
+    LevelZeroLoader-Headers # we need for #include <ze_api.h> in common.h
 )
 
 # Build level zero adapter
@@ -85,30 +85,31 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/usm_allocator_config.hpp"
     "ur/adapters/level_zero/ur_level_zero.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
-    "ur/adapters/level_zero/ur_loader_interface.cpp"
-    "ur/adapters/level_zero/ur_level_zero_common.hpp"
-    "ur/adapters/level_zero/ur_level_zero_context.hpp"
-    "ur/adapters/level_zero/ur_level_zero_device.hpp"
-    "ur/adapters/level_zero/ur_level_zero_event.hpp"
-    "ur/adapters/level_zero/ur_level_zero_mem.hpp"
-    "ur/adapters/level_zero/ur_level_zero_kernel.hpp"
-    "ur/adapters/level_zero/ur_level_zero_platform.hpp"
-    "ur/adapters/level_zero/ur_level_zero_program.hpp"
-    "ur/adapters/level_zero/ur_level_zero_queue.hpp"
-    "ur/adapters/level_zero/ur_level_zero_sampler.hpp"
-    "ur/adapters/level_zero/ur_level_zero_usm.hpp"
-    "ur/adapters/level_zero/ur_level_zero.cpp"
-    "ur/adapters/level_zero/ur_level_zero_common.cpp"
-    "ur/adapters/level_zero/ur_level_zero_context.cpp"
-    "ur/adapters/level_zero/ur_level_zero_device.cpp"
-    "ur/adapters/level_zero/ur_level_zero_event.cpp"
-    "ur/adapters/level_zero/ur_level_zero_mem.cpp"
-    "ur/adapters/level_zero/ur_level_zero_kernel.cpp"
-    "ur/adapters/level_zero/ur_level_zero_platform.cpp"
-    "ur/adapters/level_zero/ur_level_zero_program.cpp"
-    "ur/adapters/level_zero/ur_level_zero_queue.cpp"
-    "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
-    "ur/adapters/level_zero/ur_level_zero_usm.cpp"
+    "ur/adapters/level_zero/ur_interface_loader.cpp"
+    "ur/adapters/level_zero/command_buffer.hpp"
+    "ur/adapters/level_zero/common.hpp"
+    "ur/adapters/level_zero/context.hpp"
+    "ur/adapters/level_zero/device.hpp"
+    "ur/adapters/level_zero/event.hpp"
+    "ur/adapters/level_zero/memory.hpp"
+    "ur/adapters/level_zero/kernel.hpp"
+    "ur/adapters/level_zero/platform.hpp"
+    "ur/adapters/level_zero/program.hpp"
+    "ur/adapters/level_zero/queue.hpp"
+    "ur/adapters/level_zero/sampler.hpp"
+    "ur/adapters/level_zero/usm.hpp"
+    "ur/adapters/level_zero/command_buffer.cpp"
+    "ur/adapters/level_zero/common.cpp"
+    "ur/adapters/level_zero/context.cpp"
+    "ur/adapters/level_zero/device.cpp"
+    "ur/adapters/level_zero/event.cpp"
+    "ur/adapters/level_zero/memory.cpp"
+    "ur/adapters/level_zero/kernel.cpp"
+    "ur/adapters/level_zero/platform.cpp"
+    "ur/adapters/level_zero/program.cpp"
+    "ur/adapters/level_zero/queue.cpp"
+    "ur/adapters/level_zero/sampler.cpp"
+    "ur/adapters/level_zero/usm.cpp"
   INCLUDE_DIRS
     ${sycl_inc_dir}
   LIBRARIES
@@ -155,6 +156,8 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/tracing.cpp"
       "ur/adapters/cuda/ur_interface_loader.cpp"
       "ur/adapters/cuda/usm.cpp"
+      "ur/adapters/cuda/command_buffer.hpp"
+      "ur/adapters/cuda/command_buffer.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES

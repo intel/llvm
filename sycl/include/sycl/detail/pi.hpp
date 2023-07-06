@@ -72,6 +72,7 @@ bool trace(TraceLevel level);
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "pi_unified_runtime.dll"
+#define __SYCL_NATIVE_CPU_PLUGIN_NAME "pi_native_cpu.dll"
 #else
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
@@ -79,6 +80,7 @@ bool trace(TraceLevel level);
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dll"
+#define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dll"
 #endif
 #elif defined(__SYCL_RT_OS_LINUX)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
@@ -87,6 +89,7 @@ bool trace(TraceLevel level);
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.so"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.so"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.so"
+#define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.so"
 #elif defined(__SYCL_RT_OS_DARWIN)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dylib"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dylib"
@@ -94,6 +97,7 @@ bool trace(TraceLevel level);
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dylib"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dylib"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dylib"
+#define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dylib"
 #else
 #error "Unsupported OS"
 #endif
@@ -148,16 +152,28 @@ using PiMemObjectType = ::pi_mem_type;
 using PiMemImageChannelOrder = ::pi_image_channel_order;
 using PiMemImageChannelType = ::pi_image_channel_type;
 using PiKernelCacheConfig = ::pi_kernel_cache_config;
+using PiExtSyncPoint = ::pi_ext_sync_point;
+using PiExtCommandBuffer = ::pi_ext_command_buffer;
+using PiExtCommandBufferDesc = ::pi_ext_command_buffer_desc;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
                                              void *user_data);
 
-// Function to load the shared library
+// Function to load a shared library
+// Implementation is OS dependent
+void *loadOsLibrary(const std::string &Library);
+
+// Function to unload a shared library
+// Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
+int unloadOsLibrary(void *Library);
+
+// Function to load the shared plugin library
+// On Windows, this will have been pre-loaded by proxy loader.
 // Implementation is OS dependent.
 void *loadOsPluginLibrary(const std::string &Library);
 
-// Function to unload the shared library
+// Function to unload the shared plugin library
 // Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
 int unloadOsPluginLibrary(void *Library);
 
@@ -241,8 +257,6 @@ PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
 
 } // namespace pi
 
-namespace RT = sycl::detail::pi;
-
 // Workaround for build with GCC 5.x
 // An explicit specialization shall be declared in the namespace block.
 // Having namespace as part of template name is not supported by GCC
@@ -253,7 +267,8 @@ namespace pi {
 // operators.
 template <class To, class From> inline To cast(From value) {
   // TODO: see if more sanity checks are possible.
-  RT::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
+  sycl::detail::pi::assertion((sizeof(From) == sizeof(To)),
+                              "assert: cast failed size check");
   return (To)(value);
 }
 

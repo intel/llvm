@@ -5,7 +5,7 @@ traits `any_device_has` and `all_devices_have` as described in the
 [SYCL 2020 Specification Rev. 6 Section 4.6.4.3][1].
 
 In summary, `any_device_has<aspect>` and `all_devices_have<aspect>` must inherit
-from either `std::true_t` or `std::false_t` depending on whether the
+from either `std::true_type` or `std::false_type` depending on whether the
 corresponding compilation environment can guarantee that any and all the
 supported devices support the `aspect`.
 
@@ -86,7 +86,7 @@ template<> all_devices_have<aspect::gpu> : std::bool_constant<__SYCL_ALL_DEVICES
 
 #ifdef __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 // Special case where any_device_has is trivially true.
-template <aspect Aspect> any_device_has : std::true_t {};
+template <aspect Aspect> any_device_has : std::true_type {};
 #else
 template <aspect Aspect> any_device_has;
 template<> any_device_has<aspect::host> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_0__> {};

@@ -25,10 +25,12 @@
 ??$get_info@U?$max_work_groups@$01@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$01@23@XZ
 ??$get_info@U?$max_work_groups@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$02@12@XZ
 ??$get_info@U?$max_work_groups@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$02@23@XZ
-??$get_info@U?$max_work_item_sizes@$00@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$00@12@XZ
-??$get_info@U?$max_work_item_sizes@$01@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$01@12@XZ
-??$get_info@U?$max_work_item_sizes@$02@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$02@12@XZ
+??$get_info@U?$max_work_item_sizes@$02@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$range@$02@12@XZ
+??$get_info@U?$max_work_item_sizes@$00@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$range@$00@12@XZ
+??$get_info@U?$max_work_item_sizes@$01@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$range@$01@12@XZ
 ??$get_info@Uaddress_bits@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
+??$get_info@Uarchitecture@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AW4architecture@experimental@oneapi@ext@23@XZ
+??$get_info@Uarchitecture@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AW4architecture@experimental@oneapi@ext@12@XZ
 ??$get_info@Uaspects@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uatomic64@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uatomic_fence_order_capabilities@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$vector@W4memory_order@_V1@sycl@@V?$allocator@W4memory_order@_V1@sycl@@@std@@@std@@XZ
@@ -228,6 +230,11 @@
 ??$get_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVinitialize_to_identity@reduction@property@23@XZ
 ??$get_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVinitialize_to_identity@reduction@property@12@XZ
 ??$get_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVinitialize_to_identity@reduction@property@12@XZ
+??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVmem_channel@buffer@property@12@XZ
+??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVmem_channel@buffer@property@23@XZ
+??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVmem_channel@buffer@property@23@XZ
+??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVmem_channel@buffer@property@12@XZ
+??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVmem_channel@buffer@property@12@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVno_init@property@23@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVno_init@property@12@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVno_init@property@23@XZ
@@ -317,6 +324,11 @@
 ??$has_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vinitialize_to_identity@reduction@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
+??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
+??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
+??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
+??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
+??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
@@ -927,6 +939,7 @@
 ?ext_codeplay_supports_fusion@queue@_V1@sycl@@QEBA_NXZ
 ?ext_intel_read_host_pipe@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAX_K_N@Z
 ?ext_intel_write_host_pipe@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAX_K_N@Z
+?ext_oneapi_architecture_is@device@_V1@sycl@@QEAA_NW4architecture@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_barrier@handler@_V1@sycl@@QEAAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?ext_oneapi_barrier@handler@_V1@sycl@@QEAAXXZ
 ?ext_oneapi_empty@queue@_V1@sycl@@QEBA_NXZ

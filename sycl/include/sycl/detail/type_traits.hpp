@@ -261,15 +261,14 @@ using is_gen_based_on_type_sizeof =
     std::bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
 
 template <typename> struct is_vec : std::false_type {};
-template <typename T, std::size_t N>
-struct is_vec<sycl::vec<T, N>> : std::true_type {};
+template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
 
 template <typename> struct get_vec_size {
-  static constexpr std::size_t size = 1;
+  static constexpr int size = 1;
 };
 
-template <typename T, std::size_t N> struct get_vec_size<sycl::vec<T, N>> {
-  static constexpr std::size_t size = N;
+template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
+  static constexpr int size = N;
 };
 
 // is_integral
