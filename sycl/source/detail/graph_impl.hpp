@@ -288,6 +288,10 @@ public:
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
 
+  /// Query for the device tied to this graph.
+  /// @return Device associated with graph.
+  sycl::device getDevice() const { return MDevice; }
+
   /// List of root nodes.
   std::set<std::shared_ptr<node_impl>> MRoots;
 
