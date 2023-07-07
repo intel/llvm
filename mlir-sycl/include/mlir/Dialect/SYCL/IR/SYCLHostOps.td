@@ -110,4 +110,33 @@ def SYCLHostHandlerSetNDRange : SYCL_HostOp<"handler.set_nd_range"> {
   let hasVerifier = 1;
 }
 
+def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
+    [DeclareOpInterfaceMethods<SymbolUserOpInterface>,
+     AttrSizedOperandSegments]> {
+  let summary = "Launches a SYCL kernel.";
+  let description = [{
+    This operation represents the launch of a kernel function with the given
+    range and kernel arguments.
+
+    Examples:
+    ```
+    // cgh.single_task(...
+    sycl.host.launch_kernel @kernels::@k0(%0)
+      : (memref<?x!sycl_accessor_1_i32_r_gb>) -> ()
+    
+    // cgh.parallel_for(range<1>(...
+    sycl.host.launch_kernel @kernels::@k0[%1](%2, %3)
+      : (memref<?x!sycl_range_1_>, i32, i32) -> ()
+    ```
+  }];
+
+  let arguments = (ins SymbolRefAttr:$kernel_name,
+                       Variadic<AnyMemRef>:$nd_range, Variadic<AnyType>:$args);
+  let assemblyFormat = [{
+    $kernel_name (`[` $nd_range^ `]`)? `` (`(` $args^ `)`)? attr-dict
+      `:` functional-type(operands, results)
+  }];
+  let hasVerifier = 1;
+}
+
 #endif // SYCL_HOST_OPS
