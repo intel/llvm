@@ -36,7 +36,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 6 specification.  All
+This extension is written against the SYCL 2020 revision 7 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -51,7 +51,7 @@ This extension is only currently fully supported for the cuda backend.
 Attempting to use this extension in kernels that run on other
 backends may result in undefined behavior.  Be aware that the compiler
 may not able to issue a diagnostic to warn you if this happens.
-When the extension is not supported for a particular gpu backend any queries
+When the extension is not supported for a particular GPU backend any queries
 made using `ext_oneapi_can_access_peer` will return false.
 
 == Overview
