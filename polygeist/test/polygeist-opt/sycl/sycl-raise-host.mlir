@@ -83,9 +83,13 @@ llvm.func @__gxx_personality_v0(...) -> i32
 // CHECK:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::accessor", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_3:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::property_list", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_4:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_5:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::accessor.5", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK:           sycl.host.constructor(%[[VAL_2]], %[[VAL_1]], %[[VAL_3]], %[[VAL_4]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:           llvm.br ^bb1
 // CHECK:         ^bb1:
+// CHECK:           sycl.host.constructor(%[[VAL_5]], %[[VAL_1]], %[[VAL_3]], %[[VAL_4]]) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           llvm.br ^bb2
+// CHECK:         ^bb2:
 // CHECK:           llvm.return %[[VAL_1]] : !llvm.ptr
 // CHECK:         }
 llvm.func @raise_accessor() -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
@@ -94,6 +98,7 @@ llvm.func @raise_accessor() -> !llvm.ptr attributes {personality = @__gxx_person
   %2 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::accessor", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   %3 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::property_list", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   %4 = llvm.alloca %0 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %5 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::accessor.5", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 
   llvm.invoke @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE1ENS0_3ext6oneapi22accessor_property_listIJEEEEC2IiLi1ENS0_6detail17aligned_allocatorIiEEvEERNS0_6bufferIT_XT0_ET1_NSt9enable_ifIXaagtT0_Li0EleT0_Li3EEvE4typeEEERKNS0_13property_listENSC_13code_locationE(%2, %1, %3, %4) to ^bb1 unwind ^bb0 : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 
@@ -101,6 +106,11 @@ llvm.func @raise_accessor() -> !llvm.ptr attributes {personality = @__gxx_person
   %lp = llvm.landingpad cleanup : !llvm.struct<(ptr, i32)>
   llvm.resume %lp : !llvm.struct<(ptr, i32)>
 ^bb1:
+  llvm.invoke @_ZN4sycl3_V18accessorIfLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC2IfLi1ENS0_6detail17aligned_allocatorIfEEvEERNS0_6bufferIT_XT0_ET1_NSt9enable_ifIXaagtT0_Li0EleT0_Li3EEvE4typeEEERNS0_7handlerERKNS0_13property_listENSC_13code_locationE(%5, %1, %3, %4) to ^bb3 unwind ^bb2 : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+^bb2:
+  %lp1 = llvm.landingpad cleanup : !llvm.struct<(ptr, i32)>
+  llvm.resume %lp1 : !llvm.struct<(ptr, i32)>
+^bb3:
   llvm.return %1 : !llvm.ptr
 }
 
@@ -223,3 +233,19 @@ llvm.func @raise_range_3() -> !llvm.ptr {
 }
 
 llvm.func @_Z6numberv() -> (i64)
+
+// ----- 
+
+// COM: Check the raising patterns are not applied to device code.
+
+// CHECK-LABEL: gpu.module @device_functions {
+// CHECK-NOT:   sycl.host
+gpu.module @device_functions {
+  llvm.func @raise_range_1() -> !llvm.ptr {
+    %0 = arith.constant 1 : i32
+    %1 = arith.constant 42 : i64
+    %2 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+    llvm.store %1, %2 {alignment = 8 : i64} : i64, !llvm.ptr
+    llvm.return %2 : !llvm.ptr
+  }
+}

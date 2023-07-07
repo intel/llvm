@@ -56,16 +56,25 @@ static bool isNegativeOne(IntegerValueRange range) {
 }
 
 static bool isStrictlyPositive(IntegerValueRange range) {
+  if (range.isUninitialized())
+    return false;
+
   std::optional<APInt> constVal = range.getValue().getConstantValue();
   return (constVal && constVal->isStrictlyPositive());
 }
 
 static bool isGreaterThanOne(IntegerValueRange range) {
+  if (range.isUninitialized())
+    return false;
+
   std::optional<APInt> constVal = range.getValue().getConstantValue();
   return (constVal && constVal->sgt(1));
 }
 
 static bool isSmallerThanNegativeOne(IntegerValueRange range) {
+  if (range.isUninitialized())
+    return false;
+
   std::optional<APInt> constVal = range.getValue().getConstantValue();
   return (constVal && constVal->slt(-1));
 }
@@ -1044,8 +1053,6 @@ bool OffsetVector::isZeroWithLastElementStrictlyPositive() const {
 }
 
 bool OffsetVector::isZeroWithLastElementEqualTo(int k) const {
-  LLVM_DEBUG(llvm::dbgs() << "In isZeroWithLastElementEqualTo\n");
-
   size_t lastIndex = nRows - 1;
   for (size_t pos = 0; pos < nRows; ++pos) {
     IntegerValueRange range = at(pos);

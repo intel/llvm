@@ -486,4 +486,13 @@ TEST(MatrixTest, PatternClassification) {
     EXPECT_THAT(memoryAccess.classify(),
                 MemoryAccessPattern::ReverseStridedOverlapped);
   }
+
+  // Test unknown access pattern.
+  {
+    MemoryAccessMatrix linearAccess(identityMatrix);
+    IntegerValueRange undef;
+    OffsetVector offsets({zero, zero, undef});
+    MemoryAccess memoryAccess(std::move(linearAccess), std::move(offsets));
+    EXPECT_THAT(memoryAccess.classify(), MemoryAccessPattern::Unknown);
+  }
 }

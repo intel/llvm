@@ -125,7 +125,7 @@ def LLVMLegalizeForSPIRV : Pass<"legalize-for-spirv"> {
   let dependentDialects = ["LLVM::LLVMDialect"];  
 }
 
-def LoopInternalization : Pass<"loop-internalization", "gpu::GPUModuleOp"> {
+def LoopInternalization : Pass<"loop-internalization"> {
   let summary = "Promote SYCL memory accesses in a loop nest to shared local memory";
   let description = [{
     SYCL memory accesses in perfectly nested loops are promoted to shared local
@@ -142,7 +142,7 @@ def LoopInternalization : Pass<"loop-internalization", "gpu::GPUModuleOp"> {
            /*default=*/"4", "The number of times the tiled loop is unrolled">
   ];
   let statistics = [
-    Statistic<"numTiled", "num-tiled", "Number of loops tiled">,
+    Statistic<"numLoopInternalized", "num-loop-internalized", "Number of loops internalized">,
   ];
   let dependentDialects =
       ["affine::AffineDialect", "memref::MemRefDialect", "scf::SCFDialect", 

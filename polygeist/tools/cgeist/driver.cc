@@ -390,6 +390,8 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
   if (OptLevel != llvm::OptimizationLevel::O0) {
+    if (!SYCLUseHostModule.empty())
+      PM.addPass(polygeist::createSYCLHostRaisingPass());
     PM.addPass(polygeist::createArgumentPromotionPass());
     PM.addPass(polygeist::createKernelDisjointSpecializationPass(
         {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));

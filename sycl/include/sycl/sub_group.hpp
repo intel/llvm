@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/group.hpp>
 
@@ -22,8 +23,8 @@ inline sub_group this_sub_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sub_group();
 #else
-  throw runtime_error("Sub-groups are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Sub-groups are not supported on host.");
 #endif
 }
 } // namespace ext::oneapi::experimental

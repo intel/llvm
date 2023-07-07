@@ -2,7 +2,7 @@
 
 // COM: Not candidate: kernel uses local_accessor
 // CHECK: LoopInternalization
-// CHECK:   (S) 0 num-tiled - Number of loops tiled
+// CHECK:   (S) 0 num-loop-internalized - Number of loops internalized
 
 !sycl_array_2 = !sycl.array<[2], (memref<2xi64, 4>)>
 !sycl_id_2 = !sycl.id<[2], (!sycl_array_2)>
@@ -59,7 +59,7 @@ gpu.func @caller2(%arg0: memref<?xi32, 3>, %arg1: memref<?x!sycl_accessor_2_f32_
 
 // COM: Not candidate: work group sizes do not match
 // CHECK: LoopInternalization
-// CHECK:   (S) 0 num-tiled - Number of loops tiled
+// CHECK:   (S) 0 num-loop-internalized - Number of loops internalized
 
 !sycl_array_2 = !sycl.array<[2], (memref<2xi64, 4>)>
 !sycl_id_2 = !sycl.id<[2], (!sycl_array_2)>
@@ -102,7 +102,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 
 // COM: Not candidate: Access references more than one global id or innermost loop induction variable.
 // CHECK: LoopInternalization
-// CHECK:   (S) 0 num-tiled - Number of loops tiled
+// CHECK:   (S) 0 num-loop-internalized - Number of loops internalized
 
 !sycl_array_2 = !sycl.array<[2], (memref<2xi64, 4>)>
 !sycl_id_2 = !sycl.id<[2], (!sycl_array_2)>

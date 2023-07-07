@@ -10,6 +10,9 @@
 // (mostly LLVM dialect) for the SYCL host side and raise them to types and
 // operations from the SYCL dialect to facilitate analysis in other passes.
 //
+// Note all patterns defined in this pass must inherit either OpHostRaisePattern
+// or OpInterfaceHostRaisePattern.
+//
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
@@ -154,10 +157,90 @@ static bool isClassType(Type type, StringRef className) {
   return st && st.isIdentified() && st.getName() == className;
 }
 
+/// Returns whether \p type is an `llvm.struct` type with a name matching
+/// \p regex.
+static bool isClassType(Type type, const llvm::Regex &regex) {
+  auto st = dyn_cast<LLVM::LLVMStructType>(type);
+  return st && st.isIdentified() && regex.match(st.getName());
+}
+
 namespace {
-struct RaiseKernelName : public OpRewritePattern<LLVM::AddressOfOp> {
+template <typename SourceOp>
+class OpOrInterfaceHostRaisePatternBase : public RewritePattern {
 public:
-  using OpRewritePattern<LLVM::AddressOfOp>::OpRewritePattern;
+  using RewritePattern::RewritePattern;
+
+  /// Wrappers around the RewritePattern methods that pass the derived op type.
+  void rewrite(Operation *op, PatternRewriter &rewriter) const final {
+    rewrite(cast<SourceOp>(op), rewriter);
+  }
+  LogicalResult match(Operation *op) const final {
+    // Do not run raising patterns in device code
+    return isInDeviceModule(op) ? failure() : match(cast<SourceOp>(op));
+  }
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const final {
+    // Do not run raising patterns in device code
+    return isInDeviceModule(op) ? failure()
+                                : matchAndRewrite(cast<SourceOp>(op), rewriter);
+  }
+
+  /// Rewrite and Match methods that operate on the SourceOp type. These must be
+  /// overridden by the derived pattern class.
+  virtual void rewrite(SourceOp op, PatternRewriter &rewriter) const {
+    llvm_unreachable("must override rewrite or matchAndRewrite");
+  }
+  virtual LogicalResult match(SourceOp op) const {
+    llvm_unreachable("must override match or matchAndRewrite");
+  }
+  virtual LogicalResult matchAndRewrite(SourceOp op,
+                                        PatternRewriter &rewriter) const {
+    if (succeeded(match(op))) {
+      rewrite(op, rewriter);
+      return success();
+    }
+    return failure();
+  }
+
+private:
+  static bool isInDeviceModule(Operation *op) {
+    return op->getParentOfType<gpu::GPUModuleOp>();
+  }
+};
+
+/// OpHostRaisePattern is a wrapper around RewritePattern that allows for
+/// matching and rewriting against an instance of a derived operation class as
+/// opposed to a raw Operation.
+///
+/// This pattern can only be applied to operations in host code.
+template <typename SourceOp>
+struct OpHostRaisePattern : public OpOrInterfaceHostRaisePatternBase<SourceOp> {
+  /// Patterns must specify the root operation name they match against, and can
+  /// also specify the benefit of the pattern matching and a list of generated
+  /// ops.
+  OpHostRaisePattern(MLIRContext *context, PatternBenefit benefit = 1,
+                     ArrayRef<StringRef> generatedNames = {})
+      : OpOrInterfaceHostRaisePatternBase<SourceOp>(
+            SourceOp::getOperationName(), benefit, context, generatedNames) {}
+};
+
+/// OpInterfaceHostRaisePattern is a wrapper around HostRaisePattern that allows
+/// for matching and rewriting against an instance of an operation interface
+/// instead of a raw Operation.
+///
+/// This pattern can only be applied to operations in host code.
+template <typename SourceOp>
+struct OpInterfaceHostRaisePattern
+    : public OpOrInterfaceHostRaisePatternBase<SourceOp> {
+  OpInterfaceHostRaisePattern(MLIRContext *context, PatternBenefit benefit = 1)
+      : OpOrInterfaceHostRaisePatternBase<SourceOp>(
+            Pattern::MatchInterfaceOpTypeTag(), SourceOp::getInterfaceID(),
+            benefit, context) {}
+};
+
+struct RaiseKernelName : public OpHostRaisePattern<LLVM::AddressOfOp> {
+public:
+  using OpHostRaisePattern<LLVM::AddressOfOp>::OpHostRaisePattern;
 
   LogicalResult matchAndRewrite(LLVM::AddressOfOp op,
                                 PatternRewriter &rewriter) const final {
@@ -214,9 +297,9 @@ private:
 
 template <typename Derived, typename ConstructorOp, typename TypeTag,
           bool PostProcess = false>
-class RaiseConstructorBasePattern : public OpRewritePattern<ConstructorOp> {
+class RaiseConstructorBasePattern : public OpHostRaisePattern<ConstructorOp> {
 public:
-  using OpRewritePattern<ConstructorOp>::OpRewritePattern;
+  using OpHostRaisePattern<ConstructorOp>::OpHostRaisePattern;
 
   LogicalResult matchAndRewrite(ConstructorOp constructor,
                                 PatternRewriter &rewriter) const final {
@@ -238,7 +321,7 @@ public:
 
     // Check whether the type allocated for the first argument ('this') matches
     // the expected type.
-    if (!isClassType(*alloc.getElemType(), TypeTag::getTypeName()))
+    if (!isClassType(*alloc.getElemType(), tag.getTypeName()))
       return failure();
 
     if (constructor.getNumResults())
@@ -249,7 +332,7 @@ public:
       // Invoke is not a constructor call.
       return failure();
 
-    auto constructedType = TypeTag::getTypeFromConstructor(constructor);
+    auto constructedType = tag.getTypeFromConstructor(constructor);
     if (!constructedType)
       return failure();
 
@@ -286,6 +369,8 @@ private:
     bool isDestructor = static_cast<StringRef>(*demangled).contains('~');
     return !isDestructor;
   }
+
+  TypeTag tag;
 };
 
 template <typename TypeTag>
@@ -305,11 +390,13 @@ public:
   }
 };
 
-struct BufferTypeTag {
+class BufferTypeTag {
+public:
+  BufferTypeTag() : regex{"class.sycl::_V1::buffer(\\.[0-9]+])?"} {}
 
-  static llvm::StringRef getTypeName() { return "class.sycl::_V1::buffer"; }
+  const llvm::Regex &getTypeName() const { return regex; }
 
-  static mlir::Type getTypeFromConstructor(CallOpInterface constructor) {
+  mlir::Type getTypeFromConstructor(CallOpInterface constructor) const {
     CallInterfaceCallable callableOp = constructor.getCallableForCallee();
     StringRef constructorName =
         callableOp.get<SymbolRefAttr>().getLeafReference();
@@ -333,6 +420,9 @@ struct BufferTypeTag {
 
     return sycl::BufferType::get(constructor->getContext(), elemTy, dimensions);
   }
+
+private:
+  llvm::Regex regex;
 };
 
 struct BufferInvokeConstructorPattern
@@ -341,11 +431,13 @@ struct BufferInvokeConstructorPattern
       BufferTypeTag>::RaiseInvokeConstructorBasePattern;
 };
 
-struct AccessorTypeTag {
+class AccessorTypeTag {
+public:
+  AccessorTypeTag() : regex{"class.sycl::_V1::accessor(\\.[0-9]+])?"} {}
 
-  static llvm::StringRef getTypeName() { return "class.sycl::_V1::accessor"; }
+  const llvm::Regex &getTypeName() const { return regex; }
 
-  static mlir::Type getTypeFromConstructor(CallOpInterface constructor) {
+  mlir::Type getTypeFromConstructor(CallOpInterface constructor) const {
     CallInterfaceCallable callableOp = constructor.getCallableForCallee();
     StringRef constructorName =
         callableOp.get<SymbolRefAttr>().getLeafReference();
@@ -384,6 +476,9 @@ struct AccessorTypeTag {
     return sycl::AccessorType::get(constructor.getContext(), elemTy, dimensions,
                                    accessMode, accessTarget, {});
   }
+
+private:
+  llvm::Regex regex;
 };
 
 struct AccessorInvokeConstructorPattern
@@ -394,9 +489,9 @@ struct AccessorInvokeConstructorPattern
 
 template <typename TypeTag>
 class RaiseArrayConstructorBasePattern
-    : public OpRewritePattern<LLVM::StoreOp> {
+    : public OpHostRaisePattern<LLVM::StoreOp> {
 public:
-  using OpRewritePattern<LLVM::StoreOp>::OpRewritePattern;
+  using OpHostRaisePattern<LLVM::StoreOp>::OpHostRaisePattern;
 
   LogicalResult matchAndRewrite(LLVM::StoreOp op,
                                 PatternRewriter &rewriter) const final {
@@ -409,12 +504,11 @@ public:
     // Check whether the type allocated for address operand matches the expected
     // type.
     auto allocTy = *alloc.getElemType();
-    auto structAllocTy = dyn_cast<LLVM::LLVMStructType>(allocTy);
-    if (!structAllocTy ||
-        !TypeTag::getTypeName().match(structAllocTy.getName()))
+    if (!isClassType(allocTy, tag.getTypeName()))
       return failure();
 
-    auto arrayTyOrNone = getNumAndTypeOfComponents(structAllocTy);
+    auto arrayTyOrNone =
+        getNumAndTypeOfComponents(cast<LLVM::LLVMStructType>(allocTy));
     if (!arrayTyOrNone)
       // Failed to identify the number of dimensions/components
       return failure();
@@ -554,15 +648,20 @@ private:
            "Expected to find at least one store in the block");
     return &*lastComponent;
   }
+
+  TypeTag tag;
 };
 
-struct IDTypeTag {
+class IDTypeTag {
+public:
   using SYCLType = mlir::sycl::IDType;
 
-  static llvm::Regex &getTypeName() {
-    static llvm::Regex regex{"class.sycl::_V1::id(\\.[0-9]+])?"};
-    return regex;
-  }
+  IDTypeTag() : regex{"class.sycl::_V1::id(\\.[0-9]+])?"} {}
+
+  const llvm::Regex &getTypeName() const { return regex; }
+
+private:
+  llvm::Regex regex;
 };
 
 struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
@@ -570,13 +669,16 @@ struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
       IDTypeTag>::RaiseArrayConstructorBasePattern;
 };
 
-struct RangeTypeTag {
+class RangeTypeTag {
+public:
   using SYCLType = mlir::sycl::RangeType;
 
-  static llvm::Regex &getTypeName() {
-    static llvm::Regex regex{"class.sycl::_V1::range(\\.[0-9]+])?"};
-    return regex;
-  }
+  RangeTypeTag() : regex{"class.sycl::_V1::range(\\.[0-9]+])?"} {}
+
+  const llvm::Regex &getTypeName() const { return regex; }
+
+private:
+  llvm::Regex regex;
 };
 
 struct RaiseRangeConstructor
@@ -591,10 +693,10 @@ struct RaiseRangeConstructor
 /// This pattern acts on `FunctionOpInterface` instances as it will not be
 /// removing the operations assigning the kernel name, but creating additional
 /// ones to mark the construct.
-class RaiseSetKernel : public OpInterfaceRewritePattern<FunctionOpInterface> {
+class RaiseSetKernel : public OpInterfaceHostRaisePattern<FunctionOpInterface> {
 public:
-  using OpInterfaceRewritePattern<
-      FunctionOpInterface>::OpInterfaceRewritePattern;
+  using OpInterfaceHostRaisePattern<
+      FunctionOpInterface>::OpInterfaceHostRaisePattern;
 
   LogicalResult matchAndRewrite(FunctionOpInterface op,
                                 PatternRewriter &rewriter) const final {

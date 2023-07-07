@@ -44,6 +44,13 @@ static LogicalResult checkSameDimensions(Operation *op, Type thisType,
                    << inputDims << " vs " << thisDims;
 }
 
+template <typename Ty> static Ty getMemRefElementType(Type ty) {
+  auto mt = dyn_cast<MemRefType>(ty);
+  if (!mt)
+    return {};
+  return dyn_cast<Ty>(mt.getElementType());
+}
+
 bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
   if (Inputs.size() != 1 || Outputs.size() != 1)
     return false;
@@ -329,6 +336,62 @@ static Type getBodyType(Type type) {
       .Default({});
 }
 
+LogicalResult SYCLNDRangeConstructorOp::verify() {
+  OperandRange::type_range argTypes = getArgs().getTypes();
+  MemRefType thisType = getNDRange().getType();
+  switch (argTypes.size()) {
+  case 1:
+    // sycl.nd_range.constructor(memref<?xsycl_nd_range_N>) ->
+    // memref<1x!sycl_nd_range_N>
+    if (auto nd = getMemRefElementType<NdRangeType>(argTypes.front()))
+      return checkSameDimensions(*this, thisType, nd);
+    break;
+  case 3:
+    // (memref<?xsycl_range_N>, memref<?xsycl_range_N>, memref<?xsycl_id_N>) ->
+    // memref<1x!sycl_nd_range_N>
+    if (auto id = getMemRefElementType<IDType>(argTypes[2])) {
+      if (LogicalResult sameDims = checkSameDimensions(*this, thisType, id);
+          failed(sameDims))
+        return sameDims;
+    } else {
+      break;
+    }
+    [[fallthrough]];
+  case 2:
+    // (memref<?xsycl_range_N>, memref<?xsycl_range_N>, ...) ->
+    // memref<1x!sycl_nd_range_N>
+    if (std::all_of(argTypes.begin(), argTypes.begin() + 2, [](Type type) {
+          return static_cast<bool>(getMemRefElementType<RangeType>(type));
+        })) {
+      // Check all inputs have the same number of dimensions as the output
+      for (Type type : argTypes) {
+        LogicalResult result = checkSameDimensions(*this, thisType, type);
+        if (failed(result))
+          return result;
+      }
+      return success();
+    }
+    [[fallthrough]];
+  default:
+    break;
+  }
+  return emitBadSignatureError(*this);
+}
+
+void SYCLNDRangeConstructorOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  auto *defaultResource = SideEffects::DefaultResource::get();
+  // All of the arguments will be read from
+  for (auto value : getArgs())
+    effects.emplace_back(MemoryEffects::Read::get(), value, defaultResource);
+  // The result will be allocated and written to
+  Value ndRange = getNDRange();
+  effects.emplace_back(MemoryEffects::Allocate::get(), ndRange,
+                       defaultResource);
+  effects.emplace_back(MemoryEffects::Write::get(), ndRange, defaultResource);
+}
+
 bool SYCLWrapOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   if (inputs.size() != 1 || outputs.size() != 1)
     return false;
@@ -353,6 +416,7 @@ bool SYCLUnwrapOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   Type sourceType = inputs.front();
   Type resultType = outputs.front();
   Type bodyType = getBodyType(sourceType);
+
   return bodyType && resultType == bodyType;
 }
 
@@ -386,6 +450,30 @@ SYCLHostGetKernelOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 LogicalResult
 SYCLHostHandlerSetKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
   return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
+}
+
+LogicalResult SYCLHostHandlerSetNDRange::verify() {
+  TypeRange ndRangeType = getNdRange().getTypes();
+  switch (ndRangeType.size()) {
+  case 1:
+    if (getMemRefElementType<NdRangeType>(ndRangeType[0]) ||
+        getMemRefElementType<RangeType>(ndRangeType[0]))
+      return success();
+    break;
+  case 2:
+    if (auto globalSizeType = getMemRefElementType<RangeType>(ndRangeType[0])) {
+      if (auto offsetType = getMemRefElementType<IDType>(ndRangeType[1])) {
+        return getDimensions(globalSizeType) == getDimensions(offsetType)
+                   ? success()
+                   : emitOpError("expects both global size and offset to have "
+                                 "the same number of dimensions");
+      }
+    }
+    break;
+  default:
+    break;
+  }
+  return emitBadSignatureError(*this);
 }
 
 #define GET_OP_CLASSES

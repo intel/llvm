@@ -15,6 +15,7 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/functional.hpp>
@@ -193,8 +194,8 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
   (void)first;
   (void)last;
   (void)f;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 } // namespace detail
@@ -230,8 +231,8 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -253,8 +254,8 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   (void)g;
   (void)x;
   (void)binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -295,8 +296,8 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   return binary_op(init, reduce_over_group(g, T(x), binary_op));
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -322,8 +323,8 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   return result;
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -351,8 +352,8 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
 #else
   (void)g;
   (void)last;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -374,8 +375,8 @@ joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
   (void)first;
   (void)last;
   (void)binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -394,8 +395,8 @@ any_of_group(Group g, bool pred) {
 #else
   (void)g;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -420,8 +421,8 @@ joint_any_of(Group g, Ptr first, Ptr last, Predicate pred) {
   (void)first;
   (void)last;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -440,8 +441,8 @@ all_of_group(Group g, bool pred) {
 #else
   (void)g;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -466,8 +467,8 @@ joint_all_of(Group g, Ptr first, Ptr last, Predicate pred) {
   (void)first;
   (void)last;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -486,8 +487,8 @@ none_of_group(Group g, bool pred) {
 #else
   (void)g;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -509,8 +510,8 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
   (void)first;
   (void)last;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -528,8 +529,8 @@ shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 #else
   (void)x;
   (void)delta;
-  throw runtime_error("Sub-groups are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Sub-groups are not supported on host.");
 #endif
 }
 
@@ -547,8 +548,8 @@ shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 #else
   (void)x;
   (void)delta;
-  throw runtime_error("Sub-groups are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Sub-groups are not supported on host.");
 #endif
 }
 
@@ -566,8 +567,8 @@ permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 #else
   (void)x;
   (void)mask;
-  throw runtime_error("Sub-groups are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Sub-groups are not supported on host.");
 #endif
 }
 
@@ -585,8 +586,8 @@ select_from_group(Group, T x, typename Group::id_type local_id) {
 #else
   (void)x;
   (void)local_id;
-  throw runtime_error("Sub-groups are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Sub-groups are not supported on host.");
 #endif
 }
 
@@ -612,8 +613,8 @@ group_broadcast(Group g, T x, typename Group::id_type local_id) {
   (void)g;
   (void)x;
   (void)local_id;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -631,8 +632,8 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
   (void)g;
   (void)x;
   (void)linear_local_id;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -647,8 +648,8 @@ group_broadcast(Group g, T x) {
 #else
   (void)g;
   (void)x;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -678,8 +679,8 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -701,8 +702,8 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   (void)g;
   (void)x;
   (void)binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -770,8 +771,8 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   return scan;
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -821,8 +822,8 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
   (void)last;
   (void)result;
   (void)init;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -894,8 +895,8 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -916,8 +917,8 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   (void)g;
   (void)x;
   (void)binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -943,8 +944,8 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
   return inclusive_scan_over_group(g, y, binary_op);
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -1012,8 +1013,8 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   (void)g;
   (void)last;
   (void)result;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 

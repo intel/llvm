@@ -384,8 +384,45 @@ func.func @test_range_constructor_index_wrong_dims(%arg0: index)
 
 // -----
 
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test_nd_constructor_bad_signature(%arg: i32) -> memref<1x!sycl_nd_range_1_> {
+// expected-error @below {{'sycl.nd_range.constructor' op expects a different signature. Check documentation for details}}
+  %0 = sycl.nd_range.constructor(%arg) : (i32) -> memref<1x!sycl_nd_range_1_>
+  func.return %0 : memref<1x!sycl_nd_range_1_>
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test_nd_range_default() -> memref<1x!sycl_nd_range_1_> {
+// expected-error @below {{'sycl.nd_range.constructor' op expects a different signature. Check documentation for details}}
+  %nd1 = sycl.nd_range.constructor() : () -> memref<1x!sycl_nd_range_1_>
+  func.return %nd1 : memref<1x!sycl_nd_range_1_>
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @test_nd_constructor_bad_local_size(%globalSize: memref<?x!sycl_range_1_>, %localSize: memref<?x!sycl_range_2_>, %offset: memref<?x!sycl_id_1_>) -> memref<1x!sycl_nd_range_1_> {
+// expected-error @below {{'sycl.nd_range.constructor' op expects input and output to have the same number of dimensions: 2 vs 1}}
+  %0 = sycl.nd_range.constructor(%globalSize, %localSize, %offset) : (memref<?x!sycl_range_1_>, memref<?x!sycl_range_2_>, memref<?x!sycl_id_1_>) -> memref<1x!sycl_nd_range_1_>
+  func.return %0 : memref<1x!sycl_nd_range_1_>
+}
+
+// -----
+
 func.func @math_op_invalid_type(%arg0 : i32) {
-  // expected-error @+1 {{op operand #0 must be 32-bit float or 64-bit float, but got 'i32'}}
+  // expected-error @+1 {{op operand #0 must be 32-bit float or 64-bit float or sycl::half, but got 'i32'}}
   %0 = sycl.math.sin %arg0 : i32
   return
 }
@@ -515,4 +552,27 @@ func.func @test_unwrap(%arg0 : !sycl.half<(f16)>) {
   // expected-error @below {{'sycl.mlir.unwrap' op operand type '!sycl.half<(f16)>' and result type 'i16' are cast incompatible}}
   %0 = sycl.mlir.unwrap %arg0 : !sycl.half<(f16)> to i16
   return
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @set_nd_range_bad_signature(%handler: !llvm.ptr, %nd_range: memref<?x!sycl_nd_range_1_>, %offset: memref<?x!sycl_id_1_>) {
+// expected-error @below {{'sycl.host.handler.set_nd_range' op expects a different signature. Check documentation for details}}
+  sycl.host.handler.set_nd_range %handler -> %nd_range, %offset : !llvm.ptr, memref<?x!sycl_nd_range_1_>, memref<?x!sycl_id_1_>
+  func.return
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+
+func.func @set_nd_range_bad_signature(%handler: !llvm.ptr, %range: memref<?x!sycl_range_2_>, %offset: memref<?x!sycl_id_1_>) {
+// expected-error @below {{'sycl.host.handler.set_nd_range' op expects both global size and offset to have the same number of dimensions}}
+  sycl.host.handler.set_nd_range %handler -> %range, %offset : !llvm.ptr, memref<?x!sycl_range_2_>, memref<?x!sycl_id_1_>
+  func.return
 }
