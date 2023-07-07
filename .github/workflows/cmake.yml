@@ -125,3 +125,33 @@ jobs:
     - name: Test
       working-directory: ${{github.workspace}}/build
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "python|umf|loader|validation|tracing|unit|urtrace"
+
+
+  macos-build:
+    name: Build - MacOS
+    strategy:
+        matrix:
+          os: ['macos-12', 'macos-13']
+    runs-on: ${{matrix.os}}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+
+    - name: Install prerequisites
+      run: python3 -m pip install -r third_party/requirements.txt
+
+    - name: Configure CMake
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DCMAKE_BUILD_TYPE=Release
+        -DUR_BUILD_TESTS=ON
+        -DUR_FORMAT_CPP_STYLE=ON
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build -j $(nproc)
