@@ -488,9 +488,13 @@ SYCLHostLaunchKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
 
 LogicalResult SYCLHostLaunchKernel::verify() {
   // TODO: verify that the given args match the kernel's signature.
-  if (auto ndRange = getNdRange(); !ndRange.empty())
-    return verifyNdRange(*this, ndRange);
-  return success();
+  SmallVector<Value, 2> rangeSpec;
+  if (auto range = getRange())
+    rangeSpec.push_back(range);
+  if (auto offset = getOffset())
+    rangeSpec.push_back(offset);
+
+  return rangeSpec.empty() ? success() : verifyNdRange(*this, rangeSpec);
 }
 
 #define GET_OP_CLASSES

@@ -130,10 +130,12 @@ def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
     ```
   }];
 
-  let arguments = (ins SymbolRefAttr:$kernel_name,
-                       Variadic<AnyMemRef>:$nd_range, Variadic<AnyType>:$args);
+  let arguments = (ins
+    SymbolRefAttr:$kernel_name,
+    Optional<MemRefOf<[SYCL_NdRangeType, SYCL_RangeType]>>:$range,
+    Optional<MemRefOf<[SYCL_IDType]>>:$offset, Variadic<AnyType>:$args);
   let assemblyFormat = [{
-    $kernel_name (`[` $nd_range^ `]`)? `` (`(` $args^ `)`)? attr-dict
+    $kernel_name (`[` $range^ (`,` $offset^)? `]`)? `` (`(` $args^ `)`)? attr-dict
       `:` functional-type(operands, results)
   }];
   let hasVerifier = 1;
