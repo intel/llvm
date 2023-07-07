@@ -21,9 +21,7 @@ void SYCLHostConstructorOp::getEffects(
   // The `this` argument will always be written to
   effects.emplace_back(MemoryEffects::Write::get(), getDst(), defaultResource);
   // For the remaining non-scalar arguments we also assume they are written.
-  for (auto value : getArgs()) {
-    if (isa<MemRefType, LLVM::LLVMPointerType>(value.getType())) {
+  for (auto value : getArgs())
+    if (isa<MemRefType, LLVM::LLVMPointerType>(value.getType()))
       effects.emplace_back(MemoryEffects::Write::get(), value, defaultResource);
-    }
-  }
 }
