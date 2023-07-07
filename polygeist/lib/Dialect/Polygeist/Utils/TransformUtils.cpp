@@ -403,6 +403,17 @@ struct AffineIfBuilder {
 // IfCondition
 //===----------------------------------------------------------------------===//
 
+raw_ostream &operator<<(raw_ostream &os,
+                        const IfCondition::AffineCondition &cond) {
+  os << "Constraints:\n";
+  for (AffineExpr constraint : cond.ifCondSet.getConstraints())
+    os.indent(2) << constraint << "\n";
+  os << "Operands:\n";
+  for (Value operand : cond.setOperands)
+    os.indent(2) << operand << "\n";
+  return os;
+}
+
 raw_ostream &operator<<(raw_ostream &os, const IfCondition &cond) {
   if (cond.hasSCFCondition())
     os << cond.getSCFCondition();
