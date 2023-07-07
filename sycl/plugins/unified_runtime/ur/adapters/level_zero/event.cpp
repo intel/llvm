@@ -496,7 +496,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
-    if (UrQueue->Device->ZeEventsScope != OnDemandHostVisibleProxy)
+    if (UrQueue->ZeEventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
     // Submit the command(s) signalling the proxy event to the queue.
@@ -536,8 +536,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
                        ///< events to wait for completion
 ) {
   for (uint32_t I = 0; I < NumEvents; I++) {
-    if (EventWaitList[I]->UrQueue->Device->ZeEventsScope ==
-        OnDemandHostVisibleProxy) {
+    if (EventWaitList[I]->UrQueue->ZeEventsScope == OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and
       // thus proxy events can be waited without a deadlock.
@@ -1156,7 +1155,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           //
           // Make sure that event1.wait() will wait for a host-visible
           // event that is signalled before the command2 is enqueued.
-          if (CurQueue->Device->ZeEventsScope != AllHostVisible) {
+          if (CurQueue->ZeEventsScope != AllHostVisible) {
             CurQueue->executeAllOpenCommandLists();
           }
         }

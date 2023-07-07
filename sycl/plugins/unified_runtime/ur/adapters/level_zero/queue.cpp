@@ -863,6 +863,12 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   else
     UsingImmCmdLists = Device->useImmediateCommandLists();
 
+  // Set events scope for this queue. Non-immediate can be controlled by env
+  // var. Immediate always uses AllHostVisible.
+  if (!UsingImmCmdLists) {
+    ZeEventsScope = DeviceEventsSetting;
+  }
+
   // Compute group initialization.
   // First, see if the queue's device allows for round-robin or it is
   // fixed to one particular compute CCS (it is so for sub-sub-devices).
@@ -1102,7 +1108,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
     // in the command list is not empty, otherwise we are going to just create
     // and remove proxy event right away and dereference deleted object
     // afterwards.
-    if (Device->ZeEventsScope == LastCommandInBatchHostVisible &&
+    if (ZeEventsScope == LastCommandInBatchHostVisible &&
         !CommandList->second.EventList.empty()) {
       // If there are only internal events in the command list then we don't
       // need to create host proxy event.
@@ -1479,8 +1485,7 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
 
   if (!HostVisible.has_value()) {
     // Internal/discarded events do not need host-scope visibility.
-    HostVisible =
-        IsInternal ? false : Queue->Device->ZeEventsScope == AllHostVisible;
+    HostVisible = IsInternal ? false : Queue->ZeEventsScope == AllHostVisible;
   }
 
   // If event is discarded then try to get event from the queue cache.
