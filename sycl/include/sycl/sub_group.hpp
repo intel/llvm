@@ -816,8 +816,8 @@ inline sycl::sub_group this_sub_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::sub_group();
 #else
-  throw runtime_error("Sub-groups are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Sub-groups are not supported on host.");
 #endif
 }
 } // namespace experimental

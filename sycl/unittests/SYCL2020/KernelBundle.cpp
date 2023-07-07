@@ -514,7 +514,7 @@ pi_result redefinedDevicePartitionAfter(
 TEST(KernelBundle, DescendentDevice) {
   // Mock a non-OpenCL plugin since use of descendent devices of context members
   // is not supported there yet.
-  sycl::unittest::PiMock Mock(sycl::backend::level_zero);
+  sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_level_zero);
 
   sycl::platform Plt = Mock.getPlatform();
 

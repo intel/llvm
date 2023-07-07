@@ -209,4 +209,35 @@ is to show the basic ESIMD APIs in well known examples.
    }
    ```
 
+4) Using simd_view to construct views of simd objects - ["simd_view"](./simd_view.md).
+   Please see the full source code here: ["simd_view"](./simd_view.md).
+
+   ```c++
+   float *a = malloc_shared<float>(Size, q); // USM memory for A.
+
+   // Initialize a.
+
+   // For elements of 'a' with indices, which are:
+   //   * multiple of 4: multiply by 6;
+   //   * multiple of 2: multiply by 3;
+   q.parallel_for(Size / VL, [=](id<1> i) [[intel::sycl_explicit_simd]] {
+      auto element_offset = i * VL;
+      simd<float, VL> vec_a(a + element_offset);
+
+      // simd_view of simd<float, VL> using the even-index elements.
+      auto vec_a_even_elems_view = vec_a.select<VL / 2, 2>(0);
+      vec_a_even_elems_view *= 3;
+
+      // simd_view with even indices constructed from previous
+      // simd_view of simd<float, VL> using the even-index elements.
+      // This results in a simd_view containing every fourth element
+      // of vec_a.
+      auto vec_a_mult_four_view = vec_a_even_elems_view.select<VL / 4, 2>(0);
+      vec_a_mult_four_view *= 2;
+
+      // Copy back to the memory.
+      vec_a.copy_to(a + element_offset);
+   }).wait_and_throw();
+   ```
+
 6) TODO: Add more examples here.
