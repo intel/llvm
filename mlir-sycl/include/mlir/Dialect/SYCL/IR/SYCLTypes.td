@@ -223,7 +223,6 @@ def SYCL_SwizzledVecType : SYCL_Type<"SwizzledVec", "swizzled_vec"> {
   let assemblyFormat = "`<` `[` $vecType `,` $indexes `]` `,` `(` $body `)` `>`";
 }
 def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
-  let summary = "sycl::vec";
   let parameters = (ins "::mlir::Type":$dataType,
                         "int":$numElements,
                         ArrayRefParameter<"mlir::Type">:$body);

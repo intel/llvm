@@ -21,7 +21,16 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 
 // Generic floating-point types (§4.17.1).
 // TODO: Add marrays.
-def SYCLGenfloat : AnyTypeOf<[F32, F64, SYCL_HalfType, SYCL_VecType]>;
+def SYCLVgenfloat : DialectType<SYCL_Dialect,
+    CPred<[{
+      ::llvm::isa<::mlir::sycl::VecType>($_self) &&
+      ::llvm::isa<::mlir::Float32Type, ::mlir::Float64Type,
+                  ::mlir::sycl::HalfType>(
+          ::llvm::cast<::mlir::sycl::VecType>($_self).getDataType())
+    }]>,
+    "a sycl::vec of float, double or sycl::half">;
+def SYCLGenfloat : AnyTypeOf<[F32, F64, SYCL_HalfType, SYCLVgenfloat]>;
+
 
 // Trait to mark ops representing a SYCL math function (§4.17.5).
 def SYCLMathFunc : SYCLOpTrait<"SYCLMathFunc">;
