@@ -37,7 +37,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     size_t propSize,
                                                     void *pPropValue,
                                                     size_t *pPropSizeRet) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   static constexpr uint32_t MaxWorkItemDimensions = 3u;
@@ -1013,8 +1012,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 /// \return PI_SUCCESS if the function is executed successfully
 /// CUDA devices are always root devices so retain always returns success.
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
+  std::ignore = hDevice;
   return UR_RESULT_SUCCESS;
 }
 
@@ -1028,8 +1026,7 @@ urDevicePartition(ur_device_handle_t, const ur_device_partition_properties_t *,
 /// devices.
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(ur_device_handle_t hDevice) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
+  std::ignore = hDevice;
   return UR_RESULT_SUCCESS;
 }
 
@@ -1044,13 +1041,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   const bool AskingForGPU = DeviceType == UR_DEVICE_TYPE_GPU;
   const bool ReturnDevices = AskingForDefault || AskingForAll || AskingForGPU;
 
-  UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   size_t NumDevices = ReturnDevices ? hPlatform->Devices.size() : 0;
 
   try {
-    UR_ASSERT(pNumDevices || phDevices, UR_RESULT_ERROR_INVALID_VALUE);
-
     if (pNumDevices) {
       *pNumDevices = NumDevices;
     }
@@ -1078,9 +1071,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ur_native_handle_t *phNativeHandle) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phNativeHandle = reinterpret_cast<ur_native_handle_t>(hDevice->get());
   return UR_RESULT_SUCCESS;
 }
@@ -1099,7 +1089,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
   std::ignore = pProperties;
-  UR_ASSERT(phDevice, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits
   // instead
@@ -1150,8 +1139,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
                                                    uint64_t *pDeviceTimestamp,
                                                    uint64_t *pHostTimestamp) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   CUevent Event;
   ScopedContext Active(hDevice->getContext());
 
@@ -1180,11 +1167,7 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
     ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
-  // Ignore unused parameter
-  (void)hDevice;
-
-  UR_ASSERT(pBinaries, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(NumBinaries > 0, UR_RESULT_ERROR_INVALID_ARGUMENT);
+  std::ignore = hDevice;
 
   // Look for an image for the NVPTX64 target, and return the first one that is
   // found

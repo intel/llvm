@@ -19,17 +19,12 @@
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
     const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   // Validate flags
-  UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
   if (flags &
       (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) {
     UR_ASSERT(pProperties && pProperties->pHost,
               UR_RESULT_ERROR_INVALID_HOST_PTR);
   }
-  // Need input memory object
-  UR_ASSERT(phBuffer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
   // Currently, USE_HOST_PTR is not implemented using host register
@@ -100,7 +95,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
-  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hMem->getReferenceCount() > 0, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   hMem->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
@@ -110,8 +104,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
 /// If this is zero, calls the relevant CUDA Free function
 /// \return UR_RESULT_SUCCESS unless deallocation error
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
-  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
@@ -177,8 +169,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
 /// \return UR_RESULT_SUCCESS
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
-  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   *phNativeMem =
       reinterpret_cast<ur_native_handle_t>(hMem->Mem.BufferMem.get());
   return UR_RESULT_SUCCESS;
@@ -189,9 +179,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
                                                  size_t propSize,
                                                  void *pMemInfo,
                                                  size_t *pPropSizeRet) {
-  UR_ASSERT(hMemory, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(MemInfoType <= UR_MEM_INFO_CONTEXT,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
   UR_ASSERT(hMemory->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   UrReturnHelper ReturnValue(propSize, pMemInfo, pPropSizeRet);
@@ -238,12 +225,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     void *pHost, ur_mem_handle_t *phMem) {
-  // Need input memory object
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
   if (flags &
       (UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER | UR_MEM_FLAG_USE_HOST_POINTER)) {
     UR_ASSERT(pHost, UR_RESULT_ERROR_INVALID_HOST_PTR);
