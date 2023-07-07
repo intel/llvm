@@ -116,17 +116,24 @@ def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
   let summary = "Launches a SYCL kernel.";
   let description = [{
     This operation represents the launch of a kernel function with the given
-    range and kernel arguments.
+    range and kernel arguments. Its purpose is to collect the information
+    surfaced by the host-raising process about a particular launch, thereby
+    providing an entry-point for host-device analyses and optimizations.
 
-    Examples:
+    If the `range` operand is not present, this operation represents a
+    *single_task* launch, otherwise a *parallel_for* invocation. The `range`
+    operand either accepts an `nd_range` memref or a `range` memref. In the
+    latter case, an `id` memref can be optionally given as the `offset`.
+
+    Note that due to the current focus on host-device optimizations for
+    individual launches, this operation currently does not model the queue or
+    the command-group handler associated with the launch, nor does it observe or
+    yield any events.
+
+    Example:
     ```
-    // cgh.single_task(...
-    sycl.host.launch_kernel @kernels::@k0(%0)
-      : (memref<?x!sycl_accessor_1_i32_r_gb>) -> ()
-    
-    // cgh.parallel_for(range<1>(...
     sycl.host.launch_kernel @kernels::@k0[%1](%2, %3)
-      : (memref<?x!sycl_range_1_>, i32, i32) -> ()
+    : (memref<?x!sycl_range_1_>, memref<?x!sycl_accessor_1_i32_r_gb>, i32) -> ()
     ```
   }];
 
@@ -135,8 +142,8 @@ def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
     Optional<MemRefOf<[SYCL_NdRangeType, SYCL_RangeType]>>:$range,
     Optional<MemRefOf<[SYCL_IDType]>>:$offset, Variadic<AnyType>:$args);
   let assemblyFormat = [{
-    $kernel_name (`[` $range^ (`,` $offset^)? `]`)? `` (`(` $args^ `)`)? attr-dict
-      `:` functional-type(operands, results)
+    $kernel_name (`[` $range^ (`,` $offset^)? `]`)? `` (`(` $args^ `)`)?
+      attr-dict `:` functional-type(operands, results)
   }];
   let hasVerifier = 1;
 }
