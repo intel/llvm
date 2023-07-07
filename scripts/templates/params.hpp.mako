@@ -57,6 +57,9 @@ from templates import helper as th
     %if n != 0:
         os << ", ";
     %endif
+    ## Find out if the member refers to a union
+<% query = [_o for _s in specs for _o in _s['objects'] if _o['name'] == item['type']]
+member_type = query[0] if len(query) > 0 else None%>
     ## can't iterate over 'void *'...
     %if th.param_traits.is_range(item) and "void*" not in itype:
         os << ".${iname} = {";
@@ -69,6 +72,9 @@ from templates import helper as th
             </%call>
         }
         os << "}";
+    %elif member_type is not None and member_type['type'] == "union":
+        os << ".${iname} = ";
+        ${x}_params::print_union(os, params.${item['name']}, params.${th.param_traits.tagged_member(item)});
     %elif typename is not None:
         os << ".${iname} = ";
         ${x}_params::serializeTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
@@ -96,6 +102,15 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
     %endif
 %endif
 
+%if re.match(r"union", obj['type']) and obj['name']:
+    <% tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == obj['tag']][0] %>
+    inline void print_union(
+        std::ostream &os,
+        const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
+        const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
+    );
+%endif
+
 
 %if th.type_traits.is_flags(obj['name']):
     template<> inline void serializeFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag);
@@ -109,7 +124,7 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
 ## ENUM #######################################################################
 %if re.match(r"enum", obj['type']):
     inline std::ostream &operator<<(std::ostream &os, enum ${th.make_enum_name(n, tags, obj)} value);
-%elif re.match(r"struct|union", obj['type']):
+%elif re.match(r"struct", obj['type']):
     inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make_type_name(n, tags, obj)} params);
 %endif
 %endfor # obj in spec['objects']
@@ -260,7 +275,7 @@ inline void serializeFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, 
 } // namespace ${x}_params
 %endif
 ## STRUCT/UNION ###############################################################
-%elif re.match(r"struct|union", obj['type']):
+%elif re.match(r"struct", obj['type']):
 inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make_type_name(n, tags, obj)} params) {
     os << "(${obj['type']} ${th.make_type_name(n, tags, obj)}){";
     <%
@@ -276,6 +291,24 @@ inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make
     %endfor
     os << "}";
     return os;
+}
+%elif re.match(r"union", obj['type']) and obj['name']:
+<% tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == obj['tag']][0] %>
+inline void ${x}_params::print_union(
+    std::ostream &os,
+    const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
+    const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
+){
+    switch(tag){
+%for mem in obj['members']:
+    case ${th.subt(n, tags, mem['tag'])}:
+        os << params.${mem['name']};
+        break;
+%endfor
+    default:
+        os << "<unknown>";
+        break;
+    }
 }
 %endif
 %endfor # obj in spec['objects']

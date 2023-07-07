@@ -319,6 +319,7 @@ class param_traits:
     RE_RANGE    = r".*\[range\((.+),\s*(.+)\)\][\S\s]*"
     RE_RELEASE  = r".*\[release\].*"
     RE_TYPENAME = r".*\[typename\((.+),\s(.+)\)\].*"
+    RE_TAGGED   = r".*\[tagged_by\((.+)\)].*"
 
     @classmethod
     def is_mbz(cls, item):
@@ -368,6 +369,20 @@ class param_traits:
             return True if re.match(cls.RE_RANGE, item['desc']) else False
         except:
             return False
+
+    @classmethod
+    def is_tagged(cls, item):
+        try:
+            return True if re.match(cls.RE_TAGGED, item['desc']) else False
+        except:
+            return False
+    
+    @classmethod
+    def tagged_member(cls, item):
+        try:
+            return re.sub(cls.RE_TAGGED, r"\1", item['desc'])
+        except:
+            return None
 
     @classmethod
     def range_start(cls, item):
