@@ -1,6 +1,7 @@
 add_mlir_dialect_library(MLIRPolygeistAnalysis
   MemoryAccessAnalysis.cpp
   ReachingDefinitionAnalysis.cpp
+  SYCLIDAndRangeAnalysis.cpp
   UniformityAnalysis.cpp
   
   ADDITIONAL_HEADER_DIRS
