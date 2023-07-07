@@ -48,7 +48,7 @@ struct OneToOneMappingPattern : public OpConversionPattern<SYCLOpT> {
 };
 
 template <typename SYCLOpT, typename MathOpT>
-struct UnwrapBodyTypePattern : public OpConversionPattern<SYCLOpT> {
+struct UnwrapOperandsWrapResultPattern : public OpConversionPattern<SYCLOpT> {
   using OpConversionPattern<SYCLOpT>::OpConversionPattern;
 
   LogicalResult match(SYCLOpT op) const override {
@@ -86,7 +86,7 @@ struct UnwrapBodyTypePattern : public OpConversionPattern<SYCLOpT> {
 void mlir::populateSYCLToMathConversionPatterns(RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
 #define MAP_OP(from, to)                                                       \
-  OneToOneMappingPattern<from, to>, UnwrapBodyTypePattern<from, to>
+  OneToOneMappingPattern<from, to>, UnwrapOperandsWrapResultPattern<from, to>
   // clang-format off
   patterns.insert<
       MAP_OP(SYCLCeilOp, math::CeilOp),
