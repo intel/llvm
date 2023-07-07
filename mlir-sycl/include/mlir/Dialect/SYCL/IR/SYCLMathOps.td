@@ -21,7 +21,7 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 
 // Generic floating-point types (§4.17.1).
 // TODO: Add marrays.
-def SYCLVgenfloat : DialectType<SYCL_Dialect,
+def SYCL_Vgenfloat : DialectType<SYCL_Dialect,
     CPred<[{
       ::llvm::isa<::mlir::sycl::VecType>($_self) &&
       ::llvm::isa<::mlir::Float32Type, ::mlir::Float64Type,
@@ -29,8 +29,7 @@ def SYCLVgenfloat : DialectType<SYCL_Dialect,
           ::llvm::cast<::mlir::sycl::VecType>($_self).getDataType())
     }]>,
     "a sycl::vec of float, double or sycl::half">;
-def SYCLGenfloat : AnyTypeOf<[F32, F64, SYCL_HalfType, SYCLVgenfloat]>;
-
+def SYCL_Genfloat : AnyTypeOf<[F32, F64, SYCL_HalfType, SYCL_Vgenfloat]>;
 
 // Trait to mark ops representing a SYCL math function (§4.17.5).
 def SYCLMathFunc : SYCLOpTrait<"SYCLMathFunc">;
@@ -47,8 +46,8 @@ class SYCL_FloatUnaryOp<string mnemonic, string synopsis = "",
                         list<Trait> traits = []> :
     SYCL_MathOp<mnemonic, traits # [AllTypesMatch<["x", "result"]>]> {
   let summary = synopsis # ".";
-  let arguments = (ins SYCLGenfloat:$x);
-  let results = (outs SYCLGenfloat:$result);
+  let arguments = (ins SYCL_Genfloat:$x);
+  let results = (outs SYCL_Genfloat:$result);
   let assemblyFormat = [{ $x attr-dict `:` type($result) }];
 }
 
@@ -56,8 +55,8 @@ class SYCL_FloatBinaryOp<string mnemonic, string synopsis = "",
                          list<Trait> traits = []> :
     SYCL_MathOp<mnemonic, traits # [AllTypesMatch<["x", "y", "result"]>]> {
   let summary = synopsis # ".";
-  let arguments = (ins SYCLGenfloat:$x, SYCLGenfloat:$y);
-  let results = (outs SYCLGenfloat:$result);
+  let arguments = (ins SYCL_Genfloat:$x, SYCL_Genfloat:$y);
+  let results = (outs SYCL_Genfloat:$result);
   let assemblyFormat = [{ $x `,` $y attr-dict `:` type($result) }];
 }
 
@@ -65,8 +64,8 @@ class SYCL_FloatTernaryOp<string mnemonic, string synopsis = "",
                           list<Trait> traits = []> :
     SYCL_MathOp<mnemonic, traits # [AllTypesMatch<["a", "b", "c", "result"]>]> {
   let summary = synopsis # ".";
-  let arguments = (ins SYCLGenfloat:$a, SYCLGenfloat:$b, SYCLGenfloat:$c);
-  let results = (outs SYCLGenfloat:$result);
+  let arguments = (ins SYCL_Genfloat:$a, SYCL_Genfloat:$b, SYCL_Genfloat:$c);
+  let results = (outs SYCL_Genfloat:$result);
   let assemblyFormat = [{ $a `,` $b `,` $c attr-dict `:` type($result) }];
 }
 
