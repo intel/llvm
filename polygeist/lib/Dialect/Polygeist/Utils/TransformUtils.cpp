@@ -421,6 +421,10 @@ std::optional<IfCondition> IfCondition::getCondition(Operation *op) {
                                    branchOp.getOperands());
         return IfCondition(affineCond);
       })
+      .Case<scf::WhileOp>([](auto whileOp) {
+        scf::ConditionOp condOp = whileOp.getConditionOp();
+        return IfCondition(condOp.getCondition());
+      })
       .Default([](auto *op) { return std::nullopt; });
 }
 

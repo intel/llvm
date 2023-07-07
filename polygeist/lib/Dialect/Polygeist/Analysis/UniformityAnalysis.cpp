@@ -10,6 +10,7 @@
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -137,14 +138,14 @@ void UniformityAnalysis::visitOperation(
   // If the lattice on any operand isn't yet initialized, bail out.
   if (anyOfUniformityIsUninitialized(operands)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "UA: Operand(s) uniformity not yet initialized\n");
+               << "Operand(s) uniformity not yet initialized\n");
     return;
   }
 
   // Operations that always yield non-uniform result(s).
   if (op->hasTrait<OpTrait::ResultsNonUniform>()) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "UA: Operation yields non-uniform result(s)\n");
+               << "Operation yields non-uniform result(s)\n");
     return propagateAllIfChanged(results, Uniformity::getNonUniform());
   }
 
@@ -184,7 +185,7 @@ void UniformityAnalysis::visitNonControlFlowArguments(
   // If the lattice on any operand isn't yet initialized, bail out.
   if (anyOfUniformityIsUninitialized(op->getOperands())) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "UA: Operand(s) uniformity not yet initialized\n");
+               << "Operand(s) uniformity not yet initialized\n");
     return;
   }
 
@@ -225,7 +226,7 @@ void UniformityAnalysis::analyzeMemoryEffects(
 
   // If the operation only allocates memory, the value yielded is uniform.
   if (hasSingleEffect<MemoryEffects::Allocate>(memoryEffectOp)) {
-    LLVM_DEBUG(llvm::dbgs().indent(2) << "UA: Operation allocates a value\n");
+    LLVM_DEBUG(llvm::dbgs().indent(2) << "Operation allocates a value\n");
     return propagateAllIfChanged(results, Uniformity::getUniform());
   }
 
@@ -318,7 +319,7 @@ void UniformityAnalysis::analyzeMemoryEffects(
     }
   }
 
-  LLVM_DEBUG(llvm::dbgs().indent(2) << "UA: Memory effects analyzed\n");
+  LLVM_DEBUG(llvm::dbgs().indent(2) << "Memory effects analyzed\n");
   return propagateAllIfChanged(op->getResults(), Uniformity::getUniform());
 }
 
@@ -385,16 +386,19 @@ SmallVector<IfCondition> UniformityAnalysis::collectBranchConditions(
         getParentsOfType<RegionBranchOpInterface>(
             *mod.getOperation()->getBlock());
     for (RegionBranchOpInterface branchOp : enclosingBranches) {
+      if (isa<affine::AffineForOp>(branchOp))
+        continue;
+
       std::optional<IfCondition> condition =
           IfCondition::getCondition(branchOp);
-      assert(condition && "Expecting valid condition");
+      assert(condition && "Failed to find condition");
       conditions.push_back(*condition);
     }
   }
 
   LLVM_DEBUG({
     if (!conditions.empty()) {
-      llvm::dbgs().indent(2) << "UA: branch conditions:\n";
+      llvm::dbgs().indent(2) << "branch conditions:\n";
       for (auto cond : conditions)
         llvm::dbgs().indent(4) << cond << "\n";
     }
@@ -452,12 +456,11 @@ bool UniformityAnalysis::anyModifierUniformityIs(
 
     // Handle a concrete definition.
     return TypeSwitch<Operation *, bool>(def.getOperation())
-        .Case<memref::AllocaOp>(
+        .Case<memref::AllocaOp, LLVM::AllocaOp>(
             [&](auto) { return Uniformity::isUniform(kind); })
         .Case<memref::StoreOp, affine::AffineStoreOp, sycl::SYCLConstructorOp,
-              sycl::SYCLIDConstructorOp>([&](auto storeOp) {
-          return anyOfUniformityIs(storeOp.getOperands(), kind);
-        })
+              sycl::SYCLIDConstructorOp, LLVM::StoreOp, LLVM::MemsetOp>(
+            [&](auto op) { return anyOfUniformityIs(op.getOperands(), kind); })
         .Default([](auto *op) {
           llvm::errs() << "op: " << *op << "\n";
           llvm_unreachable("Unhandled operation");

@@ -198,6 +198,8 @@ private:
   bool anyOfUniformityIs(const ValueRange values, Uniformity::Kind kind) {
     return llvm::any_of(values, [&](Value value) {
       UniformityLattice *lattice = getLatticeElement(value);
+      if (lattice->getValue().isUninitialized())
+        llvm::errs() << "value:" << value << "\n";
       return lattice->getValue().getKind() == kind;
     });
   }
