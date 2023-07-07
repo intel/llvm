@@ -540,10 +540,6 @@ template <typename T> using vec_data = detail::vec_helper<T>;
 template <typename T>
 using vec_data_t = typename detail::vec_helper<T>::RetType;
 
-#define __SYCL_ALIGNED_VAR(vecType, fallbackType, size, alignment, var)        \
-  alignas(alignment)                                                           \
-      typename std::conditional_t<size <= 64, vecType, fallbackType>           \
-          var
 
 /// Provides a cross-patform vector class template that works efficiently on
 /// SYCL devices as well as in host C++ code.
@@ -556,8 +552,6 @@ template <typename Type, int NumElements> class vec {
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
 
-  // CP
-  using ArrayType = std::array<Type, NumElements>;
 
   // This represents HOW  we will approach the underlying value, so as to
   // benefit from vector speed improvements
@@ -572,14 +566,23 @@ template <typename Type, int NumElements> class vec {
     return *reinterpret_cast<const VectorDataType *>(m_Data.data());
   }
 
+  static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
+  static constexpr size_t Sz = sizeof(DataT) * AdjustedNum;
+  static constexpr bool IsSizeGreaterThanAlign = (Sz > 64);
+
   static constexpr bool IsHostHalf =
       std::is_same<DataT, sycl::detail::half_impl::half>::value &&
       std::is_same<sycl::detail::half_impl::StorageT,
                    sycl::detail::host_half_impl::half>::value;
 
-#ifdef __HAS_EXT_VECTOR_TYPE__
   // TODO: There is no support for vector half type on host yet.
-  static constexpr bool NativeVec = NumElements > 1 && !IsHostHalf;
+  // Also, when Sz is greater than alignment, we use std::array instead of vector extension
+  // This is for MSVC compatibility, which has a max alignment of 64 for direct params.
+  // If we drop MSVC, we can have alignment the same as size and use vector extensions for all sizes.  
+  static constexpr bool IsUsingArray = (IsHostHalf || IsSizeGreaterThanAlign);
+
+#ifdef __HAS_EXT_VECTOR_TYPE__
+  static constexpr bool NativeVec = NumElements > 1 && !IsUsingArray;
 #else
   static constexpr bool NativeVec = false;
 #endif
@@ -764,27 +767,28 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename T = void>
-  using EnableIfNotHostHalf = typename std::enable_if_t<!IsHostHalf, T>;
+  using EnableIfUsingArray = typename std::enable_if_t<IsUsingArray, T>;
 
   template <typename T = void>
-  using EnableIfHostHalf = typename std::enable_if_t<IsHostHalf, T>;
+  using EnableIfNotUsingArray = typename std::enable_if_t<!IsUsingArray, T>;
 
   template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg)
-      : m_Data{(DataType)(vec_data<Ty>::get(arg))} {}
+  explicit constexpr vec(const EnableIfNotUsingArray<Ty> &arg)
+      : m_Data{DataType(vec_data<Ty>::get(arg))} {}
+  
 
   template <typename Ty = DataT>
   typename std::enable_if_t<
       std::is_fundamental_v<vec_data_t<Ty>> ||
           std::is_same_v<typename std::remove_const_t<Ty>, half>,
       vec &>
-  operator=(const EnableIfNotHostHalf<Ty> &Rhs) {
+  operator=(const EnableIfNotUsingArray<Ty> &Rhs) {
     m_Data = (DataType)vec_data<Ty>::get(Rhs);
     return *this;
   }
 
   template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfHostHalf<Ty> &arg)
+  explicit constexpr vec(const EnableIfUsingArray<Ty> &arg)
       : vec{detail::RepeatValue<NumElements>(
                 static_cast<vec_data_t<DataT>>(arg)),
             std::make_index_sequence<NumElements>()} {}
@@ -794,7 +798,7 @@ public:
       std::is_fundamental_v<vec_data_t<Ty>> ||
           std::is_same_v<typename std::remove_const_t<Ty>, half>,
       vec &>
-  operator=(const EnableIfHostHalf<Ty> &Rhs) {
+  operator=(const EnableIfUsingArray<Ty> &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, Rhs);
     }
@@ -830,22 +834,22 @@ public:
       std::is_convertible_v<T, DataT> && NumElements == IdxNum, DataT>;
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<2, Ty> Arg0,
-                const EnableIfNotHostHalf<Ty> Arg1)
+                const EnableIfNotUsingArray<Ty> Arg1)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<3, Ty> Arg0,
-                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2)
+                const EnableIfNotUsingArray<Ty> Arg1, const DataT Arg2)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
                vec_data<Ty>::get(Arg2)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<4, Ty> Arg0,
-                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
+                const EnableIfNotUsingArray<Ty> Arg1, const DataT Arg2,
                 const Ty Arg3)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
                vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<8, Ty> Arg0,
-                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
+                const EnableIfNotUsingArray<Ty> Arg1, const DataT Arg2,
                 const DataT Arg3, const DataT Arg4, const DataT Arg5,
                 const DataT Arg6, const DataT Arg7)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
@@ -854,7 +858,7 @@ public:
                vec_data<Ty>::get(Arg6), vec_data<Ty>::get(Arg7)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<16, Ty> Arg0,
-                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
+                const EnableIfNotUsingArray<Ty> Arg1, const DataT Arg2,
                 const DataT Arg3, const DataT Arg4, const DataT Arg5,
                 const DataT Arg6, const DataT Arg7, const DataT Arg8,
                 const DataT Arg9, const DataT ArgA, const DataT ArgB,
@@ -1049,7 +1053,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   template <typename Ty = vec>                                                 \
-  vec operator BINOP(const EnableIfNotHostHalf<Ty> &Rhs) const {               \
+  vec operator BINOP(const EnableIfNotUsingArray<Ty> &Rhs) const {               \
     vec Ret;                                                                   \
     Ret.m_Data = m_Data BINOP Rhs.m_Data;                                      \
     if constexpr (std::is_same<Type, bool>::value && CONVERT) {                \
@@ -1058,7 +1062,7 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename Ty = vec>                                                 \
-  vec operator BINOP(const EnableIfHostHalf<Ty> &Rhs) const {                  \
+  vec operator BINOP(const EnableIfUsingArray<Ty> &Rhs) const {                  \
     vec Ret;                                                                   \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
       Ret.setValue(I, (getValue(I) BINOP Rhs.getValue(I)));                    \
@@ -1288,7 +1292,7 @@ private:
   template <template <typename> class Operation,
             typename Ty = vec<DataT, NumElements>>
   vec<DataT, NumElements>
-  operatorHelper(const EnableIfNotHostHalf<Ty> &Rhs) const {
+  operatorHelper(const EnableIfNotUsingArray<Ty> &Rhs) const {
     vec<DataT, NumElements> Result;
     Operation<DataType> Op;
     Result.m_Data = Op(m_Data, Rhs.m_Data);
@@ -1298,7 +1302,7 @@ private:
   template <template <typename> class Operation,
             typename Ty = vec<DataT, NumElements>>
   vec<DataT, NumElements>
-  operatorHelper(const EnableIfHostHalf<Ty> &Rhs) const {
+  operatorHelper(const EnableIfUsingArray<Ty> &Rhs) const {
     vec<DataT, NumElements> Result;
     Operation<DataT> Op;
     for (size_t I = 0; I < NumElements; ++I) {
@@ -1324,26 +1328,26 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value,
+  constexpr void setValue(EnableIfNotUsingArray<Ty> Index, const DataT &Value,
                           int) {
     m_Data[Index] = vec_data<DataT>::get(Value);
   }
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr DataT getValue(EnableIfNotHostHalf<Ty> Index, int) const {
+  constexpr DataT getValue(EnableIfNotUsingArray<Ty> Index, int) const {
     return vec_data<DataT>::get(m_Data[Index]);
   }
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(EnableIfHostHalf<Ty> Index, const DataT &Value, int) {
+  constexpr void setValue(EnableIfUsingArray<Ty> Index, const DataT &Value, int) {
     m_Data.s[Index] = vec_data<DataT>::get(Value);
   }
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr DataT getValue(EnableIfHostHalf<Ty> Index, int) const {
+  constexpr DataT getValue(EnableIfUsingArray<Ty> Index, int) const {
     return vec_data<DataT>::get(m_Data.s[Index]);
   }
 #else  // __SYCL_DEVICE_ONLY__
@@ -1386,21 +1390,9 @@ private:
 
 // fields
 // Alignment is the same as size, to a maximum size of 64.
-// detail::vector_alignment will return that value. When the size is greater
-// than 64, we don't use the ext_vector_type and fallback to std::array on
-// device. Host is always std::array.  The __SYCL_ALIGNED_VAR macro handles this
-// fallback.
-#ifdef __SYCL_DEVICE_ONLY__
-  __SYCL_ALIGNED_VAR(DataType, ArrayType,
-                     (((NumElements == 3) ? 4 : NumElements) * sizeof(DataT)),
-                     (detail::vector_alignment<DataT, NumElements>::value),
-                     m_Data);
-#else
-  __SYCL_ALIGNED_VAR(DataType, DataType,
-                     (((NumElements == 3) ? 4 : NumElements) * sizeof(DataT)),
-                     (detail::vector_alignment<DataT, NumElements>::value),
-                     m_Data);
-#endif
+// detail::vector_alignment will return that value. 
+alignas(detail::vector_alignment<DataT, NumElements>::value) DataType m_Data;
+
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -2168,9 +2160,13 @@ template <typename T, int N, typename V> struct VecStorage {
 };
 
 #ifdef __SYCL_DEVICE_ONLY__
-// device always has ext vector support
+// device always has ext vector support, but for huge vectors
+// we switch to std::array, so that we can use a smaller alignment (64)
+// this is to support MSVC, which has a max of 64 for direct params.
 template <typename T, int N> struct VecStorageImpl {
-  using DataType = T __attribute__((ext_vector_type(N)));
+  static constexpr size_t Num = (N == 3) ? 4 : N;
+  static constexpr size_t Sz = Num * sizeof(T);
+  using DataType = typename std::conditional<Sz <= 64,  T __attribute__((ext_vector_type(N))), std::array<T, Num>>::type;
   using VectorDataType = T __attribute__((ext_vector_type(N)));
 };
 #else  // __SYCL_DEVICE_ONLY__
