@@ -29,7 +29,8 @@ class SYCL_HostOp<string mnemonic, list<Trait> traits = []> :
 // OPERATIONS
 ////////////////////////////////////////////////////////////////////////////////
 
-def SYCLHostConstructorOp : SYCL_HostOp<"constructor"> {
+def SYCLHostConstructorOp : SYCL_HostOp<"constructor",
+    [MemoryEffectsOpInterface]> {
   let summary = [{
     Operation representing the construction of a SYCL object, i.e., allocation,
     and member initialization.
@@ -51,6 +52,18 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor"> {
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
+
+  let extraClassDeclaration = [{
+      /// Return the memory effects associated to each argument.
+      ///
+      /// The first argument, `this` will have `MemoryEffects::Write` memory
+      /// effect associated and the rest of argument will also have
+      /// `MemoryEffects::Write` if they're a pointer/memref and no memory
+      /// effect otherwise.
+      void getEffects(::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<
+                          ::mlir::MemoryEffects::Effect>> &effects);
+    }];
+
   let hasVerifier = true;
 }
 
