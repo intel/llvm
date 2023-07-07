@@ -1348,7 +1348,7 @@ typedef union ur_device_partition_value_t {
     uint32_t count;                                    ///< [in] Number of compute units in a sub-device when partitioning with
                                                        ///< ::UR_DEVICE_PARTITION_BY_COUNTS.
     ur_device_affinity_domain_flags_t affinity_domain; ///< [in] The affinity domain to partition for when partitioning with
-                                                       ///< $UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN.
+                                                       ///< ::UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN.
 
 } ur_device_partition_value_t;
 
@@ -1356,7 +1356,7 @@ typedef union ur_device_partition_value_t {
 /// @brief Device partition property
 typedef struct ur_device_partition_property_t {
     ur_device_partition_t type;        ///< [in] The partitioning type to be used.
-    ur_device_partition_value_t value; ///< [in] The partitioning value.
+    ur_device_partition_value_t value; ///< [in][tagged_by(type)] The partitioning value.
 
 } ur_device_partition_property_t;
 
@@ -3553,11 +3553,11 @@ typedef union ur_program_metadata_value_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Program metadata property.
 typedef struct ur_program_metadata_t {
-    char *pName;                       ///< [in] null-terminated metadata name.
+    const char *pName;                 ///< [in] null-terminated metadata name.
     ur_program_metadata_type_t type;   ///< [in] the type of metadata value.
     size_t size;                       ///< [in] size in bytes of the data pointed to by value.pData, or 0 when
                                        ///< value size is less than 64-bits and is stored directly in value.data.
-    ur_program_metadata_value_t value; ///< [in] the metadata value storage.
+    ur_program_metadata_value_t value; ///< [in][tagged_by(type)] the metadata value storage.
 
 } ur_program_metadata_t;
 

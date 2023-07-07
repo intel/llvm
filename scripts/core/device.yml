@@ -518,16 +518,20 @@ type: union
 desc: "Device partition value."
 name: $x_device_partition_value_t
 class: $xDevice
+tag: $x_device_partition_t
 members:
     - type: uint32_t
       name: equally
       desc: "[in] Number of compute units per sub-device when partitioning with $X_DEVICE_PARTITION_EQUALLY."
+      tag: $X_DEVICE_PARTITION_EQUALLY
     - type: uint32_t
       name: count
       desc: "[in] Number of compute units in a sub-device when partitioning with $X_DEVICE_PARTITION_BY_COUNTS."
+      tag: $X_DEVICE_PARTITION_BY_COUNTS
     - type: $x_device_affinity_domain_flags_t
       name: affinity_domain
-      desc: "[in] The affinity domain to partition for when partitioning with $UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN."
+      desc: "[in] The affinity domain to partition for when partitioning with $X_DEVICE_PARTITION_BY_AFFINITY_DOMAIN."
+      tag: $X_DEVICE_PARTITION_BY_AFFINITY_DOMAIN
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Device partition property"
@@ -539,7 +543,7 @@ members:
       desc: "[in] The partitioning type to be used."
     - type: $x_device_partition_value_t
       name: value
-      desc: "[in] The partitioning value."
+      desc: "[in][tagged_by(type)] The partitioning value."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Device Partition Properties"
