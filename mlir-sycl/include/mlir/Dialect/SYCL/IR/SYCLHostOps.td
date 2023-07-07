@@ -58,8 +58,8 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor",
       ///
       /// The first argument, `this` will have `MemoryEffects::Write` memory
       /// effect associated and the rest of argument will have
-      /// `MemoryEffects::Read` and `MemoryEffects::Write if they're a pointer/
-      /// memref and no memory effect otherwise.
+      /// `MemoryEffects::Read` if they're a pointer/memref and no memory effect
+      /// otherwise.
       void getEffects(::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<
                           ::mlir::MemoryEffects::Effect>> &effects);
     }];
