@@ -384,8 +384,12 @@ SmallVector<IfCondition> UniformityAnalysis::collectBranchConditions(
     SetVector<RegionBranchOpInterface> enclosingBranches =
         getParentsOfType<RegionBranchOpInterface>(
             *mod.getOperation()->getBlock());
-    for (RegionBranchOpInterface branchOp : enclosingBranches)
-      conditions.push_back(*IfCondition::getCondition(branchOp));
+    for (RegionBranchOpInterface branchOp : enclosingBranches) {
+      std::optional<IfCondition> condition =
+          IfCondition::getCondition(branchOp);
+      assert(condition && "Expecting valid condition");
+      conditions.push_back(*condition);
+    }
   }
 
   LLVM_DEBUG({

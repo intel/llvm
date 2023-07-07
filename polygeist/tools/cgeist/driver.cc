@@ -413,7 +413,6 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
           {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (DetectReduction)
       OptPM.addPass(polygeist::createDetectReductionPass(
