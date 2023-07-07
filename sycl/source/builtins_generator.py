@@ -117,37 +117,39 @@ class InstantiatedConversionTraitType:
 floatn = [Vec(["float"])]
 vfloatn = [Vec(["float"])]
 vfloat3or4 = [Vec(["float"], {3,4})]
-mfloatn = []
-mfloat3or4 = []
+mfloatn = [Marray(["float"])]
+mfloat3or4 = [Marray(["float"], {3,4})]
 genfloatf = ["float", Vec(["float"]), Marray(["float"])]
 
 doublen = [Vec(["double"])]
 vdoublen = [Vec(["double"])]
 vdouble3or4 = [Vec(["double"], {3,4})]
-mdoublen = []
-mdouble3or4 = []
+mdoublen = [Marray(["double"])]
+mdouble3or4 = [Marray(["double"], {3,4})]
 genfloatd = ["double", Vec(["double"])]
 
 halfn = [Vec(["half"])]
 vhalfn = [Vec(["half"])]
 vhalf3or4 = [Vec(["half"], {3,4})]
-mhalfn = []
-mhalf3or4 = []
+mhalfn = [Marray(["half"])]
+mhalf3or4 = [Marray(["half"], {3,4})]
 genfloath = ["half", Vec(["half"])]
 
 genfloat = ["float", "double", "half", Vec(["float", "double", "half"]),
             Marray(["float", "double", "half"])]
 vgenfloat = [Vec(["float", "double", "half"])]
 sgenfloat = ["float", "double", "half"]
-mgenfloat = []
+mgenfloat = [Marray(["float", "double", "half"])]
 
-# NOTE: Vec size 1 is non-standard.
 vgeofloat = [Vec(["float"], {1,2,3,4})]
 vgeodouble = [Vec(["double"], {1,2,3,4})]
 vgeohalf = [Vec(["half"], {1,2,3,4})]
-gengeofloat = ["float", Vec(["float"], {1,2,3,4})]
-gengeodouble = ["double", Vec(["double"], {1,2,3,4})]
-gengeohalf = ["half", Vec(["half"], {1,2,3,4})]
+mgeofloat = [Marray(["float"], {1,2,3,4})]
+mgeodouble = [Marray(["double"], {1,2,3,4})]
+mgeohalf = [Marray(["half"], {1,2,3,4})]
+gengeofloat = ["float", Vec(["float"], {1,2,3,4}), Marray(["float"], {1,2,3,4})]
+gengeodouble = ["double", Vec(["double"], {1,2,3,4}), Marray(["double"], {1,2,3,4})]
+gengeohalf = ["half", Vec(["half"], {1,2,3,4}), Marray(["half"], {1,2,3,4})]
 
 vint8n = [Vec(["int8_t"])]
 vint16n = [Vec(["int16_t"])]
@@ -168,7 +170,7 @@ muint8n = []
 muint16n = []
 muint32n = []
 muint64n = []
-mintn = []
+mintn = [Marray(["int"])]
 mshortn = []
 muintn = []
 mulongn = []
@@ -211,10 +213,11 @@ vdoublenptr = [MultiPtr(Vec(["double"])), RawPtr(Vec(["double"]))]
 vhalfnptr = [MultiPtr(Vec(["half"])), RawPtr(Vec(["half"]))]
 vgenfloatptr = [MultiPtr(Vec(["float", "double", "half"])),
                 RawPtr(Vec(["float", "double", "half"]))]
-mfloatnptr = []
-mdoublenptr = []
-mhalfnptr = []
-mintnptr = []
+mfloatnptr = [MultiPtr(Marray(["float"]))]
+mdoublenptr = [MultiPtr(Marray(["double"]))]
+mhalfnptr = [MultiPtr(Marray(["half"]))]
+mgenfloatptr = [MultiPtr(Marray(["float", "double", "half"]))]
+mintnptr = [MultiPtr(Marray(["int"]))]
 vint32ptr = [MultiPtr(Vec(["int32_t"])), RawPtr(Vec(["int32_t"]))]
 
 # To help resolve template arguments, these are given the index of their parent
@@ -224,6 +227,7 @@ unsignedtype0 = [UnsignedType(0)]
 samesizesignedint0 = [ConversionTraitType("same_size_signed_int_t", 0)]
 samesizeunsignedint0 = [ConversionTraitType("same_size_unsigned_int_t", 0)]
 samesizefloat0 = [ConversionTraitType("same_size_float_t", 0)]
+intelements0 = [ConversionTraitType("int_elements_t", 0)]
 upsampledint0 = [ConversionTraitType("upsampled_int_t", 0)]
 
 builtin_types = {
@@ -252,6 +256,9 @@ builtin_types = {
   "vgeofloat" : vgeofloat,
   "vgeodouble" : vgeodouble,
   "vgeohalf" : vgeohalf,
+  "mgeofloat" : mgeofloat,
+  "mgeodouble" : mgeodouble,
+  "mgeohalf" : mgeohalf,
   "gengeofloat" : gengeofloat,
   "gengeodouble" : gengeodouble,
   "gengeohalf" : gengeohalf,
@@ -303,6 +310,7 @@ builtin_types = {
   "mfloatnptr" : mfloatnptr,
   "mdoublenptr" : mdoublenptr,
   "mhalfnptr" : mhalfnptr,
+  "mgenfloatptr" : mgenfloatptr,
   "mintnptr" : mintnptr,
   "vint32nptr" : vint32ptr,
   "elementtype0" : elementtype0,
@@ -310,6 +318,7 @@ builtin_types = {
   "samesizesignedint0" : samesizesignedint0,
   "samesizeunsignedint0" : samesizeunsignedint0,
   "samesizefloat0" : samesizefloat0,
+  "intelements0" : intelements0,
   "upsampledint0" : upsampledint0,
   "char" : ["char"],
   "signed char" : ["signed char"],
@@ -381,14 +390,42 @@ class Def:
       result[arg_idx] = f'{conv}({result[arg_idx]})'
     return result
 
-  def get_marray_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
+  def require_size_alias(self, alternative_name, marray_type):
+    if not self.size_alias:
+      # If there isn't a size alias defined, we add one.
+      return (alternative_name, f'  constexpr size_t {alternative_name} = detail::num_elements<{marray_type.template_name}>::value;\n')
+    return (self.size_alias, '')
+
+  def convert_loop_arg(self, arg_type, arg_name):
+    if isinstance(arg_type, MultiPtr):
+      return f'address_space_cast<Space, IsDecorated, detail::get_elem_type_t<{arg_type.element_type}>>(&(*{arg_name})[I])'
+    return str(arg_name) + '[I]'
+
+  def get_marray_loop_invoke_body(self, invoke_name, return_type, arg_types, arg_names, first_marray_type):
     result = ""
-    first_template_arg = find_first_template_arg(arg_types)
-    size_alias = self.size_alias
-    if not size_alias:
-      # If there isn't a size alias defined, we add one inside here.
-      size_alias = 'N'
-      result = result + f'  constexpr size_t {size_alias} = detail::num_elements<{first_template_arg.template_name}>::value;\n'
+    args = [self.convert_loop_arg(arg_type, arg_name) for arg_type, arg_name in zip(arg_types, arg_names)]
+    joined_args = ', '.join(args)
+    (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
+    result = result + size_alias_init
+    return result + f"""  {return_type} Res;
+  for (int I = 0; I < {size_alias}; ++I) {{
+    Res[I] = __sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<detail::get_elem_type_t<{return_type}>>({joined_args});
+  }}
+  return Res;"""
+
+  def get_marray_vec_cast_invoke_body(self, invoke_name, return_type, arg_types, arg_names, first_marray_type):
+    result = ""
+    vec_cast_args = [f'detail::to_vec({arg_name})' if is_marray_arg(arg_type) else str(arg_name) for arg_type, arg_name in zip(arg_types, arg_names)]
+    joined_vec_cast_args = ', '.join(vec_cast_args)
+    (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
+    result = result + size_alias_init
+    return result + f"""  using VecT = vec<detail::get_elem_type_t<{first_marray_type}>, {size_alias}>;
+  return detail::to_marray(__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<VecT>({joined_vec_cast_args}));"""
+
+  def get_marray_vectorized_invoke_body(self, invoke_name, return_type, arg_types, arg_names, first_marray_type):
+    result = ""
+    (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
+    result = result + size_alias_init
     # Adjust arguments for partial results and the remaining work at the end.
     imm_args = []
     rem_args = []
@@ -403,16 +440,16 @@ class Def:
     rem_invoke = f'__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<detail::get_elem_type_t<{return_type}>>({joined_rem_args});'
     if self.fast_math_invoke_name:
       imm_invoke = f"""[&]() {{
-      if constexpr (detail::use_fast_math_v<{first_template_arg}>)
+      if constexpr (detail::use_fast_math_v<{first_marray_type}>)
         return __sycl_std::__invoke_{self.fast_math_invoke_name}<ImmVecT>({joined_imm_args});
       return {imm_invoke}
     }}();"""
       rem_invoke =  f"""[&]() {{
-      if constexpr (detail::use_fast_math_v<{first_template_arg}>)
+      if constexpr (detail::use_fast_math_v<{first_marray_type}>)
         __sycl_std::__invoke_{self.fast_math_invoke_name}<detail::get_elem_type_t<{return_type}>>({joined_rem_args});
       return {rem_invoke}
     }}();"""
-    return result + f"""  using ImmVecT = vec<detail::get_elem_type_t<{first_template_arg}>, 2>;
+    return result + f"""  using ImmVecT = vec<detail::get_elem_type_t<{return_type}>, 2>;
   {return_type} Res;
   for (size_t I = 0; I < {size_alias} / 2; ++I) {{
     auto PartialRes = {imm_invoke}
@@ -422,6 +459,17 @@ class Def:
     Res[{size_alias} - 1] = {rem_invoke}
   }}
   return Res;"""
+
+  def get_marray_invoke_body(self, invoke_name, return_type, arg_types, arg_names, first_marray_type):
+    # If the associated marray types have restriction on their sizes, we assume
+    # they can be converted directly to vector.
+    if first_marray_type.templated_type.valid_sizes:
+      return self.get_marray_vec_cast_invoke_body(invoke_name, return_type, arg_types, arg_names, first_marray_type)
+    # If there is a pointer argument, we need to use the simple loop solution.
+    if any([isinstance(arg_type, MultiPtr) for arg_type in arg_types]):
+      return self.get_marray_loop_invoke_body(invoke_name, return_type, arg_types, arg_names, first_marray_type)
+    # Otherwise, we vectorize the body.
+    return self.get_marray_vectorized_invoke_body(invoke_name, return_type, arg_types, arg_names, first_marray_type)
 
   def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
     invoke_args = self.get_invoke_args(arg_types, arg_names)
@@ -435,7 +483,7 @@ class Def:
   def get_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
     for arg_type in arg_types:
       if is_marray_arg(arg_type):
-        return self.get_marray_invoke_body(invoke_name, return_type, arg_types, arg_names)
+        return self.get_marray_invoke_body(invoke_name, return_type, arg_types, arg_names, arg_type)
     return self.get_scalar_vec_invoke_body(invoke_name, return_type, arg_types, arg_names)
 
   def get_invoke(self, builtin_name, return_type, arg_types, arg_names):
@@ -511,34 +559,38 @@ sycl_builtins = {# Math functions
                  "floor": [Def("genfloat", ["genfloat"])],
                  "fma": [Def("genfloat", ["genfloat", "genfloat", "genfloat"])],
                  "fmax": [Def("genfloat", ["genfloat", "genfloat"]),
-                          Def("vfloatn", ["vfloatn", "float"], convert_args=[(1,0)]),
-                          Def("vdoublen", ["vdoublen", "double"], convert_args=[(1,0)]),
-                          Def("vhalfn", ["vhalfn", "half"], convert_args=[(1,0)])],
+                          Def("vgenfloat", ["vgenfloat", "elementtype0"], convert_args=[(1,0)]),
+                          Def("mgenfloat", ["mgenfloat", "elementtype0"])],
                  "fmin": [Def("genfloat", ["genfloat", "genfloat"]),
-                          Def("vfloatn", ["vfloatn", "float"], convert_args=[(1,0)]),
-                          Def("vdoublen", ["vdoublen", "double"], convert_args=[(1,0)]),
-                          Def("vhalfn", ["vhalfn", "half"], convert_args=[(1,0)])],
+                          Def("vgenfloat", ["vgenfloat", "elementtype0"], convert_args=[(1,0)]),
+                          Def("mgenfloat", ["mgenfloat", "elementtype0"])],
                  "fmod": [Def("genfloat", ["genfloat", "genfloat"])],
                  "fract": [Def("vgenfloat", ["vgenfloat", "vgenfloatptr"]),
+                           Def("mgenfloat", ["mgenfloat", "mgenfloatptr"]),
                            Def("float", ["float", "floatptr"]),
                            Def("double", ["double", "doubleptr"]),
                            Def("half", ["half", "halfptr"])],
                  "frexp": [Def("vgenfloat", ["vgenfloat", "vint32nptr"]),
+                           Def("mgenfloat", ["mgenfloat", "mintnptr"]),
                            Def("float", ["float", "intptr"]),
                            Def("double", ["double", "intptr"]),
                            Def("half", ["half", "intptr"])],
                  "hypot": [Def("genfloat", ["genfloat", "genfloat"])],
-                 "ilogb": [Def("vint32n", ["vgenfloat"]),
+                 "ilogb": [Def("intelements0", ["vgenfloat"]),
+                           Def("intelements0", ["mgenfloat"]),
                            Def("int", ["float"]),
                            Def("int", ["double"]),
                            Def("int", ["half"])],
                  "ldexp": [Def("vgenfloat", ["vgenfloat", "vint32n"]),
                            Def("vgenfloat", ["vgenfloat", "int"], convert_args=[(1,"vec<int, N>")], size_alias="N"),
+                           Def("mgenfloat", ["mgenfloat", "mintn"]),
+                           Def("mgenfloat", ["mgenfloat", "int"]),
                            Def("float", ["float", "int"]),
                            Def("double", ["double", "int"]),
                            Def("half", ["half", "int"])],
                  "lgamma": [Def("genfloat", ["genfloat"])],
                  "lgamma_r": [Def("vgenfloat", ["vgenfloat", "vint32nptr"]),
+                              Def("mgenfloat", ["mgenfloat", "mintnptr"]),
                               Def("float", ["float", "intptr"]),
                               Def("double", ["double", "intptr"]),
                               Def("half", ["half", "intptr"])],
@@ -551,6 +603,7 @@ sycl_builtins = {# Math functions
                  "maxmag": [Def("genfloat", ["genfloat", "genfloat"])],
                  "minmag": [Def("genfloat", ["genfloat", "genfloat"])],
                  "modf": [Def("vgenfloat", ["vgenfloat", "vgenfloatptr"]),
+                          Def("mgenfloat", ["mgenfloat", "mgenfloatptr"]),
                           Def("float", ["float", "floatptr"]),
                           Def("double", ["double", "doubleptr"]),
                           Def("half", ["half", "halfptr"])],
@@ -564,17 +617,24 @@ sycl_builtins = {# Math functions
                  "nextafter": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pow": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pown": [Def("vgenfloat", ["vgenfloat", "vint32n"]),
+                          Def("vgenfloat", ["vgenfloat", "int"]), # Non-standard. Deprecated.
+                          Def("mgenfloat", ["mgenfloat", "mintn"]),
+                          Def("mgenfloat", ["mgenfloat", "int"]), # Non-standard. Deprecated.
                           Def("float", ["float", "int"]),
                           Def("double", ["double", "int"]),
                           Def("half", ["half", "int"])],
                  "powr": [Def("genfloat", ["genfloat", "genfloat"], fast_math_invoke_name="native_powr")],
                  "remainder": [Def("genfloat", ["genfloat", "genfloat"])],
                  "remquo": [Def("vgenfloat", ["vgenfloat", "vgenfloat", "vint32nptr"]),
+                            Def("mgenfloat", ["mgenfloat", "mgenfloat", "mintnptr"]),
                             Def("float", ["float", "float", "intptr"]),
                             Def("double", ["double", "double", "intptr"]),
                             Def("half", ["half", "half", "intptr"])],
                  "rint": [Def("genfloat", ["genfloat"])],
                  "rootn": [Def("vgenfloat", ["vgenfloat", "vint32n"]),
+                           Def("vgenfloat", ["vgenfloat", "int"]), # Non-standard. Deprecated.
+                           Def("mgenfloat", ["mgenfloat", "mintn"]),
+                           Def("mgenfloat", ["mgenfloat", "int"]), # Non-standard. Deprecated.
                            Def("float", ["float", "int"]),
                            Def("double", ["double", "int"]),
                            Def("half", ["half", "int"])],
@@ -582,6 +642,7 @@ sycl_builtins = {# Math functions
                  "rsqrt": [Def("genfloat", ["genfloat"], fast_math_invoke_name="native_rsqrt")],
                  "sin": [Def("genfloat", ["genfloat"], fast_math_invoke_name="native_sin")],
                  "sincos": [Def("vgenfloat", ["vgenfloat", "vgenfloatptr"]),
+                            Def("mgenfloat", ["mgenfloat", "mgenfloatptr"]),
                             Def("float", ["float", "floatptr"]),
                             Def("vdoublen", ["vdoublen", "vdoublenptr"]),
                             Def("double", ["double", "doubleptr"]),
@@ -674,10 +735,16 @@ sycl_builtins = {# Math functions
                  # Geometric functions
                  "cross": [Def("vfloat3or4", ["vfloat3or4", "vfloat3or4"]),
                            Def("vdouble3or4", ["vdouble3or4", "vdouble3or4"]),
-                           Def("vhalf3or4", ["vhalf3or4", "vhalf3or4"])], # TODO: Non-standard. Deprecate.
+                           Def("vhalf3or4", ["vhalf3or4", "vhalf3or4"]), # TODO: Non-standard. Deprecate.
+                           Def("mfloat3or4", ["mfloat3or4", "mfloat3or4"]),
+                           Def("mdouble3or4", ["mdouble3or4", "mdouble3or4"]),
+                           Def("mhalf3or4", ["mhalf3or4", "mhalf3or4"])], # TODO: Non-standard. Deprecate.
                  "dot": [Def("float", ["vgeofloat", "vgeofloat"], invoke_name="Dot"),
                          Def("double", ["vgeodouble", "vgeodouble"], invoke_name="Dot"),
                          Def("half", ["vgeohalf", "vgeohalf"], invoke_name="Dot"), # TODO: Non-standard. Deprecate.
+                         Def("float", ["mgeofloat", "mgeofloat"], invoke_name="Dot"),
+                         Def("double", ["mgeodouble", "mgeodouble"], invoke_name="Dot"),
+                         Def("half", ["mgeohalf", "mgeohalf"], invoke_name="Dot"), # TODO: Non-standard. Deprecate.
                          Def("sgenfloat", ["sgenfloat", "sgenfloat"], custom_invoke=(lambda return_types, arg_types, arg_names: '  return ' + ' * '.join(arg_names) + ';'))],
                  "distance": [Def("float", ["gengeofloat", "gengeofloat"]),
                               Def("double", ["gengeodouble", "gengeodouble"]),
@@ -833,6 +900,22 @@ def instantiate_return_type(return_type, instantiated_args):
     return InstantiatedConversionTraitType(instantiate_return_type(return_type.parent_type, instantiated_args), return_type.trait, return_type.parent_idx)
   return return_type
 
+def is_valid_combination(return_type, arg_types):
+  marray_arg_seen = False
+  vec_arg_seen = False
+  raw_ptr_seen = False
+  for t in [return_type] + arg_types:
+    if is_marray_arg(t):
+      marray_arg_seen = True
+    elif is_vec_arg(t):
+      vec_arg_seen = True
+    elif isinstance(t, RawPtr):
+      raw_ptr_seen = True
+  # Following rules apply:
+  # 1. vec and marray cannot be in the same combination.
+  # 2. marray and raw pointers were never supported together and shouldn't be.
+  return not (marray_arg_seen and (vec_arg_seen or raw_ptr_seen))
+
 def type_combinations(return_type, arg_types):
   unique_types = list(dict.fromkeys(arg_types + [return_type]))
   unique_type_lists = [builtin_types[unique_type] for unique_type in unique_types]
@@ -844,7 +927,8 @@ def type_combinations(return_type, arg_types):
     mapped_arg_types = [select_from_mapping(mappings, arg_types, arg_type) for arg_type in arg_types]
     instantiated_arg_types = [instantiate_arg(idx, arg_type) for idx, arg_type in enumerate(mapped_arg_types)]
     instantiated_return_type = instantiate_return_type(mapped_return_type, instantiated_arg_types)
-    result.append((instantiated_return_type, instantiated_arg_types))
+    if is_valid_combination(instantiated_return_type, instantiated_arg_types):
+      result.append((instantiated_return_type, instantiated_arg_types))
   return result
 
 def get_all_template_args(arg_types):

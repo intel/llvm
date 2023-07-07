@@ -207,6 +207,19 @@ template <typename T, int N> struct same_size_float<vec<T, N>> {
 template <typename T>
 using same_size_float_t = typename same_size_float<T>::type;
 
+template <typename T> struct int_elements {
+  using type = int;
+};
+template <typename T, size_t N> struct int_elements<marray<T, N>> {
+  using type = marray<typename int_elements<T>::type, N>;
+};
+template <typename T, int N> struct int_elements<vec<T, N>> {
+  using type = vec<typename int_elements<T>::type, N>;
+};
+// TODO: Swizzle variant of this?
+
+template <typename T> using int_elements_t = typename int_elements<T>::type;
+
 // For upsampling we look for an integer of double the size of the specified
 // type.
 template <typename T> struct upsampled_int {
