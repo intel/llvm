@@ -540,25 +540,10 @@ template <typename T> using vec_data = detail::vec_helper<T>;
 template <typename T>
 using vec_data_t = typename detail::vec_helper<T>::RetType;
 
-#if defined(_WIN32) && (_MSC_VER)
-// MSVC Compiler doesn't allow using of function arguments with alignment
-// requirements. MSVC Compiler Error C2719: 'parameter': formal parameter with
-// __declspec(align('#')) won't be aligned. The align __declspec modifier
-// is not permitted on function parameters. Function parameter alignment
-// is controlled by the calling convention used.
-// For more information, see Calling Conventions
-// (https://docs.microsoft.com/en-us/cpp/cpp/calling-conventions).
-// For information on calling conventions for x64 processors, see
-// Calling Convention
-// (https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention).
-#pragma message("Alignment of class vec is not in accordance with SYCL \
-specification requirements, a limitation of the MSVC compiler(Error C2719).\
-Requested alignment applied, limited at 64.")
-#define __SYCL_ALIGNED_VAR(type, x, var)                                       \
-  type __declspec(align((x < 64) ? x : 64)) var
-#else
-#define __SYCL_ALIGNED_VAR(type, x, var) alignas(x) type var
-#endif
+#define __SYCL_ALIGNED_VAR(vecType, fallbackType, size, alignment, var)        \
+  alignas(alignment)                                                           \
+      typename std::conditional_t<size <= 64, vecType, fallbackType>           \
+          var
 
 /// Provides a cross-patform vector class template that works efficiently on
 /// SYCL devices as well as in host C++ code.
@@ -570,6 +555,9 @@ template <typename Type, int NumElements> class vec {
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
+
+  // CP
+  using ArrayType = std::array<Type, NumElements>;
 
   // This represents HOW  we will approach the underlying value, so as to
   // benefit from vector speed improvements
@@ -783,7 +771,7 @@ public:
 
   template <typename Ty = DataT>
   explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg)
-      : m_Data{DataType(vec_data<Ty>::get(arg))} {}
+      : m_Data{(DataType)(vec_data<Ty>::get(arg))} {}
 
   template <typename Ty = DataT>
   typename std::enable_if_t<
@@ -1396,15 +1384,23 @@ private:
     return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
   }
 
-  // fields
-  // Used "__SYCL_ALIGNED_VAR" instead "alignas" to handle MSVC compiler.
-  // For MSVC compiler max alignment is 64, e.g. vec<double, 16> required
-  // alignment of 128 and MSVC compiler cann't align a parameter with requested
-  // alignment of 128. For alignment request larger than 64, 64-alignment
-  // is applied
-  __SYCL_ALIGNED_VAR(DataType,
+// fields
+// Alignment is the same as size, to a maximum size of 64.
+// detail::vector_alignment will return that value. When the size is greater
+// than 64, we don't use the ext_vector_type and fallback to std::array on
+// device. Host is always std::array.  The __SYCL_ALIGNED_VAR macro handles this
+// fallback.
+#ifdef __SYCL_DEVICE_ONLY__
+  __SYCL_ALIGNED_VAR(DataType, ArrayType,
+                     (((NumElements == 3) ? 4 : NumElements) * sizeof(DataT)),
                      (detail::vector_alignment<DataT, NumElements>::value),
                      m_Data);
+#else
+  __SYCL_ALIGNED_VAR(DataType, DataType,
+                     (((NumElements == 3) ? 4 : NumElements) * sizeof(DataT)),
+                     (detail::vector_alignment<DataT, NumElements>::value),
+                     m_Data);
+#endif
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
