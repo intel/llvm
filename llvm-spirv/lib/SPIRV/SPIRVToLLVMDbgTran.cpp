@@ -1052,8 +1052,8 @@ MDNode *SPIRVToLLVMDbgTran::transEntryPoint(const SPIRVExtInst *DebugInst) {
   std::string Producer = getString(Ops[CompilerSignatureIdx]);
   std::string CLArgs = getString(Ops[CommandLineArgsIdx]);
 
-  [[maybe_unused]] DICompileUnit *C =
-      transCompilationUnit(CU, Producer, CLArgs);
+  DICompileUnit *C = transCompilationUnit(CU, Producer, CLArgs); // NOLINT
+  DebugInstCache[CU] = C;
 
   return transFunction(EP, true /*IsMainSubprogram*/);
 }
