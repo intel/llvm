@@ -413,9 +413,7 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
           {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-    // FIXME: Remove after fixing all the FIXME and before merging.
-    OptPM.addPass(polygeist::createLoopInternalizationPass(
-        {options.getCgeistOpts().getRelaxedAliasing()}));
+
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (DetectReduction)
       OptPM.addPass(polygeist::createDetectReductionPass(
