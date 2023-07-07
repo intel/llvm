@@ -154,7 +154,7 @@ TEST_F(CommandGraphTest, MakeEdge) {
 }
 
 TEST_F(CommandGraphTest, BeginEndRecording) {
-  sycl::queue Queue2{Dev};
+  sycl::queue Queue2{Queue.get_context(), Dev};
 
   // Test throwing behaviour
   // Check we can repeatedly begin recording on the same queues
