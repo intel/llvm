@@ -787,7 +787,7 @@ def LLVM_masked_compressstore
 
 def LLVM_VarAnnotation
     : LLVM_ZeroResultIntrOp<"var.annotation", [0, 1],
-        [AllTypesMatch<["annotation", "fileName", "args"]>]> {
+        [AllTypesMatch<["annotation", "fileName", "attr"]>]> {
   let arguments = (ins LLVM_AnyPointer:$val,
                        LLVM_AnyPointer:$annotation,
 		       LLVM_AnyPointer:$fileName,
@@ -798,7 +798,7 @@ def LLVM_VarAnnotation
 def LLVM_PtrAnnotation
     : LLVM_OneResultIntrOp<"ptr.annotation", [0], [2],
         [AllTypesMatch<["res", "ptr"]>,
-	 AllTypesMatch<["annotation", "fileName", "args"]>]> {
+	 AllTypesMatch<["annotation", "fileName", "attr"]>]> {
   let arguments = (ins LLVM_PointerTo<Builtin_Integer>:$ptr,
                        LLVM_AnyPointer:$annotation,
 		       LLVM_AnyPointer:$fileName,
