@@ -1188,12 +1188,12 @@ mlir::Operation *MLIRScanner::createSYCLMathOp(llvm::StringRef FunctionName,
   }
 
   // Math function detected, we need to dereference any `memref<?x!sycl_half>`
-  // operands.
+  // and `memref<?x!sycl_vec<...>>` operands.
   SmallVector<Value, 3> MathFuncOperands(Operands);
-  if (ReturnType.isa<sycl::HalfType>()) {
+  if (isa<sycl::HalfType, sycl::VecType>(ReturnType)) {
     for (auto &Operand : MathFuncOperands)
       if (auto Ty = Operand.getType().dyn_cast<MemRefType>();
-          Ty && Ty.getElementType().isa<sycl::HalfType>())
+          Ty && isa<sycl::HalfType, sycl::VecType>(Ty.getElementType()))
         Operand = Builder.create<affine::AffineLoadOp>(
             Loc, Operand, Builder.getConstantAffineMap(0), ValueRange{});
   }

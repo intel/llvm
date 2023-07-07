@@ -4,6 +4,9 @@
 // RUN: FileCheck %s --check-prefix=MLIR -DMLIR_TYPE=f32 < %t.mlir
 // RUN: FileCheck %s --check-prefix=MLIR -DMLIR_TYPE=f64 < %t.mlir
 // RUN: FileCheck %s --check-prefix=MLIR '-DMLIR_TYPE=!sycl_half' < %t.mlir
+// RUN: FileCheck %s --check-prefix=MLIR '-DMLIR_TYPE=!sycl_vec_f32_2_' < %t.mlir
+// RUN: FileCheck %s --check-prefix=MLIR '-DMLIR_TYPE=!sycl_vec_f64_2_' < %t.mlir
+// RUN: FileCheck %s --check-prefix=MLIR '-DMLIR_TYPE=!sycl_vec_sycl_half_2_' < %t.mlir
 
 // ... and lowered to the corresponding LLVM intrinsics.
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir \
@@ -11,6 +14,9 @@
 // RUN: FileCheck %s --check-prefix=LLVM -DLLVM_TYPE=float -DINTR_TYPE=f32 < %t.ll
 // RUN: FileCheck %s --check-prefix=LLVM -DLLVM_TYPE=double -DINTR_TYPE=f64 < %t.ll
 // RUN: FileCheck %s --check-prefix=LLVM -DLLVM_TYPE=half -DINTR_TYPE=f16 < %t.ll
+// RUN: FileCheck %s --check-prefix=LLVM '-DLLVM_TYPE=<2 x float>' -DINTR_TYPE=v2f32 < %t.ll
+// RUN: FileCheck %s --check-prefix=LLVM '-DLLVM_TYPE=<2 x double>' -DINTR_TYPE=v2f64 < %t.ll
+// RUN: FileCheck %s --check-prefix=LLVM '-DLLVM_TYPE=<2 x half>' -DINTR_TYPE=v2f16 < %t.ll
 
 // Test that the LLVMIR generated is verifiable.
 // RUN: opt -passes=verify -disable-output %t.ll
@@ -21,7 +27,7 @@
 #include <sycl/sycl.hpp>
 
 template<typename T>
-SYCL_EXTERNAL T math_funcs_scalar(T a, T b, T c) {
+SYCL_EXTERNAL T math_funcs(T a, T b, T c) {
   // MLIR: sycl.math.ceil %{{.*}} : [[MLIR_TYPE]]
   // LLVM: call [[LLVM_TYPE]] @llvm.ceil.[[INTR_TYPE]]
   a += sycl::ceil(a);
@@ -39,7 +45,7 @@ SYCL_EXTERNAL T math_funcs_scalar(T a, T b, T c) {
   a += sycl::exp2(a);
   // MLIR: sycl.math.expm1 %{{.*}} : [[MLIR_TYPE]]
   // LLVM: %[[exp:.*]] = call [[LLVM_TYPE]] @llvm.exp.[[INTR_TYPE]]
-  // LLVM-NEXT: fsub [[LLVM_TYPE]] %[[exp]], {{1\.000000e\+00|0xH3C00}}
+  // LLVM-NEXT: fsub [[LLVM_TYPE]] %[[exp]], {{1\.000000e\+00|0xH3C00|<.*>}}
   a += sycl::expm1(a);
   // MLIR: sycl.math.fabs %{{.*}} : [[MLIR_TYPE]]
   // LLVM: call [[LLVM_TYPE]] @llvm.fabs.[[INTR_TYPE]]
@@ -67,7 +73,7 @@ SYCL_EXTERNAL T math_funcs_scalar(T a, T b, T c) {
   a += sycl::round(a);
   // MLIR: sycl.math.rsqrt %{{.*}} : [[MLIR_TYPE]]
   // LLVM: %[[sqrt:.*]] = call [[LLVM_TYPE]] @llvm.sqrt.[[INTR_TYPE]]
-  // LLVM-NEXT: fdiv [[LLVM_TYPE]] {{1\.000000e\+00|0xH3C00}}, %[[sqrt]]
+  // LLVM-NEXT: fdiv [[LLVM_TYPE]] {{1\.000000e\+00|0xH3C00|<.*>}}, %[[sqrt]]
   a += sycl::rsqrt(a);
   // MLIR: sycl.math.sin %{{.*}} : [[MLIR_TYPE]]
   // LLVM: call [[LLVM_TYPE]] @llvm.sin.[[INTR_TYPE]]
@@ -82,10 +88,18 @@ SYCL_EXTERNAL T math_funcs_scalar(T a, T b, T c) {
   return a;
 }
 
-SYCL_EXTERNAL double math_funcs(double a, double b, double c) {
+SYCL_EXTERNAL double test_math_funcs(double a, double b, double c) {
   double res = 0.0;
-  res += math_funcs_scalar<float>(a, b, c);
-  res += math_funcs_scalar<double>(a, b, c);
-  res += math_funcs_scalar<sycl::half>(a, b, c);
-  return res;
+  res += math_funcs<float>(a, b, c);
+  res += math_funcs<double>(a, b, c);
+  res += math_funcs<sycl::half>(a, b, c);
+
+  sycl::float2 vfres = math_funcs(
+    sycl::float2{a, b}, sycl::float2{c, a}, sycl::float2{b, c});
+  sycl::double2 vdres = math_funcs(
+    sycl::double2{a, b}, sycl::double2{c, a}, sycl::double2{b, c});
+  sycl::half2 vhres = math_funcs(
+    sycl::half2{a, b}, sycl::half2{c, a}, sycl::half2{b, c});
+
+  return res + sycl::length(vfres) + sycl::length(vdres) + sycl::length(vhres);
 }
