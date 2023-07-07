@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv -r %t.spv -o - -emit-opaque-pointers | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM-OPAQUE

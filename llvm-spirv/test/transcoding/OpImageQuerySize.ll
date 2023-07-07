@@ -7,7 +7,7 @@ target triple = "spir64-unknown-unknown"
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s
 
 ; Check conversion of get_image_width, get_image_height, get_image_depth,

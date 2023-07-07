@@ -3,7 +3,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 --spirv-target-env=CL2.0 %t.spv -o %t.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV-NOT: 6 Store {{[0-9]+}} {{[0-9]+}} 1 2 8

@@ -161,8 +161,7 @@ constexpr static bool SPIRVOpaquePointersDefault = false;
 #endif
 
 static cl::opt<bool>
-    EmitOpaquePointers("emit-opaque-pointers",
-                       cl::init(SPIRVOpaquePointersDefault),
+    EmitOpaquePointers("emit-opaque-pointers", cl::init(true),
                        cl::desc("Emit opaque instead of typed LLVM pointers "
                                 "for the translation from SPIR-V."),
                        cl::Hidden);
