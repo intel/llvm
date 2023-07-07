@@ -48,7 +48,7 @@ This extension is implemented and fully supported by DPC++.
 
 This extension is currently implemented in DPC++ for all GPU devices and
 backends, however, only the CUDA backend allows peer to peer memory access.
-Other backends report false from the ext_oneapi_can_access_peer query.
+Other backends report false from the `ext_oneapi_can_access_peer` query.
 
 == Overview
 
