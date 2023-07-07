@@ -1,4 +1,4 @@
-; RUN: opt -passes="compile-time-properties" -S %s -o %t.ll
+; RUN: opt -passes=compile-time-properties -S %s -o %t.ll
 ; RUN: FileCheck %s -input-file=%t.ll
 ;
 ; Tests the translation of "sycl-alignment" to alignment attributes on load/store
@@ -21,6 +21,11 @@ adata"
 ; Function Attrs: nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite)
 declare i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)*, i8 addrspace(1)*, i8 addrspace(1)*, i32, i8 addrspace(1)*) #5
 
+define weak_odr dso_local spir_kernel void @_MyIP(i32 addrspace(1)* noundef "sycl-alignment"="64" %_arg_a) {
+; CHECK: define{{.*}}@_MyIP{{.*}}align 64{{.*}} {
+	ret void
+}
+
 ; Function Attrs: convergent mustprogress norecurse nounwind
 define linkonce_odr dso_local spir_func noundef align 4 dereferenceable(4) i32 addrspace(4)* @_ZN7ann_refIiEcvRiEv(%class.ann_ptr addrspace(4)* noundef align 8 dereferenceable_or_null(8) %this) #3 comdat align 2 {
 entry:
@@ -31,11 +36,12 @@ entry:
   store %class.ann_ptr addrspace(4)* %this, %class.ann_ptr addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
   %this1 = load %class.ann_ptr addrspace(4)*, %class.ann_ptr addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
   %p = getelementptr inbounds %class.ann_ptr, %class.ann_ptr addrspace(4)* %this1, i32 0, i32 0
-  %0 = bitcast i32 addrspace(4)* addrspace(4)* %p to i8 addrspace(4)*
-  %1 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %0, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @.str.1, i32 0, i32 0), i32 22, i8 addrspace(1)* bitcast ({ [15 x i8] addrspace(1)*, [3 x i8] addrspace(1)* } addrspace(1)* @.args to i8 addrspace(1)*))
-  %2 = bitcast i8 addrspace(4)* %1 to i32 addrspace(4)* addrspace(4)*
-  %3 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %2, align 8
-; CHECK: load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %2, align 64
+  %0 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %p, align 8
+  %1 = bitcast i32 addrspace(4)* %0 to i8 addrspace(4)*
+  %2 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %1, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @.str.1, i32 0, i32 0), i32 22, i8 addrspace(1)* bitcast ({ [15 x i8] addrspace(1)*, [3 x i8] addrspace(1)* } addrspace(1)* @.args to i8 addrspace(1)*))
+  %3 = bitcast i8 addrspace(4)* %2 to i32 addrspace(4)*
+  %4 = load i32, i32 addrspace(4)* %3, align 8
+; CHECK: load {{.*}}, align 64
   ret i32 addrspace(4)* %3
 }
 
@@ -50,11 +56,11 @@ entry:
   store i32 addrspace(4)* %ptr, i32 addrspace(4)* addrspace(4)* %ptr.addr.ascast, align 8
   %this1 = load %class.ann_ptr addrspace(4)*, %class.ann_ptr addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
   %p = getelementptr inbounds %class.ann_ptr, %class.ann_ptr addrspace(4)* %this1, i32 0, i32 0
-  %0 = bitcast i32 addrspace(4)* addrspace(4)* %p to i8 addrspace(4)*
-  %1 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %0, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @.str.1, i32 0, i32 0), i32 22, i8 addrspace(1)* bitcast ({ [15 x i8] addrspace(1)*, [3 x i8] addrspace(1)* } addrspace(1)* @.args to i8 addrspace(1)*))
-  %2 = bitcast i8 addrspace(4)* %1 to i32 addrspace(4)* addrspace(4)*
-  %3 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %ptr.addr.ascast, align 8
-  store i32 addrspace(4)* %3, i32 addrspace(4)* addrspace(4)* %2, align 8
-; CHECK: store i32 addrspace(4)* %3, i32 addrspace(4)* addrspace(4)* %2, align 64
+  %0 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %p, align 8
+  %1 = bitcast i32 addrspace(4)* %0 to i8 addrspace(4)*
+  %2 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %1, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @.str.1, i32 0, i32 0), i32 22, i8 addrspace(1)* bitcast ({ [15 x i8] addrspace(1)*, [3 x i8] addrspace(1)* } addrspace(1)* @.args to i8 addrspace(1)*))
+  %3 = bitcast i8 addrspace(4)* %2 to i32 addrspace(4)*
+  store i32 5, i32 addrspace(4)* %3, align 8
+; CHECK: store {{.*}}, align 64
   ret void
 }

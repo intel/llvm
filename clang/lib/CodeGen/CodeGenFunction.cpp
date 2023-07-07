@@ -2818,6 +2818,20 @@ llvm::Value *CodeGenFunction::EmitSYCLAnnotationCall(
   return Builder.CreateCall(AnnotationFn, Args);
 }
 
+llvm::Value *CodeGenFunction::EmitSYCLAnnotationCall(
+    llvm::Function *AnnotationFn, llvm::Value *AnnotatedVal,
+    SourceLocation Location,
+    SmallVectorImpl<std::pair<std::string, std::string>> *Pair) {
+  SmallVector<llvm::Value *, 5> Args = {
+      AnnotatedVal,
+      Builder.CreateBitCast(CGM.EmitAnnotationString("sycl-properties"),
+                            ConstGlobalsPtrTy),
+      Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location),
+                            ConstGlobalsPtrTy),
+      CGM.EmitAnnotationLineNo(Location), CGM.EmitSYCLAnnotationArgs(Pair)};
+  return Builder.CreateCall(AnnotationFn, Args);
+}
+
 Address CodeGenFunction::EmitFieldSYCLAnnotations(const FieldDecl *D,
                                                   Address Addr) {
   const auto *SYCLAnnotAttr = D->getAttr<SYCLAddIRAnnotationsMemberAttr>();

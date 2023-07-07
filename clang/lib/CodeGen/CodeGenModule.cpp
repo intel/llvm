@@ -3257,16 +3257,11 @@ void CodeGenModule::AddGlobalAnnotations(const ValueDecl *D,
 }
 
 llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
-    const SYCLAddIRAnnotationsMemberAttr *Attr) {
-  llvm::SmallVector<std::pair<std::string, std::string>, 4>
-      AnnotationNameValPairs =
-          Attr->getFilteredAttributeNameValuePairs(getContext());
-  if (AnnotationNameValPairs.empty())
-    return llvm::ConstantPointerNull::get(ConstGlobalsPtrTy);
-
+    llvm::SmallVectorImpl<std::pair<std::string, std::string>> *Pair) {
   // For each name-value pair of the SYCL annotation attribute, create an
   // annotation string for it. This will be the annotation arguments. If the
   // value is the empty string, use a null-pointer instead.
+  auto &AnnotationNameValPairs = *Pair;
   llvm::SmallVector<llvm::Constant *, 4> LLVMArgs;
   llvm::FoldingSetNodeID ID;
   LLVMArgs.reserve(AnnotationNameValPairs.size() * 2);
@@ -3304,6 +3299,17 @@ llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
   // annotations to reuse.
   LookupRef = Bitcasted;
   return Bitcasted;
+}
+
+llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
+    const SYCLAddIRAnnotationsMemberAttr *Attr) {
+  llvm::SmallVector<std::pair<std::string, std::string>, 4>
+      AnnotationNameValPairs =
+          Attr->getFilteredAttributeNameValuePairs(getContext());
+  if (AnnotationNameValPairs.empty())
+    return llvm::ConstantPointerNull::get(ConstGlobalsPtrTy);
+
+  return EmitSYCLAnnotationArgs(&AnnotationNameValPairs);
 }
 
 void CodeGenModule::AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,

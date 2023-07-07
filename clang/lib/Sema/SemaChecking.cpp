@@ -102,6 +102,9 @@
 using namespace clang;
 using namespace sema;
 
+static const Expr *maybeConstEvalStringLiteral(ASTContext &Context,
+                                               const Expr *E);
+
 SourceLocation Sema::getLocationOfStringLiteralByte(const StringLiteral *SL,
                                                     unsigned ByteNo) const {
   return SL->getLocationOfByte(ByteNo, getSourceManager(), LangOpts,
@@ -2584,6 +2587,16 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     }
     if (CheckIntelFPGARegBuiltinFunctionCall(BuiltinID, TheCall))
+      return ExprError();
+    break;
+  case Builtin::BI__builtin_intel_fpga_sycl_ptr_annotation:
+    if (!Context.getLangOpts().SYCLIsDevice) {
+      Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
+          << "__builtin_intel_fpga_sycl_ptr_annotation"
+          << "SYCL device";
+      return ExprError();
+    }
+    if (CheckIntelFPGASYCLPtrAnnotationBuiltinFunctionCall(BuiltinID, TheCall))
       return ExprError();
     break;
   case Builtin::BI__builtin_intel_fpga_mem:
@@ -5889,6 +5902,59 @@ bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
   return false;
 }
 
+/// Check that the first argument to __builtin_fpga_ptr_annotation is a pointer
+/// and the following arguments are property pairs
+bool Sema::CheckIntelFPGASYCLPtrAnnotationBuiltinFunctionCall(
+    unsigned BuiltinID, CallExpr *TheCall) {
+  unsigned NumArgs = TheCall->getNumArgs();
+  // Make sure we have the minimum number of provided arguments
+  if (checkArgCountAtLeast(*this, TheCall, 1)) {
+    return true;
+  }
+
+  // Make sure we have odd number of arguments
+  if (!(NumArgs & 0x1)) {
+    return Diag(TheCall->getEndLoc(),
+                diag::err_intel_fpga_sycl_ptr_annotation_mismatch)
+           << 0;
+  }
+
+  // First argument should be a pointer.
+  Expr *PointerArg = TheCall->getArg(0);
+  QualType PointerArgType = PointerArg->getType();
+
+  if (!isa<PointerType>(PointerArgType))
+    return Diag(PointerArg->getBeginLoc(),
+                diag::err_intel_fpga_sycl_ptr_annotation_mismatch)
+           << 1;
+
+  // Following arguments are paired in format ("String",integer)
+  llvm::APSInt Result;
+  for (unsigned I = 1; I != NumArgs; ++I) {
+    if (I <= NumArgs / 2) {
+      // must be string Literal/const char*
+      auto Arg = TheCall->getArg(I)->IgnoreParenImpCasts();
+      Expr::EvalResult Result;
+      if (!isa<StringLiteral>(Arg) &&
+          !maybeConstEvalStringLiteral(this->Context, Arg)) {
+        Diag(TheCall->getArg(I)->getBeginLoc(),
+             diag::err_intel_fpga_sycl_ptr_annotation_mismatch)
+            << 2;
+        return true;
+      }
+    } else {
+      // must be integer
+      if (SemaBuiltinConstantArg(TheCall, I, Result))
+        return true;
+    }
+  }
+
+  // Set the return type to be the same as the type of the first argument
+  // (pointer argument)
+  TheCall->setType(PointerArgType);
+  return false;
+}
+
 /// Given a FunctionDecl's FormatAttr, attempts to populate the FomatStringInfo
 /// parameter with the FormatAttr's correct format_idx and firstDataArg.
 /// Returns true when the format fits the function and the FormatStringInfo has
@@ -9021,9 +9087,6 @@ static void CheckFormatString(
     bool inFunctionCall, Sema::VariadicCallType CallType,
     llvm::SmallBitVector &CheckedVarArgs, UncoveredArgHandler &UncoveredArg,
     bool IgnoreStringsWithoutSpecifiers);
-
-static const Expr *maybeConstEvalStringLiteral(ASTContext &Context,
-                                               const Expr *E);
 
 // Determine if an expression is a string literal or constant string.
 // If this function returns false on the arguments to a function expecting a

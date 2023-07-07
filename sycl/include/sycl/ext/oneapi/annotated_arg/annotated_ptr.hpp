@@ -1,3 +1,4 @@
+//
 //==----------- annotated_ptr.hpp - SYCL annotated_ptr extension -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -29,6 +30,46 @@ namespace {
     return *this;                                                              \
   }
 
+// compare strings on compiletime
+template <const char *const &str1, const char *const &str2> struct compareStrs {
+  static constexpr auto impl() noexcept {
+    static_assert(str1 && str2 && "string cannot be nullptr");
+    constexpr const size_t len1 = std::char_traits<char>::length(str1);
+    constexpr const size_t len2 = std::char_traits<char>::length(str2);
+    if (len1 != len2)
+      return false;
+
+    for (int p = 0; p < len1; p++) {
+      if (str1[p] != str2[p])
+        return false;
+    }
+    return true;
+  }
+  static constexpr const bool equal = impl();
+};
+
+// filter properties with AllowedPropsTuple via name checking
+template <typename testProps, typename AllowedPropsTuple>
+struct PropertiesIsAllowed {};
+
+template <typename testProps, typename... AllowedProps>
+struct PropertiesIsAllowed<testProps, std::tuple<const AllowedProps...>> {
+  static constexpr const bool allowed =
+      (compareStrs<detail::PropertyMetaInfo<testProps>::name,
+                   detail::PropertyMetaInfo<AllowedProps>::name>::equal ||
+       ...);
+};
+
+template <typename... Ts>
+using tuple_cat_t = decltype(std::tuple_cat(std::declval<Ts>()...));
+
+template <typename AllowedPropTuple, typename... Props>
+struct PropertiesFilter {
+  using tuple = tuple_cat_t<typename std::conditional<
+      PropertiesIsAllowed<Props, AllowedPropTuple>::allowed, std::tuple<Props>,
+      std::tuple<>>::type...>;
+};
+
 template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
@@ -41,22 +82,30 @@ class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
 private:
-  T *m_Ptr
-#ifdef __SYCL_DEVICE_ONLY__
-      [[__sycl_detail__::add_ir_annotations_member(
-          detail::PropertyMetaInfo<Props>::name...,
-          detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-      ;
+  T *m_Ptr;
 
 public:
   annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
   annotated_ref(const annotated_ref &) = default;
 
-  operator T() const { return *m_Ptr; }
+  operator T() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return *__builtin_intel_fpga_sycl_ptr_annotation(
+        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+        detail::PropertyMetaInfo<Props>::value...);
+#else
+    return *m_Ptr;
+#endif
+  }
 
   annotated_ref &operator=(const T &Obj) {
+#ifdef __SYCL_DEVICE_ONLY__
+    *__builtin_intel_fpga_sycl_ptr_annotation(
+        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+        detail::PropertyMetaInfo<Props>::value...) = Obj;
+#else
     *m_Ptr = Obj;
+#endif
     return *this;
   }
 
@@ -97,8 +146,23 @@ template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
-  using reference =
-      sycl::ext::oneapi::experimental::annotated_ref<T, property_list_t>;
+
+  // Buffer_Location and Alignment is allowed for annotated_ref
+  using allowed_properties =
+      std::tuple<decltype(buffer_location<0>), decltype(alignment<0>)>;
+  using filtered_properties =
+      typename PropertiesFilter<allowed_properties, Props...>::tuple;
+
+  // template unpack helper
+  template <typename... FilteredProps> struct unpack {};
+
+  template <typename... FilteredProps>
+  struct unpack<std::tuple<FilteredProps...>> {
+    using type = detail::properties_t<FilteredProps...>;
+  };
+
+  using reference = sycl::ext::oneapi::experimental::annotated_ref<
+      T, typename unpack<filtered_properties>::type>;
 
 #ifdef __SYCL_DEVICE_ONLY__
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;

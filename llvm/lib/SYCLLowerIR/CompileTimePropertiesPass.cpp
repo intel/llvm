@@ -332,6 +332,16 @@ parseSYCLPropertiesString(Module &M, IntrinsicInst *IntrInst) {
   return result;
 }
 
+template <typename T>
+void searchUserIgnoringCast(Value *V, SmallVector<Instruction *, 4> &List) {
+  for (auto User : V->users()) {
+    if (auto Inst = dyn_cast<T>(User))
+      List.push_back(Inst);
+    else if (isa<BitCastInst>(User) || isa<AddrSpaceCastInst>(User))
+      searchUserIgnoringCast<T>(User, List);
+  }
+}
+
 } // anonymous namespace
 
 PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
@@ -399,9 +409,19 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
         for (auto &Attribute : F.getAttributes().getParamAttrs(I)) {
           if (MDNode *SPIRVMetadata =
                   attributeToDecorateMetadata(Ctx, Attribute)) {
-            // sycl-alignment is not collected to SPIRV.ParamDecoration
-            if (Attribute.getKindAsString() == "sycl-alignment")
+            if (Attribute.getKindAsString() == "sycl-alignment") {
+              // apply alignment on kernel argument
+              uint32_t AttrVal = getAttributeAsInteger<uint32_t>(Attribute);
+              assert(llvm::isPowerOf2_64(AttrVal) &&
+                     "sycl-alignment attribute is not a power of 2");
+              // sycl-alignment is not collected to SPIRV.ParamDecoration
+              // Convert sycl-alignment to general align
+              auto Attr =
+                  Attribute::getWithAlignment(Ctx, llvm::Align(AttrVal));
+              F.addParamAttr(I, Attr);
+              F.removeParamAttr(I, Attribute.getKindAsString());
               continue;
+            }
             MDArgOps.push_back(SPIRVMetadata);
           }
         }
@@ -505,23 +525,10 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   // parse properties string to decoration-value pairs
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
 
-  SmallVector<Value *, 8> UserList;
-  SmallVector<Instruction *, 4> InstList;
-  // check if used by a load or store instructions
-  for (auto Val : IntrInst->users()) {
-    // if castInst, push successors
-    if (auto CInst = dyn_cast<CastInst>(Val)) {
-      for (auto Successor : CInst->users())
-        UserList.push_back(Successor);
-    } else {
-      UserList.push_back(Val);
-    }
-  }
-
-  for (auto &Value : UserList) {
-    if (isa<LoadInst>(Value) || isa<StoreInst>(Value))
-      InstList.push_back(cast<Instruction>(Value));
-  }
+  SmallVector<Instruction *, 4> TargetedInstList;
+  // search ptr.annotation followed by Load/Store
+  searchUserIgnoringCast<LoadInst>(IntrInst, TargetedInstList);
+  searchUserIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
 
   for (auto &Property : Properties) {
     auto DecorStr = Property.first->str();
@@ -540,7 +547,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
              "sycl-alignment attribute is not a power of 2");
 
       // apply alignment attributes to load/store
-      for (auto Inst : InstList) {
+      for (auto Inst : TargetedInstList) {
         if (auto LInst = dyn_cast<LoadInst>(Inst))
           LInst->setAlignment(Align(AttrVal));
         else if (auto SInst = dyn_cast<StoreInst>(Inst))
@@ -582,6 +589,11 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   std::string NewAnnotString = "";
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
   for (auto &Property : Properties) {
+    // sycl-alignment is converted to align in this
+    // pass and thus not collected here
+    if (*Property.first == "sycl-alignment")
+      continue;
+
     auto DecorIt = SpirvDecorMap.find(*Property.first);
     if (DecorIt == SpirvDecorMap.end())
       continue;
