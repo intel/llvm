@@ -283,9 +283,19 @@ void UniformityAnalysis::analyzeMemoryEffects(
         llvm::dbgs().indent(4) << mod << "\n";
     });
 
+    // Collect the branch conditions that dominate the modifiers.
+    SmallVector<IfCondition> branchConditions = collectBranchConditions(*mods);
+
+    // If we haven't yet computed the uniformity of the branch conditions, bail
+    // out.
+    if (!isUniformityInitialized(branchConditions, op)) {
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "Reaching def operand(s) uniformity not yet initialized\n");
+      return;
+    }
+
     // If any of mods/pMods are dominated by a branch with a condition that is
     // unknown/non-uniform the loaded value has the same uniformity.
-    SmallVector<IfCondition> branchConditions = collectBranchConditions(*mods);
     if (anyOfUniformityIs(branchConditions, Uniformity::Kind::Unknown)) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Branch condition has unknown uniformity\n");
@@ -297,8 +307,8 @@ void UniformityAnalysis::analyzeMemoryEffects(
                                    Uniformity::getNonUniform());
     }
 
-    // If we can't yet compute the mods/pMods operands uniformity, bail out.
-    if (!canComputeUniformity(*mods, op)) {
+    // If we haven't yet computed the mods/pMods operands uniformity, bail out.
+    if (!isUniformityInitialized(*mods, op)) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Reaching def operand(s) uniformity not yet initialized\n");
       return;
@@ -407,7 +417,44 @@ SmallVector<IfCondition> UniformityAnalysis::collectBranchConditions(
   return conditions;
 }
 
-bool UniformityAnalysis::canComputeUniformity(
+bool UniformityAnalysis::isUniformityInitialized(
+    const ArrayRef<IfCondition> conditions, Operation *op) {
+  // Determine whether any condition has uniformity that is not yet known.
+  bool uniformityIsKnow =
+      llvm::all_of(conditions, [&](const IfCondition &cond) {
+        if (cond.hasSCFCondition())
+          return !anyOfUniformityIsUninitialized(cond.getSCFCondition());
+
+        assert(cond.hasAffineCondition() && "Expecting affine condition");
+        IfCondition::AffineCondition affineCond = cond.getAffineCondition();
+        return !anyOfUniformityIsUninitialized(affineCond.setOperands);
+      });
+
+  // Inject lattice nodes if necessary.
+  if (!uniformityIsKnow) {
+    auto getOrCreateLatticeFor = [&](Value val) {
+      UniformityLattice *lattice = getLatticeElement(val);
+      if (lattice->getValue().isUninitialized())
+        getOrCreateFor<UniformityLattice>(op, val);
+    };
+
+    for (const IfCondition &cond : conditions) {
+      if (cond.hasSCFCondition()) {
+        getOrCreateLatticeFor(cond.getSCFCondition());
+        continue;
+      }
+
+      assert(cond.hasAffineCondition() && "Expecting affine condition");
+      IfCondition::AffineCondition affineCond = cond.getAffineCondition();
+      for (Value setOperand : affineCond.setOperands)
+        getOrCreateLatticeFor(setOperand);
+    }
+  }
+
+  return uniformityIsKnow;
+}
+
+bool UniformityAnalysis::isUniformityInitialized(
     const ReachingDefinition::ModifiersTy &mods, Operation *op) {
   assert(op && "Expecting a valid operation");
 
@@ -421,8 +468,9 @@ bool UniformityAnalysis::canComputeUniformity(
     return !anyOfUniformityIsUninitialized(defOp->getOperands());
   });
 
+  // Inject lattice nodes if necessary.
   if (!uniformityIsKnow) {
-    for (Definition def : mods) {
+    for (const Definition &def : mods) {
       if (!def.isOperation())
         continue;
 

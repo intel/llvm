@@ -158,11 +158,16 @@ private:
   SmallVector<IfCondition>
   collectBranchConditions(const ReachingDefinition::ModifiersTy &mods);
 
-  /// Return true if all the modifiers \p mods have operands with known
-  /// uniform that is initialized. The \p op argument is the operation the
-  /// modifiers are for.
-  bool canComputeUniformity(const ReachingDefinition::ModifiersTy &mods,
-                            Operation *op);
+  /// Return true if all the \p conditions have uniformity that is initialized.
+  /// The \p op argument is the operation the modifiers are for.
+  bool isUniformityInitialized(const ArrayRef<IfCondition> conditions,
+                               Operation *op);
+
+  /// Return true if all the modifiers \p mods have operands with uniformity
+  /// that is initialized. The \p op argument is the operation the modifiers are
+  /// for.
+  bool isUniformityInitialized(const ReachingDefinition::ModifiersTy &mods,
+                               Operation *op);
 
   /// Return true if any of the modifiers \p mods store a value with
   /// uniformity equal to \p kind.
@@ -198,8 +203,6 @@ private:
   bool anyOfUniformityIs(const ValueRange values, Uniformity::Kind kind) {
     return llvm::any_of(values, [&](Value value) {
       UniformityLattice *lattice = getLatticeElement(value);
-      if (lattice->getValue().isUninitialized())
-        llvm::errs() << "value:" << value << "\n";
       return lattice->getValue().getKind() == kind;
     });
   }
