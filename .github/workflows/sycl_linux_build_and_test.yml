@@ -96,6 +96,7 @@ jobs:
       options: -u 1001:1001
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
+      merge-sha: ${{ steps.checkout.outputs.merge-sha }}
     steps:
     # GHA requires relative paths for actions. Copy actions from container root
     # to CWD.
@@ -104,6 +105,7 @@ jobs:
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup
     - uses: ./actions/cached_checkout
+      id: checkout
       with:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
@@ -246,12 +248,14 @@ jobs:
           sudo mv get_release.py /opt/
           sudo -E /opt/install_drivers.sh --all
         fi
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v3
+    - uses: ./actions/cached_checkout
+      id: checkout
       with:
-        persist-credentials: false
         path: llvm
         ref: ${{ inputs.build_ref || github.sha }}
+        cache_path: "/__w/repo_cache/"
+        merge: ${{ inputs.merge }}
+        merge-commit: ${{ needs.build.outputs.merge-sha }}
     # TODO should this action be packed into container as well?
     - uses: ./llvm/devops/actions/e2e-tests
       name: Run SYCL End-to-End tests

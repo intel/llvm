@@ -19,6 +19,14 @@ inputs:
   merge:
     description: 'Merge default branch after the checkout'
     default: true
+  merge-commit:
+    description: 'Commit on default_branch to merge'
+    default: FETCH_HEAD
+
+outputs:
+  merge-sha:
+    description: 'Commit has of the merge-commit'
+    value: ${{ steps.merge.outputs.merge-sha }}
 
 runs:
   using: 'composite'
@@ -51,17 +59,20 @@ runs:
     run: |
       echo $GIT_ALTERNATE_OBJECT_DIRECTORIES > ${{ inputs.path }}/.git/objects/info/alternates
   - name: Merge sycl HEAD into current branch
+    id: merge
     shell: bash
     if: ${{ inputs.merge == 'true' }}
     env:
       DEFAULT_BRANCH: ${{ inputs.default_branch }}
+      MERGE_COMMIT: ${{ inputs.merge-commit }}
     run: |
       cd ${{ inputs.path }}
       git fetch origin $DEFAULT_BRANCH
       echo "FETCHED:"
       git log -1 origin/$DEFAULT_BRANCH
-      echo "Merging it into the current workspace"
+      echo "Merging $MERGE_COMMIT into the current workspace"
       # Set fake identity to fulfil git requirements
       git config --local user.email "actions@github.com"
       git config --local user.name "GitHub Actions"
-      git merge --no-ff --no-commit origin/$DEFAULT_BRANCH
+      git merge --no-ff --no-commit $MERGE_COMMIT
+      echo merge-sha=$(git rev-parse $MERGE_COMMIT) >> $GITHUB_OUTPUT
