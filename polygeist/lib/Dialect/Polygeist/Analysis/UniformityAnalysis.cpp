@@ -420,7 +420,7 @@ SmallVector<IfCondition> UniformityAnalysis::collectBranchConditions(
 bool UniformityAnalysis::isUniformityInitialized(
     const ArrayRef<IfCondition> conditions, Operation *op) {
   // Determine whether any condition has uniformity that is not yet known.
-  bool uniformityIsKnow =
+  bool uniformityIsKnown =
       llvm::all_of(conditions, [&](const IfCondition &cond) {
         if (cond.hasSCFCondition())
           return !anyOfUniformityIsUninitialized(cond.getSCFCondition());
@@ -431,7 +431,7 @@ bool UniformityAnalysis::isUniformityInitialized(
       });
 
   // Inject lattice nodes if necessary.
-  if (!uniformityIsKnow) {
+  if (!uniformityIsKnown) {
     auto getOrCreateLatticeFor = [&](Value val) {
       UniformityLattice *lattice = getLatticeElement(val);
       if (lattice->getValue().isUninitialized())
@@ -451,7 +451,7 @@ bool UniformityAnalysis::isUniformityInitialized(
     }
   }
 
-  return uniformityIsKnow;
+  return uniformityIsKnown;
 }
 
 bool UniformityAnalysis::isUniformityInitialized(
@@ -460,7 +460,7 @@ bool UniformityAnalysis::isUniformityInitialized(
 
   // Determine whether any modifier has operands with uniformity that is not
   // yet known.
-  bool uniformityIsKnow = llvm::all_of(mods, [&](const Definition &def) {
+  bool uniformityIsKnown = llvm::all_of(mods, [&](const Definition &def) {
     if (!def.isOperation())
       return true;
 
@@ -469,7 +469,7 @@ bool UniformityAnalysis::isUniformityInitialized(
   });
 
   // Inject lattice nodes if necessary.
-  if (!uniformityIsKnow) {
+  if (!uniformityIsKnown) {
     for (const Definition &def : mods) {
       if (!def.isOperation())
         continue;
@@ -488,7 +488,7 @@ bool UniformityAnalysis::isUniformityInitialized(
     }
   }
 
-  return uniformityIsKnow;
+  return uniformityIsKnown;
 }
 
 bool UniformityAnalysis::anyModifierUniformityIs(

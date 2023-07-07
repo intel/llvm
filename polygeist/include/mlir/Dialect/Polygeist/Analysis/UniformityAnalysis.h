@@ -159,7 +159,7 @@ private:
   collectBranchConditions(const ReachingDefinition::ModifiersTy &mods);
 
   /// Return true if all the \p conditions have uniformity that is initialized.
-  /// The \p op argument is the operation the modifiers are for.
+  /// The \p op argument is the operation the conditions are for.
   bool isUniformityInitialized(const ArrayRef<IfCondition> conditions,
                                Operation *op);
 
