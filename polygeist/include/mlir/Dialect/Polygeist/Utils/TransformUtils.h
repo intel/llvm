@@ -192,20 +192,6 @@ public:
   IfCondition(Value scfCond) : ifCondition(scfCond) {}
   IfCondition(AffineCondition affineCond) : ifCondition(affineCond) {}
 
-  //  IfCondition(const IfCondition &other) : ifCondition(other.ifCondition) {}
-
-  /*
-  IfCondition &operator=(const IfCondition &other) {
-    if (other.hasSCFCondition())
-      ifCondition = other.getSCFCondition();
-    else {
-      assert(hasAffineCondition() && "Unexpected variant");
-      ifCondition = other.getAffineCondition();
-    }
-    return *this;
-  }
-  */
-
   bool hasSCFCondition() const {
     return std::holds_alternative<Value>(ifCondition);
   }
