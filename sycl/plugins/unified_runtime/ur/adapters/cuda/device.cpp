@@ -877,6 +877,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // On CUDA bindless images are supported.
     return ReturnValue(true);
   }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
+    // On CUDA bindless images can be backed by shared (managed) USM
+    return ReturnValue(true);
+  }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
     // On CUDA 1D bindless image USM is not supported.
     // More specifically, linear filtering is not supported.
