@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
@@ -87,7 +88,7 @@ ReachingDefinition::ReachingDefinition(ProgramPoint p)
       return;
     if (auto funcOp = dyn_cast<FunctionOpInterface>(block->getParentOp())) {
       for (Value arg : funcOp.getArguments()) {
-        if (isa<MemRefType>(arg.getType()))
+        if (isa<MemRefType, LLVM::LLVMPointerType>(arg.getType()))
           setModifier(arg, Definition());
       }
     }
