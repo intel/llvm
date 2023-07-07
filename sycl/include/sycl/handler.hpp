@@ -1241,12 +1241,6 @@ private:
 #define __SYCL_KERNEL_ATTR__
 #endif
 
-#ifdef __clang__
-#define ANNOTATE(str) __attribute__((annotate(#str)))
-#else
-#define ANNOTATE(str)
-#endif
-
   // NOTE: the name of this function - "kernel_single_task" - is used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType, typename... Props>
@@ -1669,24 +1663,24 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<1> NumWorkItems ANNOTATE(range),
-                    _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  void parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
         std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<2> NumWorkItems ANNOTATE(range),
-                    _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  void parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
         std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<3> NumWorkItems ANNOTATE(range),
-                    _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  void parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
         std::move(KernelFunc));
@@ -1736,9 +1730,9 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  void parallel_for(range<Dims> NumWorkItems ANNOTATE(range),
-                    id<Dims> WorkItemOffset ANNOTATE(offset),
-                    _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  void parallel_for(range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                    id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1815,18 +1809,18 @@ public:
     MKernelName = getKernelName();
   }
 
-  void parallel_for(range<1> NumWorkItems ANNOTATE(range),
-                    kernel Kernel ANNOTATE(kernel)) {
+  void parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range),
+                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl(NumWorkItems, Kernel);
   }
 
-  void parallel_for(range<2> NumWorkItems ANNOTATE(range),
-                    kernel Kernel ANNOTATE(kernel)) {
+  void parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range),
+                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl(NumWorkItems, Kernel);
   }
 
-  void parallel_for(range<3> NumWorkItems ANNOTATE(range),
-                    kernel Kernel ANNOTATE(kernel)) {
+  void parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range),
+                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl(NumWorkItems, Kernel);
   }
 
@@ -1840,9 +1834,9 @@ public:
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  void parallel_for(range<Dims> NumWorkItems ANNOTATE(range),
-                    id<Dims> WorkItemOffset ANNOTATE(offset),
-                    kernel Kernel ANNOTATE(kernel)) {
+  void parallel_for(range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                    id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
+                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
@@ -1861,8 +1855,8 @@ public:
   /// well as offset.
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
-  void parallel_for(nd_range<Dims> NDRange ANNOTATE(nd_range),
-                    kernel Kernel ANNOTATE(kernel)) {
+  void parallel_for(nd_range<Dims> NDRange __SYCL_ANNOTATE(nd_range),
+                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
@@ -1924,8 +1918,9 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(kernel Kernel, range<Dims> NumWorkItems ANNOTATE(range),
-                    _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  void parallel_for(kernel Kernel,
+                    range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -1962,9 +1957,10 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  void parallel_for(kernel Kernel, range<Dims> NumWorkItems ANNOTATE(range),
-                    id<Dims> WorkItemOffset ANNOTATE(offset),
-                    _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  void parallel_for(kernel Kernel,
+                    range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                    id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -2001,8 +1997,9 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(kernel Kernel, nd_range<Dims> NDRange ANNOTATE(nd_range),
-                    _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  void parallel_for(kernel Kernel,
+                    nd_range<Dims> NDRange __SYCL_ANNOTATE(nd_range),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -2121,8 +2118,8 @@ public:
             typename PropertiesT>
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<1> NumWorkItems ANNOTATE(range), PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range), PropertiesT Props,
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName, KernelType, 1, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2131,8 +2128,8 @@ public:
             typename PropertiesT>
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<2> NumWorkItems ANNOTATE(range), PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range), PropertiesT Props,
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName, KernelType, 2, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2141,8 +2138,8 @@ public:
             typename PropertiesT>
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<3> NumWorkItems ANNOTATE(range), PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range), PropertiesT Props,
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName, KernelType, 3, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2151,8 +2148,9 @@ public:
             typename PropertiesT, int Dims>
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(nd_range<Dims> Range ANNOTATE(nd_range), PropertiesT Properties,
-               _KERNELFUNCPARAM(KernelFunc) ANNOTATE(kernel)) {
+  parallel_for(nd_range<Dims> Range __SYCL_ANNOTATE(nd_range),
+               PropertiesT Properties,
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
   }
 
