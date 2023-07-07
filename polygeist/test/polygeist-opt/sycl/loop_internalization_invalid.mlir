@@ -147,7 +147,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 
 // COM: Not candidate: innermost loop is not uniform, i.e., not all threads execute the innermost loop.
 // CHECK: LoopInternalization
-// CHECK:   (S) 0 num-tiled - Number of loops tiled
+// CHECK:   (S) 0 num-loop-internalized - Number of loops internalized
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
