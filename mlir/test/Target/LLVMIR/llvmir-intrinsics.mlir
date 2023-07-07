@@ -445,11 +445,11 @@ llvm.func @masked_expand_compress_intrinsics(%ptr: !llvm.ptr<f32>, %mask: vector
 }
 
 // CHECK-LABEL: @annotate_intrinsics
-llvm.func @annotate_intrinsics(%var: !llvm.ptr, %int: i16, %ptr: !llvm.ptr, %annotation: !llvm.ptr, %fileName: !llvm.ptr, %line: i32, %args: !llvm.ptr) {
+llvm.func @annotate_intrinsics(%var: !llvm.ptr, %int: i16, %ptr: !llvm.ptr, %annotation: !llvm.ptr, %fileName: !llvm.ptr, %line: i32, %attr: !llvm.ptr) {
   // CHECK: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr %{{.*}}, ptr %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
-  "llvm.intr.var.annotation"(%var, %annotation, %fileName, %line, %args) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  "llvm.intr.var.annotation"(%var, %annotation, %fileName, %line, %attr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
   // CHECK: call ptr @llvm.ptr.annotation.p0.p0(ptr %{{.*}}, ptr %{{.*}}, ptr %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
-  %res0 = "llvm.intr.ptr.annotation"(%ptr, %annotation, %fileName, %line, %args) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> (!llvm.ptr)
+  %res0 = "llvm.intr.ptr.annotation"(%ptr, %annotation, %fileName, %line, %attr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> (!llvm.ptr)
   // CHECK: call i16 @llvm.annotation.i16.p0(i16 %{{.*}}, ptr %{{.*}}, ptr %{{.*}}, i32 %{{.*}})
   %res1 = "llvm.intr.annotation"(%int, %annotation, %fileName, %line) : (i16, !llvm.ptr, !llvm.ptr, i32) -> (i16)
   llvm.return

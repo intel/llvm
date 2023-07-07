@@ -792,7 +792,7 @@ def LLVM_VarAnnotation
                        LLVM_AnyPointer:$annotation,
 		       LLVM_AnyPointer:$fileName,
 		       I32:$line,
-		       LLVM_AnyPointer:$args);
+		       LLVM_AnyPointer:$attr);
 }
 
 def LLVM_PtrAnnotation
@@ -803,7 +803,7 @@ def LLVM_PtrAnnotation
                        LLVM_AnyPointer:$annotation,
 		       LLVM_AnyPointer:$fileName,
 		       I32:$line,
-		       LLVM_AnyPointer:$args);
+		       LLVM_AnyPointer:$attr);
   let results = (outs LLVM_PointerTo<Builtin_Integer>:$res);
 }
 
