@@ -8,7 +8,6 @@
 
 #pragma once
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 
 namespace sycl {

@@ -40,7 +40,8 @@ namespace ext::oneapi {
 // need to forward declare sub_group_mask first
 struct sub_group_mask;
 template <typename Group>
-std::enable_if_t<std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
+std::enable_if_t<std::is_same_v<std::decay_t<Group>, sycl::sub_group> ||
+                     std::is_same_v<std::decay_t<Group>, sub_group>,
                  sub_group_mask>
 group_ballot(Group g, bool predicate = true);
 
@@ -294,7 +295,8 @@ private:
 };
 
 template <typename Group>
-std::enable_if_t<std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
+std::enable_if_t<std::is_same_v<std::decay_t<Group>, sycl::sub_group> ||
+                     std::is_same_v<std::decay_t<Group>, sub_group>,
                  sub_group_mask>
 group_ballot(Group g, bool predicate) {
   (void)g;
