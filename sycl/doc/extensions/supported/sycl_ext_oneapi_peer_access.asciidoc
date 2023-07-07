@@ -46,13 +46,9 @@ This extension is implemented and fully supported by DPC++.
 
 == Backend support status
 
-This extension is currently implemented in {dpcpp} only for GPU devices.
-This extension is only currently fully supported for the cuda backend.
-Attempting to use this extension in kernels that run on other
-backends may result in undefined behavior.  Be aware that the compiler
-may not able to issue a diagnostic to warn you if this happens.
-When the extension is not supported for a particular GPU backend any queries
-made using `ext_oneapi_can_access_peer` will return false.
+This extension is currently implemented in DPC++ for all GPU devices and
+backends, however, only the CUDA backend allows peer to peer memory access.
+Other backends report false from the ext_oneapi_can_access_peer query.
 
 == Overview
 
