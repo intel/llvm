@@ -1,28 +1,58 @@
 import itertools
 import sys
 
-class Vec:
-  def __init__(self, valid_types, valid_sizes = {1,2,3,4,8,16},
-               deprecation_message=None):
+class TemplatedType:
+  def __init__(self, valid_types, valid_sizes):
     self.valid_types = valid_types
     self.valid_sizes = valid_sizes
+
+class Vec(TemplatedType):
+  def __init__(self, valid_types, valid_sizes = {1,2,3,4,8,16},
+               deprecation_message=None):
+    super().__init__(valid_types, valid_sizes)
     self.deprecation_message = deprecation_message
 
-class InstantiatedVecArg:
-  def __init__(self, template_name, vec_type):
+  def get_requirements(self, type_name):
+    valid_type_str = ', '.join(self.valid_types)
+    valid_sizes_str = ', '.join(map(str, self.valid_sizes))
+    return [f'detail::is_vec_or_swizzle_v<{type_name}>',
+            f'detail::is_valid_elem_type_v<{type_name}, {valid_type_str}>',
+            f'detail::is_valid_size_v<{type_name}, {valid_sizes_str}>']
+
+class Marray(TemplatedType):
+  def __init__(self, valid_types, valid_sizes = None):
+    super().__init__(valid_types, valid_sizes)
+
+  def get_requirements(self, type_name):
+    valid_type_str = ', '.join(self.valid_types)
+    result = [f'detail::is_marray_v<{type_name}>',
+              f'detail::is_valid_elem_type_v<{type_name}, {valid_type_str}>']
+    if self.valid_sizes:
+      valid_sizes_str = ', '.join(map(str, self.valid_sizes))
+      result.append(f'detail::is_valid_size_v<{type_name}, {valid_sizes_str}>')
+    return result
+
+class InstantiatedTemplatedArg:
+  def __init__(self, template_name, templated_type):
     self.template_name = template_name
-    self.vec_type = vec_type
+    self.templated_type = templated_type
+
+  def get_requirements(self):
+    return self.templated_type.get_requirements(self.template_name)
 
   def __str__(self):
     return self.template_name
 
-class InstantiatedVecReturnType:
-  def __init__(self, related_arg_type, vec_type):
+class InstantiatedTemplatedReturnType:
+  def __init__(self, related_arg_type, templated_type):
     self.related_arg_type = related_arg_type
-    self.vec_type = vec_type
+    self.templated_type = templated_type
 
   def __str__(self):
-    return f'detail::get_vec_t<{self.related_arg_type}>'
+    if isinstance(self.templated_type, Vec):
+      # Vectors need conversion as their related type may be a swizzle.
+      return f'detail::get_vec_t<{self.related_arg_type}>'
+    return str(self.related_arg_type)
 
 class MultiPtr:
   def __init__(self, element_type):
@@ -50,8 +80,9 @@ class InstantiatedElementType:
     self.parent_idx = parent_idx
 
   def __str__(self):
-    if isinstance(self.referenced_type, InstantiatedVecArg) or isinstance(self.referenced_type, InstantiatedVecReturnType):
-      return f'typename {self.referenced_type}::element_type'
+    if (isinstance(self.referenced_type, InstantiatedTemplatedArg) or
+        isinstance(self.referenced_type, InstantiatedTemplatedReturnType)):
+      return f'detail::get_elem_type_t<{self.referenced_type}>'
     return self.referenced_type
 
 class UnsignedType:
@@ -88,7 +119,7 @@ vfloatn = [Vec(["float"])]
 vfloat3or4 = [Vec(["float"], {3,4})]
 mfloatn = []
 mfloat3or4 = []
-genfloatf = ["float", Vec(["float"])]
+genfloatf = ["float", Vec(["float"]), Marray(["float"])]
 
 doublen = [Vec(["double"])]
 vdoublen = [Vec(["double"])]
@@ -104,7 +135,8 @@ mhalfn = []
 mhalf3or4 = []
 genfloath = ["half", Vec(["half"])]
 
-genfloat = ["float", "double", "half", Vec(["float", "double", "half"])]
+genfloat = ["float", "double", "half", Vec(["float", "double", "half"]),
+            Marray(["float", "double", "half"])]
 vgenfloat = [Vec(["float", "double", "half"])]
 sgenfloat = ["float", "double", "half"]
 mgenfloat = []
@@ -306,21 +338,27 @@ builtin_types = {
 
 ### BUILTINS
 
-def find_first_vec_arg(arg_types):
+def find_first_template_arg(arg_types):
   for arg_type in arg_types:
-    if isinstance(arg_type, InstantiatedVecArg):
+    if isinstance(arg_type, InstantiatedTemplatedArg):
       return arg_type
   return None
 
+def is_marray_arg(arg_type):
+  return isinstance(arg_type, InstantiatedTemplatedArg) and isinstance(arg_type.templated_type, Marray)
+
+def is_vec_arg(arg_type):
+  return isinstance(arg_type, InstantiatedTemplatedArg) and isinstance(arg_type.templated_type, Vec)
+
 def convert_vec_arg_name(arg_type, arg_name):
-  if isinstance(arg_type, InstantiatedVecArg):
+  if is_vec_arg(arg_type):
     return f'typename detail::get_vec_t<{arg_type}>({arg_name})'
   return arg_name
 
 class Def:
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
-               convert_args=[], vec_size_alias=None):
+               convert_args=[], size_alias=None):
     self.return_type = return_type
     self.arg_types = arg_types
     self.invoke_name = invoke_name
@@ -333,7 +371,7 @@ class Def:
     # Alternatively, the second element can be a string representation of the
     # conversion function or type.
     self.convert_args = convert_args
-    self.vec_size_alias = vec_size_alias
+    self.size_alias = size_alias
 
   def get_invoke_args(self, arg_types, arg_names):
     result = list(map(convert_vec_arg_name, arg_types, arg_names))
@@ -341,23 +379,75 @@ class Def:
       # type_conv is either an index or a conversion function/type.
       conv = type_conv if isinstance(type_conv, str) else arg_types[type_conv]
       result[arg_idx] = f'{conv}({result[arg_idx]})'
-    return ', '.join(result)
+    return result
+
+  def get_marray_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
+    result = ""
+    first_template_arg = find_first_template_arg(arg_types)
+    size_alias = self.size_alias
+    if not size_alias:
+      # If there isn't a size alias defined, we add one inside here.
+      size_alias = 'N'
+      result = result + f'  constexpr size_t {size_alias} = detail::num_elements<{first_template_arg.template_name}>::value;\n'
+    # Adjust arguments for partial results and the remaining work at the end.
+    imm_args = []
+    rem_args = []
+    for arg_type, arg_name in zip(arg_types, arg_names):
+      is_marray = is_marray_arg(arg_type)
+      imm_args.append(f'detail::to_vec2({arg_name}, I * 2)' if is_marray else arg_name)
+      rem_args.append(f'{arg_name}[{size_alias} - 1]' if is_marray else arg_name)
+    joined_imm_args = ', '.join(imm_args)
+    joined_rem_args = ', '.join(rem_args)
+    # If the function has fast-math we need to switch between invocations.
+    imm_invoke = f'__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<ImmVecT>({joined_imm_args});'
+    rem_invoke = f'__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<detail::get_elem_type_t<{return_type}>>({joined_rem_args});'
+    if self.fast_math_invoke_name:
+      imm_invoke = f"""[&]() {{
+      if constexpr (detail::use_fast_math_v<{first_template_arg}>)
+        return __sycl_std::__invoke_{self.fast_math_invoke_name}<ImmVecT>({joined_imm_args});
+      return {imm_invoke}
+    }}();"""
+      rem_invoke =  f"""[&]() {{
+      if constexpr (detail::use_fast_math_v<{first_template_arg}>)
+        __sycl_std::__invoke_{self.fast_math_invoke_name}<detail::get_elem_type_t<{return_type}>>({joined_rem_args});
+      return {rem_invoke}
+    }}();"""
+    return result + f"""  using ImmVecT = vec<detail::get_elem_type_t<{first_template_arg}>, 2>;
+  {return_type} Res;
+  for (size_t I = 0; I < {size_alias} / 2; ++I) {{
+    auto PartialRes = {imm_invoke}
+    std::memcpy(&Res[I * 2], &PartialRes, sizeof(ImmVecT));
+  }}
+  if ({size_alias} % 2) {{
+    Res[{size_alias} - 1] = {rem_invoke}
+  }}
+  return Res;"""
+
+  def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
+    invoke_args = self.get_invoke_args(arg_types, arg_names)
+    result = ""
+    if self.fast_math_invoke_name:
+      result = result + f"""  if constexpr (detail::use_fast_math_v<{arg_types[0]}>) {{
+    return __sycl_std::__invoke_{self.fast_math_invoke_name}<{return_type}>({(", ".join(invoke_args))});
+  }}\n"""
+    return result + f'  return __sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<{return_type}>({(", ".join(invoke_args))});'
+
+  def get_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
+    for arg_type in arg_types:
+      if is_marray_arg(arg_type):
+        return self.get_marray_invoke_body(invoke_name, return_type, arg_types, arg_names)
+    return self.get_scalar_vec_invoke_body(invoke_name, return_type, arg_types, arg_names)
 
   def get_invoke(self, builtin_name, return_type, arg_types, arg_names):
     if self.custom_invoke:
       return self.custom_invoke(return_type, arg_types, arg_names)
     invoke_name = self.invoke_name if self.invoke_name else builtin_name
-    invoke_args = self.get_invoke_args(arg_types, arg_names)
     result = ""
-    if self.vec_size_alias:
-      vec_arg = find_first_vec_arg(arg_types)
-      if vec_arg:
-        result = result + f'  constexpr int {self.vec_size_alias} = detail::get_vec_size<{vec_arg.template_name}>::size;'
-    if self.fast_math_invoke_name:
-      result = result + f"""  if constexpr (detail::use_fast_math_v<{arg_types[0]}>)
-    return __sycl_std::__invoke_{self.fast_math_invoke_name}<{return_type}>({invoke_args});\n"""
-    result = result + f'  return __sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<{return_type}>({invoke_args});'
-    return result
+    if self.size_alias:
+      template_arg = find_first_template_arg(arg_types)
+      if template_arg:
+        result = result + f'  constexpr size_t {self.size_alias} = detail::num_elements<{template_arg.template_name}>::value;'
+    return result + self.get_invoke_body(invoke_name, return_type, arg_types, arg_names)
 
 class RelDef:
   def __init__(self, return_type, arg_types, invoke_name=None,
@@ -381,7 +471,7 @@ def custom_signed_abs_scalar_invoke(return_type, _, arg_names):
 
 def custom_signed_abs_vector_invoke(return_type, _, arg_names):
   args = ' ,'.join(arg_names)
-  return f'return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}).template convert<typename {return_type}::element_type>();'
+  return f'return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}).template convert<detail::get_elem_type_t<{return_type}>>();'
 
 def get_custom_any_all_invoke(invoke_name):
   return (lambda _, arg_types, arg_names: f"""  return detail::rel_sign_bit_test_ret_t<{arg_types[0]}>(
@@ -443,7 +533,7 @@ sycl_builtins = {# Math functions
                            Def("int", ["double"]),
                            Def("int", ["half"])],
                  "ldexp": [Def("vgenfloat", ["vgenfloat", "vint32n"]),
-                           Def("vgenfloat", ["vgenfloat", "int"], convert_args=[(1,"vec<int, N>")], vec_size_alias="N"),
+                           Def("vgenfloat", ["vgenfloat", "int"], convert_args=[(1,"vec<int, N>")], size_alias="N"),
                            Def("float", ["float", "int"]),
                            Def("double", ["double", "int"]),
                            Def("half", ["half", "int"])],
@@ -713,8 +803,8 @@ def select_from_mapping(mappings, arg_types, arg_type):
   return mapping
 
 def instantiate_arg(idx, arg):
-  if isinstance(arg, Vec):
-    return InstantiatedVecArg(f'T{idx}', arg)
+  if isinstance(arg, TemplatedType):
+    return InstantiatedTemplatedArg(f'T{idx}', arg)
   if isinstance(arg, MultiPtr):
     return MultiPtr(instantiate_arg(idx, arg.element_type))
   if isinstance(arg, RawPtr):
@@ -728,9 +818,9 @@ def instantiate_arg(idx, arg):
   return arg
 
 def instantiate_return_type(return_type, instantiated_args):
-  if isinstance(return_type, Vec):
-    first_vec = find_first_vec_arg(instantiated_args)
-    return InstantiatedVecReturnType(str(first_vec), return_type)
+  if isinstance(return_type, TemplatedType):
+    first_templated = find_first_template_arg(instantiated_args)
+    return InstantiatedTemplatedReturnType(str(first_templated), return_type)
   if isinstance(return_type, MultiPtr):
     return MultiPtr(instantiate_return_type(return_type.element_type, instantiated_args))
   if isinstance(return_type, RawPtr):
@@ -757,45 +847,28 @@ def type_combinations(return_type, arg_types):
     result.append((instantiated_return_type, instantiated_arg_types))
   return result
 
-def any_vector(types):
-  for t in types:
-    if isinstance(t, Vec):
-      return True
-  return False
-
-def any_multi_ptr(types):
-  for t in types:
-    if isinstance(t, MultiPtr):
-      return True
-  return False
-
-def get_all_vec_args(arg_types):
+def get_all_template_args(arg_types):
   result = []
   for arg_type in arg_types:
-    if isinstance(arg_type, InstantiatedVecArg):
+    if isinstance(arg_type, InstantiatedTemplatedArg):
       result.append(arg_type)
     if isinstance(arg_type, MultiPtr) or isinstance(arg_type, RawPtr):
-      result = result + get_all_vec_args([arg_type.element_type])
+      result = result + get_all_template_args([arg_type.element_type])
   return result
 
 def get_vec_arg_requirement(vec_arg):
-  valid_type_str = ', '.join(vec_arg.vec_type.valid_types)
-  valid_sizes_str = ', '.join(map(str, vec_arg.vec_type.valid_sizes))
-  checks = [f'detail::is_vec_or_swizzle_v<{vec_arg}>',
-            f'detail::is_valid_elem_type_v<{vec_arg.template_name}, {valid_type_str}>',
-            f'detail::is_valid_size_v<{vec_arg.template_name}, {valid_sizes_str}>']
-  return '(' + (' && '.join(checks)) + ')'
+  return '(' + (' && '.join(vec_arg.get_requirements())) + ')'
 
 def get_func_return(return_type, arg_types):
-  vec_args = get_all_vec_args(arg_types)
-  if len(vec_args) > 0:
-    conjunc_reqs = ' && '.join([get_vec_arg_requirement(vec_arg) for vec_arg in vec_args])
+  temp_args = get_all_template_args(arg_types)
+  if len(temp_args) > 0:
+    conjunc_reqs = ' && '.join([get_vec_arg_requirement(temp_arg) for temp_arg in temp_args])
     return f'std::enable_if_t<{conjunc_reqs}, {return_type}>'
   return str(return_type)
 
 def get_template_args(return_type, arg_types):
-  vec_args = get_all_vec_args(arg_types)
-  result = [f'typename {vec_arg.template_name}' for vec_arg in vec_args]
+  temp_args = get_all_template_args(arg_types)
+  result = [f'typename {temp_arg.template_name}' for temp_arg in temp_args]
   for t in ([return_type] + arg_types):
     if isinstance(t, MultiPtr):
       result.append('access::address_space Space')

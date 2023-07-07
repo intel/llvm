@@ -10,6 +10,7 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/types.hpp>
 
 namespace sycl {
@@ -22,13 +23,35 @@ namespace __sycl_std = __host_std;
 #endif
 
 namespace detail {
+
+// Get the element type of T. If T is a scalar, the element type is considered
+// the type of the scalar.
+template <typename T> struct get_elem_type {
+  using type = T;
+};
+template <typename T, size_t N> struct get_elem_type<marray<T, N>> {
+  using type = T;
+};
+template <typename T, int N> struct get_elem_type<vec<T, N>> {
+  using type = T;
+};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct get_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                               OperationCurrentT, Indexes...>> {
+  using type = typename get_elem_type<VecT>::type;
+};
+
+template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
+
 #ifdef __FAST_MATH__
-template <typename T> struct use_fast_math : is_genfloatf<T> {};
+template <typename T>
+struct use_fast_math
+    : std::is_same<std::remove_cv_t<get_elem_type_t<T>>, float> {};
 #else
 template <typename> struct use_fast_math : std::false_type {};
 #endif
-template <typename T>
-static constexpr bool use_fast_math_v = use_fast_math<T>::value;
+template <typename T> constexpr bool use_fast_math_v = use_fast_math<T>::value;
 
 // sycl::select(sgentype a, sgentype b, bool c) calls OpenCL built-in
 // select(sgentype a, sgentype b, igentype c). This type trait makes the
@@ -59,17 +82,7 @@ template <typename T, typename... Ts> constexpr bool CheckTypeIn() {
   return false;
 }
 
-template <typename T, typename... Ts> constexpr bool CheckAllTypesSame() {
-  constexpr bool SameType[] = {
-      std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
-  // Replace with std::all_of with C++20.
-  for (size_t I = 0; I < sizeof...(Ts); ++I)
-    if (!SameType[I])
-      return false;
-  return true;
-}
-
-template <int N, int... Ns> constexpr bool CheckSizeIn() {
+template <size_t N, size_t... Ns> constexpr bool CheckSizeIn() {
   constexpr bool SameSize[] = {(N == Ns)...};
   // Replace with std::any_of with C++20.
   for (size_t I = 0; I < sizeof...(Ns); ++I)
@@ -80,6 +93,9 @@ template <int N, int... Ns> constexpr bool CheckSizeIn() {
 
 template <typename T, typename... Ts>
 struct is_valid_elem_type : std::false_type {};
+template <typename T, size_t N, typename... Ts>
+struct is_valid_elem_type<marray<T, N>, Ts...>
+    : std::bool_constant<CheckTypeIn<T, Ts...>()> {};
 template <typename T, int N, typename... Ts>
 struct is_valid_elem_type<vec<T, N>, Ts...>
     : std::bool_constant<CheckTypeIn<T, Ts...>()> {};
@@ -91,23 +107,29 @@ struct is_valid_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                           Ts...>
     : std::bool_constant<CheckTypeIn<typename VecT::element_type, Ts...>()> {};
 
-template <typename T, int... Ns> struct is_valid_size : std::false_type {};
-template <typename T, int N, int... Ns>
-struct is_valid_size<vec<T, N>, Ns...>
-    : std::bool_constant<CheckSizeIn<N, Ns...>()> {};
+template <typename T>
+struct num_elements : std::integral_constant<size_t, 1> {};
+template <typename T, size_t N>
+struct num_elements<marray<T, N>> : std::integral_constant<size_t, N> {};
+template <typename T, int N>
+struct num_elements<vec<T, N>> : std::integral_constant<size_t, size_t(N)> {};
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes,
-          int... Ns>
-struct is_valid_size<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                               OperationCurrentT, Indexes...>,
-                     Ns...>
-    : std::bool_constant<CheckSizeIn<sizeof...(Indexes), Ns...>()> {};
+          template <typename> class OperationCurrentT, int... Indexes>
+struct num_elements<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                              OperationCurrentT, Indexes...>>
+    : std::integral_constant<size_t, sizeof...(Indexes)> {};
+
+template <typename T, size_t... Ns>
+struct is_valid_size
+    : std::bool_constant<CheckSizeIn<num_elements<T>::value, Ns...>()> {};
 
 template <typename T, typename... Ts>
 constexpr bool is_valid_elem_type_v = is_valid_elem_type<T, Ts...>::value;
 template <typename T, int... Ns>
 constexpr bool is_valid_size_v = is_valid_size<T, Ns...>::value;
 
+// Utility for getting a vector type. This is the identity for a vector type
+// and the vector type that a swizzle can be converted to.
 template <typename T> struct get_vec;
 template <typename T, int N> struct get_vec<vec<T, N>> {
   using type = vec<T, N>;
@@ -149,7 +171,9 @@ template <size_t Size> struct get_float_by_size {
 template <typename T> struct same_size_signed_int {
   using type = typename get_signed_int_by_size<sizeof(T)>::type;
 };
-
+template <typename T, size_t N> struct same_size_signed_int<marray<T, N>> {
+  using type = marray<typename same_size_signed_int<T>::type, N>;
+};
 template <typename T, int N> struct same_size_signed_int<vec<T, N>> {
   using type = vec<typename same_size_signed_int<T>::type, N>;
 };
@@ -161,7 +185,9 @@ using same_size_signed_int_t = typename same_size_signed_int<T>::type;
 template <typename T> struct same_size_unsigned_int {
   using type = typename get_unsigned_int_by_size<sizeof(T)>::type;
 };
-
+template <typename T, size_t N> struct same_size_unsigned_int<marray<T, N>> {
+  using type = marray<typename same_size_unsigned_int<T>::type, N>;
+};
 template <typename T, int N> struct same_size_unsigned_int<vec<T, N>> {
   using type = vec<typename same_size_unsigned_int<T>::type, N>;
 };
@@ -170,7 +196,9 @@ template <typename T, int N> struct same_size_unsigned_int<vec<T, N>> {
 template <typename T> struct same_size_float {
   using type = typename get_float_by_size<sizeof(T)>::type;
 };
-
+template <typename T, size_t N> struct same_size_float<marray<T, N>> {
+  using type = marray<typename same_size_float<T>::type, N>;
+};
 template <typename T, int N> struct same_size_float<vec<T, N>> {
   using type = vec<typename same_size_float<T>::type, N>;
 };
@@ -186,6 +214,9 @@ template <typename T> struct upsampled_int {
       std::conditional_t<std::is_unsigned_v<T>,
                          typename get_unsigned_int_by_size<sizeof(T) * 2>::type,
                          typename get_signed_int_by_size<sizeof(T) * 2>::type>;
+};
+template <typename T, size_t N> struct upsampled_int<marray<T, N>> {
+  using type = marray<typename upsampled_int<T>::type, N>;
 };
 template <typename T, int N> struct upsampled_int<vec<T, N>> {
   using type = vec<typename upsampled_int<T>::type, N>;
@@ -204,6 +235,22 @@ template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
 
 template <typename T>
 constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
+
+template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> X, size_t Start) {
+  return {X[Start], X[Start + 1]};
+}
+template <class T, size_t N> vec<T, N> to_vec(marray<T, N> X) {
+  vec<T, N> Vec;
+  for (size_t I = 0; I < N; I++)
+    Vec[I] = X[I];
+  return Vec;
+}
+template <class T, int N> marray<T, N> to_marray(vec<T, N> X) {
+  marray<T, N> Marray;
+  for (size_t I = 0; I < N; I++)
+    Marray[I] = X[I];
+  return Marray;
+}
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

@@ -25,120 +25,13 @@ namespace sycl {
 
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-namespace detail {
-template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> x, size_t start) {
-  return {x[start], x[start + 1]};
-}
-template <class T, size_t N> vec<T, N> to_vec(marray<T, N> x) {
-  vec<T, N> vec;
-  for (size_t i = 0; i < N; i++)
-    vec[i] = x[i];
-  return vec;
-}
-template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
-  marray<T, N> marray;
-  for (size_t i = 0; i < N; i++)
-    marray[i] = x[i];
-  return marray;
-}
-} // namespace detail
-
 #ifdef __SYCL_DEVICE_ONLY__
 #define __sycl_std
 #else
 namespace __sycl_std = __host_std;
 #endif
 
-#ifdef __FAST_MATH__
-#define __FAST_MATH_SGENFLOAT(T)                                               \
-  (std::is_same_v<T, double> || std::is_same_v<T, half>)
-#else
-#define __FAST_MATH_SGENFLOAT(T) (detail::is_sgenfloat<T>::value)
-#endif
-
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
-
-// These macros for marray math function implementations use vectorizations of
-// size two as a simple general optimization. A more complex implementation
-// using larger vectorizations for large marray sizes is possible; however more
-// testing is required in order to ascertain the performance implications for
-// all backends.
-#define __SYCL_MATH_FUNCTION_OVERLOAD_IMPL(NAME)                               \
-  marray<T, N> res;                                                            \
-  for (size_t i = 0; i < N / 2; i++) {                                         \
-    vec<T, 2> partial_res =                                                    \
-        __sycl_std::__invoke_##NAME<vec<T, 2>>(detail::to_vec2(x, i * 2));     \
-    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));                 \
-  }                                                                            \
-  if (N % 2) {                                                                 \
-    res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1]);                     \
-  }                                                                            \
-  return res;
-
-#define __SYCL_MATH_FUNCTION_OVERLOAD(NAME)                                    \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
-      NAME(marray<T, N> x) __NOEXC {                                           \
-    __SYCL_MATH_FUNCTION_OVERLOAD_IMPL(NAME)                                   \
-  }
-
-__SYCL_MATH_FUNCTION_OVERLOAD(cospi)
-__SYCL_MATH_FUNCTION_OVERLOAD(sinpi)
-__SYCL_MATH_FUNCTION_OVERLOAD(tanpi)
-__SYCL_MATH_FUNCTION_OVERLOAD(sinh)
-__SYCL_MATH_FUNCTION_OVERLOAD(cosh)
-__SYCL_MATH_FUNCTION_OVERLOAD(tanh)
-__SYCL_MATH_FUNCTION_OVERLOAD(asin)
-__SYCL_MATH_FUNCTION_OVERLOAD(acos)
-__SYCL_MATH_FUNCTION_OVERLOAD(atan)
-__SYCL_MATH_FUNCTION_OVERLOAD(asinpi)
-__SYCL_MATH_FUNCTION_OVERLOAD(acospi)
-__SYCL_MATH_FUNCTION_OVERLOAD(atanpi)
-__SYCL_MATH_FUNCTION_OVERLOAD(asinh)
-__SYCL_MATH_FUNCTION_OVERLOAD(acosh)
-__SYCL_MATH_FUNCTION_OVERLOAD(atanh)
-__SYCL_MATH_FUNCTION_OVERLOAD(cbrt)
-__SYCL_MATH_FUNCTION_OVERLOAD(ceil)
-__SYCL_MATH_FUNCTION_OVERLOAD(floor)
-__SYCL_MATH_FUNCTION_OVERLOAD(erfc)
-__SYCL_MATH_FUNCTION_OVERLOAD(erf)
-__SYCL_MATH_FUNCTION_OVERLOAD(expm1)
-__SYCL_MATH_FUNCTION_OVERLOAD(tgamma)
-__SYCL_MATH_FUNCTION_OVERLOAD(lgamma)
-__SYCL_MATH_FUNCTION_OVERLOAD(log1p)
-__SYCL_MATH_FUNCTION_OVERLOAD(logb)
-__SYCL_MATH_FUNCTION_OVERLOAD(rint)
-__SYCL_MATH_FUNCTION_OVERLOAD(round)
-__SYCL_MATH_FUNCTION_OVERLOAD(trunc)
-__SYCL_MATH_FUNCTION_OVERLOAD(fabs)
-
-#undef __SYCL_MATH_FUNCTION_OVERLOAD
-
-// __SYCL_MATH_FUNCTION_OVERLOAD_FM cases are replaced by corresponding native
-// implementations when the -ffast-math flag is used with float.
-#define __SYCL_MATH_FUNCTION_OVERLOAD_FM(NAME)                                 \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<__FAST_MATH_SGENFLOAT(T), marray<T, N>>                 \
-      NAME(marray<T, N> x) __NOEXC {                                           \
-    __SYCL_MATH_FUNCTION_OVERLOAD_IMPL(NAME)                                   \
-  }
-
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(sin)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(cos)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(tan)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp2)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp10)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log2)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log10)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(sqrt)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
-
-#undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
-#undef __SYCL_MATH_FUNCTION_OVERLOAD_IMPL
 
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE
@@ -155,50 +48,6 @@ inline __SYCL_ALWAYS_INLINE
   }
   return res;
 }
-
-#define __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(NAME)                             \
-  marray<T, N> res;                                                            \
-  for (size_t i = 0; i < N / 2; i++) {                                         \
-    auto partial_res = __sycl_std::__invoke_##NAME<vec<T, 2>>(                 \
-        detail::to_vec2(x, i * 2), detail::to_vec2(y, i * 2));                 \
-    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));                 \
-  }                                                                            \
-  if (N % 2) {                                                                 \
-    res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1], y[N - 1]);           \
-  }                                                                            \
-  return res;
-
-#define __SYCL_MATH_FUNCTION_2_OVERLOAD(NAME)                                  \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
-      NAME(marray<T, N> x, marray<T, N> y) __NOEXC {                           \
-    __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(NAME)                                 \
-  }
-
-__SYCL_MATH_FUNCTION_2_OVERLOAD(atan2)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(atan2pi)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(copysign)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(fdim)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(fmin)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(fmax)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(fmod)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(hypot)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(maxmag)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(minmag)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(nextafter)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(pow)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(remainder)
-
-#undef __SYCL_MATH_FUNCTION_2_OVERLOAD
-
-template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<__FAST_MATH_SGENFLOAT(T), marray<T, N>>
-    powr(marray<T, N> x,
-         marray<T, N> y) __NOEXC{__SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(powr)}
-
-#undef __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL
 
 #define __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD(NAME)                      \
   template <typename T, size_t N>                                              \
@@ -291,30 +140,6 @@ inline __SYCL_ALWAYS_INLINE
           int y) __NOEXC{__SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL(rootn)}
 
 #undef __SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL
-
-#define __SYCL_MATH_FUNCTION_3_OVERLOAD(NAME)                                  \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
-      NAME(marray<T, N> x, marray<T, N> y, marray<T, N> z) __NOEXC {           \
-    marray<T, N> res;                                                          \
-    for (size_t i = 0; i < N / 2; i++) {                                       \
-      auto partial_res = __sycl_std::__invoke_##NAME<vec<T, 2>>(               \
-          detail::to_vec2(x, i * 2), detail::to_vec2(y, i * 2),                \
-          detail::to_vec2(z, i * 2));                                          \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));               \
-    }                                                                          \
-    if (N % 2) {                                                               \
-      res[N - 1] =                                                             \
-          __sycl_std::__invoke_##NAME<T>(x[N - 1], y[N - 1], z[N - 1]);        \
-    }                                                                          \
-    return res;                                                                \
-  }
-
-__SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(
-    mix) __SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
-
-#undef __SYCL_MATH_FUNCTION_3_OVERLOAD
 
 // other marray math functions
 
@@ -419,19 +244,6 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(
   }                                                                            \
   return res;
 
-#define __SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(NAME, ARG, ...)            \
-  template <typename T,                                                        \
-            typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
-  T NAME(ARG) __NOEXC {                                                        \
-    __SYCL_MARRAY_COMMON_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)             \
-  }
-
-__SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(degrees, T radians, radians[i])
-__SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(radians, T degrees, degrees[i])
-__SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(sign, T x, x[i])
-
-#undef __SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD
-
 #define __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(NAME, ARG1, ARG2, ...)    \
   template <typename T,                                                        \
             typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
@@ -441,15 +253,12 @@ __SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(sign, T x, x[i])
 
 // min and max may be defined as macros, so we wrap them in parentheses to avoid
 // errors.
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((min), T x, T y, x[i], y[i])
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((min), T x,
                                              detail::marray_element_t<T> y,
                                              x[i], y)
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((max), T x, T y, x[i], y[i])
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((max), T x,
                                              detail::marray_element_t<T> y,
                                              x[i], y)
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(step, T edge, T x, edge[i], x[i])
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(step,
                                              detail::marray_element_t<T> edge,
                                              T x, edge, x[i])
@@ -464,19 +273,13 @@ __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(step,
     __SYCL_MARRAY_COMMON_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)             \
   }
 
-__SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(clamp, T x, T minval, T maxval,
-                                             x[i], minval[i], maxval[i])
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(clamp, T x,
                                              detail::marray_element_t<T> minval,
                                              detail::marray_element_t<T> maxval,
                                              x[i], minval, maxval)
-__SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(mix, T x, T y, T a, x[i], y[i],
-                                             a[i])
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(mix, T x, T y,
                                              detail::marray_element_t<T> a,
                                              x[i], y[i], a)
-__SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(smoothstep, T edge0, T edge1, T x,
-                                             edge0[i], edge1[i], x[i])
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(smoothstep,
                                              detail::marray_element_t<T> edge0,
                                              detail::marray_element_t<T> edge1,
@@ -879,152 +682,6 @@ select(marray<T, N> a, marray<T, N> b, marray<bool, N> c) __NOEXC {
   return res;
 }
 
-namespace native {
-/* ----------------- 4.13.3 Math functions. ---------------------------------*/
-
-#define __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(NAME)                             \
-  template <size_t N>                                                          \
-  inline __SYCL_ALWAYS_INLINE marray<float, N> NAME(marray<float, N> x)        \
-      __NOEXC {                                                                \
-    marray<float, N> res;                                                      \
-    for (size_t i = 0; i < N / 2; i++) {                                       \
-      auto partial_res = __sycl_std::__invoke_native_##NAME<vec<float, 2>>(    \
-          detail::to_vec2(x, i * 2));                                          \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<float, 2>));           \
-    }                                                                          \
-    if (N % 2) {                                                               \
-      res[N - 1] = __sycl_std::__invoke_native_##NAME<float>(x[N - 1]);        \
-    }                                                                          \
-    return res;                                                                \
-  }
-
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(sin)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(cos)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(tan)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(exp)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(exp2)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(exp10)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(log)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(log2)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(log10)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(sqrt)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(rsqrt)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(recip)
-
-#undef __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD
-
-#define __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(NAME)                           \
-  template <size_t N>                                                          \
-  inline __SYCL_ALWAYS_INLINE marray<float, N> NAME(                           \
-      marray<float, N> x, marray<float, N> y) __NOEXC {                        \
-    marray<float, N> res;                                                      \
-    for (size_t i = 0; i < N / 2; i++) {                                       \
-      auto partial_res = __sycl_std::__invoke_native_##NAME<vec<float, 2>>(    \
-          detail::to_vec2(x, i * 2), detail::to_vec2(y, i * 2));               \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<float, 2>));           \
-    }                                                                          \
-    if (N % 2) {                                                               \
-      res[N - 1] =                                                             \
-          __sycl_std::__invoke_native_##NAME<float>(x[N - 1], y[N - 1]);       \
-    }                                                                          \
-    return res;                                                                \
-  }
-
-__SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(divide)
-__SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(powr)
-
-#undef __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD
-
-} // namespace native
-namespace half_precision {
-/* ----------------- 4.13.3 Math functions. ---------------------------------*/
-#define __SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(NAME)                     \
-  template <size_t N>                                                          \
-  inline __SYCL_ALWAYS_INLINE marray<float, N> NAME(marray<float, N> x)        \
-      __NOEXC {                                                                \
-    marray<float, N> res;                                                      \
-    for (size_t i = 0; i < N / 2; i++) {                                       \
-      auto partial_res = __sycl_std::__invoke_half_##NAME<vec<float, 2>>(      \
-          detail::to_vec2(x, i * 2));                                          \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<float, 2>));           \
-    }                                                                          \
-    if (N % 2) {                                                               \
-      res[N - 1] = __sycl_std::__invoke_half_##NAME<float>(x[N - 1]);          \
-    }                                                                          \
-    return res;                                                                \
-  }
-
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(sin)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(cos)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(tan)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(exp)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(exp2)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(exp10)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(log)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(log2)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(log10)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(sqrt)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(rsqrt)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(recip)
-
-#undef __SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD
-
-#define __SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD(NAME)                   \
-  template <size_t N>                                                          \
-  inline __SYCL_ALWAYS_INLINE marray<float, N> NAME(                           \
-      marray<float, N> x, marray<float, N> y) __NOEXC {                        \
-    marray<float, N> res;                                                      \
-    for (size_t i = 0; i < N / 2; i++) {                                       \
-      auto partial_res = __sycl_std::__invoke_half_##NAME<vec<float, 2>>(      \
-          detail::to_vec2(x, i * 2), detail::to_vec2(y, i * 2));               \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<float, 2>));           \
-    }                                                                          \
-    if (N % 2) {                                                               \
-      res[N - 1] =                                                             \
-          __sycl_std::__invoke_half_##NAME<float>(x[N - 1], y[N - 1]);         \
-    }                                                                          \
-    return res;                                                                \
-  }
-
-__SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD(divide)
-__SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD(powr)
-
-#undef __SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD
-
-} // namespace half_precision
-
-#ifdef __FAST_MATH__
-/* ----------------- -ffast-math functions. ---------------------------------*/
-
-#define __SYCL_MATH_FUNCTION_OVERLOAD_FM(NAME)                                 \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<std::is_same_v<T, float>, marray<T, N>>                 \
-      NAME(marray<T, N> x) __NOEXC {                                           \
-    return native::NAME(x);                                                    \
-  }
-
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(sin)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(cos)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(tan)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp2)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp10)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log2)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log10)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(sqrt)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
-#undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
-
-template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<std::is_same_v<T, float>, marray<T, N>>
-    powr(marray<T, N> x, marray<T, N> y) __NOEXC {
-  return native::powr(x, y);
-}
-
-#endif // __FAST_MATH__
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
