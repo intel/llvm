@@ -11,7 +11,6 @@
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
@@ -30,13 +29,48 @@ using namespace mlir::polygeist;
 namespace mlir {
 namespace polygeist {
 
+bool isDivergent(Operation *op, DataFlowSolver &solver) {
+  assert(op && op->getBlock() && "Expecting a valid operation in a block");
+
+  SetVector<RegionBranchOpInterface> enclosingBranches =
+      getParentsOfType<RegionBranchOpInterface>(*op->getBlock());
+  if (enclosingBranches.empty())
+    return false;
+
+  auto isUniform = [&](Value val) {
+    const auto *lattice = solver.lookupState<UniformityLattice>(val);
+    assert(lattice && "expected uniformity information");
+    assert(!lattice->getValue().isUninitialized() &&
+           "lattice element should be initialized");
+    Uniformity uniformity = lattice->getValue();
+    return uniformity.isUniform();
+  };
+
+  bool mayBeDivergent =
+      llvm::any_of(enclosingBranches, [&](RegionBranchOpInterface branchOp) {
+        std::optional<IfCondition> cond = IfCondition::getCondition(branchOp);
+        if (!cond)
+          return false;
+
+        if (cond->hasSCFCondition())
+          return !isUniform(cond->getSCFCondition());
+
+        assert(cond->hasAffineCondition() && "Expecting affine condition");
+        IfCondition::AffineCondition affineCond = cond->getAffineCondition();
+        return llvm::any_of(affineCond.setOperands,
+                            [&](Value operand) { return !isUniform(operand); });
+      });
+
+  return mayBeDivergent;
+}
+
 raw_ostream &operator<<(raw_ostream &os, const Uniformity &uniformity) {
   if (uniformity.isUninitialized())
     return os << "<UNINITIALIZED>";
 
   switch (uniformity.getKind()) {
   case Uniformity::Kind::Unknown:
-    return os << "unknown-uniformity\n";
+    return os << "unknown\n";
   case Uniformity::Kind::Uniform:
     return os << "uniform\n";
   case Uniformity::Kind::NonUniform:
@@ -250,15 +284,13 @@ void UniformityAnalysis::analyzeMemoryEffects(
 
     // If any of mods/pMods are dominated by a branch with a condition that is
     // unknown/non-uniform the loaded value has the same uniformity.
-    SetVector<Value> branchConditions = collectBranchConditions(*mods);
-    if (anyOfUniformityIs(branchConditions.getArrayRef(),
-                          Uniformity::Kind::Unknown)) {
+    SmallVector<IfCondition> branchConditions = collectBranchConditions(*mods);
+    if (anyOfUniformityIs(branchConditions, Uniformity::Kind::Unknown)) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Branch condition has unknown uniformity\n");
       return propagateAllIfChanged(op->getResults(), Uniformity::getUnknown());
     }
-    if (anyOfUniformityIs(branchConditions.getArrayRef(),
-                          Uniformity::Kind::NonUniform)) {
+    if (anyOfUniformityIs(branchConditions, Uniformity::Kind::NonUniform)) {
       LLVM_DEBUG(llvm::dbgs().indent(2) << "Branch condition non-uniform\n");
       return propagateAllIfChanged(op->getResults(),
                                    Uniformity::getNonUniform());
@@ -342,9 +374,9 @@ UniformityAnalysis::getInductionVariableUniformity(LoopLikeOpInterface loop) {
   return std::nullopt;
 }
 
-SetVector<Value> UniformityAnalysis::collectBranchConditions(
+SmallVector<IfCondition> UniformityAnalysis::collectBranchConditions(
     const ReachingDefinition::ModifiersTy &mods) {
-  SetVector<Value> conditions;
+  SmallVector<IfCondition> conditions;
   for (const Definition &mod : mods) {
     if (!mod.isOperation())
       continue;
@@ -353,9 +385,7 @@ SetVector<Value> UniformityAnalysis::collectBranchConditions(
         getParentsOfType<RegionBranchOpInterface>(
             *mod.getOperation()->getBlock());
     for (RegionBranchOpInterface branchOp : enclosingBranches)
-      // FIXME: Remove the if statement when getCondition is fixed.
-      if (getCondition(branchOp))
-        conditions.insert(getCondition(branchOp));
+      conditions.push_back(*IfCondition::getCondition(branchOp));
   }
 
   LLVM_DEBUG({

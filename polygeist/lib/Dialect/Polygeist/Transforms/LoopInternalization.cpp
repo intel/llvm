@@ -256,16 +256,9 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop, DataFlowSolver &solver) {
   if (innermostLoopOp->getNumResults() > 0)
     return false;
 
-  // As the transformation inserts barriers, it requires uniform innermost loop.
-  Operation &loopFirstOp = innermostLoop->getLoopBody().front().front();
-  if (loopFirstOp.getNumResults() != 1)
-    return false;
-  const UniformityLattice *uniformity =
-      solver.lookupState<UniformityLattice>(loopFirstOp.getResult(0));
-  assert(uniformity && "expected uniformity information");
-  assert(!uniformity->getValue().isUninitialized() &&
-         "lattice element should be initialized");
-  return uniformity->getValue().isUniform();
+  // Because the transformation inserts barriers, it requires the loop to be
+  // non-divergent.
+  return !isDivergent(innermostLoopOp, solver);
 }
 
 /// An access is a candidate iff it is AffineLoadOp or AffineStoreOp, with int

@@ -11,92 +11,136 @@
 !sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
 
 // COM: Check uniformity of values yielded by branch operations.
-func.func @test1(%arg0 : i1, %arg1: memref<?x!sycl_nd_item_2>)  {
+func.func @test1a(%arg0 : i1, %arg1: memref<?x!sycl_nd_item_2>)  {
   %c0_i32 = arith.constant 0 : i32  
   %true = arith.constant 1 : i1
   %c2 = arith.constant 2 : i64
   %c3 = arith.constant 3 : i64
 
   // COM: %arg0 uniformity is unknown -> result uniformity also unknown.
-  // CHECK: test1_v1, uniformity: unknown
+  // CHECK: test1a_v1, uniformity: unknown
   %v1 = scf.if %arg0 -> i64 {
     scf.yield %c2 : i64
   } else {
     scf.yield %c3 : i64
-  } {tag = "test1_v1"} 
+  } {tag = "test1a_v1"} 
 
   // COM: Branch condition is non-uniform -> result is non-uniform.
-  // CHECK: test1_v2, uniformity: non-uniform  
+  // CHECK: test1a_v2, uniformity: non-uniform  
   %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64  
   %cond2 = arith.cmpi slt, %tx, %c2 : i64
   %v2 = scf.if %cond2 -> i64 {
     scf.yield %c2 : i64
   } else {
     scf.yield %c3 : i64
-  } {tag = "test1_v2"}
+  } {tag = "test1a_v2"}
 
   // COM: Branch condition is uniform, but yielded value is non-uniform -> result is non-uniform.
-  // CHECK: test1_v3, uniformity: non-uniform  
+  // CHECK: test1a_v3, uniformity: non-uniform  
   %v3 = scf.if %true -> i64 {
     scf.yield %tx : i64
   } else {
     scf.yield %c3 : i64
-  } {tag = "test1_v3"} 
+  } {tag = "test1a_v3"} 
 
   // COM: Branch condition is uniform, and yielded values is uniform -> result is uniform.
-  // CHECK: test1_v4, uniformity: uniform  
+  // CHECK: test1a_v4, uniformity: uniform  
   %v4 = scf.if %true -> i64 {
     scf.yield %c2 : i64
   } else {
     scf.yield %c3 : i64
-  } {tag = "test1_v4"} 
+  } {tag = "test1a_v4"} 
 
   // COM: The loop IV of a loop with constant bounds and step is uniform.
-  // CHECK: test1_iv1, uniformity: uniform
+  // CHECK: test1a_iv1, uniformity: uniform
   affine.for %ii = 0 to 256 {
-    %iv1 = arith.index_cast %ii {tag = "test1_iv1"} : index to i64
+    %iv1 = arith.index_cast %ii {tag = "test1a_iv1"} : index to i64
   }
 
   // COM: The loop IV of a loop with non-uniform upper bound is non-uniform.
-  // CHECK: test1_iv2, uniformity: non-uniform
+  // CHECK: test1a_iv2, uniformity: non-uniform
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %tx_index = arith.index_cast %tx : i64 to index
   scf.for %ii = %c0 to %tx_index step %c1 {
-     %iv2 = arith.index_cast %ii {tag = "test1_iv2"} : index to i64
+     %iv2 = arith.index_cast %ii {tag = "test1a_iv2"} : index to i64
   }
 
   // COM: The result yielded by a loop with non-uniform loop carried value is non-uniform.
-  // CHECK: test1_iv3, uniformity: uniform  
-  // CHECK: test1_v5, uniformity: non-uniform
+  // CHECK: test1a_iv3, uniformity: uniform  
+  // CHECK: test1a_v5, uniformity: non-uniform
   %c4 = arith.constant 4 : index
   %v5 = scf.for %ii = %c0 to %c4 step %c1 iter_args(%sum = %tx) -> i64 {
-    %iv3 = arith.index_cast %ii {tag = "test1_iv3"} : index to i64
+    %iv3 = arith.index_cast %ii {tag = "test1a_iv3"} : index to i64
     %next_sum = arith.addi %iv3, %sum : i64
     scf.yield %next_sum : i64
-  } {tag = "test1_v5"}
+  } {tag = "test1a_v5"}
 
   // COM: The result yielded by a loop with uniform bounds and step and a uniform 
   // COM: loop carried value is uniform.
-  // CHECK: test1_v6, uniformity: uniform
+  // CHECK: test1a_v6, uniformity: uniform
   %v6 = scf.for %ii = %c0 to %c4 step %c1 iter_args(%sum = %c0) -> index {
     %next_sum = arith.addi %ii, %sum : index
     scf.yield %next_sum : index
-  } {tag = "test1_v6"}
+  } {tag = "test1a_v6"}
 
   // COM: If a uniform loop carried value is added to a non-uniform value the result yielded
   // COM: by the loop is non-uniform.
-  // CHECK: test1_v7, uniformity: non-uniform  
+  // CHECK: test1a_v7, uniformity: non-uniform  
   %v7 = scf.for %ii = %c0 to %c4 step %c1 iter_args(%sum = %c0) -> index {
     %next_sum = arith.addi %tx_index, %sum : index
     scf.yield %next_sum : index
-  } {tag = "test1_v7"}
+  } {tag = "test1a_v7"}
 
   // COM: The result yielded by a loop with non-uniform (mapped) upper bound is non-uniform.
-  // CHECK: test1_iv4, uniformity: non-uniform  
+  // CHECK: test1a_iv4, uniformity: non-uniform  
   affine.for %ii = 0 to min affine_map<(d0) -> (d0 + 2, d0 + 2)>(%tx_index) {
-    %iv4 = arith.index_cast %ii {tag = "test1_iv4"} : index to i64
+    %iv4 = arith.index_cast %ii {tag = "test1a_iv4"} : index to i64
   }
+
+  return
+}
+
+func.func @test1b(%arg0 : index, %arg1: memref<?x!sycl_nd_item_2>)  {
+  %c0_i32 = arith.constant 0 : i32  
+  %true = arith.constant 1 : i1
+  %c2 = arith.constant 2 : index
+  %c3 = arith.constant 3 : index
+
+  // COM: %arg0 uniformity is unknown -> result uniformity also unknown.
+  // CHECK: test1b_v1, uniformity: unknown
+  %v1 = affine.if affine_set<(d0) : (d0 >= 0)>(%arg0) -> index {
+    affine.yield %c2 : index
+  } else {
+    affine.yield %c3 : index
+  } {tag = "test1b_v1"} 
+
+
+  // COM: Branch condition is non-uniform -> result is non-uniform.
+  // CHECK: test1b_v2, uniformity: non-uniform  
+  %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64  
+  %tx_index = arith.index_cast %tx : i64 to index
+  %v2 = affine.if affine_set<(d0, d1) : (d1 >= d0)>(%tx_index, %c2) -> index {
+    affine.yield %c2 : index
+  } else {
+    affine.yield %c3 : index
+  } {tag = "test1b_v2"}
+
+  // COM: Branch condition is uniform, but yielded value is non-uniform -> result is non-uniform.
+  // CHECK: test1b_v3, uniformity: non-uniform  
+  %v3 = affine.if affine_set<() : (0 >= 0)>() -> index {
+    affine.yield %tx_index : index
+  } else {
+    affine.yield %c3 : index
+  } {tag = "test1b_v3"} 
+
+  // COM: Branch condition is uniform, and yielded values is uniform -> result is uniform.
+  // CHECK: test2a_v4, uniformity: uniform  
+  %v4 = affine.if affine_set<() : (0 >= 0)>() -> index {
+    affine.yield %c2 : index
+  } else {
+    affine.yield %c3 : index
+  } {tag = "test2a_v4"} 
 
   return
 }
