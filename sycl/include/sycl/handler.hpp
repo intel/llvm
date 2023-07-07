@@ -200,7 +200,7 @@ checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
   if (V > Limit)
-    throw runtime_error(NotIntMsg<T>::Msg, PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(make_error_code(errc::nd_range), NotIntMsg<T>::Msg);
 }
 #endif
 
@@ -375,10 +375,10 @@ private:
 
   void throwIfActionIsCreated() {
     if (detail::CG::None != getType())
-      throw sycl::runtime_error("Attempt to set multiple actions for the "
-                                "command group. Command group must consist of "
-                                "a single kernel or explicit memory operation.",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Attempt to set multiple actions for the "
+                            "command group. Command group must consist of "
+                            "a single kernel or explicit memory operation.");
   }
 
   constexpr static int AccessTargetMask = 0x7ff;
