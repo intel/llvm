@@ -53,13 +53,10 @@ bool isDivergent(Operation *op, DataFlowSolver &solver) {
         if (!cond)
           return false;
 
-        if (cond->hasSCFCondition())
-          return !isUniform(cond->getSCFCondition());
-
-        assert(cond->hasAffineCondition() && "Expecting affine condition");
-        IfCondition::AffineCondition affineCond = cond->getAffineCondition();
-        return llvm::any_of(affineCond.setOperands,
-                            [&](Value operand) { return !isUniform(operand); });
+        return cond->perform([&](ValueRange values) {
+          return llvm::any_of(values,
+                              [&](Value val) { return !isUniform(val); });
+        });
       });
 
   return mayBeDivergent;
@@ -422,12 +419,9 @@ bool UniformityAnalysis::isUniformityInitialized(
   // Determine whether any condition has uniformity that is not yet known.
   bool uniformityIsKnown =
       llvm::all_of(conditions, [&](const IfCondition &cond) {
-        if (cond.hasSCFCondition())
-          return !anyOfUniformityIsUninitialized(cond.getSCFCondition());
-
-        assert(cond.hasAffineCondition() && "Expecting affine condition");
-        IfCondition::AffineCondition affineCond = cond.getAffineCondition();
-        return !anyOfUniformityIsUninitialized(affineCond.setOperands);
+        return cond.perform([&](ValueRange values) {
+          return !anyOfUniformityIsUninitialized(values);
+        });
       });
 
   // Inject lattice nodes if necessary.
@@ -439,15 +433,11 @@ bool UniformityAnalysis::isUniformityInitialized(
     };
 
     for (const IfCondition &cond : conditions) {
-      if (cond.hasSCFCondition()) {
-        getOrCreateLatticeFor(cond.getSCFCondition());
-        continue;
-      }
-
-      assert(cond.hasAffineCondition() && "Expecting affine condition");
-      IfCondition::AffineCondition affineCond = cond.getAffineCondition();
-      for (Value setOperand : affineCond.setOperands)
-        getOrCreateLatticeFor(setOperand);
+      cond.perform([&](ValueRange values) {
+        for (Value val : values)
+          getOrCreateLatticeFor(val);
+        return true;
+      });
     }
   }
 

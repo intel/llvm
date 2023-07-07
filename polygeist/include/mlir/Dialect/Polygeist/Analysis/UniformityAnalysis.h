@@ -212,13 +212,8 @@ private:
   bool anyOfUniformityIs(const ArrayRef<IfCondition> conditions,
                          Uniformity::Kind kind) {
     return llvm::any_of(conditions, [&](const IfCondition &cond) {
-      if (cond.hasSCFCondition())
-        return anyOfUniformityIs(cond.getSCFCondition(), kind);
-      if (cond.hasAffineCondition()) {
-        IfCondition::AffineCondition affineCond = cond.getAffineCondition();
-        return anyOfUniformityIs(affineCond.setOperands, kind);
-      }
-      llvm_unreachable("Unexpected IfCondition kind");
+      return cond.perform(
+          [&](ValueRange values) { return anyOfUniformityIs(values, kind); });
     });
   }
 

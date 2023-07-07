@@ -210,6 +210,14 @@ public:
     return std::get<AffineCondition>(ifCondition);
   }
 
+  /// Perform \p operation on SCF condition or affine condition operands.
+  bool perform(std::function<bool(ValueRange)> operation) const {
+    if (hasSCFCondition())
+      return operation(getSCFCondition());
+    assert(hasAffineCondition() && "Expecting affine condition");
+    return operation(getAffineCondition().setOperands);
+  }
+
   /// Return the condition used by \p op if one is found.
   static std::optional<IfCondition> getCondition(Operation *op);
 
