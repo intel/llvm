@@ -1017,6 +1017,13 @@ __SYCL_MATH_FUNCTION_OVERLOAD_FM(sqrt)
 __SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
 #undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
 
+template <typename T, size_t N>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<std::is_same_v<T, float>, marray<T, N>>
+    powr(marray<T, N> x, marray<T, N> y) __NOEXC {
+  return native::powr(x, y);
+}
+
 #endif // __FAST_MATH__
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

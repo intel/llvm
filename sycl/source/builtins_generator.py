@@ -22,7 +22,7 @@ class InstantiatedVecReturnType:
     self.vec_type = vec_type
 
   def __str__(self):
-    return f'detail::vec_return_t<{self.related_arg_type}>'
+    return f'detail::get_vec_t<{self.related_arg_type}>'
 
 class MultiPtr:
   def __init__(self, element_type):
@@ -66,20 +66,19 @@ class InstantiatedUnsignedType:
   def __str__(self):
     return f'detail::make_unsigned_t<{self.signed_type}>'
 
-class SameSizeIntType:
-  def __init__(self, signed, parent_idx):
-    self.signed = signed
+class ConversionTraitType:
+  def __init__(self, trait, parent_idx):
+    self.trait = trait
     self.parent_idx = parent_idx
 
-class InstantiatedSameSizeIntType:
-  def __init__(self, parent_type, signed, parent_idx):
+class InstantiatedConversionTraitType:
+  def __init__(self, parent_type, trait, parent_idx):
     self.parent_type = parent_type
-    self.signed = signed
+    self.trait = trait
     self.parent_idx = parent_idx
 
   def __str__(self):
-    signedness = 'signed' if self.signed else 'unsigned'
-    return f'detail::same_size_{signedness}_int_t<{self.parent_type}>'
+    return f'detail::{self.trait}<{self.parent_type}>'
 
 ### GENTYPE DEFINITIONS
 # NOTE: Marray is currently explicitly defined.
@@ -190,8 +189,10 @@ vint32ptr = [MultiPtr(Vec(["int32_t"])), RawPtr(Vec(["int32_t"]))]
 # argument.
 elementtype0 = [ElementType(0)]
 unsignedtype0 = [UnsignedType(0)]
-samesizesignedint0 = [SameSizeIntType(True, 0)]
-samesizeunsignedint0 = [SameSizeIntType(False, 0)]
+samesizesignedint0 = [ConversionTraitType("same_size_signed_int_t", 0)]
+samesizeunsignedint0 = [ConversionTraitType("same_size_unsigned_int_t", 0)]
+samesizefloat0 = [ConversionTraitType("same_size_float_t", 0)]
+upsampledint0 = [ConversionTraitType("upsampled_int_t", 0)]
 
 builtin_types = {
   "floatn" : floatn,
@@ -276,6 +277,8 @@ builtin_types = {
   "unsignedtype0" : unsignedtype0,
   "samesizesignedint0" : samesizesignedint0,
   "samesizeunsignedint0" : samesizeunsignedint0,
+  "samesizefloat0" : samesizefloat0,
+  "upsampledint0" : upsampledint0,
   "char" : ["char"],
   "signed char" : ["signed char"],
   "short" : ["short"],
@@ -309,6 +312,11 @@ def find_first_vec_arg(arg_types):
       return arg_type
   return None
 
+def convert_vec_arg_name(arg_type, arg_name):
+  if isinstance(arg_type, InstantiatedVecArg):
+    return f'typename detail::get_vec_t<{arg_type}>({arg_name})'
+  return arg_name
+
 class Def:
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
@@ -328,7 +336,7 @@ class Def:
     self.vec_size_alias = vec_size_alias
 
   def get_invoke_args(self, arg_types, arg_names):
-    result = arg_names
+    result = list(map(convert_vec_arg_name, arg_types, arg_names))
     for (arg_idx, type_conv) in self.convert_args:
       # type_conv is either an index or a conversion function/type.
       conv = type_conv if isinstance(type_conv, str) else arg_types[type_conv]
@@ -424,8 +432,8 @@ sycl_builtins = {# Math functions
                  "fract": [Def("vgenfloat", ["vgenfloat", "vgenfloatptr"]),
                            Def("float", ["float", "floatptr"]),
                            Def("double", ["double", "doubleptr"]),
-                           Def("half", ["half", "halfptr"]),
-                           Def("vgenfloat", ["vgenfloat", "vint32nptr"]),
+                           Def("half", ["half", "halfptr"])],
+                 "frexp": [Def("vgenfloat", ["vgenfloat", "vint32nptr"]),
                            Def("float", ["float", "intptr"]),
                            Def("double", ["double", "intptr"]),
                            Def("half", ["half", "intptr"])],
@@ -456,13 +464,13 @@ sycl_builtins = {# Math functions
                           Def("float", ["float", "floatptr"]),
                           Def("double", ["double", "doubleptr"]),
                           Def("half", ["half", "halfptr"])],
-                 "nan": [Def("vfloatn", ["vuint32n"]),
-                         Def("float", ["unsigned int"]),
-                         Def("vdoublen", ["vuint64n_ext"]),
-                         Def("double", ["unsigned long"]),
-                         Def("double", ["unsigned long long"]),
-                         Def("vhalfn", ["vuint16n"]),
-                         Def("half", ["unsigned short"])],
+                 "nan": [Def("samesizefloat0", ["vuint32n"]),
+                         Def("samesizefloat0", ["unsigned int"]),
+                         Def("samesizefloat0", ["vuint64n_ext"]),
+                         Def("samesizefloat0", ["unsigned long"]),
+                         Def("samesizefloat0", ["unsigned long long"]),
+                         Def("samesizefloat0", ["vuint16n"]),
+                         Def("samesizefloat0", ["unsigned short"])],
                  "nextafter": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pow": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pown": [Def("vgenfloat", ["vgenfloat", "vint32n"]),
@@ -498,9 +506,6 @@ sycl_builtins = {# Math functions
                  "tgamma": [Def("genfloat", ["genfloat"])],
                  "trunc": [Def("genfloat", ["genfloat"])],
                  # Integer functions
-                 "abs": [Def("sigeninteger", ["sigeninteger"], custom_invoke=custom_signed_abs_scalar_invoke),
-                         Def("vigeninteger", ["vigeninteger"], custom_invoke=custom_signed_abs_vector_invoke),
-                         Def("ugeninteger", ["ugeninteger"], invoke_prefix="u_")],
                  "abs_diff": [Def("unsignedtype0", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
                               Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_")],
                  "add_sat": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
@@ -520,18 +525,19 @@ sycl_builtins = {# Math functions
                  "rotate": [Def("geninteger", ["geninteger", "geninteger"])],
                  "sub_sat": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
                              Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_")],
-                 "upsample": [Def("int16_t", ["int8_t", "uint8_t"], invoke_prefix="s_"),
-                              Def("vint16n", ["vint8n", "vuint8n"], invoke_prefix="s_"),
-                              Def("uint16_t", ["uint8_t", "uint8_t"], invoke_prefix="u_"),
-                              Def("vuint16n", ["vuint8n", "vuint8n"], invoke_prefix="u_"),
-                              Def("int32_t", ["int16_t", "uint16_t"], invoke_prefix="s_"),
-                              Def("vint32n", ["vint16n", "vuint16n"], invoke_prefix="s_"),
-                              Def("uint32_t", ["uint16_t", "uint16_t"], invoke_prefix="u_"),
-                              Def("vuint32n", ["vuint16n", "vuint16n"], invoke_prefix="u_"),
-                              Def("int64_t", ["int32_t", "uint32_t"], invoke_prefix="s_"),
-                              Def("vint64n", ["vint32n", "vuint32n"], invoke_prefix="s_"),
-                              Def("uint64_t", ["uint32_t", "uint32_t"], invoke_prefix="u_"),
-                              Def("vuint64n", ["vuint32n", "vuint32n"], invoke_prefix="u_")],
+                 "upsample": [Def("upsampledint0", ["int8_t", "uint8_t"], invoke_prefix="s_"),
+                              Def("upsampledint0", ["char", "uint8_t"], invoke_prefix="s_"), # TODO: Non-standard. Deprecate.
+                              Def("upsampledint0", ["vint8n", "vuint8n"], invoke_prefix="s_"),
+                              Def("upsampledint0", ["uint8_t", "uint8_t"], invoke_prefix="u_"),
+                              Def("upsampledint0", ["vuint8n", "vuint8n"], invoke_prefix="u_"),
+                              Def("upsampledint0", ["int16_t", "uint16_t"], invoke_prefix="s_"),
+                              Def("upsampledint0", ["vint16n", "vuint16n"], invoke_prefix="s_"),
+                              Def("upsampledint0", ["uint16_t", "uint16_t"], invoke_prefix="u_"),
+                              Def("upsampledint0", ["vuint16n", "vuint16n"], invoke_prefix="u_"),
+                              Def("upsampledint0", ["int32_t", "uint32_t"], invoke_prefix="s_"),
+                              Def("upsampledint0", ["vint32n", "vuint32n"], invoke_prefix="s_"),
+                              Def("upsampledint0", ["uint32_t", "uint32_t"], invoke_prefix="u_"),
+                              Def("upsampledint0", ["vuint32n", "vuint32n"], invoke_prefix="u_")],
                  "popcount": [Def("geninteger", ["geninteger"])],
                  "mad24": [Def("igenint32", ["igenint32", "igenint32", "igenint32"], invoke_prefix="s_"),
                            Def("ugenint32", ["ugenint32", "ugenint32", "ugenint32"], invoke_prefix="u_")],
@@ -571,7 +577,10 @@ sycl_builtins = {# Math functions
                                 Def("vfloatn", ["float", "float", "vfloatn"], convert_args=[(0,2),(1,2)]),
                                 Def("vdoublen", ["double", "double", "vdoublen"], convert_args=[(0,2),(1,2)])],
                  "sign": [Def("genfloat", ["genfloat"])],
-                 "abs": [Def("genfloat", ["genfloat"], invoke_prefix="f")], # TODO: Non-standard. Deprecate.
+                 "abs": [Def("genfloat", ["genfloat"], invoke_prefix="f"), # TODO: Non-standard. Deprecate.
+                         Def("sigeninteger", ["sigeninteger"], custom_invoke=custom_signed_abs_scalar_invoke),
+                         Def("vigeninteger", ["vigeninteger"], custom_invoke=custom_signed_abs_vector_invoke),
+                         Def("ugeninteger", ["ugeninteger"], invoke_prefix="u_")],
                  # Geometric functions
                  "cross": [Def("vfloat3or4", ["vfloat3or4", "vfloat3or4"]),
                            Def("vdouble3or4", ["vdouble3or4", "vdouble3or4"]),
@@ -698,9 +707,9 @@ def select_from_mapping(mappings, arg_types, arg_type):
   if isinstance(mapping, UnsignedType):
     parent_mapping = mappings[arg_types[mapping.parent_idx]]
     return InstantiatedUnsignedType(parent_mapping, mapping.parent_idx)
-  if isinstance(mapping, SameSizeIntType):
+  if isinstance(mapping, ConversionTraitType):
     parent_mapping = mappings[arg_types[mapping.parent_idx]]
-    return InstantiatedSameSizeIntType(parent_mapping, mapping.signed, mapping.parent_idx)
+    return InstantiatedConversionTraitType(parent_mapping, mapping.trait, mapping.parent_idx)
   return mapping
 
 def instantiate_arg(idx, arg):
@@ -714,8 +723,8 @@ def instantiate_arg(idx, arg):
     return InstantiatedElementType(instantiate_arg(arg.parent_idx, arg.referenced_type), arg.parent_idx)
   if isinstance(arg, InstantiatedUnsignedType):
     return InstantiatedUnsignedType(instantiate_arg(arg.parent_idx, arg.signed_type), arg.parent_idx)
-  if isinstance(arg, InstantiatedSameSizeIntType):
-    return InstantiatedSameSizeIntType(instantiate_arg(arg.parent_idx, arg.parent_type), arg.signed, arg.parent_idx)
+  if isinstance(arg, InstantiatedConversionTraitType):
+    return InstantiatedConversionTraitType(instantiate_arg(arg.parent_idx, arg.parent_type), arg.trait, arg.parent_idx)
   return arg
 
 def instantiate_return_type(return_type, instantiated_args):
@@ -730,8 +739,8 @@ def instantiate_return_type(return_type, instantiated_args):
     return InstantiatedElementType(instantiate_return_type(return_type.referenced_type, instantiated_args), return_type.parent_idx)
   if isinstance(return_type, InstantiatedUnsignedType):
     return InstantiatedUnsignedType(instantiate_return_type(return_type.signed_type, instantiated_args), return_type.parent_idx)
-  if isinstance(return_type, InstantiatedSameSizeIntType):
-    return InstantiatedSameSizeIntType(instantiate_return_type(return_type.parent_type, instantiated_args), return_type.signed, return_type.parent_idx)
+  if isinstance(return_type, InstantiatedConversionTraitType):
+    return InstantiatedConversionTraitType(instantiate_return_type(return_type.parent_type, instantiated_args), return_type.trait, return_type.parent_idx)
   return return_type
 
 def type_combinations(return_type, arg_types):
@@ -772,9 +781,9 @@ def get_all_vec_args(arg_types):
 def get_vec_arg_requirement(vec_arg):
   valid_type_str = ', '.join(vec_arg.vec_type.valid_types)
   valid_sizes_str = ', '.join(map(str, vec_arg.vec_type.valid_sizes))
-  checks = [f'detail::is_vec_v<{vec_arg}>',
-            f'detail::is_valid_vec_type_v<{vec_arg.template_name}, {valid_type_str}>',
-            f'detail::is_valid_vec_size_v<{vec_arg.template_name}, {valid_sizes_str}>']
+  checks = [f'detail::is_vec_or_swizzle_v<{vec_arg}>',
+            f'detail::is_valid_elem_type_v<{vec_arg.template_name}, {valid_type_str}>',
+            f'detail::is_valid_size_v<{vec_arg.template_name}, {valid_sizes_str}>']
   return '(' + (' && '.join(checks)) + ')'
 
 def get_func_return(return_type, arg_types):

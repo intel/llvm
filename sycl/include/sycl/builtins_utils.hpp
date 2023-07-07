@@ -10,6 +10,7 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/types.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -78,62 +79,131 @@ template <int N, int... Ns> constexpr bool CheckSizeIn() {
 }
 
 template <typename T, typename... Ts>
-struct is_valid_vec_type : std::false_type {};
+struct is_valid_elem_type : std::false_type {};
 template <typename T, int N, typename... Ts>
-struct is_valid_vec_type<vec<T, N>, Ts...>
+struct is_valid_elem_type<vec<T, N>, Ts...>
     : std::bool_constant<CheckTypeIn<T, Ts...>()> {};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes,
+          typename... Ts>
+struct is_valid_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                    OperationCurrentT, Indexes...>,
+                          Ts...>
+    : std::bool_constant<CheckTypeIn<typename VecT::element_type, Ts...>()> {};
 
-template <typename T, int... Ns> struct is_valid_vec_size : std::false_type {};
+template <typename T, int... Ns> struct is_valid_size : std::false_type {};
 template <typename T, int N, int... Ns>
-struct is_valid_vec_size<vec<T, N>, Ns...>
+struct is_valid_size<vec<T, N>, Ns...>
     : std::bool_constant<CheckSizeIn<N, Ns...>()> {};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes,
+          int... Ns>
+struct is_valid_size<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                               OperationCurrentT, Indexes...>,
+                     Ns...>
+    : std::bool_constant<CheckSizeIn<sizeof...(Indexes), Ns...>()> {};
 
 template <typename T, typename... Ts>
-constexpr bool is_valid_vec_type_v = is_valid_vec_type<T, Ts...>::value;
+constexpr bool is_valid_elem_type_v = is_valid_elem_type<T, Ts...>::value;
 template <typename T, int... Ns>
-constexpr bool is_valid_vec_size_v = is_valid_vec_size<T, Ns...>::value;
+constexpr bool is_valid_size_v = is_valid_size<T, Ns...>::value;
 
-template <typename T> struct vec_return;
-template <typename T, int N> struct vec_return<vec<T, N>> {
+template <typename T> struct get_vec;
+template <typename T, int N> struct get_vec<vec<T, N>> {
   using type = vec<T, N>;
 };
-// TODO: Make specialization for swizzle.
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct get_vec<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                         OperationCurrentT, Indexes...>> {
+  using type = vec<typename VecT::element_type, sizeof...(Indexes)>;
+};
 
-template <typename T> using vec_return_t = typename vec_return<T>::type;
+template <typename T> using get_vec_t = typename get_vec<T>::type;
+
+template <size_t Size> struct get_signed_int_by_size {
+  using type = std::conditional_t<
+      Size == 1, int8_t,
+      std::conditional_t<
+          Size == 2, int16_t,
+          std::conditional_t<Size == 4, int32_t,
+                             std::conditional_t<Size == 8, int64_t, void>>>>;
+};
+
+template <size_t Size> struct get_unsigned_int_by_size {
+  using type = std::conditional_t<
+      Size == 1, uint8_t,
+      std::conditional_t<
+          Size == 2, uint16_t,
+          std::conditional_t<Size == 4, uint32_t,
+                             std::conditional_t<Size == 8, uint64_t, void>>>>;
+};
+
+template <size_t Size> struct get_float_by_size {
+  using type = std::conditional_t<
+      Size == 2, half,
+      std::conditional_t<Size == 4, float,
+                         std::conditional_t<Size == 8, double, void>>>;
+};
 
 template <typename T> struct same_size_signed_int {
-  using type = std::conditional_t<
-      sizeof(T) == 1, int8_t,
-      std::conditional_t<
-          sizeof(T) == 2, int16_t,
-          std::conditional_t<
-              sizeof(T) == 4, int32_t,
-              std::conditional_t<sizeof(T) == 8, int64_t, void>>>>;
+  using type = typename get_signed_int_by_size<sizeof(T)>::type;
 };
 
 template <typename T, int N> struct same_size_signed_int<vec<T, N>> {
   using type = vec<typename same_size_signed_int<T>::type, N>;
 };
+// TODO: Swizzle variant of this?
 
 template <typename T>
 using same_size_signed_int_t = typename same_size_signed_int<T>::type;
 
 template <typename T> struct same_size_unsigned_int {
-  using type = std::conditional_t<
-      sizeof(T) == 1, uint8_t,
-      std::conditional_t<
-          sizeof(T) == 2, uint16_t,
-          std::conditional_t<
-              sizeof(T) == 4, uint32_t,
-              std::conditional_t<sizeof(T) == 8, uint64_t, void>>>>;
+  using type = typename get_unsigned_int_by_size<sizeof(T)>::type;
 };
 
 template <typename T, int N> struct same_size_unsigned_int<vec<T, N>> {
   using type = vec<typename same_size_unsigned_int<T>::type, N>;
 };
+// TODO: Swizzle variant of this?
+
+template <typename T> struct same_size_float {
+  using type = typename get_float_by_size<sizeof(T)>::type;
+};
+
+template <typename T, int N> struct same_size_float<vec<T, N>> {
+  using type = vec<typename same_size_float<T>::type, N>;
+};
+// TODO: Swizzle variant of this?
 
 template <typename T>
-using same_size_unsigned_int_t = typename same_size_unsigned_int<T>::type;
+using same_size_float_t = typename same_size_float<T>::type;
+
+// For upsampling we look for an integer of double the size of the specified
+// type.
+template <typename T> struct upsampled_int {
+  using type =
+      std::conditional_t<std::is_unsigned_v<T>,
+                         typename get_unsigned_int_by_size<sizeof(T) * 2>::type,
+                         typename get_signed_int_by_size<sizeof(T) * 2>::type>;
+};
+template <typename T, int N> struct upsampled_int<vec<T, N>> {
+  using type = vec<typename upsampled_int<T>::type, N>;
+};
+// TODO: Swizzle variant of this?
+
+template <typename T> using upsampled_int_t = typename upsampled_int<T>::type;
+
+template <typename> struct is_swizzle : std::false_type {};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct is_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                            OperationCurrentT, Indexes...>> : std::true_type {};
+
+template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
+
+template <typename T>
+constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
