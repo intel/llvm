@@ -183,3 +183,31 @@
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_USER_ONLY_NEEDED
 // SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
 // SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
+
+/// ###########################################################################
+/// test llvm-link behavior for linking device libraries
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-crt.o" "-output={{.*}}libsycl-crt-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-complex.o" "-output={{.*}}libsycl-complex-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.o" "-output={{.*}}libsycl-complex-fp64-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-cmath.o" "-output={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-cmath-fp64.o" "-output={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-imf.o" "-output={{.*}}libsycl-imf-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-imf-fp64.o" "-output={{.*}}libsycl-imf-fp64-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-imf-bf16.o" "-output={{.*}}libsycl-imf-bf16-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-cassert.o" "-output={{.*}}libsycl-fallback-cassert-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-cstring.o" "-output={{.*}}libsycl-fallback-cstring-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-complex.o" "-output={{.*}}libsycl-fallback-complex-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-complex-fp64.o" "-output={{.*}}libsycl-fallback-complex-fp64-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-cmath.o" "-output={{.*}}libsycl-fallback-cmath-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-cmath-fp64.o" "-output={{.*}}libsycl-fallback-cmath-fp64-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-imf.o" "-output={{.*}}libsycl-fallback-imf-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-imf-fp64.o" "-output={{.*}}libsycl-fallback-imf-fp64-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-imf-bf16.o" "-output={{.*}}libsycl-fallback-imf-bf16-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-bfloat16.o" "-output={{.*}}libsycl-fallback-bfloat16-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-itt-user-wrappers.o" "-output={{.*}}libsycl-itt-user-wrappers-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-itt-compiler-wrappers.o" "-output={{.*}}libsycl-itt-compiler-wrappers-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-itt-stubs.o" "-output={{.*}}libsycl-itt-stubs-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB_SPIRV_CPU_AOT-NEXT: llvm-link{{.*}} "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
