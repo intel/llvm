@@ -1289,11 +1289,12 @@ inline pi_result mock_piextEnqueueWriteHostPipe(
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextUSMImport(void *HostPtr, size_t Size,
-                                     pi_context Context) {
+inline pi_result mock_piextUSMImport(const void *HostPtr, size_t Size,
+                                     const pi_context Context) {
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextUSMRelease(void *HostPtr, pi_context Context) {
+inline pi_result mock_piextUSMRelease(const void *HostPtr,
+                                      const pi_context Context) {
   return PI_SUCCESS;
 }

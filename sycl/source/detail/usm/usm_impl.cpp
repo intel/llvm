@@ -647,7 +647,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
 // Device copy enhancement APIs, prepare_for and release_from USM.
 
-static void prepare_for_usm_device_copy(void *Ptr, size_t Size,
+static void prepare_for_usm_device_copy(const void *Ptr, size_t Size,
                                         const context &Ctxt) {
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   pi_context PICtx = CtxImpl->getHandleRef();
@@ -656,7 +656,7 @@ static void prepare_for_usm_device_copy(void *Ptr, size_t Size,
   Plugin->call<detail::PiApiKind::piextUSMImport>(Ptr, Size, PICtx);
 }
 
-static void release_from_usm_device_copy(void *Ptr, const context &Ctxt) {
+static void release_from_usm_device_copy(const void *Ptr, const context &Ctxt) {
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   pi_context PICtx = CtxImpl->getHandleRef();
   // Call the PI function
@@ -664,25 +664,24 @@ static void release_from_usm_device_copy(void *Ptr, const context &Ctxt) {
   Plugin->call<detail::PiApiKind::piextUSMRelease>(Ptr, PICtx);
 }
 
-void ext::oneapi::experimental::prepare_for_device_copy(void *Ptr, size_t Size,
-                                                        const context &Ctxt) {
+namespace ext::oneapi::experimental {
+void prepare_for_device_copy(const void *Ptr, size_t Size,
+                             const context &Ctxt) {
   prepare_for_usm_device_copy(Ptr, Size, Ctxt);
 }
 
-void ext::oneapi::experimental::prepare_for_device_copy(void *Ptr, size_t Size,
-                                                        const queue &Queue) {
+void prepare_for_device_copy(const void *Ptr, size_t Size, const queue &Queue) {
   prepare_for_usm_device_copy(Ptr, Size, Queue.get_context());
 }
 
-void ext::oneapi::experimental::release_from_device_copy(void *Ptr,
-                                                         const context &Ctxt) {
+void release_from_device_copy(const void *Ptr, const context &Ctxt) {
   release_from_usm_device_copy(Ptr, Ctxt);
 }
 
-void ext::oneapi::experimental::release_from_device_copy(void *Ptr,
-                                                         const queue &Queue) {
+void release_from_device_copy(const void *Ptr, const queue &Queue) {
   release_from_usm_device_copy(Ptr, Queue.get_context());
 }
+} // namespace ext::oneapi::experimental
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

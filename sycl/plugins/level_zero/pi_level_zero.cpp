@@ -941,11 +941,12 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
                                         ParamValue, ParamValueSizeRet);
 }
 
-pi_result piextUSMImport(void *HostPtr, size_t Size, pi_context Context) {
+pi_result piextUSMImport(const void *HostPtr, size_t Size,
+                         const pi_context Context) {
   return pi2ur::piextUSMImport(HostPtr, Size, Context);
 }
 
-pi_result piextUSMRelease(void *HostPtr, pi_context Context) {
+pi_result piextUSMRelease(const void *HostPtr, const pi_context Context) {
   return pi2ur::piextUSMRelease(HostPtr, Context);
 }
 
