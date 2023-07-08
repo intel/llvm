@@ -12,6 +12,7 @@
 #include "Support.h"
 
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
@@ -36,39 +37,11 @@ using namespace llvm;
 using namespace llvm::module_split;
 
 namespace {
-
 // Identifying name for global scope
 constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
-
-bool hasIndirectFunctionsOrCalls(const Module &M) {
-  for (const auto &F : M.functions()) {
-    // There are functions marked with [[intel::device_indirectly_callable]]
-    // attribute, because it instructs us to make this function available to the
-    // whole program as it was compiled as a single module.
-    if (F.hasFnAttribute("referenced-indirectly"))
-      return true;
-    if (F.isDeclaration())
-      continue;
-    // There are indirect calls in the module, which means that we don't know
-    // how to group functions so both caller and callee of indirect call are in
-    // the same module.
-    for (const auto &I : instructions(F)) {
-      if (auto *CI = dyn_cast<CallInst>(&I))
-        if (!CI->getCalledFunction())
-          return true;
-    }
-
-    // Function pointer is used somewhere. Follow the same rule as above.
-    for (const auto *U : F.users())
-      if (!isa<CallInst>(U))
-        return true;
-  }
-
-  return false;
-}
 
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
                                                  IRSplitMode Mode,
@@ -81,7 +54,7 @@ EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
     return Scope_PerKernel;
 
   case SPLIT_AUTO: {
-    if (hasIndirectFunctionsOrCalls(M) || AutoSplitIsGlobalScope)
+    if (AutoSplitIsGlobalScope)
       return Scope_Global;
 
     // At the moment, we assume that per-source split is the best way of
@@ -156,134 +129,155 @@ bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
 }
 
-// This function makes one or two groups depending on kernel types (SYCL, ESIMD)
-EntryPointGroupVec
-groupEntryPointsByKernelType(ModuleDesc &MD,
-                             bool EmitOnlyKernelsAsEntryPoints) {
-  Module &M = MD.getModule();
-  EntryPointGroupVec EntryPointGroups{};
-  std::map<StringRef, EntryPointSet> EntryPointMap;
+// Represents "dependency" or "use" graph of global objects (functions and
+// global variables) in a module. It is used during device code split to
+// understand which global variables and functions (other than entry points)
+// should be included into a split module.
+//
+// Nodes of the graph represent LLVM's GlobalObjects, edges "A" -> "B" represent
+// the fact that if "A" is included into a module, then "B" should be included
+// as well.
+//
+// Examples of dependencies which are represented in this graph:
+// - Function FA calls function FB
+// - Function FA uses global variable GA
+// - Global variable GA references (initialized with) function FB
+// - Function FA stores address of a function FB somewhere
+//
+// The following cases are treated as dependencies between global objects:
+// 1. Global object A is used within by a global object B in any way (store,
+//    bitcast, phi node, call, etc.): "A" -> "B" edge will be added to the
+//    graph;
+// 2. function A performs an indirect call of a function with signature S and
+//    there is a function B with signature S marked with "referenced-indirectly"
+//    attribute. "A" -> "B" edge will be added to the graph;
+class DependencyGraph {
+public:
+  using GlobalSet = SmallPtrSet<const GlobalValue *, 16>;
 
-  // Only process module entry points:
-  for (Function &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
-        !MD.isEntryPointCandidate(F))
-      continue;
+  DependencyGraph(const Module &M) {
+    // Group functions by their signature to handle case (2) described above
+    DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
+        FuncTypeToFuncsMap;
+    for (const auto &F : M.functions()) {
+      // Kernels can't be called (either directly or indirectly) in SYCL
+      if (isKernel(F))
+        continue;
 
-    if (isESIMDFunction(F))
-      EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
-    else
-      EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
-  }
+      // Only functions which are marked with "referenced-indireclty" attribute
+      // are considered to be indirect callee candidates.
+      if (!F.hasFnAttribute("referenced-indirectly"))
+        continue;
 
-  if (!EntryPointMap.empty()) {
-    for (auto &EPG : EntryPointMap) {
-      EntryPointGroups.emplace_back(EPG.first, std::move(EPG.second),
-                                    MD.getEntryPointGroup().Props);
-      EntryPointGroup &G = EntryPointGroups.back();
+      FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
+    }
 
-      if (G.GroupId == ESIMD_SCOPE_NAME) {
-        G.Props.HasESIMD = SyclEsimdSplitStatus::ESIMD_ONLY;
-      } else {
-        assert(G.GroupId == SYCL_SCOPE_NAME);
-        G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
+    // We add every function into the graph
+    for (const auto &F : M.functions()) {
+      // case (1), see comment above the class definition
+      for (const Value *U : F.users())
+        addUserToGraphRecursively(cast<const User>(U), &F);
+
+      // case (2), see comment above the class definition
+      for (const auto &I : instructions(F)) {
+        const auto *CI = dyn_cast<CallInst>(&I);
+        if (!CI || !CI->isIndirectCall()) // Direct calls were handled above
+          continue;
+
+        // TODO: consider limiting set of potential callees to functions marked
+        // with special attribute (like [[intel::device_indirectly_callable]])
+        const FunctionType *Signature = CI->getFunctionType();
+        // Note: strictly speaking, virtual functions are allowed to use
+        // co-variant return types, i.e. we can actually miss a potential callee
+        // here, because it has different signature (different return type).
+        // However, this is not a problem for two reasons:
+        // - opaque pointers will be enabled at some point and will make
+        //   signatures the same in that case
+        // - all virtual functions are referenced from vtable and therefore will
+        //   anyway be preserved in a module
+        const auto &PotentialCallees = FuncTypeToFuncsMap[Signature];
+        Graph[&F].insert(PotentialCallees.begin(), PotentialCallees.end());
       }
     }
-  } else {
-    // No entry points met, record this.
-    EntryPointGroups.emplace_back(SYCL_SCOPE_NAME, EntryPointSet{});
-    EntryPointGroup &G = EntryPointGroups.back();
-    G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
+
+    // And every global variable (but their handling is a bit simpler)
+    for (const auto &GV : M.globals())
+      for (const Value *U : GV.users())
+        addUserToGraphRecursively(cast<const User>(U), &GV);
   }
 
-  return EntryPointGroups;
-}
-
-// Represents a call graph between functions in a module. Nodes are functions,
-// edges are "calls" relation.
-class CallGraph {
-public:
-  using FunctionSet = SmallPtrSet<const Function *, 16>;
-
-private:
-  std::unordered_map<const Function *, FunctionSet> Graph;
-  SmallPtrSet<const Function *, 1> EmptySet;
-  FunctionSet AddrTakenFunctions;
-
-public:
-  CallGraph(const Module &M) {
-    for (const auto &F : M) {
-      for (const Value *U : F.users()) {
-        if (const auto *I = dyn_cast<CallInst>(U)) {
-          if (I->getCalledFunction() == &F) {
-            const Function *F1 = I->getFunction();
-            Graph[F1].insert(&F);
-          }
-        }
-      }
-      if (F.hasAddressTaken()) {
-        AddrTakenFunctions.insert(&F);
-      }
-    }
-  }
-
-  iterator_range<FunctionSet::const_iterator>
-  successors(const Function *F) const {
-    auto It = Graph.find(F);
+  iterator_range<GlobalSet::const_iterator>
+  dependencies(const GlobalValue *Val) const {
+    auto It = Graph.find(Val);
     return (It == Graph.end())
                ? make_range(EmptySet.begin(), EmptySet.end())
                : make_range(It->second.begin(), It->second.end());
   }
 
-  iterator_range<FunctionSet::const_iterator> addrTakenFunctions() const {
-    return make_range(AddrTakenFunctions.begin(), AddrTakenFunctions.end());
+private:
+  void addUserToGraphRecursively(const User *Root, const GlobalValue *V) {
+
+    SmallVector<const User *, 8> WorkList;
+    WorkList.push_back(Root);
+
+    while (!WorkList.empty()) {
+      const User *U = WorkList.pop_back_val();
+      if (const auto *I = dyn_cast<const Instruction>(U)) {
+        const auto *UFunc = I->getFunction();
+        Graph[UFunc].insert(V);
+      } else if (isa<const Constant>(U)) {
+        if (const auto *GV = dyn_cast<const GlobalVariable>(U))
+          Graph[GV].insert(V);
+        // This could be a global variable or some constant expression (like
+        // bitcast or gep). We trace users of this constant further to reach
+        // global objects they are used by and add them to the graph.
+        for (const auto *UU : U->users())
+          WorkList.push_back(UU);
+      } else {
+        llvm_unreachable("Unhandled type of function user");
+      }
+    }
   }
+
+  DenseMap<const GlobalValue *, GlobalSet> Graph;
+  SmallPtrSet<const GlobalValue *, 1> EmptySet;
 };
 
-void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
-                               const EntryPointGroup &ModuleEntryPoints,
-                               const CallGraph &Deps) {
+void collectFunctionsAndGlobalVariablesToExtract(
+    SetVector<const GlobalValue *> &GVs, const Module &M,
+    const EntryPointGroup &ModuleEntryPoints, const DependencyGraph &Deps,
+    const std::function<bool(const Function *)> &IncludeFunctionPredicate =
+        nullptr) {
+  // We start with module entry points
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
-  // It is conservatively assumed that any address-taken function can be invoked
-  // or otherwise used by any function in any module split from the initial one.
-  // So such functions along with the call graphs they start are always
-  // extracted (and duplicated in each split module). They are not treated as
-  // entry points, as SYCL runtime requires that intersection of entry point
-  // sets of different device binaries (for the same target) must be empty.
-  // TODO: try to determine which split modules really use address-taken
-  // functions and only duplicate the functions in such modules. Note that usage
-  // may include e.g. function address comparison w/o actual invocation.
-  for (const auto *F : Deps.addrTakenFunctions()) {
-    if (!isKernel(*F) && (isESIMDFunction(*F) == ModuleEntryPoints.isEsimd()))
-      GVs.insert(F);
+
+  // Non-discardable global variables are also include into the initial set
+  for (const auto &GV : M.globals()) {
+    if (!GV.isDiscardableIfUnused())
+      GVs.insert(&GV);
   }
 
   // GVs has SetVector type. This type inserts a value only if it is not yet
   // present there. So, recursion is not expected here.
   decltype(GVs.size()) Idx = 0;
   while (Idx < GVs.size()) {
-    const auto *F = cast<Function>(GVs[Idx++]);
+    const auto *Obj = GVs[Idx++];
 
-    for (const Function *F1 : Deps.successors(F)) {
-      if (!F1->isDeclaration())
-        GVs.insert(F1);
+    for (const GlobalValue *Dep : Deps.dependencies(Obj)) {
+      if (const auto *Func = dyn_cast<const Function>(Dep)) {
+        if (Func->isDeclaration())
+          continue;
+
+        // Functions can be additionally filtered
+        if (!IncludeFunctionPredicate || IncludeFunctionPredicate(Func))
+          GVs.insert(Func);
+      } else {
+        // Global variables are added unconditionally
+        GVs.insert(Dep);
+      }
     }
   }
-}
-
-void collectGlobalVarsToExtract(SetVector<const GlobalValue *> &GVs,
-                                const Module &M) {
-  // It's not easy to trace global variable's uses inside needed functions
-  // because global variable can be used inside a combination of operators, so
-  // mark all global variables as needed and remove dead ones after cloning.
-  // Notice. For device global variables with the 'device_image_scope' property,
-  // removing dead ones is a must, the 'checkImageScopedDeviceGlobals' function
-  // checks that there are no usages of a single device global variable with the
-  // 'device_image_scope' property from multiple modules and the splitter must
-  // not add such usages after the check.
-  for (const auto &G : M.globals())
-    GVs.insert(&G);
 }
 
 ModuleDesc extractSubModule(const ModuleDesc &MD,
@@ -306,14 +300,39 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
   return ModuleDesc{std::move(SubM), std::move(ModuleEntryPoints), MD.Props};
 }
 
-// The function produces a copy of input LLVM IR module M with only those entry
-// points that are specified in ModuleEntryPoints vector.
+// The function produces a copy of input LLVM IR module M with only those
+// functions and globals that can be called from entry points that are specified
+// in ModuleEntryPoints vector, in addition to the entry point functions.
 ModuleDesc extractCallGraph(const ModuleDesc &MD,
                             EntryPointGroup &&ModuleEntryPoints,
-                            const CallGraph &CG) {
+                            const DependencyGraph &CG,
+                            const std::function<bool(const Function *)>
+                                &IncludeFunctionPredicate = nullptr) {
   SetVector<const GlobalValue *> GVs;
-  collectFunctionsToExtract(GVs, ModuleEntryPoints, CG);
-  collectGlobalVarsToExtract(GVs, MD.getModule());
+  collectFunctionsAndGlobalVariablesToExtract(
+      GVs, MD.getModule(), ModuleEntryPoints, CG, IncludeFunctionPredicate);
+
+  ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
+  SplitM.cleanup();
+
+  return SplitM;
+}
+
+// The function is similar to 'extractCallGraph', but it produces a copy of
+// input LLVM IR module M with _all_ ESIMD functions and kernels included,
+// regardless of whether or not they are listed in ModuleEntryPoints.
+ModuleDesc extractESIMDSubModule(const ModuleDesc &MD,
+                                 EntryPointGroup &&ModuleEntryPoints,
+                                 const DependencyGraph &CG,
+                                 const std::function<bool(const Function *)>
+                                     &IncludeFunctionPredicate = nullptr) {
+  SetVector<const GlobalValue *> GVs;
+  for (const auto &F : MD.getModule().functions())
+    if (isESIMDFunction(F))
+      GVs.insert(&F);
+
+  collectFunctionsAndGlobalVariablesToExtract(
+      GVs, MD.getModule(), ModuleEntryPoints, CG, IncludeFunctionPredicate);
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
   SplitM.cleanup();
@@ -341,25 +360,11 @@ public:
   }
 
 private:
-  CallGraph CG;
+  DependencyGraph CG;
 };
-
 } // namespace
-
 namespace llvm {
 namespace module_split {
-
-std::unique_ptr<ModuleSplitterBase>
-getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
-  EntryPointGroupVec Groups =
-      groupEntryPointsByKernelType(MD, EmitOnlyKernelsAsEntryPoints);
-  bool DoSplit = (Groups.size() > 1);
-
-  if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
-  else
-    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
-}
 
 void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
   const Module &M = getInputModule();
@@ -849,8 +854,11 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     // Note: Add more rules at the end of the list to avoid chaning orders of
     // output files in existing tests.
     Categorizer.registerSimpleStringAttributeRule("sycl-register-alloc-mode");
+    Categorizer.registerSimpleStringAttributeRule("sycl-grf-size");
     Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
+    Categorizer.registerListOfIntegersInMetadataRule(
+        "intel_reqd_sub_group_size");
     Categorizer.registerSimpleStringAttributeRule(
         sycl::utils::ATTR_SYCL_OPTLEVEL);
     break;
@@ -889,6 +897,92 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
 
   return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+}
+
+// Splits input module into two:
+// - one containing _all_ ESIMD kernels, ESIMD functions and everything they use
+// - another one which contains everything else
+//
+// The most interesting part here is that if a regular SYCL kernel uses a ESIMD
+// function (through invoke_simd), it won't be included in non-ESIMD module.
+//
+// The reason for that is because ESIMD functions should undergo special
+// handling and therefore we isolate them all into a separate module completely
+// to do so. Due to design choices in passes provided by vc-intrinsics repo, we
+// can't handle ESIMD functions _only_ in a mixed module.
+//
+// Functions, which are used from both ESIMD and non-ESIMD code will be
+// duplicated into each module.
+//
+// If there are dependencies between ESIMD and non-ESIMD code (produced by
+// invoke_simd, for example), the modules has to be linked back together to
+// avoid undefined behavior at later stages. That is done at higher level,
+// outside of this function.
+SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
+                                        bool EmitOnlyKernelsAsEntryPoints) {
+
+  SmallVector<module_split::ModuleDesc, 2> Result;
+  EntryPointGroupVec EntryPointGroups{};
+  EntryPointSet SYCLEntryPoints, ESIMDEntryPoints;
+  bool hasESIMDFunctions = false;
+
+  // Only process module entry points:
+  for (Function &F : MD.getModule().functions()) {
+    if (isESIMDFunction(F))
+      hasESIMDFunctions = true;
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
+        !MD.isEntryPointCandidate(F))
+      continue;
+    if (isESIMDFunction(F))
+      ESIMDEntryPoints.insert(&F);
+    else
+      SYCLEntryPoints.insert(&F);
+  }
+
+  // If there are no ESIMD entry points but there are ESIMD functions,
+  // we still need to create an (empty) entry point group so that we
+  // can lower the ESIMD functions.
+  if (!ESIMDEntryPoints.empty() || hasESIMDFunctions) {
+    EntryPointGroups.emplace_back(ESIMD_SCOPE_NAME, std::move(ESIMDEntryPoints),
+                                  MD.getEntryPointGroup().Props);
+    EntryPointGroup &G = EntryPointGroups.back();
+    G.Props.HasESIMD = SyclEsimdSplitStatus::ESIMD_ONLY;
+  }
+
+  if (!SYCLEntryPoints.empty() || EntryPointGroups.empty()) {
+    EntryPointGroups.emplace_back(SYCL_SCOPE_NAME, std::move(SYCLEntryPoints),
+                                  MD.getEntryPointGroup().Props);
+    EntryPointGroup &G = EntryPointGroups.back();
+    G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
+  }
+
+  if (EntryPointGroups.size() == 1) {
+    Result.emplace_back(std::move(MD.releaseModulePtr()),
+                        std::move(EntryPointGroups[0]), MD.Props);
+    return Result;
+  }
+
+  DependencyGraph CG(MD.getModule());
+  for (auto &Group : EntryPointGroups) {
+    if (Group.isEsimd()) {
+      // For ESIMD module, we use full call graph of all entry points and all
+      // ESIMD functions.
+      Result.emplace_back(
+          std::move(extractESIMDSubModule(MD, std::move(Group), CG)));
+    } else {
+      // For non-ESIMD module we only use non-ESIMD functions. Additional filter
+      // is needed, because there could be uses of ESIMD functions from
+      // non-ESIMD functions through invoke_simd. If that is the case, both
+      // modules are expected to be linked back together after ESIMD functions
+      // were processed and therefore it is fine to return an "incomplete"
+      // module here.
+      Result.emplace_back(std::move(extractCallGraph(
+          MD, std::move(Group), CG,
+          [=](const Function *F) -> bool { return !isESIMDFunction(*F); })));
+    }
+  }
+
+  return Result;
 }
 
 } // namespace module_split

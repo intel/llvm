@@ -4436,10 +4436,10 @@ bool LoopVectorizationCostModel::isPredicatedInst(Instruction *I) const {
     // both speculation safety (which follows from the same argument as loads),
     // but also must prove the value being stored is correct.  The easiest
     // form of the later is to require that all values stored are the same.
-    if (Legal->isUniformMemOp(*I) &&
-      (isa<LoadInst>(I) ||
-       (isa<StoreInst>(I) &&
-        TheLoop->isLoopInvariant(cast<StoreInst>(I)->getValueOperand()))) &&
+    if (Legal->isInvariant(getLoadStorePointerOperand(I)) &&
+        (isa<LoadInst>(I) ||
+         (isa<StoreInst>(I) &&
+          TheLoop->isLoopInvariant(cast<StoreInst>(I)->getValueOperand()))) &&
         !Legal->blockNeedsPredication(I->getParent()))
       return false;
     return true;
@@ -4510,7 +4510,8 @@ LoopVectorizationCostModel::getDivRemSpeculationCost(Instruction *I,
   // second vector operand. One example of this are shifts on x86.
   Value *Op2 = I->getOperand(1);
   auto Op2Info = TTI.getOperandInfo(Op2);
-  if (Op2Info.Kind == TargetTransformInfo::OK_AnyValue && Legal->isUniform(Op2))
+  if (Op2Info.Kind == TargetTransformInfo::OK_AnyValue &&
+      Legal->isInvariant(Op2))
     Op2Info.Kind = TargetTransformInfo::OK_UniformValue;
 
   SmallVector<const Value *, 4> Operands(I->operand_values());
@@ -4671,9 +4672,17 @@ void LoopVectorizationCostModel::collectLoopUniforms(ElementCount VF) {
   if (Cmp && TheLoop->contains(Cmp) && Cmp->hasOneUse())
     addToWorklistIfAllowed(Cmp);
 
+  auto PrevVF = VF.divideCoefficientBy(2);
   // Return true if all lanes perform the same memory operation, and we can
   // thus chose to execute only one.
   auto isUniformMemOpUse = [&](Instruction *I) {
+    // If the value was already known to not be uniform for the previous
+    // (smaller VF), it cannot be uniform for the larger VF.
+    if (PrevVF.isVector()) {
+      auto Iter = Uniforms.find(PrevVF);
+      if (Iter != Uniforms.end() && !Iter->second.contains(I))
+        return false;
+    }
     if (!Legal->isUniformMemOp(*I, VF))
       return false;
     if (isa<LoadInst>(I))
@@ -4704,7 +4713,7 @@ void LoopVectorizationCostModel::collectLoopUniforms(ElementCount VF) {
     if (isa<StoreInst>(I) && I->getOperand(0) == Ptr)
       return false;
     return getLoadStorePointerOperand(I) == Ptr &&
-           (isUniformDecision(I, VF) || Legal->isUniform(Ptr));
+           (isUniformDecision(I, VF) || Legal->isInvariant(Ptr));
   };
 
   // Holds a list of values which are known to have at least one uniform use.
@@ -6511,7 +6520,7 @@ LoopVectorizationCostModel::getUniformMemOpCost(Instruction *I,
   }
   StoreInst *SI = cast<StoreInst>(I);
 
-  bool isLoopInvariantStoreValue = Legal->isUniform(SI->getValueOperand());
+  bool isLoopInvariantStoreValue = Legal->isInvariant(SI->getValueOperand());
   return TTI.getAddressComputationCost(ValTy) +
          TTI.getMemoryOpCost(Instruction::Store, ValTy, Alignment, AS,
                              CostKind) +
@@ -7186,7 +7195,8 @@ LoopVectorizationCostModel::getInstructionCost(Instruction *I, ElementCount VF,
     // second vector operand. One example of this are shifts on x86.
     Value *Op2 = I->getOperand(1);
     auto Op2Info = TTI.getOperandInfo(Op2);
-    if (Op2Info.Kind == TargetTransformInfo::OK_AnyValue && Legal->isUniform(Op2))
+    if (Op2Info.Kind == TargetTransformInfo::OK_AnyValue &&
+        Legal->isInvariant(Op2))
       Op2Info.Kind = TargetTransformInfo::OK_UniformValue;
 
     SmallVector<const Value *, 4> Operands(I->operand_values());
@@ -10539,7 +10549,7 @@ LoopVectorizeResult LoopVectorizePass::runImpl(
 
     // For the inner loops we actually process, form LCSSA to simplify the
     // transform.
-    Changed |= formLCSSARecursively(*L, *DT, LI);
+    Changed |= formLCSSARecursively(*L, *DT, LI, SE);
 
     Changed |= CFGChanged |= processLoop(L);
 

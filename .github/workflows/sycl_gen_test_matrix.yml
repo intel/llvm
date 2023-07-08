@@ -51,7 +51,7 @@ jobs:
     name: Generate Test Matrix
     # Github's ubuntu-* runner are slow to allocate. Use our CUDA runner since
     # we don't use it for anything right now.
-    runs-on: cuda
+    runs-on: [Linux, build]
     outputs:
       lts_lx_matrix: ${{ steps.work.outputs.lts_lx_matrix }}
       lts_wn_matrix: ${{ steps.work.outputs.lts_wn_matrix }}
@@ -75,3 +75,5 @@ jobs:
         script: |
           const script = require('./generate_test_matrix.js');
           script({core, process});
+    - name: Cleanup
+      run: rm -rf generate_test_matrix.js test_configs.json dependencies.json dependencies.sycl.json

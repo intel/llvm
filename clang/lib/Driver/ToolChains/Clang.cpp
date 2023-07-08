@@ -750,12 +750,7 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
       PGOGenerateArg->getOption().matches(options::OPT_fno_profile_generate))
     PGOGenerateArg = nullptr;
 
-  auto *CSPGOGenerateArg = Args.getLastArg(options::OPT_fcs_profile_generate,
-                                           options::OPT_fcs_profile_generate_EQ,
-                                           options::OPT_fno_profile_generate);
-  if (CSPGOGenerateArg &&
-      CSPGOGenerateArg->getOption().matches(options::OPT_fno_profile_generate))
-    CSPGOGenerateArg = nullptr;
+  auto *CSPGOGenerateArg = getLastCSProfileGenerateArg(Args);
 
   auto *ProfileGenerateArg = Args.getLastArg(
       options::OPT_fprofile_instr_generate,
@@ -2911,6 +2906,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   bool StrictFPModel = false;
   StringRef Float16ExcessPrecision = "";
   StringRef BFloat16ExcessPrecision = "";
+  StringRef FPAccuracy = "";
 
   if (const Arg *A = Args.getLastArg(options::OPT_flimited_precision_EQ)) {
     CmdArgs.push_back("-mlimit-float-precision");
@@ -2923,13 +2919,20 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     switch (optID) {
     default:
       break;
+    case options::OPT_ffp_accuracy_EQ: {
+      StringRef Val = A->getValue();
+      FPAccuracy = Val;
+      break;
+    }
     case options::OPT_ffp_model_EQ: {
       // If -ffp-model= is seen, reset to fno-fast-math
       HonorINFs = true;
       HonorNaNs = true;
       ApproxFunc = false;
-      // Turning *off* -ffast-math restores the toolchain default.
-      MathErrno = TC.IsMathErrnoDefault();
+      // Turning *off* -ffast-math restores the toolchain default,
+      // unless -fp-accuracy is used.
+      if (FPAccuracy.empty())
+        MathErrno = TC.IsMathErrnoDefault();
       AssociativeMath = false;
       ReciprocalMath = false;
       SignedZeros = true;
@@ -3198,8 +3201,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       HonorNaNs = true;
       // Turning on -ffast-math (with either flag) removes the need for
       // MathErrno. However, turning *off* -ffast-math merely restores the
-      // toolchain default (which may be false).
-      MathErrno = TC.IsMathErrnoDefault();
+      // toolchain default (which may be false), unless -fp-accuracy is used.
+      if (FPAccuracy.empty())
+        MathErrno = TC.IsMathErrnoDefault();
       AssociativeMath = false;
       ReciprocalMath = false;
       ApproxFunc = false;
@@ -4302,9 +4306,9 @@ static void renderDwarfFormat(const Driver &D, const llvm::Triple &T,
     else if (!T.isArch64Bit())
       D.Diag(diag::err_drv_argument_only_allowed_with)
           << DwarfFormatArg->getAsString(Args) << "64 bit architecture";
-    else if (!(T.isOSBinFormatELF() || T.isOSBinFormatXCOFF()))
+    else if (!T.isOSBinFormatELF())
       D.Diag(diag::err_drv_argument_only_allowed_with)
-          << DwarfFormatArg->getAsString(Args) << "ELF/XCOFF platforms";
+          << DwarfFormatArg->getAsString(Args) << "ELF platforms";
   }
 
   DwarfFormatArg->render(Args, CmdArgs);
@@ -4964,6 +4968,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsFPGASYCLOffloadDevice =
       IsSYCLOffloadDevice &&
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
+  bool IsSYCLNativeCPU = isSYCLNativeCPU(Args);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -5109,10 +5114,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_sycl_early_optimizations,
                       !IsFPGASYCLOffloadDevice))
       CmdArgs.push_back("-fno-sycl-early-optimizations");
-    else if (RawTriple.isSPIR()) {
+    else if (RawTriple.isSPIR() || IsSYCLNativeCPU) {
       // Set `sycl-opt` option to configure LLVM passes for SPIR target
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
+    }
+    if (IsSYCLNativeCPU) {
+      CmdArgs.push_back("-fsycl-is-native-cpu");
+      CmdArgs.push_back("-D");
+      CmdArgs.push_back("__SYCL_NATIVE_CPU__");
+      CmdArgs.push_back("-fno-autolink");
     }
 
     // Turn on Dead Parameter Elimination Optimization with early optimizations
@@ -5144,10 +5155,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      options::OPT_fno_sycl_allow_func_ptr, false)) {
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
-
-    if (Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
-                     options::OPT_fno_sycl_esimd_force_stateless_mem, false))
-      CmdArgs.push_back("-fsycl-esimd-force-stateless-mem");
 
     // Forward -fsycl-instrument-device-code option to cc1. This option will
     // only be used for SPIR-V-based targets.
@@ -5292,6 +5299,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
+      if (IsSYCLNativeCPU) {
+        CmdArgs.push_back("-D");
+        CmdArgs.push_back("__SYCL_NATIVE_CPU__");
+      }
 
       if (!D.IsCLMode()) {
         // SYCL library is guaranteed to work correctly only with dynamic
@@ -5334,6 +5345,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       for (auto &Macro : D.getSYCLTargetMacroArgs())
         CmdArgs.push_back(Args.MakeArgString(Macro));
     }
+    if (Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
+                     options::OPT_fno_sycl_esimd_force_stateless_mem, false))
+      CmdArgs.push_back("-fsycl-esimd-force-stateless-mem");
   }
 
   if (IsOpenMPDevice) {
@@ -5417,7 +5431,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fdirectives-only");
     }
   } else if (isa<AssembleJobAction>(JA)) {
-    if (IsSYCLOffloadDevice) {
+    if (IsSYCLOffloadDevice && !IsSYCLNativeCPU) {
       CmdArgs.push_back("-emit-llvm-bc");
     } else {
       CmdArgs.push_back("-emit-obj");
@@ -6081,6 +6095,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
   }
+
+  std::string FpAccuracyAttr;
+  auto RenderFPAccuracyOptions = [&FpAccuracyAttr](const Twine &OptStr) {
+    // In case the value is 'default' don't add the -ffp-builtin-accuracy
+    // attribute.
+    if (OptStr.str() != "default") {
+      if (FpAccuracyAttr.empty())
+        FpAccuracyAttr = "-ffp-builtin-accuracy=";
+      else
+        FpAccuracyAttr += " ";
+      FpAccuracyAttr += OptStr.str();
+    }
+  };
+  for (StringRef A : Args.getAllArgValues(options::OPT_ffp_accuracy_EQ))
+    RenderFPAccuracyOptions(A);
+  if (!FpAccuracyAttr.empty())
+    CmdArgs.push_back(Args.MakeArgString(FpAccuracyAttr));
 
   // Decide whether to use verbose asm. Verbose assembly is the default on
   // toolchains which have the integrated assembler on by default.
@@ -9765,45 +9796,6 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         JA, *this, ResponseFileSupport::None(), Foreach, ForeachArgs, std::nullopt));
   } else
     C.addCommand(std::move(Cmd));
-}
-
-void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
-                             const InputInfo &Output,
-                             const InputInfoList &Inputs,
-                             const llvm::opt::ArgList &TCArgs,
-                             const char *LinkingOutput) const {
-  // Construct llvm-no-spir-kernel command.
-  assert(isa<SPIRCheckJobAction>(JA) && "Expecting SPIR Check job!");
-
-  // The spir check command looks like this:
-  // llvm-no-spir-kernel <file>.bc
-  // Upon success, we just move ahead.  Error means the check failed and
-  // we need to exit.  The expected output is the input as this is just an
-  // intermediate check with no functional change.
-  ArgStringList CheckArgs;
-  assert(Inputs.size() == 1 && "Unexpected number of inputs to the tool");
-  const InputInfo &InputFile = Inputs.front();
-  CheckArgs.push_back(InputFile.getFilename());
-
-  // Add output file, which is just a copy of the input to better fit in the
-  // toolchain flow.
-  CheckArgs.push_back("-o");
-  CheckArgs.push_back(Output.getFilename());
-  auto Cmd = std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(),
-      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CheckArgs, std::nullopt);
-
-  if (getToolChain().getTriple().getSubArch() ==
-      llvm::Triple::SPIRSubArch_fpga) {
-    const char *Msg = TCArgs.MakeArgString(
-        Twine("The FPGA image does not include all device kernels from ") +
-        Twine(InputFile.getBaseInput()) +
-        Twine(". Please re-generate the image"));
-    Cmd->addDiagForErrorCode(/*ErrorCode*/ 1, Msg);
-  }
-
-  C.addCommand(std::move(Cmd));
 }
 
 static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,

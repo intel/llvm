@@ -1729,6 +1729,13 @@ def ffp_exception_behavior_EQ : Joined<["-"], "ffp-exception-behavior=">, Group<
   Values<"ignore,maytrap,strict">, NormalizedValuesScope<"LangOptions">,
   NormalizedValues<["FPE_Ignore", "FPE_MayTrap", "FPE_Strict"]>,
   MarshallingInfoEnum<LangOpts<"FPExceptionMode">, "FPE_Default">;
+def ffp_accuracy_EQ : Joined<["-"], "ffp-accuracy=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Specifies the required accuracy for floating-point operations and library calls.">,
+  Values<"default,high,medium,low,sycl,cuda">, NormalizedValuesScope<"LangOptions">,
+  NormalizedValues<["FPA_Default", "FPA_High", "FPA_Medium", "FPA_Low", "FPA_Sycl", "FPA_Cuda"]>,
+  MarshallingInfoEnum<LangOpts<"FPAccuracy">, "FPA_Default">;
+def ffp_builtin_accuracy_EQ : Joined<["-"], "ffp-builtin-accuracy=">, Group<f_Group>, Flags<[CC1Option]>;
+
 defm fast_math : BoolFOption<"fast-math",
   LangOpts<"FastMath">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option, CoreOption, FC1Option, FlangOption], "Allow aggressive, lossy floating-point optimizations",
@@ -3051,12 +3058,18 @@ defm sycl_instrument_device_code
           BothFlags<[CC1Option, CoreOption], " Instrumentation and Tracing "
                     "Technology (ITT) instrumentation intrinsics calls "
                     "(experimental)">>;
-def fsycl_link_huge_device_code : Flag<["-"], "fsycl-link-huge-device-code">,
-  Group<sycl_Group>, HelpText<"Generate and use a custom linker script for huge"
+def flink_huge_device_code : Flag<["-"], "flink-huge-device-code">,
+  Group<Link_Group>, HelpText<"Generate and use a custom linker script for huge"
   " device code sections">;
-def fno_sycl_link_huge_device_code : Flag<["-"], "fno-sycl-link-huge-device-code">,
-  Group<sycl_Group>, HelpText<"Do not generate or use a custom linker script"
+def fno_link_huge_device_code : Flag<["-"], "fno-link-huge-device-code">,
+  Group<Link_Group>, HelpText<"Do not generate or use a custom linker script"
   " for huge device code sections (default)">;
+def fsycl_link_huge_device_code : Flag<["-"], "fsycl-link-huge-device-code">,
+  Group<sycl_Group>, Alias<flink_huge_device_code>, HelpText<"Generate and use a custom linker script for huge"
+  " device code sections (deprecated)">, Flags<[Deprecated]>;
+def fno_sycl_link_huge_device_code : Flag<["-"], "fno-sycl-link-huge-device-code">,
+  Group<sycl_Group>, Alias<fno_link_huge_device_code>, HelpText<"Do not generate or use a custom linker script"
+  " for huge device code sections (default) (deprecated)">, Flags<[Deprecated]>;
 defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], "Assume">, NegFlag<SetFalse, [], "Do not assume">,
@@ -3124,6 +3137,11 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
 def ftarget_compile_fast : Flag<["-"], "ftarget-compile-fast">,
   Flags<[CoreOption]>, HelpText<"Experimental feature: Reduce target "
   "compilation time, with potential runtime performance trade-off.">;
+def ftarget_export_symbols : Flag<["-"], "ftarget-export-symbols">,
+  Flags<[CoreOption]>, HelpText<"Expose exported symbols in a generated "
+  "target library to allow for visibilty to other modules.">;
+def fno_target_export_symbols : Flag<["-"], "fno-target-export-symbols">,
+  Flags<[CoreOption]>;
 def : Flag<["-"], "fsycl-rdc">, Flags<[CoreOption]>, Alias<fgpu_rdc>;
 def : Flag<["-"], "fno-sycl-rdc">, Flags<[CoreOption]>, Alias<fno_gpu_rdc>;
 def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
@@ -3563,7 +3581,7 @@ def headerpad__max__install__names : Joined<["-"], "headerpad_max_install_names"
 def help : Flag<["-", "--"], "help">, Flags<[CC1Option,CC1AsOption, FC1Option,
     FlangOption]>, HelpText<"Display available options">,
     MarshallingInfoFlag<FrontendOpts<"ShowHelp">>;
-def ibuiltininc : Flag<["-"], "ibuiltininc">,
+def ibuiltininc : Flag<["-"], "ibuiltininc">, Group<clang_i_Group>,
   HelpText<"Enable builtin #include directories even when -nostdinc is used "
            "before or after -ibuiltininc. "
            "Using -nobuiltininc after the option disables it">;
@@ -4366,12 +4384,13 @@ def no_cpp_precomp : Flag<["-"], "no-cpp-precomp">, Group<clang_ignored_f_Group>
 def no_integrated_cpp : Flag<["-", "--"], "no-integrated-cpp">, Flags<[NoXarchOption]>;
 def no_pedantic : Flag<["-", "--"], "no-pedantic">, Group<pedantic_Group>;
 def no__dead__strip__inits__and__terms : Flag<["-"], "no_dead_strip_inits_and_terms">;
-def nobuiltininc : Flag<["-"], "nobuiltininc">, Flags<[CC1Option, CoreOption]>,
+def nobuiltininc : Flag<["-"], "nobuiltininc">, Flags<[CC1Option, CoreOption]>, Group<IncludePath_Group>,
   HelpText<"Disable builtin #include directories">,
   MarshallingInfoNegativeFlag<HeaderSearchOpts<"UseBuiltinIncludes">>;
-def nogpuinc : Flag<["-"], "nogpuinc">, HelpText<"Do not add include paths for CUDA/HIP and"
+def nogpuinc : Flag<["-"], "nogpuinc">, Group<IncludePath_Group>,
+  HelpText<"Do not add include paths for CUDA/HIP and"
   " do not include the default CUDA/HIP wrapper headers">;
-def nohipwrapperinc : Flag<["-"], "nohipwrapperinc">,
+def nohipwrapperinc : Flag<["-"], "nohipwrapperinc">, Group<IncludePath_Group>,
   HelpText<"Do not include the default HIP wrapper headers and include paths">;
 def : Flag<["-"], "nocudainc">, Alias<nogpuinc>;
 def nogpulib : Flag<["-"], "nogpulib">, MarshallingInfoFlag<LangOpts<"NoGPULib">>,
@@ -4388,9 +4407,9 @@ def noprebind : Flag<["-"], "noprebind">;
 def noprofilelib : Flag<["-"], "noprofilelib">;
 def noseglinkedit : Flag<["-"], "noseglinkedit">;
 def nostartfiles : Flag<["-"], "nostartfiles">, Group<Link_Group>;
-def nostdinc : Flag<["-"], "nostdinc">, Flags<[CoreOption]>;
-def nostdlibinc : Flag<["-"], "nostdlibinc">;
-def nostdincxx : Flag<["-"], "nostdinc++">, Flags<[CC1Option]>,
+def nostdinc : Flag<["-"], "nostdinc">, Flags<[CoreOption]>, Group<IncludePath_Group>;
+def nostdlibinc : Flag<["-"], "nostdlibinc">, Group<IncludePath_Group>;
+def nostdincxx : Flag<["-"], "nostdinc++">, Flags<[CC1Option]>, Group<IncludePath_Group>,
   HelpText<"Disable standard #include directories for the C++ standard library">,
   MarshallingInfoNegativeFlag<HeaderSearchOpts<"UseStandardCXXIncludes">>;
 def nostdlib : Flag<["-"], "nostdlib">, Group<Link_Group>;
@@ -5478,9 +5497,12 @@ def fno_reformat : Flag<["-"], "fno-reformat">, Group<Preprocessor_Group>,
   HelpText<"Dump the cooked character stream in -E mode">;
 defm analyzed_objects_for_unparse : OptOutFC1FFlag<"analyzed-objects-for-unparse", "", "Do not use the analyzed objects when unparsing">;
 
-def emit_mlir : Flag<["-"], "emit-mlir">, Group<Action_Group>,
-  HelpText<"Build the parse tree, then lower it to MLIR">;
-def emit_fir : Flag<["-"], "emit-fir">, Alias<emit_mlir>;
+def emit_fir : Flag<["-"], "emit-fir">, Group<Action_Group>,
+  HelpText<"Build the parse tree, then lower it to FIR">;
+def emit_mlir : Flag<["-"], "emit-mlir">, Alias<emit_fir>;
+
+def emit_hlfir : Flag<["-"], "emit-hlfir">, Group<Action_Group>,
+  HelpText<"Build the parse tree, then lower it to HLFIR">;
 
 } // let Flags = [FC1Option, FlangOnlyOption]
 
@@ -6881,6 +6903,10 @@ def fsycl_use_main_file_name : Flag<["-"], "fsycl-use-main-file-name">,
 def fsycl_allow_virtual_functions : Flag<["-"], "fsycl-allow-virtual-functions">,
   HelpText<"Allow virtual functions calls in code for SYCL device">,
   MarshallingInfoFlag<LangOpts<"SYCLAllowVirtualFunctions">>;
+def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
+  HelpText<"Perform device compilation for Native CPU.">,
+  Flags<[CC1Option, NoDriverOption]>,
+  MarshallingInfoFlag<LangOpts<"SYCLIsNativeCPU">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 
@@ -7015,6 +7041,14 @@ class CLRemainingArgsJoined<string name> : Option<["/", "-"], name,
 // Aliases:
 // (We don't put any of these in cl_compile_Group as the options they alias are
 // already in the right group.)
+
+// INTEL_CUSTOMIZATION
+def _SLASH_Qfp_accuracy_EQ : CLJoined<"Qfp-accuracy=">,
+  Alias<ffp_accuracy_EQ>;
+def _SLASH_Qfp_accuracy_COL : CLJoined<"Qfp-accuracy:">,
+  Alias<ffp_accuracy_EQ>,HelpText<"Specifies the required accuracy for "
+  "floating-point operations and library calls.">;
+// END INTEL_CUSTOMIZATION
 
 def _SLASH_Brepro : CLFlag<"Brepro">,
   HelpText<"Do not write current time into COFF output (breaks link.exe /incremental)">,
