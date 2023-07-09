@@ -1,6 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // expected-no-diagnostics
 
+// Test annotated USM allocation functions for intel FPGA use model
+
 #include "sycl/sycl.hpp"
 #include <sycl/ext/intel/fpga_extensions.hpp>
 #include <sycl/ext/oneapi/usm/usm_alloc.hpp>
