@@ -12,6 +12,7 @@
 #define UMF_MEMORY_POOL_OPS_H 1
 
 #include <umf/base.h>
+#include <umf/memory_provider.h>
 
 #ifdef __cplusplus
 extern "C" {
