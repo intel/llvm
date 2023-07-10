@@ -65,6 +65,7 @@ struct _pi_kernel : _pi_object {
   std::vector<sycl::detail::NativeCPUArgDesc> _args;
 };
 
+namespace {
 // taken from pi_cuda.cpp
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
@@ -135,6 +136,46 @@ sycl::detail::NDRDescT getNDRDesc(pi_uint32 WorkDim,
   }
   return Res;
 }
+
+namespace pi_detail = sycl::detail::pi;
+template <bool IsRead>
+static inline pi_result piEnqueueMemBufferReadWriteRect_impl(
+    pi_queue, pi_mem Buff, pi_bool, pi_buff_rect_offset BufferOffset,
+    pi_buff_rect_offset HostOffset, pi_buff_rect_region region,
+    size_t BufferRowPitch, size_t BufferSlicePitch, size_t HostRowPitch,
+    size_t HostSlicePitch,
+    typename std::conditional<IsRead, void *, const void *>::type DstMem,
+    pi_uint32, const pi_event *, pi_event *) {
+  // TODO: events, check other constaints, performance optimisations
+  // Replace by functionality from UR where possible
+
+  if (BufferRowPitch == 0)
+    BufferRowPitch = region->width_bytes;
+  if (BufferSlicePitch == 0)
+    BufferSlicePitch = BufferRowPitch * region->height_scalar;
+  if (HostRowPitch == 0)
+    HostRowPitch = region->width_bytes;
+  if (HostSlicePitch == 0)
+    HostSlicePitch = HostRowPitch * region->height_scalar;
+  for (size_t w = 0; w < region->width_bytes; w++)
+    for (size_t h = 0; h < region->height_scalar; h++)
+      for (size_t d = 0; d < region->depth_scalar; d++) {
+        size_t buff_orign = (d + BufferOffset->z_scalar) * BufferSlicePitch +
+                            (h + BufferOffset->y_scalar) * BufferRowPitch + w +
+                            BufferOffset->x_bytes;
+        size_t host_origin = (d + HostOffset->z_scalar) * HostSlicePitch +
+                             (h + HostOffset->y_scalar) * HostRowPitch + w +
+                             HostOffset->x_bytes;
+        int8_t &host_mem = pi_detail::cast<int8_t *>(DstMem)[host_origin];
+        int8_t &buff_mem = pi_detail::cast<int8_t *>(Buff->_mem)[buff_orign];
+        if (IsRead)
+          host_mem = buff_mem;
+        else
+          buff_mem = host_mem;
+      }
+  return PI_SUCCESS;
+}
+} // namespace
 
 extern "C" {
 #define DIE_NO_IMPLEMENTATION                                                  \
@@ -949,44 +990,74 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
                                  pi_uint32 NumEventsInWaitList,
                                  const pi_event *EventWaitList,
                                  pi_event *Event) {
-  // TODO: is it ok to have this as no-op?
+  // todo: non-blocking, events, UR integration
+  void *FromPtr = Src->_mem + Offset;
+  if (Dst != FromPtr) {
+    // todo: check overlap
+    memcpy(Dst, FromPtr, Size);
+  }
   return PI_SUCCESS;
 }
 
-pi_result piEnqueueMemBufferReadRect(pi_queue, pi_mem, pi_bool,
-                                     pi_buff_rect_offset, pi_buff_rect_offset,
-                                     pi_buff_rect_region, size_t, size_t,
-                                     size_t, size_t, void *, pi_uint32,
-                                     const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemBufferReadRect(
+    pi_queue Q, pi_mem Src, pi_bool Blocking, pi_buff_rect_offset BufferOffset,
+    pi_buff_rect_offset HostOffset, pi_buff_rect_region region,
+    size_t BufferRowPitch, size_t BufferSlicePitch, size_t HostRowPitch,
+    size_t HostSlicePitch, void *DstMem, pi_uint32 N,
+    const pi_event *Event_list, pi_event *Event) {
+  return piEnqueueMemBufferReadWriteRect_impl<true /*read*/>(
+      Q, Src, Blocking, BufferOffset, HostOffset, region, BufferRowPitch,
+      BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem, N, Event_list,
+      Event);
 }
 
-pi_result piEnqueueMemBufferWrite(pi_queue, pi_mem, pi_bool, size_t, size_t,
-                                  const void *, pi_uint32, const pi_event *,
-                                  pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemBufferWrite(pi_queue, pi_mem Buffer,
+                                  pi_bool blocking_write, size_t Offset,
+                                  size_t Size, const void *Ptr, pi_uint32,
+                                  const pi_event *, pi_event *) {
+  // todo: non-blocking, events, UR integration
+  void *ToPtr = Buffer->_mem + Offset;
+  if (Ptr != ToPtr) {
+    // todo: check overlap
+    memcpy(ToPtr, Ptr, Size);
+  }
+  return PI_SUCCESS;
 }
 
-pi_result piEnqueueMemBufferWriteRect(pi_queue, pi_mem, pi_bool,
-                                      pi_buff_rect_offset, pi_buff_rect_offset,
-                                      pi_buff_rect_region, size_t, size_t,
-                                      size_t, size_t, const void *, pi_uint32,
-                                      const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemBufferWriteRect(
+    pi_queue Q, pi_mem Buff, pi_bool Blocking, pi_buff_rect_offset BufferOffset,
+    pi_buff_rect_offset HostOffset, pi_buff_rect_region Region,
+    size_t BufferRowPitch, size_t BufferSlicePitch, size_t HostRowPitch,
+    size_t HostSlicePitch, const void *Ptr, pi_uint32 NumEvents,
+    const pi_event *EventList, pi_event *Event) {
+  return piEnqueueMemBufferReadWriteRect_impl<false /*write*/>(
+      Q, Buff, Blocking, BufferOffset, HostOffset, Region, BufferRowPitch,
+      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr, NumEvents, EventList,
+      Event);
 }
 
-pi_result piEnqueueMemBufferCopy(pi_queue, pi_mem, pi_mem, size_t, size_t,
-                                 size_t, pi_uint32, const pi_event *,
-                                 pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemBufferCopy(pi_queue Q, pi_mem SrcBuff, pi_mem DstBuff,
+                                 size_t SrcOffset, size_t DstOffset,
+                                 size_t Size, pi_uint32 NumEventsInWaitList,
+                                 const pi_event *EventWaitList,
+                                 pi_event *Event) {
+  const void *SrcPtr = SrcBuff->_mem + SrcOffset;
+  void *DstPtr = DstBuff->_mem + DstOffset;
+  if (SrcPtr != DstPtr && Size)
+    memmove(DstPtr, SrcPtr, Size);
+  return PI_SUCCESS;
 }
 
-pi_result piEnqueueMemBufferCopyRect(pi_queue, pi_mem, pi_mem,
-                                     pi_buff_rect_offset, pi_buff_rect_offset,
-                                     pi_buff_rect_region, size_t, size_t,
-                                     size_t, size_t, pi_uint32,
-                                     const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemBufferCopyRect(
+    pi_queue Q, pi_mem SrcBuffer, pi_mem DstBuff, pi_buff_rect_offset SrcOrigin,
+    pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
+    size_t SrcRowPitch, size_t SrcSlicePitch, size_t DstRowPitch,
+    size_t DstSlicePitch, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return piEnqueueMemBufferReadWriteRect_impl<true /*read*/>(
+      Q, SrcBuffer, false /*Blocking*/, /*BufferOffset*/ SrcOrigin,
+      /*HostOffset*/ DstOrigin, Region, SrcRowPitch, SrcSlicePitch, DstRowPitch,
+      DstSlicePitch, DstBuff->_mem, NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferFill(pi_queue, pi_mem buffer, const void *pattern,
@@ -1132,7 +1203,8 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                               pi_device Device,
                               pi_usm_mem_properties *Properties, size_t Size,
                               pi_uint32 Alignment) {
-  DIE_NO_IMPLEMENTATION;
+  *ResultPtr = malloc(Size);
+  return PI_SUCCESS;
 }
 
 pi_result piextUSMFree(pi_context, void *Ptr) {
