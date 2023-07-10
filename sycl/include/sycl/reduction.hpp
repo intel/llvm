@@ -960,11 +960,9 @@ public:
       for (int i = 0; i < num_elements; ++i) {
         (*RWReduVal)[i] = decltype(MIdentityContainer)::getIdentity();
       }
-      CGH.addReduction(RWReduVal);
       auto Buf = std::make_shared<buffer<T, 1>>(RWReduVal.get()->data(),
                                                 range<1>(num_elements));
       Buf->set_final_data();
-      CGH.addReduction(Buf);
       accessor Mem{*Buf, CGH};
       Func(Mem);
 
@@ -975,6 +973,10 @@ public:
         // so use the old-style API.
         auto Mem =
             Buf->template get_access<access::mode::read_write>(CopyHandler);
+        // Since this CG is dependent on the one associated with CGH,
+        // registering the auxiliary resources here is enough.
+        CopyHandler.addReduction(RWReduVal);
+        CopyHandler.addReduction(Buf);
         if constexpr (is_usm) {
           // Can't capture whole reduction, copy into distinct variables.
           bool IsUpdateOfUserVar = !initializeToIdentity();

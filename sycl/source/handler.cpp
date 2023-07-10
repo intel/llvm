@@ -293,8 +293,9 @@ event handler::finalize() {
   case detail::CG::CopyAccToPtr:
   case detail::CG::CopyPtrToAcc:
   case detail::CG::CopyAccToAcc:
-    CommandGroup.reset(new detail::CGCopy(MCGType, MSrcPtr, MDstPtr,
-                                          std::move(CGData), MCodeLoc));
+    CommandGroup.reset(
+        new detail::CGCopy(MCGType, MSrcPtr, MDstPtr, std::move(CGData),
+                           std::move(MImpl->MAuxiliaryResources), MCodeLoc));
     break;
   case detail::CG::Fill:
     CommandGroup.reset(new detail::CGFill(std::move(MPattern), MDstPtr,
