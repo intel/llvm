@@ -199,7 +199,7 @@ unsigned int __devicelib_imf_half2uint_rz(_iml_half_internal h) {
 DEVICE_EXTERN_C_INLINE
 unsigned long long __devicelib_imf_half2ull_rd(_iml_half_internal h) {
 #if defined(__SPIR__)
-  return __spirv_ConvertFToU_Rulong_rtn(h);
+  return __spirv_ConvertFToU_Rulong_sat_rtn(h);
 #else
   return __iml_half2integral_u<unsigned long long>(h, __IML_RTN);
 #endif
@@ -208,7 +208,7 @@ unsigned long long __devicelib_imf_half2ull_rd(_iml_half_internal h) {
 DEVICE_EXTERN_C_INLINE
 unsigned long long __devicelib_imf_half2ull_rn(_iml_half_internal h) {
 #if defined(__SPIR__)
-  return __spirv_ConvertFToU_Rulong_rte(h);
+  return __spirv_ConvertFToU_Rulong_sat_rte(h);
 #else
   return __iml_half2integral_u<unsigned long long>(h, __IML_RTE);
 #endif
@@ -217,7 +217,7 @@ unsigned long long __devicelib_imf_half2ull_rn(_iml_half_internal h) {
 DEVICE_EXTERN_C_INLINE
 unsigned long long __devicelib_imf_half2ull_ru(_iml_half_internal h) {
 #if defined(__SPIR__)
-  return __spirv_ConvertFToU_Rulong_rtp(h);
+  return __spirv_ConvertFToU_Rulong_sat_rtp(h);
 #else
   return __iml_half2integral_u<unsigned long long>(h, __IML_RTP);
 #endif
@@ -226,7 +226,7 @@ unsigned long long __devicelib_imf_half2ull_ru(_iml_half_internal h) {
 DEVICE_EXTERN_C_INLINE
 unsigned long long __devicelib_imf_half2ull_rz(_iml_half_internal h) {
 #if defined(__SPIR__)
-  return __spirv_ConvertFToU_Rulong_rtz(h);
+  return __spirv_ConvertFToU_Rulong_sat_rtz(h);
 #else
   return __iml_half2integral_u<unsigned long long>(h, __IML_RTZ);
 #endif
