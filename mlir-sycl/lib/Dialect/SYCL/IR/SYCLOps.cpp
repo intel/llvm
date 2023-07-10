@@ -452,8 +452,8 @@ SYCLHostHandlerSetKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
   return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
 }
 
-LogicalResult SYCLHostHandlerSetNDRange::verify() {
-  TypeRange ndRangeType = getNdRange().getTypes();
+static LogicalResult verifyNdRange(Operation *op, ValueRange ndRange) {
+  TypeRange ndRangeType = ndRange.getTypes();
   switch (ndRangeType.size()) {
   case 1:
     if (getMemRefElementType<NdRangeType>(ndRangeType[0]) ||
@@ -465,15 +465,36 @@ LogicalResult SYCLHostHandlerSetNDRange::verify() {
       if (auto offsetType = getMemRefElementType<IDType>(ndRangeType[1])) {
         return getDimensions(globalSizeType) == getDimensions(offsetType)
                    ? success()
-                   : emitOpError("expects both global size and offset to have "
-                                 "the same number of dimensions");
+                   : op->emitOpError(
+                         "expects both global size and offset to have "
+                         "the same number of dimensions");
       }
     }
     break;
   default:
     break;
   }
-  return emitBadSignatureError(*this);
+  return emitBadSignatureError(op);
+}
+
+LogicalResult SYCLHostHandlerSetNDRange::verify() {
+  return verifyNdRange(*this, getNdRange());
+}
+
+LogicalResult
+SYCLHostLaunchKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
+}
+
+LogicalResult SYCLHostLaunchKernel::verify() {
+  // TODO: verify that the given args match the kernel's signature.
+  SmallVector<Value, 2> rangeSpec;
+  if (auto range = getRange())
+    rangeSpec.push_back(range);
+  if (auto offset = getOffset())
+    rangeSpec.push_back(offset);
+
+  return rangeSpec.empty() ? success() : verifyNdRange(*this, rangeSpec);
 }
 
 #define GET_OP_CLASSES

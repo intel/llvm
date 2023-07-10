@@ -978,6 +978,8 @@ struct LoopInternalization
   void runOnOperation() final;
 
 private:
+  void runOnGPUModule(gpu::GPUModuleOp gpuModule);
+
   /// Construct a map from memref accesses in \p loop to their ideal memory
   /// space.
   void selectMemorySpace(LoopLikeOpInterface loop,
@@ -1047,7 +1049,11 @@ private:
 };
 
 void LoopInternalization::runOnOperation() {
-  gpu::GPUModuleOp gpuModule = getOperation();
+  getOperation()->walk(
+      [&](gpu::GPUModuleOp gpuModule) { runOnGPUModule(gpuModule); });
+}
+
+void LoopInternalization::runOnGPUModule(gpu::GPUModuleOp gpuModule) {
   ModuleAnalysisManager mam(gpuModule, /*passInstrumentor=*/nullptr);
   AnalysisManager am = mam;
   auto &memAccessAnalysis =
@@ -1300,10 +1306,12 @@ void LoopInternalization::transform(FunctionOpInterface func,
   sycl::populateLocalID(localIDs, numDims, builder, func.getLoc());
 
   // Reserve static shared local memory for this function.
+  auto gpuModule = func->getParentOfType<gpu::GPUModuleOp>();
+  assert(gpuModule && "Expecting valid GPUModuleOp");
   memref::GlobalOp wgSharedLocalMemory = getWorkGroupSharedLocalMemory(
-      getOperation(), std::holds_alternative<unsigned>(reqdSharedMemory)
-                          ? std::get<unsigned>(reqdSharedMemory)
-                          : sharedMemoryRemaining);
+      gpuModule, std::holds_alternative<unsigned>(reqdSharedMemory)
+                     ? std::get<unsigned>(reqdSharedMemory)
+                     : sharedMemoryRemaining);
 
   // Now that we have a list of memref to promote to shared memory in each
   // loop nest's innermost loop, perform the transformation.

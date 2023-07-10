@@ -576,3 +576,52 @@ func.func @set_nd_range_bad_signature(%handler: !llvm.ptr, %range: memref<?x!syc
   sycl.host.handler.set_nd_range %handler -> %range, %offset : !llvm.ptr, memref<?x!sycl_range_2_>, memref<?x!sycl_id_1_>
   func.return
 }
+
+// -----
+
+func.func @f(%handler: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.launch_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  sycl.host.launch_kernel @kernels::@k0 : () -> ()
+  func.return
+}
+
+gpu.module @kernels {
+  gpu.func @k0() {
+    gpu.return
+  }
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+
+func.func @launch_kernel_nd_range_bad_signature(%nd_range: memref<?x!sycl_nd_range_1_>, %offset: memref<?x!sycl_id_1_>) {
+// expected-error @below {{'sycl.host.launch_kernel' op expects a different signature. Check documentation for details}}
+  sycl.host.launch_kernel @ekernels::@k0[%nd_range, %offset] : (memref<?x!sycl_nd_range_1_>, memref<?x!sycl_id_1_>) -> ()
+  func.return
+}
+
+gpu.module @kernels {
+  gpu.func @k0() kernel {
+    gpu.return
+  }
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+
+func.func @launch_kernel_nd_range_bad_signature(%range: memref<?x!sycl_range_2_>, %offset: memref<?x!sycl_id_1_>) {
+// expected-error @below {{'sycl.host.launch_kernel' op expects both global size and offset to have the same number of dimensions}}
+  sycl.host.launch_kernel @kernels::@k0[%range, %offset] : (memref<?x!sycl_range_2_>, memref<?x!sycl_id_1_>) -> ()
+  func.return
+}
+
+gpu.module @kernels {
+  gpu.func @k0() kernel {
+    gpu.return
+  }
+}
