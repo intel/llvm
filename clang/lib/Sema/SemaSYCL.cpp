@@ -1028,7 +1028,6 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
   return TAL->get(0).getAsType().getCanonicalType();
 }
 
-
 // Gets a name for the OpenCL kernel function, calculated from the first
 // template argument of the kernel caller function.
 static std::pair<std::string, std::string>

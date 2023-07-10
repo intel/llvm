@@ -50,7 +50,6 @@ int main() {
   return 0;
 }
 
-
 // CHECK-LL-DAG: @_ZTS6init_aIiE_NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}
 // CHECK-LL-DAG: @_ZTS6init_aIjE_NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}
 // CHECK-LL-DAG: @_ZTS6init_aIfE_NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, float {{.*}}%2, ptr {{.*}}%3){{.*}}

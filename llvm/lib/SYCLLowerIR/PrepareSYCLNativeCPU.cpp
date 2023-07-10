@@ -69,9 +69,9 @@ SmallVector<unsigned> getUsedIndexes(const Function *F) {
   auto UsedNode = F->getMetadata("sycl_kernel_omit_args");
   if (!UsedNode) {
     // the metadata node is not available if -fenable-sycl-dae
-    // was not set; set everything to true 
+    // was not set; set everything to true
     // Exclude one arg because we already added the state ptr
-    for (unsigned I = 0; I+1 < F->getFunctionType()->getNumParams(); I++) {
+    for (unsigned I = 0; I + 1 < F->getFunctionType()->getNumParams(); I++) {
       res.push_back(I);
     }
     return res;
@@ -144,7 +144,7 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   Builder.CreateRetVoid();
 }
 
-// Clone the function and returns a new function with a new argument on type T
+// Clones the function and returns a new function with a new argument on type T
 // added as last argument
 Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
   auto *OldT = OldF->getFunctionType();

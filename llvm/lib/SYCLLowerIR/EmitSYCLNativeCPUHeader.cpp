@@ -132,7 +132,7 @@ PreservedAnalyses EmitSYCLNativeCPUHeaderPass::run(Module &M,
   O << "#include <sycl/detail/pi.h>\n";
   O << "extern \"C\" void __sycl_register_lib(pi_device_binaries desc);\n";
 
-  for (auto* F : Kernels) {
+  for (auto *F : Kernels) {
     emitSubKernelHandler(F, O);
     emitSYCLRegisterLib(F, O);
   }
