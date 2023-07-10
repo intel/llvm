@@ -51,10 +51,10 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 specification.*
 
 There are important limitations with the {dpcpp} implementation of this
-experimental extension.  In particular, this extension may only be used when
-the application is compiled in AOT mode.  See the section below titled
-"Limitations with the experimental version" for a full description of the
-limitations.
+experimental extension.  In particular, some parts of this extension may only
+be used when the application is compiled in AOT mode.  See the section below
+titled "Limitations with the experimental version" for a full description of
+the limitations.
 
 
 == Overview
@@ -578,11 +578,17 @@ case syclex::architecture::intel_gpu_bdw:
 == Limitations with the experimental version
 
 The {dpcpp} implementation of this extension currently has some important
-limitations.  The application must be compiled in ahead-of-time (AOT) mode
-using `-fsycl-targets=<special-target>` where `<special-target>` is one of the
+limitations with the `if_architecture_is` free function.  In order to use this
+feature, the application must be compiled in ahead-of-time (AOT) mode using
+`-fsycl-targets=<special-target>` where `<special-target>` is one of the
 "special target values" listed in the link:../../UsersManual.md[users manual]
 description of the `-fsycl-targets` option.  These are the target names of the
 form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
+
+The two APIs `device::ext_oneapi_architecture_is` and the
+`ext::oneapi::experimental::info::device::architecture` device descriptor are
+currently supported only for Intel devices (both GPU and CPU).  There is no
+support yet for Nvidia or AMD devices.
 
 
 == Future direction
