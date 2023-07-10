@@ -2115,6 +2115,10 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
       Fn->setMetadata("kernel_arg_exclusive_ptr",
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
     }
+    if (LangOpts.SYCLIsNativeCPU) {
+      Fn->setMetadata("kernel_arg_type",
+                      llvm::MDNode::get(VMContext, argTypeNames));
+    }
   } else {
     if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
       Fn->setMetadata("kernel_arg_addr_space",
@@ -7884,4 +7888,14 @@ void CodeGenModule::moveLazyEmissionStates(CodeGenModule *NewBuilder) {
   NewBuilder->EmittedDeferredDecls = std::move(EmittedDeferredDecls);
 
   NewBuilder->ABI->MangleCtx = std::move(ABI->MangleCtx);
+}
+
+void CodeGenModule::getFPAccuracyFuncAttributes(StringRef Name,
+                                                llvm::AttributeList &AttrList,
+                                                unsigned ID,
+                                                const llvm::Type *FuncType) {
+  llvm::AttrBuilder FuncAttrs(getLLVMContext());
+  getDefaultFunctionFPAccuracyAttributes(Name, FuncAttrs, ID, FuncType);
+  AttrList = llvm::AttributeList::get(
+      getLLVMContext(), llvm::AttributeList::FunctionIndex, FuncAttrs);
 }

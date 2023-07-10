@@ -31,6 +31,8 @@ public:
       : MSubmissionPrimaryQueue(std::move(SubmissionPrimaryQueue)),
         MSubmissionSecondaryQueue(std::move(SubmissionSecondaryQueue)){};
 
+  handler_impl() = default;
+
   void setStateExplicitKernelBundle() {
     if (MSubmissionState == HandlerSubmissionState::SPEC_CONST_SET_STATE)
       throw sycl::exception(
@@ -100,7 +102,7 @@ public:
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
 
-  RT::PiKernelCacheConfig MKernelCacheConfig =
+  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
 };
 

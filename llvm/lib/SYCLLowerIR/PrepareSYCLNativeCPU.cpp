@@ -78,7 +78,6 @@ SmallVector<unsigned> getUsedIndexes(const Function *F) {
     }
     return res;
   }
-  llvm::errs() << "[ptrdbg] used node : " << *UsedNode << "\n";
   auto NumOperands = UsedNode->getNumOperands();
   for (unsigned I = 0; I < NumOperands; I++) {
     auto &Op = UsedNode->getOperand(I);
@@ -143,10 +142,6 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   // Call the kernel
   // Add the nativecpu state as arg
   KernelArgs.push_back(SubhF->getArg(1));
-  llvm::errs() << "[ptrdbg] calling " << *F << "\n";
-  llvm::errs() << "[ptrdbg] nargs " << F->getFunctionType()->getNumParams() << "\n";
-  llvm::errs() << "[ptrdbg] usedI " << UsedIndexes.size() << "\n";
-  llvm::errs() << "[ptrdbg] args: " << KernelArgs.size() << "\n";
   for(auto& el: KernelArgs)
     llvm::errs() << "\t" << *el << "\n ";
   llvm::errs() << "\n";
@@ -251,10 +246,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   Type *StatePtrType = PointerType::getUnqual(StateType);
   SmallVector<Function *> NewKernels;
   for (auto &OldF : OldKernels) {
-    llvm::errs() << "[ptrdbg] preclone: " << *OldF << "\n";
     auto *NewF = cloneFunctionAndAddParam(OldF, StatePtrType);
     NewF->takeName(OldF);
-    llvm::errs() << "[ptrdbg] postclone: " << *NewF << "\n";
     OldF->eraseFromParent();
     NewKernels.push_back(NewF);
     ModuleChanged |= true;
@@ -264,11 +257,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       StructType::create({PointerType::getUnqual(M.getContext())});
   for (auto &NewK : NewKernels) {
     emitSubkernelForKernel(NewK, NativeCPUArgDescType, StatePtrType);
-    // Todo: we need to ensure that the kernel name is not mangled as a type
-    // name, otherwise this may lead to runtime failures due to *weird* 
-    // codegen/linking behaviour
     std::string NewName = NewK->getName().str() + "_NativeCPUKernel";
-    NewK->setName(NewName); 
+    NewK->setName(NewName);
   }
 
   // Then we iterate over all the supported builtins, find their uses and

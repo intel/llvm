@@ -48,7 +48,7 @@ int main() {
   });
 
   {
-    auto DstAcc = DstBuf.template get_access<sycl::access::mode::read_write>();
+    auto DstAcc = DstBuf.get_host_access();
     const int Expected = 42;
     for (int I = 0; I < DstAcc.get_count(); ++I)
       if (DstAcc[I] != Expected) {
@@ -59,8 +59,7 @@ int main() {
   }
 
   {
-    auto DstAcc2 =
-        DstBuf2.template get_access<sycl::access::mode::read_write>();
+    auto DstAcc2 = DstBuf2.get_host_access();
     const int Expected = 42;
     for (int I = 0; I < DstAcc2.get_count(); ++I)
       if (DstAcc2[I] != Expected) {

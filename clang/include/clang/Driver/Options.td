@@ -1729,6 +1729,13 @@ def ffp_exception_behavior_EQ : Joined<["-"], "ffp-exception-behavior=">, Group<
   Values<"ignore,maytrap,strict">, NormalizedValuesScope<"LangOptions">,
   NormalizedValues<["FPE_Ignore", "FPE_MayTrap", "FPE_Strict"]>,
   MarshallingInfoEnum<LangOpts<"FPExceptionMode">, "FPE_Default">;
+def ffp_accuracy_EQ : Joined<["-"], "ffp-accuracy=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Specifies the required accuracy for floating-point operations and library calls.">,
+  Values<"default,high,medium,low,sycl,cuda">, NormalizedValuesScope<"LangOptions">,
+  NormalizedValues<["FPA_Default", "FPA_High", "FPA_Medium", "FPA_Low", "FPA_Sycl", "FPA_Cuda"]>,
+  MarshallingInfoEnum<LangOpts<"FPAccuracy">, "FPA_Default">;
+def ffp_builtin_accuracy_EQ : Joined<["-"], "ffp-builtin-accuracy=">, Group<f_Group>, Flags<[CC1Option]>;
+
 defm fast_math : BoolFOption<"fast-math",
   LangOpts<"FastMath">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option, CoreOption, FC1Option, FlangOption], "Allow aggressive, lossy floating-point optimizations",
@@ -3051,12 +3058,18 @@ defm sycl_instrument_device_code
           BothFlags<[CC1Option, CoreOption], " Instrumentation and Tracing "
                     "Technology (ITT) instrumentation intrinsics calls "
                     "(experimental)">>;
-def fsycl_link_huge_device_code : Flag<["-"], "fsycl-link-huge-device-code">,
-  Group<sycl_Group>, HelpText<"Generate and use a custom linker script for huge"
+def flink_huge_device_code : Flag<["-"], "flink-huge-device-code">,
+  Group<Link_Group>, HelpText<"Generate and use a custom linker script for huge"
   " device code sections">;
-def fno_sycl_link_huge_device_code : Flag<["-"], "fno-sycl-link-huge-device-code">,
-  Group<sycl_Group>, HelpText<"Do not generate or use a custom linker script"
+def fno_link_huge_device_code : Flag<["-"], "fno-link-huge-device-code">,
+  Group<Link_Group>, HelpText<"Do not generate or use a custom linker script"
   " for huge device code sections (default)">;
+def fsycl_link_huge_device_code : Flag<["-"], "fsycl-link-huge-device-code">,
+  Group<sycl_Group>, Alias<flink_huge_device_code>, HelpText<"Generate and use a custom linker script for huge"
+  " device code sections (deprecated)">, Flags<[Deprecated]>;
+def fno_sycl_link_huge_device_code : Flag<["-"], "fno-sycl-link-huge-device-code">,
+  Group<sycl_Group>, Alias<fno_link_huge_device_code>, HelpText<"Do not generate or use a custom linker script"
+  " for huge device code sections (default) (deprecated)">, Flags<[Deprecated]>;
 defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], "Assume">, NegFlag<SetFalse, [], "Do not assume">,
@@ -3124,6 +3137,11 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
 def ftarget_compile_fast : Flag<["-"], "ftarget-compile-fast">,
   Flags<[CoreOption]>, HelpText<"Experimental feature: Reduce target "
   "compilation time, with potential runtime performance trade-off.">;
+def ftarget_export_symbols : Flag<["-"], "ftarget-export-symbols">,
+  Flags<[CoreOption]>, HelpText<"Expose exported symbols in a generated "
+  "target library to allow for visibilty to other modules.">;
+def fno_target_export_symbols : Flag<["-"], "fno-target-export-symbols">,
+  Flags<[CoreOption]>;
 def : Flag<["-"], "fsycl-rdc">, Flags<[CoreOption]>, Alias<fgpu_rdc>;
 def : Flag<["-"], "fno-sycl-rdc">, Flags<[CoreOption]>, Alias<fno_gpu_rdc>;
 def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
@@ -7023,6 +7041,14 @@ class CLRemainingArgsJoined<string name> : Option<["/", "-"], name,
 // Aliases:
 // (We don't put any of these in cl_compile_Group as the options they alias are
 // already in the right group.)
+
+// INTEL_CUSTOMIZATION
+def _SLASH_Qfp_accuracy_EQ : CLJoined<"Qfp-accuracy=">,
+  Alias<ffp_accuracy_EQ>;
+def _SLASH_Qfp_accuracy_COL : CLJoined<"Qfp-accuracy:">,
+  Alias<ffp_accuracy_EQ>,HelpText<"Specifies the required accuracy for "
+  "floating-point operations and library calls.">;
+// END INTEL_CUSTOMIZATION
 
 def _SLASH_Brepro : CLFlag<"Brepro">,
   HelpText<"Do not write current time into COFF output (breaks link.exe /incremental)">,

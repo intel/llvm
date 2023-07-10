@@ -347,6 +347,12 @@ public:
     copy_from(acc, offset, Flags{});
   }
 
+  /// Copy assignment operator.
+  Derived &operator=(const simd_obj_impl &other) noexcept {
+    set(other.data());
+    return cast_this_to_derived();
+  }
+
   /// Type conversion into a scalar:
   /// <code><simd_obj_impl<RawTy, 1, simd<Ty,1>></code> to \c Ty.
   template <typename T = simd_obj_impl,
@@ -370,12 +376,6 @@ public:
   /// underlying raw vector. Intended for use
   /// with l-value contexts in inline assembly.
   raw_vector_type &data_ref() { return M_data; }
-
-  /// Commit the current stored underlying raw vector to memory.
-  /// This is required when using inline assembly with private global variables.
-  __SYCL_DEPRECATED(
-      "commit is deprecated and will be removed in a future release")
-  void commit() {}
 
   /// @return Newly constructed (from the underlying data) object of the Derived
   /// type.

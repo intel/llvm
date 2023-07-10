@@ -3,7 +3,7 @@
 
 // The test is failing sporadically on Windows OpenCL RTs
 // Disabling on windows until fixed
-// UNSUPPORTED: hip_amd, windows
+// UNSUPPORTED: windows
 
 #include <sycl/ext/intel/fpga_device_selector.hpp>
 #include <sycl/sycl.hpp>

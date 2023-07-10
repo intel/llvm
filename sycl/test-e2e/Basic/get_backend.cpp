@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 //
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().

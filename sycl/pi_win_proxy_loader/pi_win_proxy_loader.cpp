@@ -108,7 +108,6 @@ std::string getCurrentDSODir() {
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "pi_unified_runtime.dll"
-#define __SYCL_ONLINE_COMPILER_LIBRARY_NAME "ocloc64.dll"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "pi_native_cpu.dll"
 #else // llvm-mingw
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
@@ -117,7 +116,6 @@ std::string getCurrentDSODir() {
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.dll"
-#define __SYCL_ONLINE_COMPILER_LIBRARY_NAME "ocloc64.dll"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dll"
 #endif
 
@@ -170,8 +168,8 @@ void preloadLibraries() {
   std::string ur_path = LibSYCLDir + __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME;
   dllMap.emplace(ur_path, LoadLibraryA(ur_path.c_str()));
 
-  std::string ocloc_path = __SYCL_ONLINE_COMPILER_LIBRARY_NAME;
-  dllMap.emplace(ocloc_path, LoadLibraryA(ocloc_path.c_str()));
+  std::string nativecpu_path = LibSYCLDir + __SYCL_NATIVE_CPU_PLUGIN_NAME;
+  dllMap.emplace(nativecpu_path, LoadLibraryA(nativecpu_path.c_str()));
 
   std::string nativecpu_path = LibSYCLDir + __SYCL_NATIVE_CPU_PLUGIN_NAME;
   dllMap.emplace(nativecpu_path, LoadLibraryA(nativecpu_path.c_str()));
