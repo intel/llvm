@@ -422,8 +422,18 @@ func.func @test_nd_constructor_bad_local_size(%globalSize: memref<?x!sycl_range_
 // -----
 
 func.func @math_op_invalid_type(%arg0 : i32) {
-  // expected-error @+1 {{op operand #0 must be 32-bit float or 64-bit float or sycl::half, but got 'i32'}}
+  // expected-error @+1 {{op operand #0 must be 32-bit float or 64-bit float or sycl::half or a sycl::vec of float, double or sycl::half, but got 'i32'}}
   %0 = sycl.math.sin %arg0 : i32
+  return
+}
+
+// -----
+
+!sycl_vec_i32_4_ = !sycl.vec<[i32, 4], (vector<4xi32>)>
+
+func.func @math_op_invalid_vector_type(%arg0 : !sycl_vec_i32_4_) {
+  // expected-error @+1 {{op operand #0 must be 32-bit float or 64-bit float or sycl::half or a sycl::vec of float, double or sycl::half, but got '!sycl.vec<[i32, 4], (vector<4xi32>)>'}}
+  %0 = sycl.math.sin %arg0 : !sycl_vec_i32_4_
   return
 }
 
