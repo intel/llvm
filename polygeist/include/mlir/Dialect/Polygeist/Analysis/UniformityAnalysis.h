@@ -160,8 +160,7 @@ private:
 
   /// Return true if all the \p conditions have uniformity that is initialized.
   /// The \p op argument is the operation the conditions are for.
-  bool isUniformityInitialized(const ArrayRef<IfCondition> conditions,
-                               Operation *op);
+  bool isUniformityInitialized(ArrayRef<IfCondition> conditions, Operation *op);
 
   /// Return true if all the modifiers \p mods have operands with uniformity
   /// that is initialized. The \p op argument is the operation the modifiers are
@@ -209,7 +208,7 @@ private:
 
   /// Return true if any of the \p conditions has uniformity of the given \p
   /// kind.
-  bool anyOfUniformityIs(const ArrayRef<IfCondition> conditions,
+  bool anyOfUniformityIs(ArrayRef<IfCondition> conditions,
                          Uniformity::Kind kind) {
     return llvm::any_of(conditions, [&](const IfCondition &cond) {
       return cond.perform(

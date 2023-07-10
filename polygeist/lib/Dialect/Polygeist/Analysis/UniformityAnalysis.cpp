@@ -415,7 +415,7 @@ SmallVector<IfCondition> UniformityAnalysis::collectBranchConditions(
 }
 
 bool UniformityAnalysis::isUniformityInitialized(
-    const ArrayRef<IfCondition> conditions, Operation *op) {
+    ArrayRef<IfCondition> conditions, Operation *op) {
   // Determine whether any condition has uniformity that is not yet known.
   bool uniformityIsKnown =
       llvm::all_of(conditions, [&](const IfCondition &cond) {

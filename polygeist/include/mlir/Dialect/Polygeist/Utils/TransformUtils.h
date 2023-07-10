@@ -211,7 +211,9 @@ public:
   }
 
   /// Perform \p operation on SCF condition or affine condition operands.
-  bool perform(std::function<bool(ValueRange)> operation) const {
+  template <typename OpTy, typename = std::enable_if_t<std::is_same_v<
+                               bool, std::invoke_result_t<OpTy, ValueRange>>>>
+  bool perform(OpTy operation) const {
     if (hasSCFCondition())
       return operation(getSCFCondition());
     assert(hasAffineCondition() && "Expecting affine condition");
