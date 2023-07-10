@@ -292,6 +292,9 @@ def _validate_doc(f, d, tags, line_num):
             if item['type'].endswith("flag_t"):
                 raise Exception(prefix+"'type' must not be '*_flag_t': %s"%item['type'])
 
+            if d['type'] == 'union'and item.get('tag') is None:
+                raise Exception(prefix + f"union member {item['name']} must include a 'tag' annotation")
+
             ver = __validate_version(item, prefix=prefix, base_version=d_ver)
             if ver < max_ver:
                 raise Exception(prefix+"'version' must be increasing: %s"%item['version'])
@@ -339,7 +342,11 @@ def _validate_doc(f, d, tags, line_num):
             if ver < max_ver:
                 raise Exception(prefix+"'version' must be increasing: %s"%item['version'])
             max_ver = ver
-
+    
+    def __validate_union_tag(d):
+        if d.get('tag') is None:
+            raise Exception(f"{d['name']} must include a 'tag' part of the union.")
+        
     try:
         if 'type' not in d:
             raise Exception("every document must have 'type'")
@@ -401,6 +408,8 @@ def _validate_doc(f, d, tags, line_num):
             if ('desc' not in d) or ('name' not in d):
                 raise Exception("'%s' requires the following scalar fields: {`desc`, `name`}"%d['type'])
 
+            if d['type'] == 'union':
+                __validate_union_tag(d)
             __validate_type(d, 'name', tags)
             __validate_base(d)
             __validate_members(d, tags)
