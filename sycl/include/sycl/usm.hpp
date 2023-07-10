@@ -300,15 +300,17 @@ T *aligned_alloc(
 
 namespace ext::oneapi::experimental {
 
-__SYCL_EXPORT void prepare_for_device_copy(void *Ptr, size_t Size,
+__SYCL_EXPORT void prepare_for_device_copy(const void *Ptr, size_t Size,
                                            const context &Context);
 
-__SYCL_EXPORT void prepare_for_device_copy(void *Ptr, size_t Size,
+__SYCL_EXPORT void prepare_for_device_copy(const void *Ptr, size_t Size,
                                            const queue &Queue);
 
-__SYCL_EXPORT void release_from_device_copy(void *Ptr, const context &Context);
+__SYCL_EXPORT void release_from_device_copy(const void *Ptr,
+                                            const context &Context);
 
-__SYCL_EXPORT void release_from_device_copy(void *Ptr, const queue &Queue);
+__SYCL_EXPORT void release_from_device_copy(const void *Ptr,
+                                            const queue &Queue);
 
 } // namespace ext::oneapi::experimental
 
