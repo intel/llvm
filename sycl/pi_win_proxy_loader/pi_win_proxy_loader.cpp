@@ -171,9 +171,6 @@ void preloadLibraries() {
   std::string nativecpu_path = LibSYCLDir + __SYCL_NATIVE_CPU_PLUGIN_NAME;
   dllMap.emplace(nativecpu_path, LoadLibraryA(nativecpu_path.c_str()));
 
-  std::string nativecpu_path = LibSYCLDir + __SYCL_NATIVE_CPU_PLUGIN_NAME;
-  dllMap.emplace(nativecpu_path, LoadLibraryA(nativecpu_path.c_str()));
-
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
   if (!SetDllDirectoryA(nullptr)) {
