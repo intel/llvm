@@ -4,16 +4,7 @@ on:
   push:
     branches:
     - sycl
-  pull_request:
-    branches:
-    - sycl
-    paths:
-    - .github/workflows/sycl_post_commit.yml
-    - .github/workflows/sycl_gen_test_matrix.yml
-    - .github/workflows/sycl_linux_build_and_test.yml
-    - .github/workflows/sycl_windows_build_and_test.yml
-    - .github/workflows/sycl_macos_build_and_test.yml
-  workflow_dispatch:
+    - sycl-devops-pr/**
 
 jobs:
   # This job generates matrix of tests for SYCL End-to-End tests
@@ -40,6 +31,7 @@ jobs:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      merge: false
 
   windows_default:
     name: Windows

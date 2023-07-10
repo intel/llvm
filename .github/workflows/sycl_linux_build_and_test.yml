@@ -36,6 +36,15 @@ on:
       build_artifact_suffix:
         type: string
         required: true
+      artifact_archive_name:
+        type: string
+        default: llvm_sycl.tar.zst
+      artifact_compress_command:
+        type: string
+        default: zstd -9
+      artifact_decompress_command:
+        type: string
+        default: zstd
       lts_matrix:
         type: string
         required: false
@@ -69,6 +78,14 @@ on:
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
+      merge:
+        description: 'Merge default branch after the checkout'
+        type: boolean
+        default: true
+      retention-days:
+        description: 'Artifacts retention period'
+        type: string
+        default: 3
 
 jobs:
   build:
@@ -77,6 +94,8 @@ jobs:
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
+    outputs:
+      build_conclusion: ${{ steps.build.conclusion }}
     steps:
     # GHA requires relative paths for actions. Copy actions from container root
     # to CWD.
@@ -89,6 +108,7 @@ jobs:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
         cache_path: "/__w/repo_cache/"
+        merge: ${{ inputs.merge }}
     - name: Configure
       env:
         CC: ${{ inputs.cc }}
@@ -146,6 +166,7 @@ jobs:
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
     - name: Install
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       # TODO replace utility installation with a single CMake target
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
@@ -159,7 +180,7 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
         cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
     - name: Additional Install for "--shared-libs" build
-      if: ${{ contains(inputs.build_configure_extra_args, '--shared-libs') }}
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '--shared-libs') }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-libraries
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-libraries
@@ -172,40 +193,31 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
 
     - name: Pack toolchain
-      run: tar -I 'zstd -9' -cf llvm_sycl.tar.zst -C $GITHUB_WORKSPACE/build/install .
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      run: tar -I '${{ inputs.artifact_compress_command }}' -cf ${{ inputs.artifact_archive_name }} -C $GITHUB_WORKSPACE/build/install .
     - name: Upload toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
-        path: llvm_sycl.tar.zst
+        path: ${{ inputs.artifact_archive_name }}
+        retention-days: ${{ inputs.retention-days }}
 
   aws-start:
     name: Start AWS
     needs: build
-    if: ${{ inputs.lts_aws_matrix != '[]' }}
-    runs-on: ubuntu-20.04
-    environment: aws
-    steps:
-      - name: Setup script
-        run: |
-          mkdir -p ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
-          npm install ./aws-ec2
-      - name: Start AWS EC2 runners
-        uses: ./aws-ec2
-        with:
-          runs-on-list: ${{ inputs.lts_aws_matrix }}
-          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_aws_matrix != '[]' }}
+    uses: ./.github/workflows/aws.yml
+    secrets: inherit
+    with:
+      mode: start
+      runs-on-list: ${{ inputs.lts_aws_matrix }}
 
   e2e-tests:
     needs: [build, aws-start]
     # Continue if build was successful. If aws-start is not successful all
     # AWS tasks will fail, but all non-AWS tasks should continue.
-    if: ${{ always() && needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
+    if: ${{ always() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:
@@ -218,7 +230,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
     - name: Reset GPU
-      if: ${{ contains(matrix.config, 'gen9') }}
+      if: ${{ contains(matrix.runs-on, 'gen9') && contains(matrix.runs-on, 'Linux') }}
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
@@ -245,7 +257,8 @@ jobs:
       name: Run SYCL End-to-End tests
       with:
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.zst
+        sycl_archive: ${{ inputs.artifact_archive_name }}
+        decompress_command: ${{ inputs.artifact_decompress_command }}
         targets: ${{ matrix.targets }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
 
@@ -291,7 +304,8 @@ jobs:
       with:
         test_ref: ${{ inputs.cts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.zst
+        sycl_archive: ${{ inputs.artifact_archive_name }}
+        decompress_command: ${{ inputs.artifact_decompress_command }}
         sycl_device_filter: ${{ matrix.sycl_device_filter }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.cts_cmake_extra_args }}'
 
@@ -301,21 +315,8 @@ jobs:
     # Always attempt to shutdown AWS instance, even if AWS start was not
     # successful.
     if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
-    runs-on: ubuntu-20.04
-    environment: aws
-    steps:
-      - name: Setup script
-        run: |
-          mkdir -p ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
-          npm install ./aws-ec2
-      - name: Stop AWS EC2 runners
-        uses: ./aws-ec2
-        with:
-          runs-on-list: ${{ inputs.lts_aws_matrix }}
-          mode: stop
-          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+    uses: ./.github/workflows/aws.yml
+    secrets: inherit
+    with:
+      mode: stop
+      runs-on-list: ${{ inputs.lts_aws_matrix }}

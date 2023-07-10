@@ -2660,6 +2660,8 @@ extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmax(long long int x,
                                                        long long int y);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmin(long long int x,
                                                        long long int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_max(int x, int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_min(int x, int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned long long int
 __imf_ullmax(unsigned long long int x, unsigned long long int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned long long int
@@ -2684,6 +2686,7 @@ extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_sad(int x, int y,
 extern __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_usad(unsigned int x, unsigned int y, unsigned int z);
 extern __DPCPP_SYCL_EXTERNAL int __imf_rhadd(int x, int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_hadd(int x, int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_urhadd(unsigned int x,
                                                        unsigned int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_uhadd(unsigned int x,
@@ -2714,6 +2717,13 @@ extern __DPCPP_SYCL_EXTERNAL float __imf_invf(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fmaxf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fminf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL float __imf_copysignf(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_exp10f(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_expf(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_logf(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_log2f(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_log10f(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_powf(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_fdividef(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rd(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rn(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_ru(float x);

@@ -82,7 +82,8 @@ public:
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
               bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
-              RT::PiMemImageChannelOrder Order, RT::PiMemImageChannelType Type,
+              sycl::detail::pi::PiMemImageChannelOrder Order,
+              sycl::detail::pi::PiMemImageChannelType Type,
               range<3> Range3WithOnes, unsigned Dimensions, size_t ElementSize);
 
   virtual ~SYCLMemObjT() = default;
@@ -245,7 +246,8 @@ public:
                                      pi_native_handle MemObject);
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, RT::PiEvent &InteropEvent) override {
+                    void *HostPtr,
+                    sycl::detail::pi::PiEvent &InteropEvent) override {
     (void)Context;
     (void)InitFromUserData;
     (void)HostPtr;
@@ -257,11 +259,16 @@ public:
 
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
-  bool hasUserDataPtr() const { return MUserPtr != nullptr; };
+  bool isInterop() const override;
 
-  bool isInterop() const;
+  bool hasUserDataPtr() const override { return MUserPtr != nullptr; }
 
-  bool isHostPointerReadOnly() const { return MHostPtrReadOnly; }
+  bool isHostPointerReadOnly() const override { return MHostPtrReadOnly; }
+
+  bool usesPinnedHostMemory() const override {
+    return has_property<
+        sycl::ext::oneapi::property::buffer::use_pinned_host_memory>();
+  }
 
   void detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &Self) const;
 
@@ -281,7 +288,7 @@ protected:
   ContextImplPtr MInteropContext;
   // Native backend memory object handle passed by user to interoperability
   // constructor.
-  RT::PiMem MInteropMemObject;
+  sycl::detail::pi::PiMem MInteropMemObject;
   // Indicates whether memory object is created using interoperability
   // constructor or not.
   bool MOpenCLInterop;

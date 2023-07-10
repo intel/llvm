@@ -366,8 +366,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
   {
-    std::map<StringRef, std::vector<uint32_t>> Requirements;
-    getSYCLDeviceRequirements(M, Requirements);
+    std::map<StringRef, llvm::util::PropertyValue> Requirements;
+    getSYCLDeviceRequirements(MD, Requirements);
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, Requirements);
   }
   if (MD.Props.SpecConstsMet) {
@@ -454,12 +454,12 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
   }
-
+  bool HasRegAllocMode = false;
   {
     StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
     uint32_t RegAllocModeVal;
 
-    bool HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
+    HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
       if (!F->hasFnAttribute(RegAllocModeAttr))
         return false;
       const auto &Attr = F->getFnAttribute(RegAllocModeAttr);
@@ -469,6 +469,25 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     if (HasRegAllocMode) {
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
           {RegAllocModeAttr, RegAllocModeVal});
+    }
+  }
+
+  {
+    StringRef GRFSizeAttr = "sycl-grf-size";
+    uint32_t GRFSizeVal;
+
+    bool HasGRFSize = llvm::any_of(MD.entries(), [&](const Function *F) {
+      if (!F->hasFnAttribute(GRFSizeAttr))
+        return false;
+      const auto &Attr = F->getFnAttribute(GRFSizeAttr);
+      GRFSizeVal = getAttributeAsInteger<uint32_t>(Attr);
+      return true;
+    });
+    if (HasGRFSize) {
+      if (HasRegAllocMode)
+        error("Unsupported use of both register_alloc_mode and "
+              "grf_size");
+      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({GRFSizeAttr, GRFSizeVal});
     }
   }
 
@@ -751,6 +770,70 @@ static bool removeSYCLKernelsConstRefArray(Module &M) {
   return true;
 }
 
+// Removes all device_global variables from the llvm.compiler.used global
+// variable. A device_global with internal linkage will be in llvm.compiler.used
+// to avoid the compiler wrongfully removing it during optimizations. However,
+// as an effect the device_global variables will also be distributed across
+// binaries, even if llvm.compiler.used has served its purpose. To avoid
+// polluting other binaries with unused device_global variables, we remove them
+// from llvm.compiler.used and erase them if they have no further uses.
+static bool removeDeviceGlobalFromCompilerUsed(Module &M) {
+  GlobalVariable *GV = M.getGlobalVariable("llvm.compiler.used");
+  if (!GV)
+    return false;
+
+  // Erase the old llvm.compiler.used. A new one will be created at the end if
+  // there are other values in it (other than device_global).
+  assert(GV->user_empty() && "Unexpected llvm.compiler.used users");
+  Constant *Initializer = GV->getInitializer();
+  const auto *VAT = cast<ArrayType>(GV->getValueType());
+  GV->setInitializer(nullptr);
+  GV->eraseFromParent();
+
+  // Destroy the initializer. Keep the operands so we keep the ones we need.
+  SmallVector<Constant *, 8> IOperands;
+  for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++)
+    IOperands.push_back(cast<Constant>(*It));
+  assert(llvm::isSafeToDestroyConstant(Initializer) &&
+         "Cannot remove initializer of llvm.compiler.used global");
+  Initializer->destroyConstant();
+
+  // Iterate through all operands. If they are device_global then we drop them
+  // and erase them if they have no uses afterwards. All other values are kept.
+  SmallVector<Constant *, 8> NewOperands;
+  for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
+    Constant *Op = *It;
+    auto *DG = dyn_cast<GlobalVariable>(Op->stripPointerCasts());
+
+    // If it is not a device_global we keep it.
+    if (!DG || !isDeviceGlobalVariable(*DG)) {
+      NewOperands.push_back(Op);
+      continue;
+    }
+
+    // Destroy the device_global operand.
+    if (llvm::isSafeToDestroyConstant(Op))
+      Op->destroyConstant();
+
+    // Remove device_global if it no longer has any uses.
+    if (!DG->isConstantUsed())
+      DG->eraseFromParent();
+  }
+
+  // If we have any operands left from the original llvm.compiler.used we create
+  // a new one with the new size.
+  if (!NewOperands.empty()) {
+    ArrayType *ATy = ArrayType::get(VAT->getElementType(), NewOperands.size());
+    GlobalVariable *NGV =
+        new GlobalVariable(M, ATy, false, GlobalValue::AppendingLinkage,
+                           ConstantArray::get(ATy, NewOperands), "");
+    NGV->setName("llvm.compiler.used");
+    NGV->setSection("llvm.metadata");
+  }
+
+  return true;
+}
+
 SmallVector<module_split::ModuleDesc, 2>
 handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
             bool &SplitOccurred) {
@@ -842,6 +925,13 @@ processInputModule(std::unique_ptr<Module> M) {
   // actions.
   Modified |= removeSYCLKernelsConstRefArray(*M.get());
 
+  // There may be device_global variables kept alive in "llvm.compiler.used"
+  // to keep the optimizer from wrongfully removing them. Since it has served
+  // its purpose, these device_global variables can be removed. If they are not
+  // used inside the device code after they have been removed from
+  // "llvm.compiler.used" they can be erased safely.
+  Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
+
   // Do invoke_simd processing before splitting because this:
   // - saves processing time (the pass is run once, even though on larger IR)
   // - doing it before SYCL/ESIMD splitting is required for correctness
@@ -884,6 +974,7 @@ processInputModule(std::unique_ptr<Module> M) {
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
     SmallVector<module_split::ModuleDesc, 2> MMs =
         handleESIMD(std::move(MDesc), Modified, SplitOccurred);
+    assert(MMs.size() && "at least one module is expected after ESIMD split");
 
     if (IROutputOnly) {
       if (SplitOccurred) {

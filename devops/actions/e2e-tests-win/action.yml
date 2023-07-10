@@ -10,6 +10,10 @@ inputs:
   cmake_args:
     description: 'Extra arguments to cmake command'
     required: false
+  sycl_archive:
+    description: 'Name of SYCL toolchain archive file'
+    required: false
+    default: 'llvm_sycl.tar.gz'
 
 post-if: false
 runs:
@@ -23,8 +27,8 @@ runs:
     shell: bash
     run: |
       mkdir install
-      tar -xf llvm_sycl.tar.gz -C install
-      rm llvm_sycl.tar.gz
+      tar -xf ${{ inputs.sycl_archive }} -C install
+      rm ${{ inputs.sycl_archive }}
   - name: Configure
     shell: cmd
     run: |

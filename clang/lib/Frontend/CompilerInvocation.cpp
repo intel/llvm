@@ -504,6 +504,12 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     LangOpts.NewAlignOverride = 0;
   }
 
+  // Diagnose FPAccuracy option validity.
+  if (!LangOpts.FPAccuracyVal.empty())
+    for (const auto &F : LangOpts.FPAccuracyFuncMap)
+      Diags.Report(diag::warn_function_fp_accuracy_already_set)
+          << F.second << F.first;
+
   // Prevent the user from specifying both -fsycl-is-device and -fsycl-is-host.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsHost)
     Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
@@ -2033,9 +2039,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
             << "-fdiagnostics-hotness-threshold=";
     }
   }
-
-  if (Args.getLastArg(options::OPT_ffp_builtin_accuracy_EQ))
-    Opts.FPAccuracy = 1;
 
   if (auto *arg =
           Args.getLastArg(options::OPT_fdiagnostics_misexpect_tolerance_EQ)) {
@@ -3620,22 +3623,12 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
             if (FuncName.back() == ']')
               FuncName = FuncName.drop_back(1);
             auto FuncMap = Opts.FPAccuracyFuncMap.find(FuncName.str());
-            if (FuncMap != Opts.FPAccuracyFuncMap.end()) {
-              if (!FuncMap->second.empty()) {
-                Diags.Report(diag::warn_function_fp_accuracy_already_set)
-                    << FuncMap->second << FuncName.str();
-              }
-            } else {
-              checkFPAccuracyIsValid(ValElement[0], Diags);
-              if (!Opts.FPAccuracyVal.empty())
-                Diags.Report(diag::warn_function_fp_accuracy_already_set)
-                    << Opts.FPAccuracyVal << FuncName.str();
-              // No need to fill the map if the FPaccuracy is 'default'.
-              // The default builtin will be generated.
-              if (!ValElement[0].equals("default"))
-                Opts.FPAccuracyFuncMap.insert(
-                    {FuncName.str(), ValElement[0].str()});
-            }
+            checkFPAccuracyIsValid(ValElement[0], Diags);
+            // No need to fill the map if the FPaccuracy is 'default'.
+            // The default builtin will be generated.
+            if (!ValElement[0].equals("default"))
+              Opts.FPAccuracyFuncMap.insert(
+                  {FuncName.str(), ValElement[0].str()});
           }
         }
       }

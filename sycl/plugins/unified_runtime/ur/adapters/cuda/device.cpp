@@ -23,6 +23,10 @@ int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
 uint64_t ur_device_handle_t_::getElapsedTime(CUevent ev) const {
   float Milliseconds = 0.0f;
 
+  // cuEventSynchronize waits till the event is ready for call to
+  // cuEventElapsedTime.
+  UR_CHECK_ERROR(cuEventSynchronize(EvBase));
+  UR_CHECK_ERROR(cuEventSynchronize(ev));
   UR_CHECK_ERROR(cuEventElapsedTime(&Milliseconds, EvBase, ev));
 
   return static_cast<uint64_t>(Milliseconds * 1.0e6);
@@ -33,7 +37,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     size_t propSize,
                                                     void *pPropValue,
                                                     size_t *pPropSizeRet) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   static constexpr uint32_t MaxWorkItemDimensions = 3u;
@@ -690,7 +693,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     return ReturnValue(0u);
   }
-  case UR_DEVICE_INFO_PARTITION_PROPERTIES: {
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
     return ReturnValue(static_cast<ur_device_partition_t>(0u));
   }
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
@@ -878,18 +881,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Value);
   }
   case UR_DEVICE_INFO_UUID: {
-    int DriverVersion = 0;
-    cuDriverGetVersion(&DriverVersion);
-    int Major = DriverVersion / 1000;
-    int Minor = DriverVersion % 1000 / 10;
     CUuuid UUID;
-    if ((Major > 11) || (Major == 11 && Minor >= 4)) {
-      sycl::detail::ur::assertion(cuDeviceGetUuid_v2(&UUID, hDevice->get()) ==
-                                  CUDA_SUCCESS);
-    } else {
-      sycl::detail::ur::assertion(cuDeviceGetUuid(&UUID, hDevice->get()) ==
-                                  CUDA_SUCCESS);
-    }
+#if (CUDA_VERSION >= 11040)
+    sycl::detail::ur::assertion(cuDeviceGetUuid_v2(&UUID, hDevice->get()) ==
+                                CUDA_SUCCESS);
+#else
+    sycl::detail::ur::assertion(cuDeviceGetUuid(&UUID, hDevice->get()) ==
+                                CUDA_SUCCESS);
+#endif
     std::array<unsigned char, 16> Name;
     std::copy(UUID.bytes, UUID.bytes + 16, Name.begin());
     return ReturnValue(Name.data(), 16);
@@ -964,7 +963,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return ReturnValue(ILVersion.data(), ILVersion.size());
   }
-  case UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+  case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
     // Maximum number of 32-bit registers available to a thread block.
     // Note: This number is shared by all thread blocks simultaneously resident
     // on a multiprocessor.
@@ -1013,13 +1012,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 /// \return PI_SUCCESS if the function is executed successfully
 /// CUDA devices are always root devices so retain always returns success.
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
+  std::ignore = hDevice;
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urDevicePartition(ur_device_handle_t, const ur_device_partition_property_t *,
+urDevicePartition(ur_device_handle_t, const ur_device_partition_properties_t *,
                   uint32_t, ur_device_handle_t *, uint32_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -1028,8 +1026,7 @@ urDevicePartition(ur_device_handle_t, const ur_device_partition_property_t *,
 /// devices.
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(ur_device_handle_t hDevice) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
+  std::ignore = hDevice;
   return UR_RESULT_SUCCESS;
 }
 
@@ -1044,13 +1041,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   const bool AskingForGPU = DeviceType == UR_DEVICE_TYPE_GPU;
   const bool ReturnDevices = AskingForDefault || AskingForAll || AskingForGPU;
 
-  UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   size_t NumDevices = ReturnDevices ? hPlatform->Devices.size() : 0;
 
   try {
-    UR_ASSERT(pNumDevices || phDevices, UR_RESULT_ERROR_INVALID_VALUE);
-
     if (pNumDevices) {
       *pNumDevices = NumDevices;
     }
@@ -1078,9 +1071,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ur_native_handle_t *phNativeHandle) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phNativeHandle = reinterpret_cast<ur_native_handle_t>(hDevice->get());
   return UR_RESULT_SUCCESS;
 }
@@ -1099,7 +1089,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
   std::ignore = pProperties;
-  UR_ASSERT(phDevice, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits
   // instead
@@ -1150,8 +1139,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
                                                    uint64_t *pDeviceTimestamp,
                                                    uint64_t *pHostTimestamp) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   CUevent Event;
   ScopedContext Active(hDevice->getContext());
 
@@ -1180,11 +1167,7 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
     ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
-  // Ignore unused parameter
-  (void)hDevice;
-
-  UR_ASSERT(pBinaries, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(NumBinaries > 0, UR_RESULT_ERROR_INVALID_ARGUMENT);
+  std::ignore = hDevice;
 
   // Look for an image for the NVPTX64 target, and return the first one that is
   // found

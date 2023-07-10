@@ -24,6 +24,9 @@ int main() {
   sycl::device Dev;
   sycl::queue Q(Dev);
 
+  // Returns true for empty vector of kernels
+  assert(sycl::is_compatible({}, Dev));
+
   if (sycl::is_compatible<KernelCPU>(Dev)) {
     Q.submit(
         [&](sycl::handler &h) { h.single_task<KernelCPU>([=]() { foo(); }); });
@@ -67,6 +70,14 @@ int main() {
       h.parallel_for<class WrongReqWGSize>(
           sycl::range<1>(2),
           [=](sycl::item<1> it) [[sycl::reqd_work_group_size(INT_MAX)]] {});
+    });
+  }
+  if (sycl::is_compatible<class WrongReqSGSize>(Dev)) {
+    assert(false && "sycl::is_compatible<WrongReqSGSize> must be false");
+    Q.submit([&](sycl::handler &h) {
+      h.parallel_for<class WrongReqSGSize>(
+          sycl::range<1>(2),
+          [=](sycl::item<1> it) [[sycl::reqd_sub_group_size(INT_MAX)]] {});
     });
   }
 
