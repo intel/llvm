@@ -123,7 +123,7 @@ entry:
 }
 ```
 This pass will also set the correct calling convention for the target, and handle calling convention-related function attributes, allowing to call the kernel from the runtime. \\
-Additionally, this pass emits  the definition for a `subhandler` function, which unpacks the vector of kernel arguments coming from the SYCL runtime, and forwards only the used arguments to the kernel. For our example the `subhandler` IR is:
+Additionally, this pass emits the definition for a `subhandler` function, which unpacks the vector of kernel arguments coming from the SYCL runtime, and forwards only the used arguments to the kernel. For our example the `subhandler` IR is:
 
 ```llvm
 define weak void @_Z6Samplesubhandler(ptr %0, ptr %1) #4 {
