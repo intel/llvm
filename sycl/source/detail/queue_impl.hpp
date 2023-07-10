@@ -117,29 +117,32 @@ public:
 #if XPTI_ENABLE_INSTRUMENTATION
     /// This section of code is relying on scoped objects, so they cannot be
     /// encapsulated in a function
-    XPTIScope PrepareNotify((void *)this,
-                            (uint16_t)xpti::trace_point_type_t::queue_create,
+    constexpr uint16_t NotificationTraceType =
+        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
+    XPTIScope PrepareNotify((void *)this, NotificationTraceType,
                             SYCL_STREAM_NAME, "queue_create");
     // Cache the trace event, stream id and instance IDs for the destructor
-    if (xptiTraceEnabled()) {
+    if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
+                              NotificationTraceType)) {
       MTraceEvent = (void *)PrepareNotify.traceEvent();
       MStreamID = PrepareNotify.streamID();
       MInstanceID = PrepareNotify.instanceID();
+      // Add the function to capture meta data for the XPTI trace event
+      PrepareNotify.addMetadata([&](auto TEvent) {
+        xpti::addMetadata(TEvent, "sycl_context",
+                          reinterpret_cast<size_t>(MContext->getHandleRef()));
+        if (MDevice) {
+          xpti::addMetadata(TEvent, "sycl_device_name",
+                            MDevice->getDeviceName());
+          xpti::addMetadata(
+              TEvent, "sycl_device",
+              reinterpret_cast<size_t>(
+                  MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+        }
+        xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+      });
+      PrepareNotify.notify();
     }
-    // Add the function to capture meta data for the XPTI trace event
-    PrepareNotify.addMetadata([&](auto TEvent) {
-      xpti::addMetadata(TEvent, "sycl_context",
-                        reinterpret_cast<size_t>(MContext->getHandleRef()));
-      if (MDevice) {
-        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
-        xpti::addMetadata(
-            TEvent, "sycl_device",
-            reinterpret_cast<size_t>(
-                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
-      }
-      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-    });
-    PrepareNotify.notify();
 #endif
     if (has_property<property::queue::enable_profiling>()) {
       if (has_property<ext::oneapi::property::queue::discard_events>())
@@ -201,29 +204,33 @@ private:
 #if XPTI_ENABLE_INSTRUMENTATION
     /// This section of code is relying on scoped objects, so they cannot be
     /// encapsulated in a function
-    XPTIScope PrepareNotify((void *)this,
-                            (uint16_t)xpti::trace_point_type_t::queue_create,
+    constexpr uint16_t NotificationTraceType =
+        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
+    XPTIScope PrepareNotify((void *)this, NotificationTraceType,
                             SYCL_STREAM_NAME, "queue_create");
-    if (xptiTraceEnabled()) {
+    if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
+                              NotificationTraceType)) {
       // Cache the trace event, stream id and instance IDs for the destructor
       MTraceEvent = (void *)PrepareNotify.traceEvent();
       MStreamID = PrepareNotify.streamID();
       MInstanceID = PrepareNotify.instanceID();
+
+      // Add the function to capture meta data for the XPTI trace event
+      PrepareNotify.addMetadata([&](auto TEvent) {
+        xpti::addMetadata(TEvent, "sycl_context",
+                          reinterpret_cast<size_t>(MContext->getHandleRef()));
+        if (MDevice) {
+          xpti::addMetadata(TEvent, "sycl_device_name",
+                            MDevice->getDeviceName());
+          xpti::addMetadata(
+              TEvent, "sycl_device",
+              reinterpret_cast<size_t>(
+                  MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+        }
+        xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+      });
+      PrepareNotify.notify();
     }
-    // Add the function to capture meta data for the XPTI trace event
-    PrepareNotify.addMetadata([&](auto TEvent) {
-      xpti::addMetadata(TEvent, "sycl_context",
-                        reinterpret_cast<size_t>(MContext->getHandleRef()));
-      if (MDevice) {
-        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
-        xpti::addMetadata(
-            TEvent, "sycl_device",
-            reinterpret_cast<size_t>(
-                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
-      }
-      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-    });
-    PrepareNotify.notify();
 #endif
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
@@ -292,12 +299,14 @@ public:
     // lifetime of the queue object as member variables when ABI breakage is
     // allowed. This example shows MTraceEvent as a member variable.
 #if XPTI_ENABLE_INSTRUMENTATION
-    if (xptiTraceEnabled()) {
+    constexpr uint16_t NotificationTraceType =
+        static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
+    if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
       // Used cached information in member variables
-      xptiNotifySubscribers(
-          MStreamID, (uint16_t)xpti::trace_point_type_t::queue_destroy, nullptr,
-          (xpti::trace_event_data_t *)MTraceEvent, MInstanceID,
-          static_cast<const void *>("queue_destroy"));
+      xptiNotifySubscribers(MStreamID, NotificationTraceType, nullptr,
+                            (xpti::trace_event_data_t *)MTraceEvent,
+                            MInstanceID,
+                            static_cast<const void *>("queue_destroy"));
     }
 #endif
     throw_asynchronous();
