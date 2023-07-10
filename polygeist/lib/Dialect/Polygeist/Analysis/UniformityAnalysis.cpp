@@ -204,8 +204,7 @@ void UniformityAnalysis::visitNonControlFlowArguments(
     return;
   }
 
-  // Infer the uniformity of the loop IV by analyzing the loop bounds and
-  // step.
+  // Infer the uniformity of the loop IV by analyzing the loop bounds and step.
   if (auto loop = dyn_cast<LoopLikeOpInterface>(op)) {
     if (auto uniformity = getInductionVariableUniformity(loop))
       return propagateAllIfChanged(*loop.getSingleInductionVar(), *uniformity);
@@ -302,8 +301,8 @@ void UniformityAnalysis::analyzeMemoryEffects(
     // Collect the branch conditions that dominate the modifiers.
     SmallVector<IfCondition> branchConditions = collectBranchConditions(*mods);
 
-    // If we haven't yet computed the uniformity of the branch conditions,
-    // bail out.
+    // If we haven't yet computed the uniformity of the branch conditions, bail
+    // out.
     if (!isUniformityInitialized(branchConditions, op)) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Reaching def operand(s) uniformity not yet initialized\n");
