@@ -14,8 +14,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi {
-struct __SYCL_DEPRECATED(
-    "use sycl::ext::oneapi::experimental::this_sub_group() instead") sub_group
+struct __SYCL_DEPRECATED("use sycl::sub_group() instead") sub_group
     : sycl::sub_group {
   // These two constructors are intended to keep the correctness of such code
   // after the sub_group class migration from ext::oneapi to the sycl namespace:
