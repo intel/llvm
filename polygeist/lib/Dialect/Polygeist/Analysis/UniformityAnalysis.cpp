@@ -322,8 +322,7 @@ void UniformityAnalysis::analyzeMemoryEffects(
                                    Uniformity::getNonUniform());
     }
 
-    // If we haven't yet computed the mods/pMods operands uniformity, bail
-    // out.
+    // If we haven't yet computed the mods/pMods operands uniformity, bail out.
     if (!isUniformityInitialized(*mods, op)) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Reaching def operand(s) uniformity not yet initialized\n");
