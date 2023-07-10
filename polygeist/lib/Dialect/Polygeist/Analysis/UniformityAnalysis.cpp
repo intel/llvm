@@ -127,6 +127,24 @@ LogicalResult UniformityAnalysis::initialize(Operation *top) {
   return SparseDataFlowAnalysis::initialize(top);
 }
 
+void UniformityAnalysis::setToEntryState(UniformityLattice *lattice) {
+  // The arguments of a gpu kernel are uniform by default.
+  if (Region *region = lattice->getPoint().getParentRegion()) {
+    if (auto gpuFuncOp = region->getParentOfType<gpu::GPUFuncOp>()) {
+      if (gpuFuncOp.isKernel()) {
+        for (Value arg : gpuFuncOp.front().getArguments()) {
+          UniformityLattice *lattice = getLatticeElement(arg);
+          propagateIfChanged(lattice, lattice->join(Uniformity::getUniform()));
+        }
+        return;
+      }
+    }
+  }
+
+  // Other arguments have unknown uniformity.
+  propagateIfChanged(lattice, lattice->join(Uniformity::getUnknown()));
+}
+
 void UniformityAnalysis::visitOperation(
     Operation *op, ArrayRef<const UniformityLattice *> operands,
     ArrayRef<UniformityLattice *> results) {
@@ -166,7 +184,7 @@ void UniformityAnalysis::visitOperation(
   // A memory side effects free operation that has uniform operands yields
   // uniform result(s).
   if (isMemoryEffectFree(op)) {
-    LLVM_DEBUG(llvm::dbgs() << "UA: Operation is memory effect free\n");
+    LLVM_DEBUG(llvm::dbgs().indent(2) << "Operation is memory effect free\n");
     return propagateAllIfChanged(results, Uniformity::getUniform());
   }
 
@@ -186,7 +204,8 @@ void UniformityAnalysis::visitNonControlFlowArguments(
     return;
   }
 
-  // Infer the uniformity of the loop IV by analyzing the loop bounds and step.
+  // Infer the uniformity of the loop IV by analyzing the loop bounds and
+  // step.
   if (auto loop = dyn_cast<LoopLikeOpInterface>(op)) {
     if (auto uniformity = getInductionVariableUniformity(loop))
       return propagateAllIfChanged(*loop.getSingleInductionVar(), *uniformity);
@@ -283,8 +302,8 @@ void UniformityAnalysis::analyzeMemoryEffects(
     // Collect the branch conditions that dominate the modifiers.
     SmallVector<IfCondition> branchConditions = collectBranchConditions(*mods);
 
-    // If we haven't yet computed the uniformity of the branch conditions, bail
-    // out.
+    // If we haven't yet computed the uniformity of the branch conditions,
+    // bail out.
     if (!isUniformityInitialized(branchConditions, op)) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Reaching def operand(s) uniformity not yet initialized\n");
@@ -304,7 +323,8 @@ void UniformityAnalysis::analyzeMemoryEffects(
                                    Uniformity::getNonUniform());
     }
 
-    // If we haven't yet computed the mods/pMods operands uniformity, bail out.
+    // If we haven't yet computed the mods/pMods operands uniformity, bail
+    // out.
     if (!isUniformityInitialized(*mods, op)) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Reaching def operand(s) uniformity not yet initialized\n");
@@ -511,7 +531,7 @@ void UniformityAnalysis::propagateAllIfChanged(
     ArrayRef<UniformityLattice *> results, const Uniformity &uniformity) {
   for (UniformityLattice *result : results)
     propagateIfChanged(result, result->join(uniformity));
-  LLVM_DEBUG(llvm::dbgs() << "UA: Results are: " << uniformity << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "UA: Result(s) are: " << uniformity << "\n");
 }
 
 void UniformityAnalysis::propagateAllIfChanged(const ValueRange values,
