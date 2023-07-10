@@ -42,9 +42,9 @@ template <>
 inline void serializeFlag<ur_device_affinity_domain_flag_t>(std::ostream &os,
                                                             uint32_t flag);
 
-inline void print_union(std::ostream &os,
-                        const union ur_device_partition_value_t params,
-                        const enum ur_device_partition_t tag);
+inline void serializeUnion(std::ostream &os,
+                           const union ur_device_partition_value_t params,
+                           const enum ur_device_partition_t tag);
 
 template <>
 inline void serializeFlag<ur_device_fp_capability_flag_t>(std::ostream &os,
@@ -129,9 +129,9 @@ template <>
 inline void serializeFlag<ur_physical_mem_flag_t>(std::ostream &os,
                                                   uint32_t flag);
 
-inline void print_union(std::ostream &os,
-                        const union ur_program_metadata_value_t params,
-                        const enum ur_program_metadata_type_t tag);
+inline void serializeUnion(std::ostream &os,
+                           const union ur_program_metadata_value_t params,
+                           const enum ur_program_metadata_type_t tag);
 
 template <>
 inline void serializeTagged(std::ostream &os, const void *ptr,
@@ -4581,9 +4581,9 @@ inline std::ostream &operator<<(std::ostream &os,
 }
 
 inline void
-ur_params::print_union(std::ostream &os,
-                       const union ur_device_partition_value_t params,
-                       const enum ur_device_partition_t tag) {
+ur_params::serializeUnion(std::ostream &os,
+                          const union ur_device_partition_value_t params,
+                          const enum ur_device_partition_t tag) {
     switch (tag) {
     case UR_DEVICE_PARTITION_EQUALLY:
         os << params.equally;
@@ -4611,7 +4611,7 @@ operator<<(std::ostream &os,
     os << ", ";
 
     os << ".value = ";
-    ur_params::print_union(os, params.value, params.type);
+    ur_params::serializeUnion(os, (params.value), params.type);
 
     os << "}";
     return os;
@@ -7443,9 +7443,9 @@ inline std::ostream &operator<<(std::ostream &os,
 }
 
 inline void
-ur_params::print_union(std::ostream &os,
-                       const union ur_program_metadata_value_t params,
-                       const enum ur_program_metadata_type_t tag) {
+ur_params::serializeUnion(std::ostream &os,
+                          const union ur_program_metadata_value_t params,
+                          const enum ur_program_metadata_type_t tag) {
     switch (tag) {
     case UR_PROGRAM_METADATA_TYPE_UINT32:
         os << params.data32;
@@ -7487,7 +7487,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << ", ";
 
     os << ".value = ";
-    ur_params::print_union(os, params.value, params.type);
+    ur_params::serializeUnion(os, (params.value), params.type);
 
     os << "}";
     return os;

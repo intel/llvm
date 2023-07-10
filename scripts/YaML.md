@@ -455,7 +455,7 @@ class ur_name_flags_v(IntEnum):
     + The special-case descriptor struct should always end with `_desc_t`
     + The special-case property struct should always end with `_properties_t`
 * A union requires the following 
-  - `tag` is a reference to a type which will be used to describe which field to access of the union.
+  - `tag` is a reference to an enum type that will be used to describe which field of the union to access.
 * A struct|union may take the following optional scalar fields: {`class`, `base`, `condition`, `ordinal`, `version`}
   - `class` will be used to scope the struct|union declaration within the specified C++ class
   - `base` will be used as the base type of the structure

@@ -41,6 +41,12 @@ from templates import helper as th
     %endif
 </%def>
 
+<%
+def findUnionTag(union):
+    tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == obj['tag']]
+    return tag[0] if len(tag) > 0 else None
+%>
+
 <%def name="line(item, n, params, params_dict)">
     <%
         iname = th._get_param_name(n, tags, item)
@@ -74,7 +80,7 @@ member_type = query[0] if len(query) > 0 else None%>
         os << "}";
     %elif member_type is not None and member_type['type'] == "union":
         os << ".${iname} = ";
-        ${x}_params::print_union(os, params.${item['name']}, params.${th.param_traits.tagged_member(item)});
+        ${x}_params::serializeUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
     %elif typename is not None:
         os << ".${iname} = ";
         ${x}_params::serializeTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
@@ -104,7 +110,7 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
 
 %if re.match(r"union", obj['type']) and obj['name']:
     <% tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == obj['tag']][0] %>
-    inline void print_union(
+    inline void serializeUnion(
         std::ostream &os,
         const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
         const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
@@ -293,8 +299,8 @@ inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make
     return os;
 }
 %elif re.match(r"union", obj['type']) and obj['name']:
-<% tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == obj['tag']][0] %>
-inline void ${x}_params::print_union(
+<% tag = findUnionTag(obj) %>
+inline void ${x}_params::serializeUnion(
     std::ostream &os,
     const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
     const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
