@@ -1148,6 +1148,24 @@ Kernel has a required sub-group size of '32' but device does not support this
 sub-group size.
 ```
 
+### SYCL internal aspects for device image splitting
+
+There are scenarios when we would like to split device images based on
+optional kernel features but we don't want to expose corresponding
+aspects to the user. Internal SYCL aspects are used for this purpose.
+
+To differentiate them from regular aspects, internal aspects are assigned
+negative values. If optional feature is used in the kernel then SYCL
+device compiler adds value of internal aspect to 'sycl_used_aspects' metadata,
+it gets propagated through the call graph and participates in device image
+splitting together with regular aspects but it's not passed to the SYCL runtime,
+it is filtered out when generating a set of device requirements.
+
+New value can be added to 'SYCLInternalAspect' enum to introduce new internal
+aspect.
+
+Example of internal aspects usage is splitting device images based on floating
+point accuracy level for math functions provided by user using -ffp-accuracy option.
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 
