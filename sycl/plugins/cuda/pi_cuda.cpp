@@ -198,7 +198,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferMemBufferCopyRect,
          pi2ur::piextCommandBufferMemBufferCopyRect)
   _PI_CL(piextEnqueueCommandBuffer, pi2ur::piextEnqueueCommandBuffer)
-
+  // Peer to Peer
+  _PI_CL(piextEnablePeerAccess, pi2ur::piextEnablePeerAccess)
+  _PI_CL(piextDisablePeerAccess, pi2ur::piextDisablePeerAccess)
+  _PI_CL(piextPeerAccessGetInfo, pi2ur::piextPeerAccessGetInfo)
 #undef _PI_CL
 
   return PI_SUCCESS;

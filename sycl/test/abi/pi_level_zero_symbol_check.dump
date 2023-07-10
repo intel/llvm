@@ -138,3 +138,6 @@ piextUSMHostAlloc
 piextUSMImport
 piextUSMRelease
 piextUSMSharedAlloc
+piextEnablePeerAccess
+piextDisablePeerAccess
+piextPeerAccessGetInfo

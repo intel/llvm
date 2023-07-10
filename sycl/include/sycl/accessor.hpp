@@ -514,13 +514,13 @@ public:
   id<3> &getOffset();
   range<3> &getAccessRange();
   range<3> &getMemoryRange();
-  void *getPtr();
+  void *getPtr() noexcept;
   unsigned int getElemSize() const;
 
   const id<3> &getOffset() const;
   const range<3> &getAccessRange() const;
   const range<3> &getMemoryRange() const;
-  void *getPtr() const;
+  void *getPtr() const noexcept;
   bool isPlaceholder() const;
 
   detail::AccHostDataT &getAccData();
@@ -843,8 +843,9 @@ private:
 
   sycl::vec<int, Dimensions> getRangeInternal() const {
     // TODO: Implement for host.
-    throw runtime_error("image::getRangeInternal() is not implemented for host",
-                        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "image::getRangeInternal() is not implemented for host");
     return sycl::vec<int, Dimensions>{1};
   }
 
