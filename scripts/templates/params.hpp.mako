@@ -305,16 +305,26 @@ inline void ${x}_params::serializeUnion(
     const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
     const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
 ){
+    os << "(${obj['type']} ${th.make_type_name(n, tags, obj)}){";
+<%
+params_dict = dict()
+for item in obj['members']:
+    iname = th._get_param_name(n, tags, item)
+    itype = th._get_type_name(n, tags, obj, item)
+    params_dict[iname] = itype
+%>
     switch(tag){
 %for mem in obj['members']:
     case ${th.subt(n, tags, mem['tag'])}:
-        os << params.${mem['name']};
+        ## os << params.${mem['name']};
+        ${line(mem, 0, False, params_dict)}
         break;
 %endfor
     default:
         os << "<unknown>";
         break;
     }
+    os << "}";
 }
 %endif
 %endfor # obj in spec['objects']

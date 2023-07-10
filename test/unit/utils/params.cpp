@@ -323,7 +323,9 @@ struct UrProgramMetadataTest {
                ".pName = .+ \\(MY_META\\), "
                ".type = UR_PROGRAM_METADATA_TYPE_UINT32, "
                ".size = 0, "
-               ".value = 42"
+               ".value = \\(union ur_program_metadata_value_t\\)\\{"
+               ".data32 = 42"
+               "\\}"
                "\\}";
     }
     ur_program_metadata_t meta;
@@ -342,7 +344,9 @@ struct UrDevicePartitionPropertyTest {
         return "\\(struct ur_device_partition_property_t\\)"
                "\\{"
                ".type = UR_DEVICE_PARTITION_EQUALLY, "
-               ".value = 4"
+               ".value = \\(union ur_device_partition_value_t\\)\\{"
+               ".equally = 4"
+               "\\}"
                "\\}";
     }
 
