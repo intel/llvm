@@ -250,17 +250,6 @@ SetVector<T> polygeist::getOperationsOfType(FunctionOpInterface funcOp) {
   return res;
 }
 
-Value polygeist::getCondition(Operation *op) {
-  return TypeSwitch<Operation *, Value>(op)
-      .Case<arith::SelectOp, LLVM::SelectOp, cf::CondBranchOp, LLVM::CondBrOp,
-            scf::IfOp>([](auto branchOp) { return branchOp.getCondition(); })
-      .Default([](auto *op) {
-        llvm::errs() << "op: " << *op << "\n";
-        llvm_unreachable("Unhandled operation");
-        return nullptr;
-      });
-}
-
 namespace mlir {
 namespace polygeist {
 
@@ -399,7 +388,7 @@ struct SCFIfBuilder {
 
 struct AffineIfBuilder {
   static affine::AffineIfOp createIfOp(IntegerSet ifCondSet,
-                                       SmallVectorImpl<Value> &setOperands,
+                                       ValueRange setOperands,
                                        Operation::result_range results,
                                        OpBuilder &builder, Location loc) {
     TypeRange types(results);
@@ -411,10 +400,50 @@ struct AffineIfBuilder {
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// IfCondition
+//===----------------------------------------------------------------------===//
+
+raw_ostream &operator<<(raw_ostream &os,
+                        const IfCondition::AffineCondition &cond) {
+  os << "Constraints:\n";
+  for (AffineExpr constraint : cond.ifCondSet.getConstraints())
+    os.indent(2) << constraint << "\n";
+  os << "Operands:\n";
+  for (Value operand : cond.setOperands)
+    os.indent(2) << operand << "\n";
+  return os;
+}
+
+raw_ostream &operator<<(raw_ostream &os, const IfCondition &cond) {
+  if (cond.hasSCFCondition())
+    os << cond.getSCFCondition();
+  if (cond.hasAffineCondition())
+    os << cond.getAffineCondition();
+  return os;
+}
+
+std::optional<IfCondition> IfCondition::getCondition(Operation *op) {
+  return TypeSwitch<Operation *, std::optional<IfCondition>>(op)
+      .Case<arith::SelectOp, LLVM::SelectOp, cf::CondBranchOp, LLVM::CondBrOp,
+            scf::IfOp>(
+          [](auto branchOp) { return IfCondition(branchOp.getCondition()); })
+      .Case<affine::AffineIfOp>([](auto branchOp) {
+        AffineCondition affineCond(branchOp.getIntegerSet(),
+                                   branchOp.getOperands());
+        return IfCondition(affineCond);
+      })
+      .Case<scf::WhileOp>([](auto whileOp) {
+        scf::ConditionOp condOp = whileOp.getConditionOp();
+        return IfCondition(condOp.getCondition());
+      })
+      .Default([](auto *op) { return std::nullopt; });
+}
+
+//===----------------------------------------------------------------------===//
 // VersionBuilder
 //===----------------------------------------------------------------------===//
 
-void VersionBuilder::version(const VersionCondition &versionCond) const {
+void VersionBuilder::version(const IfCondition &versionCond) const {
   OpBuilder builder(op);
 
   if (versionCond.hasSCFCondition()) {
@@ -728,7 +757,7 @@ void LoopTools::guardLoop(LoopLikeOpInterface loop) {
 }
 
 void LoopTools::versionLoop(LoopLikeOpInterface loop,
-                            const VersionCondition &versionCond) {
+                            const IfCondition &versionCond) {
   VersionBuilder(loop).version(versionCond);
 }
 
@@ -879,9 +908,8 @@ VersionConditionBuilder::VersionConditionBuilder(
          "Expecting accessorPairs to have at least one pair");
 }
 
-VersionConditionBuilder::SCFCondition
-VersionConditionBuilder::createSCFCondition(OpBuilder builder, Location loc,
-                                            bool useOpaquePointers) const {
+Value VersionConditionBuilder::createSCFCondition(
+    OpBuilder builder, Location loc, bool useOpaquePointers) const {
   auto GetMemref2PointerOp = [&](Value op) {
     auto MT = cast<MemRefType>(op.getType());
     auto PtrTy = (useOpaquePointers)

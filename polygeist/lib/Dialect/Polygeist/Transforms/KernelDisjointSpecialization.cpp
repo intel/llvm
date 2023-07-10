@@ -231,7 +231,7 @@ void KernelDisjointSpecializationPass::versionCall(
   if (accessorPairs.empty())
     return;
   OpBuilder builder(call);
-  std::unique_ptr<polygeist::VersionCondition> condition =
+  std::unique_ptr<polygeist::IfCondition> condition =
       polygeist::VersionConditionBuilder(accessorPairs, builder, call->getLoc())
           .createCondition(useOpaquePointers);
   polygeist::VersionBuilder(call).version(*condition);

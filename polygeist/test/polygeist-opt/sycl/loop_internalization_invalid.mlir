@@ -142,3 +142,42 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
   gpu.return
 }
 }
+
+// -----
+
+// COM: Not candidate: innermost loop is not uniform, i.e., not all threads execute the innermost loop.
+// CHECK: LoopInternalization
+// CHECK:   (S) 0 num-loop-internalized - Number of loops internalized
+
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+!sycl_item_base_1_ = !sycl.item_base<[2, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_accessor_1_f32_r_gb = !sycl.accessor<[1, f32, read, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xf32, 2>)>)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+
+gpu.module @device_func {
+func.func private @affine(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_item_1_>) {
+  %alloca = memref.alloca() : memref<1x!sycl_id_1_>
+  %id = memref.cast %alloca : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %c0_i32 = arith.constant 0 : i32
+  %tx = sycl.item.get_id(%arg1, %c0_i32) : (memref<?x!sycl_item_1_>, i32) -> i64
+
+  %c0_i64 = arith.constant 0 : i64
+  %cond = arith.cmpi sgt, %tx, %c0_i64 : i64
+  scf.if %cond {
+    affine.for %ii = 0 to 256 {
+      %i = arith.index_cast %ii : index to i64
+      sycl.constructor @id(%id, %i) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
+      %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_id_1_>) -> memref<?xf32>
+      %load1 = affine.load %subscr1[0] : memref<?xf32>
+    }
+  }
+  return
+}
+gpu.func @kernel(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_item_1_>) kernel {
+  func.call @affine(%arg0, %arg1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_item_1_>) -> ()
+  gpu.return
+}
+}
