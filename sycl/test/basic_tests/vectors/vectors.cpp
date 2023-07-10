@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define SYCL_SIMPLE_SWIZZLES
 #include <sycl/sycl.hpp>
 
 #include <cstddef>
@@ -86,13 +85,13 @@ int main() {
   sycl::int4 a = {1, 2, 3, 4};
   const sycl::int4 b = {10, 20, 30, 40};
   const sycl::int4 gold = {21, 42, 90, 120};
-  const sycl::int2 a_xy = a.xy();
+  const sycl::int2 a_xy = a.lo();
   check_vectors(a, b, {1, 2, 30, 40}, gold);
   check_vectors(a, b, {a.x(), a.y(), b.z(), b.w()}, gold);
   check_vectors(a, b, {a.x(), 2, b.z(), 40}, gold);
-  check_vectors(a, b, {a.x(), 2, b.zw()}, gold);
-  check_vectors(a, b, {a_xy, b.z(), 40}, gold);
-  check_vectors(a, b, {a.xy(), b.zw()}, gold);
+  check_vectors(a, b, {a.x(), 2, b.hi()}, gold);
+  check_vectors(a, b, {a.lo(), b.z(), 40}, gold);
+  check_vectors(a, b, {a.lo(), b.hi()}, gold);
 
   // Constructing vector from a scalar
   sycl::vec<int, 1> vec_from_one_elem(1);
@@ -148,8 +147,9 @@ int main() {
                    .template as<sycl::vec<int16_t, 1>>();
   auto test = inputVec.as<sycl::vec<bool, 2>>();
   assert(!test[0] && test[1]);
-  assert((inputVec.yx().as<sycl::vec<bool, 2>>()[0]));
-  assert((!inputVec.yx().as<sycl::vec<bool, 2>>()[1]));
+  sycl::vec<int8_t, 4> inputVec4 = sycl::vec<int8_t, 4>(0, 1, 1, 0);
+  assert((!inputVec4.lo().as<sycl::vec<bool, 2>>()[0]));
+  assert((inputVec4.lo().as<sycl::vec<bool, 2>>()[1]));
 
   // Check that [u]long[n] type aliases match vec<[u]int64_t, n> types.
   assert((std::is_same<sycl::vec<std::int64_t, 2>, sycl::long2>::value));

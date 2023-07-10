@@ -259,11 +259,16 @@ public:
 
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
-  bool hasUserDataPtr() const { return MUserPtr != nullptr; };
+  bool isInterop() const override;
 
-  bool isInterop() const;
+  bool hasUserDataPtr() const override { return MUserPtr != nullptr; }
 
-  bool isHostPointerReadOnly() const { return MHostPtrReadOnly; }
+  bool isHostPointerReadOnly() const override { return MHostPtrReadOnly; }
+
+  bool usesPinnedHostMemory() const override {
+    return has_property<
+        sycl::ext::oneapi::property::buffer::use_pinned_host_memory>();
+  }
 
   void detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &Self) const;
 

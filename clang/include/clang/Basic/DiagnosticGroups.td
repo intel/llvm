@@ -1293,6 +1293,7 @@ def SyclStrict : DiagGroup<"sycl-strict", [ Sycl2017Compat, Sycl2020Compat]>;
 def SyclTarget : DiagGroup<"sycl-target">;
 def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
+def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
 
 // Backend warnings.
 def BackendInlineAsm : DiagGroup<"inline-asm">;
