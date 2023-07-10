@@ -64,9 +64,10 @@ public:
     Darwin_libsystem_m // Use Darwin's libsytem_m vector functions.
   };
 
-  enum AlternateMathLibrary {
-    NoAlternate,   // Don't use any alternate math library.
-    altSVML        // Intel short vector math library.
+  enum AltMathLibrary {
+    NoAltMathLibrary,   // Don't use any alternate math library
+    SVMLAltMathLibrary, // INTEL SVML Library
+    TestAltMathLibrary  // Use a fake alternate math library for testing
   };
 
   enum ObjCDispatchMethodKind {
