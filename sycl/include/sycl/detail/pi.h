@@ -609,9 +609,9 @@ typedef enum {
 } _pi_image_channel_type;
 
 typedef enum {
-  PI_IMAGE_COPY_HTOD = 0,
-  PI_IMAGE_COPY_DTOH = 1,
-  PI_IMAGE_COPY_DTOD = 2
+  PI_IMAGE_COPY_HOST_TO_DEVICE = 0,
+  PI_IMAGE_COPY_DEVICE_TO_HOST = 1,
+  PI_IMAGE_COPY_DEVICE_TO_DEVICE = 2
 } _pi_image_copy_flags;
 
 typedef enum { PI_BUFFER_CREATE_TYPE_REGION = 0x1220 } _pi_buffer_create_type;
@@ -1931,10 +1931,9 @@ __SYCL_EXPORT pi_result piextUSMPitchedAlloc(
     pi_device device, pi_usm_mem_properties *properties, size_t width_in_bytes,
     size_t height, unsigned int element_size_bytes);
 
-/// Indicates that the allocated USM memory is no longer needed on the
-/// runtime side. The actual freeing of the memory may be done in a blocking
-/// or deferred manner, e.g. to avoid issues with indirect memory access
-/// from kernels.
+/// Indicates that the allocated USM memory is no longer needed on the runtime
+/// side. The actual freeing of the memory may be done in a blocking or deferred
+/// manner, e.g. to avoid issues with indirect memory access from kernels.
 ///
 /// \param context is the pi_context of the allocation
 /// \param ptr is the memory to be freed

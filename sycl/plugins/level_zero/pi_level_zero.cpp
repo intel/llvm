@@ -396,10 +396,6 @@ piextMemUnsampledImageHandleDestroy([[maybe_unused]] pi_context context,
                                     [[maybe_unused]] pi_device device,
                                     [[maybe_unused]] pi_image_handle handle) {
 
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(handle != 0);
-
   die("piextMemUnsampledImageHandleDestroy not implemented on level zero "
       "backend.\n");
   pi_result retErr = PI_ERROR_UNKNOWN;
@@ -411,10 +407,6 @@ pi_result
 piextMemSampledImageHandleDestroy([[maybe_unused]] pi_context context,
                                   [[maybe_unused]] pi_device device,
                                   [[maybe_unused]] pi_image_handle handle) {
-
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(handle != 0);
 
   die("piextMemSampledImageHandleDestroy not implemented on level zero "
       "backend.\n");
@@ -429,12 +421,6 @@ pi_result piextMemImageAllocate([[maybe_unused]] pi_context context,
                                 [[maybe_unused]] pi_image_desc *image_desc,
                                 [[maybe_unused]] pi_image_mem_handle *ret_mem) {
 
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(image_desc != nullptr);
-  assert(image_format != nullptr);
-  assert(ret_mem != nullptr);
-
   die("piExtMemImageAllocate not implemented on level zero backend.\n");
   // No image formats are supported!
   pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
@@ -448,11 +434,6 @@ piextMemMipmapGetLevel([[maybe_unused]] pi_context context,
                        [[maybe_unused]] unsigned int level,
                        [[maybe_unused]] pi_image_mem_handle *ret_mem) {
 
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(mip_mem != nullptr);
-  assert(ret_mem != nullptr);
-
   die("piextMemMipmapGetLevel not implemented on level zero backend.\n");
   pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
   return retErr;
@@ -462,10 +443,6 @@ pi_result
 piextMemImageFree([[maybe_unused]] pi_context context,
                   [[maybe_unused]] pi_device device,
                   [[maybe_unused]] pi_image_mem_handle memory_handle) {
-
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(memory_handle != nullptr);
 
   pi_result retErr = PI_SUCCESS;
   die("piExtMemImageFree not implemented on level zero backend.\n");
@@ -477,10 +454,6 @@ pi_result
 piextMemMipmapFree([[maybe_unused]] pi_context context,
                    [[maybe_unused]] pi_device device,
                    [[maybe_unused]] pi_image_mem_handle memory_handle) {
-
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(memory_handle != nullptr);
 
   die("piextMemMipmapFree not implemented on level zero backend.\n");
   // No image formats are supported!
@@ -495,12 +468,6 @@ pi_result piextMemUnsampledImageCreate(
     [[maybe_unused]] pi_image_desc *desc, [[maybe_unused]] pi_mem *ret_mem,
     [[maybe_unused]] pi_image_handle *ret_handle) {
 
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(img_mem != nullptr);
-  assert(ret_mem != nullptr);
-  assert(ret_handle != nullptr);
-
   die("piextMemUnsampledImageCreate not implemented on level zero backend.\n");
   // No image formats are supported!
   pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
@@ -511,10 +478,6 @@ pi_result piextMemImportOpaqueFD(
     [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
     [[maybe_unused]] size_t size, [[maybe_unused]] int file_descriptor,
     [[maybe_unused]] pi_interop_mem_handle *ret_handle) {
-  assert(context);
-  assert(device);
-  assert(file_descriptor);
-  assert(ret_handle);
 
   die("piextMemImportOpaqueFD not implemented on level zero backend.\n");
   pi_result retErr = PI_ERROR_UNKNOWN;
@@ -525,9 +488,7 @@ pi_result piextImportExternalSemaphoreOpaqueFD(
     [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
     [[maybe_unused]] int file_descriptor,
     [[maybe_unused]] pi_interop_semaphore_handle *ret_handle) {
-  assert(context);
-  assert(device);
-  assert(ret_handle);
+
   die("piextImportExternalSemaphoreOpaqueFD not implemented on level zero "
       "backend.\n");
   pi_result retErr = PI_ERROR_UNKNOWN;
@@ -537,9 +498,7 @@ pi_result piextImportExternalSemaphoreOpaqueFD(
 pi_result piextDestroyExternalSemaphore(
     [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
     [[maybe_unused]] pi_interop_semaphore_handle sem_handle) {
-  assert(context);
-  assert(device);
-  assert(sem_handle);
+
   die("piextDestroyExternalSemaphore not implemented on level zero "
       "backend.\n");
   pi_result retErr = PI_ERROR_UNKNOWN;
@@ -552,8 +511,7 @@ pi_result piextWaitExternalSemaphore(
     [[maybe_unused]] pi_uint32 num_events_in_wait_list,
     [[maybe_unused]] const pi_event *event_wait_list,
     [[maybe_unused]] pi_event *event) {
-  assert(command_queue);
-  assert(sem_handle);
+
   die("piextWaitExternalSemaphore not implemented on level zero "
       "backend.\n");
   pi_result retErr = PI_ERROR_UNKNOWN;
@@ -566,8 +524,7 @@ pi_result piextSignalExternalSemaphore(
     [[maybe_unused]] pi_uint32 num_events_in_wait_list,
     [[maybe_unused]] const pi_event *event_wait_list,
     [[maybe_unused]] pi_event *event) {
-  assert(command_queue);
-  assert(sem_handle);
+
   die("piextSignalExternalSemaphore not implemented on level zero "
       "backend.\n");
   pi_result retErr = PI_ERROR_UNKNOWN;
@@ -581,12 +538,6 @@ piextMemMapExternalArray([[maybe_unused]] pi_context context,
                          [[maybe_unused]] pi_image_desc *image_desc,
                          [[maybe_unused]] pi_interop_mem_handle mem_handle,
                          [[maybe_unused]] pi_image_mem_handle *ret_mem) {
-  assert(context);
-  assert(device);
-  assert(image_format);
-  assert(image_desc);
-  assert(mem_handle);
-  assert(ret_mem);
 
   die("piextMemMapExternalArray given unsupported image_channel_order.\n");
 
@@ -598,8 +549,6 @@ pi_result
 piextMemReleaseInterop([[maybe_unused]] pi_context context,
                        [[maybe_unused]] pi_device device,
                        [[maybe_unused]] pi_interop_mem_handle ext_mem) {
-  assert(context);
-  assert(ext_mem);
 
   die("piextMemReleaseInterop not implemented on level zero backend.\n");
   pi_result retErr = PI_ERROR_UNKNOWN;
@@ -613,11 +562,6 @@ pi_result piextMemSampledImageCreate(
     [[maybe_unused]] pi_image_desc *desc, [[maybe_unused]] pi_sampler sampler,
     [[maybe_unused]] pi_mem *ret_mem,
     [[maybe_unused]] pi_image_handle *ret_handle) {
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(img_mem != nullptr);
-  assert(ret_mem != nullptr);
-  assert(ret_handle != nullptr);
 
   die("piExtMemSampledImageCreate not implemented on level zero backend.\n");
   // No image formats are supported!
@@ -632,9 +576,6 @@ pi_result piextBindlessImageSamplerCreate(
     [[maybe_unused]] float max_mipmap_level_clamp,
     [[maybe_unused]] float max_anisotropy,
     [[maybe_unused]] pi_sampler *result_sampler) {
-  assert(context != nullptr);
-  assert(sampler_properties != nullptr);
-  assert(result_sampler != nullptr);
 
   die("piextBindlessImageSamplerCreate not implemented on level zero "
       "backend.\n");
@@ -657,9 +598,6 @@ piextMemImageCopy([[maybe_unused]] pi_queue command_queue,
                   [[maybe_unused]] pi_uint32 num_events_in_wait_list,
                   [[maybe_unused]] const pi_event *event_wait_list,
                   [[maybe_unused]] pi_event *event) {
-  assert(command_queue != nullptr);
-  assert(dst_ptr != nullptr);
-  assert(src_ptr != nullptr);
 
   die("piExtMemImageCopy not implemented on level zero backend.\n");
   // No image formats are supported!
@@ -672,7 +610,6 @@ piextMemImageGetInfo([[maybe_unused]] const pi_image_mem_handle mem_handle,
                      [[maybe_unused]] pi_image_info param_name,
                      [[maybe_unused]] void *param_value,
                      [[maybe_unused]] size_t *param_value_size_ret) {
-  assert(mem_handle);
 
   die("piextMemImageGetInfo not implemented on level zero backend.\n");
   return PI_SUCCESS;
@@ -1055,12 +992,9 @@ pi_result piextUSMPitchedAlloc(
     [[maybe_unused]] pi_usm_mem_properties *properties,
     [[maybe_unused]] size_t width_in_bytes, [[maybe_unused]] size_t height,
     [[maybe_unused]] unsigned int element_size_bytes) {
+
   die("piextUSMPitchedAlloc: not implemented");
 
-  assert(result_ptr != nullptr);
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(properties == nullptr || *properties == 0);
   return {};
 }
 

@@ -98,24 +98,33 @@ urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
 ur_result_t
 cudaToUrImageChannelFormat(CUarray_format cuda_format,
                            ur_image_channel_type_t *return_image_channel_type) {
-  UR_ASSERT(return_image_channel_type, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   switch (cuda_format) {
-#define MAP(FROM, TO)                                                          \
+#define CUDA_TO_UR_IMAGE_CHANNEL_TYPE(FROM, TO)                                \
   case FROM: {                                                                 \
     *return_image_channel_type = TO;                                           \
     return UR_RESULT_SUCCESS;                                                  \
   }
-    MAP(CU_AD_FORMAT_UNSIGNED_INT8, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8);
-    MAP(CU_AD_FORMAT_UNSIGNED_INT16, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16);
-    MAP(CU_AD_FORMAT_UNSIGNED_INT32, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32);
-    MAP(CU_AD_FORMAT_SIGNED_INT8, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8);
-    MAP(CU_AD_FORMAT_SIGNED_INT16, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16);
-    MAP(CU_AD_FORMAT_SIGNED_INT32, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32);
-    MAP(CU_AD_FORMAT_HALF, UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT);
-    MAP(CU_AD_FORMAT_FLOAT, UR_IMAGE_CHANNEL_TYPE_FLOAT);
-    MAP(CU_AD_FORMAT_UNORM_INT8X1, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8);
-    MAP(CU_AD_FORMAT_UNORM_INT16X1, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNSIGNED_INT8,
+                                  UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNSIGNED_INT16,
+                                  UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNSIGNED_INT32,
+                                  UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_SIGNED_INT8,
+                                  UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_SIGNED_INT16,
+                                  UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_SIGNED_INT32,
+                                  UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_HALF,
+                                  UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_FLOAT,
+                                  UR_IMAGE_CHANNEL_TYPE_FLOAT);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT8X1,
+                                  UR_IMAGE_CHANNEL_TYPE_UNORM_INT8);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT16X1,
+                                  UR_IMAGE_CHANNEL_TYPE_UNORM_INT16);
 #undef MAP
   default:
     return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
@@ -127,9 +136,6 @@ ur_result_t urTextureCreate(ur_context_handle_t hContext,
                             const ur_image_desc_t *pImageDesc,
                             CUDA_RESOURCE_DESC ResourceDesc,
                             ur_exp_image_handle_t *phRetImage) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phRetImage, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   try {
     /// pi_sampler_properties
@@ -207,9 +213,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
     const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
     size_t widthInBytes, size_t height, size_t elementSizeBytes, void **ppMem,
     size_t *pResultPitch) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pResultPitch, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
   std::ignore = pUSMDesc;
@@ -246,11 +249,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(ur_context_handle_t hContext,
                                                ur_device_handle_t hDevice,
                                                ur_exp_image_handle_t hImage) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   return UR_CHECK_ERROR(cuSurfObjectDestroy((CUsurfObject)hImage));
 }
@@ -259,11 +259,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(ur_context_handle_t hContext,
                                              ur_device_handle_t hDevice,
                                              ur_exp_image_handle_t hImage) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   return UR_CHECK_ERROR(cuTexObjectDestroy((CUtexObject)hImage));
 }
@@ -272,13 +269,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_image_mem_handle_t *phImageMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phImageMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   // Populate descriptor
   CUDA_ARRAY3D_DESCRIPTOR array_desc = {};
@@ -342,11 +334,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_handle_t hImageMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   ScopedContext Active(hDevice->getContext());
   try {
@@ -364,15 +353,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
     const ur_image_desc_t *pImageDesc, ur_mem_handle_t *phMem,
     ur_exp_image_handle_t *phImage) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phImage, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   unsigned int NumChannels = 0;
   UR_CHECK_ERROR(
@@ -422,15 +404,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
     const ur_image_desc_t *pImageDesc, ur_sampler_handle_t hSampler,
     ur_mem_handle_t *phMem, ur_exp_image_handle_t *phImage) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phImage, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   ScopedContext Active(hDevice->getContext());
 
@@ -518,11 +493,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,
     ur_rect_region_t hostExtent, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT((imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
              imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST ||
              imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE),
@@ -663,7 +633,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     ur_exp_image_mem_handle_t hImageMem, ur_image_info_t propName,
     void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   CUDA_ARRAY3D_DESCRIPTOR ArrayDesc;
   UR_CHECK_ERROR(cuArray3DGetDescriptor(&ArrayDesc, (CUarray)hImageMem));
@@ -726,12 +695,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_handle_t hImageMem, uint32_t mipmapLevel,
     ur_exp_image_mem_handle_t *phImageMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phImageMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   try {
     ScopedContext Active(hDevice->getContext());
@@ -751,11 +716,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_handle_t hMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   ScopedContext Active(hDevice->getContext());
   try {
@@ -771,11 +733,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     uint32_t fileDescriptor, ur_exp_interop_mem_handle_t *phInteropMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(phInteropMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   try {
     ScopedContext Active(hDevice->getContext());
@@ -803,14 +762,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_interop_mem_handle_t hInteropMem,
     ur_exp_image_mem_handle_t *phImageMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(pImageFormat, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hInteropMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phImageMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   unsigned int NumChannels = 0;
   UR_CHECK_ERROR(
@@ -854,11 +807,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_interop_mem_handle_t hInteropMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(hInteropMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   try {
     ScopedContext Active(hDevice->getContext());
@@ -876,11 +826,8 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     uint32_t fileDescriptor,
     ur_exp_interop_semaphore_handle_t *phInteropSemaphoreHandle) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(phInteropSemaphoreHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   try {
     ScopedContext Active(hDevice->getContext());
@@ -904,11 +851,8 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_interop_semaphore_handle_t hInteropSemaphore) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(hInteropSemaphore, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   try {
     ScopedContext Active(hDevice->getContext());
@@ -926,8 +870,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hSemaphore, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   try {
     ScopedContext Active(hQueue->getContext());
@@ -960,8 +902,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hSemaphore, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   try {
     ScopedContext Active(hQueue->getContext());
