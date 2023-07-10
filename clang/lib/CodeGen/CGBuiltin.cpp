@@ -515,16 +515,17 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
   // single FPAccuracy attribute.
   llvm::AttributeList AttrList;
   // "sycl_used_aspects" metadata associated with the call.
-  SmallVector<llvm::Metadata *, 4> AspectsMD;
+  llvm::Metadata *AspectMD;
   // sincos() doesn't return a value, but it still has a type associated with
   // it that corresponds to the operand type.
   CGF.CGM.getFPAccuracyFuncAttributes(
-      Name, AttrList, AspectsMD, ID,
+      Name, AttrList, AspectMD, ID,
       Name == "sincos" ? Args[0]->getType() : FPBuiltinF->getReturnType());
   CI->setAttributes(AttrList);
-  if (!AspectsMD.empty())
+
+  if (CGF.getLangOpts().SYCLIsDevice && AspectMD)
     CI->setMetadata("sycl_used_aspects",
-                    llvm::MDNode::get(CGF.CGM.getLLVMContext(), AspectsMD));
+                    llvm::MDNode::get(CGF.CGM.getLLVMContext(), AspectMD));
   return CI;
 }
 

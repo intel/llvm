@@ -553,7 +553,8 @@ type because the front-end does not include that type in the
 `!sycl_types_that_use_aspects` set.  If a function references the `double`
 type, the implementation implicitly assumes that the function uses
 `aspect::fp64` and adds that aspect to the function's `!sycl_used_aspects`
-set.
+set. If `!sycl_used_aspects` is attached to instruction then it is also added
+to the function's `!sycl_used_aspects` set.
 
 **NOTE**: This scan of the IR will require comparing the type referenced by
 each IR instruction with the names of the types in the

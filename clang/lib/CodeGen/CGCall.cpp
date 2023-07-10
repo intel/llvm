@@ -1848,6 +1848,9 @@ static llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracyStr) {
 }
 
 static int32_t convertFPAccuracyToAspect(StringRef FPAccuracyStr) {
+  assert(FPAccuracyStr.equals("high") || FPAccuracyStr.equals("medium") ||
+         FPAccuracyStr.equals("low") || FPAccuracyStr.equals("sycl") ||
+         FPAccuracyStr.equals("cuda"));
   return llvm::StringSwitch<int32_t>(FPAccuracyStr)
       .Case("high", SYCLInternalAspect::fp_intrinsic_accuracy_high)
       .Case("medium", SYCLInternalAspect::fp_intrinsic_accuracy_medium)
@@ -1857,9 +1860,8 @@ static int32_t convertFPAccuracyToAspect(StringRef FPAccuracyStr) {
 }
 
 void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
-    StringRef Name, llvm::AttrBuilder &FuncAttrs,
-    SmallVector<llvm::Metadata *, 4> &MDs, unsigned ID,
-    const llvm::Type *FuncType) {
+    StringRef Name, llvm::AttrBuilder &FuncAttrs, llvm::Metadata *&MD,
+    unsigned ID, const llvm::Type *FuncType) {
   // Priority is given to to the accuracy specific to the function.
   // So, if the command line is something like this:
   // 'clang -fp-accuracy = high -fp-accuracy = low:[sin]'.
@@ -1868,6 +1870,7 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
   // To ensure that, first check if Name has a required accuracy by visiting
   // the 'FPAccuracyFuncMap'; if no accuracy is mapped to Name (FuncAttrs
   // is empty), then set its accuracy from the TU's accuracy value.
+  MD = nullptr;
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
@@ -1875,9 +1878,8 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
           ID, FuncType, convertFPAccuracy(FuncMapIt->second));
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
-      if (getLangOpts().SYCLIsDevice)
-        MDs.push_back(llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-            Int32Ty, convertFPAccuracyToAspect(FuncMapIt->second))));
+      MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+          Int32Ty, convertFPAccuracyToAspect(FuncMapIt->second)));
     }
   }
   if (FuncAttrs.attrs().size() == 0)
@@ -1886,9 +1888,8 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
           ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
-      if (getLangOpts().SYCLIsDevice)
-        MDs.push_back(llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-            Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal))));
+      MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+          Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal)));
     }
 }
 

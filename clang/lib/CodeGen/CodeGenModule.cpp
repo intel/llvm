@@ -7882,12 +7882,13 @@ void CodeGenModule::moveLazyEmissionStates(CodeGenModule *NewBuilder) {
   NewBuilder->ABI->MangleCtx = std::move(ABI->MangleCtx);
 }
 
-void CodeGenModule::getFPAccuracyFuncAttributes(
-    StringRef Name, llvm::AttributeList &AttrList,
-    SmallVector<llvm::Metadata *, 4> &MDs, unsigned ID,
-    const llvm::Type *FuncType) {
+void CodeGenModule::getFPAccuracyFuncAttributes(StringRef Name,
+                                                llvm::AttributeList &AttrList,
+                                                llvm::Metadata *&MD,
+                                                unsigned ID,
+                                                const llvm::Type *FuncType) {
   llvm::AttrBuilder FuncAttrs(getLLVMContext());
-  getDefaultFunctionFPAccuracyAttributes(Name, FuncAttrs, MDs, ID, FuncType);
+  getDefaultFunctionFPAccuracyAttributes(Name, FuncAttrs, MD, ID, FuncType);
   AttrList = llvm::AttributeList::get(
       getLLVMContext(), llvm::AttributeList::FunctionIndex, FuncAttrs);
 }

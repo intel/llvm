@@ -7,9 +7,9 @@
 ;  /  \/  \
 ; F1  F2   F3
 ;
-; F1 doesn't use optional type.
-; F2 uses optional A.
-; F3 uses optional B.
+; F1 doesn't use optional type and doesn't have instruction with attached 'sycl_used_aspects' metadata.
+; F2 uses optional A and has instruction with attached 'sycl_used_aspects' metadata.
+; F3 uses optional B and has instruction with attached 'sycl_used_aspects' metadata.
 
 %Optional.A = type { i32 }
 %Optional.B = type { i32 }
