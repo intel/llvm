@@ -391,228 +391,138 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
                                 ParamValueSizeRet);
 }
 
-pi_result
-piextMemUnsampledImageHandleDestroy([[maybe_unused]] pi_context context,
-                                    [[maybe_unused]] pi_device device,
-                                    [[maybe_unused]] pi_image_handle handle) {
-
-  die("piextMemUnsampledImageHandleDestroy not implemented on level zero "
-      "backend.\n");
-  pi_result retErr = PI_ERROR_UNKNOWN;
-
-  return retErr;
+__SYCL_EXPORT pi_result piextMemImageAllocate(pi_context Context,
+                                              pi_device Device,
+                                              pi_image_format *ImageFormat,
+                                              pi_image_desc *ImageDesc,
+                                              pi_image_mem_handle *RetMem) {
+  return pi2ur::piextMemImageAllocate(Context, Device, ImageFormat, ImageDesc,
+                                      RetMem);
 }
 
-pi_result
-piextMemSampledImageHandleDestroy([[maybe_unused]] pi_context context,
-                                  [[maybe_unused]] pi_device device,
-                                  [[maybe_unused]] pi_image_handle handle) {
-
-  die("piextMemSampledImageHandleDestroy not implemented on level zero "
-      "backend.\n");
-  pi_result retErr = PI_ERROR_UNKNOWN;
-
-  return retErr;
+__SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
+    pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_mem *RetMem,
+    pi_image_handle *RetHandle) {
+  return pi2ur::piextMemUnsampledImageCreate(
+      Context, Device, ImgMem, ImageFormat, ImageDesc, RetMem, RetHandle);
 }
 
-pi_result piextMemImageAllocate([[maybe_unused]] pi_context context,
-                                [[maybe_unused]] pi_device device,
-                                [[maybe_unused]] pi_image_format *image_format,
-                                [[maybe_unused]] pi_image_desc *image_desc,
-                                [[maybe_unused]] pi_image_mem_handle *ret_mem) {
-
-  die("piExtMemImageAllocate not implemented on level zero backend.\n");
-  // No image formats are supported!
-  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
-  return retErr;
+__SYCL_EXPORT pi_result piextMemSampledImageCreate(
+    pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_sampler Sampler,
+    pi_mem *RetMem, pi_image_handle *RetHandle) {
+  return pi2ur::piextMemSampledImageCreate(Context, Device, ImgMem, ImageFormat,
+                                           ImageDesc, Sampler, RetMem,
+                                           RetHandle);
 }
 
-pi_result
-piextMemMipmapGetLevel([[maybe_unused]] pi_context context,
-                       [[maybe_unused]] pi_device device,
-                       [[maybe_unused]] pi_image_mem_handle mip_mem,
-                       [[maybe_unused]] unsigned int level,
-                       [[maybe_unused]] pi_image_mem_handle *ret_mem) {
-
-  die("piextMemMipmapGetLevel not implemented on level zero backend.\n");
-  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
-  return retErr;
+__SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
+    pi_context Context, const pi_sampler_properties *SamplerProperties,
+    float MinMipmapLevelClamp, float MaxMipmapLevelClamp, float MaxAnisotropy,
+    pi_sampler *RetSampler) {
+  return pi2ur::piextBindlessImageSamplerCreate(
+      Context, SamplerProperties, MinMipmapLevelClamp, MaxMipmapLevelClamp,
+      MaxAnisotropy, RetSampler);
 }
 
-pi_result
-piextMemImageFree([[maybe_unused]] pi_context context,
-                  [[maybe_unused]] pi_device device,
-                  [[maybe_unused]] pi_image_mem_handle memory_handle) {
-
-  pi_result retErr = PI_SUCCESS;
-  die("piExtMemImageFree not implemented on level zero backend.\n");
-
-  return retErr;
+__SYCL_EXPORT pi_result piextMemMipmapGetLevel(pi_context Context,
+                                               pi_device Device,
+                                               pi_image_mem_handle MipMem,
+                                               unsigned int Level,
+                                               pi_image_mem_handle *RetMem) {
+  return pi2ur::piextMemMipmapGetLevel(Context, Device, MipMem, Level, RetMem);
 }
 
-pi_result
-piextMemMipmapFree([[maybe_unused]] pi_context context,
-                   [[maybe_unused]] pi_device device,
-                   [[maybe_unused]] pi_image_mem_handle memory_handle) {
-
-  die("piextMemMipmapFree not implemented on level zero backend.\n");
-  // No image formats are supported!
-  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
-  return retErr;
+__SYCL_EXPORT pi_result piextMemImageFree(pi_context Context, pi_device Device,
+                                          pi_image_mem_handle MemoryHandle) {
+  return pi2ur::piextMemImageFree(Context, Device, MemoryHandle);
 }
 
-pi_result piextMemUnsampledImageCreate(
-    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
-    [[maybe_unused]] pi_image_mem_handle img_mem,
-    [[maybe_unused]] pi_image_format *image_format,
-    [[maybe_unused]] pi_image_desc *desc, [[maybe_unused]] pi_mem *ret_mem,
-    [[maybe_unused]] pi_image_handle *ret_handle) {
-
-  die("piextMemUnsampledImageCreate not implemented on level zero backend.\n");
-  // No image formats are supported!
-  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
-  return retErr;
+__SYCL_EXPORT pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
+                                           pi_image_mem_handle MemoryHandle) {
+  return pi2ur::piextMemMipmapFree(Context, Device, MemoryHandle);
 }
 
-pi_result piextMemImportOpaqueFD(
-    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
-    [[maybe_unused]] size_t size, [[maybe_unused]] int file_descriptor,
-    [[maybe_unused]] pi_interop_mem_handle *ret_handle) {
-
-  die("piextMemImportOpaqueFD not implemented on level zero backend.\n");
-  pi_result retErr = PI_ERROR_UNKNOWN;
-  return retErr;
+__SYCL_EXPORT pi_result piextMemImageCopy(
+    pi_queue Queue, void *DstPtr, void *SrcPtr,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
+    pi_image_offset DstOffset, pi_image_region CopyExtent,
+    pi_image_region HostExtent, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextMemImageCopy(Queue, DstPtr, SrcPtr, ImageFormat, ImageDesc,
+                                  Flags, SrcOffset, DstOffset, CopyExtent,
+                                  HostExtent, NumEventsInWaitList,
+                                  EventWaitList, Event);
 }
 
-pi_result piextImportExternalSemaphoreOpaqueFD(
-    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
-    [[maybe_unused]] int file_descriptor,
-    [[maybe_unused]] pi_interop_semaphore_handle *ret_handle) {
-
-  die("piextImportExternalSemaphoreOpaqueFD not implemented on level zero "
-      "backend.\n");
-  pi_result retErr = PI_ERROR_UNKNOWN;
-  return retErr;
+__SYCL_EXPORT pi_result piextMemUnsampledImageHandleDestroy(
+    pi_context Context, pi_device Device, pi_image_handle Handle) {
+  return pi2ur::piextMemUnsampledImageHandleDestroy(Context, Device, Handle);
 }
 
-pi_result piextDestroyExternalSemaphore(
-    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
-    [[maybe_unused]] pi_interop_semaphore_handle sem_handle) {
-
-  die("piextDestroyExternalSemaphore not implemented on level zero "
-      "backend.\n");
-  pi_result retErr = PI_ERROR_UNKNOWN;
-  return retErr;
+__SYCL_EXPORT pi_result piextMemSampledImageHandleDestroy(
+    pi_context Context, pi_device Device, pi_image_handle Handle) {
+  return pi2ur::piextMemSampledImageHandleDestroy(Context, Device, Handle);
 }
 
-pi_result piextWaitExternalSemaphore(
-    [[maybe_unused]] pi_queue command_queue,
-    [[maybe_unused]] pi_interop_semaphore_handle sem_handle,
-    [[maybe_unused]] pi_uint32 num_events_in_wait_list,
-    [[maybe_unused]] const pi_event *event_wait_list,
-    [[maybe_unused]] pi_event *event) {
-
-  die("piextWaitExternalSemaphore not implemented on level zero "
-      "backend.\n");
-  pi_result retErr = PI_ERROR_UNKNOWN;
-  return retErr;
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
+                                             pi_image_info ParamName,
+                                             void *ParamValue,
+                                             size_t *ParamValueSizeRet) {
+  return pi2ur::piextMemImageGetInfo(MemHandle, ParamName, ParamValue,
+                                     ParamValueSizeRet);
 }
 
-pi_result piextSignalExternalSemaphore(
-    [[maybe_unused]] pi_queue command_queue,
-    [[maybe_unused]] pi_interop_semaphore_handle sem_handle,
-    [[maybe_unused]] pi_uint32 num_events_in_wait_list,
-    [[maybe_unused]] const pi_event *event_wait_list,
-    [[maybe_unused]] pi_event *event) {
-
-  die("piextSignalExternalSemaphore not implemented on level zero "
-      "backend.\n");
-  pi_result retErr = PI_ERROR_UNKNOWN;
-  return retErr;
+__SYCL_EXPORT pi_result
+piextMemImportOpaqueFD(pi_context Context, pi_device Device, size_t Size,
+                       int FileDescriptor, pi_interop_mem_handle *RetHandle) {
+  return pi2ur::piextMemImportOpaqueFD(Context, Device, Size, FileDescriptor,
+                                       RetHandle);
 }
 
-pi_result
-piextMemMapExternalArray([[maybe_unused]] pi_context context,
-                         [[maybe_unused]] pi_device device,
-                         [[maybe_unused]] pi_image_format *image_format,
-                         [[maybe_unused]] pi_image_desc *image_desc,
-                         [[maybe_unused]] pi_interop_mem_handle mem_handle,
-                         [[maybe_unused]] pi_image_mem_handle *ret_mem) {
-
-  die("piextMemMapExternalArray given unsupported image_channel_order.\n");
-
-  pi_result retErr = PI_ERROR_UNKNOWN;
-  return retErr;
+__SYCL_EXPORT pi_result piextMemMapExternalArray(
+    pi_context Context, pi_device Device, pi_image_format *ImageFormat,
+    pi_image_desc *ImageDesc, pi_interop_mem_handle MemHandle,
+    pi_image_mem_handle *RetMem) {
+  return pi2ur::piextMemMapExternalArray(Context, Device, ImageFormat,
+                                         ImageDesc, MemHandle, RetMem);
 }
 
-pi_result
-piextMemReleaseInterop([[maybe_unused]] pi_context context,
-                       [[maybe_unused]] pi_device device,
-                       [[maybe_unused]] pi_interop_mem_handle ext_mem) {
-
-  die("piextMemReleaseInterop not implemented on level zero backend.\n");
-  pi_result retErr = PI_ERROR_UNKNOWN;
-  return retErr;
+__SYCL_EXPORT pi_result piextMemReleaseInterop(pi_context Context,
+                                               pi_device Device,
+                                               pi_interop_mem_handle ExtMem) {
+  return pi2ur::piextMemReleaseInterop(Context, Device, ExtMem);
 }
 
-pi_result piextMemSampledImageCreate(
-    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
-    [[maybe_unused]] pi_image_mem_handle img_mem,
-    [[maybe_unused]] pi_image_format *format,
-    [[maybe_unused]] pi_image_desc *desc, [[maybe_unused]] pi_sampler sampler,
-    [[maybe_unused]] pi_mem *ret_mem,
-    [[maybe_unused]] pi_image_handle *ret_handle) {
-
-  die("piExtMemSampledImageCreate not implemented on level zero backend.\n");
-  // No image formats are supported!
-  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
-  return retErr;
+__SYCL_EXPORT pi_result piextImportExternalSemaphoreOpaqueFD(
+    pi_context Context, pi_device Device, int FileDescriptor,
+    pi_interop_semaphore_handle *RetHandle) {
+  return pi2ur::piextImportExternalSemaphoreOpaqueFD(Context, Device,
+                                                     FileDescriptor, RetHandle);
 }
 
-pi_result piextBindlessImageSamplerCreate(
-    [[maybe_unused]] pi_context context,
-    [[maybe_unused]] const pi_sampler_properties *sampler_properties,
-    [[maybe_unused]] float min_mipmap_level_clamp,
-    [[maybe_unused]] float max_mipmap_level_clamp,
-    [[maybe_unused]] float max_anisotropy,
-    [[maybe_unused]] pi_sampler *result_sampler) {
-
-  die("piextBindlessImageSamplerCreate not implemented on level zero "
-      "backend.\n");
-  // No image formats are supported!
-  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
-  return retErr;
+__SYCL_EXPORT pi_result
+piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
+                              pi_interop_semaphore_handle SemHandle) {
+  return pi2ur::piextDestroyExternalSemaphore(Context, Device, SemHandle);
 }
 
-pi_result
-piextMemImageCopy([[maybe_unused]] pi_queue command_queue,
-                  [[maybe_unused]] void *dst_ptr,
-                  [[maybe_unused]] void *src_ptr,
-                  [[maybe_unused]] const pi_image_format *image_format,
-                  [[maybe_unused]] const pi_image_desc *image_desc,
-                  [[maybe_unused]] const pi_image_copy_flags flags,
-                  [[maybe_unused]] pi_image_offset src_offset,
-                  [[maybe_unused]] pi_image_offset dst_offset,
-                  [[maybe_unused]] pi_image_region copy_extent,
-                  [[maybe_unused]] pi_image_region host_extent,
-                  [[maybe_unused]] pi_uint32 num_events_in_wait_list,
-                  [[maybe_unused]] const pi_event *event_wait_list,
-                  [[maybe_unused]] pi_event *event) {
-
-  die("piExtMemImageCopy not implemented on level zero backend.\n");
-  // No image formats are supported!
-  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
-  return retErr;
+__SYCL_EXPORT pi_result piextWaitExternalSemaphore(
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
+  return pi2ur::piextWaitExternalSemaphore(
+      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
 }
 
-pi_result
-piextMemImageGetInfo([[maybe_unused]] const pi_image_mem_handle mem_handle,
-                     [[maybe_unused]] pi_image_info param_name,
-                     [[maybe_unused]] void *param_value,
-                     [[maybe_unused]] size_t *param_value_size_ret) {
-
-  die("piextMemImageGetInfo not implemented on level zero backend.\n");
-  return PI_SUCCESS;
+__SYCL_EXPORT pi_result piextSignalExternalSemaphore(
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
+  return pi2ur::piextSignalExternalSemaphore(
+      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,

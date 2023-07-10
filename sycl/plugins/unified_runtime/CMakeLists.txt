@@ -91,6 +91,8 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/context.hpp"
     "ur/adapters/level_zero/device.hpp"
     "ur/adapters/level_zero/event.hpp"
+    "ur/adapters/level_zero/image.cpp"
+    "ur/adapters/level_zero/image.hpp"
     "ur/adapters/level_zero/memory.hpp"
     "ur/adapters/level_zero/kernel.hpp"
     "ur/adapters/level_zero/platform.hpp"

@@ -25,6 +25,7 @@
 #include "device.hpp"
 #include "event.hpp"
 #include "kernel.hpp"
+#include "image.hpp"
 #include "memory.hpp"
 #include "platform.hpp"
 #include "program.hpp"
