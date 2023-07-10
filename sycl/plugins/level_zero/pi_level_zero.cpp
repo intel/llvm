@@ -896,16 +896,14 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                                     Size, Alignment);
 }
 
-pi_result piextUSMPitchedAlloc(
-    [[maybe_unused]] void **result_ptr, [[maybe_unused]] size_t *result_pitch,
-    [[maybe_unused]] pi_context context, [[maybe_unused]] pi_device device,
-    [[maybe_unused]] pi_usm_mem_properties *properties,
-    [[maybe_unused]] size_t width_in_bytes, [[maybe_unused]] size_t height,
-    [[maybe_unused]] unsigned int element_size_bytes) {
+__SYCL_EXPORT pi_result piextUSMPitchedAlloc(
+    void **ResultPtr, size_t *ResultPitch, pi_context Context, pi_device Device,
+    pi_usm_mem_properties *Properties, size_t WidthInBytes, size_t Height,
+    unsigned int ElementSizeBytes) {
 
-  die("piextUSMPitchedAlloc: not implemented");
-
-  return {};
+  return pi2ur::piextUSMPitchedAlloc(ResultPtr, ResultPitch, Context, Device,
+                                     Properties, WidthInBytes, Height,
+                                     ElementSizeBytes);
 }
 
 pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
