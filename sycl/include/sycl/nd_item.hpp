@@ -30,21 +30,23 @@ class Builder;
 }
 
 namespace ext::oneapi::experimental {
-template <int dimensions> class root_group;
+template <int Dimensions> class root_group;
 }
 
 /// Identifies an instance of the function object executing at each point in an
 /// nd_range.
 ///
 /// \ingroup sycl_api
-template <int dimensions = 1> class nd_item {
+template <int Dimensions = 1> class nd_item {
 public:
+  static constexpr int dimensions = Dimensions;
+
   nd_item() = delete;
 
-  id<dimensions> get_global_id() const { return globalItem.get_id(); }
+  id<Dimensions> get_global_id() const { return globalItem.get_id(); }
 
-  size_t __SYCL_ALWAYS_INLINE get_global_id(int dimension) const {
-    size_t Id = globalItem.get_id(dimension);
+  size_t __SYCL_ALWAYS_INLINE get_global_id(int Dimension) const {
+    size_t Id = globalItem.get_id(Dimension);
     __SYCL_ASSUME_INT(Id);
     return Id;
   }
@@ -55,10 +57,10 @@ public:
     return Id;
   }
 
-  id<dimensions> get_local_id() const { return localItem.get_id(); }
+  id<Dimensions> get_local_id() const { return localItem.get_id(); }
 
-  size_t __SYCL_ALWAYS_INLINE get_local_id(int dimension) const {
-    size_t Id = localItem.get_id(dimension);
+  size_t __SYCL_ALWAYS_INLINE get_local_id(int Dimension) const {
+    size_t Id = localItem.get_id(Dimension);
     __SYCL_ASSUME_INT(Id);
     return Id;
   }
@@ -69,12 +71,12 @@ public:
     return Id;
   }
 
-  group<dimensions> get_group() const { return Group; }
+  group<Dimensions> get_group() const { return Group; }
 
   sub_group get_sub_group() const { return sub_group(); }
 
-  size_t __SYCL_ALWAYS_INLINE get_group(int dimension) const {
-    size_t Size = Group[dimension];
+  size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const {
+    size_t Size = Group[Dimension];
     __SYCL_ASSUME_INT(Size);
     return Size;
   }
@@ -85,31 +87,31 @@ public:
     return Id;
   }
 
-  range<dimensions> get_group_range() const { return Group.get_group_range(); }
+  range<Dimensions> get_group_range() const { return Group.get_group_range(); }
 
-  size_t __SYCL_ALWAYS_INLINE get_group_range(int dimension) const {
-    size_t Range = Group.get_group_range(dimension);
+  size_t __SYCL_ALWAYS_INLINE get_group_range(int Dimension) const {
+    size_t Range = Group.get_group_range(Dimension);
     __SYCL_ASSUME_INT(Range);
     return Range;
   }
 
-  range<dimensions> get_global_range() const { return globalItem.get_range(); }
+  range<Dimensions> get_global_range() const { return globalItem.get_range(); }
 
-  size_t get_global_range(int dimension) const {
-    return globalItem.get_range(dimension);
+  size_t get_global_range(int Dimension) const {
+    return globalItem.get_range(Dimension);
   }
 
-  range<dimensions> get_local_range() const { return localItem.get_range(); }
+  range<Dimensions> get_local_range() const { return localItem.get_range(); }
 
-  size_t get_local_range(int dimension) const {
-    return localItem.get_range(dimension);
+  size_t get_local_range(int Dimension) const {
+    return localItem.get_range(Dimension);
   }
 
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  id<dimensions> get_offset() const { return globalItem.get_offset(); }
+  id<Dimensions> get_offset() const { return globalItem.get_offset(); }
 
-  nd_range<dimensions> get_nd_range() const {
-    return nd_range<dimensions>(get_global_range(), get_local_range(),
+  nd_range<Dimensions> get_nd_range() const {
+    return nd_range<Dimensions>(get_global_range(), get_local_range(),
                                 get_offset());
   }
 
@@ -202,9 +204,9 @@ public:
     Group.wait_for(events...);
   }
 
-  sycl::ext::oneapi::experimental::root_group<dimensions>
+  sycl::ext::oneapi::experimental::root_group<Dimensions>
   ext_oneapi_get_root_group() const {
-    return sycl::ext::oneapi::experimental::root_group<dimensions>{*this};
+    return sycl::ext::oneapi::experimental::root_group<Dimensions>{*this};
   }
 
   nd_item(const nd_item &rhs) = default;
@@ -224,14 +226,14 @@ public:
 
 protected:
   friend class detail::Builder;
-  nd_item(const item<dimensions, true> &GL, const item<dimensions, false> &L,
-          const group<dimensions> &GR)
+  nd_item(const item<Dimensions, true> &GL, const item<Dimensions, false> &L,
+          const group<Dimensions> &GR)
       : globalItem(GL), localItem(L), Group(GR) {}
 
 private:
-  item<dimensions, true> globalItem;
-  item<dimensions, false> localItem;
-  group<dimensions> Group;
+  item<Dimensions, true> globalItem;
+  item<Dimensions, false> localItem;
+  group<Dimensions> Group;
 };
 
 template <int Dims>

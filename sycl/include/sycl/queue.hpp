@@ -18,6 +18,7 @@
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
@@ -93,7 +94,7 @@ public:
   ///
   /// \param PropList is a list of properties for queue construction.
   explicit queue(const property_list &PropList = {})
-      : queue(default_selector(), detail::defaultAsyncHandler, PropList) {}
+      : queue(default_selector_v, detail::defaultAsyncHandler, PropList) {}
 
   /// Constructs a SYCL queue instance with an async_handler using the device
   /// returned by an instance of default_selector.
@@ -101,7 +102,7 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   queue(const async_handler &AsyncHandler, const property_list &PropList = {})
-      : queue(default_selector(), AsyncHandler, PropList) {}
+      : queue(default_selector_v, AsyncHandler, PropList) {}
 
   /// Constructs a SYCL queue instance using the device identified by the
   /// device selector provided.
@@ -2316,9 +2317,9 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
       // which won't be properly resolved in separate compile use-case
 #ifndef NDEBUG
       if (AH->Flag == __SYCL_ASSERT_START)
-        throw sycl::runtime_error(
-            "Internal Error. Invalid value in assert description.",
-            PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Internal Error. Invalid value in assert description.");
 #endif
 
       if (AH->Flag) {

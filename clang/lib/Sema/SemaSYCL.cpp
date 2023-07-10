@@ -20,6 +20,7 @@
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SYCLNativeCPUHelpers.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
@@ -1027,6 +1028,15 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
   return TAL->get(0).getAsType().getCanonicalType();
 }
 
+// Kernel names are currently mangled as type names which
+// may collide (in the IR) with the "real" type names generated
+// for RTTI etc when compiling host and device code together.
+// Therefore the mangling of the kernel function is changed for
+// NativeCPU to avoid such potential collision.
+static void changeManglingForNativeCPU(std::string &Name) {
+  Name.append("_NativeCPUKernel");
+}
+
 // Gets a name for the OpenCL kernel function, calculated from the first
 // template argument of the kernel caller function.
 static std::pair<std::string, std::string>
@@ -1039,9 +1049,20 @@ constructKernelName(Sema &S, const FunctionDecl *KernelCallerFunc,
   llvm::raw_svector_ostream Out(Result);
 
   MC.mangleTypeName(KernelNameType, Out);
+  std::string MangledName(Out.str());
 
-  return {std::string(Out.str()), SYCLUniqueStableNameExpr::ComputeName(
-                                      S.getASTContext(), KernelNameType)};
+  std::string StableName =
+      SYCLUniqueStableNameExpr::ComputeName(S.getASTContext(), KernelNameType);
+
+  // When compiling for the SYCLNativeCPU device we need a C++ identifier
+  // as the kernel name and cannot use the name produced by some manglers
+  // including the MS mangler.
+  if (S.getLangOpts().SYCLIsNativeCPU) {
+    MangledName = StableName;
+    changeManglingForNativeCPU(MangledName);
+  }
+
+  return {MangledName, StableName};
 }
 
 static bool isDefaultSPIRArch(ASTContext &Context) {
@@ -5261,6 +5282,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       Printer.Visit(K.NameType);
       O << "> {\n";
     }
+
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
       << "\"; }\n";
@@ -5660,6 +5682,16 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     }
   }
 
+  if (S.getLangOpts().SYCLIsNativeCPU) {
+    // This is a temporary workaround for the integration header file
+    // being emitted too early.
+    std::string HCName = getNativeCPUHeaderName(S.getLangOpts());
+
+    OS << "\n// including the kernel handlers calling the kernels\n";
+    OS << "\n#include \"";
+    OS << HCName;
+    OS << "\"\n\n";
+  }
   if (EmittedFirstSpecConstant)
     OS << "#include <sycl/detail/spec_const_integration.hpp>\n";
 
