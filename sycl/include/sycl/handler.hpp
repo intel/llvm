@@ -40,7 +40,6 @@
 #include <sycl/detail/native_cpu.hpp>
 #endif
 
-
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
 #include <functional>

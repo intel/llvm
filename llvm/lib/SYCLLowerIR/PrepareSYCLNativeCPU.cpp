@@ -142,9 +142,6 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   // Call the kernel
   // Add the nativecpu state as arg
   KernelArgs.push_back(SubhF->getArg(1));
-  for(auto& el: KernelArgs)
-    llvm::errs() << "\t" << *el << "\n ";
-  llvm::errs() << "\n";
   Builder.CreateCall(KernelTy, F, KernelArgs);
   Builder.CreateRetVoid();
 }
