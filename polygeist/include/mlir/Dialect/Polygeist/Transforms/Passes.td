@@ -142,7 +142,8 @@ def LoopInternalization : Pass<"loop-internalization"> {
            /*default=*/"4", "The number of times the tiled loop is unrolled">
   ];
   let statistics = [
-    Statistic<"numLoopInternalized", "num-loop-internalized", "Number of loops internalized">,
+    Statistic<"numAccessInternalized", "num-access-internalized", "Number of accesses internalized">,
+    Statistic<"numLoopInternalized", "num-loop-internalized", "Number of loops internalized">
   ];
   let dependentDialects =
       ["affine::AffineDialect", "memref::MemRefDialect", "scf::SCFDialect", 

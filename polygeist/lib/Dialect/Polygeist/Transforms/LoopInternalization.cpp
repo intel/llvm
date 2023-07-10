@@ -1388,6 +1388,7 @@ void LoopInternalization::transform(
           getReqdSharedMemory(accTy, workGroupSize, builder);
       offset = ValueOrUnsigned::add(offset, reqdSharedMemory, builder);
     }
+    ++numAccessInternalized;
   }
   LLVM_DEBUG(llvm::dbgs() << "Promoted loop: " << loop << "\n");
 
