@@ -79,3 +79,67 @@ func.func @set_nd_range_range_with_offset(%handler: !llvm.ptr, %range: memref<?x
   sycl.host.handler.set_nd_range %handler -> %range, %offset : !llvm.ptr, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>
   func.return
 }
+
+// CHECK-LABEL:   func.func @launch_kernel_single_task(
+// CHECK-SAME:                                         %[[VAL_0:.*]]: i32,
+// CHECK-SAME:                                         %[[VAL_1:.*]]: i32) {
+// CHECK:           sycl.host.launch_kernel @kernels::@k0 : () -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0(%[[VAL_0]]) : (i32) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0(%[[VAL_0]], %[[VAL_1]]) : (i32, i32) -> ()
+// CHECK:           return
+// CHECK:         }
+func.func @launch_kernel_single_task(%arg0 : i32, %arg1 : i32) {
+  sycl.host.launch_kernel @kernels::@k0 : () -> ()
+  sycl.host.launch_kernel @kernels::@k0(%arg0) : (i32) -> ()
+  sycl.host.launch_kernel @kernels::@k0(%arg0, %arg1) : (i32, i32) -> ()
+  func.return
+}
+
+// CHECK-LABEL:   func.func @launch_kernel_nd_range(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: memref<?x!sycl_nd_range_1_>,
+// CHECK-SAME:                                      %[[VAL_1:.*]]: i32,
+// CHECK-SAME:                                      %[[VAL_2:.*]]: i32) {
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]] : (memref<?x!sycl_nd_range_1_>) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]](%[[VAL_1]]) : (memref<?x!sycl_nd_range_1_>, i32) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]](%[[VAL_1]], %[[VAL_2]]) : (memref<?x!sycl_nd_range_1_>, i32, i32) -> ()
+// CHECK:           return
+// CHECK:         }
+func.func @launch_kernel_nd_range(%nd_range: memref<?x!sycl_nd_range_1_>, %arg0 : i32, %arg1 : i32) {
+  sycl.host.launch_kernel @kernels::@k0[%nd_range] : (memref<?x!sycl_nd_range_1_>) -> ()
+  sycl.host.launch_kernel @kernels::@k0[%nd_range](%arg0) : (memref<?x!sycl_nd_range_1_>, i32) -> ()
+  sycl.host.launch_kernel @kernels::@k0[%nd_range](%arg0, %arg1) : (memref<?x!sycl_nd_range_1_>, i32, i32) -> ()
+  func.return
+}
+
+// CHECK-LABEL:   func.func @launch_kernel_range(
+// CHECK-SAME:                                   %[[VAL_0:.*]]: memref<?x!sycl_range_1_>,
+// CHECK-SAME:                                   %[[VAL_1:.*]]: i32,
+// CHECK-SAME:                                   %[[VAL_2:.*]]: i32) {
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]] : (memref<?x!sycl_range_1_>) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]](%[[VAL_1]]) : (memref<?x!sycl_range_1_>, i32) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]](%[[VAL_1]], %[[VAL_2]]) : (memref<?x!sycl_range_1_>, i32, i32) -> ()
+// CHECK:           return
+// CHECK:         }
+func.func @launch_kernel_range(%range: memref<?x!sycl_range_1_>, %arg0 : i32, %arg1 : i32) {
+  sycl.host.launch_kernel @kernels::@k0[%range] : (memref<?x!sycl_range_1_>) -> ()
+  sycl.host.launch_kernel @kernels::@k0[%range](%arg0) : (memref<?x!sycl_range_1_>, i32) -> ()
+  sycl.host.launch_kernel @kernels::@k0[%range](%arg0, %arg1) : (memref<?x!sycl_range_1_>, i32, i32) -> ()
+  func.return
+}
+
+// CHECK-LABEL:   func.func @launch_kernel_range_with_offset(
+// CHECK-SAME:                                               %[[VAL_0:.*]]: memref<?x!sycl_range_1_>,
+// CHECK-SAME:                                               %[[VAL_1:.*]]: memref<?x!sycl_id_1_>,
+// CHECK-SAME:                                               %[[VAL_2:.*]]: i32,
+// CHECK-SAME:                                               %[[VAL_3:.*]]: i32) {
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]], %[[VAL_1]]] : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]], %[[VAL_1]]](%[[VAL_2]]) : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>, i32) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]], %[[VAL_1]]](%[[VAL_2]], %[[VAL_3]]) : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>, i32, i32) -> ()
+// CHECK:           return
+// CHECK:         }
+func.func @launch_kernel_range_with_offset(%range: memref<?x!sycl_range_1_>, %offset: memref<?x!sycl_id_1_>, %arg0 : i32, %arg1 : i32) {
+  sycl.host.launch_kernel @kernels::@k0[%range, %offset] : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+  sycl.host.launch_kernel @kernels::@k0[%range, %offset](%arg0) : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>, i32) -> ()
+  sycl.host.launch_kernel @kernels::@k0[%range, %offset](%arg0, %arg1) : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>, i32, i32) -> ()
+  func.return
+}
