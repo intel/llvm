@@ -1121,16 +1121,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Fn->setMetadata("loop_fuse",
                       llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
     }
-    if (const auto *A = D->getAttr<SYCLUsesAspectsAttr>()) {
-      SmallVector<llvm::Metadata *, 4> AspectsMD;
-      for (auto *Aspect : A->aspects()) {
-        llvm::APSInt AspectInt = Aspect->EvaluateKnownConstInt(getContext());
-        AspectsMD.push_back(llvm::ConstantAsMetadata::get(
-            Builder.getInt32(AspectInt.getZExtValue())));
-      }
-      Fn->setMetadata("sycl_used_aspects",
-                      llvm::MDNode::get(getLLVMContext(), AspectsMD));
-    }
 
     // Source location of functions is required to emit required diagnostics in
     // SYCLPropagateAspectsUsagePass. Save the token in a srcloc metadata node.
