@@ -36,6 +36,8 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 [[maybe_unused]] void setErrorMessage(const char *pMessage,
                                       ur_result_t ErrorCode);
 
+void setPluginSpecificMessage(CUresult cu_res);
+
 /// ------ Error handling, matching OpenCL plugin semantics.
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
