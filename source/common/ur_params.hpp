@@ -4584,20 +4584,36 @@ inline void
 ur_params::serializeUnion(std::ostream &os,
                           const union ur_device_partition_value_t params,
                           const enum ur_device_partition_t tag) {
+    os << "(union ur_device_partition_value_t){";
+
     switch (tag) {
     case UR_DEVICE_PARTITION_EQUALLY:
-        os << params.equally;
+
+        os << ".equally = ";
+
+        os << (params.equally);
+
         break;
     case UR_DEVICE_PARTITION_BY_COUNTS:
-        os << params.count;
+
+        os << ".count = ";
+
+        os << (params.count);
+
         break;
     case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
-        os << params.affinity_domain;
+
+        os << ".affinity_domain = ";
+
+        ur_params::serializeFlag<ur_device_affinity_domain_flag_t>(
+            os, (params.affinity_domain));
+
         break;
     default:
         os << "<unknown>";
         break;
     }
+    os << "}";
 }
 inline std::ostream &
 operator<<(std::ostream &os,
@@ -7446,23 +7462,42 @@ inline void
 ur_params::serializeUnion(std::ostream &os,
                           const union ur_program_metadata_value_t params,
                           const enum ur_program_metadata_type_t tag) {
+    os << "(union ur_program_metadata_value_t){";
+
     switch (tag) {
     case UR_PROGRAM_METADATA_TYPE_UINT32:
-        os << params.data32;
+
+        os << ".data32 = ";
+
+        os << (params.data32);
+
         break;
     case UR_PROGRAM_METADATA_TYPE_UINT64:
-        os << params.data64;
+
+        os << ".data64 = ";
+
+        os << (params.data64);
+
         break;
     case UR_PROGRAM_METADATA_TYPE_STRING:
-        os << params.pString;
+
+        os << ".pString = ";
+
+        ur_params::serializePtr(os, (params.pString));
+
         break;
     case UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY:
-        os << params.pData;
+
+        os << ".pData = ";
+
+        ur_params::serializePtr(os, (params.pData));
+
         break;
     default:
         os << "<unknown>";
         break;
     }
+    os << "}";
 }
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_program_metadata_t params) {
