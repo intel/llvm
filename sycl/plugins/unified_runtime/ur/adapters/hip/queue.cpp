@@ -232,8 +232,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 // There is no HIP counterpart for queue flushing and we don't run into the
 // same problem of having to flush cross-queue dependencies as some of the
 // other plugins, so it can be left as no-op.
-UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
-  std::ignore = hQueue;
+UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t) {
   return UR_RESULT_SUCCESS;
 }
 
@@ -244,10 +243,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
 ///
 /// \return UR_RESULT_SUCCESS
 UR_APIEXPORT ur_result_t UR_APICALL
-urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
+urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
                        ur_native_handle_t *phNativeQueue) {
-  std::ignore = pDesc;
-
   ScopedContext Active(hQueue->getContext());
   *phNativeQueue =
       reinterpret_cast<ur_native_handle_t>(hQueue->getNextComputeStream());
@@ -267,14 +264,7 @@ urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
 ///
 /// \return UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
-    ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
-    ur_queue_handle_t *phQueue) {
-
-  std::ignore = hNativeQueue;
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = pProperties;
-  std::ignore = phQueue;
+    ur_native_handle_t, ur_context_handle_t, ur_device_handle_t,
+    const ur_queue_native_properties_t *, ur_queue_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

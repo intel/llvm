@@ -40,11 +40,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
 
 /// USM: Implements USM device allocations using a normal HIP device pointer
 UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_context_handle_t hContext, ur_device_handle_t,
     const ur_usm_desc_t *pUSMDesc, [[maybe_unused]] ur_usm_pool_handle_t pool,
     size_t size, void **ppMem) {
-  std::ignore = hDevice;
-
   UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
                           ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
             UR_RESULT_ERROR_INVALID_VALUE);
@@ -67,11 +65,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
 
 /// USM: Implements USM Shared allocations using HIP Managed Memory
 UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_context_handle_t hContext, ur_device_handle_t,
     const ur_usm_desc_t *pUSMDesc, [[maybe_unused]] ur_usm_pool_handle_t pool,
     size_t size, void **ppMem) {
-  std::ignore = hDevice;
-
   UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
                           ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
             UR_RESULT_ERROR_INVALID_VALUE);
@@ -83,9 +79,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   } catch (ur_result_t Error) {
     Result = Error;
   }
-  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
-                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
 
   if (Result == UR_RESULT_SUCCESS) {
     assert((!pUSMDesc || pUSMDesc->align == 0 ||

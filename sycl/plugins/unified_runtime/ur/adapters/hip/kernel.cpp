@@ -158,19 +158,14 @@ urKernelRelease(ur_kernel_handle_t hKernel) {
 
 // TODO(ur): Not implemented on hip atm. Also, need to add tests for this
 // feature.
-UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
-    ur_kernel_handle_t hKernel, ur_native_handle_t *phNativeKernel) {
-  std::ignore = hKernel;
-  std::ignore = phNativeKernel;
-
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *pProperties,
-    const void *pArgValue) {
-  std::ignore = pProperties;
+    const ur_kernel_arg_value_properties_t *, const void *pArgValue) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     if (pArgValue) {
@@ -258,20 +253,16 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_pointer_properties_t *pProperties,
-                      const void *pArgValue) {
-  std::ignore = pProperties;
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
   hKernel->setKernelArg(argIndex, sizeof(pArgValue), pArgValue);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
-                     ur_mem_handle_t hArgValue) {
-  std::ignore = pProperties;
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_mem_obj_properties_t *, ur_mem_handle_t hArgValue) {
   // Below sets kernel arg when zero-sized buffers are handled.
   // In such case the corresponding memory is null.
   if (hArgValue == nullptr) {
@@ -307,11 +298,9 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   return Result;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_sampler_properties_t *pProperties,
-                      ur_sampler_handle_t hArgValue) {
-  std::ignore = pProperties;
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_sampler_properties_t *, ur_sampler_handle_t hArgValue) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     uint32_t SamplerProps = hArgValue->Props;
@@ -323,27 +312,14 @@ urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
 }
 
 // A NOP for the HIP backend
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
-    ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName, size_t propSize,
-    const ur_kernel_exec_info_properties_t *pProperties,
-    const void *pPropValue) {
-  std::ignore = hKernel;
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pProperties;
-  std::ignore = pPropValue;
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetExecInfo(ur_kernel_handle_t, ur_kernel_exec_info_t, size_t,
+                    const ur_kernel_exec_info_properties_t *, const void *) {
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ur_context_handle_t hContext,
-    ur_program_handle_t hProgram,
-    const ur_kernel_native_properties_t *pProperties,
-    ur_kernel_handle_t *phKernel) {
-  std::ignore = hNativeKernel;
-  std::ignore = hContext;
-  std::ignore = hProgram;
-  std::ignore = pProperties;
-  std::ignore = phKernel;
+    ur_native_handle_t, ur_context_handle_t, ur_program_handle_t,
+    const ur_kernel_native_properties_t *, ur_kernel_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

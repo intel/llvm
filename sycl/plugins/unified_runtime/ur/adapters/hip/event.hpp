@@ -61,15 +61,12 @@ public:
   uint32_t getEventId() const noexcept { return EventId; }
 
   // Returns the counter time when the associated command(s) were enqueued
-  //
   uint64_t getQueuedTime() const;
 
   // Returns the counter time when the associated command(s) started execution
-  //
   uint64_t getStartTime() const;
 
   // Returns the counter time when the associated command(s) completed
-  //
   uint64_t getEndTime() const;
 
   // construct a native HIP. This maps closely to the underlying HIP event.

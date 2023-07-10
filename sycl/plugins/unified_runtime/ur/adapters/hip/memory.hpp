@@ -110,8 +110,7 @@ struct ur_mem_handle_t_ {
       }
 
       /// Detach the allocation from the host memory.
-      void unmap(void *Ptr) noexcept {
-        std::ignore = Ptr;
+      void unmap(void *) noexcept {
         assert(MapPtr != nullptr);
 
         if (MapPtr != HostPtr) {
@@ -165,10 +164,8 @@ struct ur_mem_handle_t_ {
 
   /// Constructs the UR allocation for an Image object
   ur_mem_handle_t_(ur_context Ctxt, hipArray *Array, hipSurfaceObject_t Surf,
-                   ur_mem_flags_t MemFlags, ur_mem_type_t ImageType,
-                   void *HostPtr)
+                   ur_mem_flags_t MemFlags, ur_mem_type_t ImageType, void *)
       : Context{Ctxt}, RefCount{1}, MemType{Type::Surface}, MemFlags{MemFlags} {
-    std::ignore = HostPtr;
     Mem.SurfaceMem.Array = Array;
     Mem.SurfaceMem.ImageType = ImageType;
     Mem.SurfaceMem.SurfObj = Surf;

@@ -15,7 +15,6 @@
 /// Includes an observer pointer to the platform,
 /// and implements the reference counting semantics since
 /// HIP objects are not refcounted.
-///
 struct ur_device_handle_t_ {
 private:
   using native_type = hipDevice_t;

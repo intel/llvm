@@ -14,7 +14,6 @@
 #include "context.hpp"
 
 /// Implementation of UR Program on HIP Module object
-///
 struct ur_program_handle_t_ {
   using native_type = hipModule_t;
   native_type Module;

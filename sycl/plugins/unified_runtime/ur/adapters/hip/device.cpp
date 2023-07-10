@@ -530,8 +530,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("AMD Corporation");
   }
   case UR_DEVICE_INFO_DRIVER_VERSION: {
-    auto version = getHipVersionString();
-    return ReturnValue(version.c_str());
+    std::string Version;
+    detail::ur::assertion(getHipVersionString(Version) == hipSuccess);
+    return ReturnValue(Version.c_str());
   }
   case UR_DEVICE_INFO_PROFILE: {
     return ReturnValue("HIP");
@@ -857,8 +858,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
 /// \return UR_RESULT_SUCCESS if the function is executed successfully
 /// HIP devices are always root devices so retain always returns success.
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
-  std::ignore = hDevice;
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t) {
   return UR_RESULT_SUCCESS;
 }
 
@@ -870,9 +870,7 @@ urDevicePartition(ur_device_handle_t, const ur_device_partition_properties_t *,
 
 /// \return UR_RESULT_SUCCESS always since HIP devices are always root
 /// devices.
-UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceRelease(ur_device_handle_t hDevice) {
-  std::ignore = hDevice;
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceRelease(ur_device_handle_t) {
   return UR_RESULT_SUCCESS;
 }
 
@@ -923,25 +921,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
-    const ur_device_native_properties_t *pProperties,
-    ur_device_handle_t *phDevice) {
-  std::ignore = hNativeDevice;
-  std::ignore = hPlatform;
-  std::ignore = pProperties;
-  std::ignore = phDevice;
-
+    ur_native_handle_t, ur_platform_handle_t,
+    const ur_device_native_properties_t *, ur_device_handle_t *) {
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
 /// \return UR_RESULT_SUCCESS If available, the first binary that is PTX
 ///
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
-    ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
-    uint32_t NumBinaries, uint32_t *pSelectedBinary) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urDeviceSelectBinary(ur_device_handle_t, const ur_device_binary_t *pBinaries,
+                     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
   // Ignore unused parameter
-  std::ignore = hDevice;
-
   UR_ASSERT(NumBinaries > 0, UR_RESULT_ERROR_INVALID_ARGUMENT);
 
   // Look for an image for the HIP target, and return the first one that is

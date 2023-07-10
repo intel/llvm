@@ -79,7 +79,7 @@ bool ur_event_handle_t_::isCompleted() const noexcept {
 }
 
 uint64_t ur_event_handle_t_::getQueuedTime() const {
-  float MiliSeconds = 0.0f;
+  float MilliSeconds = 0.0f;
   assert(isStarted());
 
   // hipEventSynchronize waits till the event is ready for call to
@@ -87,8 +87,8 @@ uint64_t ur_event_handle_t_::getQueuedTime() const {
   UR_CHECK_ERROR(hipEventSynchronize(EvStart));
   UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
 
-  UR_CHECK_ERROR(hipEventElapsedTime(&MiliSeconds, EvStart, EvEnd));
-  return static_cast<uint64_t>(MiliSeconds * 1.0e6);
+  UR_CHECK_ERROR(hipEventElapsedTime(&MilliSeconds, EvStart, EvEnd));
+  return static_cast<uint64_t>(MilliSeconds * 1.0e6);
 }
 
 uint64_t ur_event_handle_t_::getStartTime() const {
@@ -250,14 +250,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   return {};
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
-                   ur_event_callback_t pfnNotify, void *pUserData) {
-  std::ignore = hEvent;
-  std::ignore = execStatus;
-  std::ignore = pfnNotify;
-  std::ignore = pUserData;
-
+UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
+                                                       ur_execution_info_t,
+                                                       ur_event_callback_t,
+                                                       void *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -314,14 +310,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
 ///
 /// \return UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
-    const ur_event_native_properties_t *pProperties,
-    ur_event_handle_t *phEvent) {
-
-  std::ignore = hNativeEvent;
-  std::ignore = hContext;
-  std::ignore = pProperties;
-  std::ignore = phEvent;
-
+    ur_native_handle_t, ur_context_handle_t,
+    const ur_event_native_properties_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

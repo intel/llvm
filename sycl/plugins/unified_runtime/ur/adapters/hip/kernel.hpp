@@ -46,7 +46,6 @@ struct ur_kernel_handle_t_ {
   /// This is not something can be queried from the HIP API
   /// so there is a hard-coded size (\ref MAX_PARAM_BYTES)
   /// and a storage.
-  ///
   struct arguments {
     static constexpr size_t MAX_PARAM_BYTES = 4000u;
     using args_t = std::array<char, MAX_PARAM_BYTES>;
@@ -105,8 +104,8 @@ struct ur_kernel_handle_t_ {
         AlignedLocalOffset += Alignment - Pad;
       }
 
-      addArg(Index, sizeof(size_t), (const void *)&(AlignedLocalOffset),
-             Size + (AlignedLocalOffset - LocalOffset));
+      addArg(Index, sizeof(size_t), (const void *)&AlignedLocalOffset,
+             Size + AlignedLocalOffset - LocalOffset);
     }
 
     void setImplicitOffset(size_t Size, std::uint32_t *ImplicitOffset) {

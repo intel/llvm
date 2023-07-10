@@ -30,7 +30,7 @@ inline void getArrayDesc(hipArray *Array, hipArray_Format &Format,
 #endif
 }
 
-// NVidia HIP headers guard hipArray3DCreate behind __CUDACC__, this does not
+// HIP on NVIDIA headers guard hipArray3DCreate behind __CUDACC__, this does not
 // seem to be required and we're not using nvcc to build the UR HIP adapter so
 // add the translation function here
 #if defined(__HIP_PLATFORM_NVIDIA__) && !defined(__CUDACC__)
@@ -73,7 +73,7 @@ ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
 #define UR_CHECK_ERROR(result)                                                 \
   checkErrorUR(result, __func__, __LINE__, __FILE__)
 
-std::string getHipVersionString();
+hipError_t getHipVersionString(std::string &Version);
 
 constexpr size_t MaxMessageSize = 256;
 extern thread_local ur_result_t ErrorMessageCode;

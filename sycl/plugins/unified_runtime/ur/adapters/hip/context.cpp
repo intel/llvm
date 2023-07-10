@@ -13,13 +13,10 @@
 /// By default creates a scoped context and keeps the last active HIP context
 /// on top of the HIP context stack.
 ///
-UR_APIEXPORT ur_result_t UR_APICALL
-urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
-                const ur_context_properties_t *pProperties,
-                ur_context_handle_t *phContext) {
+UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
+    uint32_t DeviceCount, const ur_device_handle_t *phDevices,
+    const ur_context_properties_t *, ur_context_handle_t *phContext) {
   std::ignore = DeviceCount;
-  std::ignore = pProperties;
-
   assert(DeviceCount == 1);
   ur_result_t RetErr = UR_RESULT_SUCCESS;
 
@@ -47,7 +44,7 @@ urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
         RetErr);
 
     // For non-primary scoped contexts keep the last active on top of the stack
-    // as `cuCtxCreate` replaces it implicitly otherwise.
+    // as `hipCtxCreate` replaces it implicitly otherwise.
     // Primary contexts are kept on top of the stack, so the previous context
     // is not queried and therefore not recovered.
     if (Current != nullptr) {
@@ -151,16 +148,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
-    ur_native_handle_t hNativeContext, uint32_t numDevices,
-    const ur_device_handle_t *phDevices,
-    const ur_context_native_properties_t *pProperties,
-    ur_context_handle_t *phContext) {
-  std::ignore = hNativeContext;
-  std::ignore = numDevices;
-  std::ignore = phDevices;
-  std::ignore = pProperties;
-  std::ignore = phContext;
-
+    ur_native_handle_t, uint32_t, const ur_device_handle_t *,
+    const ur_context_native_properties_t *, ur_context_handle_t *) {
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 

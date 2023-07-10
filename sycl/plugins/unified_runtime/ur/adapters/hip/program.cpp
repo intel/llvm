@@ -53,7 +53,7 @@ ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
       hipModuleLoadDataEx(&Module, static_cast<const void *>(Binary),
                           NumberOfOptions, Options, OptionVals));
 
-  const auto Success = (Result == UR_RESULT_SUCCESS);
+  const bool Success = (Result == UR_RESULT_SUCCESS);
 
   BuildStatus =
       Success ? UR_PROGRAM_BUILD_STATUS_SUCCESS : UR_PROGRAM_BUILD_STATUS_ERROR;
@@ -79,7 +79,7 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
                       size_t length, const ur_program_properties_t *pProperties,
                       ur_program_handle_t *phProgram) {
   ur_device_handle_t hDevice = hContext->getDevice();
-  auto pBinary = reinterpret_cast<const uint8_t *>(pIL);
+  const auto pBinary = reinterpret_cast<const uint8_t *>(pIL);
 
   return urProgramCreateWithBinary(hContext, hDevice, length, pBinary,
                                    pProperties, phProgram);
@@ -88,7 +88,6 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
 /// HIP will handle the PTX/HIPBIN binaries internally through a call to
 /// hipModuleLoadDataEx. So, urProgramCompile and urProgramBuild are equivalent
 /// in terms of HIP adapter. \TODO Implement asynchronous compilation
-///
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
                  const char *pOptions) {
@@ -98,11 +97,9 @@ urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
 /// Loads the images from a UR program into a hipModule_t that can be
 /// used later on to extract functions (kernels).
 /// See \ref ur_program_handle_t for implementation details.
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
+UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
                                                    ur_program_handle_t hProgram,
                                                    const char *pOptions) {
-  std::ignore = hContext;
-
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
@@ -116,16 +113,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
   return Result;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urProgramLink(ur_context_handle_t hContext, uint32_t count,
-              const ur_program_handle_t *phPrograms, const char *pOptions,
-              ur_program_handle_t *phProgram) {
-  std::ignore = hContext;
-  std::ignore = count;
-  std::ignore = phPrograms;
-  std::ignore = pOptions;
-  std::ignore = phProgram;
-
+UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(ur_context_handle_t, uint32_t,
+                                                  const ur_program_handle_t *,
+                                                  const char *,
+                                                  ur_program_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -139,24 +130,16 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
 ///
 /// \return UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
-    ur_native_handle_t hNativeProgram, ur_context_handle_t hContext,
-    const ur_program_native_properties_t *pProperties,
-    ur_program_handle_t *phProgram) {
-  std::ignore = hNativeProgram;
-  std::ignore = hContext;
-  std::ignore = pProperties;
-  std::ignore = phProgram;
-
+    ur_native_handle_t, ur_context_handle_t,
+    const ur_program_native_properties_t *, ur_program_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
+urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t,
                       ur_program_build_info_t propName, size_t propSize,
                       void *pPropValue, size_t *pPropSizeRet) {
   // Ignore unused parameter
-  std::ignore = hDevice;
-
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -259,10 +242,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
 /// Note: Only supports one device
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    const uint8_t *pBinary, const ur_program_properties_t *pProperties,
+    const uint8_t *pBinary, const ur_program_properties_t *,
     ur_program_handle_t *phProgram) {
-  std::ignore = pProperties;
-
   UR_ASSERT(pBinary != nullptr && size != 0, UR_RESULT_ERROR_INVALID_BINARY);
   UR_ASSERT(hContext->getDevice()->get() == hDevice->get(),
             UR_RESULT_ERROR_INVALID_CONTEXT);

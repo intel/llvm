@@ -297,25 +297,15 @@ urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
-    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
-  std::ignore = hNativeMem;
-  std::ignore = hContext;
-  std::ignore = pProperties;
-  std::ignore = phMem;
+    ur_native_handle_t, ur_context_handle_t, const ur_mem_native_properties_t *,
+    ur_mem_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
-    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
-  std::ignore = hNativeMem;
-  std::ignore = hContext;
-  std::ignore = pImageFormat;
-  std::ignore = pImageDesc;
-  std::ignore = pProperties;
-  std::ignore = phMem;
+    ur_native_handle_t, ur_context_handle_t, const ur_image_format_t *,
+    const ur_image_desc_t *, const ur_mem_native_properties_t *,
+    ur_mem_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -495,15 +485,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
 }
 
 /// \TODO Not implemented
-UR_APIEXPORT ur_result_t UR_APICALL
-urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t ImgInfoType,
-                  size_t propSize, void *pImgInfo, size_t *pPropSizeRet) {
-  std::ignore = hMemory;
-  std::ignore = ImgInfoType;
-  std::ignore = propSize;
-  std::ignore = pImgInfo;
-  std::ignore = pPropSizeRet;
-
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t,
+                                                      ur_image_info_t, size_t,
+                                                      void *, size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

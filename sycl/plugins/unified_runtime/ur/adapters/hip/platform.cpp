@@ -11,9 +11,8 @@
 hipEvent_t ur_platform_handle_t_::EvBase{nullptr};
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
+urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
                   size_t propSize, void *pPropValue, size_t *pSizeRet) {
-  std::ignore = hPlatform;
   UrReturnHelper ReturnValue(propSize, pPropValue, pSizeRet);
 
   switch (propName) {
@@ -24,8 +23,9 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   case UR_PLATFORM_INFO_PROFILE:
     return ReturnValue("FULL PROFILE");
   case UR_PLATFORM_INFO_VERSION: {
-    auto version = getHipVersionString();
-    return ReturnValue(version.c_str());
+    std::string Version;
+    detail::ur::assertion(getHipVersionString(Version) == hipSuccess);
+    return ReturnValue(Version.c_str());
   }
   case UR_PLATFORM_INFO_BACKEND: {
     return ReturnValue(UR_PLATFORM_BACKEND_HIP);
@@ -121,9 +121,8 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
-    ur_platform_handle_t hDriver, ur_api_version_t *pVersion) {
-  std::ignore = hDriver;
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetApiVersion(ur_platform_handle_t, ur_api_version_t *pVersion) {
   *pVersion = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
@@ -140,10 +139,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
 // Current support is only for optimization options.
 // Return empty string for cuda.
 // TODO: Determine correct string to be passed.
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
-    ur_platform_handle_t hPlatform, const char *pFrontendOption,
-    const char **ppPlatformOption) {
-  std::ignore = hPlatform;
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
+                           const char **ppPlatformOption) {
   using namespace std::literals;
   if (pFrontendOption == "-O0"sv || pFrontendOption == "-O1"sv ||
       pFrontendOption == "-O2"sv || pFrontendOption == "-O3"sv ||

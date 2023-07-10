@@ -73,19 +73,12 @@ void simpleGuessLocalWorkSize(size_t *ThreadsPerBlock,
   assert(Kernel != nullptr);
 
   std::ignore = Kernel;
-  // int recommendedBlockSize, minGrid;
-
-  // UR_CHECK_ERROR(hipOccupancyMaxPotentialBlockSize(
-  //    &minGrid, &recommendedBlockSize, Kernel->get(),
-  //    0, 0));
-
-  //(void)minGrid; // Not used, avoid warnings
 
   ThreadsPerBlock[0] = std::min(MaxThreadsPerBlock[0], GlobalWorkSize[0]);
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
-  while (0u != (GlobalWorkSize[0] % ThreadsPerBlock[0])) {
+  while (GlobalWorkSize[0] % ThreadsPerBlock[0]) {
     --ThreadsPerBlock[0];
   }
 }
@@ -890,11 +883,9 @@ static ur_result_t commonEnqueueMemImageNDCopy(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingRead,
-    ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
-    size_t slicePitch, void *pDst, uint32_t numEventsInWaitList,
+    ur_rect_offset_t origin, ur_rect_region_t region, size_t, size_t,
+    void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = rowPitch;
-  std::ignore = slicePitch;
   UR_ASSERT(hImage->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -953,13 +944,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingWrite,
-    ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
-    size_t slicePitch, void *pSrc, uint32_t numEventsInWaitList,
+    ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool,
+    ur_rect_offset_t origin, ur_rect_region_t region, size_t, size_t,
+    void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = blockingWrite;
-  std::ignore = rowPitch;
-  std::ignore = slicePitch;
   UR_ASSERT(hImage->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -1338,9 +1326,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
-                   ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
-  std::ignore = advice;
-
+                   ur_usm_advice_flags_t, ur_event_handle_t *phEvent) {
   void *HIPDevicePtr = const_cast<void *>(pMem);
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
@@ -1354,22 +1340,8 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
-    ur_queue_handle_t hQueue, void *pMem, size_t pitch, size_t patternSize,
-    const void *pPattern, size_t width, size_t height,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-
-  std::ignore = hQueue;
-  std::ignore = pMem;
-  std::ignore = pitch;
-  std::ignore = patternSize;
-  std::ignore = pPattern;
-  std::ignore = width;
-  std::ignore = height;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
+    ur_queue_handle_t, void *, size_t, size_t, const void *, size_t, size_t,
+    uint32_t, const ur_event_handle_t *, ur_event_handle_t *phEvent) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -1423,75 +1395,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
-    bool blockingWrite, size_t count, size_t offset, const void *pSrc,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = name;
-  std::ignore = blockingWrite;
-  std::ignore = count;
-  std::ignore = offset;
-  std::ignore = pSrc;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
+    ur_queue_handle_t, ur_program_handle_t, const char *, bool, size_t, size_t,
+    const void *, uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
-    bool blockingRead, size_t count, size_t offset, void *pDst,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = name;
-  std::ignore = blockingRead;
-  std::ignore = count;
-  std::ignore = offset;
-  std::ignore = pDst;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
+    ur_queue_handle_t, ur_program_handle_t, const char *, bool, size_t, size_t,
+    void *, uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pDst, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pDst;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
+    ur_queue_handle_t, ur_program_handle_t, const char *, bool, void *, size_t,
+    uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pSrc, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pSrc;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
+    ur_queue_handle_t, ur_program_handle_t, const char *, bool, void *, size_t,
+    uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
