@@ -19,6 +19,7 @@ bool check(backend be) {
   case backend::ext_oneapi_level_zero:
   case backend::ext_oneapi_cuda:
   case backend::ext_oneapi_hip:
+  case backend::ext_native_cpu:
     return true;
   default:
     return false;

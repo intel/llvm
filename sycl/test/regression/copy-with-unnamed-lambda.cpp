@@ -30,7 +30,7 @@ int main() {
 
   Q.wait_and_throw();
 
-  auto Acc = Buf.get_access<sycl::access::mode::read>();
+  auto Acc = Buf.get_host_access();
   for (size_t I = 0; I < Size; ++I) {
     if (ReferenceData[I] != Acc[I]) {
       std::cerr << "Incorrect result, got: " << Acc[I]

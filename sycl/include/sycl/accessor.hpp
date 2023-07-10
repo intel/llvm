@@ -843,8 +843,9 @@ private:
 
   sycl::vec<int, Dimensions> getRangeInternal() const {
     // TODO: Implement for host.
-    throw runtime_error("image::getRangeInternal() is not implemented for host",
-                        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "image::getRangeInternal() is not implemented for host");
     return sycl::vec<int, Dimensions>{1};
   }
 

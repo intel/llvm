@@ -30,6 +30,7 @@ config.esimd_emulator_be = '@SYCL_BUILD_PI_ESIMD_EMULATOR@'
 config.hip_be = '@SYCL_BUILD_PI_HIP@'
 config.opencl_be = '@SYCL_BUILD_PI_OPENCL@'
 config.level_zero_be = '@SYCL_BUILD_PI_LEVEL_ZERO@'
+config.native_cpu_be = '@SYCL_BUILD_NATIVE_CPU@'
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
