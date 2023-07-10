@@ -48,24 +48,36 @@ struct OneToOneMappingPattern : public OpConversionPattern<SYCLOpT> {
 };
 
 template <typename SYCLOpT, typename MathOpT>
-struct UnwrapHalfPattern : public OpConversionPattern<SYCLOpT> {
+struct UnwrapOperandsWrapResultPattern : public OpConversionPattern<SYCLOpT> {
   using OpConversionPattern<SYCLOpT>::OpConversionPattern;
 
   LogicalResult match(SYCLOpT op) const override {
-    return success(isa<HalfType>(op.getType()));
+    return success(isa<HalfType, VecType>(op.getType()));
   }
 
   void rewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
                ConversionPatternRewriter &rewriter) const override {
-    // `op` is using the `sycl::half` type, hence we need to unwrap the operands
+    // `op` is using a SYCL-specific type, hence we need to unwrap the operands
     // and wrap the result.
     auto loc = op.getLoc();
     SmallVector<Value, 3> unwrappedOperands;
     for (auto operand : adaptor.getOperands())
-      unwrappedOperands.push_back(
-          rewriter.create<SYCLUnwrapOp>(loc, rewriter.getF16Type(), operand));
+      unwrappedOperands.push_back(rewriter.create<SYCLUnwrapOp>(
+          loc, getBodyType(op.getType()), operand));
     auto math = rewriter.create<MathOpT>(loc, unwrappedOperands);
     rewriter.replaceOpWithNewOp<SYCLWrapOp>(op, op.getType(), math.getResult());
+  }
+
+  Type getBodyType(Type type) const {
+    auto *ctx = type.getContext();
+    if (isa<HalfType>(type))
+      return Float16Type::get(ctx);
+
+    auto vecTy = cast<VecType>(type);
+    if (isa<HalfType>(vecTy.getDataType()))
+      return VectorType::get({vecTy.getNumElements()}, Float16Type::get(ctx));
+
+    return VectorType::get({vecTy.getNumElements()}, vecTy.getDataType());
   }
 };
 
@@ -74,7 +86,7 @@ struct UnwrapHalfPattern : public OpConversionPattern<SYCLOpT> {
 void mlir::populateSYCLToMathConversionPatterns(RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
 #define MAP_OP(from, to)                                                       \
-  OneToOneMappingPattern<from, to>, UnwrapHalfPattern<from, to>
+  OneToOneMappingPattern<from, to>, UnwrapOperandsWrapResultPattern<from, to>
   // clang-format off
   patterns.insert<
       MAP_OP(SYCLCeilOp, math::CeilOp),

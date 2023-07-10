@@ -85,5 +85,11 @@
 #define __SYCL_STRINGIFY(x) #x
 #endif // __SYCL_STRINGIFY
 
+#ifdef __clang__
+#define __SYCL_ANNOTATE(str) __attribute__((annotate(#str)))
+#else
+#define __SYCL_ANNOTATE(str)
+#endif
+
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");

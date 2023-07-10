@@ -1663,21 +1663,24 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<1> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
         std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<2> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
         std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<3> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
         std::move(KernelFunc));
@@ -1727,8 +1730,9 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                    id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1805,15 +1809,18 @@ public:
     MKernelName = getKernelName();
   }
 
-  void parallel_for(range<1> NumWorkItems, kernel Kernel) {
+  void parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range),
+                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl(NumWorkItems, Kernel);
   }
 
-  void parallel_for(range<2> NumWorkItems, kernel Kernel) {
+  void parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range),
+                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl(NumWorkItems, Kernel);
   }
 
-  void parallel_for(range<3> NumWorkItems, kernel Kernel) {
+  void parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range),
+                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl(NumWorkItems, Kernel);
   }
 
@@ -1827,8 +1834,9 @@ public:
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    kernel Kernel) {
+  void parallel_for(range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                    id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
+                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
@@ -1846,7 +1854,9 @@ public:
   /// \param NDRange is a ND-range defining global and local sizes as
   /// well as offset.
   /// \param Kernel is a SYCL kernel function.
-  template <int Dims> void parallel_for(nd_range<Dims> NDRange, kernel Kernel) {
+  template <int Dims>
+  void parallel_for(nd_range<Dims> NDRange __SYCL_ANNOTATE(nd_range),
+                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
@@ -1908,8 +1918,9 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(kernel Kernel,
+                    range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -1946,8 +1957,10 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(kernel Kernel,
+                    range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                    id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -1984,8 +1997,9 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(kernel Kernel,
+                    nd_range<Dims> NDRange __SYCL_ANNOTATE(nd_range),
+                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -2104,8 +2118,8 @@ public:
             typename PropertiesT>
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<1> NumWorkItems, PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range), PropertiesT Props,
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName, KernelType, 1, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2114,8 +2128,8 @@ public:
             typename PropertiesT>
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<2> NumWorkItems, PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range), PropertiesT Props,
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName, KernelType, 2, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2124,8 +2138,8 @@ public:
             typename PropertiesT>
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<3> NumWorkItems, PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range), PropertiesT Props,
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName, KernelType, 3, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2134,8 +2148,9 @@ public:
             typename PropertiesT, int Dims>
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(nd_range<Dims> Range, PropertiesT Properties,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  parallel_for(nd_range<Dims> Range __SYCL_ANNOTATE(nd_range),
+               PropertiesT Properties,
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
   }
 

@@ -101,10 +101,6 @@ template <typename T> SetVector<T> getParentsOfType(Block &block);
 template <typename T>
 SetVector<T> getOperationsOfType(FunctionOpInterface funcOp);
 
-/// Return the condition used by \p op if one is found and a null value
-/// otherwise.
-Value getCondition(Operation *op);
-
 //===----------------------------------------------------------------------===//
 // FunctionKernelInfo
 //===----------------------------------------------------------------------===//
@@ -181,42 +177,54 @@ private:
 // Versioning Utilities
 //===----------------------------------------------------------------------===//
 
-/// Represents a versioning condition.
-class VersionCondition {
-public:
-  using SCFCondition = Value;
+/// Represents a condition used in a if operation.
+class IfCondition {
+  friend raw_ostream &operator<<(raw_ostream &, const IfCondition &);
 
+public:
   struct AffineCondition {
+    AffineCondition(IntegerSet iSet, OperandRange operands)
+        : ifCondSet(iSet), setOperands(operands) {}
     IntegerSet ifCondSet;
-    SmallVectorImpl<Value> &setOperands;
+    ValueRange setOperands;
   };
 
-  /// Create a versioning condition suitable for scf::IfOp.
-  VersionCondition(SCFCondition scfCond) : versionCondition(scfCond) {}
-
-  /// Create a versioning condition suitable for AffineIfOp.
-  VersionCondition(AffineCondition affineCond) : versionCondition(affineCond) {}
+  IfCondition(Value scfCond) : ifCondition(scfCond) {}
+  IfCondition(AffineCondition affineCond) : ifCondition(affineCond) {}
 
   bool hasSCFCondition() const {
-    return std::holds_alternative<SCFCondition>(versionCondition);
+    return std::holds_alternative<Value>(ifCondition);
   }
 
-  SCFCondition getSCFCondition() const {
+  Value getSCFCondition() const {
     assert(hasSCFCondition() && "expecting valid SCF condition");
-    return std::get<SCFCondition>(versionCondition);
+    return std::get<Value>(ifCondition);
   }
 
   bool hasAffineCondition() const {
-    return std::holds_alternative<AffineCondition>(versionCondition);
+    return std::holds_alternative<AffineCondition>(ifCondition);
   }
 
   AffineCondition getAffineCondition() const {
     assert(hasAffineCondition() && "expecting valid affine condition");
-    return std::get<AffineCondition>(versionCondition);
+    return std::get<AffineCondition>(ifCondition);
   }
 
+  /// Perform \p operation on SCF condition or affine condition operands.
+  template <typename OpTy, typename = std::enable_if_t<std::is_same_v<
+                               bool, std::invoke_result_t<OpTy, ValueRange>>>>
+  bool perform(OpTy operation) const {
+    if (hasSCFCondition())
+      return operation(getSCFCondition());
+    assert(hasAffineCondition() && "Expecting affine condition");
+    return operation(getAffineCondition().setOperands);
+  }
+
+  /// Return the condition used by \p op if one is found.
+  static std::optional<IfCondition> getCondition(Operation *op);
+
 private:
-  std::variant<SCFCondition, AffineCondition> versionCondition;
+  std::variant<Value, AffineCondition> ifCondition;
 };
 
 /// Version an operation.
@@ -226,7 +234,7 @@ public:
     assert(op && "Expecting valid operation");
   }
 
-  void version(const VersionCondition &) const;
+  void version(const IfCondition &) const;
 
 protected:
   void createElseBody(scf::IfOp) const;
@@ -363,7 +371,7 @@ public:
 
   /// Version the given loop \p loop using the condition \p versionCond.
   static void versionLoop(LoopLikeOpInterface loop,
-                          const VersionCondition &versionCond);
+                          const IfCondition &versionCond);
 
   /// Return true if \p loop is the outermost loop in a loop nest and false
   /// otherwise.
@@ -414,23 +422,21 @@ private:
 /// overlap.
 class VersionConditionBuilder {
 public:
-  using SCFCondition = VersionCondition::SCFCondition;
-  using AffineCondition = VersionCondition::AffineCondition;
+  using AffineCondition = IfCondition::AffineCondition;
 
   VersionConditionBuilder(
       llvm::SmallSet<sycl::AccessorPtrPair, 4> requireNoOverlapAccessorPairs,
       OpBuilder builder, Location loc);
 
-  std::unique_ptr<VersionCondition>
-  createCondition(bool useOpaquePointers) const {
-    SCFCondition scfCond = createSCFCondition(builder, loc, useOpaquePointers);
-    return std::make_unique<VersionCondition>(scfCond);
+  std::unique_ptr<IfCondition> createCondition(bool useOpaquePointers) const {
+    Value scfCond = createSCFCondition(builder, loc, useOpaquePointers);
+    return std::make_unique<IfCondition>(scfCond);
   }
 
 private:
   /// Create a versioning condition suitable for scf::IfOp.
-  SCFCondition createSCFCondition(OpBuilder builder, Location loc,
-                                  bool useOpaquePointers) const;
+  Value createSCFCondition(OpBuilder builder, Location loc,
+                           bool useOpaquePointers) const;
 
   llvm::SmallSet<sycl::AccessorPtrPair, 4> accessorPairs;
   mutable OpBuilder builder;

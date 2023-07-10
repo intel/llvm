@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/UniformityAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"

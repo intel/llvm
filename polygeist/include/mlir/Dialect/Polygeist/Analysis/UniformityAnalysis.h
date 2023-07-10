@@ -18,11 +18,16 @@
 #include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 
 namespace mlir {
 
 class LoopLikeOpInterface;
 namespace polygeist {
+
+/// Returns true if the given operation \p op may not be executed by all
+/// threads.
+bool isDivergent(Operation *op, DataFlowSolver &solver);
 
 //===----------------------------------------------------------------------===//
 // Uniformity
@@ -150,14 +155,18 @@ private:
 
   /// Collect the branch conditions that dominate each of the modifiers \p
   /// mods.
-  SetVector<Value>
+  SmallVector<IfCondition>
   collectBranchConditions(const ReachingDefinition::ModifiersTy &mods);
 
-  /// Return true if all the modifiers \p mods have operands with known
-  /// uniform that is initialized. The \p op argument is the operation the
-  /// modifiers are for.
-  bool canComputeUniformity(const ReachingDefinition::ModifiersTy &mods,
-                            Operation *op);
+  /// Return true if all the \p conditions have uniformity that is initialized.
+  /// The \p op argument is the operation the conditions are for.
+  bool isUniformityInitialized(ArrayRef<IfCondition> conditions, Operation *op);
+
+  /// Return true if all the modifiers \p mods have operands with uniformity
+  /// that is initialized. The \p op argument is the operation the modifiers are
+  /// for.
+  bool isUniformityInitialized(const ReachingDefinition::ModifiersTy &mods,
+                               Operation *op);
 
   /// Return true if any of the modifiers \p mods store a value with
   /// uniformity equal to \p kind.
@@ -194,6 +203,16 @@ private:
     return llvm::any_of(values, [&](Value value) {
       UniformityLattice *lattice = getLatticeElement(value);
       return lattice->getValue().getKind() == kind;
+    });
+  }
+
+  /// Return true if any of the \p conditions has uniformity of the given \p
+  /// kind.
+  bool anyOfUniformityIs(ArrayRef<IfCondition> conditions,
+                         Uniformity::Kind kind) {
+    return llvm::any_of(conditions, [&](const IfCondition &cond) {
+      return cond.perform(
+          [&](ValueRange values) { return anyOfUniformityIs(values, kind); });
     });
   }
 

@@ -119,7 +119,7 @@ static void versionLoopIfNeeded(LoopLikeOpInterface Loop,
       continue;
 
     OpBuilder builder(Loop);
-    std::unique_ptr<polygeist::VersionCondition> condition =
+    std::unique_ptr<polygeist::IfCondition> condition =
         polygeist::VersionConditionBuilder(accessorPairs, builder,
                                            Loop->getLoc())
             .createCondition(useOpaquePointers);

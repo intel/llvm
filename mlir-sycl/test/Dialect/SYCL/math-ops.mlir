@@ -128,3 +128,135 @@ func.func @test_math_ops_half(%arg0 : !sycl_half, %arg1 : !sycl_half, %arg2 : !s
 
   return
 }
+
+!sycl_vec_f32_4_ = !sycl.vec<[f32, 4], (vector<4xf32>)>
+
+// CHECK-LABEL: test_math_ops_vector_of_float
+func.func @test_math_ops_vector_of_float(%arg0 : !sycl_vec_f32_4_, %arg1 : !sycl_vec_f32_4_, %arg2 : !sycl_vec_f32_4_) {
+  // CHECK: %{{.*}} = sycl.math.ceil %arg0 : !sycl_vec_f32_4_
+  %c0 = sycl.math.ceil %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.copysign %arg0, %arg1 : !sycl_vec_f32_4_
+  %c1 = sycl.math.copysign %arg0, %arg1 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.cos %arg0 : !sycl_vec_f32_4_
+  %c2 = sycl.math.cos %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.exp %arg0 : !sycl_vec_f32_4_
+  %e2 = sycl.math.exp %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.exp2 %arg0 : !sycl_vec_f32_4_
+  %e0 = sycl.math.exp2 %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.expm1 %arg0 : !sycl_vec_f32_4_
+  %e1 = sycl.math.expm1 %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.fabs %arg0 : !sycl_vec_f32_4_
+  %f0 = sycl.math.fabs %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.floor %arg0 : !sycl_vec_f32_4_
+  %f1 = sycl.math.floor %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.fma %arg0, %arg1, %arg2 : !sycl_vec_f32_4_
+  %f2 = sycl.math.fma %arg0, %arg1, %arg2 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.log %arg0 : !sycl_vec_f32_4_
+  %l2 = sycl.math.log %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.log10 %arg0 : !sycl_vec_f32_4_
+  %l0 = sycl.math.log10 %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.log2 %arg0 : !sycl_vec_f32_4_
+  %l1 = sycl.math.log2 %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.pow %arg0, %arg1 : !sycl_vec_f32_4_
+  %p0 = sycl.math.pow %arg0, %arg1 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.round %arg0 : !sycl_vec_f32_4_
+  %r0 = sycl.math.round %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.rsqrt %arg0 : !sycl_vec_f32_4_
+  %r1 = sycl.math.rsqrt %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.sin %arg0 : !sycl_vec_f32_4_
+  %s0 = sycl.math.sin %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.sqrt %arg0 : !sycl_vec_f32_4_
+  %s1 = sycl.math.sqrt %arg0 : !sycl_vec_f32_4_
+  // CHECK: %{{.*}} = sycl.math.trunc %arg0 : !sycl_vec_f32_4_
+  %t0 = sycl.math.trunc %arg0 : !sycl_vec_f32_4_
+
+  return
+}
+
+!sycl_vec_f64_8_ = !sycl.vec<[f64, 8], (vector<8xf64>)>
+
+// CHECK-LABEL: test_math_ops_vector_of_double
+func.func @test_math_ops_vector_of_double(%arg0 : !sycl_vec_f64_8_, %arg1 : !sycl_vec_f64_8_, %arg2 : !sycl_vec_f64_8_) {
+  // CHECK: %{{.*}} = sycl.math.ceil %arg0 : !sycl_vec_f64_8_
+  %c0 = sycl.math.ceil %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.copysign %arg0, %arg1 : !sycl_vec_f64_8_
+  %c1 = sycl.math.copysign %arg0, %arg1 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.cos %arg0 : !sycl_vec_f64_8_
+  %c2 = sycl.math.cos %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.exp %arg0 : !sycl_vec_f64_8_
+  %e2 = sycl.math.exp %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.exp2 %arg0 : !sycl_vec_f64_8_
+  %e0 = sycl.math.exp2 %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.expm1 %arg0 : !sycl_vec_f64_8_
+  %e1 = sycl.math.expm1 %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.fabs %arg0 : !sycl_vec_f64_8_
+  %f0 = sycl.math.fabs %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.floor %arg0 : !sycl_vec_f64_8_
+  %f1 = sycl.math.floor %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.fma %arg0, %arg1, %arg2 : !sycl_vec_f64_8_
+  %f2 = sycl.math.fma %arg0, %arg1, %arg2 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.log %arg0 : !sycl_vec_f64_8_
+  %l2 = sycl.math.log %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.log10 %arg0 : !sycl_vec_f64_8_
+  %l0 = sycl.math.log10 %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.log2 %arg0 : !sycl_vec_f64_8_
+  %l1 = sycl.math.log2 %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.pow %arg0, %arg1 : !sycl_vec_f64_8_
+  %p0 = sycl.math.pow %arg0, %arg1 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.round %arg0 : !sycl_vec_f64_8_
+  %r0 = sycl.math.round %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.rsqrt %arg0 : !sycl_vec_f64_8_
+  %r1 = sycl.math.rsqrt %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.sin %arg0 : !sycl_vec_f64_8_
+  %s0 = sycl.math.sin %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.sqrt %arg0 : !sycl_vec_f64_8_
+  %s1 = sycl.math.sqrt %arg0 : !sycl_vec_f64_8_
+  // CHECK: %{{.*}} = sycl.math.trunc %arg0 : !sycl_vec_f64_8_
+  %t0 = sycl.math.trunc %arg0 : !sycl_vec_f64_8_
+
+  return
+}
+
+!sycl_vec_sycl_half_2_ = !sycl.vec<[!sycl_half, 2], (vector<2xf16>)>
+
+// CHECK-LABEL: test_math_ops_vector_of_half
+func.func @test_math_ops_vector_of_half(%arg0 : !sycl_vec_sycl_half_2_, %arg1 : !sycl_vec_sycl_half_2_, %arg2 : !sycl_vec_sycl_half_2_) {
+  // CHECK: %{{.*}} = sycl.math.ceil %arg0 : !sycl_vec_sycl_half_2_
+  %c0 = sycl.math.ceil %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.copysign %arg0, %arg1 : !sycl_vec_sycl_half_2_
+  %c1 = sycl.math.copysign %arg0, %arg1 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.cos %arg0 : !sycl_vec_sycl_half_2_
+  %c2 = sycl.math.cos %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.exp %arg0 : !sycl_vec_sycl_half_2_
+  %e2 = sycl.math.exp %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.exp2 %arg0 : !sycl_vec_sycl_half_2_
+  %e0 = sycl.math.exp2 %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.expm1 %arg0 : !sycl_vec_sycl_half_2_
+  %e1 = sycl.math.expm1 %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.fabs %arg0 : !sycl_vec_sycl_half_2_
+  %f0 = sycl.math.fabs %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.floor %arg0 : !sycl_vec_sycl_half_2_
+  %f1 = sycl.math.floor %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.fma %arg0, %arg1, %arg2 : !sycl_vec_sycl_half_2_
+  %f2 = sycl.math.fma %arg0, %arg1, %arg2 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.log %arg0 : !sycl_vec_sycl_half_2_
+  %l2 = sycl.math.log %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.log10 %arg0 : !sycl_vec_sycl_half_2_
+  %l0 = sycl.math.log10 %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.log2 %arg0 : !sycl_vec_sycl_half_2_
+  %l1 = sycl.math.log2 %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.pow %arg0, %arg1 : !sycl_vec_sycl_half_2_
+  %p0 = sycl.math.pow %arg0, %arg1 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.round %arg0 : !sycl_vec_sycl_half_2_
+  %r0 = sycl.math.round %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.rsqrt %arg0 : !sycl_vec_sycl_half_2_
+  %r1 = sycl.math.rsqrt %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.sin %arg0 : !sycl_vec_sycl_half_2_
+  %s0 = sycl.math.sin %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.sqrt %arg0 : !sycl_vec_sycl_half_2_
+  %s1 = sycl.math.sqrt %arg0 : !sycl_vec_sycl_half_2_
+  // CHECK: %{{.*}} = sycl.math.trunc %arg0 : !sycl_vec_sycl_half_2_
+  %t0 = sycl.math.trunc %arg0 : !sycl_vec_sycl_half_2_
+
+  return
+}
