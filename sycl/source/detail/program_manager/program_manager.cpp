@@ -1023,14 +1023,9 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
   assert(KernelId != m_KernelName2KernelIDs.end() &&
          "No kernel id found for the given kernel name");
 
-  auto BinImagesIt = m_KernelIDs2BinImage.find(KernelId->second);
-  assert(BinImagesIt != m_KernelIDs2BinImage.end() &&
+  auto ImagesCount = m_KernelIDs2BinImage.count(KernelId->second);
+  assert(ImagesCount &&
          "No device image found for the given kernel id");
-
-  std::vector<RTDeviceBinaryImage*> &Imgs = *BinImagesIt->second;
-  const ContextImplPtr Ctx = getSyclObjImpl(Context);
-  pi_uint32 ImgInd = 0;
-  RTDeviceBinaryImage *Img = nullptr;
 
   // TODO: There may be cases with sycl::program class usage in source code
   // that will result in a multi-device context. This case needs to be handled
@@ -1038,17 +1033,23 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
 
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
-  std::vector<pi_device_binary> RawImgs(Imgs.size());
-  for (unsigned I = 0; I < Imgs.size(); I++)
-    RawImgs[I] = const_cast<pi_device_binary>(&Imgs[I]->getRawData());
+  std::vector<pi_device_binary> RawImgs(ImagesCount);
+  auto [ItBegin, ItEnd] = m_KernelIDs2BinImage.equal_range(KernelId->second);
+  auto It = ItBegin;
+  for (unsigned I = 0; It != ItEnd; ++It, ++I)
+    RawImgs[I] = const_cast<pi_device_binary>(&It->second->getRawData());
 
+  pi_uint32 ImgInd = 0;
+  const ContextImplPtr Ctx = getSyclObjImpl(Context);
   Ctx->getPlugin()->call<PiApiKind::piextDeviceSelectBinary>(
       getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
       (pi_uint32)RawImgs.size(), &ImgInd);
 
+  std::advance(It, ImgInd);
+
   if (JITCompilationIsRequired) {
     // If the image is already compiled with AOT, throw an exception.
-    const pi_device_binary_struct &RawImg = Imgs[ImgInd]->getRawData();
+    const pi_device_binary_struct &RawImg = It->second->getRawData();
     if ((strcmp(RawImg.DeviceTargetSpec,
                 __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
         (strcmp(RawImg.DeviceTargetSpec,
@@ -1060,7 +1061,7 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
     }
   }
 
-  Img = Imgs[ImgInd];
+  RTDeviceBinaryImage *Img = It->second;
 
   if (DbgProgMgr > 0) {
     std::cerr << "selected device image: " << &Img->getRawData() << "\n";
@@ -1239,7 +1240,7 @@ bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
 }
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
-  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
@@ -1305,10 +1306,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
               detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
 
           It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name,
-                                                   KernelID);    
-          m_KernelIDs2BinImage[It->second].reset(new std::vector<RTDeviceBinaryImage*>);      
+                                                   KernelID);      
         }
-        m_KernelIDs2BinImage[It->second]->push_back(Img);
+        m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img));
         m_BinImg2KernelIDs[Img]->push_back(It->second);
       }
 
@@ -1620,8 +1620,9 @@ ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
   std::set<RTDeviceBinaryImage *> BinImages;
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
   for (const kernel_id &KID : KernelIDs) {
-    auto It = m_KernelIDs2BinImage.find(KID);
-    BinImages.insert(It->second->begin(), It->second->end());
+    auto Range = m_KernelIDs2BinImage.equal_range(KID);
+    for (auto It = Range.first, End = Range.second; It != End; ++It)
+      BinImages.insert(It->second);
   }
   return BinImages;
 }

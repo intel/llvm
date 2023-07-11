@@ -331,7 +331,7 @@ private:
   // in case of SPIRV + AOT.
   // Using shared_ptr to avoid expensive copy of the vector.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_map<kernel_id, std::shared_ptr<std::vector<RTDeviceBinaryImage *>>>
+  std::unordered_multimap<kernel_id, RTDeviceBinaryImage *>
       m_KernelIDs2BinImage;
 
   // Maps device binary image to a vector of kernel ids in this image.
