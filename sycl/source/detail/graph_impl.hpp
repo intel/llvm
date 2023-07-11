@@ -123,13 +123,6 @@ public:
     case sycl::detail::CG::Kernel:
     case sycl::detail::CG::RunOnHostIntel:
       return createCGCopy<sycl::detail::CGExecKernel>();
-    case sycl::detail::CG::CodeplayInteropTask:
-      assert(false);
-      break;
-    // TODO: Uncomment this once we implement support for interop task so we can
-    // test required changes to the CG class.
-
-    // return createCGCopy<sycl::detail::CGInteropTask>();
     case sycl::detail::CG::CopyAccToPtr:
     case sycl::detail::CG::CopyPtrToAcc:
     case sycl::detail::CG::CopyAccToAcc:
