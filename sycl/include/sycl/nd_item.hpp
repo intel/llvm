@@ -170,33 +170,39 @@ public:
   }
 
   template <typename DestDataT, typename SrcDataT>
-  device_event async_work_group_copy(decorated_local_ptr<DestDataT> dest,
-                                     decorated_global_ptr<SrcDataT> src,
-                                     size_t numElements) const {
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_local_ptr<DestDataT> dest,
+                        decorated_global_ptr<SrcDataT> src,
+                        size_t numElements) const {
     return Group.async_work_group_copy(dest, src, numElements);
   }
 
   template <typename DestDataT, typename SrcDataT>
-  device_event async_work_group_copy(decorated_global_ptr<DestDataT> dest,
-                                     decorated_local_ptr<SrcDataT> src,
-                                     size_t numElements) const {
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_global_ptr<DestDataT> dest,
+                        decorated_local_ptr<SrcDataT> src,
+                        size_t numElements) const {
     return Group.async_work_group_copy(dest, src, numElements);
   }
 
   template <typename DestDataT, typename SrcDataT>
-  device_event async_work_group_copy(decorated_local_ptr<DestDataT> dest,
-                                     decorated_global_ptr<SrcDataT> src,
-                                     size_t numElements,
-                                     size_t srcStride) const {
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_local_ptr<DestDataT> dest,
+                        decorated_global_ptr<SrcDataT> src, size_t numElements,
+                        size_t srcStride) const {
 
     return Group.async_work_group_copy(dest, src, numElements, srcStride);
   }
 
   template <typename DestDataT, typename SrcDataT>
-  device_event async_work_group_copy(decorated_global_ptr<DestDataT> dest,
-                                     decorated_local_ptr<SrcDataT> src,
-                                     size_t numElements,
-                                     size_t destStride) const {
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_global_ptr<DestDataT> dest,
+                        decorated_local_ptr<SrcDataT> src, size_t numElements,
+                        size_t destStride) const {
     return Group.async_work_group_copy(dest, src, numElements, destStride);
   }
 

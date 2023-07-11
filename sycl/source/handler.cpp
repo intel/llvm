@@ -286,10 +286,6 @@ event handler::finalize() {
         MImpl->MKernelCacheConfig, MCodeLoc));
     break;
   }
-  case detail::CG::CodeplayInteropTask:
-    CommandGroup.reset(new detail::CGInteropTask(
-        std::move(MInteropTask), std::move(CGData), MCGType, MCodeLoc));
-    break;
   case detail::CG::CopyAccToPtr:
   case detail::CG::CopyPtrToAcc:
   case detail::CG::CopyAccToAcc:
@@ -731,11 +727,6 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   std::transform(
       WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
-}
-
-__SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-void handler::barrier(const std::vector<event> &WaitList) {
-  handler::ext_oneapi_barrier(WaitList);
 }
 
 using namespace sycl::detail;
