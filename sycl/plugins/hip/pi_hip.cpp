@@ -30,6 +30,42 @@
 //-- PI API implementation
 extern "C" {
 
+pi_result hip_piextEnablePeerAccess(pi_device command_device,
+                                    pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextEnablePeerAccess not "
+                  "implemented in hip backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result hip_piextDisablePeerAccess(pi_device command_device,
+                                     pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextDisablePeerAccess not "
+                  "implemented in hip backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result hip_piextPeerAccessGetInfo(pi_device command_device,
+                                     pi_device peer_device, pi_peer_attr attr,
+                                     size_t param_value_size, void *param_value,
+                                     size_t *param_value_size_ret) {
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
+  // Zero return value indicates that all of the queries currently return false.
+  return getInfo(param_value_size, param_value, param_value_size_ret,
+                 pi_int32{0});
+}
+
 const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -206,6 +242,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferMemBufferWriteRect,
          pi2ur::piextCommandBufferMemBufferWriteRect)
   _PI_CL(piextEnqueueCommandBuffer, pi2ur::piextEnqueueCommandBuffer)
+
+  // Peer to Peer
+  _PI_CL(piextEnablePeerAccess, hip_piextEnablePeerAccess)
+  _PI_CL(piextDisablePeerAccess, hip_piextDisablePeerAccess)
+  _PI_CL(piextPeerAccessGetInfo, hip_piextPeerAccessGetInfo)
 
 #undef _PI_CL
 
