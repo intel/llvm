@@ -22,7 +22,7 @@ int main() {
         Acc[0] = kh.get_specialization_constant<test_id_1>();
       });
     });
-    auto Acc = Buf.get_access<sycl::access::mode::read>();
+    auto Acc = Buf.get_host_access();
     assert(Acc[0] == 1);
   }
   return 0;
