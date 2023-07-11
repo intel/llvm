@@ -13,9 +13,9 @@
 #include <ur/ur.hpp>
 
 namespace cl_adapter {
-ur_result_t getDeviceVersion(cl_device_id dev, OCLV::OpenCLVersion &version);
+ur_result_t getDeviceVersion(cl_device_id Dev, oclv::OpenCLVersion &Version);
 
-ur_result_t checkDeviceExtensions(cl_device_id dev,
-                                  const std::vector<std::string> &exts,
-                                  bool &supported);
+ur_result_t checkDeviceExtensions(cl_device_id Dev,
+                                  const std::vector<std::string> &Exts,
+                                  bool &Supported);
 } // namespace cl_adapter

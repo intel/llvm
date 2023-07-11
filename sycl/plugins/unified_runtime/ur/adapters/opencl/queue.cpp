@@ -11,56 +11,50 @@
 
 #include <sycl/detail/cl.h>
 
-cl_command_queue_info map_ur_queue_info_to_cl(const ur_queue_info_t propName) {
-  switch (propName) {
+cl_command_queue_info mapURQueueInfoToCL(const ur_queue_info_t PropName) {
+
+  switch (PropName) {
   case UR_QUEUE_INFO_CONTEXT:
     return CL_QUEUE_CONTEXT;
-    break;
   case UR_QUEUE_INFO_DEVICE:
     return CL_QUEUE_DEVICE;
-    break;
   case UR_QUEUE_INFO_DEVICE_DEFAULT:
     return CL_QUEUE_DEVICE_DEFAULT;
-    break;
   case UR_QUEUE_INFO_FLAGS:
     return CL_QUEUE_PROPERTIES_ARRAY;
-    break;
   case UR_QUEUE_INFO_REFERENCE_COUNT:
     return CL_QUEUE_REFERENCE_COUNT;
-    break;
   case UR_QUEUE_INFO_SIZE:
     return CL_QUEUE_SIZE;
-    break;
   default:
     return -1;
-    break;
   }
 }
 
-cl_command_queue_properties convert_ur_queue_properties_to_cl(
-    const ur_queue_properties_t *urQueueProperties) {
-  cl_command_queue_properties clCommandQueueProperties = 0;
+cl_command_queue_properties
+convertURQueuePropertiesToCL(const ur_queue_properties_t *URQueueProperties) {
+  cl_command_queue_properties CLCommandQueueProperties = 0;
 
-  if (urQueueProperties->flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-    clCommandQueueProperties |= CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+  if (URQueueProperties->flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    CLCommandQueueProperties |= CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
   }
-  if (urQueueProperties->flags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
-    clCommandQueueProperties |= CL_QUEUE_PROFILING_ENABLE;
+  if (URQueueProperties->flags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+    CLCommandQueueProperties |= CL_QUEUE_PROFILING_ENABLE;
   }
-  if (urQueueProperties->flags & UR_QUEUE_FLAG_ON_DEVICE) {
-    clCommandQueueProperties |= CL_QUEUE_ON_DEVICE;
+  if (URQueueProperties->flags & UR_QUEUE_FLAG_ON_DEVICE) {
+    CLCommandQueueProperties |= CL_QUEUE_ON_DEVICE;
   }
-  if (urQueueProperties->flags & UR_QUEUE_FLAG_ON_DEVICE_DEFAULT) {
-    clCommandQueueProperties |= CL_QUEUE_ON_DEVICE_DEFAULT;
+  if (URQueueProperties->flags & UR_QUEUE_FLAG_ON_DEVICE_DEFAULT) {
+    CLCommandQueueProperties |= CL_QUEUE_ON_DEVICE_DEFAULT;
   }
-  if (urQueueProperties->flags & UR_QUEUE_FLAG_PRIORITY_LOW) {
-    clCommandQueueProperties |= CL_QUEUE_PRIORITY_LOW_KHR;
+  if (URQueueProperties->flags & UR_QUEUE_FLAG_PRIORITY_LOW) {
+    CLCommandQueueProperties |= CL_QUEUE_PRIORITY_LOW_KHR;
   }
-  if (urQueueProperties->flags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
-    clCommandQueueProperties |= CL_QUEUE_PRIORITY_HIGH_KHR;
+  if (URQueueProperties->flags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
+    CLCommandQueueProperties |= CL_QUEUE_PRIORITY_HIGH_KHR;
   }
 
-  return clCommandQueueProperties;
+  return CLCommandQueueProperties;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
@@ -69,18 +63,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  cl_platform_id curPlatform;
+  cl_platform_id CurPlatform;
   CL_RETURN_ON_FAILURE_AND_SET_NULL(
       clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
-                      CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &curPlatform,
+                      CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &CurPlatform,
                       nullptr),
       phQueue);
 
-  cl_command_queue_properties clProperties =
-      convert_ur_queue_properties_to_cl(pProperties);
+  cl_command_queue_properties CLProperties =
+      convertURQueuePropertiesToCL(pProperties);
 
   // Check that unexpected bits are not set.
-  assert(!(clProperties & ~(CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+  assert(!(CLProperties & ~(CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
                             CL_QUEUE_PROFILING_ENABLE | CL_QUEUE_ON_DEVICE |
                             CL_QUEUE_ON_DEVICE_DEFAULT)));
 
@@ -89,29 +83,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
       CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE |
       CL_QUEUE_ON_DEVICE | CL_QUEUE_ON_DEVICE_DEFAULT;
 
-  OCLV::OpenCLVersion version;
+  oclv::OpenCLVersion Version;
   CL_RETURN_ON_FAILURE_AND_SET_NULL(
-      cl_adapter::getPlatformVersion(curPlatform, version), phQueue);
+      cl_adapter::getPlatformVersion(CurPlatform, Version), phQueue);
 
-  cl_int ret_err = CL_INVALID_OPERATION;
+  cl_int RetErr = CL_INVALID_OPERATION;
 
-  if (version >= OCLV::V2_0) {
+  if (Version >= oclv::V2_0) {
     *phQueue = cl_adapter::cast<ur_queue_handle_t>(
         clCreateCommandQueue(cl_adapter::cast<cl_context>(hContext),
                              cl_adapter::cast<cl_device_id>(hDevice),
-                             clProperties & SupportByOpenCL, &ret_err));
-    CL_RETURN_ON_FAILURE(ret_err);
+                             CLProperties & SupportByOpenCL, &RetErr));
+    CL_RETURN_ON_FAILURE(RetErr);
     return UR_RESULT_SUCCESS;
   }
 
   cl_queue_properties CreationFlagProperties[] = {
-      CL_QUEUE_PROPERTIES, clProperties & SupportByOpenCL, 0};
+      CL_QUEUE_PROPERTIES, CLProperties & SupportByOpenCL, 0};
   *phQueue =
       cl_adapter::cast<ur_queue_handle_t>(clCreateCommandQueueWithProperties(
           cl_adapter::cast<cl_context>(hContext),
           cl_adapter::cast<cl_device_id>(hDevice), CreationFlagProperties,
-          &ret_err));
-  CL_RETURN_ON_FAILURE(ret_err);
+          &RetErr));
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
@@ -127,19 +121,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  cl_command_queue_info clCommandQueueInfo = map_ur_queue_info_to_cl(propName);
+  cl_command_queue_info CLCommandQueueInfo = mapURQueueInfoToCL(propName);
 
-  cl_int ret_err = clGetCommandQueueInfo(
-      cl_adapter::cast<cl_command_queue>(hQueue), clCommandQueueInfo, propSize,
+  cl_int RetErr = clGetCommandQueueInfo(
+      cl_adapter::cast<cl_command_queue>(hQueue), CLCommandQueueInfo, propSize,
       pPropValue, pPropSizeRet);
-  CL_RETURN_ON_FAILURE(ret_err);
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
                        ur_native_handle_t *phNativeQueue) {
-  return urGetNativeHandle(hQueue, phNativeQueue);
+  return getNativeHandle(hQueue, phNativeQueue);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
@@ -152,38 +146,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   (void)hDevice;
   (void)pProperties;
   *phQueue = reinterpret_cast<ur_queue_handle_t>(hNativeQueue);
-  cl_int ret_err =
+  cl_int RetErr =
       clRetainCommandQueue(cl_adapter::cast<cl_command_queue>(hNativeQueue));
-  CL_RETURN_ON_FAILURE(ret_err);
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  cl_int ret_err = clFinish(cl_adapter::cast<cl_command_queue>(hQueue));
-  CL_RETURN_ON_FAILURE(ret_err);
+  cl_int RetErr = clFinish(cl_adapter::cast<cl_command_queue>(hQueue));
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  cl_int ret_err = clFinish(cl_adapter::cast<cl_command_queue>(hQueue));
-  CL_RETURN_ON_FAILURE(ret_err);
+  cl_int RetErr = clFinish(cl_adapter::cast<cl_command_queue>(hQueue));
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  cl_int ret_err =
+  cl_int RetErr =
       clRetainCommandQueue(cl_adapter::cast<cl_command_queue>(hQueue));
-  CL_RETURN_ON_FAILURE(ret_err);
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  cl_int ret_err =
+  cl_int RetErr =
       clReleaseCommandQueue(cl_adapter::cast<cl_command_queue>(hQueue));
-  CL_RETURN_ON_FAILURE(ret_err);
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }

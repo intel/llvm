@@ -4,8 +4,8 @@
 
 namespace {
 
-cl_sampler_info ur2clSamplerInfo(ur_sampler_info_t ur_info) {
-  switch (ur_info) {
+cl_sampler_info ur2CLSamplerInfo(ur_sampler_info_t URInfo) {
+  switch (URInfo) {
 #define CASE(UR_INFO, CL_INFO)                                                 \
   case UR_INFO:                                                                \
     return CL_INFO;
@@ -23,8 +23,8 @@ cl_sampler_info ur2clSamplerInfo(ur_sampler_info_t ur_info) {
   }
 }
 
-cl_addressing_mode ur2clAddressingMode(ur_sampler_addressing_mode_t mode) {
-  switch (mode) {
+cl_addressing_mode ur2CLAddressingMode(ur_sampler_addressing_mode_t Mode) {
+  switch (Mode) {
 
 #define CASE(UR_MODE, CL_MODE)                                                 \
   case UR_MODE:                                                                \
@@ -45,8 +45,8 @@ cl_addressing_mode ur2clAddressingMode(ur_sampler_addressing_mode_t mode) {
   }
 }
 
-cl_filter_mode ur2clFilterMode(ur_sampler_filter_mode_t mode) {
-  switch (mode) {
+cl_filter_mode ur2CLFilterMode(ur_sampler_filter_mode_t Mode) {
+  switch (Mode) {
 
 #define CASE(UR_MODE, CL_MODE)                                                 \
   case UR_MODE:                                                                \
@@ -63,8 +63,8 @@ cl_filter_mode ur2clFilterMode(ur_sampler_filter_mode_t mode) {
   }
 }
 
-ur_sampler_addressing_mode_t cl2urAddressingMode(cl_addressing_mode mode) {
-  switch (mode) {
+ur_sampler_addressing_mode_t cl2URAddressingMode(cl_addressing_mode Mode) {
+  switch (Mode) {
 
 #define CASE(CL_MODE, UR_MODE)                                                 \
   case CL_MODE:                                                                \
@@ -80,14 +80,14 @@ ur_sampler_addressing_mode_t cl2urAddressingMode(cl_addressing_mode mode) {
 #undef CASE
 
   default:
-    std::cout << mode << std::endl;
+    std::cout << Mode << std::endl;
     assert(0 && "Unhandled: cl_addressing_mode");
     break;
   }
 }
 
-ur_sampler_filter_mode_t cl2urFilterMode(cl_filter_mode mode) {
-  switch (mode) {
+ur_sampler_filter_mode_t cl2URFilterMode(cl_filter_mode Mode) {
+  switch (Mode) {
 #define CASE(CL_MODE, UR_MODE)                                                 \
   case CL_MODE:                                                                \
     return UR_MODE;
@@ -103,23 +103,23 @@ ur_sampler_filter_mode_t cl2urFilterMode(cl_filter_mode mode) {
   }
 }
 
-void cl2urSamplerInfoValue(cl_sampler_info info, size_t infoSize,
-                           void *infoValue) {
-  if (!infoValue) {
+void cl2URSamplerInfoValue(cl_sampler_info Info, size_t InfoSize,
+                           void *InfoValue) {
+  if (!InfoValue) {
     return;
   }
-  switch (info) {
+  switch (Info) {
   case CL_SAMPLER_ADDRESSING_MODE: {
-    cl_addressing_mode clValue =
-        *reinterpret_cast<cl_addressing_mode *>(infoValue);
-    *reinterpret_cast<ur_sampler_addressing_mode_t *>(infoValue) =
-        cl2urAddressingMode(clValue);
+    cl_addressing_mode CLValue =
+        *reinterpret_cast<cl_addressing_mode *>(InfoValue);
+    *reinterpret_cast<ur_sampler_addressing_mode_t *>(InfoValue) =
+        cl2URAddressingMode(CLValue);
     break;
   }
   case CL_SAMPLER_FILTER_MODE: {
-    cl_filter_mode clMode = *reinterpret_cast<cl_filter_mode *>(infoValue);
-    *reinterpret_cast<ur_sampler_filter_mode_t *>(infoValue) =
-        cl2urFilterMode(clMode);
+    cl_filter_mode CLMode = *reinterpret_cast<cl_filter_mode *>(InfoValue);
+    *reinterpret_cast<ur_sampler_filter_mode_t *>(InfoValue) =
+        cl2URFilterMode(CLMode);
     break;
   }
 
@@ -138,18 +138,18 @@ ur_result_t urSamplerCreate(ur_context_handle_t hContext,
   UR_ASSERT(phSampler, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   // Initialize properties according to OpenCL 2.1 spec.
-  ur_result_t error_code;
-  cl_addressing_mode addressingMode =
-      ur2clAddressingMode(pDesc->addressingMode);
-  cl_filter_mode filterMode = ur2clFilterMode(pDesc->filterMode);
+  ur_result_t ErrorCode;
+  cl_addressing_mode AddressingMode =
+      ur2CLAddressingMode(pDesc->addressingMode);
+  cl_filter_mode FilterMode = ur2CLFilterMode(pDesc->filterMode);
 
   // Always call OpenCL 1.0 API
   *phSampler = cl_adapter::cast<ur_sampler_handle_t>(clCreateSampler(
       cl_adapter::cast<cl_context>(hContext),
-      static_cast<cl_bool>(pDesc->normalizedCoords), addressingMode, filterMode,
-      cl_adapter::cast<cl_int *>(&error_code)));
+      static_cast<cl_bool>(pDesc->normalizedCoords), AddressingMode, FilterMode,
+      cl_adapter::cast<cl_int *>(&ErrorCode)));
 
-  return map_cl_error_to_ur(error_code);
+  return mapCLErrorToUR(ErrorCode);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -158,17 +158,17 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
   UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pPropValue || pPropSizeRet, UR_RESULT_ERROR_INVALID_VALUE);
 
-  cl_sampler_info sampler_info = ur2clSamplerInfo(propName);
+  cl_sampler_info SamplerInfo = ur2CLSamplerInfo(propName);
   static_assert(sizeof(cl_addressing_mode) ==
                 sizeof(ur_sampler_addressing_mode_t));
 
-  if (ur_result_t err = map_cl_error_to_ur(
-          clGetSamplerInfo(cl_adapter::cast<cl_sampler>(hSampler), sampler_info,
+  if (ur_result_t Err = mapCLErrorToUR(
+          clGetSamplerInfo(cl_adapter::cast<cl_sampler>(hSampler), SamplerInfo,
                            propSize, pPropValue, pPropSizeRet))) {
-    return err;
+    return Err;
   }
   // Convert OpenCL returns to UR
-  cl2urSamplerInfoValue(sampler_info, propSize, pPropValue);
+  cl2URSamplerInfoValue(SamplerInfo, propSize, pPropValue);
 
   return UR_RESULT_SUCCESS;
 }
@@ -176,14 +176,14 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRetain(ur_sampler_handle_t hSampler) {
   UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  return map_cl_error_to_ur(
+  return mapCLErrorToUR(
       clRetainSampler(cl_adapter::cast<cl_sampler>(hSampler)));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRelease(ur_sampler_handle_t hSampler) {
   UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  return map_cl_error_to_ur(
+  return mapCLErrorToUR(
       clReleaseSampler(cl_adapter::cast<cl_sampler>(hSampler)));
 }
 

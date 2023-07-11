@@ -10,8 +10,8 @@
 #include <climits>
 #include <regex>
 #include <sycl/detail/cl.h>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/defines.hpp>
+#include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
 
 /**
@@ -20,7 +20,7 @@
  */
 #define CL_RETURN_ON_FAILURE(clCall)                                           \
   if (const cl_int cl_result_macro = clCall; cl_result_macro != CL_SUCCESS) {  \
-    return map_cl_error_to_ur(cl_result_macro);                                \
+    return mapCLErrorToUR(cl_result_macro);                                    \
   }
 
 /**
@@ -43,10 +43,10 @@
     if (outPtr != nullptr) {                                                   \
       *outPtr = nullptr;                                                       \
     }                                                                          \
-    return map_cl_error_to_ur(cl_result_macro);                                \
+    return mapCLErrorToUR(cl_result_macro);                                    \
   }
 
-namespace OCLV {
+namespace oclv {
 class OpenCLVersion {
 protected:
   unsigned int ocl_major;
@@ -55,28 +55,28 @@ protected:
 public:
   OpenCLVersion() : ocl_major(0), ocl_minor(0) {}
 
-  OpenCLVersion(unsigned int ocl_major, unsigned int ocl_minor)
-      : ocl_major(ocl_major), ocl_minor(ocl_minor) {
+  OpenCLVersion(unsigned int OclMajor, unsigned int OclMinor)
+      : ocl_major(OclMajor), ocl_minor(OclMinor) {
     if (!isValid()) {
-      ocl_major = ocl_minor = 0;
+      OclMajor = OclMinor = 0;
     }
   }
 
-  OpenCLVersion(const char *version) : OpenCLVersion(std::string(version)) {}
+  OpenCLVersion(const char *Version) : OpenCLVersion(std::string(Version)) {}
 
-  OpenCLVersion(const std::string &version) : ocl_major(0), ocl_minor(0) {
+  OpenCLVersion(const std::string &Version) : ocl_major(0), ocl_minor(0) {
     /* The OpenCL specification defines the full version string as
      * 'OpenCL<space><ocl_major_version.ocl_minor_version><space><platform-specific
      * information>' for platforms and as
      * 'OpenCL<space><ocl_major_version.ocl_minor_version><space><vendor-specific
      * information>' for devices.
      */
-    std::regex rx("OpenCL ([0-9]+)\\.([0-9]+)");
-    std::smatch match;
+    std::regex Rx("OpenCL ([0-9]+)\\.([0-9]+)");
+    std::smatch Match;
 
-    if (std::regex_search(version, match, rx) && (match.size() == 3)) {
-      ocl_major = strtoul(match[1].str().c_str(), nullptr, 10);
-      ocl_minor = strtoul(match[2].str().c_str(), nullptr, 10);
+    if (std::regex_search(Version, Match, Rx) && (Match.size() == 3)) {
+      ocl_major = strtoul(Match[1].str().c_str(), nullptr, 10);
+      ocl_minor = strtoul(Match[2].str().c_str(), nullptr, 10);
 
       if (!isValid()) {
         ocl_major = ocl_minor = 0;
@@ -84,27 +84,27 @@ public:
     }
   }
 
-  bool operator==(const OpenCLVersion &v) const {
-    return ocl_major == v.ocl_major && ocl_minor == v.ocl_minor;
+  bool operator==(const OpenCLVersion &V) const {
+    return ocl_major == V.ocl_major && ocl_minor == V.ocl_minor;
   }
 
-  bool operator!=(const OpenCLVersion &v) const { return !(*this == v); }
+  bool operator!=(const OpenCLVersion &V) const { return !(*this == V); }
 
-  bool operator<(const OpenCLVersion &v) const {
-    if (ocl_major == v.ocl_major)
-      return ocl_minor < v.ocl_minor;
+  bool operator<(const OpenCLVersion &V) const {
+    if (ocl_major == V.ocl_major)
+      return ocl_minor < V.ocl_minor;
 
-    return ocl_major < v.ocl_major;
+    return ocl_major < V.ocl_major;
   }
 
-  bool operator>(const OpenCLVersion &v) const { return v < *this; }
+  bool operator>(const OpenCLVersion &V) const { return V < *this; }
 
-  bool operator<=(const OpenCLVersion &v) const {
-    return (*this < v) || (*this == v);
+  bool operator<=(const OpenCLVersion &V) const {
+    return (*this < V) || (*this == V);
   }
 
-  bool operator>=(const OpenCLVersion &v) const {
-    return (*this > v) || (*this == v);
+  bool operator>=(const OpenCLVersion &V) const {
+    return (*this > V) || (*this == V);
   }
 
   bool isValid() const {
@@ -133,7 +133,7 @@ inline const OpenCLVersion V2_1(2, 1);
 inline const OpenCLVersion V2_2(2, 2);
 inline const OpenCLVersion V3_0(3, 0);
 
-} // namespace OCLV
+} // namespace oclv
 
 namespace cl_adapter {
 constexpr size_t MaxMessageSize = 256;
@@ -141,22 +141,22 @@ extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *message,
-                                      ur_result_t error_code);
+[[maybe_unused]] void setErrorMessage(const char *Message,
+                                      ur_result_t ErrorCode);
 
 [[noreturn]] void die(const char *Message);
 
-template <class To, class From> To cast(From value) {
+template <class To, class From> To cast(From Value) {
 
   if constexpr (std::is_pointer_v<From>) {
     static_assert(std::is_pointer_v<From> == std::is_pointer_v<To>,
                   "Cast failed pointer check");
-    return reinterpret_cast<To>(value);
+    return reinterpret_cast<To>(Value);
   } else {
     static_assert(sizeof(From) == sizeof(To), "Cast failed size check");
     static_assert(std::is_signed_v<From> == std::is_signed_v<To>,
                   "Cast failed sign check");
-    return static_cast<To>(value);
+    return static_cast<To>(Value);
   }
 }
 } // namespace cl_adapter
@@ -170,27 +170,27 @@ namespace cl_ext {
 #endif
 
 // Names of USM functions that are queried from OpenCL
-CONSTFIX char clHostMemAllocName[] = "clHostMemAllocINTEL";
-CONSTFIX char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
-CONSTFIX char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
-CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
-CONSTFIX char clCreateBufferWithPropertiesName[] =
+CONSTFIX char HostMemAllocName[] = "clHostMemAllocINTEL";
+CONSTFIX char DeviceMemAllocName[] = "clDeviceMemAllocINTEL";
+CONSTFIX char SharedMemAllocName[] = "clSharedMemAllocINTEL";
+CONSTFIX char MemBlockingFreeName[] = "clMemBlockingFreeINTEL";
+CONSTFIX char CreateBufferWithPropertiesName[] =
     "clCreateBufferWithPropertiesINTEL";
-CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
-CONSTFIX char clEnqueueMemFillName[] = "clEnqueueMemFillINTEL";
-CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
-CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
-CONSTFIX char clSetProgramSpecializationConstantName[] =
+CONSTFIX char SetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
+CONSTFIX char EnqueueMemFillName[] = "clEnqueueMemFillINTEL";
+CONSTFIX char EnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
+CONSTFIX char GetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
+CONSTFIX char SetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
-CONSTFIX char clGetDeviceFunctionPointerName[] =
+CONSTFIX char GetDeviceFunctionPointerName[] =
     "clGetDeviceFunctionPointerINTEL";
-CONSTFIX char clEnqueueWriteGlobalVariableName[] =
+CONSTFIX char EnqueueWriteGlobalVariableName[] =
     "clEnqueueWriteGlobalVariableINTEL";
-CONSTFIX char clEnqueueReadGlobalVariableName[] =
+CONSTFIX char EnqueueReadGlobalVariableName[] =
     "clEnqueueReadGlobalVariableINTEL";
 // Names of host pipe functions queried from OpenCL
-CONSTFIX char clEnqueueReadHostPipeName[] = "clEnqueueReadHostPipeINTEL";
-CONSTFIX char clEnqueueWriteHostPipeName[] = "clEnqueueWriteHostPipeINTEL";
+CONSTFIX char EnqueueReadHostPipeName[] = "clEnqueueReadHostPipeINTEL";
+CONSTFIX char EnqueueWriteHostPipeName[] = "clEnqueueWriteHostPipeINTEL";
 
 #undef CONSTFIX
 
@@ -263,64 +263,64 @@ inline ExtFuncPtrCacheT *ExtFuncPtrCache;
 
 // USM helper function to get an extension function pointer
 template <typename T>
-static ur_result_t getExtFuncFromContext(cl_context context,
+static ur_result_t getExtFuncFromContext(cl_context Context,
                                          FuncPtrCache<T> &FPtrCache,
-                                         const char *FuncName, T *fptr) {
+                                         const char *FuncName, T *Fptr) {
   // TODO
   // Potentially redo caching as UR interface changes.
   // if cached, return cached FuncPtr
   std::lock_guard<std::mutex> CacheLock{FPtrCache.Mutex};
   std::map<cl_context, T> &FPtrMap = FPtrCache.Map;
-  auto It = FPtrMap.find(context);
+  auto It = FPtrMap.find(Context);
   if (It != FPtrMap.end()) {
     auto F = It->second;
     // if cached that extension is not available return nullptr and
     // UR_RESULT_ERROR_INVALID_VALUE
-    *fptr = F;
+    *Fptr = F;
     return F ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  cl_uint deviceCount;
-  cl_int ret_err = clGetContextInfo(context, CL_CONTEXT_NUM_DEVICES,
-                                    sizeof(cl_uint), &deviceCount, nullptr);
+  cl_uint DeviceCount;
+  cl_int RetErr = clGetContextInfo(Context, CL_CONTEXT_NUM_DEVICES,
+                                   sizeof(cl_uint), &DeviceCount, nullptr);
 
-  if (ret_err != CL_SUCCESS || deviceCount < 1) {
+  if (RetErr != CL_SUCCESS || DeviceCount < 1) {
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
-  std::vector<cl_device_id> devicesInCtx(deviceCount);
-  ret_err = clGetContextInfo(context, CL_CONTEXT_DEVICES,
-                             deviceCount * sizeof(cl_device_id),
-                             devicesInCtx.data(), nullptr);
+  std::vector<cl_device_id> DevicesInCtx(DeviceCount);
+  RetErr = clGetContextInfo(Context, CL_CONTEXT_DEVICES,
+                            DeviceCount * sizeof(cl_device_id),
+                            DevicesInCtx.data(), nullptr);
 
-  if (ret_err != CL_SUCCESS) {
+  if (RetErr != CL_SUCCESS) {
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
-  cl_platform_id curPlatform;
-  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_PLATFORM,
-                            sizeof(cl_platform_id), &curPlatform, nullptr);
+  cl_platform_id CurPlatform;
+  RetErr = clGetDeviceInfo(DevicesInCtx[0], CL_DEVICE_PLATFORM,
+                           sizeof(cl_platform_id), &CurPlatform, nullptr);
 
-  if (ret_err != CL_SUCCESS) {
+  if (RetErr != CL_SUCCESS) {
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
   T FuncPtr =
-      (T)clGetExtensionFunctionAddressForPlatform(curPlatform, FuncName);
+      (T)clGetExtensionFunctionAddressForPlatform(CurPlatform, FuncName);
 
   if (!FuncPtr) {
     // Cache that the extension is not available
-    FPtrMap[context] = nullptr;
+    FPtrMap[Context] = nullptr;
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  *fptr = FuncPtr;
-  FPtrMap[context] = FuncPtr;
+  *Fptr = FuncPtr;
+  FPtrMap[Context] = FuncPtr;
 
   return UR_RESULT_SUCCESS;
 }
 } // namespace cl_ext
 
-ur_result_t map_cl_error_to_ur(cl_int result);
+ur_result_t mapCLErrorToUR(cl_int Result);
 
-ur_result_t urGetNativeHandle(void *urObj, ur_native_handle_t *nativeHandle);
+ur_result_t getNativeHandle(void *URObj, ur_native_handle_t *NativeHandle);

@@ -8,19 +8,19 @@
 
 #include "common.hpp"
 
-cl_map_flags convert_ur_map_flags_to_cl(ur_map_flags_t ur_flags) {
-  cl_map_flags cl_flags = 0;
-  if (ur_flags & UR_MAP_FLAG_READ) {
-    cl_flags |= CL_MAP_READ;
+cl_map_flags convertURMapFlagsToCL(ur_map_flags_t URFlags) {
+  cl_map_flags CLFlags = 0;
+  if (URFlags & UR_MAP_FLAG_READ) {
+    CLFlags |= CL_MAP_READ;
   }
-  if (ur_flags & UR_MAP_FLAG_WRITE) {
-    cl_flags |= CL_MAP_WRITE;
+  if (URFlags & UR_MAP_FLAG_WRITE) {
+    CLFlags |= CL_MAP_WRITE;
   }
-  if (ur_flags & UR_MAP_FLAG_WRITE_INVALIDATE_REGION) {
-    cl_flags |= CL_MAP_WRITE_INVALIDATE_REGION;
+  if (URFlags & UR_MAP_FLAG_WRITE_INVALIDATE_REGION) {
+    CLFlags |= CL_MAP_WRITE_INVALIDATE_REGION;
   }
 
-  return cl_flags;
+  return CLFlags;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
@@ -339,15 +339,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
   UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  cl_int err;
+  cl_int Err;
   *ppRetMap = clEnqueueMapBuffer(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_mem>(hBuffer), blockingMap,
-      convert_ur_map_flags_to_cl(mapFlags), offset, size, numEventsInWaitList,
+      convertURMapFlagsToCL(mapFlags), offset, size, numEventsInWaitList,
       cl_adapter::cast<const cl_event *>(phEventWaitList),
-      cl_adapter::cast<cl_event *>(phEvent), &err);
+      cl_adapter::cast<cl_event *>(phEvent), &Err);
 
-  CL_RETURN_ON_FAILURE(err);
+  CL_RETURN_ON_FAILURE(Err);
 
   return UR_RESULT_SUCCESS;
 }
@@ -391,12 +391,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
                             CL_QUEUE_CONTEXT, sizeof(Ctx), &Ctx, nullptr);
 
   if (Res != CL_SUCCESS)
-    return map_cl_error_to_ur(Res);
+    return mapCLErrorToUR(Res);
 
   cl_ext::clEnqueueWriteGlobalVariable_fn F = nullptr;
   Res = cl_ext::getExtFuncFromContext<decltype(F)>(
       Ctx, cl_ext::ExtFuncPtrCache->clEnqueueWriteGlobalVariableCache,
-      cl_ext::clEnqueueWriteGlobalVariableName, &F);
+      cl_ext::EnqueueWriteGlobalVariableName, &F);
 
   if (!F || Res != CL_SUCCESS)
     return UR_RESULT_ERROR_INVALID_OPERATION;
@@ -407,7 +407,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
           cl_adapter::cast<const cl_event *>(phEventWaitList),
           cl_adapter::cast<cl_event *>(phEvent));
 
-  return map_cl_error_to_ur(Res);
+  return mapCLErrorToUR(Res);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
@@ -429,12 +429,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
                             CL_QUEUE_CONTEXT, sizeof(Ctx), &Ctx, nullptr);
 
   if (Res != CL_SUCCESS)
-    return map_cl_error_to_ur(Res);
+    return mapCLErrorToUR(Res);
 
   cl_ext::clEnqueueReadGlobalVariable_fn F = nullptr;
   Res = cl_ext::getExtFuncFromContext<decltype(F)>(
       Ctx, cl_ext::ExtFuncPtrCache->clEnqueueReadGlobalVariableCache,
-      cl_ext::clEnqueueReadGlobalVariableName, &F);
+      cl_ext::EnqueueReadGlobalVariableName, &F);
 
   if (!F || Res != CL_SUCCESS)
     return UR_RESULT_ERROR_INVALID_OPERATION;
@@ -445,7 +445,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
           cl_adapter::cast<const cl_event *>(phEventWaitList),
           cl_adapter::cast<cl_event *>(phEvent));
 
-  return map_cl_error_to_ur(Res);
+  return mapCLErrorToUR(Res);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
@@ -467,17 +467,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
       cl_adapter::cast<cl_command_queue>(hQueue), CL_QUEUE_CONTEXT,
       sizeof(cl_context), &CLContext, nullptr);
   if (CLErr != CL_SUCCESS) {
-    return map_cl_error_to_ur(CLErr);
+    return mapCLErrorToUR(CLErr);
   }
 
   clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
   ur_result_t RetVal =
       cl_ext::getExtFuncFromContext<clEnqueueReadHostPipeINTEL_fn>(
           CLContext, cl_ext::ExtFuncPtrCache->clEnqueueReadHostPipeINTELCache,
-          cl_ext::clEnqueueReadHostPipeName, &FuncPtr);
+          cl_ext::EnqueueReadHostPipeName, &FuncPtr);
 
   if (FuncPtr) {
-    RetVal = map_cl_error_to_ur(
+    RetVal = mapCLErrorToUR(
         FuncPtr(cl_adapter::cast<cl_command_queue>(hQueue),
                 cl_adapter::cast<cl_program>(hProgram), pipe_symbol, blocking,
                 pDst, size, numEventsInWaitList,
@@ -507,17 +507,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
       cl_adapter::cast<cl_command_queue>(hQueue), CL_QUEUE_CONTEXT,
       sizeof(cl_context), &CLContext, nullptr);
   if (CLErr != CL_SUCCESS) {
-    return map_cl_error_to_ur(CLErr);
+    return mapCLErrorToUR(CLErr);
   }
 
   clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
   ur_result_t RetVal =
       cl_ext::getExtFuncFromContext<clEnqueueWriteHostPipeINTEL_fn>(
           CLContext, cl_ext::ExtFuncPtrCache->clEnqueueWriteHostPipeINTELCache,
-          cl_ext::clEnqueueWriteHostPipeName, &FuncPtr);
+          cl_ext::EnqueueWriteHostPipeName, &FuncPtr);
 
   if (FuncPtr) {
-    RetVal = map_cl_error_to_ur(
+    RetVal = mapCLErrorToUR(
         FuncPtr(cl_adapter::cast<cl_command_queue>(hQueue),
                 cl_adapter::cast<cl_program>(hProgram), pipe_symbol, blocking,
                 pSrc, size, numEventsInWaitList,

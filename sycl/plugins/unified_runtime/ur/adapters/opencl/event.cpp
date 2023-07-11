@@ -10,8 +10,8 @@
 
 #include <sycl/detail/cl.h>
 
-cl_event_info convert_ur_event_info_to_cl(const ur_event_info_t propName) {
-  switch (propName) {
+cl_event_info convertUREventInfoToCL(const ur_event_info_t PropName) {
+  switch (PropName) {
   case UR_EVENT_INFO_COMMAND_QUEUE:
     return CL_EVENT_COMMAND_QUEUE;
     break;
@@ -34,45 +34,34 @@ cl_event_info convert_ur_event_info_to_cl(const ur_event_info_t propName) {
 }
 
 cl_profiling_info
-convert_ur_profiling_info_to_cl(const ur_profiling_info_t propName) {
-  switch (propName) {
+convertURProfilingInfoToCL(const ur_profiling_info_t PropName) {
+  switch (PropName) {
   case UR_PROFILING_INFO_COMMAND_QUEUED:
     return CL_PROFILING_COMMAND_QUEUED;
-    break;
   case UR_PROFILING_INFO_COMMAND_SUBMIT:
     return CL_PROFILING_COMMAND_SUBMIT;
-    break;
   case UR_PROFILING_INFO_COMMAND_START:
     return CL_PROFILING_COMMAND_START;
-    break;
   // TODO(ur) add UR_PROFILING_INFO_COMMAND_COMPLETE once spec has been updated
   case UR_PROFILING_INFO_COMMAND_END:
     return CL_PROFILING_COMMAND_END;
-    break;
   default:
     return -1;
-    break;
   }
 }
 
-cl_int
-convert_ur_profiling_info_to_cl(const ur_execution_info_t executionInfo) {
-  switch (executionInfo) {
+cl_int convertURProfilingInfoToCL(const ur_execution_info_t ExecutionInfo) {
+  switch (ExecutionInfo) {
   case UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE:
     return CL_COMPLETE;
-    break;
   case UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING:
     return CL_RUNNING;
-    break;
   case UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED:
     return CL_SUBMITTED;
-    break;
   case UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED:
     return CL_QUEUED;
-    break;
   default:
     return -1;
-    break;
   }
 }
 
@@ -89,29 +78,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_event_handle_t hEvent, ur_native_handle_t *phNativeEvent) {
-  return urGetNativeHandle(hEvent, phNativeEvent);
+  return getNativeHandle(hEvent, phNativeEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
   UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  cl_int ret_err = clReleaseEvent(cl_adapter::cast<cl_event>(hEvent));
-  CL_RETURN_ON_FAILURE(ret_err);
+  cl_int RetErr = clReleaseEvent(cl_adapter::cast<cl_event>(hEvent));
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
   UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  cl_int ret_err = clRetainEvent(cl_adapter::cast<cl_event>(hEvent));
-  CL_RETURN_ON_FAILURE(ret_err);
+  cl_int RetErr = clRetainEvent(cl_adapter::cast<cl_event>(hEvent));
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   UR_ASSERT(phEventWaitList, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  cl_int ret_err = clWaitForEvents(
+  cl_int RetErr = clWaitForEvents(
       numEvents, cl_adapter::cast<const cl_event *>(phEventWaitList));
-  CL_RETURN_ON_FAILURE(ret_err);
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
@@ -121,11 +110,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
   UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  cl_event_info clEventInfo = convert_ur_event_info_to_cl(propName);
-  cl_int ret_err =
-      clGetEventInfo(cl_adapter::cast<cl_event>(hEvent), clEventInfo, propSize,
+  cl_event_info CLEventInfo = convertUREventInfoToCL(propName);
+  cl_int RetErr =
+      clGetEventInfo(cl_adapter::cast<cl_event>(hEvent), CLEventInfo, propSize,
                      pPropValue, pPropSizeRet);
-  CL_RETURN_ON_FAILURE(ret_err);
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
@@ -133,11 +122,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     ur_event_handle_t hEvent, ur_profiling_info_t propName, size_t propSize,
     void *pPropValue, size_t *pPropSizeRet) {
   UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  cl_profiling_info clProfilingInfo = convert_ur_profiling_info_to_cl(propName);
-  cl_int ret_err = clGetEventProfilingInfo(cl_adapter::cast<cl_event>(hEvent),
-                                           clProfilingInfo, propSize,
-                                           pPropValue, pPropSizeRet);
-  CL_RETURN_ON_FAILURE(ret_err);
+  cl_profiling_info CLProfilingInfo = convertURProfilingInfoToCL(propName);
+  cl_int RetErr = clGetEventProfilingInfo(cl_adapter::cast<cl_event>(hEvent),
+                                          CLProfilingInfo, propSize, pPropValue,
+                                          pPropSizeRet);
+  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 

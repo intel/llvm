@@ -15,5 +15,5 @@
 namespace cl_adapter {
 ur_result_t
 getDevicesFromContext(ur_context_handle_t hContext,
-                      std::unique_ptr<std::vector<cl_device_id>> &devicesInCtx);
+                      std::unique_ptr<std::vector<cl_device_id>> &DevicesInCtx);
 }

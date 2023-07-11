@@ -13,13 +13,13 @@ namespace {
 
 // TODO - this is a duplicate of what is in the L0 plugin
 // We should move this to somewhere common
-ur_result_t validateProcInputs(ur_api_version_t version, void *pDdiTable) {
+ur_result_t validateProcInputs(ur_api_version_t Version, void *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
   // Pre 1.0 we enforce loader and adapter must have same version.
   // Post 1.0 only major version match should be required.
-  if (version != UR_API_VERSION_CURRENT) {
+  if (Version != UR_API_VERSION_CURRENT) {
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
   }
   return UR_RESULT_SUCCESS;
@@ -31,10 +31,10 @@ extern "C" {
 #endif
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
-    ur_api_version_t version, ur_platform_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+    ur_api_version_t Version, ur_platform_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnCreateWithNativeHandle = urPlatformCreateWithNativeHandle;
   pDdiTable->pfnGet = urPlatformGet;
@@ -47,10 +47,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
-    ur_api_version_t version, ur_context_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+    ur_api_version_t Version, ur_context_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnCreate = urContextCreate;
   pDdiTable->pfnCreateWithNativeHandle = urContextCreateWithNativeHandle;
@@ -63,10 +63,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
-    ur_api_version_t version, ur_event_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+    ur_api_version_t Version, ur_event_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnCreateWithNativeHandle = urEventCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urEventGetInfo;
@@ -80,10 +80,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
-    ur_api_version_t version, ur_program_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+    ur_api_version_t Version, ur_program_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnBuild = urProgramBuild;
   pDdiTable->pfnCompile = urProgramCompile;
@@ -103,10 +103,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
-    ur_api_version_t version, ur_kernel_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+    ur_api_version_t Version, ur_kernel_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnCreate = urKernelCreate;
   pDdiTable->pfnCreateWithNativeHandle = urKernelCreateWithNativeHandle;
@@ -127,10 +127,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
-    ur_api_version_t version, ur_sampler_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+    ur_api_version_t Version, ur_sampler_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnCreate = urSamplerCreate;
   // pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
@@ -142,10 +142,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL
-urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+urGetMemProcAddrTable(ur_api_version_t Version, ur_mem_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnBufferCreate = urMemBufferCreate;
   pDdiTable->pfnBufferPartition = urMemBufferPartition;
@@ -161,10 +161,10 @@ urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
-    ur_api_version_t version, ur_enqueue_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+    ur_api_version_t Version, ur_enqueue_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnDeviceGlobalVariableRead = urEnqueueDeviceGlobalVariableRead;
   pDdiTable->pfnDeviceGlobalVariableWrite = urEnqueueDeviceGlobalVariableWrite;
@@ -193,10 +193,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    ur_api_version_t version, ur_global_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+    ur_api_version_t Version, ur_global_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnInit = urInit;
   pDdiTable->pfnTearDown = urTearDown;
@@ -204,10 +204,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
-    ur_api_version_t version, ur_queue_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+    ur_api_version_t Version, ur_queue_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnCreate = urQueueCreate;
   pDdiTable->pfnCreateWithNativeHandle = urQueueCreateWithNativeHandle;
@@ -221,15 +221,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL
-urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+urGetUSMProcAddrTable(ur_api_version_t Version, ur_usm_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
-   pDdiTable->pfnDeviceAlloc = urUSMDeviceAlloc;
-   pDdiTable->pfnFree = urUSMFree;
-   pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
-   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
+  pDdiTable->pfnDeviceAlloc = urUSMDeviceAlloc;
+  pDdiTable->pfnFree = urUSMFree;
+  pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
+  pDdiTable->pfnHostAlloc = urUSMHostAlloc;
   //  pDdiTable->pfnPoolCreate = nullptr;
   //  pDdiTable->pfnPoolDestroy = nullptr;
   //  pDdiTable->pfnPoolDestroy = nullptr;
@@ -238,10 +238,10 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
-    ur_api_version_t version, ur_device_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
+    ur_api_version_t Version, ur_device_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
   }
   pDdiTable->pfnCreateWithNativeHandle = urDeviceCreateWithNativeHandle;
   pDdiTable->pfnGet = urDeviceGet;

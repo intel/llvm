@@ -14,15 +14,15 @@ namespace cl_adapter {
 thread_local int32_t ErrorMessageCode = 0;
 thread_local char ErrorMessage[MaxMessageSize];
 
-[[maybe_unused]] void setErrorMessage(const char *message, int32_t error_code) {
-  assert(strlen(message) <= cl_adapter::MaxMessageSize);
-  strcpy(cl_adapter::ErrorMessage, message);
-  ErrorMessageCode = error_code;
+[[maybe_unused]] void setErrorMessage(const char *Message, int32_t ErrorCode) {
+  assert(strlen(Message) <= cl_adapter::MaxMessageSize);
+  strcpy(cl_adapter::ErrorMessage, Message);
+  ErrorMessageCode = ErrorCode;
 }
 } // namespace cl_adapter
 
-ur_result_t map_cl_error_to_ur(cl_int result) {
-  switch (result) {
+ur_result_t mapCLErrorToUR(cl_int Result) {
+  switch (Result) {
   case CL_SUCCESS:
     return UR_RESULT_SUCCESS;
   case CL_OUT_OF_HOST_MEMORY:
@@ -70,13 +70,13 @@ void cl_adapter::die(const char *Message) {
 
 /// Common API for getting the native handle of a UR object
 ///
-/// \param urObj is the UR object to get the native handle of
-/// \param nativeHandle is a pointer to be set to the native handle
+/// \param URObj is the UR object to get the native handle of
+/// \param NativeHandle is a pointer to be set to the native handle
 ///
 /// UR_RESULT_SUCCESS
-ur_result_t urGetNativeHandle(void *urObj, ur_native_handle_t *nativeHandle) {
-  UR_ASSERT(nativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER)
-  *nativeHandle = reinterpret_cast<ur_native_handle_t>(urObj);
+ur_result_t getNativeHandle(void *URObj, ur_native_handle_t *NativeHandle) {
+  UR_ASSERT(NativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER)
+  *NativeHandle = reinterpret_cast<ur_native_handle_t>(URObj);
   return UR_RESULT_SUCCESS;
 }
 

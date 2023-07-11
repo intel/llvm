@@ -10,49 +10,41 @@
 
 #include <sycl/detail/cl.h>
 
-ur_result_t cl_adapter::getPlatformVersion(cl_platform_id plat,
-                                           OCLV::OpenCLVersion &version) {
+ur_result_t cl_adapter::getPlatformVersion(cl_platform_id Plat,
+                                           oclv::OpenCLVersion &Version) {
 
-  size_t platVerSize = 0;
+  size_t PlatVerSize = 0;
   CL_RETURN_ON_FAILURE(
-      clGetPlatformInfo(plat, CL_PLATFORM_VERSION, 0, nullptr, &platVerSize));
+      clGetPlatformInfo(Plat, CL_PLATFORM_VERSION, 0, nullptr, &PlatVerSize));
 
-  std::string platVer(platVerSize, '\0');
-  CL_RETURN_ON_FAILURE(clGetPlatformInfo(plat, CL_PLATFORM_VERSION, platVerSize,
-                                         platVer.data(), nullptr));
+  std::string PlatVer(PlatVerSize, '\0');
+  CL_RETURN_ON_FAILURE(clGetPlatformInfo(Plat, CL_PLATFORM_VERSION, PlatVerSize,
+                                         PlatVer.data(), nullptr));
 
-  version = OCLV::OpenCLVersion(platVer);
-  if (!version.isValid()) {
+  Version = oclv::OpenCLVersion(PlatVer);
+  if (!Version.isValid()) {
     return UR_RESULT_ERROR_INVALID_PLATFORM;
   }
 
   return UR_RESULT_SUCCESS;
 }
 
-static cl_int map_ur_platform_info_to_cl(ur_platform_info_t urPropName) {
+static cl_int mapURPlatformInfoToCL(ur_platform_info_t URPropName) {
 
-  cl_int cl_propName;
-  switch (urPropName) {
+  switch (URPropName) {
   case UR_PLATFORM_INFO_NAME:
-    cl_propName = CL_PLATFORM_NAME;
-    break;
+    return CL_PLATFORM_NAME;
   case UR_PLATFORM_INFO_VENDOR_NAME:
-    cl_propName = CL_PLATFORM_VENDOR;
-    break;
+    return CL_PLATFORM_VENDOR;
   case UR_PLATFORM_INFO_VERSION:
-    cl_propName = CL_PLATFORM_VERSION;
-    break;
+    return CL_PLATFORM_VERSION;
   case UR_PLATFORM_INFO_EXTENSIONS:
-    cl_propName = CL_PLATFORM_EXTENSIONS;
-    break;
+    return CL_PLATFORM_EXTENSIONS;
   case UR_PLATFORM_INFO_PROFILE:
-    cl_propName = CL_PLATFORM_PROFILE;
-    break;
+    return CL_PLATFORM_PROFILE;
   default:
-    cl_propName = -1;
+    return -1;
   }
-
-  return cl_propName;
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL
@@ -61,7 +53,7 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
 
   UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propSize, pPropValue, pSizeRet);
-  const cl_int cl_propName = map_ur_platform_info_to_cl(propName);
+  const cl_int CLPropName = mapURPlatformInfoToCL(propName);
 
   switch (static_cast<uint32_t>(propName)) {
   case UR_PLATFORM_INFO_BACKEND:
@@ -73,7 +65,7 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   case UR_PLATFORM_INFO_PROFILE: {
     CL_RETURN_ON_FAILURE(
         clGetPlatformInfo(cl_adapter::cast<cl_platform_id>(hPlatform),
-                          cl_propName, propSize, pPropValue, pSizeRet));
+                          CLPropName, propSize, pPropValue, pSizeRet));
     return UR_RESULT_SUCCESS;
   }
   default:
@@ -97,20 +89,20 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
   UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_SIZE);
 
-  cl_int result =
+  cl_int Result =
       clGetPlatformIDs(cl_adapter::cast<cl_uint>(NumEntries),
                        cl_adapter::cast<cl_platform_id *>(phPlatforms),
                        cl_adapter::cast<cl_uint *>(pNumPlatforms));
 
   /* Absorb the CL_PLATFORM_NOT_FOUND_KHR and just return 0 in num_platforms */
-  if (result == CL_PLATFORM_NOT_FOUND_KHR) {
-    result = CL_SUCCESS;
+  if (Result == CL_PLATFORM_NOT_FOUND_KHR) {
+    Result = CL_SUCCESS;
     if (pNumPlatforms) {
       *pNumPlatforms = 0;
     }
   }
 
-  return map_cl_error_to_ur(result);
+  return mapCLErrorToUR(Result);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(

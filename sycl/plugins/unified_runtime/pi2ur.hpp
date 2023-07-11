@@ -343,7 +343,7 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
   /* Helper function to perform conversions in-place */
   ConvertHelper Value(ParamValueSize, ParamValue, ParamValueSizeRet);
 
-  pi_result error = PI_SUCCESS;
+  pi_result Error = PI_SUCCESS;
   if (ParamName == UR_DEVICE_INFO_TYPE) {
     auto ConvertFunc = [](ur_device_type_t UrValue) {
       switch (UrValue) {
@@ -435,25 +435,24 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
                   sizeof(ur_device_partition_property_t),
               PI_ERROR_UNKNOWN);
 
-    const uint32_t ur_number_elements =
+    const uint32_t UrNumberElements =
         *ParamValueSizeRet / sizeof(ur_device_partition_property_t);
 
     if (ParamValue) {
-      auto param_value_copy =
-          std::make_unique<ur_device_partition_property_t[]>(
-              ur_number_elements);
-      std::memcpy(param_value_copy.get(), ParamValue,
-                  ur_number_elements * sizeof(ur_device_partition_property_t));
+      auto ParamValueCopy =
+          std::make_unique<ur_device_partition_property_t[]>(UrNumberElements);
+      std::memcpy(ParamValueCopy.get(), ParamValue,
+                  UrNumberElements * sizeof(ur_device_partition_property_t));
       pi_device_partition_property *pValuePI =
           reinterpret_cast<pi_device_partition_property *>(ParamValue);
       ur_device_partition_property_t *pValueUR =
           reinterpret_cast<ur_device_partition_property_t *>(
-              param_value_copy.get());
-      const ur_device_partition_t type = pValueUR->type;
-      *pValuePI = ConvertFunc(type);
+              ParamValueCopy.get());
+      const ur_device_partition_t Type = pValueUR->type;
+      *pValuePI = ConvertFunc(Type);
       ++pValuePI;
 
-      for (uint32_t i = 0; i < ur_number_elements; ++i) {
+      for (uint32_t i = 0; i < UrNumberElements; ++i) {
         switch (pValueUR->type) {
         case UR_DEVICE_PARTITION_EQUALLY: {
           *pValuePI = pValueUR->value.equally;
@@ -480,7 +479,7 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
       /* Add 2 extra elements to the return value (one for the type at the
        * beginning and another to terminate the array with a 0 */
       *ParamValueSizeRet =
-          (ur_number_elements + 2) * sizeof(pi_device_partition_property);
+          (UrNumberElements + 2) * sizeof(pi_device_partition_property);
     }
   }
 
@@ -610,7 +609,7 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
             (int)ParamValueSize, (int)*ParamValueSizeRet);
     die("ur2piDeviceInfoValue: size mismatch");
   }
-  return error;
+  return Error;
 }
 
 inline pi_result ur2piSamplerInfoValue(ur_sampler_info_t ParamName,
