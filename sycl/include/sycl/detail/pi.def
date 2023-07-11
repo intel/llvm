@@ -145,7 +145,6 @@ _PI_API(piPluginGetLastError)
 
 _PI_API(piTearDown)
 
-
 _PI_API(piextUSMEnqueueFill2D)
 _PI_API(piextUSMEnqueueMemset2D)
 _PI_API(piextUSMEnqueueMemcpy2D)
@@ -157,6 +156,10 @@ _PI_API(piextEnqueueDeviceGlobalVariableWrite)
 _PI_API(piextEnqueueDeviceGlobalVariableRead)
 
 _PI_API(piPluginGetBackendOption)
+
+_PI_API(piextEnablePeerAccess)
+_PI_API(piextDisablePeerAccess)
+_PI_API(piextPeerAccessGetInfo)
 
 // command-buffer Extension
 _PI_API(piextCommandBufferCreate)
