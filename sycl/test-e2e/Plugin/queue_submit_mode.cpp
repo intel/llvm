@@ -26,9 +26,9 @@ int main(int argc, char *argv[]) {
   }
   property_list P;
   if (Immediate)
-    P = ext::oneapi::property::queue::immediate_submission();
+    P = ext::intel::property::queue::immediate_submission();
   else
-    P = ext::oneapi::property::queue::batched_submission();
+    P = ext::intel::property::queue::batched_submission();
 
   // CHECK-STD: zeCommandListCreateImmediate = 1
   // CHECK-IMM: zeCommandListCreateImmediate = 2

@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_queue_submission_mode
+= sycl_ext_intel_queue_submission_mode
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -48,9 +48,8 @@ This extension is implemented and fully supported by {dpcpp}.
 
 == Backend support status
 
-This extension is currently implemented in {dpcpp} only for GPU devices and
-only when using the Level Zero backend.  Use of this extension in on other devices
-or backends may have no effect on the submission mode.
+This extension is currently implemented in {dpcpp} only for Intel GPU devices
+when using the Level Zero backend.
 
 == Overview
 
@@ -74,7 +73,7 @@ is chosen by the implementation.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_QUEUE_SUBMISSION_MODE` to one of the values defined in
+macro `SYCL_EXT_INTEL_QUEUE_SUBMISSION_MODE` to one of the values defined in
 the table below.  Applications can test for the existence of this macro to
 determine if the implementation supports this feature, or applications can test
 the macro's value to determine which of the extension's features the
@@ -102,3 +101,6 @@ may be as long or longer than the actual runtime of the kernel. In this case, do
 batched submissions may be preferable so that the submission overhead is amortized
 over a number of kernel executions.
 
+The immediate submission mode has been extensively tested on
+Intel® Data Center Max Series GPUs. On other Intel GPUs the recommendation is
+to use the platform defaults for submission mode.

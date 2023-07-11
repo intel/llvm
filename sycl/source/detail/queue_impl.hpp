@@ -477,24 +477,19 @@ public:
     // Track that submission modes do not conflict.
     bool SubmissionSeen = false;
     if (PropList
-            .has_property<ext::oneapi::property::queue::batched_submission>()) {
-      if (SubmissionSeen) {
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "Queue cannot be constructed with different submission modes.");
-      }
+            .has_property<ext::intel::property::queue::batched_submission>()) {
       SubmissionSeen = true;
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_SUBMISSION_BATCHED;
+      CreationFlags |= PI_EXT_QUEUE_FLAG_SUBMISSION_BATCHED;
     }
     if (PropList.has_property<
-            ext::oneapi::property::queue::immediate_submission>()) {
+            ext::intel::property::queue::immediate_submission>()) {
       if (SubmissionSeen) {
         throw sycl::exception(
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different submission modes.");
       }
       SubmissionSeen = true;
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+      CreationFlags |= PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
     }
     return CreationFlags;
   }
