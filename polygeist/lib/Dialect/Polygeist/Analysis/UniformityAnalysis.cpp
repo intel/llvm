@@ -130,7 +130,7 @@ LogicalResult UniformityAnalysis::initialize(Operation *top) {
 void UniformityAnalysis::setToEntryState(UniformityLattice *lattice) {
   // The arguments of a gpu kernel are uniform by default.
   if (Region *region = lattice->getPoint().getParentRegion()) {
-    if (auto gpuFuncOp = region->getParentOfType<gpu::GPUFuncOp>()) {
+    if (auto gpuFuncOp = dyn_cast<gpu::GPUFuncOp>(region->getParentOp())) {
       if (gpuFuncOp.isKernel()) {
         for (Value arg : gpuFuncOp.front().getArguments()) {
           UniformityLattice *lattice = getLatticeElement(arg);
