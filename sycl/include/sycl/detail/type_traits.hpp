@@ -20,6 +20,13 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace detail {
+template <class T> struct is_fixed_size_group : std::false_type {};
+
+template <class T>
+inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
+} // namespace detail
+
 template <int Dimensions> class group;
 namespace ext::oneapi {
 struct sub_group;
@@ -254,15 +261,14 @@ using is_gen_based_on_type_sizeof =
     std::bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
 
 template <typename> struct is_vec : std::false_type {};
-template <typename T, std::size_t N>
-struct is_vec<sycl::vec<T, N>> : std::true_type {};
+template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
 
 template <typename> struct get_vec_size {
-  static constexpr std::size_t size = 1;
+  static constexpr int size = 1;
 };
 
-template <typename T, std::size_t N> struct get_vec_size<sycl::vec<T, N>> {
-  static constexpr std::size_t size = N;
+template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
+  static constexpr int size = N;
 };
 
 // is_integral

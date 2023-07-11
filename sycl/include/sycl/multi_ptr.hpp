@@ -113,6 +113,16 @@ public:
       : m_Pointer(ptr) {}
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
 
+  // Explicit conversion from multi_ptr<T> to multi_ptr<const T>
+  template <typename NonConstElementType = std::remove_const_t<ElementType>,
+            typename = typename std::enable_if_t<
+                std::is_const_v<ElementType> &&
+                std::is_same_v<NonConstElementType,
+                               std::remove_const_t<ElementType>>>>
+  explicit multi_ptr(
+      multi_ptr<NonConstElementType, Space, DecorateAddress> MPtr)
+      : m_Pointer(MPtr.get_decorated()) {}
+
   // Only if Space is in
   // {global_space, ext_intel_global_device_space, generic_space}
   template <
@@ -126,7 +136,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space || generic_space
   template <int Dimensions, access::mode Mode,
@@ -176,8 +188,9 @@ public:
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
                      Mode, access::target::device, isPlaceholder, PropertyListT>
                 Accessor)
-      : m_Pointer(Accessor.template get_multi_ptr<DecorateAddress>()
-                      .get_decorated()) {}
+      : m_Pointer(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space || generic_space and element type is const
   template <int Dimensions, access::mode Mode,
@@ -440,7 +453,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space
   template <
@@ -565,7 +580,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space
   template <
@@ -645,6 +662,7 @@ private:
 template <typename ElementType, access::address_space Space>
 class multi_ptr<ElementType, Space, access::decorated::legacy> {
 public:
+  using value_type = ElementType;
   using element_type =
       std::conditional_t<std::is_same_v<ElementType, half>,
                          sycl::detail::half_impl::BIsRepresentationT,
@@ -756,9 +774,8 @@ public:
            Space == access::address_space::ext_intel_global_device_space)>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
-                Accessor) {
-    m_Pointer = detail::cast_AS<pointer_t>(Accessor.get_pointer());
-  }
+                Accessor)
+      : multi_ptr(detail::cast_AS<pointer_t>(Accessor.get_pointer().get())) {}
 
   // Only if Space == local_space || generic_space
   template <
@@ -874,6 +891,10 @@ public:
 
   // Returns the underlying OpenCL C pointer
   pointer_t get() const { return m_Pointer; }
+  pointer_t get_decorated() const { return m_Pointer; }
+  std::add_pointer_t<element_type> get_raw() const {
+    return reinterpret_cast<std::add_pointer_t<element_type>>(get());
+  }
 
   // Implicit conversion to the underlying pointer type
   operator ReturnPtr() const { return reinterpret_cast<ReturnPtr>(m_Pointer); }
@@ -986,6 +1007,7 @@ private:
 template <access::address_space Space>
 class multi_ptr<void, Space, access::decorated::legacy> {
 public:
+  using value_type = void;
   using element_type = void;
   using difference_type = std::ptrdiff_t;
 
@@ -1097,6 +1119,10 @@ public:
   using ReturnPtr = detail::const_if_const_AS<Space, void> *;
   // Returns the underlying OpenCL C pointer
   pointer_t get() const { return m_Pointer; }
+  pointer_t get_decorated() const { return m_Pointer; }
+  std::add_pointer_t<element_type> get_raw() const {
+    return reinterpret_cast<std::add_pointer_t<element_type>>(get());
+  }
 
   // Implicit conversion to the underlying pointer type
   operator ReturnPtr() const { return reinterpret_cast<ReturnPtr>(m_Pointer); };
@@ -1127,6 +1153,7 @@ private:
 template <access::address_space Space>
 class multi_ptr<const void, Space, access::decorated::legacy> {
 public:
+  using value_type = const void;
   using element_type = const void;
   using difference_type = std::ptrdiff_t;
 
@@ -1239,6 +1266,10 @@ public:
 
   // Returns the underlying OpenCL C pointer
   pointer_t get() const { return m_Pointer; }
+  pointer_t get_decorated() const { return m_Pointer; }
+  std::add_pointer_t<element_type> get_raw() const {
+    return reinterpret_cast<std::add_pointer_t<element_type>>(get());
+  }
 
   // Implicit conversion to the underlying pointer type
   operator const void *() const {
@@ -1264,10 +1295,21 @@ private:
 };
 
 #ifdef __cpp_deduction_guides
-template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+template <int dimensions, access::placeholder isPlaceholder,
           typename PropertyListT, class T>
-multi_ptr(accessor<T, dimensions, Mode, access::target::device, isPlaceholder,
-                   PropertyListT>)
+multi_ptr(accessor<T, dimensions, access::mode::read, access::target::device,
+                   isPlaceholder, PropertyListT>)
+    -> multi_ptr<const T, access::address_space::global_space,
+                 access::decorated::no>;
+template <int dimensions, access::placeholder isPlaceholder,
+          typename PropertyListT, class T>
+multi_ptr(accessor<T, dimensions, access::mode::write, access::target::device,
+                   isPlaceholder, PropertyListT>)
+    -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
+template <int dimensions, access::placeholder isPlaceholder,
+          typename PropertyListT, class T>
+multi_ptr(accessor<T, dimensions, access::mode::read_write,
+                   access::target::device, isPlaceholder, PropertyListT>)
     -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
 template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
           typename PropertyListT, class T>

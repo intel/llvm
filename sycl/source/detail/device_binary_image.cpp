@@ -107,7 +107,6 @@ void RTDeviceBinaryImage::print() const {
   std::cerr << "    Target   : " << Bin->DeviceTargetSpec << "\n";
   std::cerr << "    Bin size : "
             << ((intptr_t)Bin->BinaryEnd - (intptr_t)Bin->BinaryStart) << "\n";
-  std::cerr << "    OSModuleHandle : " << ModuleHandle << "\n";
   std::cerr << "    Compile options : "
             << (Bin->CompileOptions ? Bin->CompileOptions : "NULL") << "\n";
   std::cerr << "    Link options    : "
@@ -180,8 +179,8 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
 }
 
 DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
-    std::unique_ptr<char[]> &&DataPtr, size_t DataSize, OSModuleHandle M)
-    : RTDeviceBinaryImage(M) {
+    std::unique_ptr<char[]> &&DataPtr, size_t DataSize)
+    : RTDeviceBinaryImage() {
   Data = std::move(DataPtr);
   Bin = new pi_device_binary_struct();
   Bin->Version = PI_DEVICE_BINARY_VERSION;

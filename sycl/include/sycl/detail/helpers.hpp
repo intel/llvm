@@ -37,14 +37,18 @@ enum class memory_order;
 
 namespace detail {
 
+class buffer_impl;
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
-__SYCL_EXPORT std::vector<RT::PiEvent>
+__SYCL_EXPORT std::vector<sycl::detail::pi::PiEvent>
 getOrWaitEvents(std::vector<sycl::event> DepEvents,
                 std::shared_ptr<sycl::detail::context_impl> Context);
 
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
+
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
@@ -246,7 +250,6 @@ void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
 template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
-
 } // namespace detail
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

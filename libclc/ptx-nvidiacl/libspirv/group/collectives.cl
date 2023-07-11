@@ -225,6 +225,8 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
 #define __CLC_XOR(x, y) (x ^ y)
 #define __CLC_AND(x, y) (x & y)
 #define __CLC_MUL(x, y) (x * y)
+#define __CLC_LOGICAL_OR(x, y) (x || y)
+#define __CLC_LOGICAL_AND(x, y) (x && y)
 
 #define __DEFINE_CLC_COMPLEX_MUL(TYPE)                                         \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT complex_##TYPE __clc_complex_mul(     \
@@ -424,6 +426,9 @@ __CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, long, ~0l)
 __CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, long, 0l)
 __CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
 
+__CLC_SUBGROUP_COLLECTIVE(LogicalOrKHR, __CLC_LOGICAL_OR, bool, false)
+__CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
+
 #undef __CLC_SUBGROUP_COLLECTIVE_BODY
 #undef __CLC_SUBGROUP_COLLECTIVE
 #undef __CLC_SUBGROUP_COLLECTIVE_REDUX
@@ -448,7 +453,7 @@ __CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
   /* Perform InclusiveScan over sub-group results */                           \
   TYPE sg_prefix;                                                              \
   TYPE sg_aggregate = scratch[0];                                              \
-  _Pragma("unroll") for (int s = 1; s < num_sg; ++s) {                         \
+  for (int s = 1; s < num_sg; ++s) {                                           \
     if (sg_id == s) {                                                          \
       sg_prefix = sg_aggregate;                                                \
     }                                                                          \
@@ -591,6 +596,9 @@ __CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ulong, 0l)
 __CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, long, ~0l)
 __CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, long, 0l)
 __CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
+
+__CLC_GROUP_COLLECTIVE(LogicalOrKHR, __CLC_LOGICAL_OR, bool, false)
+__CLC_GROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 
 // half requires additional mangled entry points
 #define __CLC_GROUP_COLLECTIVE__DF16(MANGLED_NAME, SPIRV_DISPATCH)             \

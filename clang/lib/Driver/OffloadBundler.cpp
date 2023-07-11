@@ -85,12 +85,25 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
   if (clang::StringToCudaArch(TripleOrGPU.second) != clang::CudaArch::UNKNOWN) {
     auto KindTriple = TripleOrGPU.first.split('-');
     this->OffloadKind = KindTriple.first;
-    this->Triple = llvm::Triple(KindTriple.second);
-    this->TargetID = Target.substr(Target.find(TripleOrGPU.second));
+
+    // Enforce optional env field to standardize bundles
+    llvm::Triple t = llvm::Triple(KindTriple.second);
+    this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
+                                t.getOSName(), t.getEnvironmentName());
+
+    if (TripleOrGPU.second.empty())
+      this->TargetID = "";
+    else
+      this->TargetID = Target.substr(Target.find(TripleOrGPU.second));
   } else {
     auto KindTriple = TargetFeatures.first.split('-');
     this->OffloadKind = KindTriple.first;
-    this->Triple = llvm::Triple(KindTriple.second);
+
+    // Enforce optional env field to standardize bundles
+    llvm::Triple t = llvm::Triple(KindTriple.second);
+    this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
+                                t.getOSName(), t.getEnvironmentName());
+
     this->TargetID = "";
   }
 }
@@ -1273,20 +1286,6 @@ private:
     return Targets;
   }
 
-  bool CheckIfTargetIsExcluded(StringRef Triple) {
-    // NOTE: "-sycldevice" Triple component has been deprecated.
-    // However, it still can be met in libraries that have been compiled before
-    // deprecation. For example, here Triple might be the following:
-    //  sycl-fpga_aoco-intel-unknown-sycldevice
-    //
-    // The workaround is to strip this Triple component if it is present.
-    Triple.consume_back("-sycldevice");
-    const auto &ExcludedTargetNames = BundlerConfig.ExcludedTargetNames;
-    auto It = std::find(ExcludedTargetNames.begin(), ExcludedTargetNames.end(),
-                        Triple);
-    return It != ExcludedTargetNames.end();
-  }
-
   // Function reads targets from Child and checks whether one of Targets
   // is in Excluded list.
   Expected<bool>
@@ -1299,11 +1298,13 @@ private:
       return TargetNamesOrErr.takeError();
 
     auto TargetNames = TargetNamesOrErr.get();
-    for (const auto &TargetName : TargetNames)
-      if (CheckIfTargetIsExcluded(TargetName))
-        return true;
-
-    return false;
+    const auto &ExcludedTargets = BundlerConfig.ExcludedTargetNames;
+    return std::any_of(TargetNames.begin(), TargetNames.end(),
+                       [&ExcludedTargets](const std::string &Target) {
+                         auto It = std::find(ExcludedTargets.begin(),
+                                             ExcludedTargets.end(), Target);
+                         return It != ExcludedTargets.end();
+                       });
   }
 };
 
@@ -1589,34 +1590,34 @@ Error OffloadBundler::UnbundleFiles() {
   return Error::success();
 }
 
-// Unbundle the files. Return true if an error was found.
+// Unbundle the files. Return false if an error was found.
 Expected<bool>
 clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
   // Open Input file.
   ErrorOr<std::unique_ptr<MemoryBuffer>> CodeOrErr =
       MemoryBuffer::getFileOrSTDIN(BundlerConfig.InputFileNames.front());
   if (std::error_code EC = CodeOrErr.getError())
-    return createFileError(BundlerConfig.InputFileNames.front(), EC);
+    return false;
   MemoryBuffer &Input = *CodeOrErr.get();
 
   // Select the right files handler.
   Expected<std::unique_ptr<FileHandler>> FileHandlerOrErr =
       CreateFileHandler(Input, BundlerConfig);
   if (!FileHandlerOrErr)
-    return FileHandlerOrErr.takeError();
+    return false;
 
   std::unique_ptr<FileHandler> &FH = *FileHandlerOrErr;
 
   // Quit if we don't have a handler.
   if (!FH)
-    return true;
+    return false;
 
   // Seed temporary filename generation with the stem of the input file.
   FH->SetTempFileNameBase(llvm::sys::path::stem(BundlerConfig.InputFileNames.front()));
 
   // Read the header of the bundled file.
   if (Error Err = FH->ReadHeader(Input))
-    return std::move(Err);
+    return false;
 
   StringRef triple = BundlerConfig.TargetNames.front();
 
@@ -1627,13 +1628,15 @@ clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
     Expected<std::optional<StringRef>> CurTripleOrErr =
         FH->ReadBundleStart(Input);
     if (!CurTripleOrErr)
-      return CurTripleOrErr.takeError();
+      return false;
 
     // We don't have more bundles.
     if (!*CurTripleOrErr)
       break;
 
-    if (*CurTripleOrErr == triple) {
+    StringRef CurTriple = **CurTripleOrErr;
+    if (OffloadTargetInfo(CurTriple, BundlerConfig).Triple.str() ==
+        OffloadTargetInfo(triple, BundlerConfig).Triple.str()) {
       found = true;
       break;
     }

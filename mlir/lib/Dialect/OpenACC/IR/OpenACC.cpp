@@ -498,7 +498,7 @@ template <typename Op>
 static LogicalResult
 checkSymOperandList(Operation *op, std::optional<mlir::ArrayAttr> attributes,
                     mlir::OperandRange operands, llvm::StringRef operandName,
-                    llvm::StringRef symbolName) {
+                    llvm::StringRef symbolName, bool checkOperandType = true) {
   if (!operands.empty()) {
     if (!attributes || attributes->size() != operands.size())
       return op->emitOpError()
@@ -520,17 +520,17 @@ checkSymOperandList(Operation *op, std::optional<mlir::ArrayAttr> attributes,
              << operandName << " operand appears more than once";
 
     mlir::Type varType = operand.getType();
-    auto symbolRef = std::get<1>(args).cast<SymbolRefAttr>();
+    auto symbolRef = llvm::cast<SymbolRefAttr>(std::get<1>(args));
     auto decl = SymbolTable::lookupNearestSymbolFrom<Op>(op, symbolRef);
     if (!decl)
       return op->emitOpError()
              << "expected symbol reference " << symbolRef << " to point to a "
              << operandName << " declaration";
 
-    if (decl.getType() && decl.getType() != varType)
-      return op->emitOpError()
-             << "expected private (" << varType << ") to be the same type as "
-             << operandName << " declaration (" << decl.getType() << ")";
+    if (checkOperandType && decl.getType() && decl.getType() != varType)
+      return op->emitOpError() << "expected " << operandName << " (" << varType
+                               << ") to be the same type as " << operandName
+                               << " declaration (" << decl.getType() << ")";
   }
 
   return success();
@@ -751,7 +751,7 @@ LogicalResult acc::LoopOp::verify() {
 
   if (failed(checkSymOperandList<mlir::acc::ReductionRecipeOp>(
           *this, getReductionRecipes(), getReductionOperands(), "reduction",
-          "reductions")))
+          "reductions", false)))
     return failure();
 
   // Check non-empty body().

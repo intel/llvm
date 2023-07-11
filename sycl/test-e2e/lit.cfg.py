@@ -196,7 +196,7 @@ if config.opencl_libs_dir:
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 
 if cl_options:
-    config.substitutions.append( ('%sycl_options',  ' ' + config.sycl_libs_dir + '/../lib/sycl7.lib /I' +
+    config.substitutions.append( ('%sycl_options',  ' ' + os.path.normpath(os.path.join(config.sycl_libs_dir + '/../lib/sycl7.lib')) + ' /I' +
                                 config.sycl_include + ' /I' + os.path.join(config.sycl_include, 'sycl')) )
     config.substitutions.append( ('%include_option',  '/FI' ) )
     config.substitutions.append( ('%debug_option',  '/DEBUG' ) )
@@ -243,7 +243,8 @@ available_devices = {'opencl': ('cpu', 'gpu', 'acc'),
                      'ext_oneapi_cuda':('gpu'),
                      'ext_oneapi_level_zero':('gpu'),
                      'ext_oneapi_hip':('gpu'),
-                     'ext_intel_esimd_emulator':('gpu')}
+                     'ext_intel_esimd_emulator':('gpu'),
+                     'native_cpu':('cpu')}
 for d in config.sycl_devices:
      be, dev = d.split(':')
      if be not in available_devices or dev not in available_devices[be]:
@@ -379,28 +380,44 @@ for sycl_device in config.sycl_devices:
     sp = subprocess.run((cmd), env=llvm_config.config.environment,
                         shell=True, capture_output=True, text=True)
     if sp.returncode != 0:
-        lit_config.error('Cannot list device aspects for {}:{}\nstdout:\n{}\nstderr:\n'.format(
-            be, device, sp.stdout, sp.stderr))
+        lit_config.error('Cannot list device aspects for {}\nstdout:\n{}\nstderr:\n{}'.format(
+            sycl_device, sp.stdout, sp.stderr))
 
     dev_aspects = []
+    dev_sg_sizes = []
     for line in sp.stdout.split('\n'):
-        if not re.search(r'^ *Aspects *:', line):
-            continue
-        _, aspects_str = line.split(':', 1)
-        dev_aspects.append(aspects_str.strip().split(' '))
+        if re.search(r'^ *Aspects *:', line):
+            _, aspects_str = line.split(':', 1)
+            dev_aspects.append(aspects_str.strip().split(' '))
+        if re.search(r'^ *info::device::sub_group_sizes:', line):
+            # str.removeprefix isn't universally available...
+            sg_sizes_str = line.strip().replace('info::device::sub_group_sizes: ', '')
+            dev_sg_sizes.append(sg_sizes_str.strip().split(' '))
 
     if dev_aspects == []:
-        lit_config.error('Cannot detect device aspect for {}\nstdout:\n{}\nstderr:\n'.format(
+        lit_config.error('Cannot detect device aspect for {}\nstdout:\n{}\nstderr:\n{}'.format(
             sycl_device, sp.stdout, sp.stderr))
-        sycl_dev_aspects.append(set())
-        continue
-
+        dev_aspects.append(set())
     # We might have several devices matching the same filter in the system.
     # Compute intersection of aspects.
     aspects = set(dev_aspects[0]).intersection(*dev_aspects)
     lit_config.note('Aspects for {}: {}'.format(sycl_device, ', '.join(aspects)))
 
-    features = set('aspect-' + a for a in aspects)
+    if dev_sg_sizes == []:
+        lit_config.error('Cannot detect device SG sizes for {}\nstdout:\n{}\nstderr:\n{}'.format(
+            sycl_device, sp.stdout, sp.stderr))
+        dev_sg_sizes.append(set())
+    # We might have several devices matching the same filter in the system.
+    # Compute intersection of aspects.
+    sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
+    lit_config.note('SG sizes for {}: {}'.format(sycl_device, ', '.join(sg_sizes)))
+
+    aspect_features = set('aspect-' + a for a in aspects)
+    sg_size_features = set('sg-' + s for s in sg_sizes)
+    features = set();
+    features.update(aspect_features)
+    features.update(sg_size_features)
+
     be, dev = sycl_device.split(':')
     features.add(dev.replace('acc', 'accelerator'))
     # Use short names for LIT rules.

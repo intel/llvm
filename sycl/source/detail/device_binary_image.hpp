@@ -132,12 +132,8 @@ public:
   };
 
 public:
-  RTDeviceBinaryImage(OSModuleHandle ModuleHandle)
-      : Bin(nullptr), ModuleHandle(ModuleHandle) {}
-  RTDeviceBinaryImage(pi_device_binary Bin, OSModuleHandle ModuleHandle)
-      : ModuleHandle(ModuleHandle) {
-    init(Bin);
-  }
+  RTDeviceBinaryImage() : Bin(nullptr) {}
+  RTDeviceBinaryImage(pi_device_binary Bin) { init(Bin); }
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -145,8 +141,6 @@ public:
   // collections
   RTDeviceBinaryImage(RTDeviceBinaryImage &&) = default;
   RTDeviceBinaryImage &operator=(RTDeviceBinaryImage &&) = default;
-
-  OSModuleHandle getOSModuleHandle() const { return ModuleHandle; }
 
   virtual ~RTDeviceBinaryImage() {}
 
@@ -234,7 +228,6 @@ protected:
   pi_device_binary get() const { return Bin; }
 
   pi_device_binary Bin;
-  OSModuleHandle ModuleHandle;
 
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
@@ -253,8 +246,7 @@ protected:
 // data in destructor.
 class DynRTDeviceBinaryImage : public RTDeviceBinaryImage {
 public:
-  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize,
-                         OSModuleHandle M);
+  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize);
   ~DynRTDeviceBinaryImage() override;
 
   void print() const override {
