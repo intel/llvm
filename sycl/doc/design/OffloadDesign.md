@@ -2,8 +2,8 @@
 
 ## Introduction
 
-This document covers the implementation design for using the new offloading
-model for the DPC++ Compiler.  This leverages the existing community Offloading 
+This document covers the proposed design for using the new offloading model for
+the DPC++ Compiler.  This leverages the existing community Offloading
 design [OffloadingDesign][1] which covers the Clang driver and code generation
 steps for creating offloading applications.
 
@@ -12,12 +12,12 @@ steps for creating offloading applications.
 The current offloading model is completely encapsulated within the Clang
 Compiler Driver requiring the driver to perform all of the additional steps
 for generating the host and device compilation passes.  The Driver is also
-responsible for performing any of the link-time processing that occurs for
+responsible for initiating any of the link-time processing that occurs for
 each device target.
 
 The updated offloading model removes much of the functionality that is
-performed during the link phase of the offloading compilation and moves it
-to a `clang-linker-wrapper` tool.
+performed during the link phase of the offloading compilation from the driver
+and moves it to a `clang-linker-wrapper` tool.
 
 Below is a general representation of the overall offloading flow that is
 performed during a full compilation from source to final executable.  The
@@ -47,12 +47,12 @@ device only binaries are represented by the file generated from the
 
 ## Fat Binary Generation
 
-The generation of the fat binary will take place in the driver.  The model from
-the community is generating the fat binary as a secondary process when creating
-the host object.  Generation will be separated from the host compilation step.
-This is being done to enable proper support for using an external host compiler
-as well as taking advantage of potential parallelism during compilation of both
-the host and target device binaries.
+The generation of the fat binary will be controlled by the driver.  The model
+from the community is generating the fat binary as a secondary process when
+creating the host object.  Generation will be separated from the host
+compilation step.  This is being done to enable proper support for using an
+external host compiler as well as taking advantage of potential parallelism
+during compilation of both the host and target device binaries.
 
 The fat object in the new model is generated during the host compilation.
 The host compilation takes an additional argument which points to the device
@@ -86,7 +86,7 @@ as normal with the packager and placed within the given section.
 
 ## Clang Linker Wrapper
 
-The clang-linker-wrapper provides the interface to perform the needed link
+The `clang-linker-wrapper` provides the interface to perform the needed link
 steps when consuming fat binaries.  The linker wrapper performs a majority of
 the work involved during the link step during an offload compilation,
 significantly reducing the amount of work that is occuring in the compiler
@@ -94,6 +94,13 @@ driver.  From the compilation perspective, the linker wrapper replaces the
 typical call to the host link.  This allows for the responsibility of the
 compiler driver to be nearly identical when performing a regular compilation
 vs an offloading compilation.
+
+From a high level, using the `clang-linker-wrapper` provides a few benefits:
+ - Moves all of the device linking responsibility out of the compiler driver.
+ - Allows for a more direct ability to perform linking for offloading without
+   requiring the use of the driver, using more linker like calls.
+ - Provides additional flexibility with the ability to dynamically modify
+   the toolchain execution.
 
 Example usage of the external `clang-linker-wrapper` call:
 
@@ -218,7 +225,7 @@ the final executable.
 
 The updated offloading model will integrate the Ahead of Time (AOT) compilation
 behaviors into the clang-linker-wrapper.  The actions will typically take place
-after the device link and post link steps.
+after the device link, post link, and LLVM-IR to SPIR-V translation steps.
 
 Regardless of the AOT target, the flow is similar, only modifying the offline
 compiler that is used to create the target device image.  It is expected that
@@ -246,22 +253,22 @@ are given further below.
 | Option Name                  | Purpose                                      |
 |------------------------------|----------------------------------------------|
 | `--fpga-link-type=<arg>`     | Tells the link step to perform 'early' or 'image' processing to create archives for FPGA |
-| `--parallel-link-sycl=<arg>` | Provide the number of parallel jobs that will be used when processing with `llvm-foreach` |
+| `--parallel-link-sycl=<arg>` | Provide the number of parallel jobs that will be used when processing split jobs |
 | `--no-sycl-device-lib=<arg>` | Provide the list of device libraries to restrict from linking during device link |
 
 *Table: Additional Options for clang-linker-wrapper*
 
 The `clang-linker-wrapper` provides an existing option named `-wrapper-jobs`
-that may be useful for our usage instead of creating a new option specific
-to `llvm-foreach` processing.
+that may be useful for our usage.
 
 #### spir64_gen support
 
 Compilation behaviors involving AOT for GPU involve an additional call to
 the OpenCL Offline compiler (OCLOC).  This call occurs after the post-link
-step performed by sycl-post-link.  Additional options passed by the user
-via the `-Xsycl-target-backend=spir64_gen <opts>` command as well as the
-implied options set via target options such as `-fsycl-targets=intel_gpu_skl`
+step performed by `sycl-post-link` and the SPIR-V translation step which is done
+by `llvm-spirv`.  Additional options passed by the user via the
+`-Xsycl-target-backend=spir64_gen <opts>` command as well as the implied
+options set via target options such as `-fsycl-targets=intel_gpu_skl`
 will be processed by a new options to the wrapper, `--gen-tool-arg=<arg>`
 
 To support multiple target specifications, for instance:
@@ -295,9 +302,10 @@ set of targets.
 
 Compilation behaviors involving AOT for FPGA involve an additional call to
 either `aoc` (for Hardware/Simulation) or `opencl-aot` (for Emulation).  This
-call occurs after the post-link step performed by sycl-post-link.  Additional
-options passed by the user via the `-Xsycl-target-backend=spir64_fpga <opts>`
-command will be processed by a new options to the wrapper,
+call occurs after the post-link step performed by `sycl-post-link` and the
+SPIR-V translation step performed by `llvm-spirv`.  Additional options passed
+by the user via the `-Xsycl-target-backend=spir64_fpga <opts>` command will be
+processed by a new options to the wrapper,
 `--fpga-tool-arg=<arg>`
 
 The FPGA target also has support for additional generated binaries that
@@ -344,7 +352,8 @@ which tool is used.
 
 Compilation behaviors involving AOT for CPU involve an additional call to
 `opencl-aot`.  This call occurs after the post-link step performed by
-`sycl-post-link`.  Additional options passed by the user via the
+`sycl-post-link` and the SPIR-V translation step performed by `llvm-spirv`.
+Additional options passed by the user via the
 `-Xsycl-target-backend=spir64_x86_64 <opts>` command will be processed by a new
 option to the wrapper, `--cpu-tool-arg=<arg>`
 
@@ -352,24 +361,28 @@ option to the wrapper, `--cpu-tool-arg=<arg>`
 
 Once the device binary is pulled out of the fat binary, the binary must be
 wrapped and provided the needed entry points to be used during execution.  This
-is performed by the during the link phase and controlled by the
-`clang-linker-wrapper`.
+is performed during the link phase and controlled by the `clang-linker-wrapper`.
 
 It is expected that the wrap information that is generated to be wrapped
 around the device binary will match current wrapping information that is used
-for the exiting offload model.  The wrapping in the old model is using the
+for the existing offload model.  The wrapping in the old model is using the
 `clang-offload-wrapper` tool.
 
 ### Integration of llvm-foreach
 
 Use of `llvm-foreach` is used frequently during the offloading process.  The
-functionality will persist with the new model.  Steps using `llvm-foreach`
-have the capability of kicking of the steps in a parallel manner by using the
-`-fsycl-max-parallel-link-jobs` option on the command line.  Information
-about the parallel jobs will need to be passed through the
-`clang-linker-wrapper` to be properly processed.  The option will be named
-`--parallel-link-sycl=<arg>` to be consumed and used during `llvm-foreach`
-toolchain events.
+functionality was introduced due to the toolchain building limitations of the
+driver and the need perform multiple compilations during a specific step of
+the compilation.  For example, the support for device code splitting performed
+by the `sycl-post-link` tool would require consumers of the split code to work
+each item individually.  The driver toolchain does not know that this split
+occurs, or how many splits were performed.  `llvm-foreach` permits this
+obfuscation.
+
+With the new model, the compilation sequence is built dynamically within the
+`clang-linker-wrapper`, allowing for the use of `llvm-foreach` to become
+obsolete.  The `clang-linker-wrapper` is then responsible for performing the
+needed individual calls work item which can be done using parallel for.
 
 #### Beyond llvm-foreach and similar job hiding tools
 
@@ -398,7 +411,7 @@ passing the full command line to the link step, the objects provided will need
 to be full fat objects.  This is different from the old model which will
 require for an additional step before the link to create the full fat object
 that is properly represented on the host link command line.  This additional
-step is necessary due the fact that we are creating the fat objects during
+step is necessary due to the fact that we are creating the fat objects during
 a separate step as opposed to integrating the offload binaries during the
 host object generation.  See [Fat Binary Generation](#fat-binary-generation).
 
