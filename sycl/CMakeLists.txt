@@ -180,16 +180,19 @@ configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feat
 # Generate SYCL builtins
 find_package(Python3 REQUIRED)
 add_custom_target(sycl-builtins-header
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/builtins_generator.py ${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_gen.hpp
-  BYPRODUCTS "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_gen.hpp"
-  COMMENT "Generate SYCL builtin headers"
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/builtins_generator.py ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/source/builtins_generator.py
+  BYPRODUCTS "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_scalar_gen.hpp"
+             "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_vector_gen.hpp"
+             "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_marray_gen.hpp"
+  COMMENT "Generating SYCL builtin headers"
 )
 
 # Install generated headers.
 install(FILES
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp"
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp"
-  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_gen.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_scalar_gen.hpp"
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
 

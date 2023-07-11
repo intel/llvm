@@ -14,7 +14,9 @@
 #include <sycl/builtins_marray.hpp>
 
 // Include the generated builtins.
-#include <sycl/builtins_gen.hpp>
+#include <sycl/builtins_scalar_gen.hpp>
+#include <sycl/builtins_vector_gen.hpp>
+#include <sycl/builtins_marray_gen.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {

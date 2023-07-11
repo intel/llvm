@@ -1,5 +1,6 @@
 import itertools
 import sys
+import os
 
 class TemplatedType:
   def __init__(self, valid_types, valid_sizes):
@@ -85,18 +86,6 @@ class InstantiatedElementType:
       return f'detail::get_elem_type_t<{self.referenced_type}>'
     return self.referenced_type
 
-class UnsignedType:
-  def __init__(self, parent_idx):
-    self.parent_idx = parent_idx
-
-class InstantiatedUnsignedType:
-  def __init__(self, signed_type, parent_idx):
-    self.signed_type = signed_type
-    self.parent_idx = parent_idx
-
-  def __str__(self):
-    return f'detail::make_unsigned_t<{self.signed_type}>'
-
 class ConversionTraitType:
   def __init__(self, trait, parent_idx):
     self.trait = trait
@@ -162,47 +151,62 @@ vuint64n = [Vec(["uint64_t"])]
 vint64n_ext = [Vec(["int64_t", "long long"])]
 vuint64n_ext = [Vec(["uint64_t", "unsigned long long"])]
 
-mint8n = []
-mint16n = []
-mint32n = []
-mint64n = []
-muint8n = []
-muint16n = []
-muint32n = []
-muint64n = []
+mint8n = [Marray(["int8_t"])]
+mint16n = [Marray(["int16_t"])]
+mint32n = [Marray(["int32_t"])]
+mint64n = [Marray(["int64_t"])]
+muint8n = [Marray(["uint8_t"])]
+muint16n = [Marray(["uint16_t"])]
+muint32n = [Marray(["uint32_t"])]
+muint64n = [Marray(["uint64_t"])]
+mcharn = [Marray(["char"])]
+mshortn = [Marray(["short"])]
 mintn = [Marray(["int"])]
-mshortn = []
-muintn = []
-mulongn = []
-mbooln = []
+mushortn = [Marray(["unsigned short"])]
+muintn = [Marray(["unsigned int"])]
+mulongn = [Marray(["unsigned long", "unsigned long long"])]
+mbooln = [Marray(["bool"])]
 
 geninteger = ["char", "signed char", "short", "int", "long", "long long",
               "unsigned char", "unsigned short", "unsigned int",
               "unsigned long", "unsigned long long",
               Vec(["int8_t", "int16_t", "int32_t", "int64_t", "uint8_t",
-                  "uint16_t","uint32_t","uint64_t", "long long", "unsigned long long"])]
+                  "uint16_t","uint32_t","uint64_t", "unsigned long long"]), # unsigned long long non-standard. Deprecated.
+              Marray(["char", "signed char", "short", "int", "long", "long long",
+                      "unsigned char", "unsigned short", "unsigned int",
+                      "unsigned long", "unsigned long long"])]
+mgeninteger = [Marray(["char", "signed char", "short", "int", "long", "long long",
+                       "unsigned char", "unsigned short", "unsigned int",
+                       "unsigned long", "unsigned long long"])]
 sigeninteger = ["char", "signed char", "short", "int", "long", "long long"]
-vigeninteger = [Vec(["int8_t", "int16_t", "int32_t", "int64_t", "long long"])]
-migeninteger = []
+vigeninteger = [Vec(["int8_t", "int16_t", "int32_t", "int64_t", "long long"])] # long long non-standard. Deprecated.
+migeninteger = [Marray(["char", "signed char", "short", "int", "long", "long long"])]
 igeninteger = ["char", "signed char", "short", "int", "long", "long long",
-                Vec(["int8_t", "int16_t", "int32_t", "int64_t", "long long"])]
-vugeninteger = [Vec(["uint8_t", "uint16_t", "uint32_t", "uint64_t", "unsigned long long"])]
+                Vec(["int8_t", "int16_t", "int32_t", "int64_t", "long long"]), # long long non-standard. Deprecated.
+                Marray(["char", "signed char", "short", "int", "long", "long long"])]
+vugeninteger = [Vec(["uint8_t", "uint16_t", "uint32_t", "uint64_t",
+                     "unsigned char", "unsigned short", "unsigned int", "unsigned long", "unsigned long long"])] # Non-standard. Deprecated.
+mugeninteger = [Marray(["unsigned char", "unsigned short", "unsigned int", "unsigned long", "unsigned long long"])]
 sugeninteger = ["unsigned char", "unsigned short", "unsigned int",
                 "unsigned long", "unsigned long long"]
-ugeninteger = [Vec(["uint8_t", "uint16_t", "uint32_t", "uint64_t", "unsigned long long"]),
+ugeninteger = [Vec(["uint8_t", "uint16_t", "uint32_t", "uint64_t",
+                    "unsigned char", "unsigned short", "unsigned int", "unsigned long", "unsigned long long"]), # Non-standard. Deprecated.
+               Marray(["unsigned char", "unsigned short", "unsigned int", "unsigned long", "unsigned long long"]),
                "unsigned char", "unsigned short", "unsigned int",
                "unsigned long", "unsigned long long"]
-igenint32 = ["int32_t", Vec(["int32_t"])]
-ugenint32 = ["uint32_t", Vec(["uint32_t"])]
-genint32 = ["int32_t", "uint32_t", Vec(["int32_t", "uint32_t"])]
+igenint32 = ["int32_t", Vec(["int32_t"]), Marray(["int32_t"])]
+ugenint32 = ["uint32_t", Vec(["uint32_t"]), Marray(["uint32_t"])]
+genint32 = ["int32_t", "uint32_t", Vec(["int32_t", "uint32_t"]), Marray(["int32_t", "uint32_t"])]
 
 sgentype = ["char", "signed char", "short", "int", "long", "long long",
             "unsigned char", "unsigned short", "unsigned int",
             "unsigned long", "unsigned long long", "float", "double", "half"]
 vgentype = [Vec(["int8_t", "int16_t", "int32_t", "int64_t", "uint8_t", "uint16_t",
-                 "uint32_t", "uint64_t", "float", "double", "half", "long long",
-                 "unsigned long long"])]
-mgentype = []
+                 "uint32_t", "uint64_t", "float", "double", "half",
+                 "long long", "unsigned long long"])] # long long non-standard. Deprecated.
+mgentype = [Marray(["char", "signed char", "short", "int", "long", "long long",
+                    "unsigned char", "unsigned short", "unsigned int",
+                    "unsigned long", "unsigned long long", "float", "double", "half"])]
 
 intptr = [MultiPtr("int"), RawPtr("int")]
 floatptr = [MultiPtr("float"), RawPtr("float")]
@@ -223,11 +227,12 @@ vint32ptr = [MultiPtr(Vec(["int32_t"])), RawPtr(Vec(["int32_t"]))]
 # To help resolve template arguments, these are given the index of their parent
 # argument.
 elementtype0 = [ElementType(0)]
-unsignedtype0 = [UnsignedType(0)]
+unsignedtype0 = [ConversionTraitType("make_unsigned_t", 0)]
 samesizesignedint0 = [ConversionTraitType("same_size_signed_int_t", 0)]
 samesizeunsignedint0 = [ConversionTraitType("same_size_unsigned_int_t", 0)]
 samesizefloat0 = [ConversionTraitType("same_size_float_t", 0)]
 intelements0 = [ConversionTraitType("int_elements_t", 0)]
+boolelements0 = [ConversionTraitType("bool_elements_t", 0)]
 upsampledint0 = [ConversionTraitType("upsampled_int_t", 0)]
 
 builtin_types = {
@@ -280,18 +285,22 @@ builtin_types = {
   "muint16n" : muint16n,
   "muint32n" : muint32n,
   "muint64n" : muint64n,
-  "mintn" : mintn,
+  "mcharn" : mcharn,
   "mshortn" : mshortn,
+  "mintn" : mintn,
+  "mushortn" : mushortn,
   "muintn" : muintn,
   "mulongn" : mulongn,
   "mbooln" : mbooln,
   "geninteger" : geninteger,
+  "mgeninteger" : mgeninteger,
   "sigeninteger" : sigeninteger,
   "vigeninteger" : vigeninteger,
   "migeninteger" : migeninteger,
   "igeninteger" : igeninteger,
   "sugeninteger" : sugeninteger,
   "vugeninteger" : vugeninteger,
+  "mugeninteger" : mugeninteger,
   "ugeninteger" : ugeninteger,
   "igenint32" : igenint32,
   "ugenint32" : ugenint32,
@@ -320,6 +329,7 @@ builtin_types = {
   "samesizefloat0" : samesizefloat0,
   "intelements0" : intelements0,
   "upsampledint0" : upsampledint0,
+  "boolelements0" : boolelements0,
   "char" : ["char"],
   "signed char" : ["signed char"],
   "short" : ["short"],
@@ -364,31 +374,16 @@ def convert_vec_arg_name(arg_type, arg_name):
     return f'typename detail::get_vec_t<{arg_type}>({arg_name})'
   return arg_name
 
-class Def:
-  def __init__(self, return_type, arg_types, invoke_name=None,
-               invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
-               convert_args=[], size_alias=None):
+class DefCommon:
+  def __init__(self, return_type, arg_types, invoke_name, invoke_prefix,
+               custom_invoke, size_alias, marray_use_loop):
     self.return_type = return_type
     self.arg_types = arg_types
     self.invoke_name = invoke_name
     self.invoke_prefix = invoke_prefix
     self.custom_invoke = custom_invoke
-    self.fast_math_invoke_name = fast_math_invoke_name
-    # List of tuples with mappings for arguments to cast to argument types.
-    # First element in a tuple is the index of the argument to cast and the
-    # second element is the index of the argument type to convert to.
-    # Alternatively, the second element can be a string representation of the
-    # conversion function or type.
-    self.convert_args = convert_args
     self.size_alias = size_alias
-
-  def get_invoke_args(self, arg_types, arg_names):
-    result = list(map(convert_vec_arg_name, arg_types, arg_names))
-    for (arg_idx, type_conv) in self.convert_args:
-      # type_conv is either an index or a conversion function/type.
-      conv = type_conv if isinstance(type_conv, str) else arg_types[type_conv]
-      result[arg_idx] = f'{conv}({result[arg_idx]})'
-    return result
+    self.marray_use_loop = marray_use_loop
 
   def require_size_alias(self, alternative_name, marray_type):
     if not self.size_alias:
@@ -399,30 +394,34 @@ class Def:
   def convert_loop_arg(self, arg_type, arg_name):
     if isinstance(arg_type, MultiPtr):
       return f'address_space_cast<Space, IsDecorated, detail::get_elem_type_t<{arg_type.element_type}>>(&(*{arg_name})[I])'
-    return str(arg_name) + '[I]'
+    if is_marray_arg(arg_type):
+      return str(arg_name) + '[I]'
+    return str(arg_name)
 
-  def get_marray_loop_invoke_body(self, invoke_name, return_type, arg_types, arg_names, first_marray_type):
+  def get_marray_loop_invoke_body(self, namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type):
     result = ""
     args = [self.convert_loop_arg(arg_type, arg_name) for arg_type, arg_name in zip(arg_types, arg_names)]
     joined_args = ', '.join(args)
     (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
     result = result + size_alias_init
     return result + f"""  {return_type} Res;
-  for (int I = 0; I < {size_alias}; ++I) {{
-    Res[I] = __sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<detail::get_elem_type_t<{return_type}>>({joined_args});
-  }}
+  for (int I = 0; I < {size_alias}; ++I)
+    Res[I] = {namespaced_builtin_name}({joined_args});
   return Res;"""
 
-  def get_marray_vec_cast_invoke_body(self, invoke_name, return_type, arg_types, arg_names, first_marray_type):
+  def get_marray_vec_cast_invoke_body(self, namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type):
     result = ""
     vec_cast_args = [f'detail::to_vec({arg_name})' if is_marray_arg(arg_type) else str(arg_name) for arg_type, arg_name in zip(arg_types, arg_names)]
     joined_vec_cast_args = ', '.join(vec_cast_args)
     (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
     result = result + size_alias_init
-    return result + f"""  using VecT = vec<detail::get_elem_type_t<{first_marray_type}>, {size_alias}>;
-  return detail::to_marray(__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<VecT>({joined_vec_cast_args}));"""
+    vec_call = f'{namespaced_builtin_name}({joined_vec_cast_args})'
+    if isinstance(return_type, InstantiatedTemplatedReturnType):
+      # Convert the vec call result to marray.
+      vec_call = f'detail::to_marray({vec_call})'
+    return result + f'  return {vec_call};'
 
-  def get_marray_vectorized_invoke_body(self, invoke_name, return_type, arg_types, arg_names, first_marray_type):
+  def get_marray_vectorized_invoke_body(self, namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type):
     result = ""
     (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
     result = result + size_alias_init
@@ -435,41 +434,66 @@ class Def:
       rem_args.append(f'{arg_name}[{size_alias} - 1]' if is_marray else arg_name)
     joined_imm_args = ', '.join(imm_args)
     joined_rem_args = ', '.join(rem_args)
-    # If the function has fast-math we need to switch between invocations.
-    imm_invoke = f'__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<ImmVecT>({joined_imm_args});'
-    rem_invoke = f'__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<detail::get_elem_type_t<{return_type}>>({joined_rem_args});'
-    if self.fast_math_invoke_name:
-      imm_invoke = f"""[&]() {{
-      if constexpr (detail::use_fast_math_v<{first_marray_type}>)
-        return __sycl_std::__invoke_{self.fast_math_invoke_name}<ImmVecT>({joined_imm_args});
-      return {imm_invoke}
-    }}();"""
-      rem_invoke =  f"""[&]() {{
-      if constexpr (detail::use_fast_math_v<{first_marray_type}>)
-        __sycl_std::__invoke_{self.fast_math_invoke_name}<detail::get_elem_type_t<{return_type}>>({joined_rem_args});
-      return {rem_invoke}
-    }}();"""
-    return result + f"""  using ImmVecT = vec<detail::get_elem_type_t<{return_type}>, 2>;
-  {return_type} Res;
+    return result + f"""  {return_type} Res;
   for (size_t I = 0; I < {size_alias} / 2; ++I) {{
-    auto PartialRes = {imm_invoke}
-    std::memcpy(&Res[I * 2], &PartialRes, sizeof(ImmVecT));
+    auto PartialRes = {namespaced_builtin_name}({joined_imm_args});
+    std::memcpy(&Res[I * 2], &PartialRes, sizeof(decltype(PartialRes)));
   }}
-  if ({size_alias} % 2) {{
-    Res[{size_alias} - 1] = {rem_invoke}
-  }}
+  if ({size_alias} % 2)
+    Res[{size_alias} - 1] = {namespaced_builtin_name}({joined_rem_args});
   return Res;"""
 
-  def get_marray_invoke_body(self, invoke_name, return_type, arg_types, arg_names, first_marray_type):
+  def get_marray_invoke_body(self, namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type):
     # If the associated marray types have restriction on their sizes, we assume
     # they can be converted directly to vector.
     if first_marray_type.templated_type.valid_sizes:
-      return self.get_marray_vec_cast_invoke_body(invoke_name, return_type, arg_types, arg_names, first_marray_type)
+      return self.get_marray_vec_cast_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type)
     # If there is a pointer argument, we need to use the simple loop solution.
-    if any([isinstance(arg_type, MultiPtr) for arg_type in arg_types]):
-      return self.get_marray_loop_invoke_body(invoke_name, return_type, arg_types, arg_names, first_marray_type)
+    if self.marray_use_loop or any([isinstance(arg_type, MultiPtr) for arg_type in arg_types]):
+      return self.get_marray_loop_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type)
     # Otherwise, we vectorize the body.
-    return self.get_marray_vectorized_invoke_body(invoke_name, return_type, arg_types, arg_names, first_marray_type)
+    return self.get_marray_vectorized_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type)
+
+  def get_invoke_body(self, builtin_name, namespace, invoke_name, return_type, arg_types, arg_names):
+    for arg_type in arg_types:
+      if is_marray_arg(arg_type):
+        namespaced_builtin_name = f'{namespace}::{builtin_name}' if namespace else builtin_name
+        return self.get_marray_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, arg_type)
+    return self.get_scalar_vec_invoke_body(invoke_name, return_type, arg_types, arg_names)
+
+  def get_invoke(self, builtin_name, namespace, return_type, arg_types, arg_names):
+    if self.custom_invoke:
+      return self.custom_invoke(return_type, arg_types, arg_names)
+    invoke_name = self.invoke_name if self.invoke_name else builtin_name
+    result = ""
+    if self.size_alias:
+      template_arg = find_first_template_arg(arg_types)
+      if template_arg:
+        result = result + f'  constexpr size_t {self.size_alias} = detail::num_elements<{template_arg.template_name}>::value;'
+    return result + self.get_invoke_body(builtin_name, namespace, invoke_name, return_type, arg_types, arg_names)
+
+
+class Def(DefCommon):
+  def __init__(self, return_type, arg_types, invoke_name=None,
+               invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
+               convert_args=[], size_alias=None, marray_use_loop=False):
+    super().__init__(return_type, arg_types, invoke_name, invoke_prefix,
+                     custom_invoke, size_alias, marray_use_loop)
+    self.fast_math_invoke_name = fast_math_invoke_name
+    # List of tuples with mappings for arguments to cast to argument types.
+    # First element in a tuple is the index of the argument to cast and the
+    # second element is the index of the argument type to convert to.
+    # Alternatively, the second element can be a string representation of the
+    # conversion function or type.
+    self.convert_args = convert_args
+
+  def get_invoke_args(self, arg_types, arg_names):
+    result = list(map(convert_vec_arg_name, arg_types, arg_names))
+    for (arg_idx, type_conv) in self.convert_args:
+      # type_conv is either an index or a conversion function/type.
+      conv = type_conv if isinstance(type_conv, str) else arg_types[type_conv]
+      result[arg_idx] = f'{conv}({result[arg_idx]})'
+    return result
 
   def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
     invoke_args = self.get_invoke_args(arg_types, arg_names)
@@ -480,36 +504,17 @@ class Def:
   }}\n"""
     return result + f'  return __sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<{return_type}>({(", ".join(invoke_args))});'
 
-  def get_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
-    for arg_type in arg_types:
-      if is_marray_arg(arg_type):
-        return self.get_marray_invoke_body(invoke_name, return_type, arg_types, arg_names, arg_type)
-    return self.get_scalar_vec_invoke_body(invoke_name, return_type, arg_types, arg_names)
-
-  def get_invoke(self, builtin_name, return_type, arg_types, arg_names):
-    if self.custom_invoke:
-      return self.custom_invoke(return_type, arg_types, arg_names)
-    invoke_name = self.invoke_name if self.invoke_name else builtin_name
-    result = ""
-    if self.size_alias:
-      template_arg = find_first_template_arg(arg_types)
-      if template_arg:
-        result = result + f'  constexpr size_t {self.size_alias} = detail::num_elements<{template_arg.template_name}>::value;'
-    return result + self.get_invoke_body(invoke_name, return_type, arg_types, arg_names)
-
-class RelDef:
+class RelDef(DefCommon):
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None):
-    self.return_type = return_type
-    self.arg_types = arg_types
-    self.invoke_name = invoke_name
-    self.invoke_prefix = invoke_prefix
-    self.custom_invoke = custom_invoke
+    # NOTE: Relational builtins never use the vectorized solution as the vectors
+    #       are likely to use values larger than bool.
+    super().__init__(return_type, arg_types, invoke_name, invoke_prefix,
+                     custom_invoke, None, True)
 
-  def get_invoke(self, builtin_name, return_type, arg_types, arg_names):
+  def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
     if self.custom_invoke:
       return self.custom_invoke(return_type, arg_types, arg_names)
-    invoke_name = self.invoke_name if self.invoke_name else builtin_name
     invoke_args = ', '.join(arg_names)
     return f'  return detail::RelConverter<{return_type}>::apply(__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<detail::internal_rel_ret_t<{return_type}>>({invoke_args}));'
 
@@ -521,7 +526,7 @@ def custom_signed_abs_vector_invoke(return_type, _, arg_names):
   args = ' ,'.join(arg_names)
   return f'return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}).template convert<detail::get_elem_type_t<{return_type}>>();'
 
-def get_custom_any_all_invoke(invoke_name):
+def get_custom_any_all_vec_invoke(invoke_name):
   return (lambda _, arg_types, arg_names: f"""  return detail::rel_sign_bit_test_ret_t<{arg_types[0]}>(
       __sycl_std::__invoke_{invoke_name}<detail::rel_sign_bit_test_ret_t<{arg_types[0]}>>(
           detail::rel_sign_bit_test_arg_t<{arg_types[0]}>({arg_names[0]})));""")
@@ -529,6 +534,9 @@ def get_custom_any_all_invoke(invoke_name):
 def custom_bool_select_invoke(return_type, _, arg_names):
   return f"""  return __sycl_std::__invoke_select<{return_type}>(
       {arg_names[0]}, {arg_names[1]}, static_cast<detail::get_select_opencl_builtin_c_arg_type<{return_type}>>({arg_names[2]}));"""
+
+def get_custom_any_all_marray_invoke(builtin):
+  return (lambda _, arg_types, arg_names: f'  return std::{builtin}_of({arg_names[0]}.begin(), {arg_names[0]}.end(), [](detail::get_elem_type_t<{arg_types[0]}> X) {{ return {builtin}(X); }});')
 
 sycl_builtins = {# Math functions
                  "acos": [Def("genfloat", ["genfloat"])],
@@ -571,7 +579,7 @@ sycl_builtins = {# Math functions
                            Def("double", ["double", "doubleptr"]),
                            Def("half", ["half", "halfptr"])],
                  "frexp": [Def("vgenfloat", ["vgenfloat", "vint32nptr"]),
-                           Def("mgenfloat", ["mgenfloat", "mintnptr"]),
+                           Def("mgenfloat", ["mgenfloat", "mintnptr"], marray_use_loop=True),
                            Def("float", ["float", "intptr"]),
                            Def("double", ["double", "intptr"]),
                            Def("half", ["half", "intptr"])],
@@ -583,7 +591,7 @@ sycl_builtins = {# Math functions
                            Def("int", ["half"])],
                  "ldexp": [Def("vgenfloat", ["vgenfloat", "vint32n"]),
                            Def("vgenfloat", ["vgenfloat", "int"], convert_args=[(1,"vec<int, N>")], size_alias="N"),
-                           Def("mgenfloat", ["mgenfloat", "mintn"]),
+                           Def("mgenfloat", ["mgenfloat", "mintn"], marray_use_loop=True),
                            Def("mgenfloat", ["mgenfloat", "int"]),
                            Def("float", ["float", "int"]),
                            Def("double", ["double", "int"]),
@@ -608,33 +616,32 @@ sycl_builtins = {# Math functions
                           Def("double", ["double", "doubleptr"]),
                           Def("half", ["half", "halfptr"])],
                  "nan": [Def("samesizefloat0", ["vuint32n"]),
+                         Def("samesizefloat0", ["muintn"], marray_use_loop=True),
                          Def("samesizefloat0", ["unsigned int"]),
                          Def("samesizefloat0", ["vuint64n_ext"]),
+                         Def("samesizefloat0", ["mulongn"], marray_use_loop=True),
                          Def("samesizefloat0", ["unsigned long"]),
                          Def("samesizefloat0", ["unsigned long long"]),
                          Def("samesizefloat0", ["vuint16n"]),
+                         Def("samesizefloat0", ["mushortn"], marray_use_loop=True),
                          Def("samesizefloat0", ["unsigned short"])],
                  "nextafter": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pow": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pown": [Def("vgenfloat", ["vgenfloat", "vint32n"]),
-                          Def("vgenfloat", ["vgenfloat", "int"]), # Non-standard. Deprecated.
-                          Def("mgenfloat", ["mgenfloat", "mintn"]),
-                          Def("mgenfloat", ["mgenfloat", "int"]), # Non-standard. Deprecated.
+                          Def("mgenfloat", ["mgenfloat", "mintn"], marray_use_loop=True),
                           Def("float", ["float", "int"]),
                           Def("double", ["double", "int"]),
                           Def("half", ["half", "int"])],
                  "powr": [Def("genfloat", ["genfloat", "genfloat"], fast_math_invoke_name="native_powr")],
                  "remainder": [Def("genfloat", ["genfloat", "genfloat"])],
                  "remquo": [Def("vgenfloat", ["vgenfloat", "vgenfloat", "vint32nptr"]),
-                            Def("mgenfloat", ["mgenfloat", "mgenfloat", "mintnptr"]),
+                            Def("mgenfloat", ["mgenfloat", "mgenfloat", "mintnptr"], marray_use_loop=True),
                             Def("float", ["float", "float", "intptr"]),
                             Def("double", ["double", "double", "intptr"]),
                             Def("half", ["half", "half", "intptr"])],
                  "rint": [Def("genfloat", ["genfloat"])],
                  "rootn": [Def("vgenfloat", ["vgenfloat", "vint32n"]),
-                           Def("vgenfloat", ["vgenfloat", "int"]), # Non-standard. Deprecated.
-                           Def("mgenfloat", ["mgenfloat", "mintn"]),
-                           Def("mgenfloat", ["mgenfloat", "int"]), # Non-standard. Deprecated.
+                           Def("mgenfloat", ["mgenfloat", "mintn"], marray_use_loop=True),
                            Def("float", ["float", "int"]),
                            Def("double", ["double", "int"]),
                            Def("half", ["half", "int"])],
@@ -644,9 +651,7 @@ sycl_builtins = {# Math functions
                  "sincos": [Def("vgenfloat", ["vgenfloat", "vgenfloatptr"]),
                             Def("mgenfloat", ["mgenfloat", "mgenfloatptr"]),
                             Def("float", ["float", "floatptr"]),
-                            Def("vdoublen", ["vdoublen", "vdoublenptr"]),
                             Def("double", ["double", "doubleptr"]),
-                            Def("vhalfn", ["vhalfn", "vhalfnptr"]),
                             Def("half", ["half", "halfptr"])],
                  "sinh": [Def("genfloat", ["genfloat"])],
                  "sinpi": [Def("genfloat", ["genfloat"])],
@@ -657,39 +662,45 @@ sycl_builtins = {# Math functions
                  "tgamma": [Def("genfloat", ["genfloat"])],
                  "trunc": [Def("genfloat", ["genfloat"])],
                  # Integer functions
-                 "abs_diff": [Def("unsignedtype0", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
-                              Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_")],
-                 "add_sat": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
-                             Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_")],
-                 "hadd": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
-                          Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_")],
-                 "rhadd": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
-                           Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_")],
-                 "clz": [Def("geninteger", ["geninteger"])],
-                 "ctz": [Def("geninteger", ["geninteger"])],
-                 "mad_hi": [Def("igeninteger", ["igeninteger", "igeninteger", "igeninteger"], invoke_prefix="s_"),
-                            Def("ugeninteger", ["ugeninteger", "ugeninteger", "ugeninteger"], invoke_prefix="u_")],
-                 "mad_sat": [Def("igeninteger", ["igeninteger", "igeninteger", "igeninteger"], invoke_prefix="s_"),
-                             Def("ugeninteger", ["ugeninteger", "ugeninteger", "ugeninteger"], invoke_prefix="u_")],
-                 "mul_hi": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
-                            Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_")],
-                 "rotate": [Def("geninteger", ["geninteger", "geninteger"])],
-                 "sub_sat": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_"),
-                             Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_")],
+                 "abs_diff": [Def("unsignedtype0", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True),
+                              Def("unsignedtype0", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True)],
+                 "add_sat": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True),
+                             Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True)],
+                 "hadd": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True),
+                          Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True)],
+                 "rhadd": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True),
+                           Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True)],
+                 "clz": [Def("geninteger", ["geninteger"], marray_use_loop=True)],
+                 "ctz": [Def("geninteger", ["geninteger"], marray_use_loop=True)],
+                 "mad_hi": [Def("igeninteger", ["igeninteger", "igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True),
+                            Def("ugeninteger", ["ugeninteger", "ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True)],
+                 "mad_sat": [Def("igeninteger", ["igeninteger", "igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True),
+                             Def("ugeninteger", ["ugeninteger", "ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True)],
+                 "mul_hi": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True),
+                            Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True)],
+                 "rotate": [Def("geninteger", ["geninteger", "geninteger"], marray_use_loop=True)],
+                 "sub_sat": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True),
+                             Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True)],
                  "upsample": [Def("upsampledint0", ["int8_t", "uint8_t"], invoke_prefix="s_"),
                               Def("upsampledint0", ["char", "uint8_t"], invoke_prefix="s_"), # TODO: Non-standard. Deprecate.
                               Def("upsampledint0", ["vint8n", "vuint8n"], invoke_prefix="s_"),
+                              Def("upsampledint0", ["mint8n", "muint8n"]),
                               Def("upsampledint0", ["uint8_t", "uint8_t"], invoke_prefix="u_"),
                               Def("upsampledint0", ["vuint8n", "vuint8n"], invoke_prefix="u_"),
+                              Def("upsampledint0", ["muint8n", "muint8n"]),
                               Def("upsampledint0", ["int16_t", "uint16_t"], invoke_prefix="s_"),
                               Def("upsampledint0", ["vint16n", "vuint16n"], invoke_prefix="s_"),
+                              Def("upsampledint0", ["mint16n", "muint16n"]),
                               Def("upsampledint0", ["uint16_t", "uint16_t"], invoke_prefix="u_"),
                               Def("upsampledint0", ["vuint16n", "vuint16n"], invoke_prefix="u_"),
+                              Def("upsampledint0", ["muint16n", "muint16n"]),
                               Def("upsampledint0", ["int32_t", "uint32_t"], invoke_prefix="s_"),
                               Def("upsampledint0", ["vint32n", "vuint32n"], invoke_prefix="s_"),
+                              Def("upsampledint0", ["mint32n", "muint32n"]),
                               Def("upsampledint0", ["uint32_t", "uint32_t"], invoke_prefix="u_"),
-                              Def("upsampledint0", ["vuint32n", "vuint32n"], invoke_prefix="u_")],
-                 "popcount": [Def("geninteger", ["geninteger"])],
+                              Def("upsampledint0", ["vuint32n", "vuint32n"], invoke_prefix="u_"),
+                              Def("upsampledint0", ["muint32n", "muint32n"])],
+                 "popcount": [Def("geninteger", ["geninteger"], marray_use_loop=True)],
                  "mad24": [Def("igenint32", ["igenint32", "igenint32", "igenint32"], invoke_prefix="s_"),
                            Def("ugenint32", ["ugenint32", "ugenint32", "ugenint32"], invoke_prefix="u_")],
                  "mul24": [Def("igenint32", ["igenint32", "igenint32"], invoke_prefix="s_"),
@@ -698,40 +709,59 @@ sycl_builtins = {# Math functions
                  "clamp": [Def("genfloat", ["genfloat", "genfloat", "genfloat"], invoke_prefix="f"),
                            Def("vfloatn", ["vfloatn", "float", "float"], invoke_prefix="f", convert_args=[(1,0),(2,0)]),
                            Def("vdoublen", ["vdoublen", "double", "double"], invoke_prefix="f", convert_args=[(1,0),(2,0)]),
-                           Def("igeninteger", ["igeninteger", "igeninteger", "igeninteger"], invoke_prefix="s_"),
-                           Def("ugeninteger", ["ugeninteger", "ugeninteger", "ugeninteger"], invoke_prefix="u_"),
+                           Def("vhalfn", ["vhalfn", "half", "half"], invoke_prefix="f", convert_args=[(1,0),(2,0)]), # Non-standard. Deprecated.
+                           Def("igeninteger", ["igeninteger", "igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True),
+                           Def("ugeninteger", ["ugeninteger", "ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True),
                            Def("vigeninteger", ["vigeninteger", "elementtype0", "elementtype0"], invoke_prefix="s_"),
-                           Def("vugeninteger", ["vugeninteger", "elementtype0", "elementtype0"], invoke_prefix="u_")],
+                           Def("vugeninteger", ["vugeninteger", "elementtype0", "elementtype0"], invoke_prefix="u_"),
+                           Def("mgentype", ["mgentype", "elementtype0", "elementtype0"], marray_use_loop=True)],
                  "degrees": [Def("genfloat", ["genfloat"])],
                  "(max)": [Def("genfloat", ["genfloat", "genfloat"], invoke_name="fmax_common"),
                            Def("vfloatn", ["vfloatn", "float"], invoke_name="fmax_common", convert_args=[(1,0)]),
                            Def("vdoublen", ["vdoublen", "double"], invoke_name="fmax_common", convert_args=[(1,0)]),
-                           Def("igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_max"),
-                           Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_max"),
+                           Def("vhalfn", ["vhalfn", "half"], invoke_name="fmax_common", convert_args=[(1,0)]), # Non-standard. Deprecated.
+                           Def("igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_max", marray_use_loop=True),
+                           Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_max", marray_use_loop=True),
                            Def("vigeninteger", ["vigeninteger", "elementtype0"], invoke_name="s_max"),
-                           Def("vugeninteger", ["vugeninteger", "elementtype0"], invoke_name="u_max")],
+                           Def("vugeninteger", ["vugeninteger", "elementtype0"], invoke_name="u_max"),
+                           Def("mgentype", ["mgentype", "elementtype0"], marray_use_loop=True)],
                  "(min)": [Def("genfloat", ["genfloat", "genfloat"], invoke_name="fmin_common"),
                            Def("vfloatn", ["vfloatn", "float"], invoke_name="fmin_common", convert_args=[(1,0)]),
                            Def("vdoublen", ["vdoublen", "double"], invoke_name="fmin_common", convert_args=[(1,0)]),
-                           Def("igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_min"),
-                           Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_min"),
+                           Def("vhalfn", ["vhalfn", "half"], invoke_name="fmax_common", convert_args=[(1,0)]), # Non-standard. Deprecated.
+                           Def("igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_min", marray_use_loop=True),
+                           Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_min", marray_use_loop=True),
                            Def("vigeninteger", ["vigeninteger", "elementtype0"], invoke_name="s_min"),
-                           Def("vugeninteger", ["vugeninteger", "elementtype0"], invoke_name="u_min")],
+                           Def("vugeninteger", ["vugeninteger", "elementtype0"], invoke_name="u_min"),
+                           Def("mgentype", ["mgentype", "elementtype0"], marray_use_loop=True)],
                  "mix": [Def("genfloat", ["genfloat", "genfloat", "genfloat"]),
                          Def("vfloatn", ["vfloatn", "vfloatn", "float"], convert_args=[(2,0)]),
-                         Def("vdoublen", ["vdoublen", "vdoublen", "double"], convert_args=[(2,0)])],
+                         Def("vdoublen", ["vdoublen", "vdoublen", "double"], convert_args=[(2,0)]),
+                         Def("vhalfn", ["vhalfn", "vhalfn", "half"], convert_args=[(2,0)]), # Non-standard. Deprecated.
+                         Def("mfloatn", ["mfloatn", "mfloatn", "float"]),
+                         Def("mdoublen", ["mdoublen", "mdoublen", "double"]),
+                         Def("mhalfn", ["mhalfn", "mhalfn", "half"])], # Non-standard. Deprecated.
                  "radians": [Def("genfloat", ["genfloat"])],
                  "step": [Def("genfloat", ["genfloat", "genfloat"]),
                           Def("vfloatn", ["float", "vfloatn"], convert_args=[(0,1)]),
-                          Def("vdoublen", ["double", "vdoublen"], convert_args=[(0,1)])],
+                          Def("vdoublen", ["double", "vdoublen"], convert_args=[(0,1)]),
+                          Def("vhalfn", ["half", "vhalfn"], convert_args=[(0,1)]), # Non-standard. Deprecated.
+                          Def("mfloatn", ["float", "mfloatn"]),
+                          Def("mdoublen", ["double", "mdoublen"]),
+                          Def("mhalfn", ["half", "mhalfn"])], # Non-standard. Deprecated.
                  "smoothstep": [Def("genfloat", ["genfloat", "genfloat", "genfloat"]),
                                 Def("vfloatn", ["float", "float", "vfloatn"], convert_args=[(0,2),(1,2)]),
-                                Def("vdoublen", ["double", "double", "vdoublen"], convert_args=[(0,2),(1,2)])],
+                                Def("vdoublen", ["double", "double", "vdoublen"], convert_args=[(0,2),(1,2)]),
+                                Def("vhalfn", ["half", "half", "vhalfn"], convert_args=[(0,2),(1,2)]), # Non-standard. Deprecated.
+                                Def("mfloatn", ["float", "float", "mfloatn"]),
+                                Def("mdoublen", ["double", "double", "mdoublen"]),
+                                Def("mhalfn", ["half", "half", "mhalfn"])],
                  "sign": [Def("genfloat", ["genfloat"])],
                  "abs": [Def("genfloat", ["genfloat"], invoke_prefix="f"), # TODO: Non-standard. Deprecate.
                          Def("sigeninteger", ["sigeninteger"], custom_invoke=custom_signed_abs_scalar_invoke),
                          Def("vigeninteger", ["vigeninteger"], custom_invoke=custom_signed_abs_vector_invoke),
-                         Def("ugeninteger", ["ugeninteger"], invoke_prefix="u_")],
+                         Def("migeninteger", ["migeninteger"], marray_use_loop=True),
+                         Def("ugeninteger", ["ugeninteger"], invoke_prefix="u_", marray_use_loop=True)],
                  # Geometric functions
                  "cross": [Def("vfloat3or4", ["vfloat3or4", "vfloat3or4"]),
                            Def("vdouble3or4", ["vdouble3or4", "vdouble3or4"]),
@@ -763,39 +793,56 @@ sycl_builtins = {# Math functions
                                     Def("gengeodouble", ["gengeodouble"])],
                  # Relational functions
                  "isequal": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdEqual"),
-                             RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdEqual")],
+                             RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdEqual"),
+                             RelDef("boolelements0", ["mgenfloat", "mgenfloat"])],
                  "isnotequal": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FUnordNotEqual"),
-                                RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FUnordNotEqual")],
+                                RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FUnordNotEqual"),
+                                RelDef("boolelements0", ["mgenfloat", "mgenfloat"])],
                  "isgreater": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdGreaterThan"),
-                               RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdGreaterThan")],
+                               RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdGreaterThan"),
+                               RelDef("boolelements0", ["mgenfloat", "mgenfloat"])],
                  "isgreaterequal": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdGreaterThanEqual"),
-                                    RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdGreaterThanEqual")],
+                                    RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdGreaterThanEqual"),
+                                    RelDef("boolelements0", ["mgenfloat", "mgenfloat"])],
                  "isless": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdLessThan"),
-                            RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdLessThan")],
+                            RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdLessThan"),
+                            RelDef("boolelements0", ["mgenfloat", "mgenfloat"])],
                  "islessequal": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdLessThanEqual"),
-                                 RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdLessThanEqual")],
+                                 RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdLessThanEqual"),
+                                 RelDef("boolelements0", ["mgenfloat", "mgenfloat"])],
                  "islessgreater": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdNotEqual"),
-                                   RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdNotEqual")],
+                                   RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdNotEqual"),
+                                   RelDef("boolelements0", ["mgenfloat", "mgenfloat"])],
                  "isfinite": [RelDef("samesizesignedint0", ["vgenfloat"], invoke_name="IsFinite"),
-                              RelDef("bool", ["sgenfloat"], invoke_name="IsFinite")],
+                              RelDef("bool", ["sgenfloat"], invoke_name="IsFinite"),
+                              RelDef("boolelements0", ["mgenfloat"])],
                  "isinf": [RelDef("samesizesignedint0", ["vgenfloat"], invoke_name="IsInf"),
-                           RelDef("bool", ["sgenfloat"], invoke_name="IsInf")],
+                           RelDef("bool", ["sgenfloat"], invoke_name="IsInf"),
+                           RelDef("boolelements0", ["mgenfloat"])],
                  "isnan": [RelDef("samesizesignedint0", ["vgenfloat"], invoke_name="IsNan"),
-                           RelDef("bool", ["sgenfloat"], invoke_name="IsNan")],
+                           RelDef("bool", ["sgenfloat"], invoke_name="IsNan"),
+                           RelDef("boolelements0", ["mgenfloat"])],
                  "isnormal": [RelDef("samesizesignedint0", ["vgenfloat"], invoke_name="IsNormal"),
-                              RelDef("bool", ["sgenfloat"], invoke_name="IsNormal")],
+                              RelDef("bool", ["sgenfloat"], invoke_name="IsNormal"),
+                              RelDef("boolelements0", ["mgenfloat"])],
                  "isordered": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="Ordered"),
-                               RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="Ordered")],
+                               RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="Ordered"),
+                               RelDef("boolelements0", ["mgenfloat", "mgenfloat"])],
                  "isunordered": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="Unordered"),
-                                 RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="Unordered")],
+                                 RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="Unordered"),
+                                 RelDef("boolelements0", ["mgenfloat", "mgenfloat"])],
                  "signbit": [RelDef("samesizesignedint0", ["vgenfloat"], invoke_name="SignBitSet"),
-                             RelDef("bool", ["sgenfloat"], invoke_name="SignBitSet")],
-                 "any": [Def("int", ["vigeninteger"], custom_invoke=get_custom_any_all_invoke("Any")),
-                         Def("bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return detail::Boolean<1>(int(detail::msbIsSet({arg_names[0]})));'))],
-                 "all": [Def("int", ["vigeninteger"], custom_invoke=get_custom_any_all_invoke("All")),
-                         Def("bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return detail::Boolean<1>(int(detail::msbIsSet({arg_names[0]})));'))],
+                             RelDef("bool", ["sgenfloat"], invoke_name="SignBitSet"),
+                             RelDef("boolelements0", ["mgenfloat"])],
+                 "any": [Def("int", ["vigeninteger"], custom_invoke=get_custom_any_all_vec_invoke("Any")),
+                         Def("bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return detail::Boolean<1>(int(detail::msbIsSet({arg_names[0]})));')),
+                         Def("bool", ["migeninteger"], custom_invoke=get_custom_any_all_marray_invoke("any"))],
+                 "all": [Def("int", ["vigeninteger"], custom_invoke=get_custom_any_all_vec_invoke("All")),
+                         Def("bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return detail::Boolean<1>(int(detail::msbIsSet({arg_names[0]})));')),
+                         Def("bool", ["migeninteger"], custom_invoke=get_custom_any_all_marray_invoke("all"))],
                  "bitselect": [Def("vgentype", ["vgentype", "vgentype", "vgentype"]),
-                               Def("sgentype", ["sgentype", "sgentype", "sgentype"])],
+                               Def("sgentype", ["sgentype", "sgentype", "sgentype"]),
+                               Def("mgentype", ["mgentype", "mgentype", "mgentype"], marray_use_loop=True)],
                  "select": [Def("vint8n", ["vint8n", "vint8n", "vint8n"]),
                             Def("vint16n", ["vint16n", "vint16n", "vint16n"]),
                             Def("vint32n", ["vint32n", "vint32n", "vint32n"]),
@@ -818,7 +865,8 @@ sycl_builtins = {# Math functions
                             Def("vfloatn", ["vfloatn", "vfloatn", "vuint32n"]),
                             Def("vdoublen", ["vdoublen", "vdoublen", "vuint64n_ext"]),
                             Def("vhalfn", ["vhalfn", "vhalfn", "vuint16n"]),
-                            Def("sgentype", ["sgentype", "sgentype", "bool"], custom_invoke=custom_bool_select_invoke)]}
+                            Def("sgentype", ["sgentype", "sgentype", "bool"], custom_invoke=custom_bool_select_invoke),
+                            Def("mgentype", ["mgentype", "mgentype", "mbooln"], marray_use_loop=True)]}
 native_builtins = {"cos": [Def("genfloatf", ["genfloatf"], invoke_prefix="native_")],
                    "divide": [Def("genfloatf", ["genfloatf", "genfloatf"], invoke_prefix="native_")],
                    "exp": [Def("genfloatf", ["genfloatf"], invoke_prefix="native_")],
@@ -861,9 +909,6 @@ def select_from_mapping(mappings, arg_types, arg_type):
   if isinstance(mapping, ElementType):
     parent_mapping = mappings[arg_types[mapping.parent_idx]]
     return InstantiatedElementType(parent_mapping, mapping.parent_idx)
-  if isinstance(mapping, UnsignedType):
-    parent_mapping = mappings[arg_types[mapping.parent_idx]]
-    return InstantiatedUnsignedType(parent_mapping, mapping.parent_idx)
   if isinstance(mapping, ConversionTraitType):
     parent_mapping = mappings[arg_types[mapping.parent_idx]]
     return InstantiatedConversionTraitType(parent_mapping, mapping.trait, mapping.parent_idx)
@@ -878,8 +923,6 @@ def instantiate_arg(idx, arg):
     return RawPtr(instantiate_arg(idx, arg.element_type))
   if isinstance(arg, InstantiatedElementType):
     return InstantiatedElementType(instantiate_arg(arg.parent_idx, arg.referenced_type), arg.parent_idx)
-  if isinstance(arg, InstantiatedUnsignedType):
-    return InstantiatedUnsignedType(instantiate_arg(arg.parent_idx, arg.signed_type), arg.parent_idx)
   if isinstance(arg, InstantiatedConversionTraitType):
     return InstantiatedConversionTraitType(instantiate_arg(arg.parent_idx, arg.parent_type), arg.trait, arg.parent_idx)
   return arg
@@ -894,8 +937,6 @@ def instantiate_return_type(return_type, instantiated_args):
     return RawPtr(instantiate_return_type(return_type.element_type, instantiated_args))
   if isinstance(return_type, InstantiatedElementType):
     return InstantiatedElementType(instantiate_return_type(return_type.referenced_type, instantiated_args), return_type.parent_idx)
-  if isinstance(return_type, InstantiatedUnsignedType):
-    return InstantiatedUnsignedType(instantiate_return_type(return_type.signed_type, instantiated_args), return_type.parent_idx)
   if isinstance(return_type, InstantiatedConversionTraitType):
     return InstantiatedConversionTraitType(instantiate_return_type(return_type.parent_type, instantiated_args), return_type.trait, return_type.parent_idx)
   return return_type
@@ -978,34 +1019,41 @@ def get_func_prefix(builtin, return_type, arg_types):
     result = result + "inline "
   return result
 
-def generate_builtin(builtin_name, builtin, return_type, arg_types):
+def generate_builtin(builtin_name, namespace, builtin, return_type, arg_types):
   func_prefix = get_func_prefix(builtin, return_type, arg_types)
   func_return = get_func_return(return_type, arg_types)
   arg_names = ["a%i" % i for i in range(len(arg_types))]
   func_args = ', '.join(["%s %s" % arg for arg in zip(arg_types, arg_names)])
-  invoke = builtin.get_invoke(builtin_name, return_type, arg_types, arg_names)
+  invoke = builtin.get_invoke(builtin_name, namespace, return_type, arg_types, arg_names)
   return f"""
 {func_prefix}{func_return} {builtin_name}({func_args}) __NOEXC {{
 {invoke}
 }}
 """
 
-def generate_builtins(builtins):
-  result = []
+def generate_builtins(builtins, namespace):
+  scalar_result = []
+  vector_result = []
+  marray_result = []
   for builtin_name, builtin_defs in builtins.items():
     for builtin_def in builtin_defs:
       combs = type_combinations(builtin_def.return_type, builtin_def.arg_types)
       for (return_t, arg_ts) in combs:
-        result.append(generate_builtin(builtin_name, builtin_def, return_t, arg_ts))
-  return result
+        generated_builtin = generate_builtin(builtin_name, namespace, builtin_def, return_t, arg_ts)
+        if (any([is_marray_arg(arg_t) for arg_t in arg_ts])):
+          marray_result.append(generated_builtin)
+        elif (any([is_vec_arg(arg_t) for arg_t in arg_ts])):
+          vector_result.append(generated_builtin)
+        else:
+          scalar_result.append(generated_builtin)
+  return (scalar_result, vector_result, marray_result)
 
-if __name__ == "__main__":
-  if len(sys.argv) != 2:
-    raise ValueError("Invalid number of arguments! Must be given an output file.")
+def generate_file(directory, file_name, extra_includes, generated_builtins):
+  instantiated_extra_includes = ('\n'.join([f'#include <{inc}>' for inc in extra_includes]))
 
-  with open(sys.argv[1], "w+") as f:
-    f.write("""
-//==--------- builtins_gen.hpp - SYCL generated built-in functions ---------==//
+  with open(os.path.join(directory, file_name), "w+") as f:
+    f.write(f"""
+//==--------- {file_name} - SYCL generated built-in functions ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -1013,7 +1061,7 @@ if __name__ == "__main__":
 //
 //===----------------------------------------------------------------------===//
 //
-// This file was generated and should not be changed!
+// NOTE: This file was generated and should not be changed!
 
 #pragma once
 
@@ -1024,18 +1072,19 @@ if __name__ == "__main__":
 
 #include <sycl/builtins_utils.hpp>
 
+{instantiated_extra_includes}
+
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-
+namespace sycl {{
+__SYCL_INLINE_VER_NAMESPACE(_V1) {{
 """)
 
-    for (namespace, builtins) in builtins_groups:
+    for (namespace, builtins) in generated_builtins:
       if namespace:
         f.write(f'\nnamespace {namespace} {{')
-      f.write(''.join(generate_builtins(builtins)))
+      f.write(''.join(builtins))
       if namespace:
         f.write(f'}} // namespace {namespace}\n')
 
@@ -1045,3 +1094,21 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 #undef __NOEXC
 """)
+
+if __name__ == "__main__":
+  if len(sys.argv) != 2:
+    raise ValueError("Invalid number of arguments! Must be given an output path.")
+
+  scalar_builtins = []
+  vector_builtins = []
+  marray_builtins = []
+  for (namespace, builtins) in builtins_groups:
+    (sb, vb, mb) = generate_builtins(builtins, namespace)
+    scalar_builtins.append((namespace, sb))
+    vector_builtins.append((namespace, vb))
+    marray_builtins.append((namespace, mb))
+
+  file_path = sys.argv[1]
+  generate_file(file_path, "builtins_scalar_gen.hpp", [], scalar_builtins)
+  generate_file(file_path, "builtins_vector_gen.hpp", [], vector_builtins)
+  generate_file(file_path, "builtins_marray_gen.hpp", ["sycl/builtins_scalar_gen.hpp", "sycl/builtins_vector_gen.hpp"], marray_builtins)
