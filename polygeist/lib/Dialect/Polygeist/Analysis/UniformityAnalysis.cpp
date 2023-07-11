@@ -127,6 +127,24 @@ LogicalResult UniformityAnalysis::initialize(Operation *top) {
   return SparseDataFlowAnalysis::initialize(top);
 }
 
+void UniformityAnalysis::setToEntryState(UniformityLattice *lattice) {
+  // The arguments of a gpu kernel are uniform by default.
+  if (Region *region = lattice->getPoint().getParentRegion()) {
+    if (auto gpuFuncOp = dyn_cast<gpu::GPUFuncOp>(region->getParentOp())) {
+      if (gpuFuncOp.isKernel()) {
+        for (Value arg : gpuFuncOp.front().getArguments()) {
+          UniformityLattice *lattice = getLatticeElement(arg);
+          propagateIfChanged(lattice, lattice->join(Uniformity::getUniform()));
+        }
+        return;
+      }
+    }
+  }
+
+  // Other arguments have unknown uniformity.
+  propagateIfChanged(lattice, lattice->join(Uniformity::getUnknown()));
+}
+
 void UniformityAnalysis::visitOperation(
     Operation *op, ArrayRef<const UniformityLattice *> operands,
     ArrayRef<UniformityLattice *> results) {
@@ -166,7 +184,7 @@ void UniformityAnalysis::visitOperation(
   // A memory side effects free operation that has uniform operands yields
   // uniform result(s).
   if (isMemoryEffectFree(op)) {
-    LLVM_DEBUG(llvm::dbgs() << "UA: Operation is memory effect free\n");
+    LLVM_DEBUG(llvm::dbgs().indent(2) << "Operation is memory effect free\n");
     return propagateAllIfChanged(results, Uniformity::getUniform());
   }
 
@@ -511,7 +529,7 @@ void UniformityAnalysis::propagateAllIfChanged(
     ArrayRef<UniformityLattice *> results, const Uniformity &uniformity) {
   for (UniformityLattice *result : results)
     propagateIfChanged(result, result->join(uniformity));
-  LLVM_DEBUG(llvm::dbgs() << "UA: Results are: " << uniformity << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "UA: Result(s) are: " << uniformity << "\n");
 }
 
 void UniformityAnalysis::propagateAllIfChanged(const ValueRange values,
