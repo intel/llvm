@@ -84,6 +84,7 @@
 #include "llvm/Option/OptSpecifier.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ExitCodes.h"
@@ -103,9 +104,9 @@
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
+#include <optional>
 #include <regex>
 #include <sstream>
-#include <optional>
 #include <utility>
 #if LLVM_ON_UNIX
 #include <unistd.h> // getpid
@@ -1279,13 +1280,18 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       }
     }
   }
+  // Define macros associated with `any_device_has/all_devices_have` according
+  // to the aspects define in the DeviceConfigFile.
+  const auto DeviceTraitsMacrosArgs =
+      populateSYCLDeviceTraitMacrosArgs(C.getInputArgs(), UniqueSYCLTriplesVec);
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
   // going to create will depend on both.
   const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
   for (auto &TT : UniqueSYCLTriplesVec) {
-    auto SYCLTC = &getOffloadingDeviceToolChain(C.getInputArgs(), TT, *HostTC,
-                                                Action::OFK_SYCL);
+    auto SYCLTC =
+        &getOffloadingDeviceToolChain(C.getInputArgs(), TT, *HostTC,
+                                      Action::OFK_SYCL, DeviceTraitsMacrosArgs);
     C.addOffloadDeviceToolChain(SYCLTC, Action::OFK_SYCL);
   }
 
@@ -9633,9 +9639,10 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
   return *TC;
 }
 
-const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
-                  const llvm::Triple &Target, const ToolChain &HostTC,
-                  const Action::OffloadKind &TargetDeviceOffloadKind) const {
+const ToolChain &Driver::getOffloadingDeviceToolChain(
+    const ArgList &Args, const llvm::Triple &Target, const ToolChain &HostTC,
+    const Action::OffloadKind &TargetDeviceOffloadKind,
+    const ArgStringList DeviceTraitsMacrosArgs) const {
   // Use device / host triples offload kind as the key into the ToolChains map
   // because the device ToolChain we create depends on both.
   auto &TC = ToolChains[Target.str() + "/" + HostTC.getTriple().str() +
@@ -9671,9 +9678,9 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
         switch (Target.getArch()) {
           case llvm::Triple::spir:
           case llvm::Triple::spir64:
-            TC = std::make_unique<toolchains::SYCLToolChain>(
-              *this, Target, HostTC, Args);
-            break;
+          TC = std::make_unique<toolchains::SYCLToolChain>(
+              *this, Target, HostTC, Args, DeviceTraitsMacrosArgs);
+          break;
           case llvm::Triple::nvptx:
           case llvm::Triple::nvptx64:
             TC = std::make_unique<toolchains::CudaToolChain>(
@@ -9964,4 +9971,91 @@ llvm::Error driver::expandResponseFiles(SmallVectorImpl<const char *> &Args,
   }
 
   return llvm::Error::success();
+}
+
+llvm::opt::ArgStringList driver::populateSYCLDeviceTraitMacrosArgs(
+    const llvm::opt::ArgList &Args,
+    const llvm::SmallVector<llvm::Triple, 4> &UniqueSYCLTriplesVec) {
+  const auto &TargetTable = DeviceConfigFile::TargetTable;
+  std::map<StringRef, unsigned int> AllDevicesHave;
+  std::map<StringRef, bool> AnyDeviceHas;
+  bool AnyDeviceHasAnyAspect = false;
+  unsigned int ValidTargets = 0;
+  for (const auto &TargetTriple : UniqueSYCLTriplesVec) {
+    // Try and find the whole triple, if there's no match, remove parts of the
+    // triple from the end to find partial matches.
+    auto TargetTripleStr = TargetTriple.getTriple();
+    bool Found = false;
+    bool EmptyTriple = false;
+    auto TripleIt = TargetTable.end();
+    while (!Found && !EmptyTriple) {
+      TripleIt = TargetTable.find(TargetTripleStr);
+      Found = (TripleIt != TargetTable.end());
+      if (!Found) {
+          auto Pos = TargetTripleStr.find_last_of('-');
+          EmptyTriple = (Pos == std::string::npos);
+          TargetTripleStr =
+              EmptyTriple ? TargetTripleStr : TargetTripleStr.substr(0, Pos);
+      }
+    }
+    if (Found) {
+      assert(TripleIt != TargetTable.end());
+      const auto &TargetInfo = (*TripleIt).second;
+      ++ValidTargets;
+      const auto &AspectList = TargetInfo.aspects;
+      const auto &MaySupportOtherAspects = TargetInfo.maySupportOtherAspects;
+      if (!AnyDeviceHasAnyAspect)
+          AnyDeviceHasAnyAspect = MaySupportOtherAspects;
+      for (const auto &aspect : AspectList) {
+          // If target has an entry in the config file, the set of aspects
+          // supported by all devices supporting the target is 'AspectList'. If
+          // there's no entry, such set is empty.
+          const auto &AspectIt = AllDevicesHave.find(aspect);
+          if (AspectIt != AllDevicesHave.end())
+          ++AllDevicesHave[aspect];
+          else
+          AllDevicesHave[aspect] = 1;
+          // If target has an entry in the config file AND
+          // 'MaySupportOtherAspects' is false, the set of aspects supported by
+          // any device supporting the target is 'AspectList'. If there's no
+          // entry OR 'MaySupportOtherAspects' is true, such set contains all
+          // the aspects.
+          AnyDeviceHas[aspect] = true;
+      }
+    }
+  }
+
+  if (ValidTargets == 0) {
+    // If there's no entry for the target in the device config file, the set
+    // of aspects supported by any device supporting the target contains all
+    // the aspects.
+    AnyDeviceHasAnyAspect = true;
+  }
+
+  ArgStringList ResultArgs;
+  if (AnyDeviceHasAnyAspect) {
+    // There exists some target that supports any given aspect.
+    SmallString<64> MacroAnyDeviceAnyAspect(
+        "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1");
+    ResultArgs.push_back(Args.MakeArgString(MacroAnyDeviceAnyAspect));
+  } else {
+    // Some of the aspects are not supported at all by any of the targets.
+    // Thus, we need to define individual macros for each supported aspect.
+    for (const auto &[TargetKey, SupportedTarget] : AnyDeviceHas) {
+      assert(SupportedTarget);
+      SmallString<64> MacroAnyDevice("-D__SYCL_ANY_DEVICE_HAS_");
+      MacroAnyDevice += TargetKey;
+      MacroAnyDevice += "__=1";
+      ResultArgs.push_back(Args.MakeArgString(MacroAnyDevice));
+    }
+  }
+  for (const auto &[TargetKey, SupportedTargets] : AllDevicesHave) {
+    if (SupportedTargets != ValidTargets)
+      continue;
+    SmallString<64> MacroAllDevices("-D__SYCL_ALL_DEVICES_HAVE_");
+    MacroAllDevices += TargetKey;
+    MacroAllDevices += "__=1";
+    ResultArgs.push_back(Args.MakeArgString(MacroAllDevices));
+  }
+  return ResultArgs;
 }

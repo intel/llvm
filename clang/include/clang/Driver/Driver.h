@@ -787,7 +787,9 @@ private:
   const ToolChain &getOffloadingDeviceToolChain(
       const llvm::opt::ArgList &Args, const llvm::Triple &Target,
       const ToolChain &HostTC,
-      const Action::OffloadKind &TargetDeviceOffloadKind) const;
+      const Action::OffloadKind &TargetDeviceOffloadKind,
+      const llvm::opt::ArgStringList DeviceTraitsMacrosArgs =
+          llvm::opt::ArgStringList()) const;
 
   /// Get bitmasks for which option flags to include and exclude based on
   /// the driver mode.
@@ -974,6 +976,12 @@ bool IsClangCL(StringRef DriverMode);
 llvm::Error expandResponseFiles(SmallVectorImpl<const char *> &Args,
                                 bool ClangCLMode, llvm::BumpPtrAllocator &Alloc,
                                 llvm::vfs::FileSystem *FS = nullptr);
+
+/// Reads device config file to find information about the targets in
+/// UniqueSYCLTriplesVec, and defines device traits macros accordingly.
+llvm::opt::ArgStringList populateSYCLDeviceTraitMacrosArgs(
+    const llvm::opt::ArgList &Args,
+    const llvm::SmallVector<llvm::Triple, 4> &UniqueSYCLTriplesVec);
 
 } // end namespace driver
 } // end namespace clang

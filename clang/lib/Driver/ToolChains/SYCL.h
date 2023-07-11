@@ -149,10 +149,14 @@ namespace toolchains {
 class LLVM_LIBRARY_VISIBILITY SYCLToolChain : public ToolChain {
 public:
   SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
-                const ToolChain &HostTC, const llvm::opt::ArgList &Args);
+                const ToolChain &HostTC, const llvm::opt::ArgList &Args,
+                const llvm::opt::ArgStringList DeviceTraitsMacrosArgs);
 
   const llvm::Triple *getAuxTriple() const override {
     return &HostTC.getTriple();
+  }
+  const llvm::opt::ArgStringList getDeviceTraitMacrosArgs() const override {
+    return DeviceTraitsMacros;
   }
 
   llvm::opt::DerivedArgList *
@@ -197,6 +201,7 @@ public:
       llvm::opt::ArgStringList &CC1Args) const override;
 
   const ToolChain &HostTC;
+  llvm::opt::ArgStringList DeviceTraitsMacros;
 
 protected:
   Tool *buildBackendCompiler() const override;
@@ -206,6 +211,7 @@ private:
   void TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs,
                              llvm::opt::OptSpecifier Opt_EQ) const;
+
 };
 
 } // end namespace toolchains
