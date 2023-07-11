@@ -98,6 +98,20 @@ thread_local char ErrorMessage[MaxMessageSize];
   ErrorMessageCode = ErrorCode;
 }
 
+void setPluginSpecificMessage(CUresult cu_res) {
+  const char *error_string;
+  const char *error_name;
+  cuGetErrorName(cu_res, &error_name);
+  cuGetErrorString(cu_res, &error_string);
+  char *message = (char *)malloc(strlen(error_string) + strlen(error_name) + 2);
+  strcpy(message, error_name);
+  strcat(message, "\n");
+  strcat(message, error_string);
+
+  setErrorMessage(message, UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+  free(message);
+}
+
 // Returns plugin specific error and warning messages; common implementation
 // that can be shared between adapters
 ur_result_t urGetLastResult(ur_platform_handle_t, const char **ppMessage) {
