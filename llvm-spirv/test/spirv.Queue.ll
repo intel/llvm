@@ -1,7 +1,7 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-text -o %t
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-text -o %t
 ; RUN: FileCheck < %t %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 
 ; CHECK-SPIRV: Capability DeviceEnqueue
@@ -10,10 +10,8 @@
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir"
 
-%spirv.Queue = type opaque
-
 ; Function Attrs: nounwind readnone
-define spir_func void @enqueue_simple_block(%spirv.Queue* addrspace(3)* nocapture %q) #0 {
+define spir_func void @enqueue_simple_block(target("spirv.Queue") %q) #0 {
 entry:
   ret void
 }
