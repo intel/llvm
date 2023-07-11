@@ -56,6 +56,7 @@ template <typename T, unsigned VL> bool test(queue q) {
          simd<T, VL> valsIn;
          simd<T, VL> valsOut;
          valsIn.copy_from(acc, 0);
+         valsIn += 1;
          valsIn.copy_to(LocalAcc, 0);
          valsOut.copy_from(LocalAcc, 0);
          valsOut.copy_to(acc, 0);
@@ -70,7 +71,7 @@ template <typename T, unsigned VL> bool test(queue q) {
   int err_cnt = 0;
 
   for (unsigned i = 0; i < size; ++i) {
-    T gold = static_cast<T>(i);
+    T gold = static_cast<T>(i) + 1;
 
     if (A[i] != gold) {
       if (++err_cnt < 35) {
