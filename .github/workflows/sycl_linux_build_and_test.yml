@@ -232,6 +232,7 @@ jobs:
       target_devices: ${{ matrix.targets }}
       ref: ${{ inputs.build_ref || github.sha }}
       reset_gpu: ${{ contains(matrix.runs-on, 'gen9') && contains(matrix.runs-on, 'Linux') }}
+      merge: ${{ inputs.merge }}
 
       sycl_toolchain_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
       sycl_toolchain_archive: ${{ inputs.artifact_archive_name }}
