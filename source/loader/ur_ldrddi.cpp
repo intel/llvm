@@ -14,6 +14,7 @@
 
 namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////
+ur_adapter_factory_t ur_adapter_factory;
 ur_platform_factory_t ur_platform_factory;
 ur_device_factory_t ur_device_factory;
 ur_context_factory_t ur_context_factory;
@@ -68,8 +69,162 @@ __urdlllocal ur_result_t UR_APICALL urTearDown(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGet
+__urdlllocal ur_result_t UR_APICALL urAdapterGet(
+    uint32_t
+        NumEntries, ///< [in] the number of adapters to be added to phAdapters.
+    ///< If phAdapters is not NULL, then NumEntries should be greater than
+    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+    ///< will be returned.
+    ur_adapter_handle_t *
+        phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
+    ///< If NumEntries is less than the number of adapters available, then
+    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    uint32_t *
+        pNumAdapters ///< [out][optional] returns the total number of adapters available.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    size_t adapterIndex = 0;
+    if (nullptr != phAdapters && NumEntries != 0) {
+        for (auto &platform : context->platforms) {
+            platform.dditable.ur.Global.pfnAdapterGet(
+                1, &phAdapters[adapterIndex], nullptr);
+            try {
+                phAdapters[adapterIndex] =
+                    reinterpret_cast<ur_adapter_handle_t>(
+                        ur_adapter_factory.getInstance(phAdapters[adapterIndex],
+                                                       &platform.dditable));
+            } catch (std::bad_alloc &) {
+                result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+                break;
+            }
+            adapterIndex++;
+        }
+    }
+
+    if (pNumAdapters != nullptr) {
+        *pNumAdapters = static_cast<uint32_t>(context->platforms.size());
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRelease
+__urdlllocal ur_result_t UR_APICALL urAdapterRelease(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->dditable;
+    auto pfnAdapterRelease = dditable->ur.Global.pfnAdapterRelease;
+    if (nullptr == pfnAdapterRelease) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hAdapter = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->handle;
+
+    // forward to device-platform
+    result = pfnAdapterRelease(hAdapter);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRetain
+__urdlllocal ur_result_t UR_APICALL urAdapterRetain(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->dditable;
+    auto pfnAdapterRetain = dditable->ur.Global.pfnAdapterRetain;
+    if (nullptr == pfnAdapterRetain) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hAdapter = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->handle;
+
+    // forward to device-platform
+    result = pfnAdapterRetain(hAdapter);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetLastError
+__urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter instance
+    const char **
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->dditable;
+    auto pfnAdapterGetLastError = dditable->ur.Global.pfnAdapterGetLastError;
+    if (nullptr == pfnAdapterGetLastError) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hAdapter = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->handle;
+
+    // forward to device-platform
+    result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetInfo
+__urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter
+    ur_adapter_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If Size is not equal to or greater to the real number of bytes needed
+    ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->dditable;
+    auto pfnAdapterGetInfo = dditable->ur.Global.pfnAdapterGetInfo;
+    if (nullptr == pfnAdapterGetInfo) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hAdapter = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->handle;
+
+    // forward to device-platform
+    result = pfnAdapterGetInfo(hAdapter, propName, propSize, pPropValue,
+                               pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
+    ur_adapter_handle_t *
+        phAdapters, ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
+    uint32_t NumAdapters, ///< [in] number of adapters pointed to by phAdapters
     uint32_t
         NumEntries, ///< [in] the number of platforms to be added to phPlatforms.
     ///< If phPlatforms is not NULL, then NumEntries should be greater than
@@ -86,10 +241,12 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
 
     uint32_t total_platform_handle_count = 0;
 
-    for (auto &platform : context->platforms) {
-        if (platform.initStatus != UR_RESULT_SUCCESS) {
-            continue;
-        }
+    for (uint32_t adapter_index = 0; adapter_index < NumAdapters;
+         adapter_index++) {
+        // extract adapter's function pointer table
+        auto dditable =
+            reinterpret_cast<ur_platform_object_t *>(phAdapters[adapter_index])
+                ->dditable;
 
         if ((0 < NumEntries) && (NumEntries == total_platform_handle_count)) {
             break;
@@ -97,8 +254,9 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
 
         uint32_t library_platform_handle_count = 0;
 
-        result = platform.dditable.ur.Platform.pfnGet(
-            0, nullptr, &library_platform_handle_count);
+        result = dditable->ur.Platform.pfnGet(&phAdapters[adapter_index], 1, 0,
+                                              nullptr,
+                                              &library_platform_handle_count);
         if (UR_RESULT_SUCCESS != result) {
             break;
         }
@@ -109,8 +267,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
                 library_platform_handle_count =
                     NumEntries - total_platform_handle_count;
             }
-            result = platform.dditable.ur.Platform.pfnGet(
-                library_platform_handle_count,
+            result = dditable->ur.Platform.pfnGet(
+                &phAdapters[adapter_index], 1, library_platform_handle_count,
                 &phPlatforms[total_platform_handle_count], nullptr);
             if (UR_RESULT_SUCCESS != result) {
                 break;
@@ -122,8 +280,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
                     phPlatforms[platform_index] =
                         reinterpret_cast<ur_platform_handle_t>(
                             ur_platform_factory.getInstance(
-                                phPlatforms[platform_index],
-                                &platform.dditable));
+                                phPlatforms[platform_index], dditable));
                 }
             } catch (std::bad_alloc &) {
                 result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -307,36 +464,6 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
 
     // forward to device-platform
     result = pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urPlatformGetLastError
-__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **
-        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
-                   ///< will be stored.
-    int32_t *
-        pError ///< [out] pointer to an integer where the adapter specific error code will
-               ///< be stored.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_platform_object_t *>(hPlatform)->dditable;
-    auto pfnGetLastError = dditable->ur.Platform.pfnGetLastError;
-    if (nullptr == pfnGetLastError) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    // convert loader handle to platform handle
-    hPlatform = reinterpret_cast<ur_platform_object_t *>(hPlatform)->handle;
-
-    // forward to device-platform
-    result = pfnGetLastError(hPlatform, ppMessage, pError);
 
     return result;
 }
@@ -6869,6 +6996,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
             // return pointers to loader's DDIs
             pDdiTable->pfnInit = ur_loader::urInit;
             pDdiTable->pfnTearDown = ur_loader::urTearDown;
+            pDdiTable->pfnAdapterGet = ur_loader::urAdapterGet;
+            pDdiTable->pfnAdapterRelease = ur_loader::urAdapterRelease;
+            pDdiTable->pfnAdapterRetain = ur_loader::urAdapterRetain;
+            pDdiTable->pfnAdapterGetLastError =
+                ur_loader::urAdapterGetLastError;
+            pDdiTable->pfnAdapterGetInfo = ur_loader::urAdapterGetInfo;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable =
@@ -7485,7 +7618,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
                 ur_loader::urPlatformGetNativeHandle;
             pDdiTable->pfnCreateWithNativeHandle =
                 ur_loader::urPlatformCreateWithNativeHandle;
-            pDdiTable->pfnGetLastError = ur_loader::urPlatformGetLastError;
             pDdiTable->pfnGetApiVersion = ur_loader::urPlatformGetApiVersion;
             pDdiTable->pfnGetBackendOption =
                 ur_loader::urPlatformGetBackendOption;

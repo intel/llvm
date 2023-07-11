@@ -9,5 +9,4 @@ add_conformance_test(platform
     urPlatformGetApiVersion.cpp
     urPlatformGetBackendOption.cpp
     urPlatformGetInfo.cpp
-    urPlatformGetLastError.cpp
     urPlatformGetNativeHandle.cpp)

@@ -67,8 +67,178 @@ __urdlllocal ur_result_t UR_APICALL urTearDown(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGet
+__urdlllocal ur_result_t UR_APICALL urAdapterGet(
+    uint32_t
+        NumEntries, ///< [in] the number of adapters to be added to phAdapters.
+    ///< If phAdapters is not NULL, then NumEntries should be greater than
+    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+    ///< will be returned.
+    ur_adapter_handle_t *
+        phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
+    ///< If NumEntries is less than the number of adapters available, then
+    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    uint32_t *
+        pNumAdapters ///< [out][optional] returns the total number of adapters available.
+) {
+    auto pfnAdapterGet = context.urDdiTable.Global.pfnAdapterGet;
+
+    if (nullptr == pfnAdapterGet) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+    }
+
+    ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRelease
+__urdlllocal ur_result_t UR_APICALL urAdapterRelease(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+) {
+    auto pfnAdapterRelease = context.urDdiTable.Global.pfnAdapterRelease;
+
+    if (nullptr == pfnAdapterRelease) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hAdapter) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnAdapterRelease(hAdapter);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hAdapter);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRetain
+__urdlllocal ur_result_t UR_APICALL urAdapterRetain(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+) {
+    auto pfnAdapterRetain = context.urDdiTable.Global.pfnAdapterRetain;
+
+    if (nullptr == pfnAdapterRetain) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hAdapter) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnAdapterRetain(hAdapter);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hAdapter);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetLastError
+__urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter instance
+    const char **
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
+) {
+    auto pfnAdapterGetLastError =
+        context.urDdiTable.Global.pfnAdapterGetLastError;
+
+    if (nullptr == pfnAdapterGetLastError) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hAdapter) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == ppMessage) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pError) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetInfo
+__urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter
+    ur_adapter_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If Size is not equal to or greater to the real number of bytes needed
+    ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+) {
+    auto pfnAdapterGetInfo = context.urDdiTable.Global.pfnAdapterGetInfo;
+
+    if (nullptr == pfnAdapterGetInfo) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hAdapter) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_ADAPTER_INFO_REFERENCE_COUNT < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+    }
+
+    ur_result_t result = pfnAdapterGetInfo(hAdapter, propName, propSize,
+                                           pPropValue, pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
+    ur_adapter_handle_t *
+        phAdapters, ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
+    uint32_t NumAdapters, ///< [in] number of adapters pointed to by phAdapters
     uint32_t
         NumEntries, ///< [in] the number of platforms to be added to phPlatforms.
     ///< If phPlatforms is not NULL, then NumEntries should be greater than
@@ -88,9 +258,13 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     }
 
     if (context.enableParameterValidation) {
+        if (NULL == phAdapters) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
     }
 
-    ur_result_t result = pfnGet(NumEntries, phPlatforms, pNumPlatforms);
+    ur_result_t result =
+        pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms, pNumPlatforms);
 
     return result;
 }
@@ -260,42 +434,6 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
 
     ur_result_t result =
         pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urPlatformGetLastError
-__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **
-        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
-                   ///< will be stored.
-    int32_t *
-        pError ///< [out] pointer to an integer where the adapter specific error code will
-               ///< be stored.
-) {
-    auto pfnGetLastError = context.urDdiTable.Platform.pfnGetLastError;
-
-    if (nullptr == pfnGetLastError) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hPlatform) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == ppMessage) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pError) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-    }
-
-    ur_result_t result = pfnGetLastError(hPlatform, ppMessage, pError);
 
     return result;
 }
@@ -7051,6 +7189,22 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     dditable.pfnTearDown = pDdiTable->pfnTearDown;
     pDdiTable->pfnTearDown = ur_validation_layer::urTearDown;
 
+    dditable.pfnAdapterGet = pDdiTable->pfnAdapterGet;
+    pDdiTable->pfnAdapterGet = ur_validation_layer::urAdapterGet;
+
+    dditable.pfnAdapterRelease = pDdiTable->pfnAdapterRelease;
+    pDdiTable->pfnAdapterRelease = ur_validation_layer::urAdapterRelease;
+
+    dditable.pfnAdapterRetain = pDdiTable->pfnAdapterRetain;
+    pDdiTable->pfnAdapterRetain = ur_validation_layer::urAdapterRetain;
+
+    dditable.pfnAdapterGetLastError = pDdiTable->pfnAdapterGetLastError;
+    pDdiTable->pfnAdapterGetLastError =
+        ur_validation_layer::urAdapterGetLastError;
+
+    dditable.pfnAdapterGetInfo = pDdiTable->pfnAdapterGetInfo;
+    pDdiTable->pfnAdapterGetInfo = ur_validation_layer::urAdapterGetInfo;
+
     return result;
 }
 
@@ -7693,9 +7847,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
         ur_validation_layer::urPlatformCreateWithNativeHandle;
-
-    dditable.pfnGetLastError = pDdiTable->pfnGetLastError;
-    pDdiTable->pfnGetLastError = ur_validation_layer::urPlatformGetLastError;
 
     dditable.pfnGetApiVersion = pDdiTable->pfnGetApiVersion;
     pDdiTable->pfnGetApiVersion = ur_validation_layer::urPlatformGetApiVersion;

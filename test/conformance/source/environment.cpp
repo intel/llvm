@@ -75,8 +75,13 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
         return;
     }
 
+    uint32_t adapter_count = 0;
+    urAdapterGet(0, nullptr, &adapter_count);
+    adapters.resize(adapter_count);
+    urAdapterGet(adapter_count, adapters.data(), nullptr);
+
     uint32_t count = 0;
-    if (urPlatformGet(0, nullptr, &count)) {
+    if (urPlatformGet(adapters.data(), adapter_count, 0, nullptr, &count)) {
         error = "urPlatformGet() failed to get number of platforms.";
         return;
     }
@@ -87,7 +92,8 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
     }
 
     std::vector<ur_platform_handle_t> platforms(count);
-    if (urPlatformGet(count, platforms.data(), nullptr)) {
+    if (urPlatformGet(adapters.data(), adapter_count, count, platforms.data(),
+                      nullptr)) {
         error = "urPlatformGet failed to get platforms.";
         return;
     }
@@ -149,6 +155,9 @@ void uur::PlatformEnvironment::SetUp() {
 void uur::PlatformEnvironment::TearDown() {
     if (error == ERROR_NO_ADAPTER) {
         return;
+    }
+    for (auto adapter : adapters) {
+        urAdapterRelease(adapter);
     }
     ur_tear_down_params_t tear_down_params{};
     if (urTearDown(&tear_down_params)) {

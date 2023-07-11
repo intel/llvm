@@ -56,8 +56,143 @@ __urdlllocal ur_result_t UR_APICALL urTearDown(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGet
+__urdlllocal ur_result_t UR_APICALL urAdapterGet(
+    uint32_t
+        NumEntries, ///< [in] the number of adapters to be added to phAdapters.
+    ///< If phAdapters is not NULL, then NumEntries should be greater than
+    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+    ///< will be returned.
+    ur_adapter_handle_t *
+        phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
+    ///< If NumEntries is less than the number of adapters available, then
+    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    uint32_t *
+        pNumAdapters ///< [out][optional] returns the total number of adapters available.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAdapterGet = d_context.urDdiTable.Global.pfnAdapterGet;
+    if (nullptr != pfnAdapterGet) {
+        result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+    } else {
+        // generic implementation
+        for (size_t i = 0; (nullptr != phAdapters) && (i < NumEntries); ++i) {
+            phAdapters[i] =
+                reinterpret_cast<ur_adapter_handle_t>(d_context.get());
+        }
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRelease
+__urdlllocal ur_result_t UR_APICALL urAdapterRelease(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAdapterRelease = d_context.urDdiTable.Global.pfnAdapterRelease;
+    if (nullptr != pfnAdapterRelease) {
+        result = pfnAdapterRelease(hAdapter);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRetain
+__urdlllocal ur_result_t UR_APICALL urAdapterRetain(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAdapterRetain = d_context.urDdiTable.Global.pfnAdapterRetain;
+    if (nullptr != pfnAdapterRetain) {
+        result = pfnAdapterRetain(hAdapter);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetLastError
+__urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter instance
+    const char **
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAdapterGetLastError =
+        d_context.urDdiTable.Global.pfnAdapterGetLastError;
+    if (nullptr != pfnAdapterGetLastError) {
+        result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetInfo
+__urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter
+    ur_adapter_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If Size is not equal to or greater to the real number of bytes needed
+    ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAdapterGetInfo = d_context.urDdiTable.Global.pfnAdapterGetInfo;
+    if (nullptr != pfnAdapterGetInfo) {
+        result = pfnAdapterGetInfo(hAdapter, propName, propSize, pPropValue,
+                                   pPropSizeRet);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
+    ur_adapter_handle_t *
+        phAdapters, ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
+    uint32_t NumAdapters, ///< [in] number of adapters pointed to by phAdapters
     uint32_t
         NumEntries, ///< [in] the number of platforms to be added to phPlatforms.
     ///< If phPlatforms is not NULL, then NumEntries should be greater than
@@ -75,7 +210,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnGet = d_context.urDdiTable.Platform.pfnGet;
     if (nullptr != pfnGet) {
-        result = pfnGet(NumEntries, phPlatforms, pNumPlatforms);
+        result = pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms,
+                        pNumPlatforms);
     } else {
         // generic implementation
         for (size_t i = 0; (nullptr != phPlatforms) && (i < NumEntries); ++i) {
@@ -211,32 +347,6 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     if (nullptr != pfnGetBackendOption) {
         result =
             pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
-    } else {
-        // generic implementation
-    }
-
-    return result;
-} catch (...) {
-    return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urPlatformGetLastError
-__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **
-        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
-                   ///< will be stored.
-    int32_t *
-        pError ///< [out] pointer to an integer where the adapter specific error code will
-               ///< be stored.
-    ) try {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetLastError = d_context.urDdiTable.Platform.pfnGetLastError;
-    if (nullptr != pfnGetLastError) {
-        result = pfnGetLastError(hPlatform, ppMessage, pError);
     } else {
         // generic implementation
     }
@@ -4946,6 +5056,16 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
     pDdiTable->pfnTearDown = driver::urTearDown;
 
+    pDdiTable->pfnAdapterGet = driver::urAdapterGet;
+
+    pDdiTable->pfnAdapterRelease = driver::urAdapterRelease;
+
+    pDdiTable->pfnAdapterRetain = driver::urAdapterRetain;
+
+    pDdiTable->pfnAdapterGetLastError = driver::urAdapterGetLastError;
+
+    pDdiTable->pfnAdapterGetInfo = driver::urAdapterGetInfo;
+
     return result;
 } catch (...) {
     return exceptionToResult(std::current_exception());
@@ -5428,8 +5548,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
 
     pDdiTable->pfnCreateWithNativeHandle =
         driver::urPlatformCreateWithNativeHandle;
-
-    pDdiTable->pfnGetLastError = driver::urPlatformGetLastError;
 
     pDdiTable->pfnGetApiVersion = driver::urPlatformGetApiVersion;
 
