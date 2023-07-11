@@ -633,19 +633,11 @@ mlir::test::TestProduceParamWithNumberOfTestOps::apply(
 }
 
 DiagnosedSilenceableFailure
-mlir::test::TestProduceIntegerParamWithTypeOp::apply(
-    transform::TransformRewriter &rewriter,
-    transform::TransformResults &results, transform::TransformState &state) {
-  Attribute zero = IntegerAttr::get(getType(), 0);
-  results.setParams(llvm::cast<OpResult>(getResult()), zero);
+mlir::test::TestProduceParamOp::apply(transform::TransformRewriter &rewriter,
+                                      transform::TransformResults &results,
+                                      transform::TransformState &state) {
+  results.setParams(llvm::cast<OpResult>(getResult()), getAttr());
   return DiagnosedSilenceableFailure::success();
-}
-
-LogicalResult mlir::test::TestProduceIntegerParamWithTypeOp::verify() {
-  if (!llvm::isa<IntegerType>(getType())) {
-    return emitOpError() << "expects an integer type";
-  }
-  return success();
 }
 
 void mlir::test::TestProduceTransformParamOrForwardOperandOp::getEffects(
@@ -753,6 +745,12 @@ void mlir::test::TestDummyPayloadOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   for (OpResult result : getResults())
     transform::producesHandle(result, effects);
+}
+
+LogicalResult mlir::test::TestDummyPayloadOp::verify() {
+  if (getFailToVerify())
+    return emitOpError() << "fail_to_verify is set";
+  return success();
 }
 
 DiagnosedSilenceableFailure
@@ -898,6 +896,23 @@ void mlir::test::TestNotifyPayloadOpReplacedOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   transform::onlyReadsHandle(getOriginal(), effects);
   transform::onlyReadsHandle(getReplacement(), effects);
+}
+
+DiagnosedSilenceableFailure mlir::test::TestProduceInvalidIR::applyToOne(
+    transform::TransformRewriter &rewriter, Operation *target,
+    transform::ApplyToEachResultList &results,
+    transform::TransformState &state) {
+  // Provide some IR that does not verify.
+  rewriter.setInsertionPointToStart(&target->getRegion(0).front());
+  rewriter.create<TestDummyPayloadOp>(target->getLoc(), TypeRange(),
+                                      ValueRange(), /*failToVerify=*/true);
+  return DiagnosedSilenceableFailure::success();
+}
+
+void mlir::test::TestProduceInvalidIR::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  transform::onlyReadsHandle(getTarget(), effects);
+  transform::modifiesPayload(effects);
 }
 
 namespace {

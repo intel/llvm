@@ -99,10 +99,9 @@ static size_t g_debugger_event_thread_stack_bytes = 8 * 1024 * 1024;
 
 #pragma mark Static Functions
 
-typedef std::vector<DebuggerSP> DebuggerList;
 static std::recursive_mutex *g_debugger_list_mutex_ptr =
     nullptr; // NOTE: intentional leak to avoid issues with C++ destructor chain
-static DebuggerList *g_debugger_list_ptr =
+static Debugger::DebuggerList *g_debugger_list_ptr =
     nullptr; // NOTE: intentional leak to avoid issues with C++ destructor chain
 static llvm::ThreadPool *g_thread_pool = nullptr;
 
@@ -1276,6 +1275,33 @@ bool Debugger::InterruptRequested() {
   return GetCommandInterpreter().WasInterrupted();
 }
 
+Debugger::InterruptionReport::InterruptionReport(std::string function_name, 
+    const llvm::formatv_object_base &payload) :  
+        m_function_name(std::move(function_name)), 
+        m_interrupt_time(std::chrono::system_clock::now()),
+        m_thread_id(llvm::get_threadid()) {
+  llvm::raw_string_ostream desc(m_description);
+  desc << payload << "\n";
+}
+
+void Debugger::ReportInterruption(const InterruptionReport &report) {
+    // For now, just log the description:
+  Log *log = GetLog(LLDBLog::Host);
+  LLDB_LOG(log, "Interruption: {0}", report.m_description);
+}
+
+Debugger::DebuggerList Debugger::DebuggersRequestingInterruption() {
+  DebuggerList result;
+  if (g_debugger_list_ptr && g_debugger_list_mutex_ptr) {
+    std::lock_guard<std::recursive_mutex> guard(*g_debugger_list_mutex_ptr);
+    for (auto debugger_sp : *g_debugger_list_ptr) {
+      if (debugger_sp->InterruptRequested())
+        result.push_back(debugger_sp);
+    }
+  }
+  return result;
+}
+
 size_t Debugger::GetNumDebuggers() {
   if (g_debugger_list_ptr && g_debugger_list_mutex_ptr) {
     std::lock_guard<std::recursive_mutex> guard(*g_debugger_list_mutex_ptr);
@@ -1915,8 +1941,8 @@ bool Debugger::StartEventHandlerThread() {
     if (event_handler_thread) {
       m_event_handler_thread = *event_handler_thread;
     } else {
-      LLDB_LOG(GetLog(LLDBLog::Host), "failed to launch host thread: {}",
-               llvm::toString(event_handler_thread.takeError()));
+      LLDB_LOG_ERROR(GetLog(LLDBLog::Host), event_handler_thread.takeError(),
+                     "failed to launch host thread: {0}");
     }
 
     // Make sure DefaultEventHandler() is running and listening to events
@@ -2056,8 +2082,8 @@ bool Debugger::StartIOHandlerThread() {
     if (io_handler_thread) {
       m_io_handler_thread = *io_handler_thread;
     } else {
-      LLDB_LOG(GetLog(LLDBLog::Host), "failed to launch host thread: {}",
-               llvm::toString(io_handler_thread.takeError()));
+      LLDB_LOG_ERROR(GetLog(LLDBLog::Host), io_handler_thread.takeError(),
+                     "failed to launch host thread: {0}");
     }
   }
   return m_io_handler_thread.IsJoinable();

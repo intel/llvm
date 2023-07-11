@@ -47,6 +47,7 @@ Implemented Papers
 - P2505R5 - Monadic operations for ``std::expected``
 - P2711R1 - Making Multi-Param Constructors Of views explicit (``join_with_view`` is not done yet)
 - P2572R1 - ``std::format`` fill character allowances
+- P2510R3 - Formatting pointers
 
 Improvements and New Features
 -----------------------------
@@ -93,10 +94,6 @@ Deprecations and Removals
            ``stdexcept``, ``system_error``, ``type_traits``, ``typeinfo``
 
 - ``<algorithm>`` no longer includes ``<chrono>`` in any C++ version (it was previously included in C++17 and earlier).
-
-- ``<limits>`` no longer includes ``<type_traits>`` in any C++ version (it was previously included in C++20 and earlier).
-
-- ``<new>`` no longer includes ``<exception>`` or ``<type_traits>`` in any C++ version (they were previously included in C++20 and earlier).
 
 - ``<string>`` no longer includes ``<vector>`` in any C++ version (it was previously included in C++20 and earlier).
 

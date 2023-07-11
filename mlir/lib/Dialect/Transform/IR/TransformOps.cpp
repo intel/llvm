@@ -17,6 +17,7 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -1050,6 +1051,37 @@ transform::GetResultOp::apply(transform::TransformRewriter &rewriter,
 }
 
 //===----------------------------------------------------------------------===//
+// GetTypeOp
+//===----------------------------------------------------------------------===//
+
+void transform::GetTypeOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  onlyReadsHandle(getValue(), effects);
+  producesHandle(getResult(), effects);
+  onlyReadsPayload(effects);
+}
+
+DiagnosedSilenceableFailure
+transform::GetTypeOp::apply(transform::TransformRewriter &rewriter,
+                            transform::TransformResults &results,
+                            transform::TransformState &state) {
+  SmallVector<Attribute> params;
+  ArrayRef<Value> values = state.getPayloadValues(getValue());
+  params.reserve(values.size());
+  for (Value value : values) {
+    Type type = value.getType();
+    if (getElemental()) {
+      if (auto shaped = dyn_cast<ShapedType>(type)) {
+        type = shaped.getElementType();
+      }
+    }
+    params.push_back(TypeAttr::get(type));
+  }
+  results.setParams(getResult().cast<OpResult>(), params);
+  return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
 // IncludeOp
 //===----------------------------------------------------------------------===//
 
@@ -1986,6 +2018,29 @@ void transform::PrintOp::getEffects(
   // There is no resource for stderr file descriptor, so just declare print
   // writes into the default resource.
   effects.emplace_back(MemoryEffects::Write::get());
+}
+
+//===----------------------------------------------------------------------===//
+// VerifyOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::VerifyOp::applyToOne(transform::TransformRewriter &rewriter,
+                                Operation *target,
+                                transform::ApplyToEachResultList &results,
+                                transform::TransformState &state) {
+  if (failed(::mlir::verify(target))) {
+    DiagnosedDefiniteFailure diag = emitDefiniteFailure()
+                                    << "failed to verify payload op";
+    diag.attachNote(target->getLoc()) << "payload op";
+    return diag;
+  }
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::VerifyOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  transform::onlyReadsHandle(getTarget(), effects);
 }
 
 //===----------------------------------------------------------------------===//

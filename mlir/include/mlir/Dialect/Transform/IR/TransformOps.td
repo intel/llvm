@@ -443,6 +443,7 @@ def GetConsumersOfResult : TransformDialectOp<"get_consumers_of_result",
 
 def GetDefiningOp : TransformDialectOp<"get_defining_op",
     [DeclareOpInterfaceMethods<TransformOpInterface>,
+     MatchOpInterface,
      NavigationTransformOpTrait, MemoryEffectsOpInterface]> {
   let summary = "Get handle to the defining op of a value";
   let description = [{
@@ -528,6 +529,25 @@ def GetResultOp : TransformDialectOp<"get_result",
                        I64Attr:$result_number);
   let results = (outs TransformValueHandleTypeInterface:$result);
   let assemblyFormat = "$target `[` $result_number `]` attr-dict `:` "
+                       "functional-type(operands, results)";
+}
+
+def GetTypeOp : TransformDialectOp<"get_type",
+    [DeclareOpInterfaceMethods<TransformOpInterface>,
+     MatchOpInterface,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Get a parameter containing the type of the given value";
+  let description = [{
+    This operation creates a new Transform parameter containing the
+    type(s) of the value(s) associated with the operand handle.
+
+    This transform never fails.
+  }];
+
+  let arguments = (ins TransformValueHandleTypeInterface:$value,
+                       UnitAttr:$elemental);
+  let results = (outs TransformParamTypeInterface:$type_param);
+  let assemblyFormat = "(`elemental` $elemental^)? $value attr-dict `:`"
                        "functional-type(operands, results)";
 }
 
@@ -838,6 +858,7 @@ def SequenceOp : TransformDialectOp<"sequence",
     [DeclareOpInterfaceMethods<RegionBranchOpInterface,
         ["getSuccessorEntryOperands", "getSuccessorRegions",
          "getRegionInvocationBounds"]>,
+     MatchOpInterface,
      DeclareOpInterfaceMethods<TransformOpInterface>,
      DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
      OpAsmOpInterface, PossibleTopLevelTransformOpTrait,
@@ -939,6 +960,36 @@ def SequenceOp : TransformDialectOp<"sequence",
   }];
 
   let hasVerifier = 1;
+}
+
+def VerifyOp : TransformDialectOp<"verify",
+    [TransformOpInterface, TransformEachOpTrait,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+     ReportTrackingListenerFailuresOpTrait]> {
+  let summary = "Verifies the targeted ops";
+  let description = [{
+    This transform verifies the targeted ops. If at least one op fails to
+    verify, the transform fails definitely.
+
+    Note: This op was designed for debugging purposes and should be used like an
+    assertion. It is intentional that this op produces a definite failure and
+    not a silenceable one. Correctness of the program should not depend on this
+    op.
+
+    This transform reads the target handle.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs);
+  let assemblyFormat = "$target attr-dict `:` type($target)";
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+      ::mlir::transform::TransformRewriter &rewriter,
+      ::mlir::Operation *target,
+      ::mlir::transform::ApplyToEachResultList &results,
+      ::mlir::transform::TransformState &state);
+  }];
 }
 
 def YieldOp : TransformDialectOp<"yield",

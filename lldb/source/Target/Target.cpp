@@ -2236,7 +2236,6 @@ ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
         // each library in parallel.
         if (GetPreloadSymbols())
           module_sp->PreloadSymbols();
-
         llvm::SmallVector<ModuleSP, 1> replaced_modules;
         for (ModuleSP &old_module_sp : old_modules) {
           if (m_images.GetIndexForModule(old_module_sp.get()) !=
@@ -2387,10 +2386,11 @@ Target::GetScratchTypeSystems(bool create_on_demand) {
     auto type_system_or_err =
         GetScratchTypeSystemForLanguage(language, create_on_demand);
     if (!type_system_or_err)
-      LLDB_LOG_ERROR(GetLog(LLDBLog::Target), type_system_or_err.takeError(),
-                     "Language '{}' has expression support but no scratch type "
-                     "system available",
-                     Language::GetNameForLanguageType(language));
+      LLDB_LOG_ERROR(
+          GetLog(LLDBLog::Target), type_system_or_err.takeError(),
+          "Language '{1}' has expression support but no scratch type "
+          "system available: {0}",
+          Language::GetNameForLanguageType(language));
     else
       if (auto ts = *type_system_or_err)
         scratch_type_systems.push_back(ts);
@@ -2408,9 +2408,10 @@ Target::GetPersistentExpressionStateForLanguage(lldb::LanguageType language) {
   auto type_system_or_err = GetScratchTypeSystemForLanguage(language, true);
 
   if (auto err = type_system_or_err.takeError()) {
-    LLDB_LOG_ERROR(GetLog(LLDBLog::Target), std::move(err),
-                   "Unable to get persistent expression state for language {}",
-                   Language::GetNameForLanguageType(language));
+    LLDB_LOG_ERROR(
+        GetLog(LLDBLog::Target), std::move(err),
+        "Unable to get persistent expression state for language {1}: {0}",
+        Language::GetNameForLanguageType(language));
     return nullptr;
   }
 
@@ -2418,7 +2419,7 @@ Target::GetPersistentExpressionStateForLanguage(lldb::LanguageType language) {
     return ts->GetPersistentExpressionState();
 
   LLDB_LOG(GetLog(LLDBLog::Target),
-           "Unable to get persistent expression state for language {}",
+           "Unable to get persistent expression state for language {1}: {0}",
            Language::GetNameForLanguageType(language));
   return nullptr;
 }
@@ -2617,7 +2618,7 @@ ExpressionResults Target::EvaluateExpression(
       auto ts = *type_system_or_err;
       if (!ts)
         LLDB_LOG_ERROR(GetLog(LLDBLog::Target), std::move(err),
-                       "Scratch type system is no longer live");
+                       "Scratch type system is no longer live: {0}");
       else
         persistent_var_sp =
             ts->GetPersistentExpressionState()->GetVariable(expr);
@@ -4203,6 +4204,10 @@ bool TargetProperties::SetPreferDynamicValue(lldb::DynamicValueType d) {
 }
 
 bool TargetProperties::GetPreloadSymbols() const {
+  if (INTERRUPT_REQUESTED(m_target->GetDebugger(), 
+      "Interrupted checking preload symbols")) {
+    return false;
+  }
   const uint32_t idx = ePropertyPreloadSymbols;
   return GetPropertyAtIndexAs<bool>(
       idx, g_target_properties[idx].default_uint_value != 0);

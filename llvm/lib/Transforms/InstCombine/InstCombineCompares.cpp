@@ -3579,16 +3579,114 @@ Instruction *InstCombinerImpl::foldICmpBinOpWithConstant(ICmpInst &Cmp,
   return foldICmpBinOpEqualityWithConstant(Cmp, BO, C);
 }
 
+static Instruction *
+foldICmpUSubSatOrUAddSatWithConstant(ICmpInst::Predicate Pred,
+                                     SaturatingInst *II, const APInt &C,
+                                     InstCombiner::BuilderTy &Builder) {
+  // This transform may end up producing more than one instruction for the
+  // intrinsic, so limit it to one user of the intrinsic.
+  if (!II->hasOneUse())
+    return nullptr;
+
+  // Let Y        = [add/sub]_sat(X, C) pred C2
+  //     SatVal   = The saturating value for the operation
+  //     WillWrap = Whether or not the operation will underflow / overflow
+  // => Y = (WillWrap ? SatVal : (X binop C)) pred C2
+  // => Y = WillWrap ? (SatVal pred C2) : ((X binop C) pred C2)
+  //
+  // When (SatVal pred C2) is true, then
+  //    Y = WillWrap ? true : ((X binop C) pred C2)
+  // => Y = WillWrap || ((X binop C) pred C2)
+  // else
+  //    Y =  WillWrap ? false : ((X binop C) pred C2)
+  // => Y = !WillWrap ?  ((X binop C) pred C2) : false
+  // => Y = !WillWrap && ((X binop C) pred C2)
+  Value *Op0 = II->getOperand(0);
+  Value *Op1 = II->getOperand(1);
+
+  const APInt *COp1;
+  // This transform only works when the intrinsic has an integral constant or
+  // splat vector as the second operand.
+  if (!match(Op1, m_APInt(COp1)))
+    return nullptr;
+
+  APInt SatVal;
+  switch (II->getIntrinsicID()) {
+  default:
+    llvm_unreachable(
+        "This function only works with usub_sat and uadd_sat for now!");
+  case Intrinsic::uadd_sat:
+    SatVal = APInt::getAllOnes(C.getBitWidth());
+    break;
+  case Intrinsic::usub_sat:
+    SatVal = APInt::getZero(C.getBitWidth());
+    break;
+  }
+
+  // Check (SatVal pred C2)
+  bool SatValCheck = ICmpInst::compare(SatVal, C, Pred);
+
+  // !WillWrap.
+  ConstantRange C1 = ConstantRange::makeExactNoWrapRegion(
+      II->getBinaryOp(), *COp1, II->getNoWrapKind());
+
+  // WillWrap.
+  if (SatValCheck)
+    C1 = C1.inverse();
+
+  ConstantRange C2 = ConstantRange::makeExactICmpRegion(Pred, C);
+  if (II->getBinaryOp() == Instruction::Add)
+    C2 = C2.sub(*COp1);
+  else
+    C2 = C2.add(*COp1);
+
+  Instruction::BinaryOps CombiningOp =
+      SatValCheck ? Instruction::BinaryOps::Or : Instruction::BinaryOps::And;
+
+  std::optional<ConstantRange> Combination;
+  if (CombiningOp == Instruction::BinaryOps::Or)
+    Combination = C1.exactUnionWith(C2);
+  else /* CombiningOp == Instruction::BinaryOps::And */
+    Combination = C1.exactIntersectWith(C2);
+
+  if (!Combination)
+    return nullptr;
+
+  CmpInst::Predicate EquivPred;
+  APInt EquivInt;
+  APInt EquivOffset;
+
+  Combination->getEquivalentICmp(EquivPred, EquivInt, EquivOffset);
+
+  return new ICmpInst(
+      EquivPred,
+      Builder.CreateAdd(Op0, ConstantInt::get(Op1->getType(), EquivOffset)),
+      ConstantInt::get(Op1->getType(), EquivInt));
+}
+
 /// Fold an icmp with LLVM intrinsic and constant operand: icmp Pred II, C.
 Instruction *InstCombinerImpl::foldICmpIntrinsicWithConstant(ICmpInst &Cmp,
                                                              IntrinsicInst *II,
                                                              const APInt &C) {
+  ICmpInst::Predicate Pred = Cmp.getPredicate();
+
+  // Handle folds that apply for any kind of icmp.
+  switch (II->getIntrinsicID()) {
+  default:
+    break;
+  case Intrinsic::uadd_sat:
+  case Intrinsic::usub_sat:
+    if (auto *Folded = foldICmpUSubSatOrUAddSatWithConstant(
+            Pred, cast<SaturatingInst>(II), C, Builder))
+      return Folded;
+    break;
+  }
+
   if (Cmp.isEquality())
     return foldICmpEqIntrinsicWithConstant(Cmp, II, C);
 
   Type *Ty = II->getType();
   unsigned BitWidth = C.getBitWidth();
-  ICmpInst::Predicate Pred = Cmp.getPredicate();
   switch (II->getIntrinsicID()) {
   case Intrinsic::ctpop: {
     // (ctpop X > BitWidth - 1) --> X == -1

@@ -55,6 +55,11 @@ bool Context::evaluateAsRValue(State &Parent, const Expr *E, APValue &Result) {
   ByteCodeExprGen<EvalEmitter> C(*this, *P, Parent, Stk, Result);
   if (Check(Parent, C.interpretExpr(E))) {
     assert(Stk.empty());
+#ifndef NDEBUG
+    // Make sure we don't rely on some value being still alive in
+    // InterpStack memory.
+    Stk.clear();
+#endif
     return true;
   }
 
@@ -68,6 +73,11 @@ bool Context::evaluateAsInitializer(State &Parent, const VarDecl *VD,
   ByteCodeExprGen<EvalEmitter> C(*this, *P, Parent, Stk, Result);
   if (Check(Parent, C.interpretDecl(VD))) {
     assert(Stk.empty());
+#ifndef NDEBUG
+    // Make sure we don't rely on some value being still alive in
+    // InterpStack memory.
+    Stk.clear();
+#endif
     return true;
   }
 
@@ -139,7 +149,7 @@ const llvm::fltSemantics &Context::getFloatSemantics(QualType T) const {
   return Ctx.getFloatTypeSemantics(T);
 }
 
-bool Context::Run(State &Parent, Function *Func, APValue &Result) {
+bool Context::Run(State &Parent, const Function *Func, APValue &Result) {
   InterpState State(Parent, *P, Stk, *this);
   State.Current = new InterpFrame(State, Func, /*Caller=*/nullptr, {});
   if (Interpret(State, Result))
