@@ -232,7 +232,219 @@ ur_result_t UR_APICALL urTearDown(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Retrieves all available platforms
+/// @brief Retrieves all available adapters
+///
+/// @details
+///     - Adapter implementations must return exactly one adapter handle from
+///       this entry point.
+///     - The loader may return more than one adapter handle when there are
+///       multiple available.
+///     - Each returned adapter has its reference count incremented and should
+///       be released with a subsequent call to ::urAdapterRelease.
+///     - Adapters may perform adapter-specific state initialization when the
+///       first reference to them is taken.
+///     - An application may call this entry point multiple times to acquire
+///       multiple references to the adapter handle(s).
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+ur_result_t UR_APICALL urAdapterGet(
+    uint32_t
+        NumEntries, ///< [in] the number of adapters to be added to phAdapters.
+    ///< If phAdapters is not NULL, then NumEntries should be greater than
+    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+    ///< will be returned.
+    ur_adapter_handle_t *
+        phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
+    ///< If NumEntries is less than the number of adapters available, then
+    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    uint32_t *
+        pNumAdapters ///< [out][optional] returns the total number of adapters available.
+    ) try {
+    auto pfnAdapterGet = ur_lib::context->urDdiTable.Global.pfnAdapterGet;
+    if (nullptr == pfnAdapterGet) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases the adapter handle reference indicating end of its usage
+///
+/// @details
+///     - When the reference count of the adapter reaches zero, the adapter may
+///       perform adapter-specififc resource teardown
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+ur_result_t UR_APICALL urAdapterRelease(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+    ) try {
+    auto pfnAdapterRelease =
+        ur_lib::context->urDdiTable.Global.pfnAdapterRelease;
+    if (nullptr == pfnAdapterRelease) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnAdapterRelease(hAdapter);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get a reference to the adapter handle.
+///
+/// @details
+///     - Get a reference to the adapter handle. Increment its reference count
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+ur_result_t UR_APICALL urAdapterRetain(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+    ) try {
+    auto pfnAdapterRetain = ur_lib::context->urDdiTable.Global.pfnAdapterRetain;
+    if (nullptr == pfnAdapterRetain) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnAdapterRetain(hAdapter);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the last adapter specific error.
+///
+/// @details
+/// To be used after another entry-point has returned
+/// ::UR_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
+/// the circumstances of the underlying driver error and the error code
+/// returned by the failed driver entry-point.
+///
+/// * Implementations *must* store the message and error code in thread-local
+///   storage prior to returning ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
+///
+/// * The message and error code storage is will only be valid if a previously
+///   called entry-point returned ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
+///
+/// * The memory pointed to by the C string returned in `ppMessage` is owned by
+///   the adapter and *must* be null terminated.
+///
+/// * The application *may* call this function from simultaneous threads.
+///
+/// * The implementation of this function *should* be lock-free.
+///
+/// Example usage:
+///
+/// ```cpp
+/// if (::urQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
+///         ::UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+///     const char* pMessage;
+///     int32_t error;
+///     ::urAdapterGetLastError(hAdapter, &pMessage, &error);
+/// }
+/// ```
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMessage`
+///         + `NULL == pError`
+ur_result_t UR_APICALL urAdapterGetLastError(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter instance
+    const char **
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
+    ) try {
+    auto pfnAdapterGetLastError =
+        ur_lib::context->urDdiTable.Global.pfnAdapterGetLastError;
+    if (nullptr == pfnAdapterGetLastError) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves information about the adapter
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_ADAPTER_INFO_REFERENCE_COUNT < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urAdapterGetInfo(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter
+    ur_adapter_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If Size is not equal to or greater to the real number of bytes needed
+    ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+    ) try {
+    auto pfnAdapterGetInfo =
+        ur_lib::context->urDdiTable.Global.pfnAdapterGetInfo;
+    if (nullptr == pfnAdapterGetInfo) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnAdapterGetInfo(hAdapter, propName, propSize, pPropValue,
+                             pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves all available platforms for the given adapters
 ///
 /// @details
 ///     - Multiple calls to this function will return identical platforms
@@ -249,8 +461,13 @@ ur_result_t UR_APICALL urTearDown(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phAdapters`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ur_result_t UR_APICALL urPlatformGet(
+    ur_adapter_handle_t *
+        phAdapters, ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
+    uint32_t NumAdapters, ///< [in] number of adapters pointed to by phAdapters
     uint32_t
         NumEntries, ///< [in] the number of platforms to be added to phPlatforms.
     ///< If phPlatforms is not NULL, then NumEntries should be greater than
@@ -268,7 +485,8 @@ ur_result_t UR_APICALL urPlatformGet(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnGet(NumEntries, phPlatforms, pNumPlatforms);
+    return pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms,
+                  pNumPlatforms);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -470,68 +688,6 @@ ur_result_t UR_APICALL urPlatformGetBackendOption(
     }
 
     return pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
-} catch (...) {
-    return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the last adapter specific error.
-///
-/// @details
-/// To be used after another entry-point has returned
-/// ::UR_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
-/// the circumstances of the underlying driver error and the error code
-/// returned by the failed driver entry-point.
-///
-/// * Implementations *must* store the message and error code in thread-local
-///   storage prior to returning ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
-///
-/// * The message and error code storage is will only be valid if a previously
-///   called entry-point returned ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
-///
-/// * The memory pointed to by the C string returned in `ppMessage` is owned by
-///   the adapter and *must* be null terminated.
-///
-/// * The application *may* call this function from simultaneous threads.
-///
-/// * The implementation of this function *should* be lock-free.
-///
-/// Example usage:
-///
-/// ```cpp
-/// if (::urQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
-///         ::UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
-///     const char* pMessage;
-///     int32_t error;
-///     ::urPlatformGetLastError(hPlatform, &pMessage, &error);
-/// }
-/// ```
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ppMessage`
-///         + `NULL == pError`
-ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **
-        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
-                   ///< will be stored.
-    int32_t *
-        pError ///< [out] pointer to an integer where the adapter specific error code will
-               ///< be stored.
-    ) try {
-    auto pfnGetLastError = ur_lib::context->urDdiTable.Platform.pfnGetLastError;
-    if (nullptr == pfnGetLastError) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    return pfnGetLastError(hPlatform, ppMessage, pError);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }

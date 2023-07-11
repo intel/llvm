@@ -17,6 +17,10 @@
 
 namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////
+using ur_adapter_object_t = object_t<ur_adapter_handle_t>;
+using ur_adapter_factory_t =
+    singleton_factory_t<ur_adapter_object_t, ur_adapter_handle_t>;
+
 using ur_platform_object_t = object_t<ur_platform_handle_t>;
 using ur_platform_factory_t =
     singleton_factory_t<ur_platform_object_t, ur_platform_handle_t>;

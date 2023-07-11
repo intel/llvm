@@ -31,10 +31,26 @@ int main(int argc, char *argv[]) {
     }
     info("urInit succeeded.");
 
+    uint32_t adapterCount = 0;
+    std::vector<ur_adapter_handle_t> adapters;
+    status = urAdapterGet(0, nullptr, &adapterCount);
+    if (status != UR_RESULT_SUCCESS) {
+        error("urAdapterGet failed with return code: {}", status);
+        return 1;
+    }
+
+    adapters.resize(adapterCount);
+    status = urAdapterGet(adapterCount, adapters.data(), nullptr);
+    if (status != UR_RESULT_SUCCESS) {
+        error("urAdapterGet failed with return code: {}", status);
+        return 1;
+    }
+
     uint32_t platformCount = 0;
     std::vector<ur_platform_handle_t> platforms;
 
-    status = urPlatformGet(1, nullptr, &platformCount);
+    status = urPlatformGet(adapters.data(), adapterCount, 1, nullptr,
+                           &platformCount);
     if (status != UR_RESULT_SUCCESS) {
         error("urPlatformGet failed with return code: {}", status);
         goto out;
@@ -42,7 +58,8 @@ int main(int argc, char *argv[]) {
     info("urPlatformGet found {} platforms", platformCount);
 
     platforms.resize(platformCount);
-    status = urPlatformGet(platformCount, platforms.data(), nullptr);
+    status = urPlatformGet(adapters.data(), adapterCount, platformCount,
+                           platforms.data(), nullptr);
     if (status != UR_RESULT_SUCCESS) {
         error("urPlatformGet failed with return code: {}", status);
         goto out;

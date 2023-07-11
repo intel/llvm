@@ -174,7 +174,6 @@ typedef enum ur_function_t {
     UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147,          ///< Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
     UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148,             ///< Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
     UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149,           ///< Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
-    UR_FUNCTION_PLATFORM_GET_LAST_ERROR = 150,                                 ///< Enumerator for ::urPlatformGetLastError
     UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,                                     ///< Enumerator for ::urEnqueueUSMFill2D
     UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D = 152,                                   ///< Enumerator for ::urEnqueueUSMMemcpy2D
     UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 153,                        ///< Enumerator for ::urVirtualMemGranularityGetInfo
@@ -201,6 +200,11 @@ typedef enum ur_function_t {
     UR_FUNCTION_LOADER_CONFIG_RETAIN = 174,                                    ///< Enumerator for ::urLoaderConfigRetain
     UR_FUNCTION_LOADER_CONFIG_GET_INFO = 175,                                  ///< Enumerator for ::urLoaderConfigGetInfo
     UR_FUNCTION_LOADER_CONFIG_ENABLE_LAYER = 176,                              ///< Enumerator for ::urLoaderConfigEnableLayer
+    UR_FUNCTION_ADAPTER_RELEASE = 177,                                         ///< Enumerator for ::urAdapterRelease
+    UR_FUNCTION_ADAPTER_GET = 178,                                             ///< Enumerator for ::urAdapterGet
+    UR_FUNCTION_ADAPTER_RETAIN = 179,                                          ///< Enumerator for ::urAdapterRetain
+    UR_FUNCTION_ADAPTER_GET_LAST_ERROR = 180,                                  ///< Enumerator for ::urAdapterGetLastError
+    UR_FUNCTION_ADAPTER_GET_INFO = 181,                                        ///< Enumerator for ::urAdapterGetInfo
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -326,6 +330,10 @@ typedef uint8_t ur_bool_t;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a loader config object
 typedef struct ur_loader_config_handle_t_ *ur_loader_config_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of an adapter instance
+typedef struct ur_adapter_handle_t_ *ur_adapter_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a platform instance
@@ -707,6 +715,197 @@ urTearDown(
     void *pParams ///< [in] pointer to tear down parameters
 );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves all available adapters
+///
+/// @details
+///     - Adapter implementations must return exactly one adapter handle from
+///       this entry point.
+///     - The loader may return more than one adapter handle when there are
+///       multiple available.
+///     - Each returned adapter has its reference count incremented and should
+///       be released with a subsequent call to ::urAdapterRelease.
+///     - Adapters may perform adapter-specific state initialization when the
+///       first reference to them is taken.
+///     - An application may call this entry point multiple times to acquire
+///       multiple references to the adapter handle(s).
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterGet(
+    uint32_t NumEntries,             ///< [in] the number of adapters to be added to phAdapters.
+                                     ///< If phAdapters is not NULL, then NumEntries should be greater than
+                                     ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+                                     ///< will be returned.
+    ur_adapter_handle_t *phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
+                                     ///< If NumEntries is less than the number of adapters available, then
+                                     ///< ::urAdapterGet shall only retrieve that number of platforms.
+    uint32_t *pNumAdapters           ///< [out][optional] returns the total number of adapters available.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases the adapter handle reference indicating end of its usage
+///
+/// @details
+///     - When the reference count of the adapter reaches zero, the adapter may
+///       perform adapter-specififc resource teardown
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterRelease(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get a reference to the adapter handle.
+///
+/// @details
+///     - Get a reference to the adapter handle. Increment its reference count
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterRetain(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the last adapter specific error.
+///
+/// @details
+/// To be used after another entry-point has returned
+/// ::UR_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
+/// the circumstances of the underlying driver error and the error code
+/// returned by the failed driver entry-point.
+///
+/// * Implementations *must* store the message and error code in thread-local
+///   storage prior to returning ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
+///
+/// * The message and error code storage is will only be valid if a previously
+///   called entry-point returned ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
+///
+/// * The memory pointed to by the C string returned in `ppMessage` is owned by
+///   the adapter and *must* be null terminated.
+///
+/// * The application *may* call this function from simultaneous threads.
+///
+/// * The implementation of this function *should* be lock-free.
+///
+/// Example usage:
+///
+/// ```cpp
+/// if (::urQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
+///         ::UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+///     const char* pMessage;
+///     int32_t error;
+///     ::urAdapterGetLastError(hAdapter, &pMessage, &error);
+/// }
+/// ```
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMessage`
+///         + `NULL == pError`
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterGetLastError(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter instance
+    const char **ppMessage,       ///< [out] pointer to a C string where the adapter specific error message
+                                  ///< will be stored.
+    int32_t *pError               ///< [out] pointer to an integer where the adapter specific error code will
+                                  ///< be stored.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Supported adapter info
+typedef enum ur_adapter_info_t {
+    UR_ADAPTER_INFO_BACKEND = 0,         ///< [::ur_adapter_backend_t] Identifies the native backend supported by
+                                         ///< the adapter.
+    UR_ADAPTER_INFO_REFERENCE_COUNT = 1, ///< [uint32_t] Reference count of the adapter.
+                                         ///< The reference count returned should be considered immediately stale.
+                                         ///< It is unsuitable for general use in applications. This feature is
+                                         ///< provided for identifying memory leaks.
+    /// @cond
+    UR_ADAPTER_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_adapter_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves information about the adapter
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_ADAPTER_INFO_REFERENCE_COUNT < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterGetInfo(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter
+    ur_adapter_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize,              ///< [in] the number of bytes pointed to by pPropValue.
+    void *pPropValue,             ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                  ///< the info.
+                                  ///< If Size is not equal to or greater to the real number of bytes needed
+                                  ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+                                  ///< returned and pPropValue is not used.
+    size_t *pPropSizeRet          ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Identifies backend of the adapter
+typedef enum ur_adapter_backend_t {
+    UR_ADAPTER_BACKEND_UNKNOWN = 0,    ///< The backend is not a recognized one
+    UR_ADAPTER_BACKEND_LEVEL_ZERO = 1, ///< The backend is Level Zero
+    UR_ADAPTER_BACKEND_OPENCL = 2,     ///< The backend is OpenCL
+    UR_ADAPTER_BACKEND_CUDA = 3,       ///< The backend is CUDA
+    UR_ADAPTER_BACKEND_HIP = 4,        ///< The backend is HIP
+    UR_ADAPTER_BACKEND_NATIVE_CPU = 5, ///< The backend is Native CPU
+    /// @cond
+    UR_ADAPTER_BACKEND_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_adapter_backend_t;
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -715,7 +914,7 @@ urTearDown(
 #pragma region platform
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Retrieves all available platforms
+/// @brief Retrieves all available platforms for the given adapters
 ///
 /// @details
 ///     - Multiple calls to this function will return identical platforms
@@ -732,9 +931,13 @@ urTearDown(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phAdapters`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGet(
+    ur_adapter_handle_t *phAdapters,   ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
+    uint32_t NumAdapters,              ///< [in] number of adapters pointed to by phAdapters
     uint32_t NumEntries,               ///< [in] the number of platforms to be added to phPlatforms.
                                        ///< If phPlatforms is not NULL, then NumEntries should be greater than
                                        ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -940,58 +1143,6 @@ urPlatformGetBackendOption(
     const char *pFrontendOption,    ///< [in] string containing the frontend option.
     const char **ppPlatformOption   ///< [out] returns the correct platform specific compiler option based on
                                     ///< the frontend option.
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the last adapter specific error.
-///
-/// @details
-/// To be used after another entry-point has returned
-/// ::UR_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
-/// the circumstances of the underlying driver error and the error code
-/// returned by the failed driver entry-point.
-///
-/// * Implementations *must* store the message and error code in thread-local
-///   storage prior to returning ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
-///
-/// * The message and error code storage is will only be valid if a previously
-///   called entry-point returned ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
-///
-/// * The memory pointed to by the C string returned in `ppMessage` is owned by
-///   the adapter and *must* be null terminated.
-///
-/// * The application *may* call this function from simultaneous threads.
-///
-/// * The implementation of this function *should* be lock-free.
-///
-/// Example usage:
-///
-/// ```cpp
-/// if (::urQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
-///         ::UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
-///     const char* pMessage;
-///     int32_t error;
-///     ::urPlatformGetLastError(hPlatform, &pMessage, &error);
-/// }
-/// ```
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ppMessage`
-///         + `NULL == pError`
-UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **ppMessage,         ///< [out] pointer to a C string where the adapter specific error message
-                                    ///< will be stored.
-    int32_t *pError                 ///< [out] pointer to an integer where the adapter specific error code will
-                                    ///< be stored.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8093,6 +8244,8 @@ typedef struct ur_loader_config_enable_layer_params_t {
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_platform_get_params_t {
+    ur_adapter_handle_t **pphAdapters;
+    uint32_t *pNumAdapters;
     uint32_t *pNumEntries;
     ur_platform_handle_t **pphPlatforms;
     uint32_t **ppNumPlatforms;
@@ -8128,16 +8281,6 @@ typedef struct ur_platform_create_with_native_handle_params_t {
     const ur_platform_native_properties_t **ppProperties;
     ur_platform_handle_t **pphPlatform;
 } ur_platform_create_with_native_handle_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urPlatformGetLastError
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_platform_get_last_error_params_t {
-    ur_platform_handle_t *phPlatform;
-    const char ***pppMessage;
-    int32_t **ppError;
-} ur_platform_get_last_error_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGetApiVersion
@@ -9853,6 +9996,54 @@ typedef struct ur_init_params_t {
 typedef struct ur_tear_down_params_t {
     void **ppParams;
 } ur_tear_down_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGet
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_params_t {
+    uint32_t *pNumEntries;
+    ur_adapter_handle_t **pphAdapters;
+    uint32_t **ppNumAdapters;
+} ur_adapter_get_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterRelease
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_release_params_t {
+    ur_adapter_handle_t *phAdapter;
+} ur_adapter_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterRetain
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_retain_params_t {
+    ur_adapter_handle_t *phAdapter;
+} ur_adapter_retain_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGetLastError
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_last_error_params_t {
+    ur_adapter_handle_t *phAdapter;
+    const char ***pppMessage;
+    int32_t **ppError;
+} ur_adapter_get_last_error_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_info_params_t {
+    ur_adapter_handle_t *phAdapter;
+    ur_adapter_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_adapter_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urVirtualMemGranularityGetInfo

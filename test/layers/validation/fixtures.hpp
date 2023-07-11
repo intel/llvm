@@ -36,14 +36,27 @@ struct valPlatformsTest : urTest {
 
     void SetUp() override {
         urTest::SetUp();
+
+        uint32_t adapter_count;
+        ASSERT_EQ(urAdapterGet(0, nullptr, &adapter_count), UR_RESULT_SUCCESS);
+        adapters.resize(adapter_count);
+        ASSERT_EQ(urAdapterGet(adapter_count, adapters.data(), nullptr),
+                  UR_RESULT_SUCCESS);
+
         uint32_t count;
-        ASSERT_EQ(urPlatformGet(0, nullptr, &count), UR_RESULT_SUCCESS);
+        ASSERT_EQ(
+            urPlatformGet(adapters.data(), adapter_count, 0, nullptr, &count),
+            UR_RESULT_SUCCESS);
         ASSERT_NE(count, 0);
         platforms.resize(count);
-        ASSERT_EQ(urPlatformGet(count, platforms.data(), nullptr),
+        ASSERT_EQ(urPlatformGet(adapters.data(), adapter_count, count,
+                                platforms.data(), nullptr),
                   UR_RESULT_SUCCESS);
     }
 
+    void TearDown() override { urTest::TearDown(); }
+
+    std::vector<ur_adapter_handle_t> adapters;
     std::vector<ur_platform_handle_t> platforms;
 };
 

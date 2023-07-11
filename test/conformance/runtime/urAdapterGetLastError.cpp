@@ -5,31 +5,31 @@
 
 #include "fixtures.h"
 
-struct urPlatformGetLastErrorTest : uur::platform::urPlatformTest {
+struct urAdapterGetLastErrorTest : uur::runtime::urAdapterTest {
     int32_t error;
     const char *message = nullptr;
 };
 
-TEST_F(urPlatformGetLastErrorTest, Success) {
+TEST_F(urAdapterGetLastErrorTest, Success) {
     // We can't reliably generate a UR_RESULT_ERROR_ADAPTER_SPECIFIC error to
     // test the full functionality of this entry point, so instead do a minimal
     // smoke test and check that the call returns successfully, even if no
     // actual error was set.
     ASSERT_EQ_RESULT(UR_RESULT_SUCCESS,
-                     urPlatformGetLastError(platform, &message, &error));
+                     urAdapterGetLastError(adapters[0], &message, &error));
 }
 
-TEST_F(urPlatformGetLastErrorTest, InvalidHandle) {
+TEST_F(urAdapterGetLastErrorTest, InvalidHandle) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urPlatformGetLastError(nullptr, &message, &error));
+                     urAdapterGetLastError(nullptr, &message, &error));
 }
 
-TEST_F(urPlatformGetLastErrorTest, InvalidMessagePtr) {
+TEST_F(urAdapterGetLastErrorTest, InvalidMessagePtr) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urPlatformGetLastError(platform, nullptr, &error));
+                     urAdapterGetLastError(adapters[0], nullptr, &error));
 }
 
-TEST_F(urPlatformGetLastErrorTest, InvalidErrorPtr) {
+TEST_F(urAdapterGetLastErrorTest, InvalidErrorPtr) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urPlatformGetLastError(platform, &message, nullptr));
+                     urAdapterGetLastError(adapters[0], &message, nullptr));
 }
