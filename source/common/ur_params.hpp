@@ -42,6 +42,10 @@ template <>
 inline void serializeFlag<ur_device_affinity_domain_flag_t>(std::ostream &os,
                                                             uint32_t flag);
 
+inline void serializeUnion(std::ostream &os,
+                           const union ur_device_partition_value_t params,
+                           const enum ur_device_partition_t tag);
+
 template <>
 inline void serializeFlag<ur_device_fp_capability_flag_t>(std::ostream &os,
                                                           uint32_t flag);
@@ -124,6 +128,10 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
 template <>
 inline void serializeFlag<ur_physical_mem_flag_t>(std::ostream &os,
                                                   uint32_t flag);
+
+inline void serializeUnion(std::ostream &os,
+                           const union ur_program_metadata_value_t params,
+                           const enum ur_program_metadata_type_t tag);
 
 template <>
 inline void serializeTagged(std::ostream &os, const void *ptr,
@@ -211,8 +219,6 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_affinity_domain_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_partition_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const union ur_device_partition_value_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_device_partition_property_t params);
@@ -313,8 +319,6 @@ inline std::ostream &
 operator<<(std::ostream &os, const struct ur_physical_mem_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_program_metadata_type_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const union ur_program_metadata_value_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_program_metadata_t params);
 inline std::ostream &operator<<(std::ostream &os,
@@ -4565,27 +4569,41 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
-inline std::ostream &
-operator<<(std::ostream &os, const union ur_device_partition_value_t params) {
+
+inline void
+ur_params::serializeUnion(std::ostream &os,
+                          const union ur_device_partition_value_t params,
+                          const enum ur_device_partition_t tag) {
     os << "(union ur_device_partition_value_t){";
 
-    os << ".equally = ";
+    switch (tag) {
+    case UR_DEVICE_PARTITION_EQUALLY:
 
-    os << (params.equally);
+        os << ".equally = ";
 
-    os << ", ";
-    os << ".count = ";
+        os << (params.equally);
 
-    os << (params.count);
+        break;
+    case UR_DEVICE_PARTITION_BY_COUNTS:
 
-    os << ", ";
-    os << ".affinity_domain = ";
+        os << ".count = ";
 
-    ur_params::serializeFlag<ur_device_affinity_domain_flag_t>(
-        os, (params.affinity_domain));
+        os << (params.count);
 
+        break;
+    case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
+
+        os << ".affinity_domain = ";
+
+        ur_params::serializeFlag<ur_device_affinity_domain_flag_t>(
+            os, (params.affinity_domain));
+
+        break;
+    default:
+        os << "<unknown>";
+        break;
+    }
     os << "}";
-    return os;
 }
 inline std::ostream &
 operator<<(std::ostream &os,
@@ -4598,8 +4616,7 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".value = ";
-
-    os << (params.value);
+    ur_params::serializeUnion(os, (params.value), params.type);
 
     os << "}";
     return os;
@@ -7378,31 +7395,47 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
-inline std::ostream &
-operator<<(std::ostream &os, const union ur_program_metadata_value_t params) {
+
+inline void
+ur_params::serializeUnion(std::ostream &os,
+                          const union ur_program_metadata_value_t params,
+                          const enum ur_program_metadata_type_t tag) {
     os << "(union ur_program_metadata_value_t){";
 
-    os << ".data32 = ";
+    switch (tag) {
+    case UR_PROGRAM_METADATA_TYPE_UINT32:
 
-    os << (params.data32);
+        os << ".data32 = ";
 
-    os << ", ";
-    os << ".data64 = ";
+        os << (params.data32);
 
-    os << (params.data64);
+        break;
+    case UR_PROGRAM_METADATA_TYPE_UINT64:
 
-    os << ", ";
-    os << ".pString = ";
+        os << ".data64 = ";
 
-    ur_params::serializePtr(os, (params.pString));
+        os << (params.data64);
 
-    os << ", ";
-    os << ".pData = ";
+        break;
+    case UR_PROGRAM_METADATA_TYPE_STRING:
 
-    ur_params::serializePtr(os, (params.pData));
+        os << ".pString = ";
 
+        ur_params::serializePtr(os, (params.pString));
+
+        break;
+    case UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY:
+
+        os << ".pData = ";
+
+        ur_params::serializePtr(os, (params.pData));
+
+        break;
+    default:
+        os << "<unknown>";
+        break;
+    }
     os << "}";
-    return os;
 }
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_program_metadata_t params) {
@@ -7424,8 +7457,7 @@ inline std::ostream &operator<<(std::ostream &os,
 
     os << ", ";
     os << ".value = ";
-
-    os << (params.value);
+    ur_params::serializeUnion(os, (params.value), params.type);
 
     os << "}";
     return os;
