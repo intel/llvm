@@ -1,4 +1,3 @@
-
 //===----------- common.cpp - Native CPU Adapter ---------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -17,7 +16,7 @@
               << " - File : " << __FILE__;                                     \
     std::cerr << " / Line : " << __LINE__ << std::endl;                        \
   }                                                                            \
-  return UR_RESULT_ERROR_INVALID_OPERATION;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   if (PrintTrace) {                                                            \
@@ -35,4 +34,4 @@
                 << __FUNCTION__ << ":" << __LINE__ << "(" << __FILE__ << ")"   \
                 << std::endl;                                                  \
     }                                                                          \
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
