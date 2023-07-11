@@ -4097,11 +4097,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return DbgTran->createDebugValuePlaceholder(cast<DbgValueInst>(II), BB);
   case Intrinsic::annotation: {
     SPIRVType *Ty = transScavengedType(II);
-
-    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1));
-    if (!GEP)
-      return nullptr;
-    Constant *C = cast<Constant>(GEP->getOperand(0));
+    Constant *C = cast<Constant>(II->getArgOperand(1)->stripPointerCasts());
     StringRef AnnotationString;
     if (!getConstantStringInfo(C, AnnotationString))
       return nullptr;
