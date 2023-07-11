@@ -282,7 +282,13 @@ public:
                     sycl::detail::pi::PiProgram Program);
 
   ProgramManager();
-  ~ProgramManager() = default;
+  ~ProgramManager()
+  {
+    // unique_ptr could not be used in any map used in this class. When image is used as a key - no possible to wrap because we do search by raw pointer value, when uses as value - same image could be assigned to different keys.
+    // Release them explicitly.
+    for (auto& Image : m_BinImg2KernelIDs)
+        delete Image.first;
+  };
 
   bool kernelUsesAssert(const std::string &KernelName) const;
 
