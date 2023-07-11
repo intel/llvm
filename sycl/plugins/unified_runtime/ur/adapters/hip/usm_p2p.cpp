@@ -22,10 +22,10 @@ urUsmP2PDisablePeerAccessExp(ur_device_handle_t, ur_device_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t, ur_device_handle_t,
-                             ur_exp_peer_info_t, size_t, void *, size_t *) {
-  detail::ur::die(
-      "urUsmP2PPeerAccessGetInfoExp is not implemented for HIP adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
+    ur_device_handle_t, ur_device_handle_t, ur_exp_peer_info_t, size_t propSize,
+    void *pPropValue, size_t *pPropSizeRet) {
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+  // Zero return value indicates that all of the queries currently return false.
+  return ReturnValue(uint32_t{0});
 }
