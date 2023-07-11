@@ -526,7 +526,9 @@ void Command::emitEdgeEventForCommandDependence(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Bail early if either the source or the target node for the given
   // dependency is undefined or NULL
-  if (!(xptiTraceEnabled() && MTraceEvent && Cmd && Cmd->MTraceEvent))
+  constexpr uint16_t NotificationTraceType = xpti::trace_edge_create;
+  if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) &&
+        MTraceEvent && Cmd && Cmd->MTraceEvent))
     return;
 
   // If all the information we need for creating an edge event is available,
@@ -555,7 +557,7 @@ void Command::emitEdgeEventForCommandDependence(
     } else {
       xpti::addMetadata(EdgeEvent, "event", reinterpret_cast<size_t>(ObjAddr));
     }
-    xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
+    xptiNotifySubscribers(MStreamID, NotificationTraceType,
                           detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
                           nullptr);
   }
@@ -574,7 +576,7 @@ void Command::emitEdgeEventForEventDependence(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If we have failed to create an event to represent the Command, then we
   // cannot emit an edge event. Bail early!
-  if (!(xptiTraceEnabled() && MTraceEvent))
+  if (!(xptiCheckTraceEnabled(MStreamID) && MTraceEvent))
     return;
 
   if (Cmd && Cmd->MTraceEvent) {
@@ -630,7 +632,7 @@ void Command::emitEdgeEventForEventDependence(
 uint64_t Command::makeTraceEventProlog(void *MAddress) {
   uint64_t CommandInstanceNo = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID, xpti::trace_node_create))
     return CommandInstanceNo;
 
   MTraceEventPrologComplete = true;
@@ -661,10 +663,11 @@ uint64_t Command::makeTraceEventProlog(void *MAddress) {
 
 void Command::makeTraceEventEpilog() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiTraceEnabled() && MTraceEvent))
+  constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
+  if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) && MTraceEvent))
     return;
   assert(MTraceEventPrologComplete);
-  xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
+  xptiNotifySubscribers(MStreamID, NotificationTraceType,
                         detail::GSYCLGraphEvent,
                         static_cast<xpti_td *>(MTraceEvent), MInstanceID,
                         static_cast<const void *>(MCommandNodeType.c_str()));
@@ -766,19 +769,21 @@ Command *Command::addDep(EventImplPtr Event,
 
 void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiTraceEnabled() && MTraceEvent && PiEventAddr))
+  constexpr uint16_t NotificationTraceType = xpti::trace_signal;
+  if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) &&
+        MTraceEvent && PiEventAddr))
     return;
   // Asynchronous call, so send a signal with the event information as
   // user_data
-  xptiNotifySubscribers(MStreamID, xpti::trace_signal, detail::GSYCLGraphEvent,
-                        static_cast<xpti_td *>(MTraceEvent), MInstanceID,
-                        (void *)PiEventAddr);
+  xptiNotifySubscribers(
+      MStreamID, NotificationTraceType, detail::GSYCLGraphEvent,
+      static_cast<xpti_td *>(MTraceEvent), MInstanceID, (void *)PiEventAddr);
 #endif
 }
 
 void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiTraceEnabled() && MTraceEvent))
+  if (!(xptiCheckTraceEnabled(MStreamID, Type) && MTraceEvent))
     return;
   // Trace event notifier that emits a Type event
   xptiNotifySubscribers(MStreamID, Type, detail::GSYCLGraphEvent,
@@ -962,7 +967,7 @@ AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
 
 void AllocaCommandBase::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
@@ -1007,7 +1012,7 @@ AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
 
 void AllocaCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
 
   // Only if it is the first event, we emit a node create event
@@ -1083,7 +1088,7 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
 
 void AllocaSubBufCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
 
   // Only if it is the first event, we emit a node create event and any meta
@@ -1156,7 +1161,7 @@ ReleaseCommand::ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
 
 void ReleaseCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
@@ -1276,7 +1281,7 @@ MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
 
 void MapMemObject::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
@@ -1337,7 +1342,7 @@ UnMapMemObject::UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
 
 void UnMapMemObject::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
@@ -1430,7 +1435,7 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
 
 void MemCpyCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
@@ -1529,8 +1534,9 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
   }
-  throw runtime_error("Alloca for command not found",
-                      PI_ERROR_INVALID_OPERATION);
+  throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                        "Alloca for command not found " +
+                            codeToString(PI_ERROR_INVALID_OPERATION));
 }
 
 std::vector<std::shared_ptr<const void>>
@@ -1602,7 +1608,7 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
 
 void MemCpyCommandHost::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
@@ -1692,7 +1698,7 @@ void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
 
 void EmptyCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
@@ -1767,7 +1773,7 @@ UpdateHostRequirementCommand::UpdateHostRequirementCommand(
 
 void UpdateHostRequirementCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
@@ -2012,10 +2018,10 @@ void emitKernelInstrumentationData(
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
-    return;
-
+  constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
   int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
+    return;
 
   void *Address = nullptr;
   std::optional<bool> FromSource;
@@ -2036,8 +2042,8 @@ void emitKernelInstrumentationData(
                                           SyclKernel, Queue, CGArgs);
 
     xptiNotifySubscribers(
-        StreamID, xpti::trace_node_create, detail::GSYCLGraphEvent,
-        CmdTraceEvent, InstanceID,
+        StreamID, NotificationTraceType, detail::GSYCLGraphEvent, CmdTraceEvent,
+        InstanceID,
         static_cast<const void *>(
             commandToNodeType(Command::CommandType::RUN_CG).c_str()));
   }
@@ -2054,7 +2060,8 @@ void emitKernelInstrumentationData(
 
 void ExecCGCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
+  if (!xptiCheckTraceEnabled(MStreamID, NotificationTraceType))
     return;
 
   std::string KernelName;
@@ -2090,7 +2097,7 @@ void ExecCGCommand::emitInstrumentationData() {
     }
 
     xptiNotifySubscribers(
-        MStreamID, xpti::trace_node_create, detail::GSYCLGraphEvent,
+        MStreamID, NotificationTraceType, detail::GSYCLGraphEvent,
         CmdTraceEvent, MInstanceID,
         static_cast<const void *>(commandToNodeType(MType).c_str()));
   }
@@ -2177,6 +2184,18 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   }
 }
 
+pi_mem_obj_access AccessModeToPi(access::mode AccessorMode) {
+  switch (AccessorMode) {
+  case access::mode::read:
+    return PI_ACCESS_READ_ONLY;
+  case access::mode::write:
+  case access::mode::discard_write:
+    return PI_ACCESS_WRITE_ONLY;
+  default:
+    return PI_ACCESS_READ_WRITE;
+  }
+}
+
 static pi_result SetKernelParamsAndLaunch(
     const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
@@ -2193,8 +2212,6 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
-      if (Req->MAccessRange == range<3>({0, 0, 0}))
-        break;
       assert(getMemAllocationFunc != nullptr &&
              "We should have caught this earlier.");
 
@@ -2211,8 +2228,11 @@ static pi_result SetKernelParamsAndLaunch(
         Plugin->call<PiApiKind::piKernelSetArg>(
             Kernel, NextTrueIndex, sizeof(sycl::detail::pi::PiMem), &MemArg);
       } else {
+        pi_mem_obj_property MemObjData{};
+        MemObjData.mem_access = AccessModeToPi(Req->MAccessMode);
+        MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
         Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                         &MemArg);
+                                                         &MemObjData, &MemArg);
       }
       break;
     }
@@ -2237,10 +2257,11 @@ static pi_result SetKernelParamsAndLaunch(
     }
     case kernel_param_kind_t::kind_specialization_constants_buffer: {
       if (Queue->is_host()) {
-        throw sycl::feature_not_supported(
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
             "SYCL2020 specialization constants are not yet supported on host "
-            "device",
-            PI_ERROR_INVALID_OPERATION);
+            "device " +
+                codeToString(PI_ERROR_INVALID_OPERATION));
       }
       assert(DeviceImageImpl != nullptr);
       sycl::detail::pi::PiMem SpecConstsBuffer =
@@ -2248,12 +2269,18 @@ static pi_result SetKernelParamsAndLaunch(
       // Avoid taking an address of nullptr
       sycl::detail::pi::PiMem *SpecConstsBufferArg =
           SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
-      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                       SpecConstsBufferArg);
+
+      pi_mem_obj_property MemObjData{};
+      MemObjData.mem_access = PI_ACCESS_READ_ONLY;
+      MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
+      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(
+          Kernel, NextTrueIndex, &MemObjData, SpecConstsBufferArg);
       break;
     }
     case kernel_param_kind_t::kind_invalid:
-      throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Invalid kernel param kind " +
+                                codeToString(PI_ERROR_INVALID_VALUE));
       break;
     }
   };
@@ -2502,8 +2529,9 @@ pi_int32 ExecCGCommand::enqueueImp() {
   switch (MCommandGroup->getType()) {
 
   case CG::CGTYPE::UpdateHost: {
-    throw runtime_error("Update host should be handled by the Scheduler.",
-                        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Update host should be handled by the Scheduler. " +
+                              codeToString(PI_ERROR_INVALID_VALUE));
   }
   case CG::CGTYPE::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2644,13 +2672,15 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
     switch (Error) {
     case PI_ERROR_INVALID_OPERATION:
-      throw sycl::runtime_error(
-          "Device doesn't support run_on_host_intel tasks.", Error);
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Device doesn't support run_on_host_intel tasks. " +
+                                detail::codeToString(Error));
     case PI_SUCCESS:
       return Error;
     default:
-      throw sycl::runtime_error("Enqueueing run_on_host_intel task has failed.",
-                                Error);
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Enqueueing run_on_host_intel task has failed. " +
+                                detail::codeToString(Error));
     }
   }
   case CG::CGTYPE::Kernel: {
@@ -2808,7 +2838,9 @@ pi_int32 ExecCGCommand::enqueueImp() {
         break;
       }
       default:
-        throw runtime_error("Unsupported arg type", PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Unsupported arg type " +
+                                  codeToString(PI_ERROR_INVALID_VALUE));
       }
     }
 
@@ -2817,7 +2849,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
       // available if a user asks for them inside the interop task scope
-      const std::vector<Requirement *> &HandlerReq = HostTask->getRequirements();
+      const std::vector<Requirement *> &HandlerReq =
+          HostTask->getRequirements();
       auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
         const std::vector<AllocaCommandBase *> &AllocaCmds =
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
@@ -2835,9 +2868,10 @@ pi_int32 ExecCGCommand::enqueueImp() {
         assert(false &&
                "Can't get memory object due to no allocation available");
 
-        throw runtime_error(
-            "Can't get memory object due to no allocation available",
-            PI_ERROR_INVALID_MEM_OBJECT);
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::runtime),
+            "Can't get memory object due to no allocation available " +
+                codeToString(PI_ERROR_INVALID_MEM_OBJECT));
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
@@ -2919,7 +2953,9 @@ pi_int32 ExecCGCommand::enqueueImp() {
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);
   }
   case CG::CGTYPE::None:
-    throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "CG type not implemented. " +
+                              codeToString(PI_ERROR_INVALID_OPERATION));
   }
   return PI_ERROR_INVALID_OPERATION;
 }
@@ -2973,7 +3009,8 @@ void KernelFusionCommand::setFusionStatus(FusionStatus Status) {
 
 void KernelFusionCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
+  if (!xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
     return;
   }
   // Create a payload with the command name and an event using this payload to
@@ -3017,7 +3054,7 @@ void KernelFusionCommand::emitInstrumentationData() {
   }
 
   if (MFirstInstance) {
-    xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
+    xptiNotifySubscribers(MStreamID, NotificationTraceType,
                           detail::GSYCLGraphEvent,
                           static_cast<xpti_td *>(MTraceEvent), MInstanceID,
                           static_cast<const void *>(MCommandNodeType.c_str()));
