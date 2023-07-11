@@ -412,13 +412,24 @@ public:
       return nullptr;
     unsigned dimensions = std::stoul(matches[1].str());
 
+    // Determine whether the buffer constructed is a sub-buffer by looking at
+    // the type of the first parameter of the demangled constructor function
+    // name.
+    bool isSubBuffer = false;
+    StringRef demangled{demangledName};
+    if (auto paramStart = demangled.find('('); paramStart != StringRef::npos) {
+      if (demangled.drop_front(paramStart + 1).starts_with("sycl::_V1::buffer"))
+        isSubBuffer = true;
+    }
+
     // FIXME: There's currently no good way to obtain the element type of the
     // buffer from the constructor call (or allocation). Parsing it from the
     // demangled name, as done for 'dimensions' above, would require translation
     // from C++ types to MLIR types, which is not available here.
     Type elemTy = LLVM::LLVMVoidType::get(constructor->getContext());
 
-    return sycl::BufferType::get(constructor->getContext(), elemTy, dimensions);
+    return sycl::BufferType::get(constructor->getContext(), elemTy, dimensions,
+                                 isSubBuffer);
   }
 
 private:

@@ -73,9 +73,10 @@ def SYCL_BufferType : SYCL_Type<"Buffer", "buffer"> {
   let description = [{ Shared array of one, two or three dimensions,
                         accessed through accessors.}];
   let parameters = (ins "::mlir::Type":$type,
-                        "unsigned":$dimension);
+                        "unsigned":$dimension,
+                        DefaultValuedParameter<"bool", "false">:$subbuffer);
   let assemblyFormat = 
-      "`<` `[` $dimension `,` $type `]` `>`";
+      "`<` `[` $dimension `,` $type (`,` $subbuffer^)? `]` `>`";
 }
 
 def SYCL_AccessorSubscriptType :
