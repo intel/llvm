@@ -19,6 +19,6 @@ struct ur_program_handle_t_ {
   uint32_t getReferenceCount() const noexcept { return _refCount; }
 
   ur_context_handle_t _ctx;
-  std::atomic_uint32_t _refCount;
   const unsigned char *_ptr;
+  std::atomic_uint32_t _refCount;
 };
