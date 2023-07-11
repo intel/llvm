@@ -97,9 +97,11 @@
 // 14.33 Added new parameter (memory object properties) to
 // piextKernelSetArgMemObj
 // 14.34 Added command-buffer extension methods
+// 14.35 Added piextEnablePeerAccess, piextDisablePeerAccess,
+// piextPeerAccessGetInfo, and pi_peer_attr enum.
 
 #define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 34
+#define _PI_H_VERSION_MINOR 35
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1030,7 +1032,17 @@ using pi_image_desc = _pi_image_desc;
 
 typedef enum { PI_MEM_CONTEXT = 0x1106, PI_MEM_SIZE = 0x1102 } _pi_mem_info;
 
+typedef enum {
+  PI_PEER_ACCESS_SUPPORTED =
+      0x0, ///< returns a uint32_t: 1 if P2P Access is supported
+           ///< otherwise P2P Access is not supported.
+  PI_PEER_ATOMICS_SUPPORTED =
+      0x1 ///< returns a uint32_t: 1 if Atomic operations are supported over the
+          ///< P2P link, otherwise such operations are not supported.
+} _pi_peer_attr;
+
 using pi_mem_info = _pi_mem_info;
+using pi_peer_attr = _pi_peer_attr;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
@@ -1087,6 +1099,14 @@ __SYCL_EXPORT pi_result piDevicesGet(pi_platform platform,
                                      pi_device_type device_type,
                                      pi_uint32 num_entries, pi_device *devices,
                                      pi_uint32 *num_devices);
+
+__SYCL_EXPORT pi_result piextEnablePeerAccess(pi_device command_device,
+                                              pi_device peer_device);
+__SYCL_EXPORT pi_result piextDisablePeerAccess(pi_device command_device,
+                                               pi_device peer_device);
+__SYCL_EXPORT pi_result piextPeerAccessGetInfo(
+    pi_device command_device, pi_device peer_device, pi_peer_attr attr,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 /// Returns requested info for provided native device
 /// Return PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT for

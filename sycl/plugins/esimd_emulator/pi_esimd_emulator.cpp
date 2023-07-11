@@ -2241,6 +2241,43 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   return PI_SUCCESS;
 }
 
+pi_result piextEnablePeerAccess(pi_device command_device,
+                                pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextEnablePeerAccess not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result piextDisablePeerAccess(pi_device command_device,
+                                 pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextDisablePeerAccess not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result piextPeerAccessGetInfo(pi_device command_device,
+                                 pi_device peer_device, pi_peer_attr attr,
+                                 size_t ParamValueSize, void *ParamValue,
+                                 size_t *ParamValueSizeRet) {
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
+
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  // Zero return value indicates that all of the queries currently return false.
+  return ReturnValue(pi_int32{0});
+}
+
 #ifdef _WIN32
 #define __SYCL_PLUGIN_DLL_NAME "pi_esimd_emulator.dll"
 #include "../common_win_pi_trace/common_win_pi_trace.hpp"

@@ -43,7 +43,7 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
 id<3> &AccessorBaseHost::getOffset() { return impl->MOffset; }
 range<3> &AccessorBaseHost::getAccessRange() { return impl->MAccessRange; }
 range<3> &AccessorBaseHost::getMemoryRange() { return impl->MMemoryRange; }
-void *AccessorBaseHost::getPtr() { return impl->MData; }
+void *AccessorBaseHost::getPtr() noexcept { return impl->MData; }
 
 detail::AccHostDataT &AccessorBaseHost::getAccData() { return impl->MAccData; }
 
@@ -60,7 +60,7 @@ const range<3> &AccessorBaseHost::getAccessRange() const {
 const range<3> &AccessorBaseHost::getMemoryRange() const {
   return impl->MMemoryRange;
 }
-void *AccessorBaseHost::getPtr() const {
+void *AccessorBaseHost::getPtr() const noexcept {
   return const_cast<void *>(impl->MData);
 }
 

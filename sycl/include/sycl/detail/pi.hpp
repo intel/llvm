@@ -155,6 +155,7 @@ using PiKernelCacheConfig = ::pi_kernel_cache_config;
 using PiExtSyncPoint = ::pi_ext_sync_point;
 using PiExtCommandBuffer = ::pi_ext_command_buffer;
 using PiExtCommandBufferDesc = ::pi_ext_command_buffer_desc;
+using PiPeerAttr = ::pi_peer_attr;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,

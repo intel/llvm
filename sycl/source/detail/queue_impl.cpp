@@ -96,8 +96,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                                  : std::unique_lock<std::mutex>();
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};
@@ -169,8 +168,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                                  : std::unique_lock<std::mutex>();
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};
@@ -212,8 +210,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                                  : std::unique_lock<std::mutex>();
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};
@@ -257,8 +254,7 @@ event queue_impl::memcpyToDeviceGlobal(
                                  : std::unique_lock<std::mutex>();
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};
@@ -303,8 +299,7 @@ event queue_impl::memcpyFromDeviceGlobal(
                                  : std::unique_lock<std::mutex>();
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};
@@ -392,8 +387,8 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   (void)StreamID;
   (void)IId;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  xpti::trace_event_data_t *WaitEvent = nullptr;
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
+  if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
 
   xpti::payload_t Payload;
@@ -417,8 +412,9 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   // event based on the code location info and if this has been seen before, a
   // previously created event will be returned.
   uint64_t QWaitInstanceNo = 0;
-  WaitEvent = xptiMakeEvent(Name.c_str(), &Payload, xpti::trace_graph_event,
-                            xpti_at::active, &QWaitInstanceNo);
+  xpti::trace_event_data_t *WaitEvent =
+      xptiMakeEvent(Name.c_str(), &Payload, xpti::trace_graph_event,
+                    xpti_at::active, &QWaitInstanceNo);
   IId = QWaitInstanceNo;
   if (WaitEvent) {
     device D = get_device();
@@ -458,12 +454,14 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
   (void)StreamID;
   (void)IId;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiTraceEnabled() && TelemetryEvent))
+  constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
+  if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
+        TelemetryEvent))
     return;
   // Close the wait() scope
   xpti::trace_event_data_t *TraceEvent =
       (xpti::trace_event_data_t *)TelemetryEvent;
-  xptiNotifySubscribers(StreamID, xpti::trace_wait_end, nullptr, TraceEvent,
+  xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
                         IId, static_cast<const void *>(Name.c_str()));
 #endif
 }
