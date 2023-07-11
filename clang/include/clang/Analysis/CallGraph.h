@@ -50,7 +50,7 @@ class CallGraph : public RecursiveASTVisitor<CallGraph> {
   FunctionMapTy FunctionMap;
 
   /// This is a virtual root node that has edges to all the functions.
-  CallGraphNode *Root = nullptr;
+  CallGraphNode *Root;
 
   /// A setting to determine whether this should include calls that are done in
   /// a constant expression's context. This DOES require the ASTContext object
