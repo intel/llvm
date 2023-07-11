@@ -54,33 +54,6 @@ pi_result getInfoArray(size_t array_length, size_t param_value_size,
                      array_length * sizeof(T), memcpy);
 }
 
-sycl::detail::NDRDescT getNDRDesc(pi_uint32 WorkDim,
-                                  const size_t *GlobalWorkOffset,
-                                  const size_t *GlobalWorkSize,
-                                  const size_t *LocalWorkSize) {
-  // Todo: we flip indexes here, I'm not sure we should, if we don't we need to
-  // un-flip them in the spirv builtins definitions as well
-  sycl::detail::NDRDescT Res;
-  switch (WorkDim) {
-  case 1:
-    Res.set<1>(sycl::nd_range<1>({GlobalWorkSize[0]}, {LocalWorkSize[0]},
-                                 {GlobalWorkOffset[0]}));
-    break;
-  case 2:
-    Res.set<2>(sycl::nd_range<2>({GlobalWorkSize[0], GlobalWorkSize[1]},
-                                 {LocalWorkSize[0], LocalWorkSize[1]},
-                                 {GlobalWorkOffset[0], GlobalWorkOffset[1]}));
-    break;
-  case 3:
-    Res.set<3>(sycl::nd_range<3>(
-        {GlobalWorkSize[0], GlobalWorkSize[1], GlobalWorkSize[2]},
-        {LocalWorkSize[0], LocalWorkSize[1], LocalWorkSize[2]},
-        {GlobalWorkOffset[0], GlobalWorkOffset[1], GlobalWorkOffset[2]}));
-    break;
-  }
-  return Res;
-}
-
 extern "C" {
 #define DIE_NO_IMPLEMENTATION                                                  \
   if (PrintPiTrace) {                                                          \
@@ -107,170 +80,6 @@ extern "C" {
                 << std::endl;                                                  \
     }                                                                          \
     return PI_ERROR_INVALID_OPERATION;
-
-pi_result piextPlatformGetNativeHandle(pi_platform, pi_native_handle *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextPlatformCreateWithNativeHandle(pi_native_handle, pi_platform *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueEventsWait(pi_queue, pi_uint32, const pi_event *,
-                              pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueEventsWaitWithBarrier(pi_queue, pi_uint32, const pi_event *,
-                                         pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
-                                 pi_bool BlockingRead, size_t Offset,
-                                 size_t Size, void *Dst,
-                                 pi_uint32 NumEventsInWaitList,
-                                 const pi_event *EventWaitList,
-                                 pi_event *Event) {
-  // TODO: is it ok to have this as no-op?
-  return PI_SUCCESS;
-}
-
-pi_result piEnqueueMemBufferReadRect(pi_queue, pi_mem, pi_bool,
-                                     pi_buff_rect_offset, pi_buff_rect_offset,
-                                     pi_buff_rect_region, size_t, size_t,
-                                     size_t, size_t, void *, pi_uint32,
-                                     const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueMemBufferWrite(pi_queue, pi_mem, pi_bool, size_t, size_t,
-                                  const void *, pi_uint32, const pi_event *,
-                                  pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueMemBufferWriteRect(pi_queue, pi_mem, pi_bool,
-                                      pi_buff_rect_offset, pi_buff_rect_offset,
-                                      pi_buff_rect_region, size_t, size_t,
-                                      size_t, size_t, const void *, pi_uint32,
-                                      const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueMemBufferCopy(pi_queue, pi_mem, pi_mem, size_t, size_t,
-                                 size_t, pi_uint32, const pi_event *,
-                                 pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueMemBufferCopyRect(pi_queue, pi_mem, pi_mem,
-                                     pi_buff_rect_offset, pi_buff_rect_offset,
-                                     pi_buff_rect_region, size_t, size_t,
-                                     size_t, size_t, pi_uint32,
-                                     const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueMemBufferFill(pi_queue, pi_mem buffer, const void *pattern,
-                                 size_t pattern_size, size_t offset,
-                                 size_t size, pi_uint32, const pi_event *,
-                                 pi_event *) {
-  // Todo: error checking
-  // Todo: handle async
-  void *startingPtr = buffer->_mem + offset;
-  unsigned steps = size / pattern_size;
-  for (unsigned i = 0; i < steps; i++) {
-    memcpy(static_cast<int8_t *>(startingPtr) + i * pattern_size, pattern,
-           pattern_size);
-  }
-  return PI_SUCCESS;
-}
-
-pi_result piEnqueueMemBufferMap(pi_queue, pi_mem buffer, pi_bool, pi_map_flags,
-                                size_t offset, size_t size, pi_uint32,
-                                const pi_event *, pi_event *, void **ret_map) {
-  // Todo: add proper error checking
-  *ret_map = buffer->_mem + offset;
-  return PI_SUCCESS;
-}
-
-pi_result piEnqueueMemUnmap(pi_queue, pi_mem mem_obj, void *mapped_ptr,
-                            pi_uint32, const pi_event *, pi_event *) {
-  // Todo: no-op?
-  return PI_SUCCESS;
-}
-
-pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
-                                pi_bool BlockingRead, pi_image_offset Origin,
-                                pi_image_region Region, size_t RowPitch,
-                                size_t SlicePitch, void *Ptr,
-                                pi_uint32 NumEventsInWaitList,
-                                const pi_event *EventWaitList,
-                                pi_event *Event) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueMemImageWrite(pi_queue, pi_mem, pi_bool, pi_image_offset,
-                                 pi_image_region, size_t, size_t, const void *,
-                                 pi_uint32, const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueMemImageCopy(pi_queue, pi_mem, pi_mem, pi_image_offset,
-                                pi_image_offset, pi_image_region, pi_uint32,
-                                const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueMemImageFill(pi_queue, pi_mem, const void *, const size_t *,
-                                const size_t *, pi_uint32, const pi_event *,
-                                pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result
-piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
-                      const size_t *GlobalWorkOffset,
-                      const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-                      pi_uint32 NumEventsInWaitList,
-                      const pi_event *EventWaitList, pi_event *Event) {
-  // TODO: add proper error checking
-  // TODO: add proper event dep management
-  sycl::detail::NDRDescT ndr =
-      getNDRDesc(WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize);
-  __nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
-                          ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
-                          ndr.LocalSize[2], ndr.GlobalOffset[0],
-                          ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
-  auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
-  auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
-  auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
-  for (unsigned g2 = 0; g2 < numWG2; g2++) {
-    for (unsigned g1 = 0; g1 < numWG1; g1++) {
-      for (unsigned g0 = 0; g0 < numWG0; g0++) {
-        for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
-          for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
-            for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
-              state.update(g0, g1, g2, local0, local1, local2);
-              Kernel->_subhandler(Kernel->_args.data(), &state);
-            }
-          }
-        }
-      }
-    }
-  }
-  // Todo: we should avoid calling clear here by avoiding using push_back
-  // in setKernelArgs.
-  Kernel->_args.clear();
-  return PI_SUCCESS;
-}
-
-pi_result piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
-                                pi_uint32, const pi_mem *, const void **,
-                                pi_uint32, const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
 
 pi_result piextUSMHostAlloc(void **result_ptr, pi_context,
                             pi_usm_mem_properties *, size_t size, pi_uint32) {
@@ -335,35 +144,6 @@ pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextQueueCreate(pi_context context, pi_device device,
-                           pi_queue_properties *properties, pi_queue *queue) {
-  CONTINUE_NO_IMPLEMENTATION;
-}
-
-pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
-                                    const char *pipe_symbol, pi_bool blocking,
-                                    void *ptr, size_t size,
-                                    pi_uint32 num_events_in_waitlist,
-                                    const pi_event *events_waitlist,
-                                    pi_event *event) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
-                                   const char *pipe_symbol, pi_bool blocking,
-                                   void *ptr, size_t size,
-                                   pi_uint32 num_events_in_waitlist,
-                                   const pi_event *events_waitlist,
-                                   pi_event *event) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piPluginGetLastError(char **message) { DIE_NO_IMPLEMENTATION; }
-
 pi_result piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
                                   void *dst_ptr, size_t dst_pitch,
                                   const void *src_ptr, size_t src_pitch,
@@ -374,50 +154,11 @@ pi_result piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextEnqueueDeviceGlobalVariableWrite(
-    pi_queue queue, pi_program program, const char *name,
-    pi_bool blocking_write, size_t count, size_t offset, const void *src,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextEnqueueDeviceGlobalVariableRead(
-    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
-    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piextUSMEnqueueMemset2D(pi_queue queue, void *ptr, size_t pitch,
                                   int value, size_t width, size_t height,
                                   pi_uint32 num_events_in_waitlist,
                                   const pi_event *events_waitlist,
                                   pi_event *event) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
-                                  uint64_t *HostTime) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextQueueGetNativeHandle2(pi_queue queue,
-                                     pi_native_handle *nativeHandle,
-                                     int32_t *nativeHandleDesc) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextQueueCreate2(pi_context context, pi_device device,
-                            pi_queue_properties *properties, pi_queue *queue) {
-  // Todo: is it fine as a no-op?
-  return PI_SUCCESS;
-}
-
-pi_result piextQueueCreateWithNativeHandle2(
-    pi_native_handle nativeHandle, int32_t nativeHandleDesc, pi_context context,
-    pi_device device, bool pluginOwnsNativeHandle,
-    pi_queue_properties *Properties, pi_queue *queue) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -542,11 +283,12 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piDeviceRetain, pi2ur::piDeviceRetain)
   _PI_CL(piDeviceRelease, pi2ur::piDeviceRelease)
   _PI_CL(piextDeviceSelectBinary, pi2ur::piextDeviceSelectBinary)
-  // TODO: uncomment when program is fully ported
   _PI_CL(piextGetDeviceFunctionPointer, pi2ur::piextGetDeviceFunctionPointer)
   _PI_CL(piextDeviceGetNativeHandle, pi2ur::piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          pi2ur::piextDeviceCreateWithNativeHandle)
+  _PI_CL(piGetDeviceAndHostTimer, pi2ur::piGetDeviceAndHostTimer)
+
   // Context
   _PI_CL(piextContextSetExtendedDeleter, pi2ur::piextContextSetExtendedDeleter)
   _PI_CL(piContextCreate, pi2ur::piContextCreate)
@@ -595,6 +337,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          pi2ur::piextProgramCreateWithNativeHandle)
   _PI_CL(piextProgramSetSpecializationConstant,
          pi2ur::piextProgramSetSpecializationConstant)
+
   // Kernel
   _PI_CL(piKernelCreate, pi2ur::piKernelCreate)
   _PI_CL(piKernelSetArg, pi2ur::piKernelSetArg)
@@ -631,51 +374,47 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piSamplerRelease, pi2ur::piSamplerRelease)
 
   // Queue commands
-  _PI_CL(piEnqueueKernelLaunch, piEnqueueKernelLaunch)
-  _PI_CL(piEnqueueNativeKernel, piEnqueueNativeKernel)
-  _PI_CL(piEnqueueEventsWait, piEnqueueEventsWait)
-  _PI_CL(piEnqueueEventsWaitWithBarrier, piEnqueueEventsWaitWithBarrier)
-  _PI_CL(piEnqueueMemBufferRead, piEnqueueMemBufferRead)
-  _PI_CL(piEnqueueMemBufferReadRect, piEnqueueMemBufferReadRect)
-  _PI_CL(piEnqueueMemBufferWrite, piEnqueueMemBufferWrite)
-  _PI_CL(piEnqueueMemBufferWriteRect, piEnqueueMemBufferWriteRect)
-  _PI_CL(piEnqueueMemBufferCopy, piEnqueueMemBufferCopy)
-  _PI_CL(piEnqueueMemBufferCopyRect, piEnqueueMemBufferCopyRect)
-  _PI_CL(piEnqueueMemBufferFill, piEnqueueMemBufferFill)
-  _PI_CL(piEnqueueMemImageRead, piEnqueueMemImageRead)
-  _PI_CL(piEnqueueMemImageWrite, piEnqueueMemImageWrite)
-  _PI_CL(piEnqueueMemImageCopy, piEnqueueMemImageCopy)
-  _PI_CL(piEnqueueMemImageFill, piEnqueueMemImageFill)
-  _PI_CL(piEnqueueMemBufferMap, piEnqueueMemBufferMap)
-  _PI_CL(piEnqueueMemUnmap, piEnqueueMemUnmap)
+  _PI_CL(piEnqueueKernelLaunch, pi2ur::piEnqueueKernelLaunch)
+  _PI_CL(piEnqueueNativeKernel, pi2ur::piEnqueueNativeKernel)
+  _PI_CL(piEnqueueEventsWait, pi2ur::piEnqueueEventsWait)
+  _PI_CL(piEnqueueEventsWaitWithBarrier, pi2ur::piEnqueueEventsWaitWithBarrier)
+  _PI_CL(piEnqueueMemBufferRead, pi2ur::piEnqueueMemBufferRead)
+  _PI_CL(piEnqueueMemBufferReadRect, pi2ur::piEnqueueMemBufferReadRect)
+  _PI_CL(piEnqueueMemBufferWrite, pi2ur::piEnqueueMemBufferWrite)
+  _PI_CL(piEnqueueMemBufferWriteRect, pi2ur::piEnqueueMemBufferWriteRect)
+  _PI_CL(piEnqueueMemBufferCopy, pi2ur::piEnqueueMemBufferCopy)
+  _PI_CL(piEnqueueMemBufferCopyRect, pi2ur::piEnqueueMemBufferCopyRect)
+  _PI_CL(piEnqueueMemBufferFill, pi2ur::piEnqueueMemBufferFill)
+  _PI_CL(piEnqueueMemImageRead, pi2ur::piEnqueueMemImageRead)
+  _PI_CL(piEnqueueMemImageWrite, pi2ur::piEnqueueMemImageWrite)
+  _PI_CL(piEnqueueMemImageCopy, pi2ur::piEnqueueMemImageCopy)
+  _PI_CL(piEnqueueMemImageFill, pi2ur::piEnqueueMemImageFill)
+  _PI_CL(piEnqueueMemBufferMap, pi2ur::piEnqueueMemBufferMap)
+  _PI_CL(piEnqueueMemUnmap, pi2ur::piEnqueueMemUnmap)
+  // Device global variable
+  _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
+         pi2ur::piextEnqueueDeviceGlobalVariableWrite)
+  _PI_CL(piextEnqueueDeviceGlobalVariableRead,
+         pi2ur::piextEnqueueDeviceGlobalVariableRead)
+  // Host Pipe
+  _PI_CL(piextEnqueueReadHostPipe, pi2ur::piextEnqueueReadHostPipe)
+  _PI_CL(piextEnqueueWriteHostPipe, pi2ur::piextEnqueueWriteHostPipe)
 
   // USM
   _PI_CL(piextUSMHostAlloc, piextUSMHostAlloc)
   _PI_CL(piextUSMDeviceAlloc, piextUSMDeviceAlloc)
   _PI_CL(piextUSMSharedAlloc, piextUSMSharedAlloc)
   _PI_CL(piextUSMFree, piextUSMFree)
-  _PI_CL(piextUSMEnqueueMemset, piextUSMEnqueueMemset)
-  _PI_CL(piextUSMEnqueueMemcpy, piextUSMEnqueueMemcpy)
-  _PI_CL(piextUSMEnqueuePrefetch, piextUSMEnqueuePrefetch)
-  _PI_CL(piextUSMEnqueueMemAdvise, piextUSMEnqueueMemAdvise)
-  _PI_CL(piextUSMEnqueueFill2D, piextUSMEnqueueFill2D)
-  _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
-  _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
+  _PI_CL(piextUSMEnqueueMemset, pi2ur::piextUSMEnqueueMemset)
+  _PI_CL(piextUSMEnqueueMemcpy, pi2ur::piextUSMEnqueueMemcpy)
+  _PI_CL(piextUSMEnqueuePrefetch, pi2ur::piextUSMEnqueuePrefetch)
+  _PI_CL(piextUSMEnqueueMemAdvise, pi2ur::piextUSMEnqueueMemAdvise)
+  _PI_CL(piextUSMEnqueueFill2D, pi2ur::piextUSMEnqueueFill2D)
+  _PI_CL(piextUSMEnqueueMemset2D, pi2ur::piextUSMEnqueueMemset2D)
+  _PI_CL(piextUSMEnqueueMemcpy2D, pi2ur::piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
 
-  // Device global variable
-  _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
-         piextEnqueueDeviceGlobalVariableWrite)
-  _PI_CL(piextEnqueueDeviceGlobalVariableRead,
-         piextEnqueueDeviceGlobalVariableRead)
-
-  // Host Pipe
-  _PI_CL(piextEnqueueReadHostPipe, piextEnqueueReadHostPipe)
-  _PI_CL(piextEnqueueWriteHostPipe, piextEnqueueWriteHostPipe)
-
-  _PI_CL(piPluginGetLastError, piPluginGetLastError)
-
-  _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetLastError, pi2ur::piPluginGetLastError)
 
   // P2P Access
   _PI_CL(piextEnablePeerAccess, piextEnablePeerAccess)
