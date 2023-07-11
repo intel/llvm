@@ -1,10 +1,10 @@
-#include <atomic>
-#include <cstdint>
-#include <cstring>
-#include <iostream>
-#include <sycl/detail/cg_types.hpp> // NDRDescT
-#include <sycl/detail/native_cpu.hpp>
-#include <sycl/detail/pi.h>
+//==---------- pi_native_cpu.cpp - Native CPU Plugin -----------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
 #include "pi_native_cpu.hpp"
 
