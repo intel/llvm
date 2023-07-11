@@ -30,21 +30,6 @@ performed during the link.
 
 *Diagram 1: General Offload Flow*
 
-More specific details of the clang-linker-wrapper behavior can be seen in the
-[clang-linker-wrapper](#clang-linker-wrapper) section.
-
-## Fat Binary Representation
-
-Binaries generated during the offload compilation will be 'bundled' together
-to create a conglomerate fat binary.  Depending on the type of binary, the
-packaging of the device section will be different.
-
-## Device only Binaries
-
-Generation and consumption of device only binaries is also available.  The
-device only binaries are represented by the file generated from the
-[Packager](#packager) to generate an 'Offload Binary'.
-
 ## Fat Binary Generation
 
 The generation of the fat binary will be controlled by the driver.  The model
@@ -84,6 +69,10 @@ We should have the ability to package SPIR-V based device binaries in the
 offload section of any given binary.  These device binaries will be packaged
 as normal with the packager and placed within the given section.
 
+Example usage of the external `clang-offload-packager` call:
+
+`clang-offload-packager --image=file=<name>,triple=<triple>,kind=<kind>`
+
 ## Clang Linker Wrapper
 
 The `clang-linker-wrapper` provides the interface to perform the needed link
@@ -121,7 +110,9 @@ post-link processed and converted to SPIR-V before being passed to `ocloc` to
 generate the final device binary.  Options passed via `--gen-tool-arg=` will
 be applied to the `ocloc` step as well.
 
-Depending on the type of binary, the device is embedded as follows:
+Binaries generated during the offload compilation will be 'bundled' together
+to create a conglomerate fat binary.  Depending on the type of binary, the
+device is embedded as follows:
 
 #### Objects
 
@@ -139,7 +130,8 @@ section within the `llvm.embedded.object` metadata.
 
 The binary itself can be represented by just an offload binary, not requiring
 to be in a section of another binary.  This representation is used for any
-kind of device only binary that is created.
+kind of device only binary that is created.  The device only binaries are
+represented by the file generated from the [Packager](#packager).
 
 #### Archives
 
@@ -423,3 +415,8 @@ model will be guarded by the `--offload-new-driver` compiler switch.  This will
 allow for implementation of the model without disturbing the existing behavior.
 When we are ready to make the switch over, it is a matter of making the
 switch the default mode.
+
+Initial representation of the fat objects will be represented by the existing
+format created by the `clang-offload-bundler`.  This will allow for older
+binaries to continue to be consumed with the updated offloading model.  We will
+transition to the packager representation at a future date.
