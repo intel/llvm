@@ -200,8 +200,6 @@ Table {counter: tableNumber}. Values of the `SYCL_EXT_ONEAPI_GRAPH` macro.
 
 === SYCL Graph Terminology
 
-:explicit-memory-ops: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:explicitmemory
-
 Table {counter: tableNumber}. Terminology.
 [%header,cols="1,3"]
 |===
@@ -231,8 +229,8 @@ Table {counter: tableNumber}. Explicit Graph Definition.
 
 | Node
 | In the explicit graph building API nodes are created by the user invoking
-methods on a modifiable graph. Each node represents either a command-group
-function or an empty operation.
+methods on a modifiable graph passing a command-group function (CGF). Each node
+represents either a command-group or an empty operation.
 
 | Edge
 | In the explicit graph building API edges are primarily defined by the user
@@ -258,17 +256,14 @@ Table {counter: tableNumber}. Recorded Graph Definition.
 | Concept | Description
 
 | Node
-| A node in a queue recorded graph represents a command group submission to the
-device associated with the queue begin recorded. Each submission encompasses
-either one or both of a.) some data movement, b.) a single asynchronous kernel
-launch. Nodes cannot define forward edges, only backwards. That is, kernels can
-only create dependencies on command-groups that have already been submitted.
-This means that transparently a node can depend on a previously recorded graph
-(sub-graph), which works by creating edges to the individual nodes in the old
-graph. Explicit memory operations without kernels, such as a memory copy, are
-still classed as nodes under this definition, as the
-{explicit-memory-ops}[SYCL 2020 specification states] that these can be seen as
-specialized kernels executing on the device.
+| A node in a queue recorded graph represents a command-group submission to the
+device associated with the queue being recorded. Nodes are constructed from
+the command-group functions (CGF) passed to `queue::submit()`, or from the queue
+shortcut equivalents for the defined handler command types. Each submission
+encompasses either one or both of a.) some data movement, b.) a single
+asynchronous command launch. Nodes cannot define forward edges, only backwards.
+That is, nodes can only create dependencies on command-groups that have already
+been submitted.
 
 | Edge
 | An edge in a queue recorded graph is expressed through command group
@@ -287,7 +282,13 @@ buffers.
 
 A node in a graph can take the form of a nested sub-graph. This occurs when
 a command-group submission that invokes `handler::ext_oneapi_graph()` with an
-executable graph object is added to the graph as a node.
+executable graph object is added to the graph as a node. The child graph node is
+scheduled in the parent graph as-if edges are created to connect the root nodes
+of the child graph with the dependent nodes of the parent graph.
+
+Adding an executable graph as a sub-graph does not affect its existing node
+dependencies, such that it could be submitted in future without any side
+effects of prior uses as a sub-graph.
 
 === API Modifications
 
