@@ -196,6 +196,8 @@ install(FILES
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp"
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp"
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_scalar_gen.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_vector_gen.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_marray_gen.hpp"
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
 
