@@ -262,6 +262,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/queue.hpp"
       "ur/adapters/native_cpu/sampler.cpp"
       "ur/adapters/native_cpu/runtime.cpp"
+      "ur/adapters/native_cpu/usm.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES

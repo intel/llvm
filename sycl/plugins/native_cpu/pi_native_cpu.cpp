@@ -10,50 +10,6 @@
 
 static bool PrintPiTrace = true;
 
-// taken from pi_cuda.cpp
-template <typename T, typename Assign>
-pi_result getInfoImpl(size_t param_value_size, void *param_value,
-                      size_t *param_value_size_ret, T value, size_t value_size,
-                      Assign &&assign_func) {
-
-  if (param_value != nullptr) {
-    if (param_value_size < value_size) {
-      return PI_ERROR_INVALID_VALUE;
-    }
-
-    assign_func(param_value, value, value_size);
-  }
-
-  if (param_value_size_ret != nullptr) {
-    *param_value_size_ret = value_size;
-  }
-
-  return PI_SUCCESS;
-}
-
-template <typename T>
-pi_result getInfo(size_t param_value_size, void *param_value,
-                  size_t *param_value_size_ret, T value) {
-
-  auto assignment = [](void *param_value, T value, size_t value_size) {
-    // Ignore unused parameter
-    (void)value_size;
-
-    *static_cast<T *>(param_value) = value;
-  };
-
-  return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
-                     sizeof(T), assignment);
-}
-
-template <typename T>
-pi_result getInfoArray(size_t array_length, size_t param_value_size,
-                       void *param_value, size_t *param_value_size_ret,
-                       T *value) {
-  return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
-                     array_length * sizeof(T), memcpy);
-}
-
 extern "C" {
 #define DIE_NO_IMPLEMENTATION                                                  \
   if (PrintPiTrace) {                                                          \
@@ -62,193 +18,6 @@ extern "C" {
     std::cerr << " / Line : " << __LINE__ << std::endl;                        \
   }                                                                            \
   return PI_ERROR_INVALID_OPERATION;
-
-#define CONTINUE_NO_IMPLEMENTATION                                             \
-  if (PrintPiTrace) {                                                          \
-    std::cerr << "Warning : Not Implemented : " << __FUNCTION__                \
-              << " - File : " << __FILE__;                                     \
-    std::cerr << " / Line : " << __LINE__ << std::endl;                        \
-  }                                                                            \
-  return PI_SUCCESS;
-
-#define CASE_PI_UNSUPPORTED(not_supported)                                     \
-  case not_supported:                                                          \
-    if (PrintPiTrace) {                                                        \
-      std::cerr << std::endl                                                   \
-                << "Unsupported PI case : " << #not_supported << " in "        \
-                << __FUNCTION__ << ":" << __LINE__ << "(" << __FILE__ << ")"   \
-                << std::endl;                                                  \
-    }                                                                          \
-    return PI_ERROR_INVALID_OPERATION;
-
-pi_result piextUSMHostAlloc(void **result_ptr, pi_context,
-                            pi_usm_mem_properties *, size_t size, pi_uint32) {
-  // Todo: check properties and alignment.
-  // Todo: error checking.
-  *result_ptr = malloc(size);
-  return PI_SUCCESS;
-}
-
-pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context, pi_device,
-                              pi_usm_mem_properties *, size_t Size, pi_uint32) {
-  // Todo: check properties and alignment.
-  // Todo: error checking.
-  *ResultPtr = malloc(Size);
-  return PI_SUCCESS;
-}
-
-pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
-                              pi_device Device,
-                              pi_usm_mem_properties *Properties, size_t Size,
-                              pi_uint32 Alignment) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextUSMFree(pi_context, void *Ptr) {
-  // Todo: error checking
-  free(Ptr);
-  return PI_SUCCESS;
-}
-
-pi_result piextUSMEnqueueMemset(pi_queue, void *ptr, pi_int32 value,
-                                size_t count, pi_uint32, const pi_event *,
-                                pi_event *) {
-  // Todo: event dependency
-  // Todo: error checking.
-  memset(ptr, value, count);
-  return PI_SUCCESS;
-}
-
-pi_result piextUSMEnqueueMemcpy(pi_queue, pi_bool, void *dest, const void *src,
-                                size_t len, pi_uint32, const pi_event *,
-                                pi_event *) {
-  // Todo: event dependency
-  // Todo: error checking
-  memcpy(dest, src, len);
-  return PI_SUCCESS;
-}
-
-pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
-                                   pi_mem_advice, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
-                                  size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
-                                  pi_usm_migration_flags, pi_uint32,
-                                  const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
-                                  void *dst_ptr, size_t dst_pitch,
-                                  const void *src_ptr, size_t src_pitch,
-                                  size_t width, size_t height,
-                                  pi_uint32 num_events_in_waitlist,
-                                  const pi_event *events_waitlist,
-                                  pi_event *event) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextUSMEnqueueMemset2D(pi_queue queue, void *ptr, size_t pitch,
-                                  int value, size_t width, size_t height,
-                                  pi_uint32 num_events_in_waitlist,
-                                  const pi_event *events_waitlist,
-                                  pi_event *event) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextUSMEnqueueFill2D(pi_queue queue, void *ptr, size_t pitch,
-                                size_t pattern_size, const void *pattern,
-                                size_t width, size_t height,
-                                pi_uint32 num_events_in_waitlist,
-                                const pi_event *events_waitlist,
-                                pi_event *event) {
-  DIE_NO_IMPLEMENTATION;
-}
-pi_result piextCommandBufferCreate(pi_context, pi_device,
-                                   const pi_ext_command_buffer_desc *,
-                                   pi_ext_command_buffer *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferRetain(pi_ext_command_buffer) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferRelease(pi_ext_command_buffer) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferFinalize(pi_ext_command_buffer) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferNDRangeKernel(pi_ext_command_buffer, pi_kernel,
-                                          pi_uint32, const size_t *,
-                                          const size_t *, const size_t *,
-                                          pi_uint32, const pi_ext_sync_point *,
-                                          pi_ext_sync_point *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferMemcpyUSM(pi_ext_command_buffer, void *,
-                                      const void *, size_t, pi_uint32,
-                                      const pi_ext_sync_point *,
-                                      pi_ext_sync_point *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferMemBufferCopy(pi_ext_command_buffer, pi_mem, pi_mem,
-                                          size_t, size_t, size_t, pi_uint32,
-                                          const pi_ext_sync_point *,
-                                          pi_ext_sync_point *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferMemBufferCopyRect(
-    pi_ext_command_buffer, pi_mem, pi_mem, pi_buff_rect_offset,
-    pi_buff_rect_offset, pi_buff_rect_region, size_t, size_t, size_t, size_t,
-    pi_uint32, const pi_ext_sync_point *, pi_ext_sync_point *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferMemBufferRead(pi_ext_command_buffer, pi_mem, size_t,
-                                          size_t, void *, pi_uint32,
-                                          const pi_ext_sync_point *,
-                                          pi_ext_sync_point *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferMemBufferReadRect(
-    pi_ext_command_buffer, pi_mem, pi_buff_rect_offset, pi_buff_rect_offset,
-    pi_buff_rect_region, size_t, size_t, size_t, size_t, void *, pi_uint32,
-    const pi_ext_sync_point *, pi_ext_sync_point *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferMemBufferWrite(pi_ext_command_buffer, pi_mem,
-                                           size_t, size_t, const void *,
-                                           pi_uint32, const pi_ext_sync_point *,
-                                           pi_ext_sync_point *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextCommandBufferMemBufferWriteRect(
-    pi_ext_command_buffer, pi_mem, pi_buff_rect_offset, pi_buff_rect_offset,
-    pi_buff_rect_region, size_t, size_t, size_t, size_t, const void *,
-    pi_uint32, const pi_ext_sync_point *, pi_ext_sync_point *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer, pi_queue, pi_uint32,
-                                    const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
 
 pi_result piextEnablePeerAccess(pi_device, pi_device) { DIE_NO_IMPLEMENTATION; }
 
@@ -259,11 +28,6 @@ pi_result piextDisablePeerAccess(pi_device, pi_device) {
 pi_result piextPeerAccessGetInfo(pi_device, pi_device, pi_peer_attr, size_t,
                                  void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piTearDown(void *) {
-  // Todo: is it fine as a no-op?
-  return PI_SUCCESS;
 }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -401,10 +165,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextEnqueueWriteHostPipe, pi2ur::piextEnqueueWriteHostPipe)
 
   // USM
-  _PI_CL(piextUSMHostAlloc, piextUSMHostAlloc)
-  _PI_CL(piextUSMDeviceAlloc, piextUSMDeviceAlloc)
-  _PI_CL(piextUSMSharedAlloc, piextUSMSharedAlloc)
-  _PI_CL(piextUSMFree, piextUSMFree)
+  _PI_CL(piextUSMHostAlloc, pi2ur::piextUSMHostAlloc)
+  _PI_CL(piextUSMDeviceAlloc, pi2ur::piextUSMDeviceAlloc)
+  _PI_CL(piextUSMSharedAlloc, pi2ur::piextUSMSharedAlloc)
+  _PI_CL(piextUSMFree, pi2ur::piextUSMFree)
   _PI_CL(piextUSMEnqueueMemset, pi2ur::piextUSMEnqueueMemset)
   _PI_CL(piextUSMEnqueueMemcpy, pi2ur::piextUSMEnqueueMemcpy)
   _PI_CL(piextUSMEnqueuePrefetch, pi2ur::piextUSMEnqueuePrefetch)
@@ -412,7 +176,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueFill2D, pi2ur::piextUSMEnqueueFill2D)
   _PI_CL(piextUSMEnqueueMemset2D, pi2ur::piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, pi2ur::piextUSMEnqueueMemcpy2D)
-  _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
+  _PI_CL(piextUSMGetMemAllocInfo, pi2ur::piextUSMGetMemAllocInfo)
 
   _PI_CL(piPluginGetLastError, pi2ur::piPluginGetLastError)
 

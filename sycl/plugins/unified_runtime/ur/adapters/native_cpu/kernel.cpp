@@ -139,10 +139,13 @@ urKernelRelease(ur_kernel_handle_t hKernel) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, const void *pArgValue) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                      const ur_kernel_arg_pointer_properties_t *pProperties,
+                      const void *pArgValue) {
   // TODO: out_of_order args?
   std::ignore = argIndex;
+  std::ignore = pProperties;
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pArgValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
