@@ -113,20 +113,19 @@ jobs:
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
-        CACHE_ROOT: ${{ inputs.build_cache_root }}
-        CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
+        CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
+        CCACHE_MAXSIZE: ${{ inputs.build_cache_size }}
         ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
-        CCACHE_LAUNCHER: ccache --dir ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }} --max-size ${{ inputs.build_cache_size }}
       run: |
-        mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
+        mkdir -p $CCACHE_DIR
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults $ARGS \
-          "--cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=$CCACHE_LAUNCHER" \
-          "--cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=$CCACHE_LAUNCHER" \
+          --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
