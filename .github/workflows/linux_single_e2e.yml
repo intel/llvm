@@ -55,6 +55,8 @@ jobs:
         ref: ${{ inputs.ref }}
         sparse-checkout: |
           devops/actions
+    - name: Register cleanup after job is finished
+      uses: ./devops/actions/cleanup
     - uses: ./devops/actions/cached_checkout
       with:
         path: llvm
@@ -69,8 +71,6 @@ jobs:
           sudo cp llvm/devops/scripts/get_release.py /opt/
           sudo -E /opt/install_drivers.sh --all
         fi
-    - name: Register cleanup after job is finished
-      uses: ./devops/actions/cleanup
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
