@@ -108,19 +108,6 @@ createSpirvProgram(const ContextImplPtr Context, const unsigned char *Data,
   return Program;
 }
 
-RTDeviceBinaryImage &
-ProgramManager::getDeviceImage(const std::string &KernelName,
-                               const context &Context, const device &Device,
-                               bool JITCompilationIsRequired) {
-  if (DbgProgMgr > 0)
-    std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ", " << JITCompilationIsRequired << ")\n";
-
-  KernelSetId KSId = getKernelSetId(KernelName);
-  return getDeviceImage(KSId, Context, Device, JITCompilationIsRequired);
-}
-
 /// Try to fetch entity (kernel or program) from cache. If there is no such
 /// entity try to build it. Throw any exception build process may throw.
 /// This method eliminates unwanted builds by employing atomic variable with
@@ -565,10 +552,6 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
     const std::string &KernelName, const program_impl *Prg,
     bool JITCompilationIsRequired) {
-  // TODO: Make sure that KSIds will be different for the case when the same
-  // kernel built with different options is present in the fat binary.
-  KernelSetId KSId = getKernelSetId(KernelName);
-
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
@@ -605,7 +588,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   auto Device = createSyclObjFromImpl<device>(Dev);
   const RTDeviceBinaryImage &Img =
-      getDeviceImage(KSId, Context, Device, JITCompilationIsRequired);
+      getDeviceImage(KernelName, Context, Device, JITCompilationIsRequired);
 
   // Check that device supports all aspects used by the kernel
   const RTDeviceBinaryImage::PropertyRange &ARange =
@@ -1009,39 +992,42 @@ ProgramManager::ProgramManager() {
       throw runtime_error(std::string("read from ") + SpvFile +
                               std::string(" failed"),
                           PI_ERROR_INVALID_VALUE);
-    auto ImgPtr =
+    // No need for a mutex here since all access to these private fields is
+    // blocked until the construction of the ProgramManager singleton is
+    // finished.
+    m_SpvFileImage =
         make_unique_ptr<DynRTDeviceBinaryImage>(std::move(Data), Size);
 
     if (DbgProgMgr > 0) {
       std::cerr << "loaded device image binary from " << SpvFile << "\n";
-      std::cerr << "format: " << getFormatStr(ImgPtr->getFormat()) << "\n";
+      std::cerr << "format: " << getFormatStr(m_SpvFileImage->getFormat()) << "\n";
     }
-    // No need for a mutex here since all access to these private fields is
-    // blocked until the construction of the ProgramManager singleton is
-    // finished.
-    m_DeviceImages[SpvFileKSId].reset(
-        new std::vector<RTDeviceBinaryImageUPtr>());
-    m_DeviceImages[SpvFileKSId]->push_back(std::move(ImgPtr));
   }
 }
 
 RTDeviceBinaryImage &
-ProgramManager::getDeviceImage(KernelSetId KSId, const context &Context,
+ProgramManager::getDeviceImage(const std::string& KernelName, const context &Context,
                                const device &Device,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KSId << "\", "
+    std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
               << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
               << ", " << JITCompilationIsRequired << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
   }
-  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-  auto It = m_DeviceImages.find(KSId);
-  assert(It != m_DeviceImages.end() &&
-         "No device image found for the given kernel set id");
-  std::vector<RTDeviceBinaryImageUPtr> &Imgs = *It->second;
+
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  auto KernelId = m_KernelName2KernelIDs.find(KernelName);
+  assert(KernelId != m_KernelName2KernelIDs.end() &&
+         "No kernel id found for the given kernel name");
+
+  auto BinImagesIt = m_KernelIDs2BinImage.find(KernelId->second);
+  assert(BinImagesIt != m_KernelIDs2BinImage.end() &&
+         "No device image found for the given kernel id");
+
+  std::vector<RTDeviceBinaryImage*> &Imgs = *BinImagesIt->second;
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
   pi_uint32 ImgInd = 0;
   RTDeviceBinaryImage *Img = nullptr;
@@ -1273,14 +1259,22 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
             createKernelArgMask(DeviceBinaryProperty(Info).asByteArray());
     }
 
+    assert(EntriesB != EntriesE && "Device image should contain data about entries");
     // Fill maps for kernel bundles
-    if (EntriesB != EntriesE) {
       std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
       // Register all exported symbols
       auto ExportedSymbols = Img->getExportedSymbols();
       for (const pi_device_binary_property &ExportedSymbol : ExportedSymbols)
         m_ExportedSymbols.insert(ExportedSymbol->Name);
+      
+      if (DumpImages) {
+        const bool NeedsSequenceID =
+            std::any_of(m_BinImg2KernelIDs.begin(), m_BinImg2KernelIDs.end(), [&](auto &CurrentImg) {
+              return CurrentImg.first->getFormat() == Img->getFormat();
+            });
+        dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
+      }
 
       m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
@@ -1311,54 +1305,19 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
               detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
 
           It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name,
-                                                   KernelID);
+                                                   KernelID);    
+          m_KernelIDs2BinImage[It->second].reset(new std::vector<RTDeviceBinaryImage*>);      
         }
-
-        m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
+        m_KernelIDs2BinImage[It->second]->push_back(Img.get());
         m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
       }
+
+      cacheKernelUsesAssertInfo(*Img);
 
       // Sort kernel ids for faster search
       std::sort(m_BinImg2KernelIDs[Img.get()]->begin(),
                 m_BinImg2KernelIDs[Img.get()]->end(), LessByHash<kernel_id>{});
-    }
 
-    // TODO: Remove the code below once program manager works trought kernel
-    // bundles only
-    // Use the entry information if it's available
-    if (EntriesB != EntriesE) {
-      // The kernel sets for any pair of images are either disjoint or
-      // identical, look up the kernel set using the first kernel name...
-      if (!m_KernelSets)
-        m_KernelSets = std::unordered_map<std::string, KernelSetId>{};
-      auto &KSIdMap = *m_KernelSets;
-      auto KSIdIt = KSIdMap.find(EntriesB->name);
-      if (KSIdIt != KSIdMap.end()) {
-        auto &Imgs = m_DeviceImages[KSIdIt->second];
-        assert(Imgs && "Device image vector should have been already created");
-        if (DumpImages) {
-          const bool NeedsSequenceID =
-              std::any_of(Imgs->begin(), Imgs->end(), [&](auto &I) {
-                return I->getFormat() == Img->getFormat();
-              });
-          dumpImage(*Img, KSIdIt->second, NeedsSequenceID ? ++SequenceID : 0);
-        }
-
-        cacheKernelUsesAssertInfo(*Img);
-
-        Imgs->push_back(std::move(Img));
-        continue;
-      }
-      // ... or create the set first if it hasn't been
-      KernelSetId KSId = getNextKernelSetId();
-      {
-        std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-
-        for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-             ++EntriesIt) {
-          KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
-        }
-      }
       // ... and initialize associated device_global information
       {
         std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
@@ -1385,14 +1344,14 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
           if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
             // If it has already been registered we update the information.
-            ExistingDeviceGlobal->second->initialize(ImgId, KSId, TypeSize,
+            ExistingDeviceGlobal->second->initialize(ImgId, TypeSize,
                                                      DeviceImageScopeDecorated);
           } else {
             // If it has not already been registered we create a new entry.
             // Note: Pointer to the device global is not available here, so it
             //       cannot be set until registration happens.
             auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
-                DeviceGlobal->Name, ImgId, KSId, TypeSize,
+                DeviceGlobal->Name, ImgId, TypeSize,
                 DeviceImageScopeDecorated);
             m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
           }
@@ -1430,78 +1389,21 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           }
         }
       }
-      m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
-      cacheKernelUsesAssertInfo(*Img);
-
-      if (DumpImages)
-        dumpImage(*Img, KSId);
-      m_DeviceImages[KSId]->push_back(std::move(Img));
-
-      continue;
-    }
-    // Otherwise assume that the image contains all kernels associated with the
-    // module
-    if (!m_UniversalKernelSet)
-      m_UniversalKernelSet = KernelSetId{};
-    KernelSetId &KSId = *m_UniversalKernelSet;
-    if (KSId == 0)
-      KSId = getNextKernelSetId();
-
-    auto &Imgs = m_DeviceImages[KSId];
-    if (!Imgs)
-      Imgs.reset(new std::vector<RTDeviceBinaryImageUPtr>());
-
-    cacheKernelUsesAssertInfo(*Img);
-
-    if (DumpImages)
-      dumpImage(*Img, KSId);
-    Imgs->push_back(std::move(Img));
   }
 }
 
 void ProgramManager::debugPrintBinaryImages() const {
-  for (const auto &ImgVecIt : m_DeviceImages) {
-    std::cerr << "  ++++++ Kernel set: " << ImgVecIt.first << "\n";
-    for (const auto &Img : *ImgVecIt.second)
-      Img.get()->print();
+  for (const auto &ImgIt : m_BinImg2KernelIDs) {
+      ImgIt.first->print();
   }
 }
 
-KernelSetId ProgramManager::getNextKernelSetId() const {
-  // No need for atomic, should be guarded by the caller
-  static KernelSetId Result = LastKSId;
-  return ++Result;
-}
-
-KernelSetId
-ProgramManager::getKernelSetId(const std::string &KernelName) const {
-  // If the env var instructs to use image from a file,
-  // return the kernel set associated with it
-  if (m_UseSpvFile)
-    return SpvFileKSId;
-  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-  if (m_KernelSets) {
-    auto KSIdIt = m_KernelSets->find(KernelName);
-    // If the kernel has been assigned to a kernel set, return it
-    if (KSIdIt != m_KernelSets->end())
-      return KSIdIt->second;
-  }
-  // If no kernel set was found check if there is a kernel set containing
-  // all kernels in the given module
-  if (m_UniversalKernelSet)
-    return *m_UniversalKernelSet;
-
-  throw runtime_error("No kernel named " + KernelName + " was found",
-                      PI_ERROR_INVALID_KERNEL_NAME);
-}
-
-void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
+void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
                                uint32_t SequenceID) const {
   const char *Prefix = std::getenv("SYCL_DUMP_IMAGES_PREFIX");
   std::string Fname(Prefix ? Prefix : "sycl_");
   const pi_device_binary_struct &RawImg = Img.getRawData();
   Fname += RawImg.DeviceTargetSpec;
-  Fname += std::to_string(KSId);
   if (SequenceID)
     Fname += '_' + std::to_string(SequenceID);
   std::string Ext;
@@ -1718,9 +1620,8 @@ ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
   std::set<RTDeviceBinaryImage *> BinImages;
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
   for (const kernel_id &KID : KernelIDs) {
-    auto Range = m_KernelIDs2BinImage.equal_range(KID);
-    for (auto It = Range.first, End = Range.second; It != End; ++It)
-      BinImages.insert(It->second);
+    auto It = m_KernelIDs2BinImage.find(KID);
+    BinImages.insert(It->second->begin(), It->second->end());
   }
   return BinImages;
 }
@@ -1823,13 +1724,12 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     }
     BinImages = getRawDeviceImages(KernelIDs);
   } else {
-    std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-    for (auto &ImagesSets : m_DeviceImages) {
-      auto &ImagesUPtrs = *ImagesSets.second.get();
-      for (auto &ImageUPtr : ImagesUPtrs)
-        BinImages.insert(ImageUPtr.get());
+     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    for (auto &ImageUPtr : m_BinImg2KernelIDs) {
+        BinImages.insert(ImageUPtr.first);
     }
   }
+
   assert(BinImages.size() > 0 && "Expected to find at least one device image");
 
   // Ignore images with incompatible state. Image is considered compatible

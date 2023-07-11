@@ -54,8 +54,6 @@ struct DeviceGlobalMapEntry {
   // The image identifiers for the images using the device_global used by in the
   // cache.
   std::set<std::uintptr_t> MImageIdentifiers;
-  // The kernel-set IDs for the images using the device_global.
-  std::set<KernelSetId> MKSIds;
   // Size of the underlying type in the device_global.
   std::uint32_t MDeviceGlobalTSize = 0;
   // True if the device_global has been decorated with device_image_scope.
@@ -69,9 +67,9 @@ struct DeviceGlobalMapEntry {
   // Constructor for only initializing ID, type size, and device image scope
   // flag. The pointer to the device global will be initialized later.
   DeviceGlobalMapEntry(std::string UniqueId, std::uintptr_t ImgId,
-                       KernelSetId KSId, std::uint32_t DeviceGlobalTSize,
+                       std::uint32_t DeviceGlobalTSize,
                        bool IsDeviceImageScopeDecorated)
-      : MUniqueId(UniqueId), MImageIdentifiers{ImgId}, MKSIds{KSId},
+      : MUniqueId(UniqueId), MImageIdentifiers{ImgId},
         MDeviceGlobalTSize(DeviceGlobalTSize),
         MIsDeviceImageScopeDecorated(IsDeviceImageScopeDecorated) {}
 
@@ -85,7 +83,7 @@ struct DeviceGlobalMapEntry {
 
   // Initialize the device_global's element type size and the flag signalling
   // if the device_global has the device_image_scope property.
-  void initialize(std::uintptr_t ImgId, KernelSetId KSId,
+  void initialize(std::uintptr_t ImgId,
                   std::uint32_t DeviceGlobalTSize,
                   bool IsDeviceImageScopeDecorated) {
     if (MDeviceGlobalTSize != 0) {
@@ -100,7 +98,6 @@ struct DeviceGlobalMapEntry {
       return;
     }
     MImageIdentifiers.insert(ImgId);
-    MKSIds.insert(KSId);
     MDeviceGlobalTSize = DeviceGlobalTSize;
     MIsDeviceImageScopeDecorated = IsDeviceImageScopeDecorated;
   }
