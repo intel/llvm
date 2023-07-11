@@ -160,7 +160,7 @@ public:
                 (Space == access::address_space::generic_space ||
                  Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(Accessor.get_pointer().get()) {}
 
   // The following constructors are necessary to create multi_ptr<const
   // ElementType, Space, DecorateAddress> from accessor<ElementType, ...>.
@@ -220,7 +220,7 @@ public:
   multi_ptr(
       local_accessor<typename std::remove_const_t<RelayElementType>, Dimensions>
           Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(Accessor.get_pointer().get()) {}
 
   // Assignment and access operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -476,7 +476,7 @@ public:
       typename = typename std::enable_if_t<
           RelaySpace == Space && Space == access::address_space::local_space>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(Accessor.get_pointer().get()) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -603,7 +603,7 @@ public:
       typename = typename std::enable_if_t<
           RelaySpace == Space && Space == access::address_space::local_space>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(Accessor.get_pointer().get()) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
