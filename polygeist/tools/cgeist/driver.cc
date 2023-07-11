@@ -413,6 +413,11 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
           {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+
+    // FIXME: Remove after fixing all the FIXME and before merging.
+    OptPM.addPass(polygeist::createLoopInternalizationPass(
+        {options.getCgeistOpts().getRelaxedAliasing()}));
+
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (DetectReduction)
       OptPM.addPass(polygeist::createDetectReductionPass(
@@ -511,6 +516,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
       NOptPM2.addPass(polygeist::createLICMPass(LICMOpt));
     else
       NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
+
     NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     NOptPM2.addPass(polygeist::createReplaceAffineCFGPass());

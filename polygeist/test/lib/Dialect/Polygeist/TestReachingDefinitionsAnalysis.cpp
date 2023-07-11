@@ -16,6 +16,7 @@
 
 using namespace mlir;
 using namespace mlir::dataflow;
+using namespace mlir::polygeist;
 
 namespace {
 
@@ -37,7 +38,8 @@ struct TestReachingDefinitionAnalysisPass
     DataFlowSolver solver;
     solver.load<DeadCodeAnalysis>();
     solver.load<SparseConstantPropagation>();
-    solver.load<polygeist::ReachingDefinitionAnalysis>(aliasAnalysis);
+    solver.load<UnderlyingValueAnalysis>();
+    solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
 
     Operation *op = getOperation();
     if (failed(solver.initializeAndRun(op)))
@@ -83,8 +85,15 @@ struct TestReachingDefinitionAnalysisPass
       // Print the reaching definitions for each operand.
       for (auto [index, operand] : llvm::enumerate(op->getOperands())) {
         llvm::errs() << " operand #" << index << "\n";
-        auto mods = reachingDef->getModifiers(operand);
-        auto pMods = reachingDef->getPotentialModifiers(operand);
+
+        Value value = UnderlyingValueAnalysis::getUnderlyingValue(
+            operand, [&](Value value) {
+              return solver.lookupState<UnderlyingValueLattice>(value);
+            });
+        assert(value && "expected an underlying value");
+
+        auto mods = reachingDef->getModifiers(value);
+        auto pMods = reachingDef->getPotentialModifiers(value);
         printOps(mods, " - mods: ");
         printOps(pMods, " - pMods: ");
       }

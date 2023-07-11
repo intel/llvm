@@ -266,3 +266,22 @@ func.func @test15(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_gb,
   %1 = sycl.accessor.subscript %arg0[%cast] {tag = "test15_sub1", ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @subscript, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
   return
 }
+
+// -----
+
+// COM: Test that reaching definition is propagated inter-procedurally.
+// CHECK-LABEL: test_tag: callee_ptr
+// CHECK: operand #0
+// CHECK-NEXT: - mods: caller_store
+// CHECK-NEXT: - pMods: <none>
+func.func private @callee(%ptr: memref<i32>) -> memref<i32> {
+  return {tag = "callee_ptr"} %ptr : memref<i32>
+}
+
+func.func @caller() {
+  %ptr = memref.alloc() : memref<i32>
+  %c0 = arith.constant 0 : i32
+  memref.store %c0, %ptr[] {tag_name = "caller_store"} : memref<i32>
+  %0 = func.call @callee(%ptr) : (memref<i32>) -> memref<i32>
+  return
+}

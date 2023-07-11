@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
@@ -39,6 +40,11 @@ bool isDivergent(Operation *op, DataFlowSolver &solver) {
     return false;
 
   auto isUniform = [&](Value val) {
+    val = UnderlyingValueAnalysis::getUnderlyingValue(val, [&](Value value) {
+      return solver.lookupState<UnderlyingValueLattice>(value);
+    });
+    assert(val && "expected an underlying value");
+
     const auto *lattice = solver.lookupState<UniformityLattice>(val);
     assert(lattice && "expected uniformity information");
     assert(!lattice->getValue().isUninitialized() &&
@@ -116,7 +122,8 @@ UniformityAnalysis::UniformityAnalysis(DataFlowSolver &solver,
   // about the uniformity of values loaded from memory.
   internalSolver.load<DeadCodeAnalysis>();
   internalSolver.load<SparseConstantPropagation>();
-  internalSolver.load<polygeist::ReachingDefinitionAnalysis>(aliasAnalysis);
+  internalSolver.load<UnderlyingValueAnalysis>();
+  internalSolver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
 }
 
 LogicalResult UniformityAnalysis::initialize(Operation *top) {
@@ -285,6 +292,11 @@ void UniformityAnalysis::analyzeMemoryEffects(
       return mods;
     };
 
+    val = UnderlyingValueAnalysis::getUnderlyingValue(val, [&](Value value) {
+      return internalSolver.lookupState<UnderlyingValueLattice>(value);
+    });
+    assert(val && "expected an underlying value");
+
     // Merge mods and pMods together.
     std::optional<ModifiersTy> mods =
         merge(rdef->getModifiers(val), rdef->getPotentialModifiers(val));
@@ -411,7 +423,7 @@ SmallVector<IfCondition> UniformityAnalysis::collectBranchConditions(
         getParentsOfType<RegionBranchOpInterface>(
             *mod.getOperation()->getBlock());
     for (RegionBranchOpInterface branchOp : enclosingBranches) {
-      if (isa<affine::AffineForOp>(branchOp))
+      if (isa<affine::AffineForOp, scf::ForOp>(branchOp))
         continue;
 
       std::optional<IfCondition> condition =

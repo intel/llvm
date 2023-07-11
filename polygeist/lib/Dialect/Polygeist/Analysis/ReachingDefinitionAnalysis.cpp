@@ -17,6 +17,9 @@
 
 #define DEBUG_TYPE "reaching-definition-analysis"
 
+using namespace mlir;
+using namespace mlir::dataflow;
+
 namespace mlir {
 namespace polygeist {
 
@@ -96,10 +99,11 @@ ReachingDefinition::ReachingDefinition(ProgramPoint p)
 
 ChangeResult ReachingDefinition::join(const AbstractDenseLattice &lattice) {
   ChangeResult result = ChangeResult::NoChange;
-  auto otherReachingDef = static_cast<const ReachingDefinition &>(lattice);
+  const auto &otherReachingDef =
+      static_cast<const ReachingDefinition &>(lattice);
 
   auto join = [&result](DenseMap<Value, ModifiersTy> &currentMap,
-                        DenseMap<Value, ModifiersTy> &otherMap) {
+                        const DenseMap<Value, ModifiersTy> &otherMap) {
     for (const auto &entry : otherMap) {
       Value val = entry.first;
       const ModifiersTy &newModifiers = entry.second;
@@ -219,7 +223,7 @@ void ReachingDefinitionAnalysis::visitOperation(
   // current function and transfer the input state.
   if (auto funcOp = dyn_cast<FunctionOpInterface>(op)) {
     aliasOracles[funcOp] = std::make_unique<AliasOracle>(funcOp, aliasAnalysis);
-    auto result = after->join(before);
+    ChangeResult result = after->join(before);
     propagateIfChanged(after, result);
     LLVM_DEBUG({
       if (result == ChangeResult::Change) {
@@ -238,10 +242,6 @@ void ReachingDefinitionAnalysis::visitOperation(
     return setToEntryState(after);
   }
 
-  // Transfer the input state.
-  ChangeResult result = ChangeResult::NoChange;
-  propagateIfChanged(after, after->join(before));
-
   // Retrieve the alias oracle for the function this operation belongs to.
   auto funcOp = op->getParentOfType<FunctionOpInterface>();
   AliasOracle &aliasOracle = *aliasOracles[funcOp];
@@ -249,6 +249,8 @@ void ReachingDefinitionAnalysis::visitOperation(
   // Analyze the operation's memory effects.
   SmallVector<MemoryEffects::EffectInstance> effects;
   memoryEffectOp.getEffects(effects);
+
+  ChangeResult result = after->join(before);
   for (const auto &effect : effects) {
     Value val = effect.getValue();
     if (!val) {
@@ -257,6 +259,14 @@ void ReachingDefinitionAnalysis::visitOperation(
       LLVM_DEBUG(llvm::dbgs() << "Memory Effect on non-values found\n");
       return propagateIfChanged(after, after->reset());
     }
+
+    val = UnderlyingValueAnalysis::getUnderlyingValue(val, [&](Value value) {
+      return getOrCreateFor<UnderlyingValueLattice>(op, value);
+    });
+    if (!val)
+      return;
+
+    LLVM_DEBUG(llvm::dbgs() << "Found underlying value: " << val << "\n");
 
     // Read operations do not modify the reaching definitions state.
     if (isa<MemoryEffects::Read>(effect.getEffect()))
@@ -300,6 +310,30 @@ void ReachingDefinitionAnalysis::visitOperation(
       llvm::dbgs() << *after;
     }
   });
+}
+
+//===----------------------------------------------------------------------===//
+// UnderlyingValueAnalysis
+//===----------------------------------------------------------------------===//
+
+/// Look for the most underlying value of a value.
+Value UnderlyingValueAnalysis::getUnderlyingValue(
+    Value value,
+    function_ref<const UnderlyingValueLattice *(Value)> getUnderlyingValueFn) {
+  const UnderlyingValueLattice *underlying;
+  do {
+    underlying = getUnderlyingValueFn(value);
+    if (!underlying || underlying->getValue().isUninitialized())
+      return {};
+
+    Value underlyingValue = underlying->getValue().getUnderlyingValue();
+    if (underlyingValue == value)
+      break;
+
+    value = underlyingValue;
+  } while (true);
+
+  return value;
 }
 
 } // namespace polygeist

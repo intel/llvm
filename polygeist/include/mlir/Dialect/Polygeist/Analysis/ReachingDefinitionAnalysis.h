@@ -14,6 +14,7 @@
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_REACHINGDEFINITIONANALYSIS_H
 
 #include "mlir/Analysis/DataFlow/DenseAnalysis.h"
+#include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "mlir/Dialect/Polygeist/Utils/AliasUtils.h"
 #include <set>
 #include <variant>
@@ -152,7 +153,78 @@ public:
 
 private:
   DenseMap<FunctionOpInterface, std::unique_ptr<AliasOracle>> aliasOracles;
-  mlir::AliasAnalysis &aliasAnalysis;
+  AliasAnalysis &aliasAnalysis;
+};
+
+class UnderlyingValue {
+public:
+  /// Create an underlying value state with a known underlying value.
+  explicit UnderlyingValue(std::optional<Value> underlyingValue = std::nullopt)
+      : underlyingValue(underlyingValue) {}
+
+  /// Whether the state is uninitialized.
+  bool isUninitialized() const { return !underlyingValue.has_value(); }
+
+  /// Returns the underlying value.
+  Value getUnderlyingValue() const {
+    assert(!isUninitialized());
+    return *underlyingValue;
+  }
+
+  /// Join two underlying values. If there are conflicting underlying values,
+  /// go to the pessimistic value.
+  static UnderlyingValue join(const UnderlyingValue &lhs,
+                              const UnderlyingValue &rhs) {
+    if (lhs.isUninitialized())
+      return rhs;
+    if (rhs.isUninitialized())
+      return lhs;
+    return lhs.underlyingValue == rhs.underlyingValue
+               ? lhs
+               : UnderlyingValue(Value{});
+  }
+
+  /// Compare underlying values.
+  bool operator==(const UnderlyingValue &rhs) const {
+    return underlyingValue == rhs.underlyingValue;
+  }
+
+  void print(raw_ostream &os) const { os << underlyingValue; }
+
+private:
+  std::optional<Value> underlyingValue;
+};
+
+struct UnderlyingValueLattice : public dataflow::Lattice<UnderlyingValue> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(UnderlyingValueLattice)
+  using Lattice::Lattice;
+};
+
+/// An analysis that uses forwarding of values along control-flow and callgraph
+/// edges to determine single underlying values for block arguments.
+class UnderlyingValueAnalysis
+    : public dataflow::SparseDataFlowAnalysis<UnderlyingValueLattice> {
+public:
+  using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
+
+  /// Retrieve the underlying value for \p value given the function
+  /// \p getUnderlyingValueFn.
+  static Value getUnderlyingValue(
+      Value value,
+      function_ref<const UnderlyingValueLattice *(Value)> getUnderlyingValueFn);
+
+  /// The underlying value of the results of an operation are not known.
+  void visitOperation(Operation *op,
+                      ArrayRef<const UnderlyingValueLattice *> operands,
+                      ArrayRef<UnderlyingValueLattice *> results) override {
+    setAllToEntryStates(results);
+  }
+
+  /// At an entry point, the underlying value of a value is itself.
+  void setToEntryState(UnderlyingValueLattice *lattice) override {
+    propagateIfChanged(lattice,
+                       lattice->join(UnderlyingValue{lattice->getPoint()}));
+  }
 };
 
 } // namespace polygeist
