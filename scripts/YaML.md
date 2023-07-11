@@ -471,7 +471,7 @@ class ur_name_flags_v(IntEnum):
       - `in,out` is used for members that are both read and write; typically this is used for pointers to other data structures that contain both read and write members
       - `nocheck` is used to specify that no additional validation checks will be generated.
     + `desc` must also include the following annotation when describing a union: {`"tagged_by(param)"`}
-      - `tagged_by` is use to specify which parameter will be used as the tag for accessing the union.
+      - `tagged_by` is used to specify which parameter will be used as the tag for accessing the union.
     + `desc` may include one the following annotations: {`"[optional]"`, `"[typename(typeVarName, sizeVarName)]"`}
       - `optional` is used for members that are pointers where it is legal for the value to be `nullptr`
       - `typename` is used to denote the type enum for params that are opaque pointers to values of tagged data types.

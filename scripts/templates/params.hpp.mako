@@ -42,9 +42,13 @@ from templates import helper as th
 </%def>
 
 <%
-def findUnionTag(union):
-    tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == obj['tag']]
+def findUnionTag(_union):
+    tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == _union['tag']]
     return tag[0] if len(tag) > 0 else None
+
+def findMemberType(_item):
+    query = [_o for _s in specs for _o in _s['objects'] if _o['name'] == _item['type']]
+    return query[0] if len(query) > 0 else None
 %>
 
 <%def name="line(item, n, params, params_dict)">
@@ -63,10 +67,7 @@ def findUnionTag(union):
     %if n != 0:
         os << ", ";
     %endif
-    ## Find out if the member refers to a union
-<% query = [_o for _s in specs for _o in _s['objects'] if _o['name'] == item['type']]
-member_type = query[0] if len(query) > 0 else None%>
-    ## can't iterate over 'void *'...
+## can't iterate over 'void *'...
     %if th.param_traits.is_range(item) and "void*" not in itype:
         os << ".${iname} = {";
         for (size_t i = ${th.param_traits.range_start(item)}; ${deref}(params${access}${pname}) != NULL && i < ${deref}params${access}${prefix + th.param_traits.range_end(item)}; ++i) {
@@ -78,7 +79,7 @@ member_type = query[0] if len(query) > 0 else None%>
             </%call>
         }
         os << "}";
-    %elif member_type is not None and member_type['type'] == "union":
+    %elif findMemberType(item) is not None and findMemberType(item)['type'] == "union":
         os << ".${iname} = ";
         ${x}_params::serializeUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
     %elif typename is not None:
@@ -316,7 +317,6 @@ for item in obj['members']:
     switch(tag){
 %for mem in obj['members']:
     case ${th.subt(n, tags, mem['tag'])}:
-        ## os << params.${mem['name']};
         ${line(mem, 0, False, params_dict)}
         break;
 %endfor
