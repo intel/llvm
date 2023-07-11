@@ -40,6 +40,7 @@ John Pennycook, Intel +
 Guo Yejun, Intel +
 Dan Holmes, Intel +
 Greg Lueck, Intel +
+Steffen Larsen, Intel +
 Ewan Crawford, Codeplay +
 Ben Tracy, Codeplay +
 Duncan McBain, Codeplay +
@@ -330,15 +331,16 @@ class depends_on {
 // Device query for level of support
 namespace info {
 namespace device {
+
 struct graphs_support;
+
+} // namespace device
 
 enum class graph_support_level {
   unsupported,
   native,
   emulated
 };
-
-} // namespace device
 } // namespace info
 
 class node {};
