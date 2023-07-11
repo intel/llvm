@@ -3,10 +3,10 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; FIXME: add more negative test cases
 ; RUN: llvm-spirv %t.spt -to-binary -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; RUN: llvm-spirv -r %t.spv -o %t.bc --spirv-target-env=SPV-IR
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.bc --spirv-target-env=SPV-IR
 ; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 ; ModuleID = 'test/CodeGenOpenCL/pipe_builtin.cl'

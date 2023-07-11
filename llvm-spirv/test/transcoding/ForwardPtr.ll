@@ -1,6 +1,6 @@
 ; RUN: llvm-as -opaque-pointers=0 < %s | llvm-spirv -opaque-pointers=0 -spirv-ext=+all -o %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.bc
 ; RUN: llvm-dis -opaque-pointers=0 %t.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: TypeForwardPointer [[#FwdPtr:]] 8
