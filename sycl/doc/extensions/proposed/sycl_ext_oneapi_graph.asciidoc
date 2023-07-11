@@ -19,7 +19,7 @@
 
 == Notice
 
-Copyright (c) 2022 Intel Corporation.  All rights reserved.
+Copyright (c) 2022-2023 Intel Corporation.  All rights reserved.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
@@ -67,10 +67,10 @@ not rely on APIs defined in this specification.*
 
 == Introduction
 
-With command groups SYCL is already able to create a dependency
+With command groups SYCL is already able to create an implicit dependency
 graph (in the form of a directed acyclic graph) of kernel execution at runtime,
 as a command group object defines a set of requisites (edges) which must be
-satisfied for kernels (nodes) to be executed. However, because command-group
+satisfied for commands (nodes) to be executed. However, because command-group
 submission is tied to execution on the queue, without having a prior
 construction step before starting execution, optimization opportunities are
 missed from the runtime not being made aware of a defined dependency graph ahead
@@ -85,7 +85,7 @@ dependency graph to the SYCL runtime prior to execution:
 * Enable more work to be done ahead of time to improve runtime performance. This
   early work could be done in a setup phase of the program prior to repeated
   executions of the graph. Alternately, a future offline AOT compiler in a different
-  process could run be prior to the execution of the application.
+  process could be run prior to the execution of the application.
 
 * Unlock DMA hardware features through graph analysis by the runtime.
 
@@ -115,7 +115,7 @@ requirements were considered:
    nodes.
 4. Integrate sub-graphs (previously constructed graphs) when constructing a new
    graph.
-5. Support the USM model of memory as well as buffer model.
+5. Support the USM model of memory as well as buffer/accessor model.
 6. Compatible with other SYCL extensions and features, e.g. kernel fusion &
    built-in kernels.
 7. Ability to record a graph with commands submitted to different devices in the
@@ -498,7 +498,7 @@ An instance of a `command_graph` object can be in one of two states:
 * **Executable** - Graph topology is fixed after finalization and graph is ready to
   be submitted for execution.
 
-A `command_graph` object is constructed in the _recording_ state and is made
+A `command_graph` object is constructed in the _modifiable_ state and is made
 _executable_ by the user invoking `command_graph::finalize()` to create a
 new executable instance of the graph. An executable graph cannot be converted
 to a modifiable graph. After finalizing a graph in the modifiable state, it is
@@ -874,7 +874,7 @@ same command, targeting the same device. There is the additional limitation that
 to update an executable graph, every node in the graph must be either a kernel
 command or a host task.
 
-The only characteristics that can differ between two topologically identical
+The only characteristic that can differ between two topologically identical
 graphs during an update are the arguments to kernel nodes. For example,
 the graph may capture different values for the USM pointers or accessors used
 in the graph. It is these kernels arguments in `graph` that constitute the
