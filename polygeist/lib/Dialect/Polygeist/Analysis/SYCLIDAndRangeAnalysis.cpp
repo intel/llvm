@@ -180,6 +180,8 @@ std::optional<IDRangeInformation>
 SYCLIDAndRangeAnalysis::getIDRangeInformation(Operation *op, Value operand) {
   assert(initialized &&
          "Analysis only available after successful initialization");
+  assert(isa<LLVM::LLVMPointerType>(operand.getType()) &&
+         "Expecting an LLVM pointer");
 
   const polygeist::ReachingDefinition *reachingDef =
       solver.lookupState<polygeist::ReachingDefinition>(op);
@@ -229,8 +231,7 @@ SYCLIDAndRangeAnalysis::getIDRangeInformation(Operation *op, Value operand) {
 }
 
 template std::optional<IDRangeInformation>
-SYCLIDAndRangeAnalysis::getIDRangeInformation<sycl::IDType>(Operation *,
-                                                            Value);
+SYCLIDAndRangeAnalysis::getIDRangeInformation<sycl::IDType>(Operation *, Value);
 
 template std::optional<IDRangeInformation>
 SYCLIDAndRangeAnalysis::getIDRangeInformation<sycl::RangeType>(Operation *,

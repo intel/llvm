@@ -20,6 +20,8 @@
 namespace mlir {
 namespace polygeist {
 
+/// Represents information about a `sycl::id` or `sycl::range` gathered from its
+/// construction.
 class IDRangeInformation {
 public:
   IDRangeInformation();
@@ -28,12 +30,20 @@ public:
 
   explicit IDRangeInformation(llvm::ArrayRef<size_t> constVals);
 
+  /// Returns true if the id/range is always constructed with the same number of
+  /// dimensions.
   bool hasFixedDimensions() const;
 
+  /// Returns the number of dimensions for an id or range, in case it is always
+  /// constructed with the same number of dimensions.
   size_t getNumDimensions() const;
 
+  /// Returns true if the id/range is always constructed with the same constant
+  /// values.
   bool isConstant() const;
 
+  /// Returns the constant values with which this id/range is constructed, in
+  /// case it is always constructed with the same constant values.
   const llvm::SmallVector<size_t, 3> &getConstantValues() const;
 
   const IDRangeInformation join(const IDRangeInformation &other) const;
@@ -46,6 +56,8 @@ private:
   friend raw_ostream &operator<<(raw_ostream &, const IDRangeInformation &);
 };
 
+/// Analysis to determine properties of interest about `sycl::id` or
+/// `sycl::range` from their construction.
 class SYCLIDAndRangeAnalysis {
 public:
   SYCLIDAndRangeAnalysis(Operation *op, AnalysisManager &am);
