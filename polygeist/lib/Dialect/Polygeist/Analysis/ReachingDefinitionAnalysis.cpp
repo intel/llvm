@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Analysis/AliasAnalysis.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/TypeSwitch.h"
