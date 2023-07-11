@@ -1621,6 +1621,7 @@ void MicrosoftCXXABI::EmitInstanceFunctionProlog(CodeGenFunction &CGF) {
   //    HasThisReturn only specifies a contract, not the implementation
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   if (HasThisReturn(CGF.CurGD) || hasMostDerivedReturn(CGF.CurGD))
+    CGF.Builder.CreateStore(getThisValue(CGF), CGF.ReturnValue);
 #else
   if (HasThisReturn(CGF.CurGD))
     CGF.Builder.CreateStore(getThisValue(CGF), CGF.ReturnValue);
