@@ -3,8 +3,8 @@
 if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG c7b0caf4e3ce5330bd0669db6e8e498b48e8ad27)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/callumfare/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG callum/adapter_handle)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -86,6 +86,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_interface_loader.cpp"
+    "ur/adapters/level_zero/adapter.hpp"
     "ur/adapters/level_zero/command_buffer.hpp"
     "ur/adapters/level_zero/common.hpp"
     "ur/adapters/level_zero/context.hpp"
@@ -98,6 +99,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/queue.hpp"
     "ur/adapters/level_zero/sampler.hpp"
     "ur/adapters/level_zero/usm.hpp"
+    "ur/adapters/level_zero/adapter.cpp"
     "ur/adapters/level_zero/command_buffer.cpp"
     "ur/adapters/level_zero/common.cpp"
     "ur/adapters/level_zero/context.cpp"
@@ -133,6 +135,8 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/ur.cpp"
       "ur/usm_allocator.cpp"
       "ur/usm_allocator.hpp"
+      "ur/adapters/cuda/adapter.cpp"
+      "ur/adapters/cuda/adapter.hpp"
       "ur/adapters/cuda/common.cpp"
       "ur/adapters/cuda/common.hpp"
       "ur/adapters/cuda/context.cpp"

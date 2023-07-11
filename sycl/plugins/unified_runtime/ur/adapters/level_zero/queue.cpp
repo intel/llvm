@@ -11,6 +11,7 @@
 #include <optional>
 #include <string.h>
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "queue.hpp"
 #include "ur_level_zero.hpp"
@@ -568,7 +569,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   // Maybe this is not completely correct.
   uint32_t NumEntries = 1;
   ur_platform_handle_t Platform{};
-  UR_CALL(urPlatformGet(NumEntries, &Platform, nullptr));
+  ur_adapter_handle_t AdapterHandle = &Adapter;
+  UR_CALL(urPlatformGet(&AdapterHandle, 1, NumEntries, &Platform, nullptr));
 
   ur_device_handle_t UrDevice = Device;
   if (UrDevice == nullptr) {
