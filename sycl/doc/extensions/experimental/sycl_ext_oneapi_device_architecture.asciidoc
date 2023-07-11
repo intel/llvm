@@ -112,7 +112,7 @@ enum class architecture : /* unspecified */ {
   intel_gpu_tgllp,
   intel_gpu_rkl,
   intel_gpu_adl_s,
-  intel_gpu_rpl_s,
+  intel_gpu_rpl_s = intel_gpu_adl_s,
   intel_gpu_adl_p,
   intel_gpu_adl_n,
   intel_gpu_dg1,
@@ -237,13 +237,11 @@ of these enumerators, and it provides a brief description of their meanings.
 |-
 |Rocket Lake Intel graphics architecture.
 
-|`intel_gpu_adl_s`
+|`intel_gpu_adl_s` +
+`intel_gpu_rpl_s`
 |-
-|Alder Lake S Intel graphics architecture.
-
-|`intel_gpu_rpl_s`
-|-
-|Raptor Lake Intel graphics architecture.
+|Alder Lake S Intel graphics architecture or Raptor Lake Intel graphics 
+architecture.
 
 |`intel_gpu_adl_p`
 |-
