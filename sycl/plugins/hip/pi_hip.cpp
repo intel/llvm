@@ -5593,6 +5593,226 @@ pi_result hip_piextEnqueueWriteHostPipe(
   sycl::detail::pi::die("hip_piextEnqueueWriteHostPipe not implemented");
   return {};
 }
+pi_result
+hip_piextCommandBufferCreate(pi_context context, pi_device device,
+                             const pi_ext_command_buffer_desc *desc,
+                             pi_ext_command_buffer *ret_command_buffer) {
+  (void)context;
+  (void)device;
+  (void)desc;
+  (void)ret_command_buffer;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferFinalize(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)kernel;
+  (void)work_dim;
+  (void)global_work_offset;
+  (void)global_work_size;
+  (void)local_work_size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result
+hip_piextCommandBufferMemcpyUSM(pi_ext_command_buffer command_buffer,
+                                void *dst_ptr, const void *src_ptr, size_t size,
+                                pi_uint32 num_sync_points_in_wait_list,
+                                const pi_ext_sync_point *sync_point_wait_list,
+                                pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)dst_ptr;
+  (void)src_ptr;
+  (void)size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    size_t src_offset, size_t dst_offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)src_buffer;
+  (void)dst_buffer;
+  (void)src_offset;
+  (void)dst_offset;
+  (void)size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
+    pi_buff_rect_region region, size_t src_row_pitch, size_t src_slice_pitch,
+    size_t dst_row_pitch, size_t dst_slice_pitch,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)src_buffer;
+  (void)dst_buffer;
+  (void)src_origin;
+  (void)dst_origin;
+  (void)region;
+  (void)src_row_pitch;
+  (void)src_slice_pitch;
+  (void)dst_row_pitch;
+  (void)dst_slice_pitch;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)offset;
+  (void)size;
+  (void)dst;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)buffer_offset;
+  (void)host_offset;
+  (void)region;
+  (void)buffer_row_pitch;
+  (void)buffer_slice_pitch;
+  (void)host_row_pitch;
+  (void)host_slice_pitch;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)offset;
+  (void)size;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)buffer_offset;
+  (void)host_offset;
+  (void)region;
+  (void)buffer_row_pitch;
+  (void)buffer_slice_pitch;
+  (void)host_row_pitch;
+  (void)host_slice_pitch;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
+
+pi_result hip_piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
+                                        pi_queue queue,
+                                        pi_uint32 num_events_in_wait_list,
+                                        const pi_event *event_wait_list,
+                                        pi_event *event) {
+  (void)command_buffer;
+  (void)queue;
+  (void)num_events_in_wait_list;
+  (void)event_wait_list;
+  (void)event;
+
+  sycl::detail::pi::die("command-buffer API not implemented in HIP backend");
+  return {};
+}
 
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // Windows: dynamically loaded plugins might have been unloaded already
@@ -5635,6 +5855,42 @@ pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
     *DeviceTime = (uint64_t)(elapsedTime * (double)1e6);
   }
   return PI_SUCCESS;
+}
+
+pi_result hip_piextEnablePeerAccess(pi_device command_device,
+                                    pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextEnablePeerAccess not "
+                  "implemented in hip backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result hip_piextDisablePeerAccess(pi_device command_device,
+                                     pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextDisablePeerAccess not "
+                  "implemented in hip backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result hip_piextPeerAccessGetInfo(pi_device command_device,
+                                     pi_device peer_device, pi_peer_attr attr,
+                                     size_t param_value_size, void *param_value,
+                                     size_t *param_value_size_ret) {
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
+  // Zero return value indicates that all of the queries currently return false.
+  return getInfo(param_value_size, param_value, param_value_size_ret,
+                 pi_int32{0});
 }
 
 const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;
@@ -5784,12 +6040,34 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextEnqueueReadHostPipe, hip_piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, hip_piextEnqueueWriteHostPipe)
 
+  // command-buffer
+  _PI_CL(piextCommandBufferCreate, hip_piextCommandBufferCreate)
+  _PI_CL(piextCommandBufferRetain, hip_piextCommandBufferRetain)
+  _PI_CL(piextCommandBufferRelease, hip_piextCommandBufferRelease)
+  _PI_CL(piextCommandBufferNDRangeKernel, hip_piextCommandBufferNDRangeKernel)
+  _PI_CL(piextCommandBufferMemcpyUSM, hip_piextCommandBufferMemcpyUSM)
+  _PI_CL(piextCommandBufferMemBufferCopy, hip_piextCommandBufferMemBufferCopy)
+  _PI_CL(piextCommandBufferMemBufferCopyRect,
+         hip_piextCommandBufferMemBufferCopyRect)
+  _PI_CL(piextCommandBufferMemBufferRead, hip_piextCommandBufferMemBufferRead)
+  _PI_CL(piextCommandBufferMemBufferReadRect,
+         hip_piextCommandBufferMemBufferReadRect)
+  _PI_CL(piextCommandBufferMemBufferWrite, hip_piextCommandBufferMemBufferWrite)
+  _PI_CL(piextCommandBufferMemBufferWriteRect,
+         hip_piextCommandBufferMemBufferWriteRect)
+  _PI_CL(piextEnqueueCommandBuffer, hip_piextEnqueueCommandBuffer)
+
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
   _PI_CL(piPluginGetBackendOption, hip_piPluginGetBackendOption)
+
+  // Peer to Peer
+  _PI_CL(piextEnablePeerAccess, hip_piextEnablePeerAccess)
+  _PI_CL(piextDisablePeerAccess, hip_piextDisablePeerAccess)
+  _PI_CL(piextPeerAccessGetInfo, hip_piextPeerAccessGetInfo)
 
 #undef _PI_CL
 

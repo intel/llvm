@@ -51,6 +51,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
 #include <sycl/multi_ptr.hpp>
@@ -310,12 +311,13 @@ std::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     int OldRoundingDirection = std::fegetround();
     int Err = std::fesetround(FE_TONEAREST);
     if (Err)
-      throw runtime_error("Unable to set rounding mode to FE_TONEAREST",
-                          PI_ERROR_UNKNOWN);
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Unable to set rounding mode to FE_TONEAREST");
     R Result = std::rint(Value);
     Err = std::fesetround(OldRoundingDirection);
     if (Err)
-      throw runtime_error("Unable to restore rounding mode.", PI_ERROR_UNKNOWN);
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Unable to restore rounding mode.");
     return Result;
   }
     // Round toward zero.
