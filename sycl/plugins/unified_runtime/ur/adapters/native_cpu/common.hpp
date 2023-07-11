@@ -10,6 +10,11 @@
 
 #include "ur/ur.hpp"
 
+constexpr size_t MaxMessageSize = 256;
+
+extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local char ErrorMessage[MaxMessageSize];
+
 #define DIE_NO_IMPLEMENTATION                                                  \
   if (PrintTrace) {                                                            \
     std::cerr << "Not Implemented : " << __FUNCTION__                          \

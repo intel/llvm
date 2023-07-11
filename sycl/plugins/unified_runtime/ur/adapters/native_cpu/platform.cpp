@@ -40,6 +40,15 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
+    ur_platform_handle_t hDriver, ur_api_version_t *pVersion) {
+  UR_ASSERT(hDriver, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pVersion, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  *pVersion = UR_API_VERSION_CURRENT;
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
                   size_t propSize, void *pParamValue, size_t *pSizeRet) {

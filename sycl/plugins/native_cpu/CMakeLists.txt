@@ -5,6 +5,7 @@ add_sycl_plugin(native_cpu
     "../unified_runtime/pi2ur.cpp"
     "../unified_runtime/ur/ur.hpp"
     "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/common.cpp"
     "../unified_runtime/ur/adapters/native_cpu/common.hpp"
     "../unified_runtime/ur/adapters/native_cpu/context.cpp"
     "../unified_runtime/ur/adapters/native_cpu/context.hpp"
@@ -24,6 +25,7 @@ add_sycl_plugin(native_cpu
     "../unified_runtime/ur/adapters/native_cpu/queue.hpp"
     "../unified_runtime/ur/adapters/native_cpu/sampler.cpp"
     "../unified_runtime/ur/adapters/native_cpu/runtime.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/ur_interface_loader.cpp"
     "../unified_runtime/ur/adapters/native_cpu/usm.cpp"
   INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
