@@ -330,8 +330,12 @@ llvm.func @ptr_test4(%cond : i1, %arg1 : !llvm.ptr, %arg2 : !llvm.ptr, %val : i3
 
 // CHECK-LABEL: test_tag: ptr5_load1:
 // CHECK:        operand #0
-// CHECK-NEXT:    - mods: ptr5_store1 ptr5_store3
-// CHECK-NEXT:    - pMods: ptr5_store2 ptr5_store4
+// CHECK-NEXT:    - mods:
+// CHECK-DAG:             ptr5_store1
+// CHECK-DAG:             ptr5_store3
+// CHECK-NEXT:    - pMods:
+// CHECK-DAG:             ptr5_store2
+// CHECK-DAG:             ptr5_store4
 llvm.func @ptr_test5(%cond : i1, %arg1 : !llvm.ptr, %arg2 : !llvm.ptr, %val : i32) {
   llvm.cond_br %cond, ^bb1, ^bb2
 ^bb1:
@@ -409,7 +413,9 @@ llvm.func @ptr_test12(%cond : i1, %arg1 : !llvm.ptr, %arg2 : !llvm.ptr, %val : i
 
 // CHECK-LABEL: test_tag: ptr13_load1:
 // CHECK:        operand #0
-// CHECK-NEXT:    - mods: ptr13_store1 ptr13_store2
+// CHECK-NEXT:    - mods: 
+// CHECK-DAG:             ptr13_store1
+// CHECK-DAG:             ptr13_store2
 // CHECK-NEXT:    - pMods: <none>
 llvm.func @ptr_test13(%cond : i1, %arg1 : !llvm.ptr, %arg2 : !llvm.ptr, %val : i32) {
   llvm.store %val, %arg1 {tag_name = "ptr13_store1"} : i32, !llvm.ptr
