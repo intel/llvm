@@ -1,4 +1,4 @@
-# Implementation design for offloading model
+# Proposed design for offloading model
 
 ## Introduction
 
@@ -184,11 +184,21 @@ performed including all of optional device libraries, the static device
 libraries and the dependency information that was gathered above.  This link
 step is performed with `--only-needed` to streamline the final device binary.
 
-The device libraries that are pulled in during the device link step will need
-to be controlled by the `clang-linker-wrapper`.  There is a controlling option
-(`-fno-sycl-device-lib=arg`) that is available to the user which needs to be
-provided to the wrapper to give more control over what device libraries are
-pulled in during the device link.
+The device libraries that are linked in is provided by the driver.  The driver
+is responsible for letting the `clang-linker-wrapper` know what device libraries
+are required to be linked in as well as the location.
+
+|            Option                    |   Expected Behavior   |
+|--------------------------------------|-----------------------|
+| `--sycl-device-libraries=<arg>`      | A comma separated list of device libraries that are linked during the device link. |
+| `--sycl-device-libraries-full=<arg>` | A comma separated list of device libraries that are linked during the first device link.  These libraries are required in full and should not be impacted by use of `--only-needed` |
+| `--device-library-location=<arg>`    | The location in which the device libraries reside to be used during compilation |
+
+*Table: Options to control device libraries*
+
+The device libraries are controlled via the `-fno-sycl-device-lib=arg` option
+where the driver determines based on this option which libraries to tell the
+linker wrapper to pull in.
 
 ### Post-link and SPIR-V translation
 
