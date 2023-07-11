@@ -10,12 +10,6 @@
 
 static bool PrintPiTrace = true;
 
-struct _pi_object {
-  _pi_object() : RefCount{1} {}
-
-  std::atomic<pi_uint32> RefCount;
-};
-
 // taken from pi_cuda.cpp
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
@@ -122,42 +116,6 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle, pi_platform *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEventCreate(pi_context, pi_event *) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piEventGetInfo(pi_event, pi_event_info, size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
-                                  size_t ParamValueSize, void *ParamValue,
-                                  size_t *ParamValueSizeRet) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
-  // Todo: currently we do everything synchronously so this is a no-op
-  return PI_SUCCESS;
-}
-
-pi_result piEventSetCallback(pi_event, pi_int32,
-                             void (*)(pi_event, pi_int32, void *), void *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEventSetStatus(pi_event, pi_int32) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piEventRetain(pi_event Event) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piEventRelease(pi_event Event) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piextEventGetNativeHandle(pi_event, pi_native_handle *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextEventCreateWithNativeHandle(pi_native_handle, pi_context, bool,
-                                           pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
 pi_result piSamplerCreate(pi_context, const pi_sampler_properties *,
                           pi_sampler *) {
   DIE_NO_IMPLEMENTATION;
@@ -668,21 +626,24 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, pi2ur::piextKernelSetArgSampler)
 
   // Event
-  _PI_CL(piEventCreate, piEventCreate)
-  _PI_CL(piEventGetInfo, piEventGetInfo)
-  _PI_CL(piEventGetProfilingInfo, piEventGetProfilingInfo)
-  _PI_CL(piEventsWait, piEventsWait)
-  _PI_CL(piEventSetCallback, piEventSetCallback)
-  _PI_CL(piEventSetStatus, piEventSetStatus)
-  _PI_CL(piEventRetain, piEventRetain)
-  _PI_CL(piEventRelease, piEventRelease)
-  _PI_CL(piextEventGetNativeHandle, piextEventGetNativeHandle)
-  _PI_CL(piextEventCreateWithNativeHandle, piextEventCreateWithNativeHandle)
+  _PI_CL(piEventCreate, pi2ur::piEventCreate)
+  _PI_CL(piEventGetInfo, pi2ur::piEventGetInfo)
+  _PI_CL(piEventGetProfilingInfo, pi2ur::piEventGetProfilingInfo)
+  _PI_CL(piEventsWait, pi2ur::piEventsWait)
+  _PI_CL(piEventSetCallback, pi2ur::piEventSetCallback)
+  _PI_CL(piEventSetStatus, pi2ur::piEventSetStatus)
+  _PI_CL(piEventRetain, pi2ur::piEventRetain)
+  _PI_CL(piEventRelease, pi2ur::piEventRelease)
+  _PI_CL(piextEventGetNativeHandle, pi2ur::piextEventGetNativeHandle)
+  _PI_CL(piextEventCreateWithNativeHandle,
+         pi2ur::piextEventCreateWithNativeHandle)
+
   // Sampler
   _PI_CL(piSamplerCreate, piSamplerCreate)
   _PI_CL(piSamplerGetInfo, piSamplerGetInfo)
   _PI_CL(piSamplerRetain, piSamplerRetain)
   _PI_CL(piSamplerRelease, piSamplerRelease)
+
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, piEnqueueKernelLaunch)
   _PI_CL(piEnqueueNativeKernel, piEnqueueNativeKernel)
@@ -715,6 +676,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
+
   // Device global variable
   _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
          piextEnqueueDeviceGlobalVariableWrite)

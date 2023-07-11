@@ -248,6 +248,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/context.hpp"
       "ur/adapters/native_cpu/device.cpp"
       "ur/adapters/native_cpu/device.hpp"
+      "ur/adapters/native_cpu/event.cpp"
       "ur/adapters/native_cpu/kernel.cpp"
       "ur/adapters/native_cpu/kernel.hpp"
       "ur/adapters/native_cpu/memory.cpp"
