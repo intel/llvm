@@ -36,7 +36,7 @@ llvm.func @non_constant_id() -> !llvm.ptr {
 llvm.func @_Z6numberv() -> i64
 
 
-// CHECK-LABEL: test_tag: constrol_flow_constant:
+// CHECK-LABEL: test_tag: control_flow_constant:
 // CHECK:         operand #0
 // CHECK:         id:
 // CHECK:           constant<42, 42>
@@ -50,12 +50,12 @@ llvm.func @control_flow_constant(%arg0 : i1) -> !llvm.ptr {
     %c42_alias = arith.constant 42 : i64
     sycl.host.constructor(%0, %c42_alias, %c42_alias) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
   }
-  %1 = llvm.load %0 {tag = "constrol_flow_constant"} : !llvm.ptr -> i32
+  %1 = llvm.load %0 {tag = "control_flow_constant"} : !llvm.ptr -> i32
   llvm.return %0 : !llvm.ptr
 }
 
 
-// CHECK-LABEL: test_tag: constrol_flow_non_constant:
+// CHECK-LABEL: test_tag: control_flow_non_constant:
 // CHECK:         operand #0
 // CHECK:         id:
 // CHECK:           fixed<2>
@@ -69,7 +69,7 @@ llvm.func @control_flow_non_constant(%arg0 : i1) -> !llvm.ptr {
     %c25_i64 = arith.constant 25 : i64
     sycl.host.constructor(%0, %c25_i64, %c25_i64) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
   }
-  %1 = llvm.load %0 {tag = "constrol_flow_non_constant"} : !llvm.ptr -> i32
+  %1 = llvm.load %0 {tag = "control_flow_non_constant"} : !llvm.ptr -> i32
   llvm.return %0 : !llvm.ptr
 }
 
@@ -147,3 +147,73 @@ llvm.func @non_constant_range() -> !llvm.ptr {
 }
 
 llvm.func @_Z6numberv() -> i64
+
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (i64)>
+!sycl_id_2_ = !sycl.id<[2], (i64)>
+!sycl_id_3_ = !sycl.id<[3], (i64)>
+
+// CHECK-LABEL: test_tag: raw_flow_constant:
+// CHECK:         operand #0
+// CHECK:         id:
+// CHECK:           constant<42, 42>
+llvm.func @raw_flow_constant(%arg0 : i1) -> !llvm.ptr {
+  %c1_i32 = arith.constant 1 : i32
+  %0 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  llvm.cond_br %arg0, ^bb1, ^bb2
+^bb1:
+  %c42_i64 = arith.constant 42 : i64
+  sycl.host.constructor(%0, %c42_i64, %c42_i64) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+  llvm.br ^bb3
+^bb2:
+  %c42_alias = arith.constant 42 : i64
+  sycl.host.constructor(%0, %c42_alias, %c42_alias) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+  llvm.br ^bb3
+^bb3:
+  %1 = llvm.load %0 {tag = "raw_flow_constant"} : !llvm.ptr -> i32
+  llvm.return %0 : !llvm.ptr
+}
+
+
+// CHECK-LABEL: test_tag: raw_flow_non_constant:
+// CHECK:         operand #0
+// CHECK:         id:
+// CHECK:           fixed<2>
+llvm.func @raw_flow_non_constant(%arg0 : i1) -> !llvm.ptr {
+  %c1_i32 = arith.constant 1 : i32
+  %0 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  llvm.cond_br %arg0, ^bb1, ^bb2
+^bb1:
+  %c42_i64 = arith.constant 42 : i64
+  sycl.host.constructor(%0, %c42_i64, %c42_i64) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+  llvm.br ^bb3
+^bb2:
+  %c25_i64 = arith.constant 24 : i64
+  sycl.host.constructor(%0, %c25_i64, %c25_i64) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+  llvm.br ^bb3
+^bb3:
+  %1 = llvm.load %0 {tag = "raw_flow_non_constant"} : !llvm.ptr -> i32
+  llvm.return %0 : !llvm.ptr
+}
+
+
+// CHECK-LABEL: test_tag: raw_flow_non_fixed:
+// CHECK:         operand #0
+// CHECK:         id:
+// CHECK:           <unknown>
+llvm.func @raw_flow_non_fixed(%arg0 : i1, %arg1 : !llvm.ptr) -> !llvm.ptr {
+  %c1_i32 = arith.constant 1 : i32
+  %c42_i64 = arith.constant 42 : i64
+  llvm.cond_br %arg0, ^bb1, ^bb2
+^bb1:
+    sycl.host.constructor(%arg1, %c42_i64) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+    llvm.br ^bb3
+^bb2:
+    sycl.host.constructor(%arg1, %c42_i64, %c42_i64) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+  llvm.br ^bb3
+^bb3:
+  %0 = llvm.load %arg1 {tag = "raw_flow_non_fixed"} : !llvm.ptr -> i32
+  llvm.return %arg1 : !llvm.ptr
+}

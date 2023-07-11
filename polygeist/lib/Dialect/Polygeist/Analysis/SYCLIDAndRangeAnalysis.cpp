@@ -160,7 +160,7 @@ void SYCLIDAndRangeAnalysis::initialize() {
   // Initialize the dataflow solver
   AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(
-      sycl::AliasAnalysis(/* TODO */ false));
+      sycl::AliasAnalysis(/* relaxedAliasing */ false));
 
   // Populate the solver and run the analyses needed by this analysis.
   solver.load<dataflow::DeadCodeAnalysis>();
