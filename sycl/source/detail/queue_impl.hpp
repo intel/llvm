@@ -680,8 +680,7 @@ protected:
     if (MIsInorder) {
 
       auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
-        return (Type == CG::CGTYPE::CodeplayHostTask ||
-                Type == CG::CGTYPE::CodeplayInteropTask);
+        return Type == CG::CGTYPE::CodeplayHostTask;
       };
 
       // Accessing and changing of an event isn't atomic operation.
