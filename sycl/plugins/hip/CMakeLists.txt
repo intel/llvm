@@ -116,6 +116,7 @@ add_sycl_plugin(hip
     "../unified_runtime/ur/adapters/hip/queue.hpp"
     "../unified_runtime/ur/adapters/hip/command_buffer.cpp"
     "../unified_runtime/ur/adapters/hip/command_buffer.hpp"
+    "../unified_runtime/ur/adapters/hip/usm_p2p.cpp"
     "../unified_runtime/ur/adapters/hip/ur_interface_loader.cpp"
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
