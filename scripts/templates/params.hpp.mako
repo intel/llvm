@@ -41,6 +41,16 @@ from templates import helper as th
     %endif
 </%def>
 
+<%
+def findUnionTag(_union):
+    tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == _union['tag']]
+    return tag[0] if len(tag) > 0 else None
+
+def findMemberType(_item):
+    query = [_o for _s in specs for _o in _s['objects'] if _o['name'] == _item['type']]
+    return query[0] if len(query) > 0 else None
+%>
+
 <%def name="line(item, n, params, params_dict)">
     <%
         iname = th._get_param_name(n, tags, item)
@@ -57,7 +67,7 @@ from templates import helper as th
     %if n != 0:
         os << ", ";
     %endif
-    ## can't iterate over 'void *'...
+## can't iterate over 'void *'...
     %if th.param_traits.is_range(item) and "void*" not in itype:
         os << ".${iname} = {";
         for (size_t i = ${th.param_traits.range_start(item)}; ${deref}(params${access}${pname}) != NULL && i < ${deref}params${access}${prefix + th.param_traits.range_end(item)}; ++i) {
@@ -69,6 +79,9 @@ from templates import helper as th
             </%call>
         }
         os << "}";
+    %elif findMemberType(item) is not None and findMemberType(item)['type'] == "union":
+        os << ".${iname} = ";
+        ${x}_params::serializeUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
     %elif typename is not None:
         os << ".${iname} = ";
         ${x}_params::serializeTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
@@ -96,6 +109,15 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
     %endif
 %endif
 
+%if re.match(r"union", obj['type']) and obj['name']:
+    <% tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == obj['tag']][0] %>
+    inline void serializeUnion(
+        std::ostream &os,
+        const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
+        const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
+    );
+%endif
+
 
 %if th.type_traits.is_flags(obj['name']):
     template<> inline void serializeFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag);
@@ -109,7 +131,7 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
 ## ENUM #######################################################################
 %if re.match(r"enum", obj['type']):
     inline std::ostream &operator<<(std::ostream &os, enum ${th.make_enum_name(n, tags, obj)} value);
-%elif re.match(r"struct|union", obj['type']):
+%elif re.match(r"struct", obj['type']):
     inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make_type_name(n, tags, obj)} params);
 %endif
 %endfor # obj in spec['objects']
@@ -260,7 +282,7 @@ inline void serializeFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, 
 } // namespace ${x}_params
 %endif
 ## STRUCT/UNION ###############################################################
-%elif re.match(r"struct|union", obj['type']):
+%elif re.match(r"struct", obj['type']):
 inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make_type_name(n, tags, obj)} params) {
     os << "(${obj['type']} ${th.make_type_name(n, tags, obj)}){";
     <%
@@ -276,6 +298,33 @@ inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make
     %endfor
     os << "}";
     return os;
+}
+%elif re.match(r"union", obj['type']) and obj['name']:
+<% tag = findUnionTag(obj) %>
+inline void ${x}_params::serializeUnion(
+    std::ostream &os,
+    const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
+    const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
+){
+    os << "(${obj['type']} ${th.make_type_name(n, tags, obj)}){";
+<%
+params_dict = dict()
+for item in obj['members']:
+    iname = th._get_param_name(n, tags, item)
+    itype = th._get_type_name(n, tags, obj, item)
+    params_dict[iname] = itype
+%>
+    switch(tag){
+%for mem in obj['members']:
+    case ${th.subt(n, tags, mem['tag'])}:
+        ${line(mem, 0, False, params_dict)}
+        break;
+%endfor
+    default:
+        os << "<unknown>";
+        break;
+    }
+    os << "}";
 }
 %endif
 %endfor # obj in spec['objects']

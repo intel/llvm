@@ -306,6 +306,53 @@ struct UrContextGetInfoParamsDevicesArray : UrContextGetInfoParams {
     };
 };
 
+struct UrProgramMetadataTest {
+    UrProgramMetadataTest() {
+        meta.pName = "MY_META";
+        meta.size = 0;
+        meta.type = UR_PROGRAM_METADATA_TYPE_UINT32;
+        ur_program_metadata_value_t value{};
+        value.data32 = 42;
+        meta.value = value;
+    }
+
+    ur_program_metadata_t &get_struct() { return meta; }
+    const char *get_expected() {
+        return "\\(struct ur_program_metadata_t\\)"
+               "\\{"
+               ".pName = .+ \\(MY_META\\), "
+               ".type = UR_PROGRAM_METADATA_TYPE_UINT32, "
+               ".size = 0, "
+               ".value = \\(union ur_program_metadata_value_t\\)\\{"
+               ".data32 = 42"
+               "\\}"
+               "\\}";
+    }
+    ur_program_metadata_t meta;
+};
+
+struct UrDevicePartitionPropertyTest {
+    UrDevicePartitionPropertyTest() {
+        prop.type = UR_DEVICE_PARTITION_EQUALLY;
+        ur_device_partition_value_t value{};
+        value.equally = 4;
+        prop.value = value;
+    }
+
+    ur_device_partition_property_t &get_struct() { return prop; }
+    const char *get_expected() {
+        return "\\(struct ur_device_partition_property_t\\)"
+               "\\{"
+               ".type = UR_DEVICE_PARTITION_EQUALLY, "
+               ".value = \\(union ur_device_partition_value_t\\)\\{"
+               ".equally = 4"
+               "\\}"
+               "\\}";
+    }
+
+    ur_device_partition_property_t prop;
+};
+
 using testing::Types;
 typedef Types<
     UrInitParamsNoFlags, UrInitParamsInvalidFlags, UrUsmHostAllocParamsEmpty,
@@ -313,7 +360,8 @@ typedef Types<
     UrUsmHostAllocParamsUsmDesc, UrUsmHostAllocParamsHostDesc,
     UrDeviceGetInfoParamsEmpty, UrDeviceGetInfoParamsName,
     UrDeviceGetInfoParamsQueueFlag, UrDeviceGetInfoParamsPartitionArray,
-    UrContextGetInfoParamsDevicesArray, UrDeviceGetInfoParamsInvalidSize>
+    UrContextGetInfoParamsDevicesArray, UrDeviceGetInfoParamsInvalidSize,
+    UrProgramMetadataTest, UrDevicePartitionPropertyTest>
     Implementations;
 
 using ::testing::MatchesRegex;

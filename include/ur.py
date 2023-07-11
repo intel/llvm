@@ -848,7 +848,7 @@ class ur_device_partition_value_t(Structure):
         ("count", c_ulong),                                             ## [in] Number of compute units in a sub-device when partitioning with
                                                                         ## ::UR_DEVICE_PARTITION_BY_COUNTS.
         ("affinity_domain", ur_device_affinity_domain_flags_t)          ## [in] The affinity domain to partition for when partitioning with
-                                                                        ## $UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN.
+                                                                        ## ::UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN.
     ]
 
 ###############################################################################
@@ -856,7 +856,7 @@ class ur_device_partition_value_t(Structure):
 class ur_device_partition_property_t(Structure):
     _fields_ = [
         ("type", ur_device_partition_t),                                ## [in] The partitioning type to be used.
-        ("value", ur_device_partition_value_t)                          ## [in] The partitioning value.
+        ("value", ur_device_partition_value_t)                          ## [in][tagged_by(type)] The partitioning value.
     ]
 
 ###############################################################################
@@ -1579,7 +1579,7 @@ class ur_program_metadata_t(Structure):
         ("type", ur_program_metadata_type_t),                           ## [in] the type of metadata value.
         ("size", c_size_t),                                             ## [in] size in bytes of the data pointed to by value.pData, or 0 when
                                                                         ## value size is less than 64-bits and is stored directly in value.data.
-        ("value", ur_program_metadata_value_t)                          ## [in] the metadata value storage.
+        ("value", ur_program_metadata_value_t)                          ## [in][tagged_by(type)] the metadata value storage.
     ]
 
 ###############################################################################

@@ -454,6 +454,8 @@ class ur_name_flags_v(IntEnum):
   - `name` must be a unique ISO-C standard identifier, start with `$` tag, be snake_case and end with `_t`
     + The special-case descriptor struct should always end with `_desc_t`
     + The special-case property struct should always end with `_properties_t`
+* A union requires the following 
+  - `tag` is a reference to an enum type that will be used to describe which field of the union to access.
 * A struct|union may take the following optional scalar fields: {`class`, `base`, `condition`, `ordinal`, `version`}
   - `class` will be used to scope the struct|union declaration within the specified C++ class
   - `base` will be used as the base type of the structure
@@ -468,6 +470,8 @@ class ur_name_flags_v(IntEnum):
       - `out` is used for members that are write-only; if the member is a pointer, then the memory being pointed to is also write-only
       - `in,out` is used for members that are both read and write; typically this is used for pointers to other data structures that contain both read and write members
       - `nocheck` is used to specify that no additional validation checks will be generated.
+    + `desc` must also include the following annotation when describing a union: {`"tagged_by(param)"`}
+      - `tagged_by` is used to specify which parameter will be used as the tag for accessing the union.
     + `desc` may include one the following annotations: {`"[optional]"`, `"[typename(typeVarName, sizeVarName)]"`}
       - `optional` is used for members that are pointers where it is legal for the value to be `nullptr`
       - `typename` is used to denote the type enum for params that are opaque pointers to values of tagged data types.
@@ -477,6 +481,7 @@ class ur_name_flags_v(IntEnum):
     + `init` will be used to initialize the C++ struct|union member's value
     + `init` must be an ISO-C standard identifier or literal
     + `version` will be used to define the minimum API version in which the member will appear; `default="1.0"` This will also affect the order in which the member appears within the struct|union.
+    + `tag` applies only to unions and refers to a value for when this member can be accessed.
 * A struct|union may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
   - `details` will be used as the struct|union's detailed comment
 
