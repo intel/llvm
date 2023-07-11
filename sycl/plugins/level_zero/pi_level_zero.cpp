@@ -1226,6 +1226,28 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   return pi2ur::piGetDeviceAndHostTimer(Device, DeviceTime, HostTime);
 }
 
+pi_result piextEnablePeerAccess(pi_device command_device,
+                                pi_device peer_device) {
+
+  return pi2ur::piextEnablePeerAccess(command_device, peer_device);
+}
+
+pi_result piextDisablePeerAccess(pi_device command_device,
+                                 pi_device peer_device) {
+
+  return pi2ur::piextDisablePeerAccess(command_device, peer_device);
+}
+
+pi_result piextPeerAccessGetInfo(pi_device command_device,
+                                 pi_device peer_device, pi_peer_attr attr,
+                                 size_t ParamValueSize, void *ParamValue,
+                                 size_t *ParamValueSizeRet) {
+
+  return pi2ur::piextPeerAccessGetInfo(command_device, peer_device, attr,
+                                       ParamValueSize, ParamValue,
+                                       ParamValueSizeRet);
+}
+
 #ifdef _WIN32
 #define __SYCL_PLUGIN_DLL_NAME "pi_level_zero.dll"
 #include "../common_win_pi_trace/common_win_pi_trace.hpp"
