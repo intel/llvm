@@ -175,6 +175,15 @@ static inline pi_result piEnqueueMemBufferReadWriteRect_impl(
       }
   return PI_SUCCESS;
 }
+
+static inline pi_result DoCopy_impl(void *DstPtr, const void *SrcPtr,
+                                    size_t Size, const pi_event *EventWaitList,
+                                    pi_event *Event) {
+  // todo: non-blocking, events, UR integration
+  if (SrcPtr != DstPtr && Size)
+    memmove(DstPtr, SrcPtr, Size);
+  return PI_SUCCESS;
+}
 } // namespace
 
 extern "C" {
@@ -990,13 +999,8 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
                                  pi_uint32 NumEventsInWaitList,
                                  const pi_event *EventWaitList,
                                  pi_event *Event) {
-  // todo: non-blocking, events, UR integration
   void *FromPtr = Src->_mem + Offset;
-  if (Dst != FromPtr) {
-    // todo: check overlap
-    memcpy(Dst, FromPtr, Size);
-  }
-  return PI_SUCCESS;
+  return DoCopy_impl(Dst, FromPtr, Size, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferReadRect(
@@ -1014,14 +1018,11 @@ pi_result piEnqueueMemBufferReadRect(
 pi_result piEnqueueMemBufferWrite(pi_queue, pi_mem Buffer,
                                   pi_bool blocking_write, size_t Offset,
                                   size_t Size, const void *Ptr, pi_uint32,
-                                  const pi_event *, pi_event *) {
-  // todo: non-blocking, events, UR integration
+                                  const pi_event *EventWaitList,
+                                  pi_event *Event) {
+
   void *ToPtr = Buffer->_mem + Offset;
-  if (Ptr != ToPtr) {
-    // todo: check overlap
-    memcpy(ToPtr, Ptr, Size);
-  }
-  return PI_SUCCESS;
+  return DoCopy_impl(ToPtr, Ptr, Size, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferWriteRect(
@@ -1043,9 +1044,7 @@ pi_result piEnqueueMemBufferCopy(pi_queue Q, pi_mem SrcBuff, pi_mem DstBuff,
                                  pi_event *Event) {
   const void *SrcPtr = SrcBuff->_mem + SrcOffset;
   void *DstPtr = DstBuff->_mem + DstOffset;
-  if (SrcPtr != DstPtr && Size)
-    memmove(DstPtr, SrcPtr, Size);
-  return PI_SUCCESS;
+  return DoCopy_impl(DstPtr, SrcPtr, Size, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferCopyRect(
