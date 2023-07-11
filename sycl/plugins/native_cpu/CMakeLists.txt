@@ -21,6 +21,7 @@ add_sycl_plugin(native_cpu
     "../unified_runtime/ur/adapters/native_cpu/program.hpp"
     "../unified_runtime/ur/adapters/native_cpu/queue.cpp"
     "../unified_runtime/ur/adapters/native_cpu/queue.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/sampler.cpp"
     "../unified_runtime/ur/adapters/native_cpu/runtime.cpp"
   INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime

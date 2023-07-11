@@ -259,6 +259,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/program.hpp"
       "ur/adapters/native_cpu/queue.cpp"
       "ur/adapters/native_cpu/queue.hpp"
+      "ur/adapters/native_cpu/sampler.cpp"
       "ur/adapters/native_cpu/runtime.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}

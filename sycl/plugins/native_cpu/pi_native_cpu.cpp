@@ -116,20 +116,6 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle, pi_platform *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piSamplerCreate(pi_context, const pi_sampler_properties *,
-                          pi_sampler *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piSamplerGetInfo(pi_sampler, pi_sampler_info, size_t, void *,
-                           size_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piSamplerRetain(pi_sampler) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piSamplerRelease(pi_sampler) { DIE_NO_IMPLEMENTATION; }
-
 pi_result piEnqueueEventsWait(pi_queue, pi_uint32, const pi_event *,
                               pi_event *) {
   DIE_NO_IMPLEMENTATION;
@@ -639,10 +625,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          pi2ur::piextEventCreateWithNativeHandle)
 
   // Sampler
-  _PI_CL(piSamplerCreate, piSamplerCreate)
-  _PI_CL(piSamplerGetInfo, piSamplerGetInfo)
-  _PI_CL(piSamplerRetain, piSamplerRetain)
-  _PI_CL(piSamplerRelease, piSamplerRelease)
+  _PI_CL(piSamplerCreate, pi2ur::piSamplerCreate)
+  _PI_CL(piSamplerGetInfo, pi2ur::piSamplerGetInfo)
+  _PI_CL(piSamplerRetain, pi2ur::piSamplerRetain)
+  _PI_CL(piSamplerRelease, pi2ur::piSamplerRelease)
 
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, piEnqueueKernelLaunch)
