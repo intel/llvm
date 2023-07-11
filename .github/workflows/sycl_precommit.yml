@@ -50,8 +50,8 @@ jobs:
         path: src
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
         ref: ${{ github.event.pull_request.head.sha }}
+        merge_ref: ''
         cache_path: "/__w/repo_cache/"
-        merge: false
     - name: Run clang-format
       uses: ./devops/actions/clang-format
       with:
