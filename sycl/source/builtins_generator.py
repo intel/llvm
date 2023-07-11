@@ -413,8 +413,6 @@ class DefCommon:
     result = ""
     vec_cast_args = [f'detail::to_vec({arg_name})' if is_marray_arg(arg_type) else str(arg_name) for arg_type, arg_name in zip(arg_types, arg_names)]
     joined_vec_cast_args = ', '.join(vec_cast_args)
-    (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
-    result = result + size_alias_init
     vec_call = f'{namespaced_builtin_name}({joined_vec_cast_args})'
     if isinstance(return_type, InstantiatedTemplatedReturnType):
       # Convert the vec call result to marray.
@@ -1064,11 +1062,6 @@ def generate_file(directory, file_name, extra_includes, generated_builtins):
 // NOTE: This file was generated and should not be changed!
 
 #pragma once
-
-#include <sycl/detail/boolean.hpp>
-#include <sycl/detail/builtins.hpp>
-#include <sycl/pointers.hpp>
-#include <sycl/types.hpp>
 
 #include <sycl/builtins_utils.hpp>
 

@@ -8,10 +8,15 @@
 
 #pragma once
 
+#include <sycl/detail/boolean.hpp>
+#include <sycl/detail/builtins.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/pointers.hpp>
 #include <sycl/types.hpp>
+
+#include <algorithm>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

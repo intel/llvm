@@ -10,9 +10,6 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-// Include the builtins for marray.
-#include <sycl/builtins_marray.hpp>
-
 // Include the generated builtins.
 #include <sycl/builtins_marray_gen.hpp>
 #include <sycl/builtins_scalar_gen.hpp>
