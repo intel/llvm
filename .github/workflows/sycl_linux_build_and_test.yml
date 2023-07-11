@@ -100,13 +100,14 @@ jobs:
       CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
       CCACHE_MAXSIZE: ${{ inputs.build_cache_size }}
     steps:
-    # GHA requires relative paths for actions. Copy actions from container root
-    # to CWD.
-    - run: cp -r /actions .
+    - uses: actions/checkout@v3
+      with:
+        sparse-checkout: |
+          devops/actions
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    - uses: ./actions/cached_checkout
+      uses: ./devops/actions/cleanup
+    - uses: ./devops/actions/cached_checkout
       with:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
@@ -258,9 +259,12 @@ jobs:
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
-    - run: cp -r /actions .
+    - uses: actions/checkout@v3
+      with:
+        sparse-checkout: |
+          devops/actions
     - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
+      uses: ./devops/actions/cleanup
     - name: Install drivers
       if: env.compute_runtime_tag != ''
       run: |
