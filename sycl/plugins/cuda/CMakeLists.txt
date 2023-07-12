@@ -81,6 +81,7 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/usm.cpp"
     "../unified_runtime/ur/adapters/cuda/command_buffer.hpp"
     "../unified_runtime/ur/adapters/cuda/command_buffer.cpp"
+    "../unified_runtime/ur/adapters/cuda/usm_p2p.cpp"
     # --- 
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
