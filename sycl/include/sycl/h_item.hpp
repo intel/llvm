@@ -25,8 +25,10 @@ class Builder;
 /// call or to the corresponding parallel_for_work_group call.
 ///
 /// \ingroup sycl_api
-template <int dimensions> class h_item {
+template <int Dimensions> class h_item {
 public:
+  static constexpr int dimensions = Dimensions;
+
   h_item() = delete;
 
   h_item(const h_item &hi) = default;
@@ -34,70 +36,70 @@ public:
   h_item &operator=(const h_item &hi) = default;
 
   /* -- public interface members -- */
-  item<dimensions, false> get_global() const { return globalItem; }
+  item<Dimensions, false> get_global() const { return globalItem; }
 
-  item<dimensions, false> get_local() const { return get_logical_local(); }
+  item<Dimensions, false> get_local() const { return get_logical_local(); }
 
-  item<dimensions, false> get_logical_local() const { return logicalLocalItem; }
+  item<Dimensions, false> get_logical_local() const { return logicalLocalItem; }
 
-  item<dimensions, false> get_physical_local() const { return localItem; }
+  item<Dimensions, false> get_physical_local() const { return localItem; }
 
-  range<dimensions> get_global_range() const {
+  range<Dimensions> get_global_range() const {
     return get_global().get_range();
   }
 
-  size_t get_global_range(int dimension) const {
-    return get_global().get_range(dimension);
+  size_t get_global_range(int Dimension) const {
+    return get_global().get_range(Dimension);
   }
 
-  id<dimensions> get_global_id() const { return get_global().get_id(); }
+  id<Dimensions> get_global_id() const { return get_global().get_id(); }
 
-  size_t get_global_id(int dimension) const {
-    return get_global().get_id(dimension);
+  size_t get_global_id(int Dimension) const {
+    return get_global().get_id(Dimension);
   }
 
-  range<dimensions> get_local_range() const { return get_local().get_range(); }
+  range<Dimensions> get_local_range() const { return get_local().get_range(); }
 
-  size_t get_local_range(int dimension) const {
-    return get_local().get_range(dimension);
+  size_t get_local_range(int Dimension) const {
+    return get_local().get_range(Dimension);
   }
 
-  id<dimensions> get_local_id() const { return get_local().get_id(); }
+  id<Dimensions> get_local_id() const { return get_local().get_id(); }
 
-  size_t get_local_id(int dimension) const {
-    return get_local().get_id(dimension);
+  size_t get_local_id(int Dimension) const {
+    return get_local().get_id(Dimension);
   }
 
-  range<dimensions> get_logical_local_range() const {
+  range<Dimensions> get_logical_local_range() const {
     return get_logical_local().get_range();
   }
 
-  size_t get_logical_local_range(int dimension) const {
-    return get_logical_local().get_range(dimension);
+  size_t get_logical_local_range(int Dimension) const {
+    return get_logical_local().get_range(Dimension);
   }
 
-  id<dimensions> get_logical_local_id() const {
+  id<Dimensions> get_logical_local_id() const {
     return get_logical_local().get_id();
   }
 
-  size_t get_logical_local_id(int dimension) const {
-    return get_logical_local().get_id(dimension);
+  size_t get_logical_local_id(int Dimension) const {
+    return get_logical_local().get_id(Dimension);
   }
 
-  range<dimensions> get_physical_local_range() const {
+  range<Dimensions> get_physical_local_range() const {
     return get_physical_local().get_range();
   }
 
-  size_t get_physical_local_range(int dimension) const {
-    return get_physical_local().get_range(dimension);
+  size_t get_physical_local_range(int Dimension) const {
+    return get_physical_local().get_range(Dimension);
   }
 
-  id<dimensions> get_physical_local_id() const {
+  id<Dimensions> get_physical_local_id() const {
     return get_physical_local().get_id();
   }
 
-  size_t get_physical_local_id(int dimension) const {
-    return get_physical_local().get_id(dimension);
+  size_t get_physical_local_id(int Dimension) const {
+    return get_physical_local().get_id(Dimension);
   }
 
   bool operator==(const h_item &rhs) const {
@@ -109,29 +111,29 @@ public:
 
 protected:
   friend class detail::Builder;
-  friend class group<dimensions>;
-  h_item(const item<dimensions, false> &GL, const item<dimensions, false> &L,
-         const range<dimensions> &flexLocalRange)
+  friend class group<Dimensions>;
+  h_item(const item<Dimensions, false> &GL, const item<Dimensions, false> &L,
+         const range<Dimensions> &flexLocalRange)
       : globalItem(GL), localItem(L),
-        logicalLocalItem(detail::Builder::createItem<dimensions, false>(
+        logicalLocalItem(detail::Builder::createItem<Dimensions, false>(
             flexLocalRange, L.get_id())) {}
 
-  h_item(const item<dimensions, false> &GL, const item<dimensions, false> &L)
+  h_item(const item<Dimensions, false> &GL, const item<Dimensions, false> &L)
       : globalItem(GL), localItem(L),
-        logicalLocalItem(detail::Builder::createItem<dimensions, false>(
+        logicalLocalItem(detail::Builder::createItem<Dimensions, false>(
             localItem.get_range(), localItem.get_id())) {}
 
-  void setLogicalLocalID(const id<dimensions> &ID) {
+  void setLogicalLocalID(const id<Dimensions> &ID) {
     detail::Builder::updateItemIndex(logicalLocalItem, ID);
   }
 
 private:
   /// Describles physical workgroup range and current \c h_item position in it.
-  item<dimensions, false> localItem;
+  item<Dimensions, false> localItem;
   /// Describles global range and current \c h_item position in it.
-  item<dimensions, false> globalItem;
+  item<Dimensions, false> globalItem;
   /// Describles logical flexible range and current \c h_item position in it.
-  item<dimensions, false> logicalLocalItem;
+  item<Dimensions, false> logicalLocalItem;
 };
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

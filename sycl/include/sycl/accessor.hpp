@@ -514,13 +514,13 @@ public:
   id<3> &getOffset();
   range<3> &getAccessRange();
   range<3> &getMemoryRange();
-  void *getPtr();
+  void *getPtr() noexcept;
   unsigned int getElemSize() const;
 
   const id<3> &getOffset() const;
   const range<3> &getAccessRange() const;
   const range<3> &getMemoryRange() const;
-  void *getPtr() const;
+  void *getPtr() const noexcept;
   bool isPlaceholder() const;
 
   detail::AccHostDataT &getAccData();
@@ -843,8 +843,9 @@ private:
 
   sycl::vec<int, Dimensions> getRangeInternal() const {
     // TODO: Implement for host.
-    throw runtime_error("image::getRangeInternal() is not implemented for host",
-                        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "image::getRangeInternal() is not implemented for host");
     return sycl::vec<int, Dimensions>{1};
   }
 
@@ -2291,10 +2292,20 @@ public:
   template <access::target AccessTarget_ = AccessTarget,
             typename = std::enable_if_t<
                 (AccessTarget_ == access::target::host_buffer) ||
-                (AccessTarget_ == access::target::host_task) ||
-                (AccessTarget_ == access::target::device)>>
+                (AccessTarget_ == access::target::host_task)>>
   std::add_pointer_t<value_type> get_pointer() const noexcept {
     return getPointerAdjusted();
+  }
+
+  template <
+      access::target AccessTarget_ = AccessTarget,
+      typename = std::enable_if_t<(AccessTarget_ == access::target::device)>>
+  __SYCL2020_DEPRECATED(
+      "accessor::get_pointer() is deprecated, please use get_multi_ptr()")
+  global_ptr<DataT> get_pointer() const noexcept {
+    return global_ptr<DataT>(
+        const_cast<typename detail::DecoratedType<DataT, AS>::type *>(
+            getPointerAdjusted()));
   }
 
   template <access::target AccessTarget_ = AccessTarget,
@@ -3063,8 +3074,10 @@ public:
     return const_reverse_iterator(begin());
   }
 
-  std::add_pointer_t<value_type> get_pointer() const noexcept {
-    return std::add_pointer_t<value_type>(local_acc::getQualifiedPtr());
+  __SYCL2020_DEPRECATED(
+      "local_accessor::get_pointer() is deprecated, please use get_multi_ptr()")
+  local_ptr<DataT> get_pointer() const noexcept {
+    return local_ptr<DataT>(local_acc::getQualifiedPtr());
   }
 
   template <access::decorated IsDecorated>
