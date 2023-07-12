@@ -90,7 +90,7 @@ public:
 
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return *__builtin_intel_fpga_sycl_ptr_annotation(
+    return *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
         detail::PropertyMetaInfo<Props>::value...);
 #else
@@ -100,7 +100,7 @@ public:
 
   annotated_ref &operator=(const T &Obj) {
 #ifdef __SYCL_DEVICE_ONLY__
-    *__builtin_intel_fpga_sycl_ptr_annotation(
+    *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
         detail::PropertyMetaInfo<Props>::value...) = Obj;
 #else
