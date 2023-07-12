@@ -278,3 +278,34 @@ gpu.module @device_functions {
     llvm.return %2 : !llvm.ptr
   }
 }
+
+// -----
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+
+gpu.module @device_functions {
+  gpu.func @foo() kernel {
+    gpu.return
+  }
+}
+
+llvm.mlir.global private unnamed_addr constant @range_str("range\00")
+    {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
+
+// CHECK-LABEL:   llvm.func @raise_set_nd_range(
+// CHECK-SAME:                                  %[[VAL_0:.*]]: !llvm.ptr) {
+// CHECK-DAG:       %[[VAL_1:.*]] = arith.constant 512 : index
+// CHECK:           %[[VAL_5:.*]] = sycl.range.constructor(%[[VAL_1]]) : (index) -> memref<1x!sycl_range_1_>
+// CHECK:           sycl.host.handler.set_nd_range %[[VAL_0]] -> %[[VAL_5]] : !llvm.ptr, memref<1x!sycl_range_1_>
+llvm.func @raise_set_nd_range(%handler: !llvm.ptr) {
+  %c0 = llvm.mlir.constant (0 : i32) : i32
+  %c1 = llvm.mlir.constant (1 : i64) : i64
+  sycl.host.handler.set_kernel %handler -> @device_functions::@foo : !llvm.ptr
+  %c512 = llvm.mlir.constant (512 : i64) : i64
+  %nullptr = llvm.mlir.null : !llvm.ptr
+  %range = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+  sycl.host.constructor(%range, %c512) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+  %str = llvm.mlir.addressof @range_str : !llvm.ptr
+  "llvm.intr.var.annotation"(%range, %str, %str, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  llvm.return
+}

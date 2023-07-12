@@ -9,6 +9,7 @@
 #ifndef MLIR_DIALECT_SYCL_IR_SYCLOPS_H
 #define MLIR_DIALECT_SYCL_IR_SYCLOPS_H
 
+#include "mlir/Dialect/SYCL/IR/SYCLHostTraits.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTraits.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 
