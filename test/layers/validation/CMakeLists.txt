@@ -7,7 +7,7 @@ set(UR_VALIDATION_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 function(add_validation_test name)
     set(TEST_TARGET_NAME validation_test-${name})
-    add_executable(${TEST_TARGET_NAME}
+    add_ur_executable(${TEST_TARGET_NAME}
         ${ARGN})
     target_link_libraries(${TEST_TARGET_NAME}
         PRIVATE

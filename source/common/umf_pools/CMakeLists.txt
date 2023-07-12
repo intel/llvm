@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_library(disjoint_pool STATIC
+add_ur_library(disjoint_pool STATIC
     disjoint_pool.cpp
     disjoint_pool_config_parser.cpp
 )

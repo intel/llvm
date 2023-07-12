@@ -12,7 +12,7 @@ target_include_directories(unit_tests_helpers INTERFACE
 function(add_unit_test name)
     set(TEST_TARGET_NAME test-${name})
 
-    add_executable(${TEST_TARGET_NAME}
+    add_ur_executable(${TEST_TARGET_NAME}
         ${ARGN}
     )
     target_link_libraries(${TEST_TARGET_NAME}

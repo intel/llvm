@@ -9,7 +9,7 @@ configure_file(
     @ONLY
 )
 
-add_library(ur_loader
+add_ur_library(ur_loader
     SHARED
     ""
     ${CMAKE_CURRENT_BINARY_DIR}/UrLoaderVersion.rc

@@ -5,7 +5,7 @@
 
 set(TARGET_NAME collector)
 
-add_library(${TARGET_NAME} SHARED
+add_ur_library(${TARGET_NAME} SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/collector.cpp
 )
 
