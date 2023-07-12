@@ -15,7 +15,8 @@ namespace mlir {
 namespace sycl {
 LogicalResult verifySYCLHandlerOpTrait(Operation *Op);
 
-/// This interface marks operations that represent a SYCL math function.
+/// This interface marks operations that receive a pointer to a sycl::handler as
+/// a first argument.
 template <typename ConcreteType>
 class SYCLHostHandlerOp
     : public OpTrait::TraitBase<ConcreteType, SYCLHostHandlerOp> {
@@ -27,4 +28,4 @@ public:
 } // namespace sycl
 } // namespace mlir
 
-#endif // MLIR_DIALECT_SYCL_IR_SYCLTRAITS_H
+#endif // MLIR_DIALECT_SYCL_IR_SYCLHOSTTRAITS_H

@@ -180,11 +180,10 @@ static bool isClassType(Type type, const llvm::Regex &regex) {
 static Value getThisArgument(FunctionOpInterface op, StringRef className) {
   llvm::ItaniumPartialDemangler demangler;
   if (!(succeeded(partialDemangle(demangler, op)) && demangler.isFunction() &&
-        isMemberFunction(demangler, syclNamespace, className)))
+        isMemberFunction(demangler, syclNamespace, className) &&
+        op.getNumArguments() > 0))
     return nullptr;
 
-  assert(op.getNumArguments() > 0 &&
-         "A non-static member function must have at least one argument");
   Value firstArg = op.getArgument(0);
   assert(isa<LLVM::LLVMPointerType>(firstArg.getType()) &&
          "Expecting this argument to be a pointer");
@@ -869,8 +868,9 @@ private:
   }
 };
 
-struct RaiseSetNDRange
+class RaiseSetNDRange
     : public OpInterfaceHostRaisePattern<FunctionOpInterface> {
+public:
   using OpInterfaceHostRaisePattern<
       FunctionOpInterface>::OpInterfaceHostRaisePattern;
 
@@ -951,44 +951,7 @@ struct RaiseSetNDRange
     if (isa<sycl::NdRangeType>(constructors.front().getType().getValue()))
       return failure();
 
-    SmallVector<Value> arguments;
-    {
-      OpBuilder::InsertionGuard ig(rewriter);
-      llvm::transform(
-          constructors, std::back_inserter(arguments),
-          [&](sycl::SYCLHostConstructorOp constructor) -> Value {
-            // Insert sycl.X.constructor right after sycl.host.constructor
-            rewriter.setInsertionPoint(constructor);
-            Location loc = constructor.getLoc();
-            Type type = constructor.getType().getValue();
-            auto mt = MemRefType::get(1, type);
-            return TypeSwitch<Type, Value>(type)
-                .Case<sycl::RangeType, sycl::IDType>([&](auto t) {
-                  Value v;
-                  rewriter.updateRootInPlace(op, [&] {
-                    SmallVector<Value> args;
-                    auto indexType = rewriter.getIndexType();
-                    // Cast each argument from iX to index
-                    llvm::transform(
-                        constructor.getArgs(), std::back_inserter(args),
-                        [&](Value arg) {
-                          assert(isa<IntegerType>(arg.getType()) &&
-                                 "Expecting integer type");
-                          return rewriter.create<arith::IndexCastOp>(
-                              loc, indexType, arg);
-                        });
-                    // Create the required constructor operation depending on
-                    // the type
-                    using OpTy = std::conditional_t<
-                        std::is_same_v<decltype(t), sycl::RangeType>,
-                        sycl::SYCLRangeConstructorOp,
-                        sycl::SYCLIDConstructorOp>;
-                    v = rewriter.create<OpTy>(loc, mt, args);
-                  });
-                  return v;
-                });
-          });
-    }
+    SmallVector<Value> arguments = getArguments(op, constructors, rewriter);
 
     // Finally insert sycl.host.handler.set_nd_range after the last annotation
     rewriter.updateRootInPlace(op, [&] {
@@ -996,6 +959,48 @@ struct RaiseSetNDRange
     });
 
     return success();
+  }
+
+private:
+  static SmallVector<Value>
+  getArguments(FunctionOpInterface op,
+               ArrayRef<sycl::SYCLHostConstructorOp> constructors,
+               PatternRewriter &rewriter) {
+    SmallVector<Value> arguments;
+    OpBuilder::InsertionGuard ig(rewriter);
+    llvm::transform(
+        constructors, std::back_inserter(arguments),
+        [&](sycl::SYCLHostConstructorOp constructor) -> Value {
+          // Insert sycl.X.constructor right after sycl.host.constructor
+          rewriter.setInsertionPoint(constructor);
+          Location loc = constructor.getLoc();
+          Type type = constructor.getType().getValue();
+          auto mt = MemRefType::get(1, type);
+          return TypeSwitch<Type, Value>(type)
+              .Case<sycl::RangeType, sycl::IDType>([&](auto t) {
+                Value v;
+                rewriter.updateRootInPlace(op, [&] {
+                  SmallVector<Value> args;
+                  auto indexType = rewriter.getIndexType();
+                  // Cast each argument from iX to index
+                  llvm::transform(constructor.getArgs(),
+                                  std::back_inserter(args), [&](Value arg) {
+                                    assert(isa<IntegerType>(arg.getType()) &&
+                                           "Expecting integer type");
+                                    return rewriter.create<arith::IndexCastOp>(
+                                        loc, indexType, arg);
+                                  });
+                  // Create the required constructor operation depending on
+                  // the type
+                  using OpTy = std::conditional_t<
+                      std::is_same_v<decltype(t), sycl::RangeType>,
+                      sycl::SYCLRangeConstructorOp, sycl::SYCLIDConstructorOp>;
+                  v = rewriter.create<OpTy>(loc, mt, args);
+                });
+                return v;
+              });
+        });
+    return arguments;
   }
 };
 } // namespace
