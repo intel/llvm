@@ -117,7 +117,7 @@ void matrix_sum_rows(queue q, big_matrix<T, M, K> &A, nd_range<2> &r) {
                sub_a;
 
           joint_matrix_load(
-                 sg, sub_a, accA.template get_multi_ptr<access::decorated::no>() + (global_idx * TM * K) + TK,
+                 sg, sub_a, accA.template get_multi_ptr<access::decorated::no>() + (sg_startx * TM * K) + sg_starty / SG_SZ * TK,
                  K); 
 
            // calculate sum of rows in sum_rows_v[8], there are 8 rows in sub_a
@@ -175,7 +175,7 @@ int main() {
 
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_K; j++) {
-      A[i][j] = i;
+      A[i][j] = i + j;
     }
   }
 

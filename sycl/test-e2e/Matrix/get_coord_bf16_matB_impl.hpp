@@ -142,7 +142,7 @@ void matrix_sum_cols(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
            joint_matrix_load(
                sg, sub_b,
                accB.template get_multi_ptr<access::decorated::no>() +
-                   (global_idx * (TK / 4) * N) + sg_starty / SG_SZ * TN * 4,
+                   (sg_startx * (TK / 4) * N) + sg_starty / SG_SZ * TN * 4,
                N);
 
            int32_t sum_local_cols[N] = {0}; // 4 local cols, N total
@@ -207,7 +207,7 @@ int main() {
 
   for (int i = 0; i < MATRIX_K; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
-      B[i][j] = i;
+      B[i][j] = i + j;
     }
   }
 
