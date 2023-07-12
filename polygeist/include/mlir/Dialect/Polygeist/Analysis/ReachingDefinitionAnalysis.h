@@ -128,6 +128,15 @@ private:
   DenseMap<Value, ModifiersTy> valueToPotentialModifiers;
 };
 
+/// An dense dataflow analysis used to determine the reaching definitions (def)
+/// and potentially reaching definition (pdef) of a value loaded from memory. A
+/// reaching definition is one that definitely modifies the value loaded from
+/// memory. A potentially reaching definition is one that might modify the value
+/// loaded from memory in a particular control flow path from a function entry
+/// point to the load operation.
+/// This analysis uses alias analysis to determine the def(s)/pdef(s) of a value
+/// loaded from memory that might occur if the pointer/memref dereferenced by
+/// the load operation is possibly aliased to another pointer/memref.
 class ReachingDefinitionAnalysis
     : public dataflow::DenseDataFlowAnalysis<ReachingDefinition> {
 public:
@@ -156,19 +165,23 @@ private:
   AliasAnalysis &aliasAnalysis;
 };
 
+/// A class representing the value a formal argument of a function has the
+/// caller of the function.
 class UnderlyingValue {
+  friend raw_ostream &operator<<(raw_ostream &, const UnderlyingValue &);
+
 public:
   /// Create an underlying value state with a known underlying value.
-  explicit UnderlyingValue(std::optional<Value> underlyingValue = std::nullopt)
-      : underlyingValue(underlyingValue) {}
+  explicit UnderlyingValue(std::optional<Value> val = std::nullopt)
+      : val(val) {}
 
   /// Whether the state is uninitialized.
-  bool isUninitialized() const { return !underlyingValue.has_value(); }
+  bool isUninitialized() const { return !val.has_value(); }
 
   /// Returns the underlying value.
-  Value getUnderlyingValue() const {
-    assert(!isUninitialized());
-    return *underlyingValue;
+  Value get() const {
+    assert(!isUninitialized() && "Expecting the state to be initialized");
+    return *val;
   }
 
   /// Join two underlying values. If there are conflicting underlying values,
@@ -179,20 +192,16 @@ public:
       return rhs;
     if (rhs.isUninitialized())
       return lhs;
-    return lhs.underlyingValue == rhs.underlyingValue
-               ? lhs
-               : UnderlyingValue(Value{});
+    return lhs.val == rhs.val ? lhs : UnderlyingValue(Value{});
   }
 
   /// Compare underlying values.
-  bool operator==(const UnderlyingValue &rhs) const {
-    return underlyingValue == rhs.underlyingValue;
-  }
+  bool operator==(const UnderlyingValue &rhs) const { return val == rhs.val; }
 
-  void print(raw_ostream &os) const { os << underlyingValue; }
+  void print(raw_ostream &os) const { os << val; }
 
 private:
-  std::optional<Value> underlyingValue;
+  std::optional<Value> val;
 };
 
 struct UnderlyingValueLattice : public dataflow::Lattice<UnderlyingValue> {
@@ -207,11 +216,11 @@ class UnderlyingValueAnalysis
 public:
   using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
 
-  /// Retrieve the underlying value for \p value given the function
-  /// \p getUnderlyingValueFn.
-  static Value getUnderlyingValue(
+  /// Recursively retrieve the underlying value for \p value given the access
+  /// function \p getUnderlyingValFn.
+  static Value getMostUnderlyingValue(
       Value value,
-      function_ref<const UnderlyingValueLattice *(Value)> getUnderlyingValueFn);
+      function_ref<const UnderlyingValueLattice *(Value)> getUnderlyingValFn);
 
   /// The underlying value of the results of an operation are not known.
   void visitOperation(Operation *op,

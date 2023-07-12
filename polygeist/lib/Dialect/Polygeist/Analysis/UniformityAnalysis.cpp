@@ -40,8 +40,8 @@ bool isDivergent(Operation *op, DataFlowSolver &solver) {
     return false;
 
   auto isUniform = [&](Value val) {
-    val = UnderlyingValueAnalysis::getUnderlyingValue(val, [&](Value value) {
-      return solver.lookupState<UnderlyingValueLattice>(value);
+    val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
+      return solver.lookupState<UnderlyingValueLattice>(val);
     });
     assert(val && "expected an underlying value");
 
@@ -292,8 +292,8 @@ void UniformityAnalysis::analyzeMemoryEffects(
       return mods;
     };
 
-    val = UnderlyingValueAnalysis::getUnderlyingValue(val, [&](Value value) {
-      return internalSolver.lookupState<UnderlyingValueLattice>(value);
+    val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
+      return internalSolver.lookupState<UnderlyingValueLattice>(val);
     });
     assert(val && "expected an underlying value");
 

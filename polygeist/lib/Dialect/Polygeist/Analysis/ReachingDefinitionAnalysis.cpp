@@ -261,8 +261,8 @@ void ReachingDefinitionAnalysis::visitOperation(
       return propagateIfChanged(after, after->reset());
     }
 
-    val = UnderlyingValueAnalysis::getUnderlyingValue(val, [&](Value value) {
-      return getOrCreateFor<UnderlyingValueLattice>(op, value);
+    val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
+      return getOrCreateFor<UnderlyingValueLattice>(op, val);
     });
     if (!val)
       return;
@@ -314,20 +314,27 @@ void ReachingDefinitionAnalysis::visitOperation(
 }
 
 //===----------------------------------------------------------------------===//
+// UnderlyingValue
+//===----------------------------------------------------------------------===//
+
+raw_ostream &operator<<(raw_ostream &os, const UnderlyingValue &underlyingVal) {
+  return os << underlyingVal.val;
+}
+
+//===----------------------------------------------------------------------===//
 // UnderlyingValueAnalysis
 //===----------------------------------------------------------------------===//
 
-/// Look for the most underlying value of a value.
-Value UnderlyingValueAnalysis::getUnderlyingValue(
+Value UnderlyingValueAnalysis::getMostUnderlyingValue(
     Value value,
     function_ref<const UnderlyingValueLattice *(Value)> getUnderlyingValueFn) {
-  const UnderlyingValueLattice *underlying;
+  const UnderlyingValueLattice *lattice;
   do {
-    underlying = getUnderlyingValueFn(value);
-    if (!underlying || underlying->getValue().isUninitialized())
+    lattice = getUnderlyingValueFn(value);
+    if (!lattice || lattice->getValue().isUninitialized())
       return {};
 
-    Value underlyingValue = underlying->getValue().getUnderlyingValue();
+    Value underlyingValue = lattice->getValue().get();
     if (underlyingValue == value)
       break;
 

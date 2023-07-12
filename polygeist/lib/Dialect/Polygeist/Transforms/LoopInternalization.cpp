@@ -88,7 +88,6 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
-using namespace mlir::dataflow;
 using namespace mlir::polygeist;
 
 namespace {
@@ -259,14 +258,7 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop, DataFlowSolver &solver) {
 
   // Because the transformation inserts barriers, it requires the loop to be
   // non-divergent.
-  bool isDivergent1 = isDivergent(innermostLoopOp, solver);
-  if (isDivergent1) {
-    llvm::errs() << "Loop is divergent\n";
-    auto funcOp = innermostLoopOp->getParentOfType<func::FuncOp>();
-    llvm::errs() << "funcOp:\n" << funcOp << "\n";
-  }
-
-  return !isDivergent1;
+  return !isDivergent(innermostLoopOp, solver);
 }
 
 /// An access is a candidate iff it is AffineLoadOp or AffineStoreOp, with int
@@ -1071,9 +1063,9 @@ void LoopInternalization::runOnGPUModule(gpu::GPUModuleOp gpuModule) {
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
   DataFlowSolver solver;
-  solver.load<DeadCodeAnalysis>();
-  solver.load<SparseConstantPropagation>();
-  solver.load<IntegerRangeAnalysis>();
+  solver.load<dataflow::DeadCodeAnalysis>();
+  solver.load<dataflow::SparseConstantPropagation>();
+  solver.load<dataflow::IntegerRangeAnalysis>();
   solver.load<UnderlyingValueAnalysis>();
   solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
   solver.load<UniformityAnalysis>(aliasAnalysis);
@@ -1116,11 +1108,8 @@ void LoopInternalization::runOnGPUModule(gpu::GPUModuleOp gpuModule) {
     // Select the ideal memory space for memref accesses in candidate loops
     // contained by this function.
     func->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
-      if (!isCandidateLoopNest(loop, solver)) {
-        LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE ": Loop nest rooted by:\n"
-                                << loop << " is not a candidate\n");
+      if (!isCandidateLoopNest(loop, solver))
         return;
-      }
 
       LLVM_DEBUG(llvm::dbgs()
                  << DEBUG_TYPE ": Visiting candidate loop nest rooted by:\n"
