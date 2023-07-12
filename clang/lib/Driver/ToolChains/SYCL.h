@@ -218,7 +218,6 @@ private:
   void TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs,
                              llvm::opt::OptSpecifier Opt_EQ) const;
-
 };
 
 } // end namespace toolchains
