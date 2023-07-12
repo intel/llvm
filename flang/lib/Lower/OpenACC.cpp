@@ -43,7 +43,8 @@ genBoundsOpsFromBox(fir::FirOpBuilder &builder, mlir::Location loc,
   mlir::Type idxTy = builder.getIndexType();
   mlir::Type boundTy = builder.getType<mlir::acc::DataBoundsType>();
   mlir::Value one = builder.createIntegerConstant(loc, idxTy, 1);
-  assert(box.getType().isa<fir::BaseBoxType>() && "expect firbox or fir.class");
+  assert(box.getType().isa<fir::BaseBoxType>() &&
+         "expect fir.box or fir.class");
   for (unsigned dim = 0; dim < dataExv.rank(); ++dim) {
     mlir::Value d = builder.createIntegerConstant(loc, idxTy, dim);
     mlir::Value baseLb =
@@ -614,6 +615,12 @@ static R getReductionInitValue(mlir::acc::ReductionOperator op, mlir::Type ty) {
       return llvm::APFloat::getSmallest(floatTy.getFloatSemantics(),
                                         /*negative=*/true);
     }
+  } else if (op == mlir::acc::ReductionOperator::AccIand) {
+    if constexpr (std::is_same_v<R, llvm::APInt>) {
+      assert(ty.isIntOrIndex() && "expect integer type");
+      unsigned bits = ty.getIntOrFloatBitWidth();
+      return llvm::APInt::getAllOnes(bits);
+    }
   } else {
     // +, ior, ieor init value -> 0
     // * init value -> 1
@@ -641,7 +648,10 @@ static mlir::Value genReductionInitValue(fir::FirOpBuilder &builder,
   if (op != mlir::acc::ReductionOperator::AccAdd &&
       op != mlir::acc::ReductionOperator::AccMul &&
       op != mlir::acc::ReductionOperator::AccMin &&
-      op != mlir::acc::ReductionOperator::AccMax)
+      op != mlir::acc::ReductionOperator::AccMax &&
+      op != mlir::acc::ReductionOperator::AccIand &&
+      op != mlir::acc::ReductionOperator::AccIor &&
+      op != mlir::acc::ReductionOperator::AccXor)
     TODO(loc, "reduction operator");
 
   if (ty.isIntOrIndex())
@@ -744,6 +754,15 @@ static mlir::Value genCombiner(fir::FirOpBuilder &builder, mlir::Location loc,
 
   if (op == mlir::acc::ReductionOperator::AccMax)
     return fir::genMax(builder, loc, {value1, value2});
+
+  if (op == mlir::acc::ReductionOperator::AccIand)
+    return builder.create<mlir::arith::AndIOp>(loc, value1, value2);
+
+  if (op == mlir::acc::ReductionOperator::AccIor)
+    return builder.create<mlir::arith::OrIOp>(loc, value1, value2);
+
+  if (op == mlir::acc::ReductionOperator::AccXor)
+    return builder.create<mlir::arith::XOrIOp>(loc, value1, value2);
 
   TODO(loc, "reduction operator");
 }

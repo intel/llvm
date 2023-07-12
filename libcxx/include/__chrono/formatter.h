@@ -38,8 +38,8 @@
 #include <__format/format_functions.h>
 #include <__format/format_parse_context.h>
 #include <__format/formatter.h>
-#include <__format/formatter_output.h>
 #include <__format/parser_std_format_spec.h>
+#include <__format/write_escaped.h>
 #include <__memory/addressof.h>
 #include <cmath>
 #include <ctime>
@@ -100,12 +100,12 @@ __format_sub_seconds(const chrono::duration<_Rep, _Period>& __value, basic_strin
     // https://godbolt.org/z/6dsbnW8ba
     std::format_to(std::ostreambuf_iterator<_CharT>{__sstr},
                    _LIBCPP_STATICALLY_WIDEN(_CharT, "{:0{}.0f}"),
-                   __fraction.count(),
+                   chrono::duration_cast<typename chrono::hh_mm_ss<__duration>::precision>(__fraction).count(),
                    chrono::hh_mm_ss<__duration>::fractional_width);
   else
     std::format_to(std::ostreambuf_iterator<_CharT>{__sstr},
                    _LIBCPP_STATICALLY_WIDEN(_CharT, "{:0{}}"),
-                   __fraction.count(),
+                   chrono::duration_cast<typename chrono::hh_mm_ss<__duration>::precision>(__fraction).count(),
                    chrono::hh_mm_ss<__duration>::fractional_width);
 }
 
