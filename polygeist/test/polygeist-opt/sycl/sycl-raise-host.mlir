@@ -70,6 +70,35 @@ llvm.func @raise_buffer() -> !llvm.ptr attributes {personality = @__gxx_personal
   llvm.return %1 : !llvm.ptr
 }
 
+// CHECK-LABEL:   llvm.func @raise_sub_buffer() -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
+// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
+// CHECK:           %[[VAL_1:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_3:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_4:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::range", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_5:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           sycl.host.constructor(%[[VAL_2]], %[[VAL_1]], %[[VAL_3]], %[[VAL_4]], %[[VAL_5]]) {type = !sycl.buffer<[1, !llvm.void, true]>} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           llvm.br ^bb1
+// CHECK:         ^bb1:
+// CHECK:           llvm.return %[[VAL_1]] : !llvm.ptr
+// CHECK:         }
+llvm.func @raise_sub_buffer() -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
+  %0 = arith.constant 1 : i32
+  %1 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %2 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %3 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::id", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %4 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::range", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %5 = llvm.alloca %0 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+
+  llvm.invoke @_ZN4sycl3_V16bufferIiLi1ENS0_6detail17aligned_allocatorIiEEvEC2ERS5_RKNS0_2idILi1EEERKNS0_5rangeILi1EEENS2_13code_locationE(%2, %1, %3, %4, %5) to ^bb1 unwind ^bb0 : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+
+^bb0:
+  %lp = llvm.landingpad cleanup : !llvm.struct<(ptr, i32)>
+  llvm.resume %lp : !llvm.struct<(ptr, i32)>
+^bb1:
+  llvm.return %1 : !llvm.ptr
+}
+
 
 // -----
 
