@@ -1182,12 +1182,11 @@ MemoryAccessPattern MemoryAccess::classify(const MemoryAccessMatrix &matrix,
 //===----------------------------------------------------------------------===//
 
 MemoryAccessAnalysis::MemoryAccessAnalysis(Operation *op, AnalysisManager &am)
-    : operation(op), am(am) {
-  build();
-}
+    : operation(op), am(am) {}
 
 bool MemoryAccessAnalysis::isInvalidated(
     const AnalysisManager::PreservedAnalyses &pa) {
+  assert(isInitialized && "Analysis not yet initialized");
   return !pa.isPreserved<AliasAnalysis>() ||
          !pa.isPreserved<dataflow::DeadCodeAnalysis>() ||
          !pa.isPreserved<dataflow::SparseConstantPropagation>() ||
@@ -1197,13 +1196,14 @@ bool MemoryAccessAnalysis::isInvalidated(
 
 std::optional<MemoryAccess>
 MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
+  assert(isInitialized && "Analysis not yet initialized");
   auto it = accessMap.find(access.opInst);
   if (it == accessMap.end())
     return std::nullopt;
   return it->second;
 }
 
-void MemoryAccessAnalysis::build() {
+void MemoryAccessAnalysis::build(bool relaxedAliasing) {
   AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
@@ -1214,18 +1214,19 @@ void MemoryAccessAnalysis::build() {
   solver.load<dataflow::IntegerRangeAnalysis>();
   solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
 
-  Operation *op = getOperation();
-  if (failed(solver.initializeAndRun(op))) {
-    op->emitError("Failed to run required dataflow analysis");
+  if (failed(solver.initializeAndRun(operation))) {
+    operation->emitError("Failed to run required dataflow analysis");
     return;
   }
 
   // Try to construct the memory access matrix and offset vector for affine
   // memory operation of interest.
-  op->walk<WalkOrder::PreOrder>([&](Operation *op) {
+  operation->walk<WalkOrder::PreOrder>([&](Operation *op) {
     TypeSwitch<Operation *>(op).Case<AffineStoreOp, AffineLoadOp>(
         [&](auto memoryOp) { build(memoryOp, solver); });
   });
+
+  isInitialized = true;
 }
 
 template <typename T>
