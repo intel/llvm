@@ -1,4 +1,6 @@
-// RUN: %clang_cc1  -fsycl-is-device -ffp-builtin-accuracy=high:sin,sqrt -ffp-builtin-accuracy=medium:cos -ffp-builtin-accuracy=low:tan -ffp-builtin-accuracy=cuda:exp,acos -ffp-builtin-accuracy=sycl:log,asin -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes %s -o - | FileCheck %s
+// RUN: %clang_cc1  -fsycl-is-device -ffp-builtin-accuracy=high:sin,sqrt -ffp-builtin-accuracy=medium:cos -ffp-builtin-accuracy=low:tan -ffp-builtin-accuracy=cuda:exp,acos -ffp-builtin-accuracy=sycl:log,asin -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes %s -o - | FileCheck --check-prefix CHECK-FUNC %s
+// RUN: %clang_cc1  -fsycl-is-device -ffp-builtin-accuracy=high -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes %s -o - | FileCheck --check-prefix CHECK-TU %s
+// RUN: %clang_cc1  -fsycl-is-device -ffp-builtin-accuracy=medium -ffp-builtin-accuracy=high:sin,sqrt -ffp-builtin-accuracy=medium:cos -ffp-builtin-accuracy=cuda:exp -ffp-builtin-accuracy=sycl:log -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes %s -o - | FileCheck --check-prefix CHECK-MIX %s
 
 // Tests that sycl_used_aspects metadata is attached to the fpbuiltin call based on -ffp-accuracy option.
 
@@ -33,7 +35,9 @@ int main() {
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class Kernel1>(numOfItems,
     [=](id<1> wiID) {
-// CHECK: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[ASPECT1:[0-9]+]]
+// CHECK-FUNC: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC:[0-9]+]]
+// CHECK-TU: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC:[0-9]+]]
+// CHECK-MIX: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC:[0-9]+]]
       (void)sin(Value);
     });
   });
@@ -41,7 +45,9 @@ int main() {
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class Kernel2>(numOfItems,
     [=](id<1> wiID) {
-// CHECK: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[ASPECT2:[0-9]+]]
+// CHECK-FUNC: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[MEDIUM_ACC:[0-9]+]]
+// CHECK-TU: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC]]
+// CHECK-MIX: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[MEDIUM_ACC:[0-9]+]]
       (void)cos(Value);
     });
   });
@@ -50,7 +56,9 @@ int main() {
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class Kernel3>(numOfItems,
     [=](id<1> wiID) {
-// CHECK: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[ASPECT3:[0-9]+]]
+// CHECK-FUNC: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[LOW_ACC:[0-9]+]]
+// CHECK-TU: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC]]
+// CHECK-MIX: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[MEDIUM_ACC]]
       (void)tan(Value);
     });
   });
@@ -59,8 +67,12 @@ int main() {
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class Kernel4>(numOfItems,
     [=](id<1> wiID) {
-// CHECK: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[ASPECT4:[0-9]+]]
-// CHECK: call double @llvm.fpbuiltin.log.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[ASPECT5:[0-9]+]]
+// CHECK-FUNC: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[CUDA_ACC:[0-9]+]]
+// CHECK-FUNC: call double @llvm.fpbuiltin.log.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[SYCL_ACC:[0-9]+]]
+// CHECK-TU: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC]]
+// CHECK-TU: call double @llvm.fpbuiltin.log.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC]]
+// CHECK-MIX: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[CUDA_ACC:[0-9]+]]
+// CHECK-MIX: call double @llvm.fpbuiltin.log.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[SYCL_ACC:[0-9]+]]
       (void)log(exp(Value));
     });
   });
@@ -70,7 +82,9 @@ int main() {
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class Kernel5>(numOfItems,
     [=](id<1> wiID) {
-// CHECK: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[ASPECT4:[0-9]+]]
+// CHECK-FUNC: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[CUDA_ACC]]
+// CHECK-TU: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC]]
+// CHECK-MIX: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[MEDIUM_ACC]]
       (void)acos(Value);
     });
   });
@@ -79,7 +93,9 @@ int main() {
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class Kernel6>(numOfItems,
     [=](id<1> wiID) {
-// CHECK: call double @llvm.fpbuiltin.asin.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[ASPECT5:[0-9]+]]
+// CHECK-FUNC: call double @llvm.fpbuiltin.asin.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[SYCL_ACC]]
+// CHECK-TU: call double @llvm.fpbuiltin.asin.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC]]
+// CHECK-MIX: call double @llvm.fpbuiltin.asin.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[MEDIUM_ACC]]
       (void)asin(Value);
     });
   });
@@ -88,15 +104,24 @@ int main() {
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class Kernel7>(numOfItems,
     [=](id<1> wiID) {
-// CHECK: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[ASPECT1:[0-9]+]]
+// CHECK-FUNC: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC]]
+// CHECK-TU: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC]]
+// CHECK-MIX: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR:[0-9]+]], !sycl_used_aspects ![[HIGH_ACC]]
       (void)sqrt(Value);
     });
   });
   return 0;
 }
 
-// CHECK: [[ASPECT1]] = !{i32 -1}
-// CHECK: [[ASPECT2]] = !{i32 -2}
-// CHECK: [[ASPECT3]] = !{i32 -3}
-// CHECK: [[ASPECT4]] = !{i32 -5}
-// CHECK: [[ASPECT5]] = !{i32 -4}
+// CHECK-FUNC: [[HIGH_ACC]] = !{i32 -1}
+// CHECK-FUNC: [[MEDIUM_ACC]] = !{i32 -2}
+// CHECK-FUNC: [[LOW_ACC]] = !{i32 -3}
+// CHECK-FUNC: [[CUDA_ACC]] = !{i32 -5}
+// CHECK-FUNC: [[SYCL_ACC]] = !{i32 -4}
+
+// CHECK-TU: [[HIGH_ACC]] = !{i32 -1}
+
+// CHECK-MIX: [[HIGH_ACC]] = !{i32 -1}
+// CHECK-MIX: [[MEDIUM_ACC]] = !{i32 -2}
+// CHECK-MIX: [[CUDA_ACC]] = !{i32 -5}
+// CHECK-MIX: [[SYCL_ACC]] = !{i32 -4}
