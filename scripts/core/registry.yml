@@ -490,3 +490,15 @@ etors:
 - name: USM_P2P_PEER_ACCESS_GET_INFO_EXP
   desc: Enumerator for $xUsmP2PPeerAccessGetInfoExp
   value: '167'
+- name: COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP
+  desc: Enumerator for $xCommandBufferAppendMembufferWriteExp
+  value: '168'
+- name: COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP
+  desc: Enumerator for $xCommandBufferAppendMembufferReadExp
+  value: '169'
+- name: COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMembufferWriteRectExp
+  value: '170'
+- name: COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMembufferReadRectExp
+  value: '171'

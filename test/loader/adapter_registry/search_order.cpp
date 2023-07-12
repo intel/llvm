@@ -11,7 +11,7 @@ void assertRegistryPathSequence(std::vector<fs::path> testAdapterPaths,
     static size_t assertIndex = 0;
 
     auto pathIt = std::find_if(testAdapterPaths.cbegin(),
-                               testAdapterPaths.cend(), predicate);
+                               testAdapterPaths.cend(), std::move(predicate));
     size_t index = std::distance(testAdapterPaths.cbegin(), pathIt);
     ASSERT_EQ(index, assertIndex++);
 }
