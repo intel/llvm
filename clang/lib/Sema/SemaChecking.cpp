@@ -2592,7 +2592,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI__builtin_intel_sycl_ptr_annotation:
     if (!Context.getLangOpts().SYCLIsDevice) {
       Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
-          << "__builtin_intel_fpga_sycl_ptr_annotation"
+          << "__builtin_intel_sycl_ptr_annotation"
           << "SYCL device";
       return ExprError();
     }
