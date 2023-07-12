@@ -63,7 +63,9 @@ function(FetchSource GIT_REPOSITORY GIT_TAG GIT_DIR DEST)
     message(STATUS "Fetching sparse source ${GIT_DIR} from ${GIT_REPOSITORY} ${GIT_TAG}")
     IF(NOT EXISTS ${DEST})
         file(MAKE_DIRECTORY ${DEST})
-        execute_process(COMMAND git init -b main
+        execute_process(COMMAND git init
+            WORKING_DIRECTORY ${DEST})
+        execute_process(COMMAND git checkout -b main
             WORKING_DIRECTORY ${DEST})
         execute_process(COMMAND git remote add origin ${GIT_REPOSITORY}
             WORKING_DIRECTORY ${DEST})
