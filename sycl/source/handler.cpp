@@ -286,15 +286,12 @@ event handler::finalize() {
         MImpl->MKernelCacheConfig, MCodeLoc));
     break;
   }
-  case detail::CG::CodeplayInteropTask:
-    CommandGroup.reset(new detail::CGInteropTask(
-        std::move(MInteropTask), std::move(CGData), MCGType, MCodeLoc));
-    break;
   case detail::CG::CopyAccToPtr:
   case detail::CG::CopyPtrToAcc:
   case detail::CG::CopyAccToAcc:
-    CommandGroup.reset(new detail::CGCopy(MCGType, MSrcPtr, MDstPtr,
-                                          std::move(CGData), MCodeLoc));
+    CommandGroup.reset(
+        new detail::CGCopy(MCGType, MSrcPtr, MDstPtr, std::move(CGData),
+                           std::move(MImpl->MAuxiliaryResources), MCodeLoc));
     break;
   case detail::CG::Fill:
     CommandGroup.reset(new detail::CGFill(std::move(MPattern), MDstPtr,
@@ -732,11 +729,6 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
 }
 
-__SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-void handler::barrier(const std::vector<event> &WaitList) {
-  handler::ext_oneapi_barrier(WaitList);
-}
-
 using namespace sycl::detail;
 bool handler::DisableRangeRounding() {
   return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
@@ -867,7 +859,7 @@ void handler::depends_on(const std::vector<event> &Events) {
 
 static bool
 checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
-                     detail::RT::PiContextInfo InfoQuery) {
+                     sycl::detail::pi::PiContextInfo InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   pi_bool SupportsOp = false;
   Plugin->call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
@@ -1005,7 +997,8 @@ handler::getContextImplPtr() const {
   return MQueue->getContextImplPtr();
 }
 
-void handler::setKernelCacheConfig(detail::RT::PiKernelCacheConfig Config) {
+void handler::setKernelCacheConfig(
+    sycl::detail::pi::PiKernelCacheConfig Config) {
   MImpl->MKernelCacheConfig = Config;
 }
 

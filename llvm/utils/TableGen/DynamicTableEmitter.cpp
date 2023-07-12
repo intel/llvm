@@ -14,6 +14,7 @@
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
+
 #include <set>
 #include <sstream>
 
@@ -123,8 +124,8 @@ void DynamicTableEmitter::emitDynamicTable(const DynamicTable &Table,
   OS << "std::map<std::string, " << Table.CppTypeName << "> " << Table.Name
      << " = {\n";
   // Iterate over the key-value pairs the dynamic table will contain.
-  for (unsigned i = 0; i < Table.Entries.size(); ++i) {
-    Record *Entry = Table.Entries[i];
+  for (unsigned I = 0; I < Table.Entries.size(); ++I) {
+    Record *Entry = Table.Entries[I];
     // Open key-value pair
     OS << "  { ";
 
@@ -134,17 +135,17 @@ void DynamicTableEmitter::emitDynamicTable(const DynamicTable &Table,
     // the rest of fields are part of the value.
     for (const auto &[Idx, Field] : enumerate(Table.Fields)) {
       bool IsKey = (Idx == 0);
-      std::string val = primaryRepresentation(Table.Locs[0], Field,
+      std::string Val = primaryRepresentation(Table.Locs[0], Field,
                                               Entry->getValueInit(Field.Name));
       if (!IsKey) {
-        OS << TargetInfoElemSeparator << val;
+        OS << TargetInfoElemSeparator << Val;
       } else {
         // Emit key and open the TargetInfo object.
-        OS << MapElemSeparator << val << MapElemSeparator << "{";
+        OS << MapElemSeparator << Val << MapElemSeparator << "{";
       }
     }
     // Close TargetInfo object and key-value pair.
-    OS << " }}, // " << i << "\n";
+    OS << " }}, // " << I << "\n";
   }
   // Close map.
   OS << " };\n";

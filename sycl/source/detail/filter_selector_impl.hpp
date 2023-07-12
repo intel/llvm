@@ -34,7 +34,6 @@ public:
 private:
   static constexpr int REJECT_DEVICE_SCORE = -1;
   mutable std::vector<filter> mFilters;
-  default_selector mRanker;
   mutable int mNumDevicesSeen;
   int mNumTotalDevices;
   mutable bool mMatchFound;

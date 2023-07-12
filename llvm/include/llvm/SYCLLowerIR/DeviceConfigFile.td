@@ -69,6 +69,10 @@ def TargetTable : DynamicTable {
   string TypeOf_subGroupSizes = "list<int>";
 }
 
+// TargetInfo is a cpp struct defined in DeviceConfigFile.hpp. Both the fields
+// and the name must match those in DeviceConfigFile.hpp. Thus, any
+// modification to this definition in this file must be mirrored in
+// DeviceConfigFile.hpp.
 class TargetInfo<string targetName, list<Aspect> aspectList, list<int> subGroupSizesList, string toolchain = "", string options = "", bit maySupportOtherAspects_init = 0> {
   string DeviceId = targetName;
   bits<1> maySupportOtherAspects = maySupportOtherAspects_init;
@@ -104,6 +108,7 @@ def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
 def : TargetInfo<"spir64_x86_64", [], [], "", "", 1>;
 def : TargetInfo<"spir64_fpga", [], [], "", "", 1>;
 def : TargetInfo<"x86_64", [], [], "", "", 1>;
-defvar AspectList = [AspectCpu] # AllUSMAspects;
-def : TargetInfo<"Test", AspectList, []>;
-def : TargetInfo<"Test2", [AspectCpu] # AllUSMAspects, []>;
+// Examples of how to use a combination of explicitly specified values + predefined lists
+//defvar AspectList = [AspectCpu] # AllUSMAspects;
+//def : TargetInfo<"Test", AspectList, []>;
+//def : TargetInfo<"Test2", [AspectCpu] # AllUSMAspects, []>;
