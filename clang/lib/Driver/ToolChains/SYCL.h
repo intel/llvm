@@ -151,7 +151,8 @@ class LLVM_LIBRARY_VISIBILITY SYCLToolChain : public ToolChain {
 public:
   SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                 const ToolChain &HostTC, const llvm::opt::ArgList &Args,
-                const llvm::opt::ArgStringList DeviceTraitsMacrosArgs);
+                const llvm::opt::ArgStringList DeviceTraitsMacrosArgs =
+                    llvm::opt::ArgStringList());
 
   const llvm::Triple *getAuxTriple() const override {
     return &HostTC.getTriple();
