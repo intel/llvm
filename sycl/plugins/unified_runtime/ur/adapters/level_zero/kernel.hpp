@@ -83,8 +83,8 @@ struct ur_kernel_handle_t_ : _ur_object {
   struct ArgumentInfo {
     uint32_t Index;
     size_t Size;
-    // const ur_mem_handle_t_ *Value;
-    ur_mem_handle_t_ *Value;
+    void *ArgValue;
+    ur_mem_handle_t_ *MemValue;
     ur_mem_handle_t_::access_mode_t AccessMode{ur_mem_handle_t_::unknown};
   };
   // Arguments that still need to be set (with zeKernelSetArgumentValue)

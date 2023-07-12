@@ -472,9 +472,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     // The ArgValue may be a NULL pointer in which case a NULL value is used for
     // the kernel argument declared as a pointer to global or constant memory.
     char **ZeHandlePtr = nullptr;
-    if (Arg.Value) {
+    if (Arg.MemValue) {
       // TODO: Not sure of the implication of not passing a device pointer here
-      UR_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode));
+      UR_CALL(Arg.MemValue->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode));
     }
     ZE2UR_CALL(zeKernelSetArgumentValue,
                (Kernel->ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));

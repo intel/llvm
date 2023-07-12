@@ -55,12 +55,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   // If there are any pending arguments set them now.
   for (auto &Arg : Kernel->PendingArguments) {
+    // if the argument has access_mode_t::unknown, then this is a
+    // regular pointer
+    if (Arg.AccessMode == ur_mem_handle_t_::access_mode_t::unknown) {
+      ZE2UR_CALL(zeKernelSetArgumentValue,
+                 (Kernel->ZeKernel, Arg.Index, Arg.Size, Arg.ArgValue));
+      continue;
+    }
+
     // The ArgValue may be a NULL pointer in which case a NULL value is used for
     // the kernel argument declared as a pointer to global or constant memory.
     char **ZeHandlePtr = nullptr;
-    if (Arg.Value) {
-      UR_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
-                                        Queue->Device));
+    if (Arg.MemValue) {
+      UR_CALL(Arg.MemValue->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
+                                           Queue->Device));
     }
     ZE2UR_CALL(zeKernelSetArgumentValue,
                (Kernel->ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
@@ -618,9 +626,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
                          ///< value is considered null.
 ) {
   std::ignore = Properties;
+  std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
 
-  UR_CALL(urKernelSetArgValue(Kernel, ArgIndex, sizeof(const void *), nullptr,
-                              ArgValue));
+  // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
+  // in which case a NULL value will be used as the value for the argument
+  // declared as a pointer to global or constant memory in the kernel"
+  //
+  // We don't know the type of the argument but it seems that the only time
+  // SYCL RT would send a pointer to NULL in 'arg_value' is when the argument
+  // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
+  void *PArgValue = const_cast<void *>(ArgValue);
+  if (ArgValue && *(void **)(const_cast<void *>(ArgValue)) == nullptr) {
+    PArgValue = nullptr;
+  }
+
+  // Push the pointer to be set as argument at kernel launch.
+  // use the access mode = unknown to know this is a pointer
+  // argument
+  Kernel->PendingArguments.push_back(
+      {ArgIndex, sizeof(void *), PArgValue, nullptr,
+       ur_mem_handle_t_::access_mode_t::unknown});
   return UR_RESULT_SUCCESS;
 }
 
@@ -717,7 +742,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
   }
   auto Arg = UrMem ? UrMem : nullptr;
   Kernel->PendingArguments.push_back(
-      {ArgIndex, sizeof(void *), Arg, UrAccessMode});
+      {ArgIndex, sizeof(void *), nullptr, Arg, UrAccessMode});
 
   return UR_RESULT_SUCCESS;
 }
