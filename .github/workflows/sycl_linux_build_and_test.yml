@@ -96,14 +96,18 @@ jobs:
       options: -u 1001:1001
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
+    env:
+      CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
+      CCACHE_MAXSIZE: ${{ inputs.build_cache_size }}
     steps:
-    # GHA requires relative paths for actions. Copy actions from container root
-    # to CWD.
-    - run: cp -r /actions .
+    - uses: actions/checkout@v3
+      with:
+        sparse-checkout: |
+          devops/actions
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    - uses: ./actions/cached_checkout
+      uses: ./devops/actions/cleanup
+    - uses: ./devops/actions/cached_checkout
       with:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
@@ -113,21 +117,17 @@ jobs:
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
-        CACHE_ROOT: ${{ inputs.build_cache_root }}
-        CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
-        CACHE_SIZE: ${{ inputs.build_cache_size }}
         ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
-        mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
+        mkdir -p $CCACHE_DIR
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults $ARGS \
-          --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
-          --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
-          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
+          --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
@@ -232,6 +232,7 @@ jobs:
       target_devices: ${{ matrix.targets }}
       ref: ${{ inputs.build_ref || github.sha }}
       reset_gpu: ${{ contains(matrix.runs-on, 'gen9') && contains(matrix.runs-on, 'Linux') }}
+      merge: ${{ inputs.merge }}
 
       sycl_toolchain_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
       sycl_toolchain_archive: ${{ inputs.artifact_archive_name }}
@@ -258,9 +259,12 @@ jobs:
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
-    - run: cp -r /actions .
+    - uses: actions/checkout@v3
+      with:
+        sparse-checkout: |
+          devops/actions
     - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
+      uses: ./devops/actions/cleanup
     - name: Install drivers
       if: env.compute_runtime_tag != ''
       run: |

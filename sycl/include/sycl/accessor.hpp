@@ -1396,7 +1396,7 @@ public:
             /*MemoryRange=*/{0, 0, 0},
             /*AccessMode=*/getAdjustedMode({}),
             /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
-            /*IsPlaceH=*/true,
+            /*IsPlaceH=*/false,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
   template <typename, int, access_mode> friend class host_accessor;
