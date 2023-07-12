@@ -218,7 +218,9 @@ static FailureOr<StringRef> getAnnotation(LLVM::VarAnnotation annotation) {
   return global ? getStringValue(global) : FailureOr<StringRef>(failure());
 }
 
-/// Return the constructor reponsible of the construction of \p value.
+/// Return the constructor responsible of the construction of \p value.
+///
+/// Returns an empty instance if conflicting users are found.
 static sycl::SYCLHostConstructorOp getConstructor(Value value) {
   // TODO: Implement using ReachingDefinionAnalysis after testing with non
   // structured control flow.
