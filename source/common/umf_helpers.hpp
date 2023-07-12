@@ -16,6 +16,7 @@
 #include <umf/memory_provider.h>
 #include <umf/memory_provider_ops.h>
 
+#include <array>
 #include <functional>
 #include <memory>
 #include <stdexcept>
@@ -48,6 +49,55 @@ using provider_unique_handle_t =
         }                                                                      \
     }
 
+namespace detail {
+template <typename T, typename ArgsTuple>
+umf_result_t initialize(T *obj, ArgsTuple &&args) {
+    try {
+        auto ret = std::apply(&T::initialize,
+                              std::tuple_cat(std::make_tuple(obj),
+                                             std::forward<ArgsTuple>(args)));
+        if (ret != UMF_RESULT_SUCCESS) {
+            delete obj;
+        }
+        return ret;
+    } catch (...) {
+        delete obj;
+        return UMF_RESULT_ERROR_UNKNOWN;
+    }
+}
+
+template <typename T, typename ArgsTuple>
+umf_memory_pool_ops_t poolMakeUniqueOps() {
+    umf_memory_pool_ops_t ops;
+
+    ops.version = UMF_VERSION_CURRENT;
+    ops.initialize = [](umf_memory_provider_handle_t *providers,
+                        size_t numProviders, void *params, void **obj) {
+        try {
+            *obj = new T;
+        } catch (...) {
+            return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        }
+
+        return detail::initialize<T>(
+            reinterpret_cast<T *>(*obj),
+            std::tuple_cat(std::make_tuple(providers, numProviders),
+                           *reinterpret_cast<ArgsTuple *>(params)));
+    };
+    ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
+
+    UMF_ASSIGN_OP(ops, T, malloc, ((void *)nullptr));
+    UMF_ASSIGN_OP(ops, T, calloc, ((void *)nullptr));
+    UMF_ASSIGN_OP(ops, T, aligned_malloc, ((void *)nullptr));
+    UMF_ASSIGN_OP(ops, T, realloc, ((void *)nullptr));
+    UMF_ASSIGN_OP(ops, T, malloc_usable_size, ((size_t)0));
+    UMF_ASSIGN_OP_NORETURN(ops, T, free);
+    UMF_ASSIGN_OP(ops, T, get_last_allocation_error, UMF_RESULT_ERROR_UNKNOWN);
+
+    return ops;
+}
+} // namespace detail
+
 /// @brief creates UMF memory provider based on given T type.
 /// T should implement all functions defined by
 /// umf_memory_provider_ops_t, except for finalize (it is
@@ -60,28 +110,15 @@ auto memoryProviderMakeUnique(Args &&...args) {
 
     ops.version = UMF_VERSION_CURRENT;
     ops.initialize = [](void *params, void **obj) {
-        auto *tuple = reinterpret_cast<decltype(argsTuple) *>(params);
-        T *provider;
         try {
-            provider = new T;
+            *obj = new T;
         } catch (...) {
             return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
         }
 
-        *obj = provider;
-
-        try {
-            auto ret =
-                std::apply(&T::initialize,
-                           std::tuple_cat(std::make_tuple(provider), *tuple));
-            if (ret != UMF_RESULT_SUCCESS) {
-                delete provider;
-            }
-            return ret;
-        } catch (...) {
-            delete provider;
-            return UMF_RESULT_ERROR_UNKNOWN;
-        }
+        return detail::initialize<T>(
+            reinterpret_cast<T *>(*obj),
+            *reinterpret_cast<decltype(argsTuple) *>(params));
     };
     ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
 
@@ -108,51 +145,42 @@ auto memoryProviderMakeUnique(Args &&...args) {
 template <typename T, typename... Args>
 auto poolMakeUnique(umf_memory_provider_handle_t *providers,
                     size_t numProviders, Args &&...args) {
-    umf_memory_pool_ops_t ops;
     auto argsTuple = std::make_tuple(std::forward<Args>(args)...);
-
-    ops.version = UMF_VERSION_CURRENT;
-    ops.initialize = [](umf_memory_provider_handle_t *providers,
-                        size_t numProviders, void *params, void **obj) {
-        auto *tuple = reinterpret_cast<decltype(argsTuple) *>(params);
-        T *pool;
-
-        try {
-            pool = new T;
-        } catch (...) {
-            return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-        }
-
-        *obj = pool;
-
-        try {
-            auto ret = std::apply(
-                &T::initialize,
-                std::tuple_cat(std::make_tuple(pool, providers, numProviders),
-                               *tuple));
-            if (ret != UMF_RESULT_SUCCESS) {
-                delete pool;
-            }
-            return ret;
-        } catch (...) {
-            delete pool;
-            return UMF_RESULT_ERROR_UNKNOWN;
-        }
-    };
-    ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
-
-    UMF_ASSIGN_OP(ops, T, malloc, ((void *)nullptr));
-    UMF_ASSIGN_OP(ops, T, calloc, ((void *)nullptr));
-    UMF_ASSIGN_OP(ops, T, aligned_malloc, ((void *)nullptr));
-    UMF_ASSIGN_OP(ops, T, realloc, ((void *)nullptr));
-    UMF_ASSIGN_OP(ops, T, malloc_usable_size, ((size_t)0));
-    UMF_ASSIGN_OP_NORETURN(ops, T, free);
-    UMF_ASSIGN_OP(ops, T, get_last_allocation_error, UMF_RESULT_ERROR_UNKNOWN);
+    auto ops = detail::poolMakeUniqueOps<T, decltype(argsTuple)>();
 
     umf_memory_pool_handle_t hPool = nullptr;
     auto ret = umfPoolCreate(&ops, providers, numProviders, &argsTuple, &hPool);
     return std::pair<umf_result_t, pool_unique_handle_t>{
         ret, pool_unique_handle_t(hPool, &umfPoolDestroy)};
+}
+
+/// @brief creates UMF memory pool based on given T type.
+/// This overload takes ownership of memory providers and destroys
+/// them after memory pool is destroyed.
+template <typename T, size_t N, typename... Args>
+auto poolMakeUnique(std::array<provider_unique_handle_t, N> providers,
+                    Args &&...args) {
+    auto argsTuple = std::make_tuple(std::forward<Args>(args)...);
+    auto ops = detail::poolMakeUniqueOps<T, decltype(argsTuple)>();
+
+    std::array<umf_memory_provider_handle_t, N> provider_handles;
+    for (size_t i = 0; i < N; i++) {
+        provider_handles[i] = providers[i].release();
+    }
+
+    // capture providers and destroy them after the pool is destroyed
+    auto poolDestructor = [provider_handles](umf_memory_pool_handle_t hPool) {
+        umfPoolDestroy(hPool);
+        for (auto &provider : provider_handles) {
+            umfMemoryProviderDestroy(provider);
+        }
+    };
+
+    umf_memory_pool_handle_t hPool = nullptr;
+    auto ret = umfPoolCreate(&ops, provider_handles.data(),
+                             provider_handles.size(), &argsTuple, &hPool);
+    return std::pair<umf_result_t, pool_unique_handle_t>{
+        ret, pool_unique_handle_t(hPool, std::move(poolDestructor))};
 }
 
 template <typename Type> umf_result_t &getPoolLastStatusRef() {

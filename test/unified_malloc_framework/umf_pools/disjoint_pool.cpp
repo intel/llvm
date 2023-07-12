@@ -24,18 +24,13 @@ static usm::DisjointPool::Config poolConfig() {
 }
 
 static auto makePool() {
-    auto [ret, providerUnique] =
+    auto [ret, provider] =
         umf::memoryProviderMakeUnique<umf_test::provider_malloc>();
     EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
-    auto provider = providerUnique.release();
-    auto [retp, pool] =
-        umf::poolMakeUnique<usm::DisjointPool>(&provider, 1, poolConfig());
+    auto [retp, pool] = umf::poolMakeUnique<usm::DisjointPool, 1>(
+        {std::move(provider)}, poolConfig());
     EXPECT_EQ(retp, UMF_RESULT_SUCCESS);
-    auto dtor = [provider = provider](umf_memory_pool_handle_t hPool) {
-        umfPoolDestroy(hPool);
-        umfMemoryProviderDestroy(provider);
-    };
-    return umf::pool_unique_handle_t(pool.release(), std::move(dtor));
+    return std::move(pool);
 }
 
 INSTANTIATE_TEST_SUITE_P(disjointPoolTests, umfPoolTest,
