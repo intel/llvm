@@ -55,8 +55,8 @@ when using the Level Zero backend.
 
 This extension enables specifying one of two submission modes for a queue.
 
-The property `batched_submission` specifies that submissions to a SYCL queue
-should be collected into groups before actual submission to the hardware.
+The property `no_immediate_submission` specifies that submissions to a SYCL
+queue should be collected into groups before actual submission to the hardware.
 
 The property `immediate_submission` specifies that submissions to a
 SYCL queue should be submitted to the hardware immediately.

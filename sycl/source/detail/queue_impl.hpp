@@ -476,10 +476,10 @@ public:
     }
     // Track that submission modes do not conflict.
     bool SubmissionSeen = false;
-    if (PropList
-            .has_property<ext::intel::property::queue::batched_submission>()) {
+    if (PropList.has_property<
+            ext::intel::property::queue::no_immediate_submission>()) {
       SubmissionSeen = true;
-      CreationFlags |= PI_EXT_QUEUE_FLAG_SUBMISSION_BATCHED;
+      CreationFlags |= PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE;
     }
     if (PropList.has_property<
             ext::intel::property::queue::immediate_submission>()) {
