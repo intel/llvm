@@ -41,6 +41,7 @@ Guo Yejun, Intel +
 Dan Holmes, Intel +
 Greg Lueck, Intel +
 Steffen Larsen, Intel +
+Jaime Arteaga Molina, Intel +
 Ewan Crawford, Codeplay +
 Ben Tracy, Codeplay +
 Duncan McBain, Codeplay +
@@ -50,6 +51,7 @@ Gordon Brown, Codeplay +
 Erik Tomusk, Codeplay +
 Bjoern Knafla, Codeplay +
 Lukas Sommer, Codeplay +
+Maxime France-Pillois, Codeplay +
 Ronan Keryell, AMD +
 
 == Dependencies
@@ -169,13 +171,13 @@ what data is internal to the graph for optimization, and dependencies don't need
 to be inferred.
 
 It is valid to combine these two mechanisms, however it is invalid to modify
-a graph using the explicit API while that graph is currently being recorded to,
-for example:
+a graph using the explicit API while that graph is currently recording commands
+from any queue, for example:
 
 [source, c++]
 ----
 graph.begin_recording(queue);
-graph.add(/*command group*/);    // Invalid as graph is being recorded to
+graph.add(/*command group*/);    // Invalid as graph is recording a queue
 graph.end_recording();
 ----
 
