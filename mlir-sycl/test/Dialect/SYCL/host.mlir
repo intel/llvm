@@ -82,11 +82,11 @@ func.func @set_nd_range_range_with_offset(%handler: !llvm.ptr, %range: memref<?x
 
 // CHECK-LABEL:   func.func @set_captured(
 // CHECK-SAME:                            %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: i16) {
-// CHECK:           sycl.host.set_captured %[[VAL_0]][0] = %[[VAL_1]] : !llvm.ptr, !llvm.ptr
-// CHECK:           sycl.host.set_captured %[[VAL_0]][1] = %[[VAL_2]] : !llvm.ptr, i16
+// CHECK:           sycl.host.set_captured %[[VAL_0]][0] = %[[VAL_1]] : !llvm.ptr
+// CHECK:           sycl.host.set_captured %[[VAL_0]][1] = %[[VAL_2]] : i16
 func.func @set_captured(%lambda: !llvm.ptr, %ptr_arg: !llvm.ptr, %scalar_arg: i16) {
-  sycl.host.set_captured %lambda[0] = %ptr_arg : !llvm.ptr, !llvm.ptr
-  sycl.host.set_captured %lambda[1] = %scalar_arg : !llvm.ptr, i16
+  sycl.host.set_captured %lambda[0] = %ptr_arg : !llvm.ptr
+  sycl.host.set_captured %lambda[1] = %scalar_arg : i16
   func.return
 }
 
