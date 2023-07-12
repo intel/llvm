@@ -271,14 +271,11 @@ func.func private @test3(%cond: i1, %uniform_val: i64, %non_uniform_val : i64)  
   return
 }
 
-gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_2>) kernel {
-  %c0_i64 = arith.constant 0 : i64
-  %c1_i64 = arith.constant 1 : i64  
-  %cond = arith.cmpi sgt, %c0_i64, %c1_i64 : i64
-
-  %c0_i32 = arith.constant 0 : i32  
+gpu.func @kernel(%cond: i1, %arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_2>) kernel {
+  %c0_i32 = arith.constant 0 : i32
   %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
 
+  %c1_i64 = arith.constant 1 : i64
   func.call @test3(%cond, %c1_i64, %tx) : (i1, i64, i64) -> ()
   gpu.return
 }

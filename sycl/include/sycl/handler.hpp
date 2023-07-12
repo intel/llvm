@@ -457,12 +457,25 @@ private:
     MStreamStorage.push_back(Stream);
   }
 
-  /// Saves buffers created by handling reduction feature in handler.
+  /// Saves resources created by handling reduction feature in handler.
   /// They are then forwarded to command group and destroyed only after
   /// the command group finishes the work on device/host.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
   void addReduction(const std::shared_ptr<const void> &ReduObj);
+
+  /// Saves buffers created by handling reduction feature in handler and marks
+  /// them as internal. They are then forwarded to command group and destroyed
+  /// only after the command group finishes the work on device/host.
+  ///
+  /// @param ReduBuf is a pointer to buffer that must be stored.
+  template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+  void
+  addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT, Enable>>
+                   &ReduBuf) {
+    detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
+    addReduction(std::shared_ptr<const void>(ReduBuf));
+  }
 
   ~handler() = default;
 
@@ -1898,17 +1911,6 @@ public:
 #endif
   }
 
-  /// Invokes a lambda on the host. Dependencies are satisfied on the host.
-  ///
-  /// \param Func is a lambda that is executed on the host
-  template <typename FuncT>
-  __SYCL_DEPRECATED("interop_task() is deprecated, use host_task() instead")
-  void interop_task(FuncT Func) {
-
-    MInteropTask.reset(new detail::InteropTask(std::move(Func)));
-    setType(detail::CG::CodeplayInteropTask);
-  }
-
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// \param Kernel is a SYCL kernel that is executed on a SYCL device
@@ -2968,8 +2970,6 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
   std::unique_ptr<detail::HostTask> MHostTask;
-  // Storage for a lambda or function when using InteropTasks
-  std::unique_ptr<detail::InteropTask> MInteropTask;
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;

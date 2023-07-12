@@ -1,4 +1,7 @@
-// RUN: polygeist-opt --loop-internalization="unroll-factor=2" %s | FileCheck %s
+// RUN: polygeist-opt --loop-internalization="unroll-factor=2" -mlir-pass-statistics %s 2>&1 | FileCheck %s
+
+// CHECK-DAG:   (S) 1 num-access-internalized - Number of accesses internalized
+// CHECK-DAG:   (S) 1 num-loop-internalized - Number of loops internalized
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>

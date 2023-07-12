@@ -493,13 +493,6 @@ llvm.func @memset_test(%arg0: i32, %arg2: !llvm.ptr<i8>, %arg3: i8) {
   llvm.return
 }
 
-// CHECK-LABEL: @threadlocal_test
-llvm.func @threadlocal_test(%arg0 : !llvm.ptr) {
-  // CHECK: call ptr @llvm.threadlocal.address.p0(ptr %{{.*}})
-  "llvm.intr.threadlocal.address"(%arg0) : (!llvm.ptr) -> !llvm.ptr
-  llvm.return
-}
-
 // CHECK-LABEL: @sadd_with_overflow_test
 llvm.func @sadd_with_overflow_test(%arg0: i32, %arg1: i32, %arg2: vector<8xi32>, %arg3: vector<8xi32>) {
   // CHECK: call { i32, i1 } @llvm.sadd.with.overflow.i32

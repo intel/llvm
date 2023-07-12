@@ -125,10 +125,9 @@ public:
 
   LogicalResult initialize(Operation *top) override;
 
-  /// At an entry point, we cannot reason about uniformity.
-  void setToEntryState(UniformityLattice *lattice) override {
-    propagateIfChanged(lattice, lattice->join(Uniformity::getUnknown()));
-  }
+  /// Set the initial state at an entry point. If the entry point is a kernel
+  /// its argument are uniform. Otherwise the arguments have unknown uniformity.
+  void setToEntryState(UniformityLattice *lattice) override;
 
   /// Visit an operation. Invoke the transfer function on each operation that
   /// implements `InferIntRangeInterface`.

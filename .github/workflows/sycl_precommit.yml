@@ -26,8 +26,6 @@ jobs:
 
   lint:
     needs: [detect_changes]
-    if: |
-      !contains(needs.detect_changes.outputs.filters, 'ci')
     runs-on: [Linux, build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
@@ -74,7 +72,6 @@ jobs:
       always()
       && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
       && contains(needs.detect_changes.outputs.filters, 'test_build')
-      && !contains(needs.detect_changes.outputs.filters, 'ci')
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
     with:
