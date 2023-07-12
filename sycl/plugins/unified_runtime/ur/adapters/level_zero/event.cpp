@@ -16,13 +16,15 @@
 #include "ur_level_zero.hpp"
 
 void printZeEventList(const _ur_ze_event_list_t &UrZeEventList) {
-  urPrint("  NumEventsInWaitList %d:", UrZeEventList.Length);
+  if (UrL0Debug & UR_L0_DEBUG_BASIC) {
+    urPrint("  NumEventsInWaitList %d:", UrZeEventList.Length);
 
-  for (uint32_t I = 0; I < UrZeEventList.Length; I++) {
-    urPrint(" %#llx", ur_cast<std::uintptr_t>(UrZeEventList.ZeEventList[I]));
+    for (uint32_t I = 0; I < UrZeEventList.Length; I++) {
+      urPrint(" %#llx", ur_cast<std::uintptr_t>(UrZeEventList.ZeEventList[I]));
+    }
+
+    urPrint("\n");
   }
-
-  urPrint("\n");
 }
 
 // This is an experimental option that allows the use of multiple command lists
