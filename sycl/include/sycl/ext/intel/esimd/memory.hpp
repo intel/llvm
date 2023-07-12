@@ -2036,7 +2036,7 @@ template <typename Tx, int N, typename AccessorTy,
               is_simd_flag_type_v<Flags> &&
               sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>>
 __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
-                                     Flags = {}) {
+                                   Flags = {}) {
   return slm_block_load<Tx, N>(offset +
                                __ESIMD_DNS::localAccessorToOffset(acc));
 }
