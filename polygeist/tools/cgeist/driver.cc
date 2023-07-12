@@ -413,12 +413,10 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
           {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (DetectReduction)
       OptPM.addPass(polygeist::createDetectReductionPass(
           {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
-
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM.addPass(mlir::createCSEPass());
     // Note: affine dialects must be lowered to allow callees containing affine
