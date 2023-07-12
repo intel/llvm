@@ -28,7 +28,7 @@ class KernelName;
 // CHECK:          sycl.host.constructor({{.*}}) {type = !sycl_accessor_1_21llvm2Evoid_r_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:          sycl.host.constructor({{.*}}) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 
-// COM: Check we can detect nd-range assignment
+// COM: Check we can detect nd-range assignment with a range argument
 
 // CHECK:         %[[N:.*]] = arith.index_cast %{{.*}} : i64 to index
 // CHECK:         %[[G_SIZE:.*]] = sycl.range.constructor(%[[N]]) : (index) -> memref<1x!sycl_range_1_>
