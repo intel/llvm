@@ -108,7 +108,7 @@ int main() {
   bool Pass = true;
   Pass &= test<int>(Q, LocalRange, GlobalRange);
   Pass &= test<float>(Q, LocalRange, GlobalRange);
-  
+
   std::cout << "Test result: " << (Pass ? "Pass" : "Fail") << std::endl;
   return Pass ? 0 : 1;
 }
