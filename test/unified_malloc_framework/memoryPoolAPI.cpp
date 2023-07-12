@@ -133,41 +133,27 @@ TEST_F(test, retrieveMemoryProviders) {
     ASSERT_EQ(retProviders, providers);
 }
 
-template <typename Pool>
-static auto
-makePool(std::function<umf::provider_unique_handle_t()> makeProvider) {
-    auto providerUnique = makeProvider();
-    umf_memory_provider_handle_t provider = providerUnique.get();
-    auto pool = umf::poolMakeUnique<Pool>(&provider, 1).second;
-    auto dtor = [provider =
-                     providerUnique.release()](umf_memory_pool_handle_t hPool) {
-        umfPoolDestroy(hPool);
-        umfMemoryProviderDestroy(provider);
-    };
-    return umf::pool_unique_handle_t(pool.release(), std::move(dtor));
-}
-
-INSTANTIATE_TEST_SUITE_P(mallocPoolTest, umfPoolTest, ::testing::Values([] {
-                             return makePool<umf_test::malloc_pool>([] {
-                                 return umf_test::wrapProviderUnique(
-                                     nullProviderCreate());
-                             });
-                         }));
+INSTANTIATE_TEST_SUITE_P(
+    mallocPoolTest, umfPoolTest, ::testing::Values([] {
+        return umf::poolMakeUnique<umf_test::malloc_pool, 1>(
+                   {umf_test::wrapProviderUnique(nullProviderCreate())})
+            .second;
+    }));
 
 INSTANTIATE_TEST_SUITE_P(
     mallocProviderPoolTest, umfPoolTest, ::testing::Values([] {
-        return makePool<umf_test::proxy_pool>([] {
-            return umf::memoryProviderMakeUnique<umf_test::provider_malloc>()
-                .second;
-        });
+        return umf::poolMakeUnique<umf_test::proxy_pool, 1>(
+                   {umf::memoryProviderMakeUnique<umf_test::provider_malloc>()
+                        .second})
+            .second;
     }));
 
 INSTANTIATE_TEST_SUITE_P(
     mallocMultiPoolTest, umfMultiPoolTest, ::testing::Values([] {
-        return makePool<umf_test::proxy_pool>([] {
-            return umf::memoryProviderMakeUnique<umf_test::provider_malloc>()
-                .second;
-        });
+        return umf::poolMakeUnique<umf_test::proxy_pool, 1>(
+                   {umf::memoryProviderMakeUnique<umf_test::provider_malloc>()
+                        .second})
+            .second;
     }));
 
 ////////////////// Negative test cases /////////////////
