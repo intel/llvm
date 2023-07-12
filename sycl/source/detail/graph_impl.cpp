@@ -238,15 +238,12 @@ void exec_graph_impl::findRealDeps(
     }
   } else {
     // Verify that the sync point has actually been set for this node.
-    if (auto SyncPoint = MPiSyncPoints.find(CurrentNode);
-        SyncPoint != MPiSyncPoints.end()) {
-      // Check if the dependency has already been added.
-      if (std::find(Deps.begin(), Deps.end(), SyncPoint->second) ==
-          Deps.end()) {
-        Deps.push_back(SyncPoint->second);
-      }
-    } else {
-      assert(false && "No sync point has been set for node dependency.");
+    auto SyncPoint = MPiSyncPoints.find(CurrentNode);
+    assert(SyncPoint != MPiSyncPoints.end() &&
+           "No sync point has been set for node dependency.");
+    // Check if the dependency has already been added.
+    if (std::find(Deps.begin(), Deps.end(), SyncPoint->second) == Deps.end()) {
+      Deps.push_back(SyncPoint->second);
     }
   }
 }
@@ -294,7 +291,7 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNode(
 
   return Event->getSyncPoint();
 }
-void exec_graph_impl::createURCommandBuffers(sycl::device Device) {
+void exec_graph_impl::createCommandBuffers(sycl::device Device) {
   // TODO we only have a single command-buffer per graph here, but
   // this will need to be multiple command-buffers for non-trivial graphs
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
@@ -598,7 +595,7 @@ void executable_command_graph::finalizeImpl() {
 #endif
 
     if (CmdBufSupport) {
-      impl->createURCommandBuffers(Device);
+      impl->createCommandBuffers(Device);
     }
   }
 }
