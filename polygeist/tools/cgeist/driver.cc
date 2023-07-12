@@ -417,6 +417,7 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
     if (DetectReduction)
       OptPM.addPass(polygeist::createDetectReductionPass(
           {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
+
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM.addPass(mlir::createCSEPass());
     // Note: affine dialects must be lowered to allow callees containing affine
@@ -510,7 +511,6 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
       NOptPM2.addPass(polygeist::createLICMPass(LICMOpt));
     else
       NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
-
     NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     NOptPM2.addPass(polygeist::createReplaceAffineCFGPass());
