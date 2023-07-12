@@ -7,7 +7,7 @@ set(UR_CONFORMANCE_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 function(add_conformance_test name)
     set(TEST_TARGET_NAME test-${name})
-    add_executable(${TEST_TARGET_NAME}
+    add_ur_executable(${TEST_TARGET_NAME}
         ${ARGN}
         ${UR_CONFORMANCE_TEST_DIR}/source/environment.cpp
         ${UR_CONFORMANCE_TEST_DIR}/source/main.cpp)

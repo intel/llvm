@@ -5,7 +5,7 @@
 
 set(TARGET_NAME ur_adapter_null)
 
-add_library(${TARGET_NAME}
+add_ur_library(${TARGET_NAME}
     SHARED
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_null.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_null.cpp

@@ -52,17 +52,7 @@ if(MSVC)
     set(CUSTOM_COMMAND_BINARY_DIR ${CUSTOM_COMMAND_BINARY_DIR}/$<CONFIG>)
 endif()
 
-# CXX flags setup
 if(NOT MSVC)
-    add_compile_options(-fPIC -Wall -Wpedantic
-        $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
-        $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>)
-    if (CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(-D_FORTIFY_SOURCE=2)
-    endif()
-    if(UR_DEVELOPER_MODE)
-        add_compile_options(-Werror -fno-omit-frame-pointer -fstack-protector-strong)
-    endif()
     # Determine if libstdc++ is being used.
     check_cxx_source_compiles("
         #include <array>
@@ -77,14 +67,6 @@ if(NOT MSVC)
         # requires linking against libstdc++fs.a, on systems where <filesystem>
         # is available we still need to link this library.
         link_libraries(stdc++fs)
-    endif()
-elseif(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
-    add_compile_options(/MP /W3 /MD$<$<CONFIG:Debug>:d>)
-
-    if(UR_DEVELOPER_MODE)
-        add_compile_options(/WX /GS)
     endif()
 endif()
 
