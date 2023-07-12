@@ -140,7 +140,7 @@ void matrix_sum_cols(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
                sub_b;
 
            joint_matrix_load(sg, sub_b,
-                             accB.get_pointer() + (global_idx * (TK / 4) * N) +
+           accB.get_pointer() + (sg_startx * (TK / 4) * N) +
                                  sg_starty / SG_SZ * TN * 4,
                              N);
 
@@ -206,7 +206,7 @@ int main() {
 
   for (int i = 0; i < MATRIX_K; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
-      B[i][j] = i;
+      B[i][j] = i + j;
     }
   }
 
