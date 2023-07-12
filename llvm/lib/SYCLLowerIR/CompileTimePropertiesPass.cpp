@@ -332,13 +332,22 @@ parseSYCLPropertiesString(Module &M, IntrinsicInst *IntrInst) {
   return result;
 }
 
+// Collect UserList if User isa<T>. Skip BitCast and AddrSpace
 template <typename T>
-void searchUserIgnoringCast(Value *V, SmallVector<Instruction *, 4> &List) {
-  for (auto User : V->users()) {
-    if (auto Inst = dyn_cast<T>(User))
-      List.push_back(Inst);
-    else if (isa<BitCastInst>(User) || isa<AddrSpaceCastInst>(User))
-      searchUserIgnoringCast<T>(User, List);
+void getUserListIgnoringCast(
+    Value *V, SmallVector<std::pair<Instruction *, int>, 8> &List) {
+  for (auto *User : V->users()) {
+    if (auto *Inst = dyn_cast<T>(User)) {
+      int Op_num = -1;
+      for (unsigned i = 0; i < Inst->getNumOperands(); i++) {
+        if (V == Inst->getOperand(i)) {
+          Op_num = i;
+          break;
+        }
+      }
+      List.push_back(std::make_pair(Inst, Op_num));
+    } else if (isa<BitCastInst>(User) || isa<AddrSpaceCastInst>(User))
+      getUserListIgnoringCast<T>(User, List);
   }
 }
 
@@ -525,10 +534,11 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   // parse properties string to decoration-value pairs
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
 
-  SmallVector<Instruction *, 4> TargetedInstList;
+  SmallVector<std::pair<Instruction *, int>, 8> TargetedInstList;
   // search ptr.annotation followed by Load/Store
-  searchUserIgnoringCast<LoadInst>(IntrInst, TargetedInstList);
-  searchUserIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
+  getUserListIgnoringCast<LoadInst>(IntrInst, TargetedInstList);
+  getUserListIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
+  getUserListIgnoringCast<MemTransferInst>(IntrInst, TargetedInstList);
 
   for (auto &Property : Properties) {
     auto DecorStr = Property.first->str();
@@ -546,12 +556,22 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
       assert(llvm::isPowerOf2_64(AttrVal) &&
              "sycl-alignment attribute is not a power of 2");
 
+      auto Align_val = Align(AttrVal);
       // apply alignment attributes to load/store
-      for (auto Inst : TargetedInstList) {
-        if (auto LInst = dyn_cast<LoadInst>(Inst))
-          LInst->setAlignment(Align(AttrVal));
-        else if (auto SInst = dyn_cast<StoreInst>(Inst))
-          SInst->setAlignment(Align(AttrVal));
+      for (auto Pair : TargetedInstList) {
+        auto *Inst = Pair.first;
+        auto Op_num = Pair.second;
+        if (auto *LInst = dyn_cast<LoadInst>(Inst)) {
+          LInst->setAlignment(Align_val);
+        } else if (auto *SInst = dyn_cast<StoreInst>(Inst)) {
+          if (Op_num == 1)
+            SInst->setAlignment(Align_val);
+        } else if (auto *MI = dyn_cast<MemTransferInst>(Inst)) {
+          if (Op_num == 0)
+            MI->setDestAlignment(Align_val);
+          else if (Op_num == 1)
+            MI->setSourceAlignment(Align_val);
+        }
       }
     }
   }
@@ -589,8 +609,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   std::string NewAnnotString = "";
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
   for (auto &Property : Properties) {
-    // sycl-alignment is converted to align in this
-    // pass and thus not collected here
+    // sycl-alignment is converted to align on
+    // previous parseAlignmentAndApply(), dropping here
     if (*Property.first == "sycl-alignment")
       continue;
 

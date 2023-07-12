@@ -5439,8 +5439,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     return EmitIntelFPGARegBuiltin(E, ReturnValue);
   case Builtin::BI__builtin_intel_fpga_mem:
     return EmitIntelFPGAMemBuiltin(E);
-  case Builtin::BI__builtin_intel_fpga_sycl_ptr_annotation:
-    return EmitIntelFPGASYCLPtrAnnotationBuiltin(E);
+  case Builtin::BI__builtin_intel_sycl_ptr_annotation:
+    return EmitIntelSYCLPtrAnnotationBuiltin(E);
   case Builtin::BI__builtin_get_device_side_mangled_name: {
     auto Name = CGM.getCUDARuntime().getDeviceSideName(
         cast<DeclRefExpr>(E->getArg(0)->IgnoreImpCasts())->getDecl());
@@ -22244,8 +22244,7 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
                                    FPAccuracyIntrinsicID);
 }
 
-RValue
-CodeGenFunction::EmitIntelFPGASYCLPtrAnnotationBuiltin(const CallExpr *E) {
+RValue CodeGenFunction::EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E) {
   // Arguments
   const Expr *PtrArg = E->getArg(0);
   Value *PtrVal = EmitScalarExpr(PtrArg);

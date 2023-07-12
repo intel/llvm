@@ -4310,7 +4310,8 @@ public:
   RValue EmitIntelFPGARegBuiltin(const CallExpr *E,
                                  ReturnValueSlot ReturnValue);
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
-  RValue EmitIntelFPGASYCLPtrAnnotationBuiltin(const CallExpr *E);
+
+  RValue EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E);
 
   llvm::CallInst *
   EmitFPBuiltinIndirectCall(llvm::FunctionType *IRFuncTy,

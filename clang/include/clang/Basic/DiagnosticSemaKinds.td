@@ -166,7 +166,7 @@ def err_intel_fpga_mem_arg_mismatch
     : Error<"builtin parameter must be %select{"
             "a pointer"
             "|a non-negative integer constant}0">;
-def err_intel_fpga_sycl_ptr_annotation_mismatch
+def err_intel_sycl_ptr_annotation_mismatch
     : Error<"builtin parameter must be %select{"
             "odd number of arguments"
             "|a pointer"

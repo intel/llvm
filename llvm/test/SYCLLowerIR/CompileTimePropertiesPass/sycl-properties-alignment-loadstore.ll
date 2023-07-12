@@ -10,6 +10,7 @@ target triple = "spir64_fpga-unknown-unknown"
 
 $_ZN7ann_refIiEC2EPi = comdat any
 $_ZN7ann_refIiEcvRiEv = comdat any
+$_ZN7ann_refIiEC2EPi1= comdat any
 
 @.str = private unnamed_addr addrspace(1) constant [16 x i8] c"sycl-properties\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr addrspace(1) constant [9 x i8] c"main.cpp\00", section "llvm.metadata"
@@ -64,3 +65,24 @@ entry:
 ; CHECK: store {{.*}}, align 64
   ret void
 }
+
+; Function Attrs: convergent norecurse nounwind
+define linkonce_odr dso_local spir_func void @_ZN7ann_refIiEC2EPi1(%class.ann_ptr addrspace(4)* noundef align 8 dereferenceable_or_null(8) %this, i32 addrspace(4)* noundef %ptr, i8 addrspace(4)* %h) comdat align 2 {
+entry:
+  %this.addr = alloca %class.ann_ptr addrspace(4)*, align 8
+  %ptr.addr = alloca i32 addrspace(4)*, align 8
+  %this.addr.ascast = addrspacecast %class.ann_ptr addrspace(4)** %this.addr to %class.ann_ptr addrspace(4)* addrspace(4)*
+  %ptr.addr.ascast = addrspacecast i32 addrspace(4)** %ptr.addr to i32 addrspace(4)* addrspace(4)*
+  store %class.ann_ptr addrspace(4)* %this, %class.ann_ptr addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
+  store i32 addrspace(4)* %ptr, i32 addrspace(4)* addrspace(4)* %ptr.addr.ascast, align 8
+  %this1 = load %class.ann_ptr addrspace(4)*, %class.ann_ptr addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
+  %p = getelementptr inbounds %class.ann_ptr, %class.ann_ptr addrspace(4)* %this1, i32 0, i32 0
+  %0 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %p, align 8
+  %1 = bitcast i32 addrspace(4)* %0 to i8 addrspace(4)*
+  %2 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %1, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @.str.1, i32 0, i32 0), i32 22, i8 addrspace(1)* bitcast ({ [15 x i8] addrspace(1)*, [3 x i8] addrspace(1)* } addrspace(1)* @.args to i8 addrspace(1)*))
+  call void @llvm.memcpy.p4i8.p4i8.i32(i8 addrspace(4)* %2, i8 addrspace(4)* %h, i32 1, i1 false)
+; CHECK: call void @llvm.memcpy.p4i8.p4i8.i32(i8 addrspace(4)* align 64 %1, i8 addrspace(4)* %h, i32 1, i1 false)
+  ret void
+}
+
+declare void @llvm.memcpy.p4i8.p4i8.i32(i8 addrspace(4)*, i8 addrspace(4)*, i32, i1)

@@ -14006,8 +14006,9 @@ private:
 
   bool CheckIntelFPGARegBuiltinFunctionCall(unsigned BuiltinID, CallExpr *Call);
   bool CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *Call);
-  bool CheckIntelFPGASYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
-                                                          CallExpr *Call);
+
+  bool CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
+                                                      CallExpr *Call);
 
   bool SemaBuiltinVAStart(unsigned BuiltinID, CallExpr *TheCall);
   bool SemaBuiltinVAStartARMMicrosoft(CallExpr *Call);

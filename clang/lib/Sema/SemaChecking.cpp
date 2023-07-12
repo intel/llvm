@@ -2589,14 +2589,14 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (CheckIntelFPGARegBuiltinFunctionCall(BuiltinID, TheCall))
       return ExprError();
     break;
-  case Builtin::BI__builtin_intel_fpga_sycl_ptr_annotation:
+  case Builtin::BI__builtin_intel_sycl_ptr_annotation:
     if (!Context.getLangOpts().SYCLIsDevice) {
       Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
           << "__builtin_intel_fpga_sycl_ptr_annotation"
           << "SYCL device";
       return ExprError();
     }
-    if (CheckIntelFPGASYCLPtrAnnotationBuiltinFunctionCall(BuiltinID, TheCall))
+    if (CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(BuiltinID, TheCall))
       return ExprError();
     break;
   case Builtin::BI__builtin_intel_fpga_mem:
@@ -5902,10 +5902,10 @@ bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
   return false;
 }
 
-/// Check that the first argument to __builtin_fpga_ptr_annotation is a pointer
+/// Check that the first argument to __builtin_intel_ptr_annotation is a pointer
 /// and the following arguments are property pairs
-bool Sema::CheckIntelFPGASYCLPtrAnnotationBuiltinFunctionCall(
-    unsigned BuiltinID, CallExpr *TheCall) {
+bool Sema::CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
+                                                          CallExpr *TheCall) {
   unsigned NumArgs = TheCall->getNumArgs();
   // Make sure we have the minimum number of provided arguments
   if (checkArgCountAtLeast(*this, TheCall, 1)) {
@@ -5915,7 +5915,7 @@ bool Sema::CheckIntelFPGASYCLPtrAnnotationBuiltinFunctionCall(
   // Make sure we have odd number of arguments
   if (!(NumArgs & 0x1)) {
     return Diag(TheCall->getEndLoc(),
-                diag::err_intel_fpga_sycl_ptr_annotation_mismatch)
+                diag::err_intel_sycl_ptr_annotation_mismatch)
            << 0;
   }
 
@@ -5925,7 +5925,7 @@ bool Sema::CheckIntelFPGASYCLPtrAnnotationBuiltinFunctionCall(
 
   if (!isa<PointerType>(PointerArgType))
     return Diag(PointerArg->getBeginLoc(),
-                diag::err_intel_fpga_sycl_ptr_annotation_mismatch)
+                diag::err_intel_sycl_ptr_annotation_mismatch)
            << 1;
 
   // Following arguments are paired in format ("String",integer)
@@ -5938,7 +5938,7 @@ bool Sema::CheckIntelFPGASYCLPtrAnnotationBuiltinFunctionCall(
       if (!isa<StringLiteral>(Arg) &&
           !maybeConstEvalStringLiteral(this->Context, Arg)) {
         Diag(TheCall->getArg(I)->getBeginLoc(),
-             diag::err_intel_fpga_sycl_ptr_annotation_mismatch)
+             diag::err_intel_sycl_ptr_annotation_mismatch)
             << 2;
         return true;
       }
