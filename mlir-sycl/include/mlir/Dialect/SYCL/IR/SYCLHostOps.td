@@ -132,7 +132,7 @@ def SYCLHostSetCaptured : SYCL_HostOp<"set_captured"> {
 
     Example:
     ```
-    sycl.host.set_captured $lambda[2] = %accessor : !llvm.ptr, !llvm.ptr
+    sycl.host.set_captured %lambda[2] = %accessor : !llvm.ptr, !llvm.ptr
     ```
   }];
   let arguments = (ins LLVM_AnyPointer:$lambda, I64Attr:$index, AnyType:$value);
