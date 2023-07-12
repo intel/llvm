@@ -62,13 +62,13 @@ class SYCLIDAndRangeAnalysis {
 public:
   SYCLIDAndRangeAnalysis(Operation *op, AnalysisManager &am);
 
+  void initialize(bool useRelaxedAliasing = false);
+
   template <typename Type>
-  std::optional<IDRangeInformation> getIDRangeInformation(Operation *op,
-                                                          Value operand);
+  std::optional<IDRangeInformation>
+  getIDRangeInformationFromConstruction(Operation *op, Value operand);
 
 private:
-  void initialize();
-
   Operation *operation;
 
   AnalysisManager &am;

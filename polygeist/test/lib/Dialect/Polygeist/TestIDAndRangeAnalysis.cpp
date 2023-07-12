@@ -23,6 +23,7 @@ struct TestIDAndRangeAnalysisPass
   void runOnOperation() override {
     Operation *op = getOperation();
     auto &IDRangeAnalysis = getAnalysis<polygeist::SYCLIDAndRangeAnalysis>();
+    IDRangeAnalysis.initialize();
 
     op->walk([&](Operation *op) {
       auto tag = op->getAttrOfType<StringAttr>("tag");
@@ -33,13 +34,16 @@ struct TestIDAndRangeAnalysisPass
       for (auto [index, operand] : llvm::enumerate(op->getOperands())) {
         llvm::errs().indent(2) << "operand #" << index << "\n";
         auto idResult =
-            IDRangeAnalysis.getIDRangeInformation<sycl::IDType>(op, operand);
+            IDRangeAnalysis.getIDRangeInformationFromConstruction<sycl::IDType>(
+                op, operand);
         if (idResult) {
           llvm::errs().indent(2) << "id:\n";
           llvm::errs() << *idResult;
         }
         auto rangeResult =
-            IDRangeAnalysis.getIDRangeInformation<sycl::RangeType>(op, operand);
+            IDRangeAnalysis
+                .getIDRangeInformationFromConstruction<sycl::RangeType>(
+                    op, operand);
         if (rangeResult) {
           llvm::errs().indent(2) << "range:\n";
           llvm::errs() << *rangeResult;

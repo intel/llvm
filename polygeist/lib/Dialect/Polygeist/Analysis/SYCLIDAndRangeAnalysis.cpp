@@ -1,4 +1,4 @@
-//===- SYCLIDAndRangeAnalysis.h - Analysis for sycl::id/range -------------===//
+//===- SYCLIDAndRangeAnalysis.cpp - Analysis for sycl::id/range -----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -56,7 +56,7 @@ bool IDRangeInformation::hasFixedDimensions() const {
 }
 
 size_t IDRangeInformation::getNumDimensions() const {
-  assert(dimensions.has_value() &&
+  assert(hasFixedDimensions() &&
          "Requesting fixed dimensions from non-fixed id/range");
   return *dimensions;
 }
@@ -67,7 +67,7 @@ bool IDRangeInformation::isConstant() const {
 
 const llvm::SmallVector<size_t, 3> &
 IDRangeInformation::getConstantValues() const {
-  assert(constantValues.has_value() &&
+  assert(isConstant() &&
          "Requesting constant values from non-constant id/range");
   return *constantValues;
 }
@@ -155,12 +155,12 @@ SYCLIDAndRangeAnalysis::SYCLIDAndRangeAnalysis(Operation *op,
   initialize();
 }
 
-void SYCLIDAndRangeAnalysis::initialize() {
+void SYCLIDAndRangeAnalysis::initialize(bool useRelaxedAliasing) {
 
   // Initialize the dataflow solver
   AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(
-      sycl::AliasAnalysis(/* relaxedAliasing */ false));
+      sycl::AliasAnalysis(useRelaxedAliasing));
 
   // Populate the solver and run the analyses needed by this analysis.
   solver.load<dataflow::DeadCodeAnalysis>();
@@ -177,7 +177,8 @@ void SYCLIDAndRangeAnalysis::initialize() {
 
 template <typename Type>
 std::optional<IDRangeInformation>
-SYCLIDAndRangeAnalysis::getIDRangeInformation(Operation *op, Value operand) {
+SYCLIDAndRangeAnalysis::getIDRangeInformationFromConstruction(Operation *op,
+                                                              Value operand) {
   assert(initialized &&
          "Analysis only available after successful initialization");
   assert(isa<LLVM::LLVMPointerType>(operand.getType()) &&
@@ -231,11 +232,12 @@ SYCLIDAndRangeAnalysis::getIDRangeInformation(Operation *op, Value operand) {
 }
 
 template std::optional<IDRangeInformation>
-SYCLIDAndRangeAnalysis::getIDRangeInformation<sycl::IDType>(Operation *, Value);
+SYCLIDAndRangeAnalysis::getIDRangeInformationFromConstruction<sycl::IDType>(
+    Operation *, Value);
 
 template std::optional<IDRangeInformation>
-SYCLIDAndRangeAnalysis::getIDRangeInformation<sycl::RangeType>(Operation *,
-                                                               Value);
+SYCLIDAndRangeAnalysis::getIDRangeInformationFromConstruction<sycl::RangeType>(
+    Operation *, Value);
 
 } // namespace polygeist
 } // namespace mlir

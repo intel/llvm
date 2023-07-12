@@ -109,6 +109,21 @@ llvm.func @control_flow_non_fixed(%arg0 : i1, %arg1 : !llvm.ptr) -> !llvm.ptr {
   llvm.return %arg1 : !llvm.ptr
 }
 
+// CHECK-LABEL: test_tag: control_flow_aliased:
+// CHECK:         operand #0
+// CHECK:         id:
+// CHECK:           <unknown>
+llvm.func @control_flow_aliased(%arg0 : i1, %arg1 : !llvm.ptr, %arg2 : !llvm.ptr) -> !llvm.ptr {
+  %c1_i32 = arith.constant 1 : i32
+  %c42_i64 = arith.constant 42 : i64
+  sycl.host.constructor(%arg1, %c42_i64, %c42_i64) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+  scf.if %arg0 {
+    sycl.host.constructor(%arg2, %c42_i64) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+  }
+  %0 = llvm.load %arg1 {tag = "control_flow_aliased"} : !llvm.ptr -> i32
+  llvm.return %arg1 : !llvm.ptr
+}
+
 
 // -----
 
