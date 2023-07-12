@@ -1,4 +1,3 @@
-#define SG_SZ 16
 #define TK 32
 #define TN 16
 
@@ -20,9 +19,9 @@ void sum_rows_ref(host_accessor<T, 2, access::mode::read> B,
     for (size_t j = 0; j < N; j++) {
       sum_rows_ref[i] += B[i][j];
     }
-    // auto diff = sum_rows[i] - sum_rows_ref[i];
-    // assert(std::fabs(static_cast<int>(diff)) <=
-    //        std::numeric_limits<int>::epsilon());
+    auto diff = sum_rows[i] - sum_rows_ref[i];
+    assert(std::fabs(static_cast<int>(diff)) <=
+           std::numeric_limits<int>::epsilon());
   }
 
   std::cout << "result\n";
@@ -49,10 +48,11 @@ void matrix_sum_rows(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
      auto v = sum_rows_v.get_access<access::mode::atomic>(cgh);
-    auto os = sycl::stream{4000, 4000, cgh};
+    //auto os = sycl::stream{4000, 4000, cgh};
      cgh.parallel_for<class add_matrix>(
          r, [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
            const auto global_idx = spmd_item.get_global_id(0);
+      //     os << "global_idx: " << global_idx << " ";
            const auto global_idy = spmd_item.get_global_id(1);
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
@@ -69,24 +69,25 @@ void matrix_sum_rows(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
            // calculate sum of rows in sum_rows_v[8], there are 8 rows in sub_b
            // (tK/4)
            int32_t sum_local_rows[M] = {0}; // 8 local rows, M total
+
            // sub_b has 32x8 elements
            // for sub group size 16 it is 32 elements per WI, 4 per WI per row
            // for sub group size 32 it is 16 elements per WI, 2 per WI per row
+           int elems_per_wi_row = (TN * 4) / SG_SZ; // number of elements per row divided by work_group size
+
            auto data = sub_b.get_wi_data();
 
-             os << "B: ";
-             for (int i = 0; i < data.length(); i++) {
-               os << (int)(data[i]) << " ";
-             }
-
-           int elems_per_wi_row = (TN * 4) / SG_SZ; // number of elements per row divided by work_group size
+            //  os << "B: ";
+            //  for (int i = 0; i < data.length(); i++) {
+            //    os << (int)(data[i]) << " ";
+            //  }
 
            // each WI calculates local sum of rows
            for (int row = 0; row < TK / 4; row++) { // there are 8 rows
              for (int i = 0; i < data.length() / (TK / 4); i++) { // for sub group size 16 it is 4 per row  (32 / (32 / 4))
                // i*SG_SIZE index is found based on the round robin
                // distribution we are using in the implementation
-               sum_local_rows[row + global_idx * (TK / 4)] += data[i + row * 4];
+               sum_local_rows[row + global_idx * (TK / 4)] += data[i + row * elems_per_wi_row];
              }
              sum_local_rows[row + global_idx * (TK / 4)] = reduce_over_group(
                  sg, sum_local_rows[row + global_idx * (TK / 4)],
@@ -98,15 +99,15 @@ void matrix_sum_rows(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
                                 sum_local_rows[row + global_idx * (TK / 4)]);
              }
            }
-           os << "\n";
+           //os << "\n";
          }); // parallel for
    }).wait();
   sum_rows_ref<T, M, N>(bufB.get_host_access(read_only),
                         sum_rows_v.get_host_access(read_only));
 }
 
-static constexpr size_t MATRIX_K = TK / 4;// * 2;
-static constexpr size_t MATRIX_N = TN * 4;// * 2;
+static constexpr size_t MATRIX_K = TK / 4 * 2;
+static constexpr size_t MATRIX_N = TN * 4 * 2;
 int8_t B[MATRIX_K][MATRIX_N];
 
 int main() {

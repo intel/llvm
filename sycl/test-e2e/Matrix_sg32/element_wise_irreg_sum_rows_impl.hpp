@@ -57,7 +57,12 @@ void matrix_sum_rows(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
            // calculate sum of rows in sum_rows_v[8], there are 8 rows in sub_b
            // (tK/4)
            int32_t sum_local_rows[M] = {0}; // 8 local rows, M total
-           // sub_b has 32x8 elements, 32 elements per WI, 4 per WI per row
+
+           // sub_b has 32x8 elements
+           // for sub group size 16 it is 32 elements per WI, 4 per WI per row
+           // for sub group size 32 it is 16 elements per WI, 2 per WI per row
+           int elems_per_wi_row = (TN * 4) / SG_SZ; // number of elements per row divided by work_group size
+
            auto data =
                sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
 
@@ -66,7 +71,7 @@ void matrix_sum_rows(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
              for (int i = 0; i < data.length() / (TK / 4); i++) { // 4 per row
                // i*SG_SIZE index is found based on the round robin
                // distribution we are using in the implementation
-               sum_local_rows[row + global_idx * (TK / 4)] += data[i + row * 4];
+               sum_local_rows[row + global_idx * (TK / 4)] += data[i + row * elems_per_wi_row];
              }
              sum_local_rows[row + global_idx * (TK / 4)] = reduce_over_group(
                  sg, sum_local_rows[row + global_idx * (TK / 4)],
