@@ -26,9 +26,9 @@ int main(int argc, char *argv[]) {
   }
   property_list P;
   if (Immediate)
-    P = ext::intel::property::queue::immediate_submission();
+    P = ext::intel::property::queue::immediate_command_list();
   else
-    P = ext::intel::property::queue::no_immediate_submission();
+    P = ext::intel::property::queue::no_immediate_command_list();
 
   // CHECK-STD: zeCommandListCreateImmediate = 1
   // CHECK-IMM: zeCommandListCreateImmediate = 2
