@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // Expected fail as reduction support is not complete.
 // XFAIL: *
 

@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // Tests adding a buffer copy node using the explicit API and submitting
 // the graph.
 // The second run is to check that there are no leaks reported with the embedded

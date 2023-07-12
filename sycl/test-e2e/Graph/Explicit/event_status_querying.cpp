@@ -24,7 +24,6 @@
 // We therefore only check that the complete state of the event
 // in this test.
 
-
 #include "../graph_common.hpp"
 
 std::string event_status_name(sycl::info::event_command_status status) {
@@ -125,8 +124,9 @@ int main() {
       Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   auto Info = Event.get_info<info::event::command_execution_status>();
   std::cout << event_status_name(Info) << std::endl;
-  while ((Info = Event.get_info<sycl::info::event::command_execution_status>()) !=
-         sycl::info::event_command_status::complete) {
+  while (
+      (Info = Event.get_info<sycl::info::event::command_execution_status>()) !=
+      sycl::info::event_command_status::complete) {
   }
   std::cout << event_status_name(Info) << std::endl;
 

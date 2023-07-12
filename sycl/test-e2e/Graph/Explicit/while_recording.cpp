@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // Expected Fail as exception not implemented yet
 // XFAIL: *
 
