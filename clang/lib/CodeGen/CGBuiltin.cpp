@@ -514,7 +514,7 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
   // single FPAccuracy attribute.
   llvm::AttributeList AttrList;
   // "sycl_used_aspects" metadata associated with the call.
-  llvm::Metadata *AspectMD;
+  llvm::Metadata *AspectMD = nullptr;
   // sincos() doesn't return a value, but it still has a type associated with
   // it that corresponds to the operand type.
   CGF.CGM.getFPAccuracyFuncAttributes(
