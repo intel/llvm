@@ -33,7 +33,6 @@ runs:
       else
         git clone https://github.com/${{ inputs.repository }}.git .
       fi
-      chown -R sycl:sycl ${{ inputs.cache_path }}/${{ inputs.repository }}
   - name: Checkout
     env:
       GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
