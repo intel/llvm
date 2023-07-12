@@ -5,33 +5,48 @@
 // usm_malloc_properties specification
 
 #include "sycl/sycl.hpp"
-#include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/ext/oneapi/usm/usm_alloc.hpp>
 
 #include <iostream>
 
 // clang-format on
 
 using namespace sycl::ext::oneapi::experimental;
+using namespace sycl::ext::intel::experimental;
+using alloc = sycl::usm::alloc;
 
-properties P1{bar, baz, foo{1}};
-properties P2{bar, foo{1}};
-properties P3 { bar, baz }
-////
-//  Test for Device USM allocation functions with properties support
-////
-void Test(queue &q) {
-  // APtr1 is of type annotated_ptr<int, decltype(properties{bar, baz,
+constexpr int N = 10;
+
+void TestAlloc(sycl::queue &q) {
+  properties P1{conduit, stable, cache_config{large_slm}};
+  properties P2{conduit, buffer_location<5>};
+  properties P3{conduit, stable, cache_config{large_data}};
+  properties ANNP1{conduit, stable, usm_kind<alloc::device>};
+  properties ANNP2{conduit, buffer_location<5>, usm_kind<alloc::device>};
+
+  // APtr1 is of type annotated_ptr<int, decltype(properties{conduit, stable,
   // usm_kind<sycl::usm::alloc::device>})>
   auto APtr1 = malloc_device_annotated<int>(N, q, P1);
+  auto APtr11 = malloc_device_annotated<int, decltype(P1)>(N, q, P1);
+  auto APtr12 =
+      malloc_device_annotated<int, decltype(P1), decltype(ANNP1)>(N, q, P1);
 
-  // APtr2 is of type annotated_ptr<int, decltype(properties{bar,
+  // APtr2 is of type annotated_ptr<int, decltype(properties{conduit,
   // usm_kind<sycl::usm::alloc::device>})>
   auto APtr2 = malloc_device_annotated<int>(N, q, P2);
 
-  // APtr3 is of type annotated_ptr<int, decltype(properties{bar, baz,
+  // APtr3 is of type annotated_ptr<int, decltype(properties{conduit, stable,
   // usm_kind<sycl::usm::alloc::device>})>
   auto APtr3 = malloc_device_annotated<int>(N, q, P3);
+
+  // APtr4 is of type annotated_ptr<void, decltype(properties{conduit, stable,
+  // usm_kind<sycl::usm::alloc::device>})>
+  auto APtr4 = malloc_device_annotated(N, q, P2);
+  auto APtr41 = malloc_device_annotated<decltype(P2)>(N, q);
+  auto APtr42 = malloc_device_annotated<decltype(P2), decltype(ANNP2)>(N, q);
+
+  // APtr3 and APtr4 are not same because the underlying pointer type is int* vs
+  // void*
+  static_assert(!std::is_same_v<decltype(APtr4), decltype(APtr3)>);
 
   // Runtime properties are not present on the returned annotated_ptr
   static_assert(std::is_same_v<decltype(APtr1), decltype(APtr3)>);
@@ -39,31 +54,75 @@ void Test(queue &q) {
   // APtr1 and APtr2 do not have the same properties
   static_assert(!std::is_same_v<decltype(APtr1), decltype(APtr2)>);
 
-  // APtr4 is of type annotated_ptr<int,
-  // decltype(properties{usm_kind<sycl::usm::alloc::host>})>
-  auto APtr4 = malloc_host_annotated<int>(N, q);
+  auto APtr5 = malloc_device_annotated<int>(N, q);
+  auto APtr51 = malloc_device_annotated(N, q);
+  auto APtr52 = aligned_alloc_device_annotated(16, N, q);
+  auto APtr53 = aligned_alloc_device_annotated<int>(128, N, q);
 
-  // APtr5 is of type annotated_ptr<int,
+  static_assert(std::is_same_v<decltype(APtr5), decltype(APtr53)>);
+  static_assert(
+      std::is_same_v<
+          decltype(APtr5),
+          annotated_ptr<int, decltype(properties{usm_kind<alloc::device>})>>);
+  static_assert(std::is_same_v<decltype(APtr51), decltype(APtr52)>);
+  static_assert(
+      std::is_same_v<
+          decltype(APtr51),
+          annotated_ptr<void, decltype(properties{usm_kind<alloc::device>})>>);
+
+  // APtr6 is of type annotated_ptr<int,
+  // decltype(properties{usm_kind<sycl::usm::alloc::host>})>
+  auto APtr6 = malloc_host_annotated<int>(N, q);
+
+  // APtr7 is of type annotated_ptr<int,
   // decltype(properties{usm_kind<sycl::usm::alloc::shared>})>
-  auto APtr5 = malloc_shared_annotated<int>(N, q);
+  auto APtr7 = malloc_shared_annotated<int>(N, q);
 
   // The USM kinds differ
-  static_assert(!std::is_same_v<decltype(APtr4), decltype(APtr5)>);
+  static_assert(!std::is_same_v<decltype(APtr6), decltype(APtr7)>);
 
-  properties P4{bar, foo{1}};
-  // APtr6 is of type annotated_ptr<int, decltype(properties{bar})>
+  free(APtr1, q);
+  free(APtr11, q);
+  free(APtr12, q);
+  free(APtr2, q);
+  free(APtr3, q);
+  free(APtr4, q);
+  free(APtr41, q);
+  free(APtr42, q);
+  free(APtr5, q);
+  free(APtr51, q);
+  free(APtr52, q);
+  free(APtr53, q);
+  free(APtr6, q);
+  free(APtr7, q);
+}
+
+void TestProperty(sycl::queue &q) {
+  properties P4{conduit, cache_config{large_slm}};
+  // APtr6 is of type annotated_ptr<int, decltype(properties{conduit})>
   auto APtr6 = malloc_annotated<int>(N, q, sycl::usm::alloc::device, P4);
 
   // APtr7 is of type annotated_ptr<int, decltype(properties{})>;
   auto APtr7 = malloc_annotated<int>(N, q, sycl::usm::alloc::device);
 
-  properties P5{usm_kind<sycl::usm::alloc::device>};
+  properties P5{usm_kind<sycl::usm::alloc::host>};
   // Throws an exception with error code errc::invalid
-  auto APtr8 = malloc_annotated<int>(N, q, sycl::usm::alloc::host, P5);
+  // auto APtr8 = malloc_annotated<int>(N, q, sycl::usm::alloc::device, P5);
 
   // Error: the USM kinds do not agree
-  auto APtr9 = malloc_host_annotated<int>(N, q, P5);
+  // auto APtr9 = malloc_shared_annotated<int>(N, q, P5);
 
+  // the USM kind is required in the propList
+  auto APtr10 = malloc_annotated<int>(N, q, P5);
+  auto APtr101 = malloc_annotated(N, q, P5);
+
+  free(APtr6, q);
+  free(APtr7, q);
+  free(APtr10, q);
+  free(APtr101, q);
+}
+
+void TestAlign(sycl::queue &q) {
   properties P7{alignment<512>};
   properties P8{alignment<2>};
   properties P9{alignment<64>};
@@ -79,9 +138,9 @@ void Test(queue &q) {
   auto APtr11 = malloc_device_annotated<int>(N, q, P8);
 
   // APtr12 is of type annotated_ptr<void, decltype(properties{alignment<64>,
-  // usm_kind<sycl::usm::alloc::device>})> The raw pointer of APtr12 is 512-byte
+  // usm_kind<sycl::usm::alloc::device>})> The raw pointer of APtr12 is 64-byte
   // aligned
-  auto APtr12 = malloc_device_annotated(512, q, P9);
+  auto APtr12 = malloc_device_annotated(N, q, P9);
 
   properties P10{alignment<64>};
   properties P11{alignment<8>};
@@ -90,133 +149,50 @@ void Test(queue &q) {
   // decltype(properties{usm_kind<sycl::usm::alloc::device>})> The raw pointer
   // of APtr13 is 64-byte aligned Note: APtr13 does not have the alignment
   // property. The alignment is runtime information.
-  auto APtr13 = aligned_alloc_device_annotated<int>(N, q, 64 /* alignment */);
+  auto APtr13 = aligned_alloc_device_annotated<int>(
+      1024 /* alignment */, N, q,
+      sycl::ext::oneapi::experimental::detail::empty_properties_t{});
+
+  auto APtr131 = aligned_alloc_device_annotated(1024 /* alignment */, N, q);
 
   // APtr14 is of type annotated_ptr<int, decltype(properties{alignment<64>,
   // usm_kind<sycl::usm::alloc::device>})> The raw pointer of APtr14 is 64-byte
   // aligned Note: APtr14 has the alignment property because P10 contains the
   // alignment property
-  auto APtr14 = aligned_alloc_device_annotated<int>(N, q, 64, P10);
+  auto APtr14 = aligned_alloc_device_annotated<int>(64, N, q, P10);
 
   // APtr15 is of type annotated_ptr<int, decltype(properties{alignment<64>,
   // usm_kind<sycl::usm::alloc::device>})> The raw pointer of APtr15 is 128-byte
   // aligned Note: APtr15 has the alignment property with value 64, because this
   // is the alignment known at compile-time
-  auto APtr15 = aligned_alloc_device_annotated<int>(N, q, 128, P10);
+  auto APtr15 = aligned_alloc_device_annotated<int>(128, N, q, P10);
 
   // APtr16 is of type annotated_ptr<int, decltype(properties{alignment<64>,
   // usm_kind<sycl::usm::alloc::device>})> The raw pointer of APtr16 is 64-byte
   // aligned
-  auto APtr16 = aligned_alloc_device_annotated<int>(N, q, 16, P10);
+  auto APtr16 = aligned_alloc_device_annotated<int>(16, N, q, P10);
 
   // APtr17 is of type annotated_ptr<int, decltype(properties{alignment<8>,
   // usm_kind<sycl::usm::alloc::device>})> The raw pointer of APtr17 is 56-byte
   // aligned (if this alignment is supported by the implementation)
-  auto APtr17 = aligned_alloc_device_annotated<int>(N, q, 7, P11);
-}
+  auto APtr17 = aligned_alloc_device_annotated<int>(7, N, q, P11);
 
-////
-//  Test for Host USM allocation functions with properties support
-////
-struct UsmHostIP {
-  annotated_ptr<int, MMHostPropListWithUsmHost> a;
-  annotated_ptr<void, MMHostPropListWithUsmHost> b;
-  annotated_ptr<int, MMHostPropListWithUsmHost> c;
-  annotated_ptr<void, MMHostPropListWithUsmHost> d;
-  int n;
-
-  void operator()() const {
-    for (int i = 0; i < n - 2; i++) {
-      a[i + 2] = a[i + 1] + a[i];
-    }
-    *(a + 1) *= 5;
-  }
-};
-
-void TestHostAlloc(queue &q) {
-  // Create the SYCL device queue
-  auto pHost1 =
-      malloc_host_annotated<int, MMHostPropList3, MMHostPropListWithUsmHost>(5,
-                                                                             q);
-  auto pHost2 = malloc_host_annotated<MMHostPropListWithUsmHost,
-                                      MMHostPropListWithUsmHost>(5, q);
-  auto pHost3 =
-      aligned_alloc_host_annotated<int, MMHostPropListWithUsmHost,
-                                   MMHostPropListWithUsmHost>(1024, 5, q);
-  auto pHost4 =
-      aligned_alloc_host_annotated<MMHostPropList3, MMHostPropListWithUsmHost>(
-          2048, 5, q);
-
-  for (int i = 0; i < 5; i++) {
-    pHost1[i] = i;
-    pHost3[i] = i;
-    // Arithmetic operations on annotated_ptr<void,...> are not allowed
-    // Use `get()` to get the underlying raw pointer and perform the operations
-  }
-
-  q.submit([&](handler &h) {
-     h.single_task(UsmHostIP{pHost1, pHost2, pHost3, pHost4, 5});
-   }).wait();
-
-  free(pHost1, q);
-  free(pHost2, q);
-  free(pHost3, q);
-  free(pHost4, q);
-}
-
-////
-//  Test for Shared USM allocation functions with properties support
-////
-struct UsmSharedIP {
-  annotated_ptr<int, MMHostPropListWithUsmShared> a;
-  annotated_ptr<void, MMHostPropListWithUsmShared> b;
-  annotated_ptr<int, MMHostPropListWithUsmShared> c;
-  annotated_ptr<void, MMHostPropListWithUsmShared> d;
-  int n;
-
-  void operator()() const {
-    for (int i = 0; i < n - 2; i++) {
-      a[i + 2] = a[i + 1] + a[i];
-    }
-    *(a + 1) *= 5;
-  }
-};
-
-void TestSharedAlloc(queue &q) {
-  // Create the SYCL device queue
-  auto pShared1 = malloc_shared_annotated<int, MMHostPropList2,
-                                          MMHostPropListWithUsmShared>(5, q);
-  auto pShared2 = malloc_shared_annotated<MMHostPropListWithUsmShared,
-                                          MMHostPropListWithUsmShared>(5, q);
-  auto pShared3 =
-      aligned_alloc_shared_annotated<int, MMHostPropListWithUsmShared,
-                                     MMHostPropListWithUsmShared>(1024, 5, q);
-  auto pShared4 =
-      aligned_alloc_shared_annotated<MMHostPropList2,
-                                     MMHostPropListWithUsmShared>(2048, 5, q);
-
-  for (int i = 0; i < 5; i++) {
-    pShared1[i] = i;
-    pShared3[i] = i;
-    // Arithmetic operations on annotated_ptr<void,...> are not allowed
-    // Use `get()` to get the underlying raw pointer and perform the operations
-  }
-
-  q.submit([&](handler &h) {
-     h.single_task(UsmSharedIP{pShared1, pShared2, pShared3, pShared4, 5});
-   }).wait();
-
-  free(pShared1, q);
-  free(pShared2, q);
-  free(pShared3, q);
-  free(pShared4, q);
+  free(APtr10, q);
+  free(APtr11, q);
+  free(APtr12, q);
+  free(APtr13, q);
+  free(APtr131, q);
+  free(APtr14, q);
+  free(APtr15, q);
+  free(APtr16, q);
+  free(APtr17, q);
 }
 
 int main() {
-  queue q(sycl::ext::intel::fpga_selector_v);
+  sycl::queue q;
 
-  // TestDeviceAlloc(q);
-  TestHostAlloc(q);
-  TestSharedAlloc(q);
+  TestAlloc(q);
+  TestProperty(q);
+  TestAlign(q);
   return 0;
 }

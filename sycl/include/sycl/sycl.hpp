@@ -68,6 +68,10 @@
 #include <sycl/ext/oneapi/annotated_arg/annotated_arg.hpp>
 #include <sycl/ext/oneapi/annotated_arg/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/annotated_arg/properties.hpp>
+#include <sycl/ext/oneapi/annotated_usm/alloc_device.hpp>
+#include <sycl/ext/oneapi/annotated_usm/alloc_host.hpp>
+#include <sycl/ext/oneapi/annotated_usm/alloc_shared.hpp>
+#include <sycl/ext/oneapi/annotated_usm/dealloc.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
