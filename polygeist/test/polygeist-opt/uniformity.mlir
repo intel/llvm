@@ -132,7 +132,7 @@ func.func @test1b(%arg0 : index, %arg1: memref<?x!sycl_nd_item_2>)  {
     affine.yield %tx_index : index
   } else {
     affine.yield %c3 : index
-  } {tag = "test1b_v3"} 
+  } {tag = "test1b_v3"}
 
   // COM: Branch condition is uniform, and yielded values is uniform -> result is uniform.
   // CHECK: test1b_v4, uniformity: uniform  
