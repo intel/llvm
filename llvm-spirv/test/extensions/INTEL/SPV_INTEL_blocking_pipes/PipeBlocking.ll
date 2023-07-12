@@ -6,8 +6,8 @@
 ; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.bc --spirv-target-env=SPV-IR
-; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
+; RUN: llvm-spirv -r %t.spv -o %t.bc --spirv-target-env=SPV-IR
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 ; ModuleID = 'test/CodeGenOpenCL/pipe_builtin.cl'
 source_filename = "test/CodeGenOpenCL/pipe_builtin.cl"
@@ -40,8 +40,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-LLVM: call spir_func void @__write_pipe_2_bl(%opencl.pipe_wo_t addrspace(1)*{{.*}}, i8 addrspace(4)* %{{[0-9]+}}, i32 2, i32 2)
 
-; CHECK-SPV-IR: %spirv.Pipe._0 = type opaque
-; CHECK-SPV-IR: call spir_func void @_Z30__spirv_WritePipeBlockingINTEL{{.*}}(%spirv.Pipe._1 addrspace(1)*{{.*}}, i9 addrspace(4)*{{.*}}, i32 2, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z30__spirv_WritePipeBlockingINTEL{{.*}}(target("spirv.Pipe", 1){{.*}}, ptr addrspace(4){{.*}}, i32 2, i32 2)
 
 ; Function Attrs: convergent noinline nounwind optnone
 define spir_func void @foo(%opencl.pipe_ro_t addrspace(1)* %p, i32 addrspace(1)* %ptr) #0 {

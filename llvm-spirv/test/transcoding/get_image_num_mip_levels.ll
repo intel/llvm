@@ -4,8 +4,8 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
-; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 ; RUN: llvm-spirv -spirv-text %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; Generated from the following OpenCL C code:
@@ -55,14 +55,6 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: %opencl.image2d_array_ro_t = type opaque
 ; CHECK-LLVM: %opencl.image2d_depth_ro_t = type opaque
 ; CHECK-LLVM: %opencl.image2d_array_depth_ro_t = type opaque
-
-; CHECK-SPV-IR: %spirv.Image._void_0_0_0_0_0_0_0 = type opaque
-; CHECK-SPV-IR: %spirv.Image._void_1_0_0_0_0_0_0 = type opaque
-; CHECK-SPV-IR: %spirv.Image._void_2_0_0_0_0_0_0 = type opaque
-; CHECK-SPV-IR: %spirv.Image._void_0_0_1_0_0_0_0 = type opaque
-; CHECK-SPV-IR: %spirv.Image._void_1_0_1_0_0_0_0 = type opaque
-; CHECK-SPV-IR: %spirv.Image._void_1_1_0_0_0_0_0 = type opaque
-; CHECK-SPV-IR: %spirv.Image._void_1_1_1_0_0_0_0 = type opaque
 
 ; Function Attrs: convergent noinline norecurse nounwind optnone
 define dso_local spir_func void @testimage1d(%opencl.image1d_ro_t addrspace(1)* %img1, %opencl.image2d_ro_t addrspace(1)* %img2, %opencl.image3d_ro_t addrspace(1)* %img3, %opencl.image1d_array_ro_t addrspace(1)* %img4, %opencl.image2d_array_ro_t addrspace(1)* %img5, %opencl.image2d_depth_ro_t addrspace(1)* %img6, %opencl.image2d_array_depth_ro_t addrspace(1)* %img7) #0 {
@@ -121,13 +113,13 @@ entry:
 ; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_depth_ro(%opencl.image2d_depth_ro_t addrspace(1)*
 ; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels26ocl_image2d_array_depth_ro(%opencl.image2d_array_depth_ro_t addrspace(1)*
 
-; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_0_0_0_0_0_0_0(%spirv.Image._void_0_0_0_0_0_0_0 addrspace(1)*
-; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)*
-; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_2_0_0_0_0_0_0(%spirv.Image._void_2_0_0_0_0_0_0 addrspace(1)*
-; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_0_0_1_0_0_0_0(%spirv.Image._void_0_0_1_0_0_0_0 addrspace(1)*
-; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_1_0_1_0_0_0_0(%spirv.Image._void_1_0_1_0_0_0_0 addrspace(1)*
-; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_1_1_0_0_0_0_0(%spirv.Image._void_1_1_0_0_0_0_0 addrspace(1)*
-; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_1_1_1_0_0_0_0(%spirv.Image._void_1_1_1_0_0_0_0 addrspace(1)*
+; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_0_0_0_0_0_0_0(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_2_0_0_0_0_0_0(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_0_0_1_0_0_0_0(target("spirv.Image", void, 0, 0, 1, 0, 0, 0, 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_1_0_1_0_0_0_0(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_1_1_0_0_0_0_0(target("spirv.Image", void, 1, 1, 0, 0, 0, 0, 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_1_1_1_0_0_0_0(target("spirv.Image", void, 1, 1, 1, 0, 0, 0, 0)
 
 ; Function Attrs: convergent
 declare spir_func i32 @_Z24get_image_num_mip_levels14ocl_image1d_ro(%opencl.image1d_ro_t addrspace(1)*) #1
