@@ -344,16 +344,20 @@ TEST_F(xptiApiTest, xptiCheckTraceEnabledGoodInput) {
       ID, (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
   EXPECT_NE(Check, true);
   Check = xptiCheckTraceEnabled(
-      ID, (uint16_t)xpti::trace_point_type_t::offload_alloc_construct);
+      ID, (uint16_t)
+              xpti::trace_point_type_t::offload_alloc_memory_object_construct);
   EXPECT_NE(Check, true);
   Check = xptiCheckTraceEnabled(
-      ID, (uint16_t)xpti::trace_point_type_t::offload_alloc_associate);
+      ID, (uint16_t)
+              xpti::trace_point_type_t::offload_alloc_memory_object_associate);
   EXPECT_NE(Check, true);
   Check = xptiCheckTraceEnabled(
-      ID, (uint16_t)xpti::trace_point_type_t::offload_alloc_destruct);
+      ID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_memory_object_destruct);
   EXPECT_NE(Check, true);
   Check = xptiCheckTraceEnabled(
-      ID, (uint16_t)xpti::trace_point_type_t::offload_alloc_release);
+      ID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_memory_object_release);
   EXPECT_NE(Check, true);
   Check = xptiCheckTraceEnabled(
       ID, (uint16_t)xpti::trace_point_type_t::offload_alloc_accessor);

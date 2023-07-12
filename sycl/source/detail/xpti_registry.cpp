@@ -48,7 +48,9 @@ void XPTIRegistry::bufferConstructorNotification(
   (void)Range;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType =
+      xpti::trace_offload_alloc_memory_object_construct;
+  if (!xptiCheckTraceEnabled(GBufferStreamID, NotificationTraceType))
     return;
 
   uint64_t IId;
@@ -61,9 +63,8 @@ void XPTIRegistry::bufferConstructorNotification(
 
   xpti::trace_event_data_t *TraceEvent = createTraceEvent(
       UserObj, "buffer", IId, CodeLoc, xpti::trace_offload_memory_object_event);
-  xptiNotifySubscribers(GBufferStreamID,
-                        xpti::trace_offload_alloc_memory_object_construct,
-                        nullptr, TraceEvent, IId, &BufConstr);
+  xptiNotifySubscribers(GBufferStreamID, NotificationTraceType, nullptr,
+                        TraceEvent, IId, &BufConstr);
 #endif
 }
 
@@ -72,16 +73,17 @@ void XPTIRegistry::bufferAssociateNotification(const void *UserObj,
   (void)UserObj;
   (void)MemObj;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType =
+      xpti::trace_offload_alloc_memory_object_associate;
+  if (!xptiCheckTraceEnabled(GBufferStreamID, NotificationTraceType))
     return;
   uint64_t IId = xptiGetUniqueId();
   xpti::offload_association_data_t BufAssoc{(uintptr_t)UserObj,
                                             (uintptr_t)MemObj};
 
   // Add association between user level and PI level memory object
-  xptiNotifySubscribers(GBufferStreamID,
-                        xpti::trace_offload_alloc_memory_object_associate,
-                        nullptr, nullptr, IId, &BufAssoc);
+  xptiNotifySubscribers(GBufferStreamID, NotificationTraceType, nullptr,
+                        nullptr, IId, &BufAssoc);
 #endif
 }
 
@@ -90,30 +92,32 @@ void XPTIRegistry::bufferReleaseNotification(const void *UserObj,
   (void)UserObj;
   (void)MemObj;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType =
+      xpti::trace_offload_alloc_memory_object_release;
+  if (!xptiCheckTraceEnabled(GBufferStreamID, NotificationTraceType))
     return;
   uint64_t IId = xptiGetUniqueId();
   xpti::offload_association_data_t BufRelease{(uintptr_t)UserObj,
                                               (uintptr_t)MemObj};
 
   // Release PI level memory object
-  xptiNotifySubscribers(GBufferStreamID,
-                        xpti::trace_offload_alloc_memory_object_release,
-                        nullptr, nullptr, IId, &BufRelease);
+  xptiNotifySubscribers(GBufferStreamID, NotificationTraceType, nullptr,
+                        nullptr, IId, &BufRelease);
 #endif
 }
 
 void XPTIRegistry::bufferDestructorNotification(const void *UserObj) {
   (void)UserObj;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType =
+      xpti::trace_offload_alloc_memory_object_destruct;
+  if (!xptiCheckTraceEnabled(GBufferStreamID, NotificationTraceType))
     return;
   uint64_t IId = xptiGetUniqueId();
   xpti::offload_buffer_data_t BufDestr{(uintptr_t)UserObj};
   // Destruction of user level memory object
-  xptiNotifySubscribers(GBufferStreamID,
-                        xpti::trace_offload_alloc_memory_object_destruct,
-                        nullptr, nullptr, IId, &BufDestr);
+  xptiNotifySubscribers(GBufferStreamID, NotificationTraceType, nullptr,
+                        nullptr, IId, &BufDestr);
 #endif
 }
 
@@ -126,7 +130,8 @@ void XPTIRegistry::bufferAccessorNotification(
   (void)Target;
   (void)Mode;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_offload_alloc_accessor;
+  if (!xptiCheckTraceEnabled(GBufferStreamID, NotificationTraceType))
     return;
 
   uint64_t IId;
@@ -135,8 +140,8 @@ void XPTIRegistry::bufferAccessorNotification(
 
   xpti::trace_event_data_t *TraceEvent = createTraceEvent(
       UserObj, "accessor", IId, CodeLoc, xpti::trace_offload_accessor_event);
-  xptiNotifySubscribers(GBufferStreamID, xpti::trace_offload_alloc_accessor,
-                        nullptr, TraceEvent, IId, &AccessorConstr);
+  xptiNotifySubscribers(GBufferStreamID, NotificationTraceType, nullptr,
+                        TraceEvent, IId, &AccessorConstr);
 #endif
 }
 
@@ -156,7 +161,9 @@ void XPTIRegistry::sampledImageConstructorNotification(
   (void)SamplerFilteringMode;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType =
+      xpti::trace_offload_alloc_memory_object_construct;
+  if (!xptiCheckTraceEnabled(GImageStreamID, NotificationTraceType))
     return;
 
   uint64_t IId;
@@ -172,23 +179,23 @@ void XPTIRegistry::sampledImageConstructorNotification(
   xpti::trace_event_data_t *TraceEvent =
       createTraceEvent(UserObj, "sampled_image", IId, CodeLoc,
                        xpti::trace_offload_memory_object_event);
-  xptiNotifySubscribers(GImageStreamID,
-                        xpti::trace_offload_alloc_memory_object_construct,
-                        nullptr, TraceEvent, IId, &ImgConstr);
+  xptiNotifySubscribers(GImageStreamID, NotificationTraceType, nullptr,
+                        TraceEvent, IId, &ImgConstr);
 #endif
 }
 
 void XPTIRegistry::sampledImageDestructorNotification(const void *UserObj) {
   (void)UserObj;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType =
+      xpti::trace_offload_alloc_memory_object_destruct;
+  if (!xptiCheckTraceEnabled(GImageStreamID, NotificationTraceType))
     return;
   uint64_t IId = xptiGetUniqueId();
   xpti::offload_image_data_t ImgDestr{(uintptr_t)UserObj};
   // Destruction of user level memory object
-  xptiNotifySubscribers(GImageStreamID,
-                        xpti::trace_offload_alloc_memory_object_destruct,
-                        nullptr, nullptr, IId, &ImgDestr);
+  xptiNotifySubscribers(GImageStreamID, NotificationTraceType, nullptr, nullptr,
+                        IId, &ImgDestr);
 #endif
 }
 
@@ -203,7 +210,9 @@ void XPTIRegistry::unsampledImageConstructorNotification(
   (void)ImageFormat;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType =
+      xpti::trace_offload_alloc_memory_object_construct;
+  if (!xptiCheckTraceEnabled(GImageStreamID, NotificationTraceType))
     return;
 
   uint64_t IId;
@@ -220,23 +229,23 @@ void XPTIRegistry::unsampledImageConstructorNotification(
   xpti::trace_event_data_t *TraceEvent =
       createTraceEvent(UserObj, "unsampled_image", IId, CodeLoc,
                        xpti::trace_offload_memory_object_event);
-  xptiNotifySubscribers(GImageStreamID,
-                        xpti::trace_offload_alloc_memory_object_construct,
-                        nullptr, TraceEvent, IId, &ImgConstr);
+  xptiNotifySubscribers(GImageStreamID, NotificationTraceType, nullptr,
+                        TraceEvent, IId, &ImgConstr);
 #endif
 }
 
 void XPTIRegistry::unsampledImageDestructorNotification(const void *UserObj) {
   (void)UserObj;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType =
+      xpti::trace_offload_alloc_memory_object_destruct;
+  if (!xptiCheckTraceEnabled(GImageStreamID, NotificationTraceType))
     return;
   uint64_t IId = xptiGetUniqueId();
   xpti::offload_image_data_t ImgDestr{(uintptr_t)UserObj};
   // Destruction of user level memory object
-  xptiNotifySubscribers(GImageStreamID,
-                        xpti::trace_offload_alloc_memory_object_destruct,
-                        nullptr, nullptr, IId, &ImgDestr);
+  xptiNotifySubscribers(GImageStreamID, NotificationTraceType, nullptr, nullptr,
+                        IId, &ImgDestr);
 #endif
 }
 
@@ -252,7 +261,8 @@ void XPTIRegistry::unsampledImageAccessorNotification(
   (void)Type;
   (void)ElemSize;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_offload_alloc_accessor;
+  if (!xptiCheckTraceEnabled(GImageStreamID, NotificationTraceType))
     return;
 
   uint64_t IId;
@@ -266,8 +276,8 @@ void XPTIRegistry::unsampledImageAccessorNotification(
   xpti::trace_event_data_t *TraceEvent =
       createTraceEvent(UserObj, "unsampled_image_accessor", IId, CodeLoc,
                        xpti::trace_offload_accessor_event);
-  xptiNotifySubscribers(GImageStreamID, xpti::trace_offload_alloc_accessor,
-                        nullptr, TraceEvent, IId, &AccessorConstr);
+  xptiNotifySubscribers(GImageStreamID, NotificationTraceType, nullptr,
+                        TraceEvent, IId, &AccessorConstr);
 #endif
 }
 
@@ -281,7 +291,8 @@ void XPTIRegistry::unsampledImageHostAccessorNotification(
   (void)Type;
   (void)ElemSize;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_offload_alloc_accessor;
+  if (!xptiCheckTraceEnabled(GImageStreamID, NotificationTraceType))
     return;
 
   uint64_t IId;
@@ -293,8 +304,8 @@ void XPTIRegistry::unsampledImageHostAccessorNotification(
   xpti::trace_event_data_t *TraceEvent =
       createTraceEvent(UserObj, "host_unsampled_image_accessor", IId, CodeLoc,
                        xpti::trace_offload_accessor_event);
-  xptiNotifySubscribers(GImageStreamID, xpti::trace_offload_alloc_accessor,
-                        nullptr, TraceEvent, IId, &AccessorConstr);
+  xptiNotifySubscribers(GImageStreamID, NotificationTraceType, nullptr,
+                        TraceEvent, IId, &AccessorConstr);
 #endif
 }
 
@@ -308,7 +319,8 @@ void XPTIRegistry::sampledImageAccessorNotification(
   (void)Type;
   (void)ElemSize;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_offload_alloc_accessor;
+  if (!xptiCheckTraceEnabled(GImageStreamID, NotificationTraceType))
     return;
 
   uint64_t IId;
@@ -319,8 +331,8 @@ void XPTIRegistry::sampledImageAccessorNotification(
   xpti::trace_event_data_t *TraceEvent =
       createTraceEvent(UserObj, "sampled_image_accessor", IId, CodeLoc,
                        xpti::trace_offload_accessor_event);
-  xptiNotifySubscribers(GImageStreamID, xpti::trace_offload_alloc_accessor,
-                        nullptr, TraceEvent, IId, &AccessorConstr);
+  xptiNotifySubscribers(GImageStreamID, NotificationTraceType, nullptr,
+                        TraceEvent, IId, &AccessorConstr);
 #endif
 }
 
@@ -333,7 +345,8 @@ void XPTIRegistry::sampledImageHostAccessorNotification(
   (void)Type;
   (void)ElemSize;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_offload_alloc_accessor;
+  if (!xptiCheckTraceEnabled(GImageStreamID, NotificationTraceType))
     return;
 
   uint64_t IId;
@@ -344,8 +357,8 @@ void XPTIRegistry::sampledImageHostAccessorNotification(
   xpti::trace_event_data_t *TraceEvent =
       createTraceEvent(UserObj, "host_sampled_image_accessor", IId, CodeLoc,
                        xpti::trace_offload_accessor_event);
-  xptiNotifySubscribers(GImageStreamID, xpti::trace_offload_alloc_accessor,
-                        nullptr, TraceEvent, IId, &AccessorConstr);
+  xptiNotifySubscribers(GImageStreamID, NotificationTraceType, nullptr,
+                        TraceEvent, IId, &AccessorConstr);
 #endif
 }
 
