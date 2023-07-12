@@ -114,6 +114,7 @@ template <typename Type> bool isConstructor(const Definition &def) {
   if (!def.isOperation())
     return false;
 
+  // NOTE: This could be extended to also handle `SYCLConstructorOp`.
   auto constructor = dyn_cast<sycl::SYCLHostConstructorOp>(def.getOperation());
   if (!constructor)
     return false;
@@ -151,11 +152,10 @@ IDRangeInformation getInformation(const Definition &def) {
 
 SYCLIDAndRangeAnalysis::SYCLIDAndRangeAnalysis(Operation *op,
                                                AnalysisManager &mgr)
-    : operation(op), am(mgr) {
-  initialize();
-}
+    : operation(op), am(mgr) {}
 
-void SYCLIDAndRangeAnalysis::initialize(bool useRelaxedAliasing) {
+SYCLIDAndRangeAnalysis &
+SYCLIDAndRangeAnalysis::initialize(bool useRelaxedAliasing) {
 
   // Initialize the dataflow solver
   AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
@@ -169,10 +169,12 @@ void SYCLIDAndRangeAnalysis::initialize(bool useRelaxedAliasing) {
 
   if (failed(solver.initializeAndRun(operation))) {
     operation->emitError("Failed to run required dataflow analyses");
-    return;
+    return *this;
   }
 
   initialized = true;
+
+  return *this;
 }
 
 template <typename Type>

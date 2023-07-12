@@ -22,8 +22,10 @@ struct TestIDAndRangeAnalysisPass
 
   void runOnOperation() override {
     Operation *op = getOperation();
-    auto &IDRangeAnalysis = getAnalysis<polygeist::SYCLIDAndRangeAnalysis>();
-    IDRangeAnalysis.initialize();
+    bool relaxedAliasing = true;
+    auto &IDRangeAnalysis =
+        getAnalysis<polygeist::SYCLIDAndRangeAnalysis>().initialize(
+            relaxedAliasing);
 
     op->walk([&](Operation *op) {
       auto tag = op->getAttrOfType<StringAttr>("tag");

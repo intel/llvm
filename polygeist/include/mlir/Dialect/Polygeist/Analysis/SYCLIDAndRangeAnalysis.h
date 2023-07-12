@@ -62,7 +62,9 @@ class SYCLIDAndRangeAnalysis {
 public:
   SYCLIDAndRangeAnalysis(Operation *op, AnalysisManager &am);
 
-  void initialize(bool useRelaxedAliasing = false);
+  /// Consumers of the analysis must call this member function immediately after
+  /// construction and before requesting any information from the analysis.
+  SYCLIDAndRangeAnalysis &initialize(bool useRelaxedAliasing);
 
   template <typename Type>
   std::optional<IDRangeInformation>
