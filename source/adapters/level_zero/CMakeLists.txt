@@ -73,30 +73,30 @@ target_include_directories(LevelZeroLoader-Headers
 
 add_library(${TARGET_NAME}
     SHARED
-    ${L0_DIR}/ur_loader_interface.cpp
-    ${L0_DIR}/ur_level_zero_common.hpp
-    ${L0_DIR}/ur_level_zero_context.hpp
-    ${L0_DIR}/ur_level_zero_device.hpp
-    ${L0_DIR}/ur_level_zero_event.hpp
-    ${L0_DIR}/ur_level_zero_usm.hpp
-    ${L0_DIR}/ur_level_zero_mem.hpp
-    ${L0_DIR}/ur_level_zero_kernel.hpp
-    ${L0_DIR}/ur_level_zero_platform.hpp
-    ${L0_DIR}/ur_level_zero_program.hpp
-    ${L0_DIR}/ur_level_zero_queue.hpp
-    ${L0_DIR}/ur_level_zero_sampler.hpp
+    ${L0_DIR}/ur_interface_loader.cpp
+    ${L0_DIR}/common.hpp
+    ${L0_DIR}/context.hpp
+    ${L0_DIR}/device.hpp
+    ${L0_DIR}/event.hpp
+    ${L0_DIR}/usm.hpp
+    ${L0_DIR}/memory.hpp
+    ${L0_DIR}/kernel.hpp
+    ${L0_DIR}/platform.hpp
+    ${L0_DIR}/program.hpp
+    ${L0_DIR}/queue.hpp
+    ${L0_DIR}/sampler.hpp
     ${L0_DIR}/ur_level_zero.cpp
-    ${L0_DIR}/ur_level_zero_common.cpp
-    ${L0_DIR}/ur_level_zero_context.cpp
-    ${L0_DIR}/ur_level_zero_device.cpp
-    ${L0_DIR}/ur_level_zero_event.cpp
-    ${L0_DIR}/ur_level_zero_usm.cpp
-    ${L0_DIR}/ur_level_zero_mem.cpp
-    ${L0_DIR}/ur_level_zero_kernel.cpp
-    ${L0_DIR}/ur_level_zero_platform.cpp
-    ${L0_DIR}/ur_level_zero_program.cpp
-    ${L0_DIR}/ur_level_zero_queue.cpp
-    ${L0_DIR}/ur_level_zero_sampler.cpp
+    ${L0_DIR}/common.cpp
+    ${L0_DIR}/context.cpp
+    ${L0_DIR}/device.cpp
+    ${L0_DIR}/event.cpp
+    ${L0_DIR}/usm.cpp
+    ${L0_DIR}/memory.cpp
+    ${L0_DIR}/kernel.cpp
+    ${L0_DIR}/platform.cpp
+    ${L0_DIR}/program.cpp
+    ${L0_DIR}/queue.cpp
+    ${L0_DIR}/sampler.cpp
     ${L0_DIR}/../../ur.cpp
     ${L0_DIR}/../../usm_allocator.cpp
     ${L0_DIR}/../../usm_allocator.hpp
