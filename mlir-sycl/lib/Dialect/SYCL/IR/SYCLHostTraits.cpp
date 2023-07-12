@@ -15,7 +15,7 @@ using namespace mlir::sycl;
 
 LogicalResult mlir::sycl::verifySYCLHandlerOpTrait(Operation *op) {
   if (op->getNumOperands() == 0)
-    return op->emitOpError("requires at least an operand");
+    return op->emitOpError("requires at least one operand");
   if (!isa<LLVM::LLVMPointerType>(op->getOperand(0).getType()))
     return op->emitOpError("requires the first argument to be a pointer");
   return success();

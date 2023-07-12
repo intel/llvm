@@ -179,9 +179,9 @@ static bool isClassType(Type type, const llvm::Regex &regex) {
 /// argument.
 static Value getThisArgument(FunctionOpInterface op, StringRef className) {
   llvm::ItaniumPartialDemangler demangler;
-  if (!(succeeded(partialDemangle(demangler, op)) && demangler.isFunction() &&
-        isMemberFunction(demangler, syclNamespace, className) &&
-        op.getNumArguments() > 0))
+  if (failed(partialDemangle(demangler, op)) || !demangler.isFunction() ||
+      !isMemberFunction(demangler, syclNamespace, className) ||
+      op.getNumArguments() == 0)
     return nullptr;
 
   Value firstArg = op.getArgument(0);
@@ -932,7 +932,7 @@ public:
     Location loc = annotations.back().getLoc();
 
     // Remove annotations, no longer needed
-    // Also prevent infinite recursion
+    // Also prevents infinite recursion
     rewriter.updateRootInPlace(op, [&] {
       for (LLVM::VarAnnotation annotation : annotations)
         rewriter.eraseOp(annotation);
