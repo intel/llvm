@@ -11,7 +11,9 @@ jobs:
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
-      lts_config: "hip_amdgpu;ocl_gen9;ocl_x64;l0_gen9;esimd_emu;cuda_aws;win_l0_gen12"
+      # Restore once plugins are enabled in the build.
+      # lts_config: "hip_amdgpu;ocl_gen9;ocl_x64;l0_gen9;esimd_emu;cuda_aws;win_l0_gen12"
+      lts_config: "ocl_gen9;ocl_x64;l0_gen9;win_l0_gen12"
 
   ubuntu2204_build_test:
     if: github.repository == 'intel/llvm'
@@ -21,11 +23,11 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default-2204
-      build_configure_extra_args: '--hip --cuda --enable-esimd-emulator'
       merge: false
       retention-days: 90
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      build_configure_extra_args: ''
 
   ubuntu2204_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'

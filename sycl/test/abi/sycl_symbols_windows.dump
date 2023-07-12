@@ -801,8 +801,6 @@
 ?DisableRangeRounding@handler@_V1@sycl@@AEAA_NXZ
 ?GDBMethodsAnchor@SampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GDBMethodsAnchor@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
-?GetNativeMem@interop_handler@_V1@sycl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
-?GetNativeQueue@interop_handler@_V1@sycl@@AEBA_KAEAH@Z
 ?GetRangeRoundingSettings@handler@_V1@sycl@@AEAAXAEA_K00@Z
 ?OffsetSize@stream_impl@detail@_V1@sycl@@0_KB
 ?PushBack@exception_list@_V1@sycl@@AEAAX$$QEAVexception_ptr@std@@@Z
@@ -887,8 +885,6 @@
 ?associateWithHandler@handler@_V1@sycl@@AEAAXPEAVSampledImageAccessorBaseHost@detail@23@W4image_target@23@@Z
 ?associateWithHandler@handler@_V1@sycl@@AEAAXPEAVUnsampledImageAccessorBaseHost@detail@23@W4image_target@23@@Z
 ?associateWithHandlerCommon@handler@_V1@sycl@@AEAAXV?$shared_ptr@VAccessorImplHost@detail@_V1@sycl@@@std@@H@Z
-?barrier@handler@_V1@sycl@@QEAAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
-?barrier@handler@_V1@sycl@@QEAAXXZ
 ?begin@exception_list@_V1@sycl@@QEBA?AV?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@Vexception_ptr@std@@@std@@@std@@@std@@XZ
 ?begin@kernel_bundle_plain@detail@_V1@sycl@@IEBAPEBVdevice_image_plain@234@XZ
 ?begin_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA_NAEAVqueue@67@@Z
@@ -1335,8 +1331,6 @@
 ?start@HostProfilingInfo@detail@_V1@sycl@@QEAAXXZ
 ?start_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAAXXZ
 ?stringifyErrorCode@detail@_V1@sycl@@YAPEBDH@Z
-?submit_barrier@queue@_V1@sycl@@QEAA?AVevent@23@AEBUcode_location@detail@23@@Z
-?submit_barrier@queue@_V1@sycl@@QEAA?AVevent@23@AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@@Z
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@@Z

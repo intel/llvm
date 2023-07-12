@@ -1901,17 +1901,6 @@ public:
 #endif
   }
 
-  /// Invokes a lambda on the host. Dependencies are satisfied on the host.
-  ///
-  /// \param Func is a lambda that is executed on the host
-  template <typename FuncT>
-  __SYCL_DEPRECATED("interop_task() is deprecated, use host_task() instead")
-  void interop_task(FuncT Func) {
-
-    MInteropTask.reset(new detail::InteropTask(std::move(Func)));
-    setType(detail::CG::CodeplayInteropTask);
-  }
-
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// \param Kernel is a SYCL kernel that is executed on a SYCL device
@@ -2559,27 +2548,12 @@ public:
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
-  /// until all commands previously submitted to this queue have entered the
-  /// complete state.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-  void barrier() { ext_oneapi_barrier(); }
-
-  /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
   /// is empty, then the barrier has no effect.
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
   void ext_oneapi_barrier(const std::vector<event> &WaitList);
-
-  /// Prevents any commands submitted afterward to this queue from executing
-  /// until all events in WaitList have entered the complete state. If WaitList
-  /// is empty, then the barrier has no effect.
-  ///
-  /// \param WaitList is a vector of valid SYCL events that need to complete
-  /// before barrier command can be executed.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-  void barrier(const std::vector<event> &WaitList);
 
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on this handler's
@@ -2966,8 +2940,6 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
   std::unique_ptr<detail::HostTask> MHostTask;
-  // Storage for a lambda or function when using InteropTasks
-  std::unique_ptr<detail::InteropTask> MInteropTask;
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
