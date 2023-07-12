@@ -5,8 +5,8 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
-; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPIRV
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPIRV
 ; RUN: llvm-spirv %t.rev.bc -o %t.rev.spv
 ; RUN: spirv-val %t.rev.spv
 ; RUN: llvm-spirv %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
@@ -25,7 +25,7 @@ define spir_kernel void @f(%opencl.image2d_ro_t addrspace(1)* %img, i32 addrspac
 ; CHECK-LLVM: [[DTADD:%.+]] = add i32 [[DTSUB]], 4304
 ; CHECK-LLVM: store i32 [[DTADD]]
 
-; CHECK-LLVM-SPIRV: [[DTCALL:%.+]] = call spir_func i32 @_Z24__spirv_ImageQueryFormatPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %img)
+; CHECK-LLVM-SPIRV: [[DTCALL:%.+]] = call spir_func i32 @_Z24__spirv_ImageQueryFormatPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %img)
 ; CHECK-LLVM-SPIRV: add i32 [[DTCALL]], 4304
 
 ; CHECK-SPIRV: 4 ImageQueryFormat {{[0-9]+}} [[DataTypeID:[0-9]+]]
@@ -40,7 +40,7 @@ define spir_kernel void @f(%opencl.image2d_ro_t addrspace(1)* %img, i32 addrspac
 ; CHECK-LLVM: [[OADD:%.+]] = add i32 [[OSUB]], 4272
 ; CHECK-LLVM: store i32 [[OADD]]
 
-; CHECK-LLVM-SPIRV: [[OCALL:%.+]] = call spir_func i32 @_Z23__spirv_ImageQueryOrderPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %img)
+; CHECK-LLVM-SPIRV: [[OCALL:%.+]] = call spir_func i32 @_Z23__spirv_ImageQueryOrderPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %img)
 ; CHECK-LLVM-SPIRV: add i32 [[OCALL]], 4272
 
 ; CHECK-SPIRV: 4 ImageQueryOrder {{[0-9]+}} [[OrderID:[0-9]+]]

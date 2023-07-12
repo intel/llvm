@@ -10,12 +10,12 @@
 ; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
 ; RUN: llvm-dis -opaque-pointers=0 %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
-; RUN: llvm-spirv --spirv-target-env=SPV-IR -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 %t.rev.bc
+; RUN: llvm-spirv --spirv-target-env=SPV-IR -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPIRV
 
 ; Check that produced SPIR-V friendly IR is correctly recognized
-; RUN: llvm-spirv %t.rev.bc -opaque-pointers=0 -spirv-text -o %t.spv.txt
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o %t.spv.txt
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-SPIRV: 2 Capability Float16
@@ -63,24 +63,6 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM-DAG: %opencl.event_t = type opaque
 ; CHECK-LLVM-DAG: %opencl.queue_t = type opaque
 ; CHECK-LLVM-DAG: %opencl.reserve_id_t = type opaque
-
-; CHECK-LLVM-SPIRV-DAG: %spirv.Pipe._0 = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Pipe._1 = type opaque
-
-; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_0_0_0_0_0_0_0 = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Image._uint_1_0_0_0_0_0_0 = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Image._uint_2_0_0_0_0_0_0 = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Image._float_1_1_0_0_0_0_0 = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Image._half_1_0_1_0_0_0_0 = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Image._float_5_0_0_0_0_0_0 = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_0_0_0_0_0_0_1 = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_1_0_0_0_0_0_2 = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.DeviceEvent          = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Event                = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Queue                = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.ReserveId            = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.Sampler              = type opaque
-; CHECK-LLVM-SPIRV-DAG: %spirv.SampledImage._float_1_1_0_0_0_0_0 = type opaque
 
 ; CHECK-SPIRV: {{[0-9]+}} Function
 ; CHECK-SPIRV: 3 FunctionParameter [[PIPE_RD]] {{[0-9]+}}
@@ -155,8 +137,8 @@ define spir_func void @bar(
 ; CHECK-LLVM:  %opencl.sampler_t addrspace(2)* %s.coerce)
 ; CHECK-LLVM:  call spir_func float @_Z11read_imagef20ocl_image2d_depth_ro11ocl_samplerDv4_if(%opencl.image2d_depth_ro_t addrspace(1)* %srcimg.coerce, %opencl.sampler_t addrspace(2)* %s.coerce, <4 x i32> zeroinitializer, float 1.000000e+00)
 
-; CHECK-LLVM-SPIRV: call spir_func %spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS134__spirv_Image__float_1_1_0_0_0_0_0PU3AS215__spirv_Sampler(%spirv.Image._float_1_1_0_0_0_0_0 addrspace(1)* %srcimg.coerce, %spirv.Sampler addrspace(2)* %s.coerce)
-; CHECK-LLVM-SPIRV: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS141__spirv_SampledImage__float_1_1_0_0_0_0_0Dv4_iif(%spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)* %1, <4 x i32> zeroinitializer, i32 2, float 1.000000e+00)
+; CHECK-LLVM-SPIRV: call spir_func target("spirv.SampledImage", float, 1, 1, 0, 0, 0, 0, 0) @_Z20__spirv_SampledImagePU3AS134__spirv_Image__float_1_1_0_0_0_0_0PU3AS215__spirv_Sampler(target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0) %srcimg.coerce, target("spirv.Sampler") %s.coerce)
+; CHECK-LLVM-SPIRV: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS141__spirv_SampledImage__float_1_1_0_0_0_0_0Dv4_iif(target("spirv.SampledImage", float, 1, 1, 0, 0, 0, 0, 0) %1, <4 x i32> zeroinitializer, i32 2, float 1.000000e+00)
 
 define spir_func void @test_sampler(target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0) %srcimg.coerce,
                                     target("spirv.Sampler") %s.coerce) {
