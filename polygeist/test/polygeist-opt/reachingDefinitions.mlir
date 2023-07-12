@@ -269,6 +269,167 @@ func.func @test15(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_gb,
 
 // -----
 
+// COM: The following tests perform similar checks for !llvm.ptr instead of
+// memref. The numbers match the memref-based test with the corresponding
+// scenario.
+
+// CHECK-LABEL: test_tag: ptr1_load1:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods: ptr1_store1
+// CHECK-NEXT:    - pMods: <none>
+// CHECK-LABEL: test_tag: ptr1_load2:
+// CHECK:        operand #0
+// CHECK-NEXT:   - mods: ptr1_store2
+// CHECK-NEXT:   - pMods: <none>
+llvm.func @ptr_test1(%val : i32) {
+  %cst1_i64 = arith.constant 1 : i64
+  %ptr1 = llvm.alloca %cst1_i64 x i32 : (i64) -> !llvm.ptr
+  %ptr2 = llvm.alloca %cst1_i64 x i32 : (i64) -> !llvm.ptr
+  llvm.store %val, %ptr1 {tag_name = "ptr1_store1"} : i32, !llvm.ptr
+  %1 = llvm.load %ptr1 {tag = "ptr1_load1"} : !llvm.ptr -> i32
+  llvm.store %val, %ptr2 {tag_name = "ptr1_store2"} : i32, !llvm.ptr
+  %2 = llvm.load %ptr2 {tag = "ptr1_load2"} : !llvm.ptr -> i32
+  llvm.return
+}
+
+// CHECK-LABEL: test_tag: ptr3_load1:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods: ptr3_store1
+// CHECK-NEXT:    - pMods: ptr3_store2
+llvm.func @ptr_test3(%val : i32) {
+  %cst1_i64 = arith.constant 1 : i64
+  %ptr = llvm.alloca %cst1_i64 x i32 : (i64) -> !llvm.ptr
+  %cast = llvm.addrspacecast %ptr : !llvm.ptr to !llvm.ptr<4>
+  llvm.store %val, %cast {tag_name = "ptr3_store1"} : i32, !llvm.ptr<4>
+  // The following store may alias with %cast and must therefore appear in the
+  // potential modifiers. This is different from the memref test above, where
+  // they must alias.
+  llvm.store %val, %ptr {tag_name = "ptr3_store2"} : i32, !llvm.ptr
+  %2 = llvm.load %cast {tag = "ptr3_load1"} : !llvm.ptr<4> -> i32
+  llvm.return
+}
+
+
+// CHECK-LABEL: test_tag: ptr4_load1:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods: <initial> ptr4_store2
+// CHECK-NEXT:    - pMods: ptr4_store1
+llvm.func @ptr_test4(%cond : i1, %arg1 : !llvm.ptr, %arg2 : !llvm.ptr, %val : i32) {
+  llvm.cond_br %cond, ^bb1, ^bb2
+^bb1:
+  llvm.store %val, %arg2 {tag_name = "ptr4_store1"} : i32, !llvm.ptr
+  llvm.br ^bb3
+^bb2:
+  llvm.store %val, %arg1 {tag_name = "ptr4_store2"} : i32, !llvm.ptr
+  llvm.br ^bb3
+^bb3:
+  %1 = llvm.load %arg1 {tag = "ptr4_load1"} : !llvm.ptr -> i32
+  llvm.return
+}
+
+
+// CHECK-LABEL: test_tag: ptr5_load1:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods:
+// CHECK-DAG:             ptr5_store1
+// CHECK-DAG:             ptr5_store3
+// CHECK-NEXT:    - pMods:
+// CHECK-DAG:             ptr5_store2
+// CHECK-DAG:             ptr5_store4
+llvm.func @ptr_test5(%cond : i1, %arg1 : !llvm.ptr, %arg2 : !llvm.ptr, %val : i32) {
+  llvm.cond_br %cond, ^bb1, ^bb2
+^bb1:
+  llvm.store %val, %arg1 {tag_name = "ptr5_store1"} : i32, !llvm.ptr
+  llvm.store %val, %arg2 {tag_name = "ptr5_store2"} : i32, !llvm.ptr
+  llvm.br ^bb3
+^bb2:
+  llvm.store %val, %arg1 {tag_name = "ptr5_store3"} : i32, !llvm.ptr
+  llvm.store %val, %arg2 {tag_name = "ptr5_store4"} : i32, !llvm.ptr
+  llvm.br ^bb3
+^bb3:
+  %1 = llvm.load %arg1 {tag = "ptr5_load1"} : !llvm.ptr -> i32
+  llvm.return
+}
+
+// CHECK-LABEL: test_tag: ptr6_load1:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods: ptr6_store2
+// CHECK-NEXT:    - pMods: <none>
+llvm.func @ptr_test6(%arg1 : !llvm.ptr, %arg2 : !llvm.ptr, %val : i32) {
+  llvm.store %val, %arg2 {tag_name = "ptr6_store1"} : i32, !llvm.ptr
+  llvm.store %val, %arg1 {tag_name = "ptr6_store2"} : i32, !llvm.ptr
+  %1 = llvm.load %arg1 {tag = "ptr6_load1"} : !llvm.ptr -> i32
+  llvm.return
+}
+
+
+// CHECK-LABEL: test_tag: ptr9_load1:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods: <initial>
+// CHECK-NEXT:    - pMods: <none>
+llvm.func @ptr_test9(%arg1 : !llvm.ptr) {
+  %1 = llvm.load %arg1 {tag = "ptr9_load1"} : !llvm.ptr -> i32
+  llvm.return
+}
+
+llvm.func external @ptr_foo(%arg0 : !llvm.ptr) -> ()
+
+// CHECK-LABEL: test_tag: ptr10_load1:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods: ptr10_store1
+// CHECK-NEXT:    - pMods: <none>
+// CHECK-LABEL: test_tag: ptr10_load2:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods: <unknown>
+// CHECK-NEXT:    - pMods: <unknown>
+llvm.func @ptr_test10(%val : i32) {
+  %cst1_i64 = arith.constant 1 : i64
+  %ptr1 = llvm.alloca %cst1_i64 x i32 : (i64) -> !llvm.ptr
+  llvm.store %val, %ptr1 {tag_name = "ptr10_store1"} : i32, !llvm.ptr
+  %1 = llvm.load %ptr1 {tag = "ptr10_load1"} : !llvm.ptr -> i32
+  llvm.call @ptr_foo(%ptr1) : (!llvm.ptr) -> ()
+  %2 = llvm.load %ptr1 {tag = "ptr10_load2"} : !llvm.ptr -> i32
+  llvm.return
+}
+
+// CHECK-LABEL: test_tag: ptr12_load1:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods: <initial> ptr12_store1
+// CHECK-NEXT:    - pMods: <none>
+// CHECK-LABEL: test_tag: ptr12_load2:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods: <initial>
+// CHECK-NEXT:    - pMods: ptr12_store1
+llvm.func @ptr_test12(%cond : i1, %arg1 : !llvm.ptr, %arg2 : !llvm.ptr, %val : i32) {
+  llvm.cond_br %cond, ^bb1, ^bb2
+^bb1:
+  llvm.store %val, %arg1 {tag_name = "ptr12_store1"} : i32, !llvm.ptr
+  llvm.br ^bb2
+^bb2:
+  %1 = llvm.load %arg1 {tag = "ptr12_load1"} : !llvm.ptr -> i32
+  %2 = llvm.load %arg2 {tag = "ptr12_load2"} : !llvm.ptr -> i32
+  llvm.return
+}
+
+// CHECK-LABEL: test_tag: ptr13_load1:
+// CHECK:        operand #0
+// CHECK-NEXT:    - mods: 
+// CHECK-DAG:             ptr13_store1
+// CHECK-DAG:             ptr13_store2
+// CHECK-NEXT:    - pMods: <none>
+llvm.func @ptr_test13(%cond : i1, %arg1 : !llvm.ptr, %arg2 : !llvm.ptr, %val : i32) {
+  llvm.store %val, %arg1 {tag_name = "ptr13_store1"} : i32, !llvm.ptr
+  llvm.cond_br %cond, ^bb1, ^bb2
+^bb1:
+  llvm.store %val, %arg1 {tag_name = "ptr13_store2"} : i32, !llvm.ptr
+  llvm.br ^bb2
+^bb2:
+  %1 = llvm.load %arg1 {tag = "ptr13_load1"} : !llvm.ptr -> i32
+  llvm.return
+}
+
+// -----
+
 // COM: Test that reaching definition is propagated inter-procedurally.
 // CHECK-LABEL: test_tag: callee_ptr
 // CHECK: operand #0

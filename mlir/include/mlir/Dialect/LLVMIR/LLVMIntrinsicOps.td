@@ -7,7 +7,6 @@ include "mlir/Dialect/LLVMIR/LLVMEnums.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/MemorySlotInterfaces.td"
-include "mlir/IR/BuiltinTypes.td"
 
 // Operations that correspond to LLVM intrinsics. With MLIR operation set being
 // extendable, there is no reason to introduce a hard boundary between "core"
@@ -790,32 +789,32 @@ def LLVM_VarAnnotation
         [AllTypesMatch<["annotation", "fileName", "attr"]>]> {
   let arguments = (ins LLVM_AnyPointer:$val,
                        LLVM_AnyPointer:$annotation,
-		       LLVM_AnyPointer:$fileName,
-		       I32:$line,
-		       LLVM_AnyPointer:$attr);
+                       LLVM_AnyPointer:$fileName,
+                       I32:$line,
+                       LLVM_AnyPointer:$attr);
 }
 
 def LLVM_PtrAnnotation
     : LLVM_OneResultIntrOp<"ptr.annotation", [0], [2],
         [AllTypesMatch<["res", "ptr"]>,
-	 AllTypesMatch<["annotation", "fileName", "attr"]>]> {
-  let arguments = (ins LLVM_PointerTo<Builtin_Integer>:$ptr,
+         AllTypesMatch<["annotation", "fileName", "attr"]>]> {
+  let arguments = (ins LLVM_PointerTo<AnySignlessInteger>:$ptr,
                        LLVM_AnyPointer:$annotation,
-		       LLVM_AnyPointer:$fileName,
-		       I32:$line,
-		       LLVM_AnyPointer:$attr);
-  let results = (outs LLVM_PointerTo<Builtin_Integer>:$res);
+                       LLVM_AnyPointer:$fileName,
+                       I32:$line,
+                       LLVM_AnyPointer:$attr);
+  let results = (outs LLVM_PointerTo<AnySignlessInteger>:$res);
 }
 
 def LLVM_Annotation
     : LLVM_OneResultIntrOp<"annotation", [0], [2],
         [AllTypesMatch<["res", "integer"]>,
-	 AllTypesMatch<["annotation", "fileName"]>]> {
-  let arguments = (ins Builtin_Integer:$integer,
+         AllTypesMatch<["annotation", "fileName"]>]> {
+  let arguments = (ins AnySignlessInteger:$integer,
                        LLVM_AnyPointer:$annotation,
-		       LLVM_AnyPointer:$fileName,
-		       I32:$line);
-  let results = (outs Builtin_Integer:$res);
+                       LLVM_AnyPointer:$fileName,
+                       I32:$line);
+  let results = (outs AnySignlessInteger:$res);
 }
 
 //

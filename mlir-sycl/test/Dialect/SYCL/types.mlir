@@ -258,3 +258,20 @@ func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_
 func.func @_Z6streamN4sycl3_V16streamE(%arg0: !sycl_stream) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
+
+
+// -----
+
+////////////////////////////////////////////////////////////////////////////////
+// BUFFER
+////////////////////////////////////////////////////////////////////////////////
+
+// CHECK: func @buffer(%arg0: !sycl.buffer<[2, !llvm.void]>)
+func.func @buffer(%arg0 : !sycl.buffer<[2, !llvm.void]>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
+
+// CHECK: func @sub_buffer(%arg0: !sycl.buffer<[3, !llvm.void, true]>)
+func.func @sub_buffer(%arg0 : !sycl.buffer<[3, !llvm.void, true]>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
