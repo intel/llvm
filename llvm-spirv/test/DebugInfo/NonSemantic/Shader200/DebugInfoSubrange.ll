@@ -28,12 +28,12 @@
 ; CHECK-SPIRV: [[#DebugFuncId:]] [[#EISId]] DebugFunction
 ; CHECK-SPIRV: [[#LocalVarId:]] [[#EISId]] DebugLocalVariable [[#LocalVarNameId]] [[#]] [[#]] [[#]] [[#]] [[#DebugFuncId]]
 ; CHECK-SPIRV: [[#DebugTypeTemplate:]] [[#EISId]] DebugTypeTemplate [[#DebugFuncId]]
-; CHECK-SPIRV: [[#EISId]] DebugTypeSubrange [[#DINoneId]] [[#Constant1Id]] [[#LocalVarId]]  [[#DINoneId]]
+; CHECK-SPIRV: [[#EISId]] DebugTypeSubrange [[#Constant1Id]] [[#LocalVarId]]  [[#DINoneId]] {{$}}
 
 ; CHECK-SPIRV: [[#DIExprId:]] [[#EISId]] DebugExpression
-; CHECK-SPIRV: [[#EISId]] DebugTypeSubrange [[#DINoneId]] [[#DIExprId]] [[#DIExprId]] [[#DINoneId]]
+; CHECK-SPIRV: [[#EISId]] DebugTypeSubrange [[#DIExprId]] [[#DIExprId]] [[#DINoneId]] {{$}}
 
-; CHECK-SPIRV: [[#EISId]] DebugTypeSubrange [[#Constant1000Id]] [[#Constant1Id]] [[#DINoneId]] [[#DINoneId]]
+; CHECK-SPIRV: [[#EISId]] DebugTypeSubrange [[#Constant1Id]] [[#DINoneId]] [[#Constant1000Id]] {{$}}
 
 ; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Constant15Id]] [[#Constant15Id]] [[#Constant67Id]] [[#Constant68Id]]
 ; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Constant27Id]] [[#Constant27Id]] [[#Constant24Id]] [[#Constant25Id]]

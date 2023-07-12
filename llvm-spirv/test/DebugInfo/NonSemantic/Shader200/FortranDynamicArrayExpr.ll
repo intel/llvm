@@ -25,8 +25,8 @@
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprAssociated:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] [[#]] {{$}}
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprLowerBound:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] {{$}}
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprUpperBound:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] {{$}}
-; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprCount:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] {{$}}
-; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgSubRangeId:]] [[#Import]] DebugTypeSubrange [[#DbgInfoNone]] [[#DbgExprLowerBound]] [[#DbgExprUpperBound]] [[#DbgExprCount]]
+; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprStride:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] {{$}}
+; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgSubRangeId:]] [[#Import]] DebugTypeSubrange [[#DbgExprLowerBound]] [[#DbgExprUpperBound]] [[#DbgInfoNone]] [[#DbgExprStride]]
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgArrayId:]] [[#Import]] DebugTypeArrayDynamic [[#ArrayBasicT]] [[#DbgExprLocation]] [[#DbgExprAssociated]] [[#DbgInfoNone]] [[#DbgInfoNone]] [[#DbgSubRangeId]]
 
 ; CHECK-LLVM: %[[#Array:]] = alloca
