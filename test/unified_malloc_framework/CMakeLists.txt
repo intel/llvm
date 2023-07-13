@@ -5,7 +5,7 @@
 
 set(UR_UMF_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(umf_test_helpers STATIC
+add_ur_library(umf_test_helpers STATIC
     ${UR_UMF_TEST_DIR}/common/pool.c
     ${UR_UMF_TEST_DIR}/common/provider.c
 )
@@ -14,7 +14,7 @@ target_link_libraries(umf_test_helpers PRIVATE ${PROJECT_NAME}::common)
 
 function(add_umf_test name)
     set(TEST_TARGET_NAME umf_test-${name})
-    add_executable(${TEST_TARGET_NAME}
+    add_ur_executable(${TEST_TARGET_NAME}
         ${ARGN})
     target_link_libraries(${TEST_TARGET_NAME}
         PRIVATE
