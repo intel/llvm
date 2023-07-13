@@ -85,6 +85,6 @@ int main() {
 
   // Free the allocated memory
   sycl::free(Arr, Queue);
-    
+
   return 0;
 }

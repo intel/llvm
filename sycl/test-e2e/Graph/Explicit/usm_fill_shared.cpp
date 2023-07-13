@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // Tests adding a shared USM fill operation as a graph node with the explicit
 // API.
 // The second run is to check that there are no leaks reported with the embedded

@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // Tests basic adding of nodes using explicit API with USM pointers,
 // and submission of the graph.
 // The second run is to check that there are no leaks reported with the embedded

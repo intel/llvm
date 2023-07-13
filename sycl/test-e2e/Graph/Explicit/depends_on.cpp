@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // Tests that an event returned from adding a graph node using the queue
 // recording API can be passed to `handler::depends_on` inside a node
 // added using the explicit API. This should create a graph edge.

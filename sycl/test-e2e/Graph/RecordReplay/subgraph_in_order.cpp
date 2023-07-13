@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // Tests adding a sub-graph to an in-order queue.
 
 #include "../graph_common.hpp"

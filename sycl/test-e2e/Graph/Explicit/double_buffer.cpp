@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // Expected fail as executable graph update isn't implemented yet
 // XFAIL: *
 

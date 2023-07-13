@@ -128,8 +128,9 @@ int main() {
       Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   auto Info = Event.get_info<info::event::command_execution_status>();
   std::cout << event_status_name(Info) << std::endl;
-  while ((Info = Event.get_info<sycl::info::event::command_execution_status>()) !=
-         sycl::info::event_command_status::complete) {
+  while (
+      (Info = Event.get_info<sycl::info::event::command_execution_status>()) !=
+      sycl::info::event_command_status::complete) {
   }
   std::cout << event_status_name(Info) << std::endl;
 

@@ -7,7 +7,7 @@
 // Test constants.
 constexpr size_t Size = 1024;      // Number of data elements in a buffer.
 constexpr unsigned Iterations = 5; // Iterations of graph to execute.
-constexpr size_t Offset = 100;     // Number of offset elements for Buffer accessors
+constexpr size_t Offset = 100; // Number of offset elements for Buffer accessors
 
 // Namespace alias to use in test code.
 namespace exp_ext = sycl::ext::oneapi::experimental;

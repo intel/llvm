@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // Tests that buffer accessors exhibit the correct behaviour when:
 // * A node is added to the graph between two queue submissions which
 //   use the same buffer, but are not added to the graph.

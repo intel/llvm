@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // Tests adding nodes to a graph using explicit API, and submitting the graph
 // using buffers accessors for inputs and outputs.
 // The second run is to check that there are no leaks reported with the embedded

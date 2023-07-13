@@ -5,7 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-
 // This test adds a new node with the explicit API to an already finalized
 // modifiable graph, before finalizing and executing the graph for a second
 // time.
