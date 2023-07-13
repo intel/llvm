@@ -232,6 +232,11 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind, const property_list &PropList,
                    const detail::code_location &CodeLoc) {
+  if (Dev.has(sycl::aspect::usm_device_allocations) == false) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "usm not supported");
+  }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
   detail::tls_code_loc_t CL(CodeLoc);
