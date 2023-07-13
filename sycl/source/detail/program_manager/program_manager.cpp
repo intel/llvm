@@ -1005,6 +1005,23 @@ ProgramManager::ProgramManager() {
   }
 }
 
+void CheckJITCompilationForImage(const RTDeviceBinaryImage* const& Image, bool JITCompilationIsRequired)
+{
+  if (!JITCompilationIsRequired)
+    return;
+  // If the image is already compiled with AOT, throw an exception.
+  const pi_device_binary_struct &RawImg = Image->getRawData();
+  if ((strcmp(RawImg.DeviceTargetSpec,
+              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
+      (strcmp(RawImg.DeviceTargetSpec,
+              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
+      (strcmp(RawImg.DeviceTargetSpec,
+              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
+    throw feature_not_supported("Recompiling AOT image is not supported",
+                                PI_ERROR_INVALID_OPERATION);
+  }
+}
+
 RTDeviceBinaryImage &
 ProgramManager::getDeviceImage(const std::string& KernelName, const context &Context,
                                const device &Device,
@@ -1019,13 +1036,11 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
   }
 
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-  auto KernelId = m_KernelName2KernelIDs.find(KernelName);
-  assert(KernelId != m_KernelName2KernelIDs.end() &&
-         "No kernel id found for the given kernel name");
-
-  auto ImagesCount = m_KernelIDs2BinImage.count(KernelId->second);
-  assert(ImagesCount &&
-         "No device image found for the given kernel id");
+  if (m_UseSpvFile)
+  {
+    assert(m_SpvFileImage);
+    return getDeviceImage(m_SpvFileImage.get(), Context, Device, JITCompilationIsRequired);
+  }
 
   // TODO: There may be cases with sycl::program class usage in source code
   // that will result in a multi-device context. This case needs to be handled
@@ -1033,41 +1048,70 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
 
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
-  std::vector<pi_device_binary> RawImgs(ImagesCount);
+
+  auto KernelId = m_KernelName2KernelIDs.find(KernelName);
+  assert(KernelId != m_KernelName2KernelIDs.end() &&
+        "No kernel id found for the given kernel name");
+
   auto [ItBegin, ItEnd] = m_KernelIDs2BinImage.equal_range(KernelId->second);
+  std::vector<pi_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
+  assert(RawImgs.size() &&
+        "No device image found for the given kernel id");
   auto It = ItBegin;
   for (unsigned I = 0; It != ItEnd; ++It, ++I)
     RawImgs[I] = const_cast<pi_device_binary>(&It->second->getRawData());
 
   pi_uint32 ImgInd = 0;
-  const ContextImplPtr Ctx = getSyclObjImpl(Context);
-  Ctx->getPlugin()->call<PiApiKind::piextDeviceSelectBinary>(
+  getSyclObjImpl(Context)->getPlugin()->call<PiApiKind::piextDeviceSelectBinary>(
       getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
       (pi_uint32)RawImgs.size(), &ImgInd);
 
   std::advance(It, ImgInd);
-
-  if (JITCompilationIsRequired) {
-    // If the image is already compiled with AOT, throw an exception.
-    const pi_device_binary_struct &RawImg = It->second->getRawData();
-    if ((strcmp(RawImg.DeviceTargetSpec,
-                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-        (strcmp(RawImg.DeviceTargetSpec,
-                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
-        (strcmp(RawImg.DeviceTargetSpec,
-                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
-      throw feature_not_supported("Recompiling AOT image is not supported",
-                                  PI_ERROR_INVALID_OPERATION);
-    }
-  }
-
   RTDeviceBinaryImage *Img = It->second;
+
+  CheckJITCompilationForImage(Img, JITCompilationIsRequired);
 
   if (DbgProgMgr > 0) {
     std::cerr << "selected device image: " << &Img->getRawData() << "\n";
     Img->print();
   }
   return *Img;
+}
+
+RTDeviceBinaryImage &
+ProgramManager::getDeviceImage(RTDeviceBinaryImage* ImageToVerify, const context &Context,
+                               const device &Device,
+                               bool JITCompilationIsRequired) {
+  if (DbgProgMgr > 0) {
+    std::cerr << ">>> ProgramManager::getDeviceImage(\"" << ImageToVerify << "\", "
+              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
+              << ", " << JITCompilationIsRequired << ")\n";
+
+    std::cerr << "available device images:\n";
+    debugPrintBinaryImages();
+  }
+
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  // TODO: There may be cases with sycl::program class usage in source code
+  // that will result in a multi-device context. This case needs to be handled
+  // here or at the program_impl class level
+
+  // Ask the native runtime under the given context to choose the device image
+  // it prefers.
+  std::vector<pi_device_binary> RawImgs {const_cast<pi_device_binary>(&ImageToVerify->getRawData())};
+  pi_uint32 ImgInd = 0;
+  getSyclObjImpl(Context)->getPlugin()->call<PiApiKind::piextDeviceSelectBinary>(
+      getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
+      (pi_uint32)RawImgs.size(), &ImgInd);
+  assert(!ImgInd);
+
+  CheckJITCompilationForImage(ImageToVerify, JITCompilationIsRequired);
+
+  if (DbgProgMgr > 0) {
+    std::cerr << "selected device image: " << &ImageToVerify->getRawData() << "\n";
+    ImageToVerify->print();
+  }
+  return *ImageToVerify;
 }
 
 static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
@@ -1240,7 +1284,6 @@ bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
 }
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
@@ -1339,19 +1382,18 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
           // Give the image pointer as an identifier for the image the
           // device-global is associated with.
-          uintptr_t ImgId = reinterpret_cast<uintptr_t>(Img);
 
           auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
           if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
             // If it has already been registered we update the information.
-            ExistingDeviceGlobal->second->initialize(ImgId, TypeSize,
+            ExistingDeviceGlobal->second->initialize(Img, TypeSize,
                                                      DeviceImageScopeDecorated);
           } else {
             // If it has not already been registered we create a new entry.
             // Note: Pointer to the device global is not available here, so it
             //       cannot be set until registration happens.
             auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
-                DeviceGlobal->Name, ImgId, TypeSize,
+                DeviceGlobal->Name, Img, TypeSize,
                 DeviceImageScopeDecorated);
             m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
           }

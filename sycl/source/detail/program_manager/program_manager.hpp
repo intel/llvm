@@ -90,6 +90,10 @@ public:
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
+  RTDeviceBinaryImage &
+  getDeviceImage(RTDeviceBinaryImage* ImageToVerify, const context &Context,
+                               const device &Device,
+                               bool JITCompilationIsRequired = false);
   sycl::detail::pi::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                               const context &Context,
                                               const device &Device);
