@@ -903,14 +903,21 @@ public:
             typename = typename std::enable_if_t<
                 std::is_same<vector_t_, vector_t>::value &&
                 !std::is_same<vector_t_, DataT>::value>>
-  constexpr vec(vector_t openclVector) : m_Data(openclVector) {}
+  constexpr vec(vector_t openclVector) {
+    if constexpr (!IsUsingArray) {
+      m_Data = openclVector;
+    } else {
+      detail::loop<NumElements>(
+          [&, this](size_t i) { m_Data[i] = openclVector[i]; });
+    }
+  }
 
   operator vector_t() const {
-    if constexpr (IsUsingArray) {
+    if constexpr (!IsUsingArray) {
+      return m_Data;
+    } else {
       auto ptr = reinterpret_cast<const VectorDataType *>((&m_Data)->data());
       return *ptr;
-    } else {
-      return m_Data;
     }
   }
 #endif
