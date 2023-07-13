@@ -1,4 +1,4 @@
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify %s -o %t.out -Wno-deprecated-declarations
 // expected-no-diagnostics
 
 #include <sycl/sycl.hpp>

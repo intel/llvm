@@ -23,6 +23,13 @@ on:
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
+      artifact_archive_name:
+        type: string
+        default: llvm_sycl.tar.gz
+      retention-days:
+        description: 'Artifacts retention period'
+        type: string
+        default: 3
 
 jobs:
   build:
@@ -112,13 +119,14 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       run: |
-        tar -czf llvm_sycl.tar.gz -C install .
+        tar -czf ${{ inputs.artifact_archive_name }} -C install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v3
       with:
         name: sycl_windows_default
-        path: llvm_sycl.tar.gz
+        path: ${{ inputs.artifact_archive_name }}
+        retention-days: ${{ inputs.retention-days }}
 
   e2e-tests:
     needs: build

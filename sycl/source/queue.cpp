@@ -230,9 +230,11 @@ pi_native_handle queue::getNative(int32_t &NativeHandleDesc) const {
   return impl->getNative(NativeHandleDesc);
 }
 
+#ifndef NDEBUG
 buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
   return impl->getAssertHappenedBuffer();
 }
+#endif // NDEBUG
 
 event queue::memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                                   bool IsDeviceImageScope, size_t NumBytes,

@@ -57,3 +57,5 @@ jobs:
             test_build:
               - *sycl
               - *drivers_and_configs
+              # Temporary, until plugins are enabled in nightly image.
+              - sycl/**

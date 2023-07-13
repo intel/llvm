@@ -258,6 +258,49 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_command_buffer_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+  pDdiTable->pfnCreateExp = urCommandBufferCreateExp;
+  pDdiTable->pfnRetainExp = urCommandBufferRetainExp;
+  pDdiTable->pfnReleaseExp = urCommandBufferReleaseExp;
+  pDdiTable->pfnFinalizeExp = urCommandBufferFinalizeExp;
+  pDdiTable->pfnAppendKernelLaunchExp = urCommandBufferAppendKernelLaunchExp;
+  pDdiTable->pfnAppendMemcpyUSMExp = urCommandBufferAppendMemcpyUSMExp;
+  pDdiTable->pfnAppendMembufferCopyExp = urCommandBufferAppendMembufferCopyExp;
+  pDdiTable->pfnAppendMembufferCopyRectExp =
+      urCommandBufferAppendMembufferCopyRectExp;
+  pDdiTable->pfnAppendMembufferReadExp = urCommandBufferAppendMembufferReadExp;
+  pDdiTable->pfnAppendMembufferReadRectExp =
+      urCommandBufferAppendMembufferReadRectExp;
+  pDdiTable->pfnAppendMembufferWriteExp =
+      urCommandBufferAppendMembufferWriteExp;
+  pDdiTable->pfnAppendMembufferWriteRectExp =
+      urCommandBufferAppendMembufferWriteRectExp;
+  pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
+
+  return retVal;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
+    ur_api_version_t version, ur_usm_p2p_exp_dditable_t *pDdiTable) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+  pDdiTable->pfnEnablePeerAccessExp = urUsmP2PEnablePeerAccessExp;
+  pDdiTable->pfnDisablePeerAccessExp = urUsmP2PDisablePeerAccessExp;
+  pDdiTable->pfnPeerAccessGetInfoExp = urUsmP2PPeerAccessGetInfoExp;
+
+  return retVal;
+}
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
