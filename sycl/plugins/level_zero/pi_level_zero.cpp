@@ -1061,10 +1061,11 @@ pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
 }
 
 pi_result piextProgramSetSpecializationConstant(pi_program Prog,
+                                                pi_kernel Kernel,
                                                 pi_uint32 SpecID, size_t Size,
                                                 const void *SpecValue) {
-  return pi2ur::piextProgramSetSpecializationConstant(Prog, SpecID, Size,
-                                                      SpecValue);
+  return pi2ur::piextProgramSetSpecializationConstant(Prog, Kernel, SpecID,
+                                                      Size, SpecValue);
 }
 
 // Command buffer extension

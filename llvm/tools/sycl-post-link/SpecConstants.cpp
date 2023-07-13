@@ -608,6 +608,19 @@ Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
 
 } // namespace
 
+static void updateKernelSpecConstants(
+    StringRef Kernel, StringRef SpecConstant,
+    DenseMap<StringRef, SmallVector<StringRef>> &KernelSpecConstants) {
+  auto KIt = KernelSpecConstants.find(Kernel);
+  if (KIt == KernelSpecConstants.end())
+    KernelSpecConstants[Kernel] = {SpecConstant};
+  else {
+    auto SCIt = std::find(KIt->second.begin(), KIt->second.end(), SpecConstant);
+    if (SCIt == KIt->second.end())
+      KIt->second.push_back(SpecConstant);
+  }
+}
+
 PreservedAnalyses SpecConstantsPass::run(Module &M,
                                          ModuleAnalysisManager &MAM) {
   ID NextID = {0, false};
@@ -616,6 +629,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   StringMap<unsigned> OffsetMap;
   MapVector<StringRef, MDNode *> SCMetadata;
   SmallVector<MDNode *, 4> DefaultsMetadata;
+
+  DenseMap<StringRef, SmallVector<StringRef>> KernelSpecConstants;
+  const bool IsNVPTX = M.getTargetTriple().find("nvptx") != std::string::npos;
 
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
@@ -659,6 +675,13 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         SCTy = Callee->getParamStructRetType(NameArgNo++);
       }
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
+      // Only kernels have the implicit argument added.
+      if (IsNVPTX && (std::prev(CI->getFunction()->arg_end())->getName() ==
+                      "_arg__specialization_constants_buffer")) {
+        // Keep track of per-kernel spec constants.
+        updateKernelSpecConstants(CI->getFunction()->getName(), SymID,
+                                  KernelSpecConstants);
+      }
       Value *Replacement = nullptr;
 
       Constant *DefaultValue = nullptr;
@@ -865,6 +888,22 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
   for (const auto &P : DefaultsMetadata)
     MDDefaults->addOperand(P);
+
+  // For CUDA emit kernel to spec constants mapping metadata (if present).
+  if (IsNVPTX && !KernelSpecConstants.empty()) {
+    LLVMContext &Ctx = M.getContext();
+    auto *KernelSCMD =
+        M.getOrInsertNamedMetadata(::KERNEL_SPEC_CONST_MD_STRING);
+
+    for (auto &K : KernelSpecConstants) {
+      SmallVector<Metadata *, 16> MDOps;
+      MDOps.push_back(MDString::get(Ctx, K.first));
+      for (auto &SC : K.second) {
+        MDOps.push_back(SCMetadata[SC]);
+      }
+      KernelSCMD->addOperand(MDNode::get(Ctx, MDOps));
+    }
+  }
 
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

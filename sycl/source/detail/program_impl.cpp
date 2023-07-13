@@ -549,7 +549,7 @@ void program_impl::flush_spec_constants(
           Descriptors.consume<uint32_t, uint32_t, uint32_t>();
 
       Ctx->getPlugin()->call<PiApiKind::piextProgramSetSpecializationConstant>(
-          NativePrg, Id, Size, SC.getValuePtr() + Offset);
+          NativePrg, nullptr, Id, Size, SC.getValuePtr() + Offset);
     }
   }
 }

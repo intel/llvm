@@ -30,6 +30,11 @@
     }                                                                          \
   }
 
+namespace {
+constexpr char KERNEL_SPEC_CONST_MD_STRING[] =
+    "sycl.specialization-constants-kernel";
+}
+
 namespace llvm {
 
 inline void error(const Twine &Msg) {
