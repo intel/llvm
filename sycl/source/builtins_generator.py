@@ -1,6 +1,7 @@
 import itertools
 import sys
 import os
+from collections import defaultdict
 
 class TemplatedType:
   def __init__(self, valid_types, valid_sizes):
@@ -20,6 +21,9 @@ class Vec(TemplatedType):
             f'detail::is_valid_elem_type_v<{type_name}, {valid_type_str}>',
             f'detail::is_valid_size_v<{type_name}, {valid_sizes_str}>']
 
+  def __hash__(self):
+    return hash(("vec", frozenset(self.valid_types), frozenset(self.valid_sizes)))
+
 class Marray(TemplatedType):
   def __init__(self, valid_types, valid_sizes = None):
     super().__init__(valid_types, valid_sizes)
@@ -33,13 +37,14 @@ class Marray(TemplatedType):
       result.append(f'detail::is_valid_size_v<{type_name}, {valid_sizes_str}>')
     return result
 
+  def __hash__(self):
+    valid_sizes_set = frozenset(self.valid_sizes) if self.valid_sizes else None
+    return hash(("marray", frozenset(self.valid_types), valid_sizes_set))
+
 class InstantiatedTemplatedArg:
   def __init__(self, template_name, templated_type):
     self.template_name = template_name
     self.templated_type = templated_type
-
-  def get_requirements(self):
-    return self.templated_type.get_requirements(self.template_name)
 
   def __str__(self):
     return self.template_name
@@ -979,13 +984,30 @@ def get_all_template_args(arg_types):
       result = result + get_all_template_args([arg_type.element_type])
   return result
 
-def get_vec_arg_requirement(vec_arg):
-  return '(' + (' && '.join(vec_arg.get_requirements())) + ')'
+def get_arg_requirement(arg_type, arg_type_name):
+  return '(' + (' && '.join(arg_type.get_requirements(arg_type_name))) + ')'
+
+def get_all_same_type_requirement(template_names):
+  template_name_args = ', '.join(template_names)
+  return f'detail::CheckAllSameOpType<{template_name_args}>()'
 
 def get_func_return(return_type, arg_types):
   temp_args = get_all_template_args(arg_types)
   if len(temp_args) > 0:
-    conjunc_reqs = ' && '.join([get_vec_arg_requirement(temp_arg) for temp_arg in temp_args])
+    type_groups = defaultdict(lambda: [])
+    for temp_arg in temp_args:
+      type_groups[temp_arg.templated_type].append(temp_arg.template_name)
+    requirements = []
+    for temp_type, temp_names in type_groups.items():
+      # Add the requirements of one of the template arguments in the same type
+      # group. Since they are required to have the same type it is enough to
+      # just check one.
+      requirements.append(get_arg_requirement(temp_type, temp_names[0]))
+      # Add a requirement that all template arguments of the same type group
+      # have the same type. No point in doing so is if is along in the group.
+      if len(temp_names) > 1:
+        requirements.append(get_all_same_type_requirement(temp_names))
+    conjunc_reqs = ' && '.join(requirements)
     return f'std::enable_if_t<{conjunc_reqs}, {return_type}>'
   return str(return_type)
 

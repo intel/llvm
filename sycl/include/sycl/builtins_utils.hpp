@@ -58,6 +58,17 @@ template <typename> struct use_fast_math : std::false_type {};
 #endif
 template <typename T> constexpr bool use_fast_math_v = use_fast_math<T>::value;
 
+template <typename> struct is_swizzle : std::false_type {};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct is_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                            OperationCurrentT, Indexes...>> : std::true_type {};
+
+template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
+
+template <typename T>
+constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
+
 // sycl::select(sgentype a, sgentype b, bool c) calls OpenCL built-in
 // select(sgentype a, sgentype b, igentype c). This type trait makes the
 // proper conversion for argument c from bool to igentype, based on sgentype
@@ -147,6 +158,30 @@ struct get_vec<SwizzleOp<VecT, OperationLeftT, OperationRightT,
 };
 
 template <typename T> using get_vec_t = typename get_vec<T>::type;
+
+// Checks if the type of the operation is the same. For scalars and marray that
+// requires the types to be exact matches. For vector and swizzles it requires
+// that the corresponding vector conversion is the same.
+template <typename T1, typename T2, typename = void>
+struct is_same_op : std::is_same<T1, T2> {};
+template <typename T1, typename T2>
+struct is_same_op<
+    T1, T2,
+    std::enable_if_t<is_vec_or_swizzle_v<T1> && is_vec_or_swizzle_v<T2>>>
+    : std::is_same<get_vec_t<T1>, get_vec_t<T2>> {};
+
+template <typename T1, typename T2>
+constexpr bool is_same_op_v = is_same_op<T1, T2>::value;
+
+template <typename T, typename... Ts> constexpr bool CheckAllSameOpType() {
+  constexpr bool SameType[] = {
+      is_same_op_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
+  // Replace with std::all_of with C++20.
+  for (size_t I = 0; I < sizeof...(Ts); ++I)
+    if (!SameType[I])
+      return false;
+  return true;
+}
 
 template <size_t Size> struct get_signed_int_by_size {
   using type = std::conditional_t<
@@ -247,17 +282,6 @@ template <typename T, int N> struct upsampled_int<vec<T, N>> {
 // TODO: Swizzle variant of this?
 
 template <typename T> using upsampled_int_t = typename upsampled_int<T>::type;
-
-template <typename> struct is_swizzle : std::false_type {};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct is_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                            OperationCurrentT, Indexes...>> : std::true_type {};
-
-template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
-
-template <typename T>
-constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
 
 template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> X, size_t Start) {
   return {X[Start], X[Start + 1]};
