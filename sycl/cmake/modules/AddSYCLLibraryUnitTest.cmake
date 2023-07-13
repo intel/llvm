@@ -33,7 +33,8 @@ macro(add_sycl_library_unittest test_suite_name sycl_extra_flags)
   endforeach()
 
   add_sycl_executable(
-    ${test_suite_name}
+    # 'Tests' suffix needed by lit framework to detect the tests
+    ${test_suite_name}Tests
     OPTIONS
       ${sycl_extra_flags}
       ${INCLUDE_COMPILER_STRING}
@@ -48,7 +49,8 @@ macro(add_sycl_library_unittest test_suite_name sycl_extra_flags)
     SOURCES
       ${ARGN}
     DEPENDANTS
-      check-sycl-${test_suite_name})
+      check-sycl-${test_suite_name}
+      SYCLUnitTests)
 
 endmacro()
 
