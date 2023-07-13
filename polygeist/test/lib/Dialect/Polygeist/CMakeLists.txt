@@ -1,5 +1,6 @@
 if(MLIR_INCLUDE_TESTS)
   add_mlir_library(MLIRPolygeistTestAnalysis
+    TestIDAndRangeAnalysis.cpp
     TestMemoryAccessAnalysis.cpp
     TestReachingDefinitionsAnalysis.cpp
     TestUniformityAnalysis.cpp
