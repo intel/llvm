@@ -140,7 +140,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piSamplerRelease, pi2ur::piSamplerRelease)
   // Enqueue commands
   _PI_CL(piEnqueueKernelLaunch, pi2ur::piEnqueueKernelLaunch)
-  _PI_CL(piEnqueueNativeKernel, pi2ur::piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, pi2ur::piEnqueueEventsWait)
   _PI_CL(piEnqueueEventsWaitWithBarrier, pi2ur::piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, pi2ur::piEnqueueMemBufferRead)
