@@ -32,7 +32,6 @@ piEnqueueMemImageFill
 piEnqueueMemImageRead
 piEnqueueMemImageWrite
 piEnqueueMemUnmap
-piEnqueueNativeKernel
 piEventCreate
 piEventGetInfo
 piEventGetProfilingInfo

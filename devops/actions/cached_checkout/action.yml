@@ -6,6 +6,11 @@ inputs:
     default: ${{ github.repository }}
   ref:
     description: 'Commit-ish to checkout'
+  merge_ref:
+    description: |
+      Commit-ish to merge post-checkout if non-empty. Must be reachable from the
+      default_branch input paramter.
+    default: 'FETCH_HEAD'
   path:
     description: 'Path to checkout repo to'
   fetch-depth:
@@ -16,9 +21,6 @@ inputs:
   default_branch:
     description: 'Name of the default branch'
     default: 'sycl'
-  merge:
-    description: 'Merge default branch after the checkout'
-    default: true
 
 runs:
   using: 'composite'
@@ -33,7 +35,6 @@ runs:
       else
         git clone https://github.com/${{ inputs.repository }}.git .
       fi
-      chown -R sycl:sycl ${{ inputs.cache_path }}/${{ inputs.repository }}
   - name: Checkout
     env:
       GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
@@ -52,7 +53,7 @@ runs:
       echo $GIT_ALTERNATE_OBJECT_DIRECTORIES > ${{ inputs.path }}/.git/objects/info/alternates
   - name: Merge sycl HEAD into current branch
     shell: bash
-    if: ${{ inputs.merge == 'true' }}
+    if: ${{ inputs.merge_ref != '' }}
     env:
       DEFAULT_BRANCH: ${{ inputs.default_branch }}
     run: |
@@ -64,4 +65,4 @@ runs:
       # Set fake identity to fulfil git requirements
       git config --local user.email "actions@github.com"
       git config --local user.name "GitHub Actions"
-      git merge --no-ff --no-commit origin/$DEFAULT_BRANCH
+      git merge --no-ff --no-commit ${{ inputs.merge_ref }}

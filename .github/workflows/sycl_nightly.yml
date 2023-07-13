@@ -23,7 +23,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default-2204
-      merge: false
+      merge_ref: ''
       retention-days: 90
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
@@ -39,7 +39,7 @@ jobs:
       build_cache_suffix: opaque_pointers
       build_artifact_suffix: opaque_pointers-2204
       build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
-      merge: false
+      merge_ref: ''
 
   windows_default:
     name: Windows
