@@ -5955,7 +5955,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
-    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_memory_desc_t
+        *interopMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
         *phInteropMem ///< [out] interop memory handle to the external memory
 ) {
@@ -5975,13 +5976,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == interopMemDesc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (NULL == phInteropMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
     ur_result_t result = pfnImportOpaqueFDExp(hContext, hDevice, size,
-                                              fileDescriptor, phInteropMem);
+                                              interopMemDesc, phInteropMem);
 
     return result;
 }
@@ -6086,9 +6091,10 @@ __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_semaphore_desc_t
+        *interopSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
-        phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
+        phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
 ) {
     auto pfnImportExternalSemaphoreOpaqueFDExp =
         context.urDdiTable.BindlessImagesExp
@@ -6107,13 +6113,17 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == phInteropSemaphoreHandle) {
+        if (NULL == interopSemaphoreDesc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phInteropSemaphore) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
     ur_result_t result = pfnImportExternalSemaphoreOpaqueFDExp(
-        hContext, hDevice, fileDescriptor, phInteropSemaphoreHandle);
+        hContext, hDevice, interopSemaphoreDesc, phInteropSemaphore);
 
     return result;
 }

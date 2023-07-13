@@ -64,6 +64,10 @@ Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_structure_type_t
     ${X}_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES
+    ${X}_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC
+    ${X}_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC
+    ${X}_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR
+    ${X}_STRUCTURE_TYPE_EXP_WIN32_HANDLE
 
 * ${x}_device_info_t
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP
@@ -119,6 +123,10 @@ Types
 * ${x}_exp_image_mem_handle_t
 * ${x}_exp_interop_mem_handle_t
 * ${x}_exp_interop_semaphore_handle_t
+* ${x}_exp_interop_memory_desc_t
+* ${x}_exp_interop_semaphore_desc_t
+* ${x}_exp_file_descriptor_t
+* ${x}_exp_win32_handle_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -159,8 +167,11 @@ Changelog
 |          || Removed 3D USM capabilities.                            |
 |          || Added mip filter mode.                                  |
 +----------+----------------------------------------------------------+
-| 3.0      | Added device query for bindless images on shared USM    |
-+----------+---------------------------------------------------------+
+| 3.0      | Added device query for bindless images on shared USM     |
++----------+-------------------------------------------------------------+
+| 4.0      || Added platform specific interop resource handles.          |
+|          || Added and updated to use new interop resource descriptors. |
++----------+-------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
