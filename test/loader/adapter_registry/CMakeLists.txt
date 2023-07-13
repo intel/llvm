@@ -7,7 +7,7 @@ function(add_adapter_reg_search_test name)
     cmake_parse_arguments(TEST "" "" "SEARCH_PATH;ENVS;SOURCES" ${ARGN})
 
     set(TEST_TARGET_NAME adapter-reg-test-${name})
-    add_executable(${TEST_TARGET_NAME}
+    add_ur_executable(${TEST_TARGET_NAME}
         ${TEST_SOURCES})
 
     if(WIN32)

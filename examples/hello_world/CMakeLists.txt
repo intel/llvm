@@ -5,7 +5,7 @@
 
 set(TARGET_NAME hello_world)
 
-add_executable(${TARGET_NAME}
+add_ur_executable(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/hello_world.cpp
 )
 
