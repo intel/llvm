@@ -29,7 +29,9 @@ struct TestMemoryAccessAnalysisPass
     Operation *op = getOperation();
     ModuleAnalysisManager mam(op, /*passInstrumentor=*/nullptr);
     AnalysisManager am = mam;
-    auto &memAccessAnalysis = am.getAnalysis<MemoryAccessAnalysis>();
+    bool relaxedAliasing = true;
+    auto &memAccessAnalysis =
+        am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
 
     op->walk([&](Operation *op) {
       // Only operations with the "tag" attribute are interesting.
