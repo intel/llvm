@@ -744,7 +744,7 @@ public:
   using rel_t = detail::rel_t<DataT>;
 
 #ifdef __SYCL_DEVICE_ONLY__
-  using vector_t = DataType;
+  using vector_t = VectorDataType;
 #endif
 
   vec() = default;
@@ -766,6 +766,12 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
+  template <typename T = void>
+  using EnableIfNotHostHalf = typename std::enable_if_t<!IsHostHalf, T>;
+
+  template <typename T = void>
+  using EnableIfHostHalf = typename std::enable_if_t<IsHostHalf, T>;
+
   template <typename T = void>
   using EnableIfUsingArray = typename std::enable_if_t<IsUsingArray, T>;
 
@@ -898,7 +904,15 @@ public:
                 std::is_same<vector_t_, vector_t>::value &&
                 !std::is_same<vector_t_, DataT>::value>>
   constexpr vec(vector_t openclVector) : m_Data(openclVector) {}
-  operator vector_t() const { return m_Data; }
+
+  operator vector_t() const {
+    if constexpr (IsUsingArray) {
+      auto ptr = reinterpret_cast<const VectorDataType *>((&m_Data)->data());
+      return *ptr;
+    } else {
+      return m_Data;
+    }
+  }
 #endif
 
   // Available only when: NumElements == 1
@@ -1328,26 +1342,26 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(EnableIfNotUsingArray<Ty> Index, const DataT &Value,
+  constexpr void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value,
                           int) {
     m_Data[Index] = vec_data<DataT>::get(Value);
   }
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr DataT getValue(EnableIfNotUsingArray<Ty> Index, int) const {
+  constexpr DataT getValue(EnableIfNotHostHalf<Ty> Index, int) const {
     return vec_data<DataT>::get(m_Data[Index]);
   }
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(EnableIfUsingArray<Ty> Index, const DataT &Value, int) {
+  constexpr void setValue(EnableIfHostHalf<Ty> Index, const DataT &Value, int) {
     m_Data.s[Index] = vec_data<DataT>::get(Value);
   }
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr DataT getValue(EnableIfUsingArray<Ty> Index, int) const {
+  constexpr DataT getValue(EnableIfHostHalf<Ty> Index, int) const {
     return vec_data<DataT>::get(m_Data.s[Index]);
   }
 #else  // __SYCL_DEVICE_ONLY__

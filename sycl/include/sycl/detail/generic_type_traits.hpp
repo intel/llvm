@@ -378,27 +378,8 @@ template <typename T> class TryToGetPointerVecT {
   template <typename A>
   static typename TryToGetVectorT<A>::type *check(const A *);
 
-  static auto get_type() {
-    using typeVecPointer = decltype(check(T()));
-    using typeVec = std::remove_pointer_t<typeVecPointer>;
-    if constexpr (sizeof(typeVec) <= 64)
-      return typeVecPointer();
-    else {
-      using elementType = typename TryToGetElementType<typeVec>::type;
-      // The only cases where the vec size is greater than 64 is when we have a
-      // vec16 of an 8-byte type (like double, or long long)  To get around
-      // alignment issues, those are represented internally as std::array, but
-      // when interfacing with SPIR-V, we need to squint and say it is a vector
-      // extension.
-      using DT = typename DecoratedType<elementType
-                                        __attribute__((ext_vector_type(16))),
-                                        T::address_space>::type *;
-      return DT();
-    }
-  }
-
 public:
-  using type = decltype(get_type());
+  using type = decltype(check(T()));
 };
 
 template <typename To> struct PointerConverter {
