@@ -290,14 +290,16 @@ LogicalResult SYCLIDConstructorOp::verify() {
 /// sycl.id.constructor() : () -> memref<?x!sycl_id_X_>
 /// ```
 OpFoldResult SYCLIDConstructorOp::fold(FoldAdaptor adaptor) {
-  mlir::OperandRange args = getArgs();
+  ArrayRef<Attribute> args = adaptor.getArgs();
   if (args.empty())
     // Already dealing with the default constructor
     return {};
 
   // Check all arguments are a constant 0
-  auto isZero = m_Zero();
-  if (!llvm::all_of(args, [&](Value arg) { return matchPattern(arg, isZero); }))
+  if (!llvm::all_of(args, [](Attribute attr) {
+        auto intAttr = llvm::dyn_cast_or_null<IntegerAttr>(attr);
+        return intAttr && intAttr.getValue() == 0;
+      }))
     return {};
 
   // Erase arguments
