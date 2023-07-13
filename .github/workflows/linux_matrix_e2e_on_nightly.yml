@@ -28,7 +28,7 @@ jobs:
             reset_gpu: false
 
           - name: Intel
-            runner: '["Linux", "gen9"]'
+            runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
             extra_image_opts:
             extra_cmake_args:
