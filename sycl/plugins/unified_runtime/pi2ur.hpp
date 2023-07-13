@@ -291,7 +291,7 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
       case UR_PLATFORM_BACKEND_CUDA:
         return PI_EXT_PLATFORM_BACKEND_CUDA;
       case UR_PLATFORM_BACKEND_HIP:
-        return PI_EXT_PLATFORM_BACKEND_CUDA;
+        return PI_EXT_PLATFORM_BACKEND_HIP;
       default:
         die("UR_PLATFORM_INFO_BACKEND: unhandled value");
       }
