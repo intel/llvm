@@ -748,9 +748,9 @@ public:
 
   vec() = default;
 
-  vec(const vec &Rhs) = default;
+  constexpr vec(const vec &Rhs) = default;
 
-  vec(vec &&Rhs) = default;
+  constexpr vec(vec &&Rhs) = default;
 
   vec &operator=(const vec &Rhs) = default;
 
