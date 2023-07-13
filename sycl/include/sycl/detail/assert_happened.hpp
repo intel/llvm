@@ -8,6 +8,8 @@
 
 #pragma once
 
+#ifndef NDEBUG
+
 #include <sycl/detail/defines_elementary.hpp>
 
 #include <cstdint>
@@ -42,3 +44,5 @@ struct AssertHappened {
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
+
+#endif // NDEBUG
