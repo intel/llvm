@@ -26,6 +26,12 @@ class SYCL_HostOp<string mnemonic, list<Trait> traits = []> :
     SYCL_Op<"host." # mnemonic, traits>;
 
 ////////////////////////////////////////////////////////////////////////////////
+// TRAIT DECLARATIONS
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLHostHandlerOp : SYCLOpTrait<"SYCLHostHandlerOp">;
+
+////////////////////////////////////////////////////////////////////////////////
 // OPERATIONS
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,7 +102,7 @@ def SYCLHostGetKernelOp
 
 def SYCLHostHandlerSetKernel
     : SYCL_HostOp<"handler.set_kernel",
-        [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+        [SYCLHostHandlerOp, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = [{
     Operation assigning a kernel to a `sycl::handler`, thus pairing the handler
     and the kernel being launched.
@@ -107,7 +113,8 @@ def SYCLHostHandlerSetKernel
   }];
 }
 
-def SYCLHostHandlerSetNDRange : SYCL_HostOp<"handler.set_nd_range"> {
+def SYCLHostHandlerSetNDRange
+    : SYCL_HostOp<"handler.set_nd_range", [SYCLHostHandlerOp]> {
   let summary = [{
     Operation assigning an nd-range to a `sycl::handler`, setting the nd-range
     of the kernel to be launched.
@@ -121,6 +128,24 @@ def SYCLHostHandlerSetNDRange : SYCL_HostOp<"handler.set_nd_range"> {
     $handler `->` $nd_range attr-dict `:` type(operands)
   }];
   let hasVerifier = 1;
+}
+
+def SYCLHostSetCaptured : SYCL_HostOp<"set_captured"> {
+  let summary = "Marks a value as captured by a kernel function object.";
+  let description = [{
+    This operation represents that the given `value` was captured in the kernel
+    function object `lambda` at index `index`. The op is created during the 
+    progressive raising towards the `sycl.host.launch_kernel` op.
+
+    Example:
+    ```
+    sycl.host.set_captured %lambda[2] = %accessor : !llvm.ptr, !llvm.ptr
+    ```
+  }];
+  let arguments = (ins LLVM_AnyPointer:$lambda, I64Attr:$index, AnyType:$value);
+  let assemblyFormat = [{
+    $lambda `[` $index `]` `=` $value attr-dict `:` type(operands)
+  }];
 }
 
 def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
