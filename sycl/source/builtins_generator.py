@@ -41,6 +41,17 @@ class Marray(TemplatedType):
     valid_sizes_set = frozenset(self.valid_sizes) if self.valid_sizes else None
     return hash(("marray", frozenset(self.valid_types), valid_sizes_set))
 
+class TemplatedScalar(TemplatedType):
+  def __init__(self, valid_types):
+    super().__init__(valid_types, None)
+
+  def get_requirements(self, type_name):
+    valid_type_str = ', '.join(self.valid_types)
+    return [f'detail::CheckTypeIn<{type_name}, {valid_type_str}>()']
+
+  def __hash__(self):
+    return hash(("scalar", frozenset(self.valid_types)))
+
 class InstantiatedTemplatedArg:
   def __init__(self, template_name, templated_type):
     self.template_name = template_name
@@ -381,7 +392,8 @@ def convert_vec_arg_name(arg_type, arg_name):
 
 class DefCommon:
   def __init__(self, return_type, arg_types, invoke_name, invoke_prefix,
-               custom_invoke, size_alias, marray_use_loop):
+               custom_invoke, size_alias, marray_use_loop,
+               template_scalar_args):
     self.return_type = return_type
     self.arg_types = arg_types
     self.invoke_name = invoke_name
@@ -389,6 +401,7 @@ class DefCommon:
     self.custom_invoke = custom_invoke
     self.size_alias = size_alias
     self.marray_use_loop = marray_use_loop
+    self.template_scalar_args = template_scalar_args
 
   def require_size_alias(self, alternative_name, marray_type):
     if not self.size_alias:
@@ -479,9 +492,11 @@ class DefCommon:
 class Def(DefCommon):
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
-               convert_args=[], size_alias=None, marray_use_loop=False):
+               convert_args=[], size_alias=None, marray_use_loop=False,
+               template_scalar_args=False):
     super().__init__(return_type, arg_types, invoke_name, invoke_prefix,
-                     custom_invoke, size_alias, marray_use_loop)
+                     custom_invoke, size_alias, marray_use_loop,
+                     template_scalar_args)
     self.fast_math_invoke_name = fast_math_invoke_name
     # List of tuples with mappings for arguments to cast to argument types.
     # First element in a tuple is the index of the argument to cast and the
@@ -509,11 +524,12 @@ class Def(DefCommon):
 
 class RelDef(DefCommon):
   def __init__(self, return_type, arg_types, invoke_name=None,
-               invoke_prefix="", custom_invoke=None):
+               invoke_prefix="", custom_invoke=None,
+               template_scalar_args=False):
     # NOTE: Relational builtins never use the vectorized solution as the vectors
     #       are likely to use values larger than bool.
     super().__init__(return_type, arg_types, invoke_name, invoke_prefix,
-                     custom_invoke, None, True)
+                     custom_invoke, None, True, template_scalar_args)
 
   def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
     if self.custom_invoke:
@@ -709,12 +725,12 @@ sycl_builtins = {# Math functions
                  "mul24": [Def("igenint32", ["igenint32", "igenint32"], invoke_prefix="s_"),
                            Def("ugenint32", ["ugenint32", "ugenint32"], invoke_prefix="u_")],
                  # Common functions
-                 "clamp": [Def("genfloat", ["genfloat", "genfloat", "genfloat"], invoke_prefix="f"),
+                 "clamp": [Def("genfloat", ["genfloat", "genfloat", "genfloat"], invoke_prefix="f", template_scalar_args=True),
                            Def("vfloatn", ["vfloatn", "float", "float"], invoke_prefix="f", convert_args=[(1,0),(2,0)]),
                            Def("vdoublen", ["vdoublen", "double", "double"], invoke_prefix="f", convert_args=[(1,0),(2,0)]),
                            Def("vhalfn", ["vhalfn", "half", "half"], invoke_prefix="f", convert_args=[(1,0),(2,0)]), # Non-standard. Deprecated.
-                           Def("igeninteger", ["igeninteger", "igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True),
-                           Def("ugeninteger", ["ugeninteger", "ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True),
+                           Def("igeninteger", ["igeninteger", "igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True, template_scalar_args=True),
+                           Def("ugeninteger", ["ugeninteger", "ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True, template_scalar_args=True),
                            Def("vigeninteger", ["vigeninteger", "elementtype0", "elementtype0"], invoke_prefix="s_"),
                            Def("vugeninteger", ["vugeninteger", "elementtype0", "elementtype0"], invoke_prefix="u_"),
                            Def("mgentype", ["mgentype", "elementtype0", "elementtype0"], marray_use_loop=True)],
@@ -960,9 +976,23 @@ def is_valid_combination(return_type, arg_types):
   # 2. marray and raw pointers were never supported together and shouldn't be.
   return not (marray_arg_seen and (vec_arg_seen or raw_ptr_seen))
 
-def type_combinations(return_type, arg_types):
+def convert_scalars_to_templated(type_list):
+  result = []
+  scalars = []
+  for t in type_list:
+    if isinstance(t, str):
+      scalars.append(t)
+    else:
+      result.append(t)
+  if len(scalars) > 0:
+    result.append(TemplatedScalar(scalars))
+  return result
+
+def type_combinations(return_type, arg_types, template_scalars):
   unique_types = list(dict.fromkeys(arg_types + [return_type]))
   unique_type_lists = [builtin_types[unique_type] for unique_type in unique_types]
+  if template_scalars:
+    unique_type_lists = [convert_scalars_to_templated(type_list) for type_list in unique_type_lists]
   combinations = list(itertools.product(*unique_type_lists))
   result = []
   for combination in combinations:
@@ -1057,7 +1087,8 @@ def generate_builtins(builtins, namespace):
   marray_result = []
   for builtin_name, builtin_defs in builtins.items():
     for builtin_def in builtin_defs:
-      combs = type_combinations(builtin_def.return_type, builtin_def.arg_types)
+      combs = type_combinations(builtin_def.return_type, builtin_def.arg_types,
+                                builtin_def.template_scalar_args)
       for (return_t, arg_ts) in combs:
         generated_builtin = generate_builtin(builtin_name, namespace, builtin_def, return_t, arg_ts)
         if (any([is_marray_arg(arg_t) for arg_t in arg_ts])):
