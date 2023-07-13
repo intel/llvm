@@ -646,11 +646,9 @@ public:
   /// \return a native handle.
   pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
-#ifndef NDEBUG
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
-#endif // NDEBUG
 
   void registerStreamServiceEvent(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MMutex);
