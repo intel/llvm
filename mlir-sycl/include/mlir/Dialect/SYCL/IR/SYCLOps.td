@@ -722,6 +722,7 @@ def SYCLIDConstructorOp : SYCLConstructor<"id"> {
                         ::mlir::MemoryEffects::Effect>> &effects);
   }];
   let hasVerifier = true;
+  let hasFolder = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

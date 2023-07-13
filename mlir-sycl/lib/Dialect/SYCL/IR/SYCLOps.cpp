@@ -11,6 +11,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -277,6 +278,31 @@ LogicalResult SYCLIDConstructorOp::verify() {
       return checkSameDimensions(*this, type, MT);
   }
   return emitBadSignatureError(*this);
+}
+
+/// Fold:
+/// ```
+/// %c0 = arith.constant 0 : index
+/// sycl.id.constructor(%c0+) : (index+) -> memref<?x!sycl_id_X_>
+/// ```
+/// To:
+/// ```
+/// sycl.id.constructor() : () -> memref<?x!sycl_id_X_>
+/// ```
+OpFoldResult SYCLIDConstructorOp::fold(FoldAdaptor adaptor) {
+  mlir::OperandRange args = getArgs();
+  if (args.empty())
+    // Already dealing with the default constructor
+    return {};
+
+  // Check all arguments are a constant 0
+  auto isZero = m_Zero();
+  if (!llvm::all_of(args, [&](Value arg) { return matchPattern(arg, isZero); }))
+    return {};
+
+  // Erase arguments
+  (*this)->setOperands({});
+  return getId();
 }
 
 LogicalResult SYCLRangeConstructorOp::verify() {
