@@ -123,6 +123,24 @@ def SYCLHostHandlerSetNDRange : SYCL_HostOp<"handler.set_nd_range"> {
   let hasVerifier = 1;
 }
 
+def SYCLHostSetCaptured : SYCL_HostOp<"set_captured"> {
+  let summary = "Marks a value as captured by a kernel function object.";
+  let description = [{
+    This operation represents that the given `value` was captured in the kernel
+    function object `lambda` at index `index`. The op is created during the 
+    progressive raising towards the `sycl.host.launch_kernel` op.
+
+    Example:
+    ```
+    sycl.host.set_captured %lambda[2] = %accessor : !llvm.ptr, !llvm.ptr
+    ```
+  }];
+  let arguments = (ins LLVM_AnyPointer:$lambda, I64Attr:$index, AnyType:$value);
+  let assemblyFormat = [{
+    $lambda `[` $index `]` `=` $value attr-dict `:` type(operands)
+  }];
+}
+
 def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
     [DeclareOpInterfaceMethods<SymbolUserOpInterface>,
      AttrSizedOperandSegments]> {
