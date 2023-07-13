@@ -53,7 +53,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
      auto v = sum_rows_v.get_access<access::mode::read_write>(cgh);
-     auto os = sycl::stream(100000, 6144, cgh);
+     auto os = sycl::stream(100000, 7000, cgh);
 
      cgh.parallel_for<class imatrix>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
@@ -67,6 +67,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            const auto global_idy = spmd_item.get_global_id(1);
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
+           os << spmd_item << ": ";
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::row_major>
@@ -93,13 +94,13 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
                  N * 2);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+//             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
-           joint_matrix_store(
-               sg, sub_c,
-               accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-               N, layout::row_major);
+          //  joint_matrix_store(
+          //      sg, sub_c,
+          //      accC.template get_multi_ptr<access::decorated::no>() +
+          //          (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+          //      N, layout::row_major);
 
            float sum_local_rows[M] = {0}; // 8 local rows, M total
            auto data =
@@ -112,7 +113,9 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
 
            for (int i = 0; i < data.length(); ++i) {
              auto dataItem = data[i];
+             os << data[i];
              auto [row, col] = dataItem.get_coord();
+             os << "(" << row << ", " << col << "); ";
              // get_coord_ref(i, spmd_item.get_local_id(1));
              global_index = row + global_idx * TM;
 
@@ -120,6 +123,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
 
              handled_rows[global_index] = 1;
            }
+           os << "\n";
 
            for (int j = 0; j < M; j++) {
              if (handled_rows[j] == 1) {
@@ -179,9 +183,11 @@ int main() {
       B[i][j] = bfloat16(2.0f * i + 3.0f * j);
     }
   }
+  int c = 0;
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
-      C[i][j] = 1.0;
+      //C[i][j] = 1.0;
+      C[i][j] = c++;
       D[i][j] = 1.0;
     }
   }
@@ -194,18 +200,42 @@ int main() {
   matrix_multiply_ref((int32_t *)A, (int32_t *)B, (int32_t *)D, MATRIX_M,
                       MATRIX_N, MATRIX_K / 2);
 
-  bool res = true;
+  std::cout << "matrix C:\n";
+  for (int i = 0; i < MATRIX_M; i++) {
+    for (int j = 0; j < MATRIX_N; j++) {
+      std::cout << C[i][j] << " ";
+    }
+    std::cout << "\n";
+  }
+
+
+  bool res_mad = true;
+  bool res_sum = true;
   float sum_rows_ref[MATRIX_M] = {0};
 
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
       if (fabs(C[i][j] - D[i][j]) > BF16_EPSILON)
-        res = false;
+        res_mad = false;
       sum_rows_ref[i] += C[i][j];
     }
     if (fabs(sum_rows_ref[i] - sum_rows[i]) > BF16_EPSILON)
-      res = false;
+      res_sum = false;
   }
-  std::cout << (res ? "passed" : "failed") << std::endl;
-  return !res;
+
+  std::cout << "res: ";
+  for (int i = 0; i < MATRIX_M; i++) {
+    std::cout << sum_rows[i] << " ";
+  }
+  std::cout << "\n";
+
+  std::cout << "ref: ";
+  for (int i = 0; i < MATRIX_M; i++) {
+    std::cout << sum_rows_ref[i] << " ";
+  }
+  std::cout << "\n";
+
+  std::cout << (res_mad ? "mad passed" : "mad failed") << std::endl;
+  std::cout << (res_sum ? "sum passed" : "sum failed") << std::endl;
+  return !(res_mad && res_sum);
 }
