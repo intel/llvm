@@ -34,6 +34,7 @@
 #include <sycl/sampler.hpp>
 
 #include <iterator>
+#include <optional>
 #include <type_traits>
 
 #include <utility>
@@ -245,6 +246,15 @@ void __SYCL_EXPORT constructorNotification(void *BufferObj, void *AccessorObj,
                                            access::target Target,
                                            access::mode Mode,
                                            const code_location &CodeLoc);
+
+void __SYCL_EXPORT unsampledImageConstructorNotification(
+    void *ImageObj, void *AccessorObj, std::optional<image_target> Target,
+    access::mode Mode, const void *Type, uint32_t ElemSize,
+    const code_location &CodeLoc);
+
+void __SYCL_EXPORT sampledImageConstructorNotification(
+    void *ImageObj, void *AccessorObj, std::optional<image_target> Target,
+    const void *Type, uint32_t ElemSize, const code_location &CodeLoc);
 
 template <typename T>
 using IsPropertyListT = typename std::is_base_of<PropertyListBase, T>;
@@ -514,13 +524,13 @@ public:
   id<3> &getOffset();
   range<3> &getAccessRange();
   range<3> &getMemoryRange();
-  void *getPtr();
+  void *getPtr() noexcept;
   unsigned int getElemSize() const;
 
   const id<3> &getOffset() const;
   const range<3> &getAccessRange() const;
   const range<3> &getMemoryRange() const;
-  void *getPtr() const;
+  void *getPtr() const noexcept;
   bool isPlaceholder() const;
 
   detail::AccHostDataT &getAccData();
@@ -1396,7 +1406,7 @@ public:
             /*MemoryRange=*/{0, 0, 0},
             /*AccessMode=*/getAdjustedMode({}),
             /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
-            /*IsPlaceH=*/true,
+            /*IsPlaceH=*/false,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
   template <typename, int, access_mode> friend class host_accessor;
@@ -2292,10 +2302,20 @@ public:
   template <access::target AccessTarget_ = AccessTarget,
             typename = std::enable_if_t<
                 (AccessTarget_ == access::target::host_buffer) ||
-                (AccessTarget_ == access::target::host_task) ||
-                (AccessTarget_ == access::target::device)>>
+                (AccessTarget_ == access::target::host_task)>>
   std::add_pointer_t<value_type> get_pointer() const noexcept {
     return getPointerAdjusted();
+  }
+
+  template <
+      access::target AccessTarget_ = AccessTarget,
+      typename = std::enable_if_t<(AccessTarget_ == access::target::device)>>
+  __SYCL2020_DEPRECATED(
+      "accessor::get_pointer() is deprecated, please use get_multi_ptr()")
+  global_ptr<DataT> get_pointer() const noexcept {
+    return global_ptr<DataT>(
+        const_cast<typename detail::DecoratedType<DataT, AS>::type *>(
+            getPointerAdjusted()));
   }
 
   template <access::target AccessTarget_ = AccessTarget,
@@ -3064,8 +3084,10 @@ public:
     return const_reverse_iterator(begin());
   }
 
-  std::add_pointer_t<value_type> get_pointer() const noexcept {
-    return std::add_pointer_t<value_type>(local_acc::getQualifiedPtr());
+  __SYCL2020_DEPRECATED(
+      "local_accessor::get_pointer() is deprecated, please use get_multi_ptr()")
+  local_ptr<DataT> get_pointer() const noexcept {
+    return local_ptr<DataT>(local_acc::getQualifiedPtr());
   }
 
   template <access::decorated IsDecorated>
@@ -3583,9 +3605,10 @@ public:
   using const_reference = const DataT &;
 
   template <typename AllocatorT>
-  unsampled_image_accessor(unsampled_image<Dimensions, AllocatorT> &ImageRef,
-                           handler &CommandGroupHandlerRef,
-                           const property_list &PropList = {})
+  unsampled_image_accessor(
+      unsampled_image<Dimensions, AllocatorT> &ImageRef,
+      handler &CommandGroupHandlerRef, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       {}
 #else
@@ -3604,6 +3627,9 @@ public:
           "Device associated with command group handler does not have "
           "aspect::image.");
 
+    detail::unsampledImageConstructorNotification(
+        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), AccessTarget,
+        AccessMode, (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
     detail::associateWithHandler(CommandGroupHandlerRef, this, AccessTarget);
     GDBMethodsAnchor();
   }
@@ -3722,7 +3748,8 @@ public:
   template <typename AllocatorT>
   host_unsampled_image_accessor(
       unsampled_image<Dimensions, AllocatorT> &ImageRef,
-      const property_list &PropList = {})
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                    AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                    Dimensions, ImageRef.getElementSize(),
@@ -3730,6 +3757,10 @@ public:
                    ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                    PropList) {
     addHostUnsampledImageAccessorAndWait(base_class::impl.get());
+
+    detail::unsampledImageConstructorNotification(
+        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), std::nullopt,
+        AccessMode, (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
   }
 
   /* -- common interface members -- */
@@ -3840,9 +3871,10 @@ public:
   using const_reference = const DataT &;
 
   template <typename AllocatorT>
-  sampled_image_accessor(sampled_image<Dimensions, AllocatorT> &ImageRef,
-                         handler &CommandGroupHandlerRef,
-                         const property_list &PropList = {})
+  sampled_image_accessor(
+      sampled_image<Dimensions, AllocatorT> &ImageRef,
+      handler &CommandGroupHandlerRef, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       {}
 #else
@@ -3861,6 +3893,9 @@ public:
           "Device associated with command group handler does not have "
           "aspect::image.");
 
+    detail::sampledImageConstructorNotification(
+        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), AccessTarget,
+        (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
     detail::associateWithHandler(CommandGroupHandlerRef, this, AccessTarget);
     GDBMethodsAnchor();
   }
@@ -3953,8 +3988,10 @@ public:
   using const_reference = const DataT &;
 
   template <typename AllocatorT>
-  host_sampled_image_accessor(sampled_image<Dimensions, AllocatorT> &ImageRef,
-                              const property_list &PropList = {})
+  host_sampled_image_accessor(
+      sampled_image<Dimensions, AllocatorT> &ImageRef,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                    detail::getSyclObjImpl(ImageRef).get(), Dimensions,
                    ImageRef.getElementSize(),
@@ -3962,6 +3999,10 @@ public:
                    ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                    ImageRef.getSampler(), PropList) {
     addHostSampledImageAccessorAndWait(base_class::impl.get());
+
+    detail::sampledImageConstructorNotification(
+        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), std::nullopt,
+        (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
   }
 
   /* -- common interface members -- */

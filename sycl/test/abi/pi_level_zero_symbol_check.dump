@@ -32,7 +32,6 @@ piEnqueueMemImageFill
 piEnqueueMemImageRead
 piEnqueueMemImageWrite
 piEnqueueMemUnmap
-piEnqueueNativeKernel
 piEventCreate
 piEventGetInfo
 piEventGetProfilingInfo
@@ -136,3 +135,6 @@ piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc
 piextUSMSharedAlloc
+piextEnablePeerAccess
+piextDisablePeerAccess
+piextPeerAccessGetInfo
