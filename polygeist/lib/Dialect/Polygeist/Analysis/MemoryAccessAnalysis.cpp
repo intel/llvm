@@ -1203,7 +1203,7 @@ MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
   return it->second;
 }
 
-void MemoryAccessAnalysis::build(bool relaxedAliasing) {
+MemoryAccessAnalysis &MemoryAccessAnalysis::initialize(bool relaxedAliasing) {
   AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
@@ -1216,7 +1216,7 @@ void MemoryAccessAnalysis::build(bool relaxedAliasing) {
 
   if (failed(solver.initializeAndRun(operation))) {
     operation->emitError("Failed to run required dataflow analysis");
-    return;
+    return *this;
   }
 
   // Try to construct the memory access matrix and offset vector for affine
@@ -1227,6 +1227,7 @@ void MemoryAccessAnalysis::build(bool relaxedAliasing) {
   });
 
   isInitialized = true;
+  return *this;
 }
 
 template <typename T>

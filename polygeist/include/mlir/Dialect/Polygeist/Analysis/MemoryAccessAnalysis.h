@@ -437,10 +437,7 @@ public:
 
   /// Consumers of the analysis must call this member function immediately after
   /// construction.
-  MemoryAccessAnalysis &initialize(bool relaxedAliasing) {
-    build(relaxedAliasing);
-    return *this;
-  }
+  MemoryAccessAnalysis &initialize(bool relaxedAliasing);
 
   bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa);
 
@@ -449,10 +446,6 @@ public:
   getMemoryAccess(const affine::MemRefAccess &access) const;
 
 private:
-  /// Construct the access matrix and offset vector for the memory accesses
-  /// contained in the operation associated with the analysis.
-  void build(bool relaxedAliasing);
-
   /// Attempt to create an entry in the accessMap for the given memory operation
   /// \p memoryOp.
   template <typename T> void build(T memoryOp, DataFlowSolver &solver);
