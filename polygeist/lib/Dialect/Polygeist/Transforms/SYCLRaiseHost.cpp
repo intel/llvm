@@ -24,6 +24,7 @@
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
@@ -58,6 +59,7 @@ public:
 //===----------------------------------------------------------------------===//
 
 constexpr StringLiteral stdNamespace = "std";
+constexpr StringLiteral syclNamespace = "sycl";
 
 /// Class holding results of calling `llvm::ItaniumPartialDemangler` member
 /// functions.
@@ -140,6 +142,15 @@ static LogicalResult partialDemangle(llvm::ItaniumPartialDemangler &demangler,
   return callable ? partialDemangle(demangler, callable) : failure();
 }
 
+/// Calls `partialDemangle` on \p demangler using the name of the function \p
+/// op.
+static LogicalResult partialDemangle(llvm::ItaniumPartialDemangler &demangler,
+                                     FunctionOpInterface op) {
+  // Get the symbol
+  auto symbol = dyn_cast<SymbolOpInterface>(*op);
+  return failure(!symbol || demangler.partialDemangle(symbol.getName().data()));
+}
+
 template <typename T> static auto getUsersOfType(Value value) {
   constexpr auto filter = [](const OpOperand &operand) -> bool {
     return isa<T>(operand.getOwner());
@@ -162,6 +173,93 @@ static bool isClassType(Type type, StringRef className) {
 static bool isClassType(Type type, const llvm::Regex &regex) {
   auto st = dyn_cast<LLVM::LLVMStructType>(type);
   return st && st.isIdentified() && regex.match(st.getName());
+}
+
+/// Check \p op is a member of class \p className and return the first (this)
+/// argument.
+static Value getThisArgument(FunctionOpInterface op, StringRef className) {
+  llvm::ItaniumPartialDemangler demangler;
+  if (failed(partialDemangle(demangler, op)) || !demangler.isFunction() ||
+      !isMemberFunction(demangler, syclNamespace, className) ||
+      op.getNumArguments() == 0)
+    return nullptr;
+
+  Value firstArg = op.getArgument(0);
+  assert(isa<LLVM::LLVMPointerType>(firstArg.getType()) &&
+         "Expecting this argument to be a pointer");
+  return firstArg;
+}
+
+static FailureOr<StringRef> getStringValue(LLVM::GlobalOp op) {
+  // Check the operation has a value
+  std::optional<Attribute> attr = op.getValue();
+  if (!attr)
+    return failure();
+
+  // Check it is a string
+  auto strAttr = dyn_cast<StringAttr>(*attr);
+  if (!strAttr)
+    return failure();
+
+  // Drop the trailing `0` character
+  return strAttr.getValue().drop_back();
+}
+
+static FailureOr<StringRef> getAnnotation(LLVM::VarAnnotation annotation) {
+  auto addressofOp =
+      annotation.getAnnotation().getDefiningOp<LLVM::AddressOfOp>();
+  if (!addressofOp)
+    return failure();
+
+  SymbolTableCollection symbolTable;
+  auto global = symbolTable.lookupNearestSymbolFrom<LLVM::GlobalOp>(
+      addressofOp, addressofOp.getGlobalNameAttr());
+  return global ? getStringValue(global) : FailureOr<StringRef>(failure());
+}
+
+/// Return the constructor responsible of the construction of \p value.
+///
+/// Returns an empty instance if conflicting users are found.
+static sycl::SYCLHostConstructorOp getConstructor(Value value) {
+  // TODO: Implement using ReachingDefinionAnalysis after testing with non
+  // structured control flow.
+  constexpr auto canOmitOperation = [](Operation *op) {
+    return isa<sycl::SYCLDialect>(op->getDialect()) ||
+           isa<LLVM::VarAnnotation, LLVM::LifetimeEndOp, LLVM::LifetimeStartOp>(
+               op);
+  };
+
+  sycl::SYCLHostConstructorOp constructor;
+  for (const OpOperand &operand : value.getUses()) {
+    Operation *op = operand.getOwner();
+    if (auto c = dyn_cast<sycl::SYCLHostConstructorOp>(op)) {
+      if (constructor)
+        return nullptr;
+      constructor = c;
+      continue;
+    }
+    if (!canOmitOperation(op))
+      return nullptr;
+  }
+  return constructor;
+}
+
+static Value getHandler(FunctionOpInterface op) {
+  Value handler;
+  // First search for any operation known to receive a pointer to a handler
+  if (op.walk([&](Operation *setKernel) {
+          if (!setKernel->hasTrait<sycl::SYCLHostHandlerOp>())
+            return WalkResult::advance();
+          Value h = setKernel->getOperand(0);
+          if (handler && handler != h)
+            return WalkResult::interrupt();
+          handler = h;
+          return WalkResult::advance();
+        }).wasInterrupted())
+    return nullptr;
+  if (!handler)
+    handler = getThisArgument(op, "handler");
+  return handler;
 }
 
 namespace {
@@ -270,23 +368,14 @@ private:
   /// searching.
   static std::optional<SymbolRefAttr>
   getKernelRef(LLVM::GlobalOp op, SymbolTableCollection &symbolTable) {
-    // Check the operation has a value
-    std::optional<Attribute> attr = op.getValue();
-    if (!attr)
+    FailureOr<StringRef> name = getStringValue(op);
+    if (failed(name))
       return std::nullopt;
-
-    // Check it is a string
-    auto strAttr = dyn_cast<StringAttr>(*attr);
-    if (!strAttr)
-      return std::nullopt;
-
-    // Drop the trailing `0` character
-    StringRef name = strAttr.getValue().drop_back();
 
     // Search the `gpu.func` in the device module
     auto ref =
         SymbolRefAttr::get(op->getContext(), DeviceModuleName,
-                           FlatSymbolRefAttr::get(op->getContext(), name));
+                           FlatSymbolRefAttr::get(op->getContext(), *name));
     auto kernel = symbolTable.lookupNearestSymbolFrom<gpu::GPUFuncOp>(op, ref);
 
     // If it was found and it is a kernel, return the reference
@@ -484,8 +573,13 @@ public:
     // translation from C++ types to MLIR types, which is not available here.
     Type elemTy = LLVM::LLVMVoidType::get(constructor->getContext());
 
-    return sycl::AccessorType::get(constructor.getContext(), elemTy, dimensions,
-                                   accessMode, accessTarget, {});
+    return sycl::AccessorType::get(
+        constructor.getContext(), elemTy, dimensions, accessMode, accessTarget,
+        // On the host, the body type of the accessor currently has no relevance
+        // for the analyses. However, leaving the body types empty leads to
+        // problems when parsing an MLIR file containing such an accessor type
+        // with empty body type list. Therefore, simply put !llvm.void for now.
+        LLVM::LLVMVoidType::get(constructor->getContext()));
   }
 
 private:
@@ -778,6 +872,142 @@ private:
                : Value();
   }
 };
+
+class RaiseSetNDRange
+    : public OpInterfaceHostRaisePattern<FunctionOpInterface> {
+public:
+  using OpInterfaceHostRaisePattern<
+      FunctionOpInterface>::OpInterfaceHostRaisePattern;
+
+  LogicalResult matchAndRewrite(FunctionOpInterface op,
+                                PatternRewriter &rewriter) const final {
+    // Only handle functions with body
+    if (op.isExternal())
+      return failure();
+
+    // The function must be a sycl::handler member
+    Value handler = getHandler(op);
+    if (!handler)
+      return failure();
+
+    // Annotated values constructors
+    SmallVector<sycl::SYCLHostConstructorOp> constructors;
+    // Annotations
+    SmallVector<LLVM::VarAnnotation> annotations;
+
+    // We will fill the constructors and annotations vectors
+    const auto getConstructors = [&](LLVM::VarAnnotation annotation) {
+      // Check the annotation is correct
+      FailureOr<StringRef> failureOrAnnotationStr = getAnnotation(annotation);
+      if (failed(failureOrAnnotationStr))
+        return WalkResult::advance();
+
+      StringRef annotationStr = *failureOrAnnotationStr;
+      if (!(annotationStr == "nd_range" || annotationStr == "offset" ||
+            annotationStr == "range"))
+        return WalkResult::advance();
+
+      // Get value's constructor
+      Value value = annotation.getVal();
+      sycl::SYCLHostConstructorOp constructor = getConstructor(value);
+      if (!constructor)
+        return WalkResult::interrupt();
+
+      assert((TypeSwitch<Type, bool>(constructor.getType().getValue())
+                  .Case<sycl::NdRangeType>(
+                      [=](auto) { return annotationStr == "nd_range"; })
+                  .Case<sycl::IDType>(
+                      [=](auto) { return annotationStr == "offset"; })
+                  .Case<sycl::RangeType>(
+                      [=](auto) { return annotationStr == "range"; })
+                  .Default(false)) &&
+             "Invalid constructor type");
+
+      constructors.push_back(constructor);
+      annotations.push_back(annotation);
+
+      return WalkResult::advance();
+    };
+    if (op.walk(getConstructors).wasInterrupted() || constructors.empty())
+      return failure();
+
+    // We will introduce the operation after the last annotation
+    OpBuilder::InsertionGuard ig(rewriter);
+    rewriter.setInsertionPointAfter(annotations.back());
+    Location loc = annotations.back().getLoc();
+
+    // Remove annotations, no longer needed
+    // Also prevents infinite recursion
+    rewriter.updateRootInPlace(op, [&] {
+      for (LLVM::VarAnnotation annotation : annotations)
+        rewriter.eraseOp(annotation);
+    });
+
+    assert((constructors.size() < 3 &&
+            isa<sycl::NdRangeType, sycl::RangeType>(
+                constructors.front().getType().getValue()) &&
+            (constructors.size() == 1 ||
+             (isa<sycl::RangeType>(constructors.front().getType().getValue()) &&
+              isa<sycl::IDType>(constructors.back().getType().getValue())))) &&
+           "Expecting nd-range or global size+[offset] combination");
+
+    // TODO: nd_range constructor receives pointers to structs, so we are not
+    // able to handle this yet.
+    if (isa<sycl::NdRangeType>(constructors.front().getType().getValue()))
+      return failure();
+
+    SmallVector<Value> arguments = getArguments(op, constructors, rewriter);
+
+    // Finally insert sycl.host.handler.set_nd_range after the last annotation
+    rewriter.updateRootInPlace(op, [&] {
+      rewriter.create<sycl::SYCLHostHandlerSetNDRange>(loc, handler, arguments);
+    });
+
+    return success();
+  }
+
+private:
+  static SmallVector<Value>
+  getArguments(FunctionOpInterface op,
+               ArrayRef<sycl::SYCLHostConstructorOp> constructors,
+               PatternRewriter &rewriter) {
+    SmallVector<Value> arguments;
+    OpBuilder::InsertionGuard ig(rewriter);
+    llvm::transform(
+        constructors, std::back_inserter(arguments),
+        [&](sycl::SYCLHostConstructorOp constructor) -> Value {
+          // Insert sycl.X.constructor right after sycl.host.constructor
+          rewriter.setInsertionPoint(constructor);
+          Location loc = constructor.getLoc();
+          Type type = constructor.getType().getValue();
+          auto mt = MemRefType::get(1, type);
+          return TypeSwitch<Type, Value>(type)
+              .Case<sycl::RangeType, sycl::IDType>([&](auto t) {
+                Value v;
+                rewriter.updateRootInPlace(op, [&] {
+                  SmallVector<Value> args;
+                  auto indexType = rewriter.getIndexType();
+                  // Cast each argument from iX to index
+                  llvm::transform(constructor.getArgs(),
+                                  std::back_inserter(args), [&](Value arg) {
+                                    assert(isa<IntegerType>(arg.getType()) &&
+                                           "Expecting integer type");
+                                    return rewriter.create<arith::IndexCastOp>(
+                                        loc, indexType, arg);
+                                  });
+                  // Create the required constructor operation depending on
+                  // the type
+                  using OpTy = std::conditional_t<
+                      std::is_same_v<decltype(t), sycl::RangeType>,
+                      sycl::SYCLRangeConstructorOp, sycl::SYCLIDConstructorOp>;
+                  v = rewriter.create<OpTy>(loc, mt, args);
+                });
+                return v;
+              });
+        });
+    return arguments;
+  }
+};
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -789,13 +1019,22 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   MLIRContext *context = &getContext();
 
   RewritePatternSet rewritePatterns{context};
-  rewritePatterns.add<RaiseKernelName, BufferInvokeConstructorPattern,
-                      AccessorInvokeConstructorPattern, RaiseIDConstructor,
-                      RaiseRangeConstructor>(context);
+  rewritePatterns
+      .add<BufferInvokeConstructorPattern, AccessorInvokeConstructorPattern>(
+          context);
 
   // RaiseKernelName should be prioritized, as RaiseSetKernel depends on that.
   rewritePatterns.add<RaiseKernelName>(context, /*benefit=*/2);
   rewritePatterns.add<RaiseSetKernel>(context, /*benefit=*/1);
+
+  // Raising of some constructors (id, range and nd_range) should be
+  // prioritized, as RaiseSetNDRange depends on those. Also, raising of id and
+  // range constructors should be prioritized, as nd_range constructor uses
+  // them.
+  rewritePatterns.add<RaiseIDConstructor, RaiseRangeConstructor>(context,
+                                                                 /*benefit=*/3);
+  // TODO: Add RaiseNDRangeConstructor with benefit=2
+  rewritePatterns.add<RaiseSetNDRange>(context, /*benefit=*/1);
 
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 

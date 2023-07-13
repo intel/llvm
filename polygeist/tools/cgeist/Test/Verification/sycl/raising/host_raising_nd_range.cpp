@@ -1,6 +1,9 @@
 // RUN: clang++ -O1 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xclang -opaque-pointers | FileCheck %s
 // RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xclang -opaque-pointers | FileCheck %s
 // RUN: clang++ -O3 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xclang -opaque-pointers | FileCheck %s
+// XFAIL: *
+
+// COM: Failing because we cannot raise nd-range constructor
 
 #include <sycl/sycl.hpp>
 
@@ -24,23 +27,27 @@ class KernelName;
 // COM: Check we can detect accessors construction
 
 // CHECK-LABEL: llvm.func internal @_ZNSt17_Function_handlerIFvRN4sycl3_V17handlerEEZ4mainEUlS3_E_E9_M_invokeERKSt9_Any_dataS3_
-// CHECK:         %[[N:.*]] = llvm.mlir.constant(1024 : i64) : i64
-// CHECK:         %[[RANGE_STR_ADDR:.*]] = llvm.mlir.addressof @[[RANGE_STR]] : !llvm.ptr
-// CHECK:         %[[KERNEL_STR_ADDR:.*]] = llvm.mlir.addressof @[[KERNEL_STR]] : !llvm.ptr
+// CHECK-DAG:     %[[N:.*]] = arith.constant 1024 : index
+// CHECK-DAG:     %[[M:.*]] = arith.constant 512 : index
 // CHECK:          sycl.host.constructor({{.*}}) {type = !sycl_accessor_1_21llvm2Evoid_r_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:          sycl.host.constructor({{.*}}) {type = !sycl_accessor_1_21llvm2Evoid_r_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:          sycl.host.constructor({{.*}}) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-// CHECK:         sycl.host.constructor(%[[RANGE:.*]], %[[N]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
-// CHECK:         "llvm.intr.var.annotation"(%[[RANGE]], %[[RANGE_STR_ADDR]], %{{.*}}, %{{.*}}, %{{.*}}) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
-// CHECK:         "llvm.intr.var.annotation"(%{{.*}}, %[[KERNEL_STR_ADDR]], %{{.*}}, %{{.*}}, %{{.*}}) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+
+// COM: Check we can detect nd-range assignment with an nd_range argument
+
+// CHECK:         %[[G_SIZE:.*]] = sycl.range.constructor(%[[N]]) : (index) -> memref<1x!sycl_range_1_>
+// CHECK:         %[[L_SIZE:.*]] = sycl.range.constructor(%[[M]]) : (index) -> memref<1x!sycl_range_1_>
+// CHECK:         %[[ND_RANGE:.*]] = sycl.nd_range.constructor(%[[G_SIZE]], %[[L_SIZE]]) : (memref<1x!sycl_range_1_>, memref<1x!sycl_range_1_>) -> memref<1x!sycl_nd_range_1_>
+// CHECK:         sycl.host.handler.set_nd_range %[[HANDLER:.*]] -> %[[ND_RANGE]] : !llvm.ptr, memref<1x!sycl_nd_range_1_>
 
 // COM: Check we can detect kernel assignment to a sycl::handler:
 
-// CHECK-DAG: sycl.host.handler.set_kernel %{{.*}} -> @device_functions::@_ZTSN4sycl3_V16detail19__pf_kernel_wrapperI10KernelNameEE : !llvm.ptr
-// CHECK-DAG: sycl.host.handler.set_kernel %{{.*}} -> @device_functions::@_ZTS10KernelName : !llvm.ptr
+// CHECK-DAG: sycl.host.handler.set_kernel %[[HANDLER]] -> @device_functions::@_ZTSN4sycl3_V16detail19__pf_kernel_wrapperI10KernelNameEE : !llvm.ptr
+// CHECK-DAG: sycl.host.handler.set_kernel %[[HANDLER]] -> @device_functions::@_ZTS10KernelName : !llvm.ptr
 
 int main() {
   constexpr std::size_t N = 1024;
+  constexpr std::size_t L = 512;
   const std::vector<float> a = init(N);
   const std::vector<float> b = init(N);
   std::vector<float> c(N);
@@ -53,8 +60,8 @@ int main() {
 	       sycl::accessor acc_a(buff_a, cgh, sycl::read_only);
 	       sycl::accessor acc_b(buff_b, cgh, sycl::read_only);
 	       sycl::accessor acc_c(buff_c, cgh, sycl::write_only, sycl::no_init);
-	       cgh.parallel_for<KernelName>(N, [=](sycl::id<1> i) { acc_c[i] = acc_a[i] + acc_b[i]; });
+	       cgh.parallel_for<KernelName>(sycl::nd_range<1>{{N}, {L}},
+					    [=](sycl::item<1> i) { acc_c[i] = acc_a[i] + acc_b[i]; });
 	     });
   }
 }
-

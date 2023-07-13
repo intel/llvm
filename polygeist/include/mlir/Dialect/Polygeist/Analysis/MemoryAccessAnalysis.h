@@ -435,25 +435,17 @@ public:
 
   MemoryAccessAnalysis(Operation *op, AnalysisManager &am);
 
-  MemoryAccessAnalysis &initialize(bool relaxedAliasing) {
-    this->relaxedAliasing = relaxedAliasing;
-    return *this;
-  }
+  /// Consumers of the analysis must call this member function immediately after
+  /// construction.
+  MemoryAccessAnalysis &initialize(bool relaxedAliasing);
 
   bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa);
-
-  /// Return the operation this analysis was constructed from.
-  Operation *getOperation() const { return operation; }
 
   /// Return the memory access for the given memref \p access.
   std::optional<MemoryAccess>
   getMemoryAccess(const affine::MemRefAccess &access) const;
 
 private:
-  /// Construct the access matrix and offset vector for the memory accesses
-  /// contained in the operation associated with the analysis.
-  void build();
-
   /// Attempt to create an entry in the accessMap for the given memory operation
   /// \p memoryOp.
   template <typename T> void build(T memoryOp, DataFlowSolver &solver);
@@ -496,9 +488,8 @@ private:
   /// The analysis manager.
   AnalysisManager &am;
 
-  /// Whether to assume the program abides to strict aliasing rules (i.e type
-  /// based aliasing) or not.
-  bool relaxedAliasing = false;
+  /// Whether the analysis has been properly initialized before using it.
+  bool isInitialized = false;
 };
 
 } // namespace polygeist
