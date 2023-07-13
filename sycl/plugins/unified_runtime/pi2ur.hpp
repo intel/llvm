@@ -1455,7 +1455,9 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
                 PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
                 PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS |
                 PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW |
-                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)),
+                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH |
+                PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE |
+                PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -1482,6 +1484,10 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
     UrProperties.flags |= UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
   if (Properties[1] & __SYCL_PI_CUDA_USE_DEFAULT_STREAM)
     UrProperties.flags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
+  if (Properties[1] & PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE)
+    UrProperties.flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+  if (Properties[1] & PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE)
+    UrProperties.flags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
 
   ur_queue_index_properties_t IndexProperties{};
   IndexProperties.stype = UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES;

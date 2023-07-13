@@ -115,7 +115,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     }
   }
 
-  if (!Queue->Device->ImmCommandListUsed) {
+  if (!Queue->UsingImmCmdLists) {
     std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
   }
@@ -270,7 +270,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     for (auto &QueueGroup : QueueMap) {
       bool UseCopyEngine =
           QueueGroup.second.Type != ur_queue_handle_t_::queue_type::Compute;
-      if (Queue->Device->ImmCommandListUsed) {
+      if (Queue->UsingImmCmdLists) {
         // If immediate command lists are being used, each will act as their own
         // queue, so we must insert a barrier into each.
         for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
@@ -498,7 +498,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
-    if (UrQueue->Device->ZeEventsScope != OnDemandHostVisibleProxy)
+    if (UrQueue->ZeEventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
     // Submit the command(s) signalling the proxy event to the queue.
@@ -538,8 +538,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
                        ///< events to wait for completion
 ) {
   for (uint32_t I = 0; I < NumEvents; I++) {
-    if (EventWaitList[I]->UrQueue->Device->ZeEventsScope ==
-        OnDemandHostVisibleProxy) {
+    if (EventWaitList[I]->UrQueue->ZeEventsScope == OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and
       // thus proxy events can be waited without a deadlock.
@@ -587,7 +586,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
         }
       }
       if (auto Q = Event->UrQueue) {
-        if (Q->Device->ImmCommandListUsed && Q->isInOrderQueue())
+        if (Q->UsingImmCmdLists && Q->isInOrderQueue())
           // Use information about waited event to cleanup completed events in
           // the in-order queue.
           CleanupEventsInImmCmdLists(
@@ -1029,7 +1028,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
   this->UrEventList = nullptr;
 
   if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
-    if (CurQueue->Device->ImmCommandListUsed) {
+    if (CurQueue->UsingImmCmdLists) {
       if (ReuseDiscardedEvents && CurQueue->isDiscardEvents()) {
         // If queue is in-order with discarded events and if
         // new command list is different from the last used command list then
@@ -1158,7 +1157,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           //
           // Make sure that event1.wait() will wait for a host-visible
           // event that is signalled before the command2 is enqueued.
-          if (CurQueue->Device->ZeEventsScope != AllHostVisible) {
+          if (CurQueue->ZeEventsScope != AllHostVisible) {
             CurQueue->executeAllOpenCommandLists();
           }
         }
