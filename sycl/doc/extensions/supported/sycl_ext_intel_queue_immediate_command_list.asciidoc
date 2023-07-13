@@ -59,17 +59,6 @@ on the Level Zero backend.
 
 == Overview
 
-This extension enables specifying one of two submission modes for a queue.
-
-The property `no_immediate_command_list` specifies that submissions to a SYCL
-queue should be collected into groups before actual submission to the hardware.
-
-The property `immediate_command_list` specifies that submissions to a
-SYCL queue should be submitted to the hardware immediately.
-
-When the submission mode is left unspecified a platform-specific default
-is chosen by the implementation.
-
 When commands are submitted to a SYCL queue that uses the Level Zero backend,
 those commands can be submitted to the hardware in one of two ways:
 either through an immediate command list or through a standard command queue.
@@ -115,21 +104,13 @@ This extension adds the following new properties that can be used when
 constructing a queue object.
 
 ```c++
-namespace ext {
-namespace intel {
+namespace sycl::ext::intel::property::queue {
 
-// Use immediate command lists
-property_list P1{property::queue::immediate_command_list()};
-queue Q1{P1};       
+struct immediate_command_list {};
+struct no_immediate_command_list {};
 
-// Do not use immediate command lists
-property_list P2{property::queue::no_immediate_command_list()};
-queue Q2{P2};
+} // namespace sycl::ext::intel::property::queue
 
-...
-
-} // namespace intel
-} // namespace ext
 ```
 
 
@@ -148,6 +129,22 @@ These two properties are mutually exclusive. Constructing a queue with both
 properties causes the constructor to throw a synchronous exception with
 the `errc::invalid` error code.
 
+== Example
+```c++
+#include <sycl/sycl.hpp>
+
+namespace syclintel = sycl::ext::intel;
+
+int main() {
+  // Use immediate command lists
+  sycl::queue q1{syclintel::property::queue::immediate_command_list{}};
+  ...
+
+  // Do not use immediate command lists
+  sycl::queue q2{syclintel::property::queue::no_immediate_command_list{}};
+  ...
+}
+```
 
 == Interaction with the SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS environment variable
 
