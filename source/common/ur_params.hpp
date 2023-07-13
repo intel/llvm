@@ -389,9 +389,18 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_migration_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_file_descriptor_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_win32_handle_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_exp_sampler_mip_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_exp_interop_memory_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_interop_semaphore_desc_t params);
 inline std::ostream &
 operator<<(std::ostream &os, const struct ur_exp_command_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
@@ -1213,6 +1222,22 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
         break;
+
+    case UR_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR:
+        os << "UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR";
+        break;
+
+    case UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE:
+        os << "UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1434,6 +1459,30 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES: {
         const ur_exp_sampler_mip_properties_t *pstruct =
             (const ur_exp_sampler_mip_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC: {
+        const ur_exp_interop_memory_desc_t *pstruct =
+            (const ur_exp_interop_memory_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC: {
+        const ur_exp_interop_semaphore_desc_t *pstruct =
+            (const ur_exp_interop_semaphore_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR: {
+        const ur_exp_file_descriptor_t *pstruct =
+            (const ur_exp_file_descriptor_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE: {
+        const ur_exp_win32_handle_t *pstruct =
+            (const ur_exp_win32_handle_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -9462,6 +9511,48 @@ inline void serializeFlag<ur_exp_image_copy_flag_t>(std::ostream &os,
     }
 }
 } // namespace ur_params
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_file_descriptor_t params) {
+    os << "(struct ur_exp_file_descriptor_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".fd = ";
+
+    os << (params.fd);
+
+    os << "}";
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_win32_handle_t params) {
+    os << "(struct ur_exp_win32_handle_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".handle = ";
+
+    ur_params::serializePtr(os, (params.handle));
+
+    os << "}";
+    return os;
+}
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_exp_sampler_mip_properties_t params) {
@@ -9495,6 +9586,39 @@ operator<<(std::ostream &os,
     os << ".mipFilterMode = ";
 
     os << (params.mipFilterMode);
+
+    os << "}";
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_exp_interop_memory_desc_t params) {
+    os << "(struct ur_exp_interop_memory_desc_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << "}";
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_interop_semaphore_desc_t params) {
+    os << "(struct ur_exp_interop_semaphore_desc_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
 
     os << "}";
     return os;
@@ -9959,9 +10083,9 @@ inline std::ostream &operator<<(
     os << *(params->psize);
 
     os << ", ";
-    os << ".fileDescriptor = ";
+    os << ".interopMemDesc = ";
 
-    os << *(params->pfileDescriptor);
+    ur_params::serializePtr(os, *(params->pinteropMemDesc));
 
     os << ", ";
     os << ".phInteropMem = ";
@@ -10043,14 +10167,14 @@ operator<<(std::ostream &os, const struct
     ur_params::serializePtr(os, *(params->phDevice));
 
     os << ", ";
-    os << ".fileDescriptor = ";
+    os << ".interopSemaphoreDesc = ";
 
-    os << *(params->pfileDescriptor);
+    ur_params::serializePtr(os, *(params->pinteropSemaphoreDesc));
 
     os << ", ";
-    os << ".phInteropSemaphoreHandle = ";
+    os << ".phInteropSemaphore = ";
 
-    ur_params::serializePtr(os, *(params->pphInteropSemaphoreHandle));
+    ur_params::serializePtr(os, *(params->pphInteropSemaphore));
 
     return os;
 }

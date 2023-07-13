@@ -1375,7 +1375,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportOpaqueFDExp_t)(
     ur_context_handle_t,
     ur_device_handle_t,
     size_t,
-    uint32_t,
+    ur_exp_interop_memory_desc_t *,
     ur_exp_interop_mem_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1400,7 +1400,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesReleaseInteropExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportExternalSemaphoreOpaqueFDExp_t)(
     ur_context_handle_t,
     ur_device_handle_t,
-    uint32_t,
+    ur_exp_interop_semaphore_desc_t *,
     ur_exp_interop_semaphore_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

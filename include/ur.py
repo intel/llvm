@@ -232,6 +232,10 @@ class ur_structure_type_v(IntEnum):
     KERNEL_ARG_LOCAL_PROPERTIES = 33                ## ::ur_kernel_arg_local_properties_t
     EXP_COMMAND_BUFFER_DESC = 0x1000                ## ::ur_exp_command_buffer_desc_t
     EXP_SAMPLER_MIP_PROPERTIES = 0x2000             ## ::ur_exp_sampler_mip_properties_t
+    EXP_INTEROP_MEMORY_DESC = 0x2001                ## ::ur_exp_interop_memory_desc_t
+    EXP_INTEROP_SEMAPHORE_DESC = 0x2002             ## ::ur_exp_interop_semaphore_desc_t
+    EXP_FILE_DESCRIPTOR = 0x2003                    ## ::ur_exp_file_descriptor_t
+    EXP_WIN32_HANDLE = 0x2004                       ## ::ur_exp_win32_handle_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -2098,6 +2102,26 @@ class ur_exp_image_copy_flags_t(c_int):
 
 
 ###############################################################################
+## @brief File descriptor
+class ur_exp_file_descriptor_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("fd", c_int)                                                   ## [in] A file descriptor used for Linux and & MacOS operating systems.
+    ]
+
+###############################################################################
+## @brief Windows specific file handle
+class ur_exp_win32_handle_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("handle", c_void_p)                                            ## [in] A win32 file handle.
+    ]
+
+###############################################################################
 ## @brief Describes mipmap sampler properties
 ## 
 ## @details
@@ -2115,6 +2139,24 @@ class ur_exp_sampler_mip_properties_t(Structure):
         ("maxAnisotropy", c_float),                                     ## [in] anisotropic ratio used when samplling the mipmap with anisotropic
                                                                         ## filtering
         ("mipFilterMode", ur_sampler_filter_mode_t)                     ## [in] mipmap filter mode used for filtering between mipmap levels
+    ]
+
+###############################################################################
+## @brief Describes an interop memory resource descriptor
+class ur_exp_interop_memory_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC
+        ("pNext", c_void_p)                                             ## [in][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief Describes an interop semaphore resource descriptor
+class ur_exp_interop_semaphore_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC
+        ("pNext", c_void_p)                                             ## [in][optional] pointer to extension-specific structure
     ]
 
 ###############################################################################
@@ -3117,9 +3159,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImportOpaqueFDExp
 if __use_win_types:
-    _urBindlessImagesImportOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, c_ulong, POINTER(ur_exp_interop_mem_handle_t) )
+    _urBindlessImagesImportOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(ur_exp_interop_memory_desc_t), POINTER(ur_exp_interop_mem_handle_t) )
 else:
-    _urBindlessImagesImportOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, c_ulong, POINTER(ur_exp_interop_mem_handle_t) )
+    _urBindlessImagesImportOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(ur_exp_interop_memory_desc_t), POINTER(ur_exp_interop_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesMapExternalArrayExp
@@ -3138,9 +3180,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
 if __use_win_types:
-    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_ulong, POINTER(ur_exp_interop_semaphore_handle_t) )
+    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_exp_interop_semaphore_desc_t), POINTER(ur_exp_interop_semaphore_handle_t) )
 else:
-    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_ulong, POINTER(ur_exp_interop_semaphore_handle_t) )
+    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_exp_interop_semaphore_desc_t), POINTER(ur_exp_interop_semaphore_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesDestroyExternalSemaphoreExp
