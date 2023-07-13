@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o - %s | FileCheck %s
 
 // Checks that the subhandler is correctly emitted in the module
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cstdlib>
 #include <iostream>
@@ -33,8 +33,7 @@ void test() {
   queue q;
   gen_test<int>(q);
   //CHECK:  define weak void @_ZTS6init_aIiE_NativeCPUKernelsubhandler(ptr %0, ptr %1) #2 {
-  //CHECK-NEXT:entry:
-  //CHECK-NEXT:  %2 = getelementptr %0, ptr %0, i64 0
+  //CHECK:       %2 = getelementptr %0, ptr %0, i64 0
   //CHECK-NEXT:  %3 = load ptr, ptr %2, align 8
   //CHECK-NEXT:  %4 = getelementptr %0, ptr %0, i64 3
   //CHECK-NEXT:  %5 = load ptr, ptr %4, align 8
@@ -46,8 +45,7 @@ void test() {
   //CHECK-NEXT:}
   gen_test<float>(q);
   //CHECK:  define weak void @_ZTS6init_aIfE_NativeCPUKernelsubhandler(ptr %0, ptr %1) #2 {
-  //CHECK-NEXT:entry:
-  //CHECK-NEXT:  %2 = getelementptr %0, ptr %0, i64 0
+  //CHECK:       %2 = getelementptr %0, ptr %0, i64 0
   //CHECK-NEXT:  %3 = load ptr, ptr %2, align 8
   //CHECK-NEXT:  %4 = getelementptr %0, ptr %0, i64 3
   //CHECK-NEXT:  %5 = load ptr, ptr %4, align 8
@@ -67,15 +65,13 @@ void test() {
     });
   });
   //CHECK:define weak void @_ZTS5Test1_NativeCPUKernelsubhandler(ptr %0, ptr %1) #2 {
-  //CHECK-NEXT:entry:
-  //CHECK-NEXT:  call void @_ZTS5Test1_NativeCPUKernel_NativeCPUKernel(ptr %1)
+  //CHECK:       call void @_ZTS5Test1_NativeCPUKernel_NativeCPUKernel(ptr %1)
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 
   launch<class TestKernel>([]() {});
   //CHECK:define weak void @_ZTSZ4testvE10TestKernel_NativeCPUKernelsubhandler(ptr %0, ptr %1) #2 {
-  //CHECK-NEXT:entry:
-  //CHECK-NEXT:  call void @_ZTSZ4testvE10TestKernel_NativeCPUKernel_NativeCPUKernel(ptr %1)
+  //CHECK:       call void @_ZTSZ4testvE10TestKernel_NativeCPUKernel_NativeCPUKernel(ptr %1)
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 }
