@@ -23,8 +23,14 @@
 namespace mlir {
 namespace polygeist {
 
+/// YES indicates that the buffer is definitely a sub-buffer
+/// NO indicates that the buffer is definitely not a sub-buffer.
+/// MAYBE indicates that there are multiple constructions with different
+/// sub-buffer property or insufficient information is available.
 enum class SubBufferLattice { YES, NO, MAYBE };
 
+/// Represents information about a `sycl::buffer` gathered from its
+/// construction.
 class BufferInformation {
 public:
   BufferInformation();
@@ -34,31 +40,46 @@ public:
                     llvm::ArrayRef<size_t> constBaseBufferSize,
                     llvm::ArrayRef<size_t> constSubBufferOffset);
 
+  /// Returns true if this buffer is always constructed with the same range as
+  /// size.
   bool hasConstantSize() const { return !constantSize.empty(); }
 
+  /// Returns the constant values for the size this buffer is constructed with.
   const llvm::SmallVector<size_t, 3> &getConstantSize() const {
     return constantSize;
   }
 
+  /// Returns information about whether this buffer is a sub-buffer of another
+  /// buffer.
   SubBufferLattice isSubBuffer() const { return subBuf; }
 
+  /// Returns true if this sub-buffer is always constructed with the same base
+  /// buffer.
   bool hasKnownBaseBuffer() const { return baseBuffer != nullptr; }
 
+  /// Returns the base buffer if this sub-buffer is always constructed with the
+  /// same base buffer.
   Value getKnownBaseBuffer() const {
     assert(hasKnownBaseBuffer() && "Base buffer unknown or not unique");
     return baseBuffer;
   }
 
+  /// Returns true if the the base buffer of this sub-buffer is known and that
+  /// base buffer is always constructed with the same size.
   bool hasKnownBaseBufferSize() const { return !baseBufferSize.empty(); }
 
+  /// Returns the constant values for the size of the base buffer if known.
   const llvm::SmallVector<size_t, 3> &getKnownBaseBufferSize() const {
     assert(hasKnownBaseBufferSize() &&
            "Base buffer size unknown or not constant");
     return baseBufferSize;
   }
 
+  /// Returns true if this sub-buffer is always constructed with the same
+  /// offset.
   bool hasConstantOffset() const { return !subBufOffset.empty(); }
 
+  /// Returns the constant values for the offset of this sub-buffer.
   const llvm::SmallVector<size_t, 3> &getConstantOffset() const {
     assert(hasConstantOffset() && "Offset unknown or not constant");
     return subBufOffset;
@@ -81,10 +102,14 @@ private:
   friend raw_ostream &operator<<(raw_ostream &, const BufferInformation &);
 };
 
+/// Analysis to determine properties of interest about a `sycl::buffer` from its
+/// construction.
 class SYCLBufferAnalysis {
 public:
   SYCLBufferAnalysis(Operation *op, AnalysisManager &am);
 
+  /// Consumers of the analysis must call this member function immediately after
+  /// construction and before requesting any information from the analysis.
   SYCLBufferAnalysis &initialize(bool useRelaxedAliasing = false);
 
   std::optional<BufferInformation>
