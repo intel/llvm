@@ -108,6 +108,10 @@ struct ur_device_handle_t_ : _ur_object {
   // call, which will always return sub-devices in the fixed same order.
   std::vector<ur_device_handle_t> SubDevices;
 
+  // If this device is a subdevice, this variable contains the properties that
+  // were used during its creation.
+  ur_device_partition_property_t SubDeviceCreationProperty;
+
   // PI platform to which this device belongs.
   // This field is only set at _ur_device_handle_t creation time, and cannot
   // change. Therefore it can be accessed without holding a lock on this
