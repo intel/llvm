@@ -908,8 +908,6 @@ bool tools::addOpenMPRuntime(ArgStringList &CmdArgs, const ToolChain &TC,
   case Driver::OMPRT_IOMP5:
     CmdArgs.push_back("-liomp5");
     break;
-  case Driver::OMPRT_Unknown:
-    break;
   }
 
   if (ForceStaticHostRuntime)
@@ -1815,8 +1813,6 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back(getAsNeededOption(TC, true));
 
   switch (UNW) {
-  case ToolChain::UNW_None:
-    return;
   case ToolChain::UNW_Libgcc: {
     if (LGT == LibGccType::StaticLibGcc)
       CmdArgs.push_back("-lgcc_eh");

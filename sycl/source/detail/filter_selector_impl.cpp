@@ -91,7 +91,7 @@ filter create_filter(const std::string &Input) {
 }
 
 filter_selector_impl::filter_selector_impl(const std::string &Input)
-    : mFilters(), mRanker(), mNumDevicesSeen(0), mMatchFound(false) {
+    : mFilters(), mNumDevicesSeen(0), mMatchFound(false) {
   std::vector<std::string> Filters = detail::tokenize(Input, ",");
   mNumTotalDevices = device::get_devices().size();
 
@@ -139,7 +139,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
       }
     }
     if (BackendOK && DeviceTypeOK && DeviceNumOK) {
-      Score = mRanker(Dev);
+      Score = default_selector_v(Dev);
       mMatchFound = true;
       break;
     }

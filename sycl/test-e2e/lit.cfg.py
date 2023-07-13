@@ -196,7 +196,7 @@ if config.opencl_libs_dir:
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 
 if cl_options:
-    config.substitutions.append( ('%sycl_options',  ' ' + config.sycl_libs_dir + '/../lib/sycl7.lib /I' +
+    config.substitutions.append( ('%sycl_options',  ' ' + os.path.normpath(os.path.join(config.sycl_libs_dir + '/../lib/sycl7.lib')) + ' /I' +
                                 config.sycl_include + ' /I' + os.path.join(config.sycl_include, 'sycl')) )
     config.substitutions.append( ('%include_option',  '/FI' ) )
     config.substitutions.append( ('%debug_option',  '/DEBUG' ) )
@@ -243,7 +243,8 @@ available_devices = {'opencl': ('cpu', 'gpu', 'acc'),
                      'ext_oneapi_cuda':('gpu'),
                      'ext_oneapi_level_zero':('gpu'),
                      'ext_oneapi_hip':('gpu'),
-                     'ext_intel_esimd_emulator':('gpu')}
+                     'ext_intel_esimd_emulator':('gpu'),
+                     'native_cpu':('cpu')}
 for d in config.sycl_devices:
      be, dev = d.split(':')
      if be not in available_devices or dev not in available_devices[be]:

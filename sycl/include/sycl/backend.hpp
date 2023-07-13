@@ -204,7 +204,6 @@ get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
 }
 #endif
 
-// Native handle of an accessor should be accessed through interop_handler
 template <backend BackendName, typename DataT, int Dimensions,
           access::mode AccessMode, access::target AccessTarget,
           access::placeholder IsPlaceholder>
