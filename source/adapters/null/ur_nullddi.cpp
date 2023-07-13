@@ -4506,6 +4506,75 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferWriteExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    size_t offset,           ///< [in] offset in bytes in the buffer object.
+    size_t size,             ///< [in] size in bytes of data being written.
+    const void *
+        pSrc, ///< [in] pointer to host memory where data is to be written from.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAppendMembufferWriteExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendMembufferWriteExp;
+    if (nullptr != pfnAppendMembufferWriteExp) {
+        result = pfnAppendMembufferWriteExp(hCommandBuffer, hBuffer, offset,
+                                            size, pSrc, numSyncPointsInWaitList,
+                                            pSyncPointWaitList, pSyncPoint);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferReadExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    size_t offset,           ///< [in] offset in bytes in the buffer object.
+    size_t size,             ///< [in] size in bytes of data being written.
+    void *pDst, ///< [in] pointer to host memory where data is to be written to.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAppendMembufferReadExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendMembufferReadExp;
+    if (nullptr != pfnAppendMembufferReadExp) {
+        result = pfnAppendMembufferReadExp(hCommandBuffer, hBuffer, offset,
+                                           size, pDst, numSyncPointsInWaitList,
+                                           pSyncPointWaitList, pSyncPoint);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     ur_exp_command_buffer_handle_t
@@ -4539,6 +4608,102 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
             hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
             srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
             numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferWriteRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer.
+    ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region.
+    ur_rect_region_t
+        region, ///< [in] 3D rectangular region descriptor: width, height, depth.
+    size_t
+        bufferRowPitch, ///< [in] length of each row in bytes in the buffer object.
+    size_t
+        bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the buffer object being
+                          ///< written.
+    size_t
+        hostRowPitch, ///< [in] length of each row in bytes in the host memory region pointed to
+                      ///< by pSrc.
+    size_t
+        hostSlicePitch, ///< [in] length of each 2D slice in bytes in the host memory region
+                        ///< pointed to by pSrc.
+    void *
+        pSrc, ///< [in] pointer to host memory where data is to be written from.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAppendMembufferWriteRectExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendMembufferWriteRectExp;
+    if (nullptr != pfnAppendMembufferWriteRectExp) {
+        result = pfnAppendMembufferWriteRectExp(
+            hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
+            bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
+            pSrc, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferReadRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer.
+    ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region.
+    ur_rect_region_t
+        region, ///< [in] 3D rectangular region descriptor: width, height, depth.
+    size_t
+        bufferRowPitch, ///< [in] length of each row in bytes in the buffer object.
+    size_t
+        bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the buffer object being read.
+    size_t
+        hostRowPitch, ///< [in] length of each row in bytes in the host memory region pointed to
+                      ///< by pDst.
+    size_t
+        hostSlicePitch, ///< [in] length of each 2D slice in bytes in the host memory region
+                        ///< pointed to by pDst.
+    void *pDst, ///< [in] pointer to host memory where data is to be read into.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAppendMembufferReadRectExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendMembufferReadRectExp;
+    if (nullptr != pfnAppendMembufferReadRectExp) {
+        result = pfnAppendMembufferReadRectExp(
+            hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
+            bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
+            pDst, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
     } else {
         // generic implementation
     }
@@ -4857,8 +5022,20 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     pDdiTable->pfnAppendMembufferCopyExp =
         driver::urCommandBufferAppendMembufferCopyExp;
 
+    pDdiTable->pfnAppendMembufferWriteExp =
+        driver::urCommandBufferAppendMembufferWriteExp;
+
+    pDdiTable->pfnAppendMembufferReadExp =
+        driver::urCommandBufferAppendMembufferReadExp;
+
     pDdiTable->pfnAppendMembufferCopyRectExp =
         driver::urCommandBufferAppendMembufferCopyRectExp;
+
+    pDdiTable->pfnAppendMembufferWriteRectExp =
+        driver::urCommandBufferAppendMembufferWriteRectExp;
+
+    pDdiTable->pfnAppendMembufferReadRectExp =
+        driver::urCommandBufferAppendMembufferReadRectExp;
 
     pDdiTable->pfnEnqueueExp = driver::urCommandBufferEnqueueExp;
 

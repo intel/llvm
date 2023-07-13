@@ -94,7 +94,11 @@ Currently only the following commands are supported:
 * ${x}CommandBufferAppendMemcpyUSMExp
 * ${x}CommandBufferAppendMembufferCopyExp
 * ${x}CommandBufferAppendMembufferCopyRectExp
-
+* ${x}CommandBufferAppendMembufferReadExp
+* ${x}CommandBufferAppendMembufferReadRectExp
+* ${x}CommandBufferAppendMembufferWriteExp
+* ${x}CommandBufferAppendMembufferWriteRectExp
+  
 It is planned to eventually support any command type from the Core API which can
 actually be appended to the equiavalent adapter native constructs.
 
@@ -161,6 +165,11 @@ Enums
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP
+
 
 
 Types
@@ -180,19 +189,25 @@ Functions
 * ${x}CommandBufferAppendMemcpyUSMExp
 * ${x}CommandBufferAppendMembufferCopyExp
 * ${x}CommandBufferAppendMembufferCopyRectExp
+* ${x}CommandBufferAppendMembufferReadExp
+* ${x}CommandBufferAppendMembufferReadRectExp
+* ${x}CommandBufferAppendMembufferWriteExp
+* ${x}CommandBufferAppendMembufferWriteRectExp
 * ${x}CommandBufferEnqueueExp
 
 Changelog
 --------------------------------------------------------------------------------
 
-+-----------+------------------------+
-| Revision  | Changes                |
-+===========+========================+
-| 1.0       | Initial Draft           |
-+-----------+------------------------+
++-----------+-------------------------------------------------------+
+| Revision  | Changes                                               |
++===========+=======================================================+
+| 1.0       | Initial Draft                                         |
+| 1.1       | add function definitions for buffer read and write    |
++-----------+-------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
 
 * Ben Tracy `ben.tracy@codeplay.com <ben.tracy@codeplay.com>`_
 * Ewan Crawford `ewan@codeplay.com <ewan@codeplay.com>`_
+* Maxime France-Pillois `maxime.francepillois@codeplay.com <maxime.francepillois@codeplay.com>`_

@@ -1,23 +1,174 @@
-From e30434a4a9e893f24e0bb18051576f297d1f4f08 Mon Sep 17 00:00:00 2001
+From fd78871a6bd2ff41ff37b8bd786c17f59911c677 Mon Sep 17 00:00:00 2001
 From: pbalcer <piotr.balcer@intel.com>
-Date: Thu, 29 Jun 2023 14:26:26 +0200
-Subject: [PATCH] [SYCL][CUDA] remove sycl namespaces from ur adapter
+Date: Thu, 29 Jun 2023 15:11:43 +0200
+Subject: [PATCH] [SYCL][CUDA] remove sycl dependencies from cuda ur adapter
 
+This was preventing out-of-tree build of the adapter for standalone
+use with unified runtime.
+
+Signed-off-by: Piotr Balcer <piotr.balcer@intel.com>
 ---
+ .../ur/adapters/cuda/command_buffer.cpp       |  52 ++---
  .../ur/adapters/cuda/common.cpp               |   6 +-
  .../ur/adapters/cuda/common.hpp               |   5 -
  .../ur/adapters/cuda/context.cpp              |   2 +-
- .../ur/adapters/cuda/device.cpp               | 170 +++++++++---------
+ .../ur/adapters/cuda/device.cpp               | 209 +++++++++---------
  .../ur/adapters/cuda/enqueue.cpp              |   2 +-
- .../ur/adapters/cuda/event.cpp                |  12 +-
- .../ur/adapters/cuda/kernel.cpp               |  26 +--
- .../ur/adapters/cuda/memory.cpp               |   4 +-
+ .../ur/adapters/cuda/event.cpp                |  17 +-
+ .../ur/adapters/cuda/kernel.cpp               |  42 ++--
+ .../ur/adapters/cuda/memory.cpp               |   5 +-
  .../ur/adapters/cuda/queue.cpp                |   2 +-
  .../ur/adapters/cuda/sampler.cpp              |   2 +-
- 10 files changed, 113 insertions(+), 118 deletions(-)
+ 11 files changed, 167 insertions(+), 177 deletions(-)
 
+diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/command_buffer.cpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/command_buffer.cpp
+index c83e9e732303..57956cb64a67 100644
+--- a/sycl/plugins/unified_runtime/ur/adapters/cuda/command_buffer.cpp
++++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/command_buffer.cpp
+@@ -19,8 +19,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
+   (void)hDevice;
+   (void)pCommandBufferDesc;
+   (void)phCommandBuffer;
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -28,8 +28,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
+ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
+   (void)hCommandBuffer;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -37,8 +37,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
+ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
+   (void)hCommandBuffer;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -46,8 +46,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
+ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
+   (void)hCommandBuffer;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -68,8 +68,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
+   (void)pSyncPointWaitList;
+   (void)pSyncPoint;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -86,8 +86,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+   (void)pSyncPointWaitList;
+   (void)pSyncPoint;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -107,8 +107,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+   (void)pSyncPointWaitList;
+   (void)pSyncPoint;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -134,8 +134,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+   (void)pSyncPointWaitList;
+   (void)pSyncPoint;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -155,8 +155,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+   (void)pSyncPointWaitList;
+   (void)pSyncPoint;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -175,8 +175,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+   (void)pSyncPointWaitList;
+   (void)pSyncPoint;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -203,8 +203,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+   (void)pSyncPointWaitList;
+   (void)pSyncPoint;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -232,8 +232,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+   (void)pSyncPointWaitList;
+   (void)pSyncPoint;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
+ 
+@@ -247,7 +247,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
+   (void)phEventWaitList;
+   (void)phEvent;
+ 
+-  sycl::detail::ur::die("Experimental Command-buffer feature is not "
+-                        "implemented for CUDA adapter.");
++  detail::ur::die("Experimental Command-buffer feature is not "
++                  "implemented for CUDA adapter.");
+   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ }
 diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/common.cpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/common.cpp
-index 86975e509..83264160e 100644
+index 86975e509725..83264160e700 100644
 --- a/sycl/plugins/unified_runtime/ur/adapters/cuda/common.cpp
 +++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/common.cpp
 @@ -72,17 +72,17 @@ std::string getCudaVersionString() {
@@ -42,7 +193,7 @@ index 86975e509..83264160e 100644
  }
  
 diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/common.hpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/common.hpp
-index 5cfa60901..82b38c10d 100644
+index 5cfa609018b2..82b38c10d449 100644
 --- a/sycl/plugins/unified_runtime/ur/adapters/cuda/common.hpp
 +++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/common.hpp
 @@ -8,7 +8,6 @@
@@ -69,7 +220,7 @@ index 5cfa60901..82b38c10d 100644
 -} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 -} // namespace sycl
 diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/context.cpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/context.cpp
-index 74a32bdac..2b621383d 100644
+index 74a32bdac274..2b621383da09 100644
 --- a/sycl/plugins/unified_runtime/ur/adapters/cuda/context.cpp
 +++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/context.cpp
 @@ -66,7 +66,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
@@ -82,7 +233,7 @@ index 74a32bdac..2b621383d 100644
                               CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                               hContext->getDevice()->get()) == CUDA_SUCCESS);
 diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/device.cpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/device.cpp
-index 24f9d52a0..c6b6bc07e 100644
+index 52d4e3badc8f..a81599d629a7 100644
 --- a/sycl/plugins/unified_runtime/ur/adapters/cuda/device.cpp
 +++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/device.cpp
 @@ -15,7 +15,7 @@
@@ -177,7 +328,7 @@ index 24f9d52a0..c6b6bc07e 100644
  
      return ReturnValue(size_t(MaxWorkGroupSize));
    }
-@@ -172,12 +172,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -172,14 +172,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
      // Number of sub-groups = max block size / warp size + possible remainder
      int MaxThreads = 0;
@@ -188,10 +339,14 @@ index 24f9d52a0..c6b6bc07e 100644
                               hDevice->get()) == CUDA_SUCCESS);
      int WarpSize = 0;
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuDeviceGetAttribute(&WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                              hDevice->get()) == CUDA_SUCCESS);
+-        cuDeviceGetAttribute(&WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+-                             hDevice->get()) == CUDA_SUCCESS);
++    detail::ur::assertion(cuDeviceGetAttribute(&WarpSize,
++                                               CU_DEVICE_ATTRIBUTE_WARP_SIZE,
++                                               hDevice->get()) == CUDA_SUCCESS);
      int MaxWarps = (MaxThreads + WarpSize - 1) / WarpSize;
+     return ReturnValue(MaxWarps);
+   }
 @@ -187,7 +187,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      // Volta provides independent thread scheduling
      // TODO: Revisit for previous generation GPUs
@@ -228,37 +383,43 @@ index 24f9d52a0..c6b6bc07e 100644
          cuDeviceGetAttribute(&Major,
                               CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                               hDevice->get()) == CUDA_SUCCESS);
-@@ -266,7 +266,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -266,18 +266,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
      // NVIDIA devices only support one sub-group size (the warp size)
      int WarpSize = 0;
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuDeviceGetAttribute(&WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                              hDevice->get()) == CUDA_SUCCESS);
+-        cuDeviceGetAttribute(&WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+-                             hDevice->get()) == CUDA_SUCCESS);
++    detail::ur::assertion(cuDeviceGetAttribute(&WarpSize,
++                                               CU_DEVICE_ATTRIBUTE_WARP_SIZE,
++                                               hDevice->get()) == CUDA_SUCCESS);
      size_t Sizes[1] = {static_cast<size_t>(WarpSize)};
-@@ -274,10 +274,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+     return ReturnValue(Sizes, 1);
    }
    case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
      int ClockFreq = 0;
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuDeviceGetAttribute(&ClockFreq, CU_DEVICE_ATTRIBUTE_CLOCK_RATE,
-                              hDevice->get()) == CUDA_SUCCESS);
+-        cuDeviceGetAttribute(&ClockFreq, CU_DEVICE_ATTRIBUTE_CLOCK_RATE,
+-                             hDevice->get()) == CUDA_SUCCESS);
 -    sycl::detail::ur::assertion(ClockFreq >= 0);
++    detail::ur::assertion(cuDeviceGetAttribute(&ClockFreq,
++                                               CU_DEVICE_ATTRIBUTE_CLOCK_RATE,
++                                               hDevice->get()) == CUDA_SUCCESS);
 +    detail::ur::assertion(ClockFreq >= 0);
      return ReturnValue(static_cast<uint32_t>(ClockFreq) / 1000u);
    }
    case UR_DEVICE_INFO_ADDRESS_BITS: {
-@@ -292,7 +292,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -292,8 +292,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      // CL_DEVICE_TYPE_CUSTOM.
  
      size_t Global = 0;
 -    sycl::detail::ur::assertion(cuDeviceTotalMem(&Global, hDevice->get()) ==
+-                                CUDA_SUCCESS);
 +    detail::ur::assertion(cuDeviceTotalMem(&Global, hDevice->get()) ==
-                                 CUDA_SUCCESS);
++                          CUDA_SUCCESS);
  
      auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
+ 
 @@ -308,7 +308,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      if (std::getenv("SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
        Enabled = true;
@@ -426,8 +587,9 @@ index 24f9d52a0..c6b6bc07e 100644
      size_t Bytes = 0;
      // Runtime API has easy access to this value, driver API info is scarse.
 -    sycl::detail::ur::assertion(cuDeviceTotalMem(&Bytes, hDevice->get()) ==
+-                                CUDA_SUCCESS);
 +    detail::ur::assertion(cuDeviceTotalMem(&Bytes, hDevice->get()) ==
-                                 CUDA_SUCCESS);
++                          CUDA_SUCCESS);
      return ReturnValue(uint64_t{Bytes});
    }
    case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
@@ -458,9 +620,11 @@ index 24f9d52a0..c6b6bc07e 100644
    case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
      int ECCEnabled = 0;
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuDeviceGetAttribute(&ECCEnabled, CU_DEVICE_ATTRIBUTE_ECC_ENABLED,
-                              hDevice->get()) == CUDA_SUCCESS);
+-        cuDeviceGetAttribute(&ECCEnabled, CU_DEVICE_ATTRIBUTE_ECC_ENABLED,
+-                             hDevice->get()) == CUDA_SUCCESS);
++    detail::ur::assertion(cuDeviceGetAttribute(&ECCEnabled,
++                                               CU_DEVICE_ATTRIBUTE_ECC_ENABLED,
++                                               hDevice->get()) == CUDA_SUCCESS);
  
 -    sycl::detail::ur::assertion((ECCEnabled == 0) | (ECCEnabled == 1));
 +    detail::ur::assertion((ECCEnabled == 0) | (ECCEnabled == 1));
@@ -470,25 +634,30 @@ index 24f9d52a0..c6b6bc07e 100644
    case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
      int IsIntegrated = 0;
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuDeviceGetAttribute(&IsIntegrated, CU_DEVICE_ATTRIBUTE_INTEGRATED,
-                              hDevice->get()) == CUDA_SUCCESS);
+-        cuDeviceGetAttribute(&IsIntegrated, CU_DEVICE_ATTRIBUTE_INTEGRATED,
+-                             hDevice->get()) == CUDA_SUCCESS);
++    detail::ur::assertion(cuDeviceGetAttribute(&IsIntegrated,
++                                               CU_DEVICE_ATTRIBUTE_INTEGRATED,
++                                               hDevice->get()) == CUDA_SUCCESS);
  
 -    sycl::detail::ur::assertion((IsIntegrated == 0) | (IsIntegrated == 1));
 +    detail::ur::assertion((IsIntegrated == 0) | (IsIntegrated == 1));
      auto result = static_cast<bool>(IsIntegrated);
      return ReturnValue(result);
    }
-@@ -620,7 +620,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -620,9 +620,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    case UR_DEVICE_INFO_NAME: {
      static constexpr size_t MaxDeviceNameLength = 256u;
      char Name[MaxDeviceNameLength];
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuDeviceGetName(Name, MaxDeviceNameLength, hDevice->get()) ==
-         CUDA_SUCCESS);
+-        cuDeviceGetName(Name, MaxDeviceNameLength, hDevice->get()) ==
+-        CUDA_SUCCESS);
++    detail::ur::assertion(cuDeviceGetName(Name, MaxDeviceNameLength,
++                                          hDevice->get()) == CUDA_SUCCESS);
      return ReturnValue(Name, strlen(Name) + 1);
-@@ -641,13 +641,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+   }
+   case UR_DEVICE_INFO_VENDOR: {
+@@ -641,13 +640,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    case UR_DEVICE_INFO_VERSION: {
      std::stringstream SS;
      int Major;
@@ -504,7 +673,7 @@ index 24f9d52a0..c6b6bc07e 100644
          cuDeviceGetAttribute(&Minor,
                               CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
                               hDevice->get()) == CUDA_SUCCESS);
-@@ -666,11 +666,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -666,11 +665,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      int Major = 0;
      int Minor = 0;
  
@@ -518,14 +687,16 @@ index 24f9d52a0..c6b6bc07e 100644
          cuDeviceGetAttribute(&Minor,
                               CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
                               hDevice->get()) == CUDA_SUCCESS);
-@@ -847,27 +847,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -847,27 +846,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
      size_t FreeMemory = 0;
      size_t TotalMemory = 0;
 -    sycl::detail::ur::assertion(cuMemGetInfo(&FreeMemory, &TotalMemory) ==
+-                                    CUDA_SUCCESS,
+-                                "failed cuMemGetInfo() API.");
 +    detail::ur::assertion(cuMemGetInfo(&FreeMemory, &TotalMemory) ==
-                                     CUDA_SUCCESS,
-                                 "failed cuMemGetInfo() API.");
++                              CUDA_SUCCESS,
++                          "failed cuMemGetInfo() API.");
      return ReturnValue(FreeMemory);
    }
    case UR_DEVICE_INFO_MEMORY_CLOCK_RATE: {
@@ -551,7 +722,7 @@ index 24f9d52a0..c6b6bc07e 100644
      return ReturnValue(Value);
    }
    case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
-@@ -875,10 +875,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -875,20 +874,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    }
    case UR_DEVICE_INFO_DEVICE_ID: {
      int Value = 0;
@@ -564,20 +735,21 @@ index 24f9d52a0..c6b6bc07e 100644
      return ReturnValue(Value);
    }
    case UR_DEVICE_INFO_UUID: {
-@@ -888,10 +888,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
-     int Minor = DriverVersion % 1000 / 10;
      CUuuid UUID;
-     if ((Major > 11) || (Major == 11 && Minor >= 4)) {
--      sycl::detail::ur::assertion(cuDeviceGetUuid_v2(&UUID, hDevice->get()) ==
-+      detail::ur::assertion(cuDeviceGetUuid_v2(&UUID, hDevice->get()) ==
-                                   CUDA_SUCCESS);
-     } else {
--      sycl::detail::ur::assertion(cuDeviceGetUuid(&UUID, hDevice->get()) ==
-+      detail::ur::assertion(cuDeviceGetUuid(&UUID, hDevice->get()) ==
-                                   CUDA_SUCCESS);
-     }
+ #if (CUDA_VERSION >= 11040)
+-    sycl::detail::ur::assertion(cuDeviceGetUuid_v2(&UUID, hDevice->get()) ==
+-                                CUDA_SUCCESS);
++    detail::ur::assertion(cuDeviceGetUuid_v2(&UUID, hDevice->get()) ==
++                          CUDA_SUCCESS);
+ #else
+-    sycl::detail::ur::assertion(cuDeviceGetUuid(&UUID, hDevice->get()) ==
+-                                CUDA_SUCCESS);
++    detail::ur::assertion(cuDeviceGetUuid(&UUID, hDevice->get()) ==
++                          CUDA_SUCCESS);
+ #endif
      std::array<unsigned char, 16> Name;
-@@ -900,13 +900,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+     std::copy(UUID.bytes, UUID.bytes + 16, Name.begin());
+@@ -896,13 +895,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    }
    case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH: {
      int Major = 0;
@@ -593,7 +765,7 @@ index 24f9d52a0..c6b6bc07e 100644
          cuDeviceGetAttribute(&Minor,
                               CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
                               hDevice->get()) == CUDA_SUCCESS);
-@@ -922,7 +922,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -918,7 +917,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      } else if (IsOrinAGX) {
        MemoryClockKHz = 3200000;
      } else {
@@ -602,7 +774,7 @@ index 24f9d52a0..c6b6bc07e 100644
            cuDeviceGetAttribute(&MemoryClockKHz,
                                 CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE,
                                 hDevice->get()) == CUDA_SUCCESS);
-@@ -932,7 +932,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -928,7 +927,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      if (IsOrinAGX) {
        MemoryBusWidth = 256;
      } else {
@@ -611,7 +783,7 @@ index 24f9d52a0..c6b6bc07e 100644
            cuDeviceGetAttribute(&MemoryBusWidth,
                                 CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
                                 hDevice->get()) == CUDA_SUCCESS);
-@@ -977,7 +977,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -973,7 +972,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
          &MaxRegisters, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
          hDevice->get()));
  
@@ -620,25 +792,27 @@ index 24f9d52a0..c6b6bc07e 100644
  
      return ReturnValue(static_cast<uint32_t>(MaxRegisters));
    }
-@@ -988,11 +988,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+@@ -984,12 +983,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    case UR_DEVICE_INFO_PCI_ADDRESS: {
      constexpr size_t AddressBufferSize = 13;
      char AddressBuffer[AddressBufferSize];
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, hDevice->get()) ==
-         CUDA_SUCCESS);
+-        cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, hDevice->get()) ==
+-        CUDA_SUCCESS);
++    detail::ur::assertion(cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize,
++                                              hDevice->get()) == CUDA_SUCCESS);
      // CUDA API (8.x - 12.1) guarantees 12 bytes + \0 are written
 -    sycl::detail::ur::assertion(strnlen(AddressBuffer, AddressBufferSize) ==
-+    detail::ur::assertion(strnlen(AddressBuffer, AddressBufferSize) ==
-                                 12);
+-                                12);
++    detail::ur::assertion(strnlen(AddressBuffer, AddressBufferSize) == 12);
      return ReturnValue(AddressBuffer,
                         strnlen(AddressBuffer, AddressBufferSize - 1) + 1);
+   }
 diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/enqueue.cpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/enqueue.cpp
-index 52c4c3895..55c56aee2 100644
+index 1cfc5cc40a4a..792f69092682 100644
 --- a/sycl/plugins/unified_runtime/ur/adapters/cuda/enqueue.cpp
 +++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/enqueue.cpp
-@@ -806,7 +806,7 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
+@@ -794,7 +794,7 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
    case CU_AD_FORMAT_FLOAT:
      return 4;
    default:
@@ -648,7 +822,7 @@ index 52c4c3895..55c56aee2 100644
    }
  }
 diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/event.cpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/event.cpp
-index 8916197b7..9d86189b9 100644
+index 8916197b73f1..066c0498f1d0 100644
 --- a/sycl/plugins/unified_runtime/ur/adapters/cuda/event.cpp
 +++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/event.cpp
 @@ -119,7 +119,7 @@ ur_result_t ur_event_handle_t_::record() {
@@ -687,26 +861,31 @@ index 8916197b7..9d86189b9 100644
    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
  }
  
-@@ -254,7 +254,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
+@@ -254,8 +254,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
  
    const auto RefCount = hEvent->incrementReferenceCount();
  
 -  sycl::detail::ur::assertion(
-+  detail::ur::assertion(
-       RefCount != 0, "Reference count overflow detected in urEventRetain.");
+-      RefCount != 0, "Reference count overflow detected in urEventRetain.");
++  detail::ur::assertion(RefCount != 0,
++                        "Reference count overflow detected in urEventRetain.");
  
    return UR_RESULT_SUCCESS;
-@@ -265,7 +265,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
+ }
+@@ -265,9 +265,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
  
    // double delete or someone is messing with the ref count.
    // either way, cannot safely proceed.
 -  sycl::detail::ur::assertion(
-+  detail::ur::assertion(
-       hEvent->getReferenceCount() != 0,
-       "Reference count overflow detected in urEventRelease.");
+-      hEvent->getReferenceCount() != 0,
+-      "Reference count overflow detected in urEventRelease.");
++  detail::ur::assertion(hEvent->getReferenceCount() != 0,
++                        "Reference count overflow detected in urEventRelease.");
  
+   // decrement ref count. If it is 0, delete the event.
+   if (hEvent->decrementReferenceCount() == 0) {
 diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/kernel.cpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/kernel.cpp
-index 358f59c49..cae080401 100644
+index 358f59c499e1..7d46ce039bab 100644
 --- a/sycl/plugins/unified_runtime/ur/adapters/cuda/kernel.cpp
 +++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/kernel.cpp
 @@ -73,24 +73,24 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
@@ -758,43 +937,55 @@ index 358f59c49..cae080401 100644
          cuFuncGetAttribute(&Bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
                             hKernel->get()) == CUDA_SUCCESS);
      return ReturnValue(uint64_t(Bytes));
-@@ -130,7 +130,7 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
+@@ -130,17 +130,17 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
    case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
      // Work groups should be multiples of the warp size
      int WarpSize = 0;
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuDeviceGetAttribute(&WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                              hDevice->get()) == CUDA_SUCCESS);
+-        cuDeviceGetAttribute(&WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+-                             hDevice->get()) == CUDA_SUCCESS);
++    detail::ur::assertion(cuDeviceGetAttribute(&WarpSize,
++                                               CU_DEVICE_ATTRIBUTE_WARP_SIZE,
++                                               hDevice->get()) == CUDA_SUCCESS);
      return ReturnValue(static_cast<size_t>(WarpSize));
-@@ -138,7 +138,7 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
+   }
    case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
      // OpenCL PRIVATE == CUDA LOCAL
      int Bytes = 0;
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuFuncGetAttribute(&Bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                            hKernel->get()) == CUDA_SUCCESS);
+-        cuFuncGetAttribute(&Bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+-                           hKernel->get()) == CUDA_SUCCESS);
++    detail::ur::assertion(cuFuncGetAttribute(&Bytes,
++                                             CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
++                                             hKernel->get()) == CUDA_SUCCESS);
      return ReturnValue(uint64_t(Bytes));
-@@ -231,7 +231,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
+   }
+   default:
+@@ -231,9 +231,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
      return ReturnValue("");
    case UR_KERNEL_INFO_NUM_REGS: {
      int NumRegs = 0;
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuFuncGetAttribute(&NumRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
-                            hKernel->get()) == CUDA_SUCCESS);
+-        cuFuncGetAttribute(&NumRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
+-                           hKernel->get()) == CUDA_SUCCESS);
++    detail::ur::assertion(cuFuncGetAttribute(&NumRegs,
++                                             CU_FUNC_ATTRIBUTE_NUM_REGS,
++                                             hKernel->get()) == CUDA_SUCCESS);
      return ReturnValue(static_cast<uint32_t>(NumRegs));
-@@ -254,7 +254,7 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
+   }
+   default:
+@@ -254,15 +254,15 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
    case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE: {
      // Sub-group size is equivalent to warp size
      int WarpSize = 0;
 -    sycl::detail::ur::assertion(
-+    detail::ur::assertion(
-         cuDeviceGetAttribute(&WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                              hDevice->get()) == CUDA_SUCCESS);
+-        cuDeviceGetAttribute(&WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+-                             hDevice->get()) == CUDA_SUCCESS);
++    detail::ur::assertion(cuDeviceGetAttribute(&WarpSize,
++                                               CU_DEVICE_ATTRIBUTE_WARP_SIZE,
++                                               hDevice->get()) == CUDA_SUCCESS);
      return ReturnValue(static_cast<uint32_t>(WarpSize));
-@@ -262,7 +262,7 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
+   }
    case UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS: {
      // Number of sub-groups = max block size / warp size + possible remainder
      int MaxThreads = 0;
@@ -804,19 +995,20 @@ index 358f59c49..cae080401 100644
                             hKernel->get()) == CUDA_SUCCESS);
      int WarpSize = 0;
 diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/memory.cpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/memory.cpp
-index b19acea31..ecf840330 100644
+index b19acea3159f..f0c276579476 100644
 --- a/sycl/plugins/unified_runtime/ur/adapters/cuda/memory.cpp
 +++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/memory.cpp
-@@ -162,7 +162,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
+@@ -162,8 +162,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
      // error for which it is unclear if the function that reported it succeeded
      // or not. Either way, the state of the program is compromised and likely
      // unrecoverable.
 -    sycl::detail::ur::die(
-+    detail::ur::die(
-         "Unrecoverable program state reached in urMemRelease");
+-        "Unrecoverable program state reached in urMemRelease");
++    detail::ur::die("Unrecoverable program state reached in urMemRelease");
    }
  
-@@ -331,7 +331,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
+   return UR_RESULT_SUCCESS;
+@@ -331,7 +330,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
      PixelTypeSizeBytes = 4;
      break;
    default:
@@ -826,7 +1018,7 @@ index b19acea31..ecf840330 100644
    }
  
 diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/queue.cpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/queue.cpp
-index 05443eeed..32391fec5 100644
+index 05443eeed89d..32391fec5c13 100644
 --- a/sycl/plugins/unified_runtime/ur/adapters/cuda/queue.cpp
 +++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/queue.cpp
 @@ -265,7 +265,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
@@ -839,7 +1031,7 @@ index 05443eeed..32391fec5 100644
    std::vector<CUstream> ComputeCuStreams(1, CuStream);
    std::vector<CUstream> TransferCuStreams(0);
 diff --git a/sycl/plugins/unified_runtime/ur/adapters/cuda/sampler.cpp b/sycl/plugins/unified_runtime/ur/adapters/cuda/sampler.cpp
-index 36ec89fb9..836e47f98 100644
+index 36ec89fb9da3..836e47f988e5 100644
 --- a/sycl/plugins/unified_runtime/ur/adapters/cuda/sampler.cpp
 +++ b/sycl/plugins/unified_runtime/ur/adapters/cuda/sampler.cpp
 @@ -73,7 +73,7 @@ urSamplerRelease(ur_sampler_handle_t hSampler) {
