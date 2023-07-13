@@ -579,7 +579,8 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
 ///
 /// This routine provides the logic to compute a target triple from various
 /// args passed to the driver and the default triple string.
-static llvm::Triple computeTargetTriple(const Driver &D, StringRef TargetTriple,
+static llvm::Triple computeTargetTriple(const Driver &D,
+                                        StringRef TargetTriple,
                                         const ArgList &Args,
                                         StringRef DarwinArchName = "") {
   // FIXME: Already done in Compilation *Driver::BuildCompilation
@@ -1935,7 +1936,7 @@ bool Driver::getCrashDiagnosticFile(StringRef ReproCrashFilename,
     size_t LineEnd = Data.find_first_of("\n", ParentProcPos);
     if (LineEnd == StringRef::npos)
       continue;
-    StringRef ParentProcess = Data.slice(ParentProcPos + 15, LineEnd).trim();
+    StringRef ParentProcess = Data.slice(ParentProcPos+15, LineEnd).trim();
     int OpenBracket = -1, CloseBracket = -1;
     for (size_t i = 0, e = ParentProcess.size(); i < e; ++i) {
       if (ParentProcess[i] == '[')
@@ -3369,7 +3370,7 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
   llvm::SmallString<64> OutputFile(
       C.getDriver().GetTemporaryPath("bundle-list", "txt"));
   llvm::FileRemover OutputRemover(OutputFile.c_str());
-  std::optional<StringRef> Redirects[] = {
+  std::optional<llvm::StringRef> Redirects[] = {
       {""},
       OutputFile.str(),
       OutputFile.str(),
@@ -3997,11 +3998,11 @@ class OffloadingActionBuilder final {
       CudaDeviceActions.clear();
     }
 
-    /// Get canonicalized offload arch option. \returns empty StringRef if
-    /// the option is invalid.
+    /// Get canonicalized offload arch option. \returns empty StringRef if the
+    /// option is invalid.
     virtual StringRef getCanonicalOffloadArch(StringRef Arch) = 0;
 
-    virtual std::optional<std::pair<StringRef, StringRef>>
+    virtual std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
     getConflictOffloadArchCombination(const std::set<StringRef> &GpuArchs) = 0;
 
     bool initialize() override {
@@ -4152,7 +4153,7 @@ class OffloadingActionBuilder final {
       return CudaArchToString(Arch);
     }
 
-    std::optional<std::pair<StringRef, StringRef>>
+    std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
     getConflictOffloadArchCombination(
         const std::set<StringRef> &GpuArchs) override {
       return std::nullopt;
@@ -4320,7 +4321,7 @@ class OffloadingActionBuilder final {
       return Args.MakeArgStringRef(CanId);
     };
 
-    std::optional<std::pair<StringRef, StringRef>>
+    std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
     getConflictOffloadArchCombination(
         const std::set<StringRef> &GpuArchs) override {
       return getConflictTargetIDCombination(GpuArchs);
@@ -4600,9 +4601,8 @@ class OffloadingActionBuilder final {
         }
         for (unsigned I = 0; I < ToolChains.size(); ++I) {
           OpenMPDeviceActions.push_back(UA);
-          UA->registerDependentActionInfo(ToolChains[I],
-                                          /*BoundArch=*/StringRef(),
-                                          Action::OFK_OpenMP);
+          UA->registerDependentActionInfo(
+              ToolChains[I], /*BoundArch=*/StringRef(), Action::OFK_OpenMP);
         }
         return ABRT_Success;
       }
@@ -5168,7 +5168,7 @@ class OffloadingActionBuilder final {
       for (auto *A : Args) {
         llvm::Triple *TargetBE = nullptr;
 
-        auto GetTripleIt = [&, this](StringRef Triple) {
+        auto GetTripleIt = [&, this](llvm::StringRef Triple) {
           llvm::Triple TargetTriple{Triple};
           auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
             return SYCLTriple == TargetTriple;
@@ -5907,7 +5907,7 @@ class OffloadingActionBuilder final {
         unsigned Index;
         llvm::Triple *TargetBE = nullptr;
 
-        auto GetTripleIt = [&, this](StringRef Triple) {
+        auto GetTripleIt = [&, this](llvm::StringRef Triple) {
           llvm::Triple TargetTriple{Triple};
           auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
             return SYCLTriple == TargetTriple;
@@ -7404,7 +7404,7 @@ static StringRef getCanonicalArchString(Compilation &C,
 
 /// Checks if the set offloading architectures does not conflict. Returns the
 /// incompatible pair if a conflict occurs.
-static std::optional<std::pair<StringRef, StringRef>>
+static std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
 getConflictOffloadArchCombination(const llvm::DenseSet<StringRef> &Archs,
                                   Action::OffloadKind Kind) {
   if (Kind != Action::OFK_HIP)
@@ -8965,7 +8965,8 @@ static bool HasPreprocessOutput(const Action &JA) {
 
 const char *Driver::CreateTempFile(Compilation &C, StringRef Prefix,
                                    StringRef Suffix, bool MultipleArchs,
-                                   StringRef BoundArch, types::ID Type,
+                                   StringRef BoundArch,
+                                   types::ID Type,
                                    bool NeedUniqueDirectory) const {
   SmallString<128> TmpName;
   Arg *A = C.getArgs().getLastArg(options::OPT_fcrash_diagnostics_dir);
@@ -9232,7 +9233,10 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     NamedOutput = C.getArgs().MakeArgString(GetClPchPath(C, BaseName));
   } else if ((JA.getType() == types::TY_Plist || JA.getType() == types::TY_AST) &&
              C.getArgs().hasArg(options::OPT__SLASH_o)) {
-    StringRef Val = C.getArgs().getLastArg(options::OPT__SLASH_o)->getValue();
+    StringRef Val =
+        C.getArgs()
+            .getLastArg(options::OPT__SLASH_o)
+            ->getValue();
     NamedOutput =
         MakeCLOutputFilename(C.getArgs(), Val, BaseName, types::TY_Object);
   } else {
@@ -9962,11 +9966,11 @@ bool clang::driver::willEmitRemarks(const ArgList &Args) {
   return false;
 }
 
-StringRef clang::driver::getDriverMode(StringRef ProgName,
-                                       ArrayRef<const char *> Args) {
+llvm::StringRef clang::driver::getDriverMode(StringRef ProgName,
+                                             ArrayRef<const char *> Args) {
   static const std::string OptName =
       getDriverOptTable().getOption(options::OPT_driver_mode).getPrefixedName();
-  StringRef Opt;
+  llvm::StringRef Opt;
   for (StringRef Arg : Args) {
     if (!Arg.startswith(OptName))
       continue;
