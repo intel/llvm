@@ -23,7 +23,7 @@ template <typename T = void> using bit_xor = std::bit_xor<T>;
 
 // std:logical_and/std::logical_or with a non-void type returns bool,
 // sycl requires returning T.
-// these definition should be consistent with std::max, std::min
+
 template <typename T = void> struct logical_and {
   T operator()(const T &lhs, const T &rhs) const { return lhs && rhs; }
 };
@@ -35,6 +35,9 @@ template <typename T = void> struct logical_or {
 };
 
 template <> struct logical_or<void> : std::logical_or<void> {};
+
+// sycl::minimum, sycl::maximum definition should be consistent with std::max,
+// std::min respectively
 
 template <typename T = void> struct minimum {
   T operator()(const T &lhs, const T &rhs) const {
