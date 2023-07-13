@@ -40,7 +40,7 @@ int main() {
 
   bool DeviceResults[8] = {false};
   {
-    buffer<bool, 1> DeviceResultsBuf{DeviceResults, range<1>{4}};
+    buffer<bool, 1> DeviceResultsBuf{DeviceResults, range<1>{8}};
     Q.submit([&](handler &CGH) {
       accessor<int, 0> EmptyDevAcc{EmptyBuf, CGH};
       accessor DeviceResultsAcc{DeviceResultsBuf, CGH};
