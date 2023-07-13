@@ -908,13 +908,13 @@ void *DisjointPool::malloc(size_t size) { // For full-slab allocations indicates
 
 void *DisjointPool::calloc(size_t, size_t) {
     // Not supported
-    assert(false);
+    umf::getPoolLastStatusRef<DisjointPool>() = UMF_RESULT_ERROR_NOT_SUPPORTED;
     return NULL;
 }
 
 void *DisjointPool::realloc(void *, size_t) {
     // Not supported
-    assert(false);
+    umf::getPoolLastStatusRef<DisjointPool>() = UMF_RESULT_ERROR_NOT_SUPPORTED;
     return NULL;
 }
 
@@ -934,8 +934,6 @@ void *DisjointPool::aligned_malloc(size_t size, size_t alignment) {
 
 size_t DisjointPool::malloc_usable_size(void *) {
     // Not supported
-    assert(false);
-
     return 0;
 }
 
