@@ -24,6 +24,55 @@ namespace polygeist {
 // BufferInformation
 //===----------------------------------------------------------------------===//
 
+raw_ostream &operator<<(raw_ostream &os, const BufferInformation &info) {
+  os.indent(4) << "Sub-Buffer: ";
+  switch (info.isSubBuffer()) {
+  case SubBufferLattice::YES:
+    os << "Yes";
+    break;
+  case SubBufferLattice::NO:
+    os << "No";
+    break;
+  case SubBufferLattice::MAYBE:
+    os << "Maybe";
+  };
+  os << "\n";
+  os.indent(4) << "Size: ";
+  if (info.hasConstantSize()) {
+    os << "range{";
+    llvm::interleaveComma(info.getConstantSize(), os);
+    os << "}\n";
+  } else {
+    os << "<unkown>\n";
+  }
+  if (info.isSubBuffer() == SubBufferLattice::YES) {
+    os.indent(4) << "Base buffer: ";
+    if (info.hasKnownBaseBuffer()) {
+      os << info.getKnownBaseBuffer();
+    } else {
+      os << "<unknown>";
+    }
+    os << "\n";
+    os.indent(4) << "Base buffer size: ";
+    if (info.hasKnownBaseBufferSize()) {
+      os << "range{";
+      llvm::interleaveComma(info.getKnownBaseBufferSize(), os);
+      os << "}\n";
+    } else {
+      os << "<unknown>\n";
+    }
+    os.indent(4) << "Sub-buffer offset: ";
+    if (info.hasConstantOffset()) {
+      os << "id{";
+      llvm::interleaveComma(info.getConstantOffset(), os);
+      os << "}\n";
+    } else {
+      os << "<unknown>\n";
+    }
+  }
+  return os;
+}
+
 BufferInformation::BufferInformation()
     : constantSize{}, subBuf{SubBufferLattice::MAYBE}, baseBuffer{nullptr},
       subBufOffset{} {}
@@ -78,7 +127,7 @@ BufferInformation::join(const BufferInformation &other,
 SYCLBufferAnalysis::SYCLBufferAnalysis(Operation *op, AnalysisManager &mgr)
     : operation(op), am(mgr), idRangeAnalysis(op, mgr) {}
 
-void SYCLBufferAnalysis::initialize(bool useRelaxedAliasing) {
+SYCLBufferAnalysis &SYCLBufferAnalysis::initialize(bool useRelaxedAliasing) {
 
   // Initialize the dataflow solver
   aliasAnalysis = &am.getAnalysis<mlir::AliasAnalysis>();
@@ -92,12 +141,14 @@ void SYCLBufferAnalysis::initialize(bool useRelaxedAliasing) {
 
   if (failed(solver.initializeAndRun(operation))) {
     operation->emitError("Failed to run required dataflow analyses");
-    return;
+    return *this;
   }
 
   idRangeAnalysis.initialize(useRelaxedAliasing);
 
   initialized = true;
+
+  return *this;
 }
 
 std::optional<BufferInformation>

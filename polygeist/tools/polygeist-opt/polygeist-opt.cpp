@@ -49,6 +49,7 @@ struct PtrElementModel
 
 namespace mlir {
 namespace test {
+void registerTestBufferAnalysisPass();
 void registerTestIDAndRangeAnalysisPass();
 void registerTestMemoryAccessAnalysisPass();
 void registerTestReachingDefinitionAnalysisPass();
@@ -58,6 +59,7 @@ void registerTestUniformityAnalysisPass();
 
 #ifdef MLIR_INCLUDE_TESTS
 void registerTestPasses() {
+  mlir::test::registerTestBufferAnalysisPass();
   mlir::test::registerTestIDAndRangeAnalysisPass();
   mlir::test::registerTestMemoryAccessAnalysisPass();
   mlir::test::registerTestReachingDefinitionAnalysisPass();

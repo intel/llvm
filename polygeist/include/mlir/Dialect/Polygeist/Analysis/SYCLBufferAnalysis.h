@@ -42,6 +42,28 @@ public:
 
   SubBufferLattice isSubBuffer() const { return subBuf; }
 
+  bool hasKnownBaseBuffer() const { return baseBuffer != nullptr; }
+
+  Value getKnownBaseBuffer() const {
+    assert(hasKnownBaseBuffer() && "Base buffer unknown or not unique");
+    return baseBuffer;
+  }
+
+  bool hasKnownBaseBufferSize() const { return !baseBufferSize.empty(); }
+
+  const llvm::SmallVector<size_t, 3> &getKnownBaseBufferSize() const {
+    assert(hasKnownBaseBufferSize() &&
+           "Base buffer size unknown or not constant");
+    return baseBufferSize;
+  }
+
+  bool hasConstantOffset() const { return !subBufOffset.empty(); }
+
+  const llvm::SmallVector<size_t, 3> &getConstantOffset() const {
+    assert(hasConstantOffset() && "Offset unknown or not constant");
+    return subBufOffset;
+  }
+
   const BufferInformation join(const BufferInformation &other,
                                AliasAnalysis &aliasAnalysis) const;
 
@@ -63,7 +85,7 @@ class SYCLBufferAnalysis {
 public:
   SYCLBufferAnalysis(Operation *op, AnalysisManager &am);
 
-  void initialize(bool useRelaxedAliasing = false);
+  SYCLBufferAnalysis &initialize(bool useRelaxedAliasing = false);
 
   std::optional<BufferInformation>
   getBufferInformationFromConstruction(Operation *op, Value operand);
@@ -83,7 +105,7 @@ private:
 
   bool initialized = false;
 
-  AliasAnalysis* aliasAnalysis;
+  AliasAnalysis *aliasAnalysis;
 
   SYCLIDAndRangeAnalysis idRangeAnalysis;
 };
