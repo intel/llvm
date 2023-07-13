@@ -1912,18 +1912,22 @@ piProgramBuild(pi_program Program, pi_uint32 NumDevices,
 }
 
 inline pi_result piextProgramSetSpecializationConstant(pi_program Program,
+                                                       pi_kernel Kernel,
                                                        pi_uint32 SpecID,
                                                        size_t Size,
                                                        const void *SpecValue) {
   ur_program_handle_t UrProgram =
       reinterpret_cast<ur_program_handle_t>(Program);
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
   uint32_t Count = 1;
   ur_specialization_constant_info_t SpecConstant{};
   SpecConstant.id = SpecID;
   SpecConstant.size = Size;
   SpecConstant.pValue = SpecValue;
-  HANDLE_ERRORS(
-      urProgramSetSpecializationConstants(UrProgram, Count, &SpecConstant));
+  HANDLE_ERRORS(Kernel ? urKernelSetSpecializationConstants(UrKernel, Count,
+                                                            &SpecConstant)
+                       : urProgramSetSpecializationConstants(UrProgram, Count,
+                                                             &SpecConstant));
 
   return PI_SUCCESS;
 }

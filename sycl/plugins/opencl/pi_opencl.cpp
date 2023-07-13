@@ -2212,9 +2212,11 @@ pi_result piKernelSetExecInfo(pi_kernel kernel, pi_kernel_exec_info param_name,
 }
 
 pi_result piextProgramSetSpecializationConstant(pi_program prog,
+                                                pi_kernel kernel,
                                                 pi_uint32 spec_id,
                                                 size_t spec_size,
                                                 const void *spec_value) {
+  std::ignore = kernel;
   cl_program ClProg = cast<cl_program>(prog);
   cl_context Ctx = nullptr;
   size_t RetSize = 0;

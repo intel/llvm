@@ -2271,10 +2271,10 @@ static pi_result SetKernelParamsAndLaunch(
           SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
 
       // Call into set spec constant for pi cuda kernels.
-      if (Queue->getPlugin().getBackend() == backend::ext_oneapi_cuda) {
+      if (Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_cuda) {
         static unsigned SpecID = 0;
         auto &Blob = DeviceImageImpl->get_spec_const_blob_ref();
-        Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
+        Plugin->call<PiApiKind::piextProgramSetSpecializationConstant>(
             DeviceImageImpl->get_program_ref(), Kernel, SpecID++, Blob.size(),
             Blob.data());
       }

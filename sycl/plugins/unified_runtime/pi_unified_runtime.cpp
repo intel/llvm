@@ -127,9 +127,10 @@ __SYCL_EXPORT pi_result piProgramBuild(
 }
 
 __SYCL_EXPORT pi_result piextProgramSetSpecializationConstant(
-    pi_program Prog, pi_uint32 SpecID, size_t Size, const void *SpecValue) {
-  return pi2ur::piextProgramSetSpecializationConstant(Prog, SpecID, Size,
-                                                      SpecValue);
+    pi_program Prog, pi_kernel Kernel, pi_uint32 SpecID, size_t Size,
+    const void *SpecValue) {
+  return pi2ur::piextProgramSetSpecializationConstant(Prog, Kernel, SpecID,
+                                                      Size, SpecValue);
 }
 
 __SYCL_EXPORT pi_result
