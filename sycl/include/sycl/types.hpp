@@ -540,7 +540,6 @@ template <typename T> using vec_data = detail::vec_helper<T>;
 template <typename T>
 using vec_data_t = typename detail::vec_helper<T>::RetType;
 
-
 /// Provides a cross-patform vector class template that works efficiently on
 /// SYCL devices as well as in host C++ code.
 ///
@@ -551,7 +550,6 @@ template <typename Type, int NumElements> class vec {
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
-
 
   // This represents HOW  we will approach the underlying value, so as to
   // benefit from vector speed improvements
@@ -576,9 +574,10 @@ template <typename Type, int NumElements> class vec {
                    sycl::detail::host_half_impl::half>::value;
 
   // TODO: There is no support for vector half type on host yet.
-  // Also, when Sz is greater than alignment, we use std::array instead of vector extension
-  // This is for MSVC compatibility, which has a max alignment of 64 for direct params.
-  // If we drop MSVC, we can have alignment the same as size and use vector extensions for all sizes.  
+  // Also, when Sz is greater than alignment, we use std::array instead of
+  // vector extension. This is for MSVC compatibility, which has a max alignment
+  // of 64 for direct params. If we drop MSVC, we can have alignment the same as
+  // size and use vector extensions for all sizes.
   static constexpr bool IsUsingArray = (IsHostHalf || IsSizeGreaterThanAlign);
 
 #ifdef __HAS_EXT_VECTOR_TYPE__
@@ -781,7 +780,6 @@ public:
   template <typename Ty = DataT>
   explicit constexpr vec(const EnableIfNotUsingArray<Ty> &arg)
       : m_Data{DataType(vec_data<Ty>::get(arg))} {}
-  
 
   template <typename Ty = DataT>
   typename std::enable_if_t<
@@ -1074,7 +1072,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   template <typename Ty = vec>                                                 \
-  vec operator BINOP(const EnableIfNotUsingArray<Ty> &Rhs) const {               \
+  vec operator BINOP(const EnableIfNotUsingArray<Ty> &Rhs) const {             \
     vec Ret;                                                                   \
     Ret.m_Data = m_Data BINOP Rhs.m_Data;                                      \
     if constexpr (std::is_same<Type, bool>::value && CONVERT) {                \
@@ -1083,7 +1081,7 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename Ty = vec>                                                 \
-  vec operator BINOP(const EnableIfUsingArray<Ty> &Rhs) const {                  \
+  vec operator BINOP(const EnableIfUsingArray<Ty> &Rhs) const {                \
     vec Ret;                                                                   \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
       Ret.setValue(I, (getValue(I) BINOP Rhs.getValue(I)));                    \
@@ -1409,11 +1407,10 @@ private:
     return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
   }
 
-// fields
-// Alignment is the same as size, to a maximum size of 64.
-// detail::vector_alignment will return that value. 
-alignas(detail::vector_alignment<DataT, NumElements>::value) DataType m_Data;
-
+  // fields
+  // Alignment is the same as size, to a maximum size of 64.
+  // detail::vector_alignment will return that value.
+  alignas(detail::vector_alignment<DataT, NumElements>::value) DataType m_Data;
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -2187,10 +2184,12 @@ template <typename T, int N, typename V> struct VecStorage {
 template <typename T, int N> struct VecStorageImpl {
   static constexpr size_t Num = (N == 3) ? 4 : N;
   static constexpr size_t Sz = Num * sizeof(T);
-  using DataType = typename std::conditional<Sz <= 64,  T __attribute__((ext_vector_type(N))), std::array<T, Num>>::type;
+  using DataType =
+      typename std::conditional<Sz <= 64, T __attribute__((ext_vector_type(N))),
+                                std::array<T, Num>>::type;
   using VectorDataType = T __attribute__((ext_vector_type(N)));
 };
-#else  // __SYCL_DEVICE_ONLY__
+#else // __SYCL_DEVICE_ONLY__
 // When ext_vector_type is not available, we rely on cl_* types from CL/cl.h
 // to represent vec storage.
 #ifdef __HAS_EXT_VECTOR_TYPE__
