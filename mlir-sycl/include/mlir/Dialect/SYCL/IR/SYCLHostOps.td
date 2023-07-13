@@ -22,12 +22,6 @@ include "mlir/IR/SymbolInterfaces.td"
 // BASE DECLARATIONS
 ////////////////////////////////////////////////////////////////////////////////
 
-// Buildable, opaque-only version of the LLVM pointer type.  
-def LLVM_OpaquePointer :
-  Type<CPred<"::llvm::isa<::mlir::LLVM::LLVMPointerType>($_self)">,
-    "LLVM opaque pointer type", "::mlir::LLVM::LLVMPointerType">,
-  BuildableType<"$_builder.getType<::mlir::LLVM::LLVMPointerType>()">;
-
 class SYCL_HostOp<string mnemonic, list<Trait> traits = []> :
     SYCL_Op<"host." # mnemonic, traits>;
 
@@ -138,12 +132,12 @@ def SYCLHostSetCaptured : SYCL_HostOp<"set_captured"> {
 
     Example:
     ```
-    sycl.host.set_captured %lambda[2] = %accessor : !llvm.ptr
+    sycl.host.set_captured %lambda[2] = %accessor : !llvm.ptr, !llvm.ptr
     ```
   }];
-  let arguments = (ins LLVM_OpaquePointer:$lambda, I64Attr:$index, AnyType:$value);
+  let arguments = (ins LLVM_AnyPointer:$lambda, I64Attr:$index, AnyType:$value);
   let assemblyFormat = [{
-    $lambda `[` $index `]` `=` $value attr-dict `:` type($value)
+    $lambda `[` $index `]` `=` $value attr-dict `:` type(operands)
   }];
 }
 
