@@ -2320,8 +2320,6 @@ static pi_result SetKernelParamsAndLaunch(
 }
 
 // The function initialize accessors and calls lambda.
-// The function is used as argument to piEnqueueNativeKernel which requires
-// that the passed function takes one void* argument.
 void DispatchNativeKernel(void *Blob) {
   void **CastedBlob = (void **)Blob;
 
@@ -2595,93 +2593,6 @@ pi_int32 ExecCGCommand::enqueueImp() {
         std::move(RawEvents), MEvent->getHandleRef());
 
     return PI_SUCCESS;
-  }
-  case CG::CGTYPE::RunOnHostIntel: {
-    CGExecKernel *HostTask = (CGExecKernel *)MCommandGroup.get();
-
-    // piEnqueueNativeKernel takes arguments blob which is passes to user
-    // function.
-    // Need the following items to restore context in the host task.
-    // Make a copy on heap to "dettach" from the command group as it can be
-    // released before the host task completes.
-    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 3);
-
-    std::vector<Requirement *> *CopyReqs =
-        new std::vector<Requirement *>(HostTask->getRequirements());
-
-    // Create a shared_ptr on the heap so that the reference count is
-    // incremented until the DispatchNativeKernel() callback is run, which
-    // will free the heap shared_ptr and decrement the reference count. This
-    // prevents errors when the HostTask command-group is deleted before
-    // DispatchNativeKernel() can be run.
-    std::shared_ptr<HostKernelBase> *CopyHostKernel =
-        new std::shared_ptr<HostKernelBase>(HostTask->MHostKernel);
-
-    NDRDescT *CopyNDRDesc = new NDRDescT(HostTask->MNDRDesc);
-
-    ArgsBlob[0] = (void *)CopyReqs;
-    ArgsBlob[1] = (void *)CopyHostKernel;
-    ArgsBlob[2] = (void *)CopyNDRDesc;
-
-    void **NextArg = ArgsBlob.data() + 3;
-
-    if (MQueue->is_host()) {
-      for (ArgDesc &Arg : HostTask->MArgs) {
-        assert(Arg.MType == kernel_param_kind_t::kind_accessor);
-
-        Requirement *Req = (Requirement *)(Arg.MPtr);
-        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-
-        *NextArg = AllocaCmd->getMemAllocation();
-        NextArg++;
-      }
-
-      if (!RawEvents.empty()) {
-        // Assuming that the events are for devices to the same Plugin.
-        const PluginPtr &Plugin = EventImpls[0]->getPlugin();
-        Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
-      }
-      DispatchNativeKernel((void *)ArgsBlob.data());
-
-      return PI_SUCCESS;
-    }
-
-    std::vector<pi_mem> Buffers;
-    // piEnqueueNativeKernel requires additional array of pointers to args
-    // blob, values that pointers point to are replaced with actual pointers
-    // to the memory before execution of user function.
-    std::vector<void *> MemLocs;
-
-    for (ArgDesc &Arg : HostTask->MArgs) {
-      assert(Arg.MType == kernel_param_kind_t::kind_accessor);
-
-      Requirement *Req = (Requirement *)(Arg.MPtr);
-      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-      pi_mem MemArg = (pi_mem)AllocaCmd->getMemAllocation();
-
-      Buffers.push_back(MemArg);
-      MemLocs.push_back(NextArg);
-      NextArg++;
-    }
-    const PluginPtr &Plugin = MQueue->getPlugin();
-    pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueNativeKernel>(
-        MQueue->getHandleRef(), DispatchNativeKernel, (void *)ArgsBlob.data(),
-        ArgsBlob.size() * sizeof(ArgsBlob[0]), Buffers.size(), Buffers.data(),
-        const_cast<const void **>(MemLocs.data()), RawEvents.size(),
-        RawEvents.empty() ? nullptr : RawEvents.data(), Event);
-
-    switch (Error) {
-    case PI_ERROR_INVALID_OPERATION:
-      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Device doesn't support run_on_host_intel tasks. " +
-                                detail::codeToString(Error));
-    case PI_SUCCESS:
-      return Error;
-    default:
-      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Enqueueing run_on_host_intel task has failed. " +
-                                detail::codeToString(Error));
-    }
   }
   case CG::CGTYPE::Kernel: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();

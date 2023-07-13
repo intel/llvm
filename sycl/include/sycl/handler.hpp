@@ -1696,24 +1696,6 @@ public:
         std::move(KernelFunc));
   }
 
-  /// Defines and invokes a SYCL kernel on host device.
-  ///
-  /// \param Func is a SYCL kernel function defined by lambda function or a
-  /// named function object type.
-  template <typename FuncT>
-  __SYCL_DEPRECATED(
-      "run_on_host_intel() is deprecated, use host_task() instead")
-  void run_on_host_intel(FuncT Func) {
-    throwIfActionIsCreated();
-    // No need to check if range is out of INT_MAX limits as it's compile-time
-    // known constant
-    MNDRDesc.set(range<1>{1});
-
-    MArgs = std::move(MAssociatedAccesors);
-    MHostKernel.reset(new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
-    setType(detail::CG::RunOnHostIntel);
-  }
-
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,

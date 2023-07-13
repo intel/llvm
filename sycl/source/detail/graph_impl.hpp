@@ -121,7 +121,6 @@ public:
   std::unique_ptr<sycl::detail::CG> getCGCopy() const {
     switch (MCGType) {
     case sycl::detail::CG::Kernel:
-    case sycl::detail::CG::RunOnHostIntel:
       return createCGCopy<sycl::detail::CGExecKernel>();
     case sycl::detail::CG::CopyAccToPtr:
     case sycl::detail::CG::CopyPtrToAcc:

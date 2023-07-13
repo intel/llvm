@@ -78,7 +78,7 @@ template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
 
 // (7.)
 template <> struct PropertyMetaInfo<bar_key::value_t> {
-  static constexpr const char *value = "sycl-bar";
+  static constexpr const char *name = "sycl-bar";
   static constexpr int value = 5;
 };
 
