@@ -20,7 +20,6 @@
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/Diagnostic.h"
-#include "clang/Basic/SYCLNativeCPUHelpers.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
@@ -5665,16 +5664,6 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     }
   }
 
-  if (S.getLangOpts().SYCLIsNativeCPU) {
-    // This is a temporary workaround for the integration header file
-    // being emitted too early.
-    std::string HCName = getNativeCPUHeaderName(S.getLangOpts());
-
-    OS << "\n// including the kernel handlers calling the kernels\n";
-    OS << "\n#include \"";
-    OS << HCName;
-    OS << "\"\n\n";
-  }
   if (EmittedFirstSpecConstant)
     OS << "#include <sycl/detail/spec_const_integration.hpp>\n";
 

@@ -1,9 +1,5 @@
 // REQUIRES: native_cpu_be
-<<<<<<< HEAD
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t 
-=======
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
->>>>>>> sycl
 // RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t
 #include <functional>
 #include <sycl/sycl.hpp>

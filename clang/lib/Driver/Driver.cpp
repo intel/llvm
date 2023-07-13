@@ -1174,7 +1174,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
-  if (!IsSYCLNativeCPU && HasSYCLTargetsOption) {
+  if (HasSYCLTargetsOption) {
     // At this point, we know we have a valid combination
     // of -fsycl*target options passed
     Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
@@ -1282,11 +1282,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Diag(clang::diag::warn_drv_empty_joined_argument)
             << SYCLAddTargets->getAsString(C.getInputArgs());
     }
-  } else if (IsSYCLNativeCPU) {
-    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    llvm::Triple HostTriple = HostTC->getTriple();
-    UniqueSYCLTriplesVec.push_back(HostTriple);
-    addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
   } else {
     // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
     // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
@@ -5699,18 +5694,6 @@ class OffloadingActionBuilder final {
             }
           } else
             FullDeviceLinkAction = FullLinkObject;
-
-          if (isSYCLNativeCPU) {
-            // for SYCL Native CPU, we just take the linked device
-            // modules, lower them to an object file , and link it to the host
-            // object file.
-            auto *backendAct = C.MakeAction<BackendJobAction>(
-                FullDeviceLinkAction, types::TY_PP_Asm);
-            auto *asmAct =
-                C.MakeAction<AssembleJobAction>(backendAct, types::TY_Object);
-            DA.add(*asmAct, *TC, BoundArch, Action::OFK_SYCL);
-            return;
-          }
 
           // reflects whether current target is ahead-of-time and can't
           // support runtime setting of specialization constants

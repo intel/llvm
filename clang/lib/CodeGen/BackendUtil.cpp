@@ -10,7 +10,6 @@
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
-#include "clang/Basic/SYCLNativeCPUHelpers.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/Targets/SPIR.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
