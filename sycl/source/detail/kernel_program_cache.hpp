@@ -18,9 +18,11 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <map>
 #include <mutex>
 #include <type_traits>
+
+#include <boost/unordered/unordered_flat_map.hpp>
+#include <boost/unordered_map.hpp>
 
 // For testing purposes
 class MockKernelProgramCache;
@@ -78,8 +80,8 @@ public:
       std::pair<std::uintptr_t, sycl::detail::pi::PiDevice>;
 
   struct ProgramCache {
-    std::map<ProgramCacheKeyT, ProgramWithBuildStateT> Cache;
-    std::multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
+    ::boost::unordered_map<ProgramCacheKeyT, ProgramWithBuildStateT> Cache;
+    ::boost::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
 
     size_t size() const noexcept { return Cache.size(); }
   };
@@ -88,8 +90,10 @@ public:
 
   using KernelArgMaskPairT =
       std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>;
-  using KernelByNameT = std::map<std::string, BuildResult<KernelArgMaskPairT>>;
-  using KernelCacheT = std::map<sycl::detail::pi::PiProgram, KernelByNameT>;
+  using KernelByNameT =
+      ::boost::unordered_map<std::string, BuildResult<KernelArgMaskPairT>>;
+  using KernelCacheT =
+      ::boost::unordered_map<sycl::detail::pi::PiProgram, KernelByNameT>;
 
   using KernelFastCacheKeyT =
       std::tuple<SerializedObj, sycl::detail::pi::PiDevice, std::string,
@@ -97,7 +101,13 @@ public:
   using KernelFastCacheValT =
       std::tuple<sycl::detail::pi::PiKernel, std::mutex *,
                  const KernelArgMask *, sycl::detail::pi::PiProgram>;
-  using KernelFastCacheT = std::map<KernelFastCacheKeyT, KernelFastCacheValT>;
+  // This container is used as a fast path for retrieving cached kernels.
+  // unordered_flat_map is used here to reduce lookup overhead.
+  // The slow path is used only once for each newly created kernel, so the
+  // higher overhead of insertion that comes with unordered_flat_map is more
+  // of an issue there. For that reason, those use regular unordered maps.
+  using KernelFastCacheT =
+      ::boost::unordered_flat_map<KernelFastCacheKeyT, KernelFastCacheValT>;
 
   ~KernelProgramCache();
 

@@ -186,6 +186,7 @@ install(FILES
   COMPONENT sycl-headers)
 
 include(AddBoostMp11Headers)
+include(FetchBoostUnorderedHeaders)
 
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
