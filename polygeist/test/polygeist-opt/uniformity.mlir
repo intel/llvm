@@ -132,7 +132,7 @@ func.func @test1b(%arg0 : index, %arg1: memref<?x!sycl_nd_item_2>)  {
     affine.yield %tx_index : index
   } else {
     affine.yield %c3 : index
-  } {tag = "test1b_v3"} 
+  } {tag = "test1b_v3"}
 
   // COM: Branch condition is uniform, and yielded values is uniform -> result is uniform.
   // CHECK: test1b_v4, uniformity: uniform  
@@ -277,6 +277,54 @@ gpu.func @kernel(%cond: i1, %arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: m
 
   %c1_i64 = arith.constant 1 : i64
   func.call @test3(%cond, %c1_i64, %tx) : (i1, i64, i64) -> ()
+  gpu.return
+}
+
+}
+
+// -----
+
+!sycl_array_2 = !sycl.array<[2], (memref<2xi64, 4>)>
+!sycl_id_2 = !sycl.id<[2], (!sycl_array_2)>
+!sycl_range_2 = !sycl.range<[2], (!sycl_array_2)>
+!sycl_accessor_impl_device_2 = !sycl.accessor_impl_device<[2], (!sycl_id_2, !sycl_range_2, !sycl_range_2)>
+!sycl_group_2 = !sycl.group<[2], (!sycl_range_2, !sycl_range_2, !sycl_range_2, !sycl_id_2)>
+!sycl_item_base_2 = !sycl.item_base<[2, true], (!sycl_range_2, !sycl_id_2, !sycl_id_2)>
+!sycl_accessor_2_f32_r_gb = !sycl.accessor<[2, f32, read, global_buffer], (!sycl_accessor_impl_device_2, !llvm.struct<(memref<?xf32, 2>)>)>
+!sycl_item_2 = !sycl.item<[2, true], (!sycl_item_base_2)>
+!sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
+
+gpu.module @device_func {
+
+// COM: Check the uniformity inter-procedurally.
+func.func private @test4(%alloca_cond: memref<1xi1>, %uniform_val: i64)  {
+  %alloca = memref.alloca() : memref<10xi64>
+  %c0 = arith.constant 0 : index  
+
+  // COM: The loaded (load1) value was stored with a uniform value in the caller, so is uniform.
+  // COM: The loaded (load2) value is also uniform because the reaching def. stored a uniform value 
+  // COM: and the branch condition is uniform.
+  // CHECK: test4_load1, uniformity: uniform    
+  // CHECK: test4_load2, uniformity: uniform  
+  %cond = memref.load %alloca_cond[%c0] { tag = "test4_load1" } : memref<1xi1>
+  scf.if %cond {
+    memref.store %uniform_val, %alloca[%c0] : memref<10xi64>    
+  } else {
+    scf.yield
+  }
+  %load2 = memref.load %alloca[%c0] { tag = "test4_load2" } : memref<10xi64>
+
+  return
+}
+
+gpu.func @kernel(%cond: i1, %arg1: memref<?x!sycl_nd_item_2>) kernel {
+  %c1_i64 = arith.constant 1 : i64
+  %alloca = memref.alloca() : memref<1xi1>
+  %c0 = arith.constant 0 : index
+
+  // COM: Store the condition (uniform) into memory.
+  memref.store %cond, %alloca[%c0] : memref<1xi1>
+  func.call @test4(%alloca, %c1_i64) : (memref<1xi1>, i64) -> ()
   gpu.return
 }
 

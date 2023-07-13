@@ -427,3 +427,22 @@ llvm.func @ptr_test13(%cond : i1, %arg1 : !llvm.ptr, %arg2 : !llvm.ptr, %val : i
   %1 = llvm.load %arg1 {tag = "ptr13_load1"} : !llvm.ptr -> i32
   llvm.return
 }
+
+// -----
+
+// COM: Test that reaching definition is propagated inter-procedurally.
+// CHECK-LABEL: test_tag: callee_ptr
+// CHECK: operand #0
+// CHECK-NEXT: - mods: caller_store
+// CHECK-NEXT: - pMods: <none>
+func.func private @callee(%ptr: memref<i32>) -> memref<i32> {
+  return {tag = "callee_ptr"} %ptr : memref<i32>
+}
+
+func.func @caller() {
+  %ptr = memref.alloc() : memref<i32>
+  %c0 = arith.constant 0 : i32
+  memref.store %c0, %ptr[] {tag_name = "caller_store"} : memref<i32>
+  %0 = func.call @callee(%ptr) : (memref<i32>) -> memref<i32>
+  return
+}

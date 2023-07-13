@@ -1209,9 +1209,10 @@ MemoryAccessAnalysis &MemoryAccessAnalysis::initialize(bool relaxedAliasing) {
 
   // Run the dataflow analysis we depend on.
   DataFlowSolver solver;
-  solver.load<dataflow::DeadCodeAnalysis>();
-  solver.load<dataflow::SparseConstantPropagation>();
-  solver.load<dataflow::IntegerRangeAnalysis>();
+  solver.load<DeadCodeAnalysis>();
+  solver.load<SparseConstantPropagation>();
+  solver.load<IntegerRangeAnalysis>();
+  solver.load<UnderlyingValueAnalysis>();
   solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
 
   if (failed(solver.initializeAndRun(operation))) {
