@@ -30,9 +30,9 @@ int main() {
     return 0;
   }
 
-  queue Queue{Dev0};
+  queue Queue{Dev1};
 
-  exp_ext::command_graph Graph{Queue.get_context(), Dev1};
+  exp_ext::command_graph Graph{Queue.get_context(), Dev0};
 
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);
   try {
