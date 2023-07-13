@@ -508,7 +508,10 @@ to perform these optimizations.
 
 ## Properties on a non-global pointer type variable
 Applying properties on a non-global pointer type variable can be done with
-`__bultin_intel_sycl_ptr_annotation` builtin function.
+`__bultin_intel_sycl_ptr_annotation` builtin function. Comparing to
+`add_ir_annotations_member`, this builtin function is more flexible as
+it can decorate any pointer variable in the kernel.
+
 
 An example of this is the proposed `annotated_ptr` class.
 
@@ -536,10 +539,10 @@ void foo(int *p) {
 }
 ```
 
-To precisely control the location we insert the annotation information for the targetted
+To precisely control the location of the annotation information for the targetted
 pointer defereference, We invoke a SYCL builtin in the header.  The builtin
-`__builtin_intel_sycl_ptr_annotation` decorates one of the pointer variables of the
-class, and the parameters to this builtin represent the properties.
+`__builtin_intel_sycl_ptr_annotation` decorates one of the pointer variables,
+and the parameters to this builtin represent the properties.
 
 ```
 namespace sycl::ext::oneapi {
