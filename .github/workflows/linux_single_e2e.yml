@@ -1,0 +1,119 @@
+name: SYCL E2E
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        type: string
+      runner:
+        type: string
+      image:
+        type: string
+      image_options:
+        type: string
+      extra_cmake_args:
+        type: string
+      target_devices:
+        type: string
+      ref:
+        type: string
+      reset_gpu:
+        type: string
+      merge_ref:
+        description: |
+          Commit-ish to merge post-checkout if non-empty. Must be reachable from
+          the default_branch input paramter.
+        type: string
+        default: 'FETCH_HEAD'
+
+      sycl_toolchain_artifact:
+        type: string
+        default: ''
+      sycl_toolchain_archive:
+        type: string
+        default: ''
+      sycl_toolchain_decompress_command:
+        type: string
+        default: ''
+
+      env:
+        type: string
+        default: '{}'
+
+jobs:
+  lin_e2e_only:
+    name: ${{ inputs.name }}
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    container:
+      image: ${{ inputs.image }}
+      options: ${{ inputs.image_options }}
+    env: ${{ fromJSON(inputs.env) }}
+    steps:
+    - name: Reset GPU
+      if: inputs.reset_gpu == 'true'
+      run: |
+        sudo mount -t debugfs none /sys/kernel/debug
+        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ inputs.ref }}
+        sparse-checkout: |
+          devops/actions
+    - name: Register cleanup after job is finished
+      uses: ./devops/actions/cleanup
+    - uses: ./devops/actions/cached_checkout
+      with:
+        path: llvm
+        ref: ${{ inputs.ref }}
+        merge_ref: ${{ inputs.merge_ref }}
+        # We run build and HIP E2E tests under different users on the same
+        # runners, so need to use distinct cache paths.
+        cache_path: "/__w/repo_cache_e2e/"
+    - name: Install drivers
+      if: env.compute_runtime_tag != ''
+      run: |
+        if [ -e /opt/install_drivers.sh ]; then
+          # TODO pack this script into container
+          sudo cp llvm/devops/scripts/get_release.py /opt/
+          sudo -E /opt/install_drivers.sh --all
+        fi
+    - name: Source OneAPI TBB vars.sh
+      shell: bash
+      run: |
+        # https://github.com/actions/runner/issues/1964 prevents us from using
+        # the ENTRYPOINT in the image.
+        env | sort > env_before
+        if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
+          source /runtimes/oneapi-tbb/env/vars.sh;
+        elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
+          source /opt/runtimes/oneapi-tbb/env/vars.sh;
+        else
+          echo "no TBB vars in /opt/runtimes or /runtimes";
+        fi
+        env | sort > env_after
+        comm -13 env_before env_after >> $GITHUB_ENV
+        rm env_before env_after
+    - name: Download SYCL toolchain
+      if: inputs.sycl_toolchain_artifact != ''
+      uses: actions/download-artifact@v3
+      with:
+        name: ${{ inputs.sycl_toolchain_artifact }}
+    - name: Extract/Setup SYCL toolchain
+      if: inputs.sycl_toolchain_artifact != ''
+      run: |
+        mkdir toolchain
+        tar -I '${{ inputs.sycl_toolchain_decompress_command }}' -xf ${{ inputs.sycl_toolchain_archive }} -C toolchain
+        rm -f ${{ inputs.sycl_toolchain_archive }}
+        echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
+        echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+    - run: which clang++ sycl-ls
+    - run: sycl-ls --verbose
+    - run: SYCL_PI_TRACE=-1 sycl-ls
+    - name: Configure
+      run: |
+        cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.target_devices }}" -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ inputs.extra_cmake_args }}
+    - name: SYCL End-to-end tests
+      env:
+        LIT_OPTS: -v --no-progress-bar --show-unsupported --max-time 3600 --time-tests
+      run: |
+        ninja -C build-e2e check-sycl-e2e
