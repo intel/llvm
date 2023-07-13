@@ -14,6 +14,6 @@ int main() {
   } catch (const sycl::invalid_object_error &e) {
     std::cout << "Expected exception encountered: " << e.what() << std::endl;
     failed = false;
-   }
-   return failed;
-} 
+  }
+  return failed;
+}

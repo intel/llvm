@@ -892,8 +892,8 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
                    sycl::_V1::ext::intel::info::device::free_memory>::value) {
     if (!Dev->has(aspect::ext_intel_free_memory))
       throw invalid_object_error("Invalid ascpect for this device",
-                                  PI_ERROR_INVALID_DEVICE);
-   }
+                                 PI_ERROR_INVALID_DEVICE);
+  }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }
 
