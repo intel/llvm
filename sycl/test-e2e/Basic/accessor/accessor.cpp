@@ -768,8 +768,8 @@ int main() {
         // one bound accessor and one unbound accessor. In the past, this
         // has led to throw the wrong exception.
         cgh.single_task<class ph3>([=] {
-          volatile int x = acc[0];
-          volatile int y = acc2[0];
+          int x = acc[0];
+          int y = acc2[0];
         });
       });
       q.wait_and_throw();
@@ -804,7 +804,7 @@ int main() {
         // number of accessors with the number of requirements, and if they
         // matched, we did not throw, allowing this scenario that shouldn't be
         // allowed.
-        cgh.single_task<class ph4>([=] { volatile int x = acc[0]; });
+        cgh.single_task<class ph4>([=] { int x = acc[0]; });
       });
       q.wait_and_throw();
       assert(false && "we should not be here, missing exception");
@@ -1469,21 +1469,28 @@ int main() {
     AccT acc;
     assert(!acc.is_placeholder());
     sycl::queue q;
-    // As a non-placeholder accessor, make sure no exception is thrown when
-    // passed to a command. However, we cannot access it, because there's
-    // no underlying storage.
-    try {
-      q.submit([&](sycl::handler &cgh) {
-        cgh.single_task<class def_ctor>([=] { volatile int x = sizeof(acc); });
-      });
-      q.wait_and_throw();
-    } catch (sycl::exception &e) {
-      assert("Unexpected exception");
-    } catch (...) {
-      std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
-                << std::endl;
-      return 1;
+    bool result;
+    {
+      sycl::buffer<bool, 1> Buf{&result, sycl::range<1>{1}};
+      // As a non-placeholder accessor, make sure no exception is thrown when
+      // passed to a command. However, we cannot access it, because there's
+      // no underlying storage.
+      try {
+        q.submit([&](sycl::handler &cgh) {
+          sycl::accessor res_acc{Buf, cgh};
+          cgh.single_task<class def_ctor>(
+              [=] { res_acc[0] = acc.is_placeholder(); });
+        });
+        q.wait_and_throw();
+      } catch (sycl::exception &e) {
+        assert("Unexpected exception");
+      } catch (...) {
+        std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
+                  << std::endl;
+        return 1;
+      }
     }
+    assert(!result);
   }
 
   std::cout << "Test passed" << std::endl;
