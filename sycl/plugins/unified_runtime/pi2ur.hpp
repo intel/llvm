@@ -633,9 +633,8 @@ inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   static ur_adapter_handle_t Adapter;
   static std::once_flag AdapterGetFlag;
   ur_result_t Ret = UR_RESULT_SUCCESS;
-  std::call_once(AdapterGetFlag, [&Ret]() {
-    Ret = urAdapterGet(1, &Adapter, nullptr);
-  });
+  std::call_once(AdapterGetFlag,
+                 [&Ret]() { Ret = urAdapterGet(1, &Adapter, nullptr); });
   HANDLE_ERRORS(Ret);
 
   auto phPlatforms = reinterpret_cast<ur_platform_handle_t *>(Platforms);
@@ -801,7 +800,7 @@ inline pi_result piDeviceRelease(pi_device Device) {
   return PI_SUCCESS;
 }
 
-inline pi_result piPluginGetLastError(char **Message) {  
+inline pi_result piPluginGetLastError(char **Message) {
   // We're not going through the UR loader so we're guaranteed to have exactly
   // one adapter (whichever is statically linked). The PI plugin for UR has its
   // own implementation of piPluginGetLastError. Materialize the adapter
@@ -809,7 +808,8 @@ inline pi_result piPluginGetLastError(char **Message) {
   ur_adapter_handle_t Adapter;
   urAdapterGet(1, &Adapter, nullptr);
   int32_t ErrorCode;
-  urAdapterGetLastError(Adapter, const_cast<const char**>(Message), &ErrorCode);
+  urAdapterGetLastError(Adapter, const_cast<const char **>(Message),
+                        &ErrorCode);
   urAdapterRelease(Adapter);
 
   return PI_SUCCESS;
