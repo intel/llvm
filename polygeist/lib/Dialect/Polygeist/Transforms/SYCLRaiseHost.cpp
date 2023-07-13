@@ -875,6 +875,9 @@ private:
       return ArrayRef<Operation *>(ops.begin(), end);
     }
 
+    FailureOr<std::pair<std::size_t, std::size_t>>
+    getIndices(LLVM::GEPOp gep, const NDRangeTypeTag &tag) const;
+
     explicit Initializers(unsigned dimensions) : dimensions(dimensions) {
       assert(0 < dimensions && dimensions <= 3 &&
              "Invalid number of dimensions");
@@ -982,14 +985,53 @@ LogicalResult RaiseNDRangeConstructor::Initializers::handle(
   return success();
 }
 
+FailureOr<std::pair<std::size_t, std::size_t>>
+RaiseNDRangeConstructor::Initializers::getIndices(
+    LLVM::GEPOp gep, const NDRangeTypeTag &tag) const {
+  if (!gep.getDynamicIndices().empty())
+    // Do not allow dynamic indices
+    return failure();
+
+  Type type = *gep.getElemType();
+  if (isClassType(type, tag.getTypeName())) {
+    // nd_range case
+    ArrayRef<int32_t> indices = gep.getRawConstantIndices();
+    std::size_t numIndices = indices.size();
+    switch (numIndices) {
+    case 2:
+      return std::pair<std::size_t, std::size_t>(indices[1], 0);
+    case 5:
+      return std::pair<std::size_t, std::size_t>(indices[1], indices[4]);
+    default:
+      return failure();
+    }
+  }
+  // i8 case
+  if (!type.isInteger(8))
+    return failure();
+  ArrayRef<int32_t> indices = gep.getRawConstantIndices();
+  assert(indices.size() == 1 && "Expecting a single index");
+
+  auto ndType = cast<LLVM::LLVMStructType>(
+      *gep.getBase().getDefiningOp<LLVM::AllocaOp>().getElemType());
+  assert(isClassType(ndType, tag.getTypeName()) && "Using wrong alloca");
+  auto rt = cast<LLVM::LLVMStructType>(ndType.getBody()[0]);
+  auto at = cast<LLVM::LLVMStructType>(rt.getBody()[0]);
+  Type indexType = cast<LLVM::LLVMArrayType>(at.getBody()[0]).getElementType();
+  unsigned indexWidth = indexType.getIntOrFloatBitWidth() / 8;
+
+  std::size_t offset = indices.front();
+  assert(offset % indexWidth == 0 && "Unaligned GEP");
+  offset /= indexWidth;
+  assert(offset < dimensions * 3 && "Out of bounds GEP");
+  return std::pair<std::size_t, std::size_t>(offset / dimensions,
+                                             offset % dimensions);
+} // namespace
+
 LogicalResult RaiseNDRangeConstructor::Initializers::handle(
     LLVM::GEPOp gep, LLVM::AllocaOp alloc, const NDRangeTypeTag &tag) {
   assert(gep.getElemType().has_value() &&
          "Expecting element type attribute for opaque alloca");
-
-  // In some cases we will find elemType = i8
-  if (!isClassType(*gep.getElemType(), tag.getTypeName()))
-    return failure();
 
   auto memcpyUsers = llvm::make_filter_range(
       getUsersOfType<LLVM::MemcpyOp>(gep),
@@ -1018,12 +1060,10 @@ LogicalResult RaiseNDRangeConstructor::Initializers::handle(
     return failure();
   }
   assert(op && "Operation not set");
-  ArrayRef<int32_t> indices = gep.getRawConstantIndices();
-  std::size_t numIndices = indices.size();
-  if (numIndices != 2 && numIndices != 5)
+  auto failureOrIndices = getIndices(gep, tag);
+  if (failed(failureOrIndices))
     return failure();
-  std::size_t componentIndex = indices[1];
-  std::size_t dimensionIndex = numIndices == 5 ? indices[4] : 0;
+  const auto &[componentIndex, dimensionIndex] = *failureOrIndices;
   return set(componentIndex, dimensionIndex, op);
 }
 
