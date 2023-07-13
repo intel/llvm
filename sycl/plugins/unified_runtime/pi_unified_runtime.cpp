@@ -722,16 +722,6 @@ __SYCL_EXPORT pi_result piMemRelease(pi_mem Mem) {
   return pi2ur::piMemRelease(Mem);
 }
 
-__SYCL_EXPORT pi_result piEnqueueNativeKernel(
-    pi_queue Queue, void (*UserFunc)(void *), void *Args, size_t CbArgs,
-    pi_uint32 NumMemObjects, const pi_mem *MemList, const void **ArgsMemLoc,
-    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event) {
-  return pi2ur::piEnqueueNativeKernel(
-      Queue, UserFunc, Args, CbArgs, NumMemObjects, MemList, ArgsMemLoc,
-      NumEventsInWaitList, EventWaitList, Event);
-}
-
 __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
     pi_device Device, pi_program Program, const char *FunctionName,
     pi_uint64 *FunctionPointerRet) {
@@ -1101,6 +1091,26 @@ __SYCL_EXPORT pi_result piPluginGetBackendOption(pi_platform platform,
                                          backend_option);
 }
 
+__SYCL_EXPORT pi_result piextEnablePeerAccess(pi_device command_device,
+                                              pi_device peer_device) {
+
+  return pi2ur::piextEnablePeerAccess(command_device, peer_device);
+}
+
+__SYCL_EXPORT pi_result piextDisablePeerAccess(pi_device command_device,
+                                               pi_device peer_device) {
+
+  return pi2ur::piextDisablePeerAccess(command_device, peer_device);
+}
+
+__SYCL_EXPORT pi_result piextPeerAccessGetInfo(
+    pi_device command_device, pi_device peer_device, pi_peer_attr attr,
+    size_t ParamValueSize, void *ParamValue, size_t *ParamValueSizeRet) {
+  return pi2ur::piextPeerAccessGetInfo(command_device, peer_device, attr,
+                                       ParamValueSize, ParamValue,
+                                       ParamValueSizeRet);
+}
+
 // This interface is not in Unified Runtime currently
 __SYCL_EXPORT pi_result piTearDown(void *PluginParameter) {
   return pi2ur::piTearDown(PluginParameter);
@@ -1232,7 +1242,6 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piEnqueueMemBufferRead)
   _PI_API(piEnqueueEventsWaitWithBarrier)
   _PI_API(piEnqueueEventsWait)
-  _PI_API(piEnqueueNativeKernel)
   _PI_API(piEnqueueMemImageFill)
 
   _PI_API(piEventSetCallback)
@@ -1250,6 +1259,11 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piSamplerGetInfo)
   _PI_API(piSamplerRetain)
   _PI_API(piSamplerRelease)
+
+  // Peer to Peer
+  _PI_API(piextEnablePeerAccess)
+  _PI_API(piextDisablePeerAccess)
+  _PI_API(piextPeerAccessGetInfo)
 
   _PI_API(piextPluginGetOpaqueData)
   _PI_API(piTearDown)

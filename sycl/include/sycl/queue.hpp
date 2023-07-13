@@ -48,8 +48,7 @@
 #endif
 
 // Helper macro to identify if fallback assert is needed
-// FIXME remove __NVPTX__ condition once devicelib supports CUDA
-#if defined(SYCL_FALLBACK_ASSERT)
+#if defined(SYCL_FALLBACK_ASSERT) && !defined(NDEBUG)
 #define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
 #else
 #define __SYCL_USE_FALLBACK_ASSERT 0
@@ -71,7 +70,7 @@ namespace detail {
 class queue_impl;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-static event submitAssertCapture(queue &, event &, queue *,
+inline event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
 } // namespace detail
@@ -384,19 +383,6 @@ public:
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
-  /// until all commands previously submitted to this queue have entered the
-  /// complete state.
-  ///
-  /// \param CodeLoc is the code location of the submit call (default argument)
-  /// \return a SYCL event object, which corresponds to the queue the command
-  /// group is being enqueued on.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_submit_barrier' instead")
-  event submit_barrier(
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return ext_oneapi_submit_barrier(CodeLoc);
-  }
-
-  /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
   /// is empty, then ext_oneapi_submit_barrier has no effect.
   ///
@@ -410,22 +396,6 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
                   CodeLoc);
-  }
-
-  /// Prevents any commands submitted afterward to this queue from executing
-  /// until all events in WaitList have entered the complete state. If WaitList
-  /// is empty, then submit_barrier has no effect.
-  ///
-  /// \param WaitList is a vector of valid SYCL events that need to complete
-  /// before barrier command can be executed.
-  /// \param CodeLoc is the code location of the submit call (default argument)
-  /// \return a SYCL event object, which corresponds to the queue the command
-  /// group is being enqueued on.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_submit_barrier' instead")
-  event submit_barrier(
-      const std::vector<event> &WaitList,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return ext_oneapi_submit_barrier(WaitList, CodeLoc);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -2286,7 +2256,9 @@ private:
         ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
   }
 
+#ifndef NDEBUG
   buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
+#endif // NDEBUG
 
   event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
@@ -2312,8 +2284,9 @@ namespace detail {
  * which it gets compiled and exported without any integration header and, thus,
  * with no proper KernelInfo instance.
  */
-event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
-                          const detail::code_location &CodeLoc) {
+inline event submitAssertCapture(queue &Self, event &Event,
+                                 queue *SecondaryQueue,
+                                 const detail::code_location &CodeLoc) {
   using AHBufT = buffer<detail::AssertHappened, 1>;
 
   AHBufT &Buffer = Self.getAssertHappenedBuffer();

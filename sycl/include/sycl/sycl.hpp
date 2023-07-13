@@ -31,7 +31,6 @@
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
 #include <sycl/group_algorithm.hpp>
-#include <sycl/group_local_memory.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/id.hpp>
 #include <sycl/image.hpp>
@@ -78,6 +77,7 @@
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/owner_less.hpp>

@@ -2115,10 +2115,6 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
       Fn->setMetadata("kernel_arg_exclusive_ptr",
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
     }
-    if (LangOpts.SYCLIsNativeCPU) {
-      Fn->setMetadata("kernel_arg_type",
-                      llvm::MDNode::get(VMContext, argTypeNames));
-    }
   } else {
     if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
       Fn->setMetadata("kernel_arg_addr_space",
@@ -2648,6 +2644,19 @@ void CodeGenModule::finalizeKCFITypes() {
   }
 }
 
+template <typename AttrT>
+void applySYCLAspectsMD(AttrT *A, ASTContext &ACtx, llvm::LLVMContext &LLVMCtx,
+                        llvm::Function *F, StringRef MDName) {
+  SmallVector<llvm::Metadata *, 4> AspectsMD;
+  for (auto *Aspect : A->aspects()) {
+    llvm::APSInt AspectInt = Aspect->EvaluateKnownConstInt(ACtx);
+    auto *T = llvm::Type::getInt32Ty(LLVMCtx);
+    auto *C = llvm::Constant::getIntegerValue(T, AspectInt);
+    AspectsMD.push_back(llvm::ConstantAsMetadata::get(C));
+  }
+  F->setMetadata(MDName, llvm::MDNode::get(LLVMCtx, AspectsMD));
+}
+
 void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
                                           bool IsIncompleteFunction,
                                           bool IsThunk) {
@@ -2755,6 +2764,15 @@ void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
                                                CalleeIdx, PayloadIndices,
                                                /* VarArgsArePassed */ false)}));
   }
+
+  // Apply SYCL specific attributes/metadata.
+  if (const auto *A = FD->getAttr<SYCLDeviceHasAttr>())
+    applySYCLAspectsMD(A, getContext(), getLLVMContext(), F,
+                       "sycl_declared_aspects");
+
+  if (const auto *A = FD->getAttr<SYCLUsesAspectsAttr>())
+    applySYCLAspectsMD(A, getContext(), getLLVMContext(), F,
+                       "sycl_used_aspects");
 }
 
 void CodeGenModule::addUsedGlobal(llvm::GlobalValue *GV) {
@@ -4573,20 +4591,8 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
   }
 
   assert(F->getName() == MangledName && "name was uniqued!");
-  if (D) {
+  if (D)
     SetFunctionAttributes(GD, F, IsIncompleteFunction, IsThunk);
-    if (const auto *A = D->getAttr<SYCLDeviceHasAttr>()) {
-      SmallVector<llvm::Metadata *, 4> AspectsMD;
-      for (auto *Aspect : A->aspects()) {
-        llvm::APSInt AspectInt = Aspect->EvaluateKnownConstInt(getContext());
-        auto *T = llvm::Type::getInt32Ty(getLLVMContext());
-        auto *C = llvm::Constant::getIntegerValue(T, AspectInt);
-        AspectsMD.push_back(llvm::ConstantAsMetadata::get(C));
-      }
-      F->setMetadata("sycl_declared_aspects",
-                     llvm::MDNode::get(getLLVMContext(), AspectsMD));
-    }
-  }
   if (ExtraAttrs.hasFnAttrs()) {
     llvm::AttrBuilder B(F->getContext(), ExtraAttrs.getFnAttrs());
     F->addFnAttrs(B);
