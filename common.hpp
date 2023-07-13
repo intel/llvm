@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_common.hpp - Level Zero Adapter ----------===//
+//===--------- common.hpp - Level Zero Adapter -----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -451,7 +451,7 @@ public:
 extern ZeUSMImportExtension ZeUSMImport;
 
 // This will count the calls to Level-Zero
-extern std::map<const char *, int> *ZeCallCount;
+extern std::map<std::string, int> *ZeCallCount;
 
 // Some opencl extensions we know are supported by all Level Zero devices.
 constexpr char ZE_SUPPORTED_EXTENSIONS[] =

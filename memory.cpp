@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_mem.cpp - Level Zero Adapter -------------===//
+//===--------- memory.cpp - Level Zero Adapter -----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,9 +10,9 @@
 #include <climits>
 #include <string.h>
 
+#include "context.hpp"
+#include "event.hpp"
 #include "ur_level_zero.hpp"
-#include "ur_level_zero_context.hpp"
-#include "ur_level_zero_event.hpp"
 
 // Default to using compute engine for fill operation, but allow to
 // override this with an environment variable.
@@ -1264,7 +1264,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   ur_event_handle_t InternalEvent;
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
-  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_EXT_COMMAND_TYPE_USER,
+  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_PREFETCH,
                                        CommandList, IsInternal));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
@@ -1320,7 +1320,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
   ur_event_handle_t InternalEvent{};
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
-  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_EXT_COMMAND_TYPE_USER,
+  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_ADVISE,
                                        CommandList, IsInternal));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;

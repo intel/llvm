@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_context.hpp - Level Zero Adapter ---------===//
+//===--------- context.hpp - Level Zero Adapter ----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,8 +20,8 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "ur_level_zero_common.hpp"
-#include "ur_level_zero_queue.hpp"
+#include "common.hpp"
+#include "queue.hpp"
 #include <ur/usm_allocator.hpp>
 
 struct ur_context_handle_t_ : _ur_object {

@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_platform.cpp - Level Zero Adapter --------===//
+//===--------- platform.cpp - Level Zero Adapter ---------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include "ur_level_zero_platform.hpp"
+#include "platform.hpp"
 #include "ur_level_zero.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urInit(
@@ -32,6 +32,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urTearDown(
   delete PiPlatformsCacheMutex;
 
   bool LeakFound = false;
+
   // Print the balance of various create/destroy native calls.
   // The idea is to verify if the number of create(+) and destroy(-) calls are
   // matched.
@@ -43,7 +44,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urTearDown(
     // one are allocating objects of that type, while the last element is known
     // to deallocate objects of that type.
     //
-    std::vector<std::vector<const char *>> CreateDestroySet = {
+    std::vector<std::vector<std::string>> CreateDestroySet = {
       {"zeContextCreate",      "zeContextDestroy"},
       {"zeCommandQueueCreate", "zeCommandQueueDestroy"},
       {"zeModuleCreate",       "zeModuleDestroy"},
@@ -83,7 +84,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urTearDown(
     for (const auto &Row : CreateDestroySet) {
       int diff = 0;
       for (auto I = Row.begin(); I != Row.end();) {
-        const char *ZeName = *I;
+        const char *ZeName = (*I).c_str();
         const auto &ZeCount = (*ZeCallCount)[*I];
 
         bool First = (I == Row.begin());
@@ -137,7 +138,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   try {
     std::call_once(ZeCallCountInitialized, []() {
       if (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) {
-        ZeCallCount = new std::map<const char *, int>;
+        ZeCallCount = new std::map<std::string, int>;
       }
     });
   } catch (const std::bad_alloc &) {

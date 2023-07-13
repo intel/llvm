@@ -1,4 +1,4 @@
-//===--------- ur_level_zero_common.cpp - Level Zero Adapter ----------===//
+//===--------- common.cpp - Level Zero Adapter -----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include "ur_level_zero_common.hpp"
+#include "common.hpp"
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
@@ -90,7 +90,7 @@ bool setEnvVar(const char *name, const char *value) {
 ZeUSMImportExtension ZeUSMImport;
 
 // This will count the calls to Level-Zero
-std::map<const char *, int> *ZeCallCount = nullptr;
+std::map<std::string, int> *ZeCallCount = nullptr;
 
 inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {
@@ -237,6 +237,10 @@ ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
 template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_ext_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_EXT_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_device_ip_version_ext_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;
 }
 template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
