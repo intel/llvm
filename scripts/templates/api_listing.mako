@@ -247,7 +247,7 @@ ${th.make_type_name(n, tags, obj)}
 %for obj in objects:
 %if re.match(r"typedef", obj['type']):
 %if isempty: # only display section title if there is content.
-${title} Structures
+${title} Typedefs
 --------------------------------------------------------------------------------
 <%isempty = False%>
 %endif
