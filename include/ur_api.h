@@ -858,6 +858,7 @@ typedef enum ur_platform_backend_t {
     UR_PLATFORM_BACKEND_OPENCL = 2,     ///< The backend is OpenCL
     UR_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
     UR_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
+    UR_PLATFORM_BACKEND_NATIVE_CPU = 5, ///< The backend is Native CPU
     /// @cond
     UR_PLATFORM_BACKEND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
