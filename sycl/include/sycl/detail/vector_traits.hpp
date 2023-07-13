@@ -21,9 +21,9 @@ template <typename T, size_t N>
 struct vector_alignment_impl
     : std::conditional_t<
           N == 3,
-          std::integral_constant<size_t, std::min(sizeof(T) * 4, (size_t)64)>,
-          std::integral_constant<size_t, std::min(sizeof(T) * N, (size_t)64)>> {
-};
+          std::integral_constant<size_t, (std::min)(sizeof(T) * 4, (size_t)64)>,
+          std::integral_constant<size_t,
+                                 (std::min)(sizeof(T) * N, (size_t)64)>> {};
 
 template <typename T, size_t N>
 struct vector_alignment
