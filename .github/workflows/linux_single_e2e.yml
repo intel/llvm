@@ -19,8 +19,12 @@ on:
         type: string
       reset_gpu:
         type: string
-      merge:
+      merge_ref:
+        description: |
+          Commit-ish to merge post-checkout if non-empty. Must be reachable from
+          the default_branch input paramter.
         type: string
+        default: 'FETCH_HEAD'
 
       sycl_toolchain_artifact:
         type: string
@@ -61,10 +65,12 @@ jobs:
       with:
         path: llvm
         ref: ${{ inputs.ref }}
+        merge_ref: ${{ inputs.merge_ref }}
         # We run build and HIP E2E tests under different users on the same
         # runners, so need to use distinct cache paths.
         cache_path: "/__w/repo_cache_e2e/"
-        merge: ${{ inputs.merge }}
+    - name: Hack to fix testing
+      run: rm -rf /__w/repo_cache_e2e/ || true
     - name: Install drivers
       if: env.compute_runtime_tag != ''
       run: |
