@@ -1919,12 +1919,6 @@ pi_result piextKernelGetNativeHandle(pi_kernel, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
-                                pi_uint32, const pi_mem *, const void **,
-                                pi_uint32, const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piextGetDeviceFunctionPointer(pi_device, pi_program, const char *,
                                         pi_uint64 *) {
   DIE_NO_IMPLEMENTATION;
@@ -2099,6 +2093,86 @@ pi_result piextEnqueueDeviceGlobalVariableRead(pi_queue, pi_program,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextCommandBufferCreate(pi_context, pi_device,
+                                   const pi_ext_command_buffer_desc *,
+                                   pi_ext_command_buffer *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferRetain(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferRelease(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferFinalize(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferNDRangeKernel(pi_ext_command_buffer, pi_kernel,
+                                          pi_uint32, const size_t *,
+                                          const size_t *, const size_t *,
+                                          pi_uint32, const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemcpyUSM(pi_ext_command_buffer, void *,
+                                      const void *, size_t, pi_uint32,
+                                      const pi_ext_sync_point *,
+                                      pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferCopy(pi_ext_command_buffer, pi_mem, pi_mem,
+                                          size_t, size_t, size_t, pi_uint32,
+                                          const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer, pi_mem, pi_mem, pi_buff_rect_offset,
+    pi_buff_rect_offset, pi_buff_rect_region, size_t, size_t, size_t, size_t,
+    pi_uint32, const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferRead(pi_ext_command_buffer, pi_mem, size_t,
+                                          size_t, void *, pi_uint32,
+                                          const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer, pi_mem, pi_buff_rect_offset, pi_buff_rect_offset,
+    pi_buff_rect_region, size_t, size_t, size_t, size_t, void *, pi_uint32,
+    const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferWrite(pi_ext_command_buffer, pi_mem,
+                                           size_t, size_t, const void *,
+                                           pi_uint32, const pi_ext_sync_point *,
+                                           pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer, pi_mem, pi_buff_rect_offset, pi_buff_rect_offset,
+    pi_buff_rect_region, size_t, size_t, size_t, size_t, const void *,
+    pi_uint32, const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer, pi_queue, pi_uint32,
+                                    const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
   *OpaqueDataReturn = reinterpret_cast<void *>(PiESimdDeviceAccess);
   return PI_SUCCESS;
@@ -2159,6 +2233,43 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #include <sycl/detail/pi.def>
 
   return PI_SUCCESS;
+}
+
+pi_result piextEnablePeerAccess(pi_device command_device,
+                                pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextEnablePeerAccess not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result piextDisablePeerAccess(pi_device command_device,
+                                 pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextDisablePeerAccess not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result piextPeerAccessGetInfo(pi_device command_device,
+                                 pi_device peer_device, pi_peer_attr attr,
+                                 size_t ParamValueSize, void *ParamValue,
+                                 size_t *ParamValueSizeRet) {
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
+
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  // Zero return value indicates that all of the queries currently return false.
+  return ReturnValue(pi_int32{0});
 }
 
 #ifdef _WIN32
