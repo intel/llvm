@@ -165,6 +165,7 @@ SYCLIDAndRangeAnalysis::initialize(bool useRelaxedAliasing) {
   // Populate the solver and run the analyses needed by this analysis.
   solver.load<dataflow::DeadCodeAnalysis>();
   solver.load<dataflow::SparseConstantPropagation>();
+  solver.load<UnderlyingValueAnalysis>();
   solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
 
   if (failed(solver.initializeAndRun(operation))) {
@@ -190,14 +191,14 @@ SYCLIDAndRangeAnalysis::getIDRangeInformationFromConstruction(Operation *op,
       solver.lookupState<polygeist::ReachingDefinition>(op);
   assert(reachingDef && "expected a reaching definition");
 
-  auto mods = reachingDef->getModifiers(operand);
+  auto mods = reachingDef->getModifiers(operand, solver);
   if (!mods || mods->empty())
     return std::nullopt;
 
   if (!llvm::all_of(*mods, isConstructor<Type>))
     return std::nullopt;
 
-  auto pMods = reachingDef->getPotentialModifiers(operand);
+  auto pMods = reachingDef->getPotentialModifiers(operand, solver);
   if (pMods) {
     if (!llvm::all_of(*pMods, isConstructor<Type>))
       return std::nullopt;
