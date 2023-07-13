@@ -15,6 +15,7 @@
 #include <umf/memory_pool_ops.h>
 #include <umf/memory_provider.h>
 #include <umf/memory_provider_ops.h>
+#include <ur_api.h>
 
 #include <array>
 #include <functional>
@@ -186,6 +187,37 @@ auto poolMakeUnique(std::array<provider_unique_handle_t, N> providers,
 template <typename Type> umf_result_t &getPoolLastStatusRef() {
     static thread_local umf_result_t last_status = UMF_RESULT_SUCCESS;
     return last_status;
+}
+
+/// @brief translates UMF return values to UR.
+/// This function assumes that the native error of
+/// the last failed memory provider is ur_result_t.
+inline ur_result_t umf2urResult(umf_result_t umfResult) {
+    switch (umfResult) {
+    case UMF_RESULT_SUCCESS:
+        return UR_RESULT_SUCCESS;
+    case UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY:
+        return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    case UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC: {
+        auto hProvider = umfGetLastFailedMemoryProvider();
+        if (hProvider == nullptr) {
+            return UR_RESULT_ERROR_UNKNOWN;
+        }
+
+        ur_result_t Err = UR_RESULT_ERROR_UNKNOWN;
+        umfMemoryProviderGetLastNativeError(hProvider, nullptr,
+                                            reinterpret_cast<int32_t *>(&Err));
+        return Err;
+    }
+    case UMF_RESULT_ERROR_INVALID_ARGUMENT:
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    case UMF_RESULT_ERROR_INVALID_ALIGNMENT:
+        return UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT;
+    case UMF_RESULT_ERROR_NOT_SUPPORTED:
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    default:
+        return UR_RESULT_ERROR_UNKNOWN;
+    };
 }
 
 } // namespace umf
