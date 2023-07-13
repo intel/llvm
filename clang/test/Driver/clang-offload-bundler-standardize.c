@@ -1,5 +1,7 @@
 // REQUIRES: x86-registered-target
-// UNSUPPORTED: target={{.*}}-darwin{{.*}}, target={{.*}}-aix{{.*}}
+// TODO: remove system-linux when https://github.com/intel/llvm/issues/10238 is
+// addressed
+// UNSUPPORTED: target={{.*}}-darwin{{.*}}, target={{.*}}-aix{{.*}}, system-linux
 
 // Generate the file we can bundle.
 // RUN: %clang -O0 -target %itanium_abi_triple %s -c -o %t.o
