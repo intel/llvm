@@ -370,50 +370,29 @@ device compiler front-end because it recognizes kernel functions via the
 
 
 ## Properties on a non-global variable type
-
 Another use of compile-time properties is with types that are used to define
-non-global variables.  An example of this is the proposed `annotated_ptr`
-class.
+non-global variables.  An example is given using a sycl kernel.
 
 ```
-namespace sycl::ext::oneapi {
-
-template <typename T, typename PropertyListT = properties<>>
-class annotated_ptr {
-  T *ptr;
+struct kernel{
+  int *ptr;
  public:
-  annotated_ptr(T *p) : ptr(p) {}
+  kernel(int *p) : ptr(p) {}
+  operator() const {
+     *ptr = 1;
+  }
 };
 
-} // namespace sycl::ext::oneapi
 ```
 
-where an example use looks like:
-
-```
-using sycl::ext::oneapi;
-
-void foo(int *p) {
-  annotated_ptr<int, decltype(properties{foo, bar<32>})> aptr(p);
-}
-```
-
-We again use a C++ attribute to represent the properties in the header.  The
-attribute `[[__sycl_detail__::add_ir_annotations_member()]]` decorates one of
+We again use a C++ attribute to represent the properties in the header. The
+attribute [[__sycl_detail__::add_ir_annotations_member()]] decorates one of
 the member variables of the class, and the parameters to this attribute
 represent the properties.
 
 ```
-namespace sycl::ext::oneapi {
-
-template <typename T, typename PropertyListT = properties<>>
-class annotated_ptr;
-
-// Partial specialization to make PropertyListT visible as a parameter pack
-// of properties.
-template <typename T, typename ...Props>
-class annotated_ptr<T, properties<Props...>> {
-  T *ptr
+struct kernel{
+  int *ptr
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_annotations_member(
     Props::meta_name..., Props::meta_value...
@@ -421,25 +400,18 @@ class annotated_ptr<T, properties<Props...>> {
 #endif
   ;
  public:
-  annotated_ptr(T *p) : ptr(p) {}
+  kernel(int *p) : ptr(p) {}
+  operator() const {
+     *ptr = 1;
+  }
 };
 
-} // namespace sycl::ext::oneapi
 ```
-
 Illustrating this with properties from our previous example:
 
 ```
-namespace sycl::ext::oneapi {
-
-template <typename T, typename PropertyListT = properties<>>
-class annotated_ptr;
-
-// Partial specialization to make PropertyListT visible as a parameter pack
-// of properties.
-template <typename T, typename ...Props>
-class annotated_ptr<T, properties<Props...>> {
-  T *ptr
+struct kernel{
+  int *ptr
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_annotations_member(
     "sycl-foo",   // Name of first property
@@ -450,12 +422,13 @@ class annotated_ptr<T, properties<Props...>> {
 #endif
   ;
  public:
-  annotated_ptr(T *p) : ptr(p) {}
+  kernel(int *p) : ptr(p) {}
+  operator() const {
+     *ptr = 1;
+  }
 };
 
-} // namespace sycl::ext::oneapi
 ```
-
 When the device compiler generates code to reference the decorated member
 variable, it emits a call to the LLVM intrinsic function
 [`@llvm.ptr.annotation`][10] that annotates the pointer to that member
@@ -507,9 +480,9 @@ The resulting LLVM IR for the previous example would be:
    },
    section "llvm.metadata"
 
-define void @foo(i32* %ptr) {
-  %aptr = alloca %class.annotated_ptr
-  %ptr = getelementptr inbounds %class.annotated_ptr, %class.annotated_ptr* %aptr,
+define spir_kernel @Kernel_IP(i32* %ptr) {
+  %aptr = alloca %class.kernel
+  %ptr = getelementptr inbounds %class.kernel, %class.kernel* %aptr,
     i32 0, i32 0
   %1 = bitcast i32** %ptr to i8*
 
@@ -520,7 +493,8 @@ define void @foo(i32* %ptr) {
     i8* bitcast ({ [9 x i8]*, i8*, [9 x i8]*, [3 x i8]* }* @.args to i8*))
 
   %3 = bitcast i8* %2 to i32**
-  store i32* %ptr, i32** %3
+  %4 = load i32*, i32** %3
+  store i32 1, i32* %4
   ret void
 }
 ```
@@ -532,6 +506,196 @@ optimized.  This puts more pressure on the SPIR-V consumer (e.g. JIT compiler)
 to perform these optimizations.
 
 
+## Properties on a non-global pointer type variable
+Applying properties on a non-global pointer type variable can be done with
+`__bultin_intel_sycl_ptr_annotation` builtin function.
+
+An example of this is the proposed `annotated_ptr` class.
+
+```
+namespace sycl::ext::oneapi {
+
+template <typename T, typename PropertyListT = properties<>>
+class annotated_ptr{
+  T *ptr;
+ public:
+  annotated_ptr(T *p) : ptr(p) {}
+};
+
+} // namespace sycl::ext::oneapi
+```
+
+where an example use looks like:
+
+```
+using sycl::ext::oneapi;
+
+void foo(int *p) {
+  annotated_ptr<int, decltype(properties{foo, bar<32>})> aptr(p);
+  *aptr = 1;
+}
+```
+
+To precisely control the location we insert the annotation information for the targetted
+pointer defereference, We invoke a SYCL builtin in the header.  The builtin
+`__builtin_intel_sycl_ptr_annotation` decorates one of the pointer variables of the
+class, and the parameters to this builtin represent the properties.
+
+```
+namespace sycl::ext::oneapi {
+
+
+template <typename T, typename PropertyListT = properties<>>
+class annotated_ptr {
+};
+
+// Partial specialization to make PropertyListT visible as a parameter pack
+// of properties.
+template <typename T, typename ...Props>
+class annotated_ptr {
+  T* ptr;
+
+public:
+  annotated_ptr(T* p) : ptr(p) {}
+  annotated_ref operator*() {
+     return annotated_ref<T, std::tuple<Props...>>(ptr);
+  }
+}
+
+template <typename T, typename PropertyListT>
+class annotated_ref {
+}
+
+template <typename T, typename ...Props>
+class annotated_ref<T, properties<Props...>> {
+  T *ptr;
+
+ public:
+  operator T() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return *__builtin_intel_sycl_ptr_annotation(ptr,
+         Props::meta_name..., Props::meta_value...);
+#else
+    return *ptr;
+#endif
+  }
+
+  annotated_ref& operator=(const T& obj) {
+#ifdef __SYCL_DEVICE_ONLY__
+    *__builtin_intel_sycl_ptr_annotation(ptr,
+         Props::meta_name..., Props::meta_value...) = obj;
+#else
+    *ptr = obj;
+#endif
+    return *this;
+  }
+  annotated_ref(T *p) : ptr(p) {}
+};
+
+} // namespace sycl::ext::oneapi
+```
+
+Illustrating this with properties from our previous example:
+
+```
+namespace sycl::ext::oneapi {
+
+template <typename T, typename PropertyListT>
+class annotated_ref {
+}
+
+template <typename T, typename ...Props>
+class annotated_ref<T, properties<Props...>> {
+  T *ptr;
+
+ public:
+  operator T() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return *__built_intel_sycl_ptr_annotation(
+              ptr,         //annotated pointer
+             "sycl-foo",   // Name of first property
+             "sycl-bar",   // Name of second property
+              nullptr,     // First property has no parameter
+              32           // Value of second property
+              );
+#else
+    return *ptr;
+#endif
+  }
+
+  annotated_ref& operator=(const T& obj) {
+#ifdef __SYCL_DEVICE_ONLY__
+    *__built_intel_sycl_ptr_annotation(
+              ptr,         //annotated pointer
+             "sycl-foo",   // Name of first property
+             "sycl-bar",   // Name of second property
+              nullptr,     // First property has no parameter
+              32           // Value of second property
+              ) = obj;
+#else
+    *ptr = obj;
+#endif
+    return *this;
+  }
+  annotated_ref(T *p) : ptr(p) {}
+};
+
+} // namespace sycl::ext::oneapi
+```
+
+When the device compiler generates code to reference the decorated
+pointer, it emits a call to the LLVM intrinsic function
+[`@llvm.ptr.annotation`][10] that annotates the pointer
+variable, similar to the way the existing `[[clang::annotate()]]` attribute
+works.
+
+[10]: <https://llvm.org/docs/LangRef.html#llvm-ptr-annotation-intrinsic>
+
+The front-end encodes the properties from the `__builtin_intel_sycl_ptr_annotation`
+into the `@llvm.ptr.annotation` call following exactly the same way as
+`add_ir_annotations_member()`.
+
+The resulting LLVM IR for the previous example would be:
+
+```
+@.str = private unnamed_addr constant [16 x i8] c"sycl-properties\00",
+   section "llvm.metadata"
+@.str.1 = private unnamed_addr constant [9 x i8] c"file.cpp\00",
+   section "llvm.metadata"
+@.str.2 = private unnamed_addr constant [9 x i8] c"sycl-foo\00",
+   section "llvm.metadata"
+@.str.3 = private unnamed_addr constant [9 x i8] c"sycl-bar\00",
+   section "llvm.metadata"
+@.str.4 = private unnamed_addr constant [3 x i8] c"32\00",
+   section "llvm.metadata"
+
+@.args = private unnamed_addr constant { [9 x i8]*, i8*, [9 x i8]*, [3 x i8]* }
+   {
+     [9 x i8]* @.str.2,   ; Name of first property "sycl-foo"
+     i8* null,            ; Null indicates this property has no value
+     [9 x i8]* @.str.3,   ; Name of second property "sycl-bar"
+     [3 x i8]* @.str.4    ; Value of second property
+   },
+   section "llvm.metadata"
+
+define foo(i32* %ptr) {
+  %aptr = alloca %class.kernel
+  %ptr = getelementptr inbounds %class.kernel, %class.kernel* %aptr,
+    i32 0, i32 0
+  %1 = load i32*, i32** %ptr
+  %2 = bitcast i32* %1 to i8*
+  %3 = call i8* @llvm.ptr.annotation.p0i8(i8* nonnull %2,
+    i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str, i64 0, i64 0),
+    i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i64 0, i64 0),
+    i32 3,
+    i8* bitcast ({ [9 x i8]*, i8*, [9 x i8]*, [3 x i8]* }* @.args to i8*))
+
+  %4 = bitcast i8* %3 to i32*
+  store i32 1, i32* %4
+  ret void
+}
+```
+
 ## Property representation in C++ attributes and in IR
 
 As noted above, there are several C++ attributes that convey property names and
@@ -542,7 +706,10 @@ values to the front-end:
 * `[[__sycl_detail__::add_ir_attributes_function()]]`
 * `[[__sycl_detail__::add_ir_annotations_member()]]`
 
-All of these attributes take a parameter list with the same format.  There are
+and a sycl builtin function:
+* `__builtin_intel_sycl_ptr_annotation`
+
+All of these attributes and builtin take a parameter list with the same format.  There are
 always an even number of parameters, where the first half are the property
 names and the second half are the property values.  (This assumes that the
 initial optional parameter is not passed.  See below for a description of this
