@@ -44,7 +44,7 @@ template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 struct get_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                                OperationCurrentT, Indexes...>> {
-  using type = typename get_elem_type<VecT>::type;
+  using type = typename get_elem_type<std::remove_cv_t<VecT>>::type;
 };
 
 template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
@@ -231,7 +231,15 @@ template <typename T, size_t N> struct same_size_unsigned_int<marray<T, N>> {
 template <typename T, int N> struct same_size_unsigned_int<vec<T, N>> {
   using type = vec<typename same_size_unsigned_int<T>::type, N>;
 };
-// TODO: Swizzle variant of this?
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct same_size_unsigned_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                        OperationCurrentT, Indexes...>> {
+  // Converts to vec for simplicity.
+  using type =
+      vec<typename same_size_unsigned_int<typename VecT::element_type>::type,
+          sizeof...(Indexes)>;
+};
 
 template <typename T> struct same_size_float {
   using type = typename get_float_by_size<sizeof(T)>::type;
@@ -242,7 +250,14 @@ template <typename T, size_t N> struct same_size_float<marray<T, N>> {
 template <typename T, int N> struct same_size_float<vec<T, N>> {
   using type = vec<typename same_size_float<T>::type, N>;
 };
-// TODO: Swizzle variant of this?
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct same_size_float<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                 OperationCurrentT, Indexes...>> {
+  // Converts to vec for simplicity.
+  using type = vec<typename same_size_float<typename VecT::element_type>::type,
+                   sizeof...(Indexes)>;
+};
 
 template <typename T>
 using same_size_float_t = typename same_size_float<T>::type;
@@ -258,7 +273,17 @@ template <typename NewElemT, typename T, int N>
 struct change_elements<NewElemT, vec<T, N>> {
   using type = vec<typename change_elements<NewElemT, T>::type, N>;
 };
-// TODO: Swizzle variant of this?
+template <typename NewElemT, typename VecT, typename OperationLeftT,
+          typename OperationRightT, template <typename> class OperationCurrentT,
+          int... Indexes>
+struct change_elements<NewElemT,
+                       SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                 OperationCurrentT, Indexes...>> {
+  // Converts to vec for simplicity.
+  using type =
+      vec<typename change_elements<NewElemT, typename VecT::element_type>::type,
+          sizeof...(Indexes)>;
+};
 
 template <typename T>
 using int_elements_t = typename change_elements<int, T>::type;
@@ -279,7 +304,14 @@ template <typename T, size_t N> struct upsampled_int<marray<T, N>> {
 template <typename T, int N> struct upsampled_int<vec<T, N>> {
   using type = vec<typename upsampled_int<T>::type, N>;
 };
-// TODO: Swizzle variant of this?
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct upsampled_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                               OperationCurrentT, Indexes...>> {
+  // Converts to vec for simplicity.
+  using type = vec<typename upsampled_int<typename VecT::element_type>::type,
+                   sizeof...(Indexes)>;
+};
 
 template <typename T> using upsampled_int_t = typename upsampled_int<T>::type;
 

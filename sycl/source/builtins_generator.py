@@ -390,6 +390,19 @@ def convert_vec_arg_name(arg_type, arg_name):
     return f'typename detail::get_vec_t<{arg_type}>({arg_name})'
   return arg_name
 
+def get_invoke_args(arg_types, arg_names, convert_args=[]):
+  result = list(map(convert_vec_arg_name, arg_types, arg_names))
+  for (arg_idx, type_conv) in convert_args:
+    # type_conv is either an index or a conversion function/type.
+    conv = type_conv if isinstance(type_conv, str) else arg_types[type_conv]
+    if is_vec_arg(conv):
+      # If the conversion is to a vector template argument, it could also be
+      # a swizzle. Since we cannot convert most types to swizzles, we make
+      # sure to make the conversion to the corresponding vector type instead.
+      conv = f'detail::get_vec_t<{conv}>'
+    result[arg_idx] = f'{conv}({result[arg_idx]})'
+  return result
+
 class DefCommon:
   def __init__(self, return_type, arg_types, invoke_name, invoke_prefix,
                custom_invoke, size_alias, marray_use_loop,
@@ -488,7 +501,6 @@ class DefCommon:
         result = result + f'  constexpr size_t {self.size_alias} = detail::num_elements<{template_arg.template_name}>::value;'
     return result + self.get_invoke_body(builtin_name, namespace, invoke_name, return_type, arg_types, arg_names)
 
-
 class Def(DefCommon):
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
@@ -505,16 +517,8 @@ class Def(DefCommon):
     # conversion function or type.
     self.convert_args = convert_args
 
-  def get_invoke_args(self, arg_types, arg_names):
-    result = list(map(convert_vec_arg_name, arg_types, arg_names))
-    for (arg_idx, type_conv) in self.convert_args:
-      # type_conv is either an index or a conversion function/type.
-      conv = type_conv if isinstance(type_conv, str) else arg_types[type_conv]
-      result[arg_idx] = f'{conv}({result[arg_idx]})'
-    return result
-
   def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
-    invoke_args = self.get_invoke_args(arg_types, arg_names)
+    invoke_args = get_invoke_args(arg_types, arg_names, self.convert_args)
     result = ""
     if self.fast_math_invoke_name:
       result = result + f"""  if constexpr (detail::use_fast_math_v<{arg_types[0]}>) {{
@@ -534,21 +538,22 @@ class RelDef(DefCommon):
   def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
     if self.custom_invoke:
       return self.custom_invoke(return_type, arg_types, arg_names)
-    invoke_args = ', '.join(arg_names)
+    invoke_args = ', '.join(get_invoke_args(arg_types, arg_names))
     return f'  return detail::RelConverter<{return_type}>::apply(__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<detail::internal_rel_ret_t<{return_type}>>({invoke_args}));'
 
 def custom_signed_abs_scalar_invoke(return_type, _, arg_names):
   args = ' ,'.join(arg_names)
   return f'return static_cast<{return_type}>(__sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}));'
 
-def custom_signed_abs_vector_invoke(return_type, _, arg_names):
-  args = ' ,'.join(arg_names)
+def custom_signed_abs_vec_invoke(return_type, arg_types, arg_names):
+  args = ' ,'.join(get_invoke_args(arg_types, arg_names))
   return f'return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}).template convert<detail::get_elem_type_t<{return_type}>>();'
 
 def get_custom_any_all_vec_invoke(invoke_name):
-  return (lambda _, arg_types, arg_names: f"""  return detail::rel_sign_bit_test_ret_t<{arg_types[0]}>(
-      __sycl_std::__invoke_{invoke_name}<detail::rel_sign_bit_test_ret_t<{arg_types[0]}>>(
-          detail::rel_sign_bit_test_arg_t<{arg_types[0]}>({arg_names[0]})));""")
+  return (lambda _, arg_types, arg_names: f"""  using VecT = detail::get_vec_t<{arg_types[0]}>;
+  return detail::rel_sign_bit_test_ret_t<detail::get_vec_t<VecT>>(
+      __sycl_std::__invoke_{invoke_name}<detail::rel_sign_bit_test_ret_t<VecT>>(
+          detail::rel_sign_bit_test_arg_t<VecT>({get_invoke_args(arg_types, arg_names)[0]})));""")
 
 def custom_bool_select_invoke(return_type, _, arg_names):
   return f"""  return __sycl_std::__invoke_select<{return_type}>(
@@ -778,7 +783,7 @@ sycl_builtins = {# Math functions
                  "sign": [Def("genfloat", ["genfloat"])],
                  "abs": [Def("genfloat", ["genfloat"], invoke_prefix="f"), # TODO: Non-standard. Deprecate.
                          Def("sigeninteger", ["sigeninteger"], custom_invoke=custom_signed_abs_scalar_invoke),
-                         Def("vigeninteger", ["vigeninteger"], custom_invoke=custom_signed_abs_vector_invoke),
+                         Def("vigeninteger", ["vigeninteger"], custom_invoke=custom_signed_abs_vec_invoke),
                          Def("migeninteger", ["migeninteger"], marray_use_loop=True),
                          Def("ugeninteger", ["ugeninteger"], invoke_prefix="u_", marray_use_loop=True)],
                  # Geometric functions
