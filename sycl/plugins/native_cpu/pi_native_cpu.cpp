@@ -693,6 +693,7 @@ pi_result piProgramCreateWithBinary(pi_context context, pi_uint32,
   auto nativecpu_entries = (const nativecpu_entry *)(*binaries);
   auto nativecpu_it = nativecpu_entries;
   auto p = new _pi_program();
+  // Todo: maybe we can check for nullptr here instead of comparing strings
   while (strcmp(nativecpu_it->kernelname, "__nativecpu_end") != 0) {
     p->_kernels.insert(
         std::make_pair(nativecpu_it->kernelname, nativecpu_it->kernel_ptr));
@@ -1327,6 +1328,96 @@ pi_result piextUSMEnqueueFill2D(pi_queue queue, void *ptr, size_t pitch,
                                 pi_uint32 num_events_in_waitlist,
                                 const pi_event *events_waitlist,
                                 pi_event *event) {
+  DIE_NO_IMPLEMENTATION;
+}
+pi_result piextCommandBufferCreate(pi_context, pi_device,
+                                   const pi_ext_command_buffer_desc *,
+                                   pi_ext_command_buffer *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferRetain(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferRelease(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferFinalize(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferNDRangeKernel(pi_ext_command_buffer, pi_kernel,
+                                          pi_uint32, const size_t *,
+                                          const size_t *, const size_t *,
+                                          pi_uint32, const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemcpyUSM(pi_ext_command_buffer, void *,
+                                      const void *, size_t, pi_uint32,
+                                      const pi_ext_sync_point *,
+                                      pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferCopy(pi_ext_command_buffer, pi_mem, pi_mem,
+                                          size_t, size_t, size_t, pi_uint32,
+                                          const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer, pi_mem, pi_mem, pi_buff_rect_offset,
+    pi_buff_rect_offset, pi_buff_rect_region, size_t, size_t, size_t, size_t,
+    pi_uint32, const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferRead(pi_ext_command_buffer, pi_mem, size_t,
+                                          size_t, void *, pi_uint32,
+                                          const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer, pi_mem, pi_buff_rect_offset, pi_buff_rect_offset,
+    pi_buff_rect_region, size_t, size_t, size_t, size_t, void *, pi_uint32,
+    const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferWrite(pi_ext_command_buffer, pi_mem,
+                                           size_t, size_t, const void *,
+                                           pi_uint32, const pi_ext_sync_point *,
+                                           pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer, pi_mem, pi_buff_rect_offset, pi_buff_rect_offset,
+    pi_buff_rect_region, size_t, size_t, size_t, size_t, const void *,
+    pi_uint32, const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer, pi_queue, pi_uint32,
+                                    const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnablePeerAccess(pi_device, pi_device) { DIE_NO_IMPLEMENTATION; }
+
+pi_result piextDisablePeerAccess(pi_device, pi_device) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextPeerAccessGetInfo(pi_device, pi_device, pi_peer_attr, size_t,
+                                 void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 

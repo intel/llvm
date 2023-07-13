@@ -93,14 +93,11 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
   std::vector<StreamImplPtr> Streams;
-  std::vector<std::shared_ptr<const void>> AuxiliaryResources;
 
   if (Type == CG::Kernel) {
     auto *CGExecKernelPtr = static_cast<CGExecKernel *>(CommandGroup.get());
     Streams = CGExecKernelPtr->getStreams();
     CGExecKernelPtr->clearStreams();
-    AuxiliaryResources = CGExecKernelPtr->getAuxiliaryResources();
-    CGExecKernelPtr->clearAuxiliaryResources();
     // Stream's flush buffer memory is mainly initialized in stream's __init
     // method. However, this method is not available on host device.
     // Initializing stream's flush buffer on the host side in a separate task.
@@ -110,6 +107,9 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       }
     }
   }
+  std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+  AuxiliaryResources = CommandGroup->getAuxiliaryResources();
+  CommandGroup->clearAuxiliaryResources();
 
   bool ShouldEnqueue = true;
   {
@@ -546,7 +546,6 @@ void Scheduler::registerAuxiliaryResources(
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
-  ForceDeferredReleaseWrapper ForceDeferredRelease;
   for (auto It = MAuxiliaryResources.begin();
        It != MAuxiliaryResources.end();) {
     const EventImplPtr &Event = It->first;
@@ -559,8 +558,6 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
       ++It;
   }
 }
-
-thread_local bool Scheduler::ForceDeferredMemObjRelease = false;
 
 void Scheduler::startFusion(QueueImplPtr Queue) {
   WriteLockT Lock = acquireWriteLock();

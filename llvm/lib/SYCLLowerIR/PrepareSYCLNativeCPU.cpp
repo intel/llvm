@@ -18,11 +18,9 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Attributes.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -72,9 +70,9 @@ SmallVector<unsigned> getUsedIndexes(const Function *F) {
   auto UsedNode = F->getMetadata("sycl_kernel_omit_args");
   if (!UsedNode) {
     // the metadata node is not available if -fenable-sycl-dae
-    // was not set; set everything to true 
+    // was not set; set everything to true
     // Exclude one arg because we already added the state ptr
-    for (unsigned I = 0; I+1 < F->getFunctionType()->getNumParams(); I++) {
+    for (unsigned I = 0; I + 1 < F->getFunctionType()->getNumParams(); I++) {
       res.push_back(I);
     }
     return res;
@@ -109,7 +107,8 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   // Todo: we need to ensure that the kernel name is not mangled as a type
   // name, otherwise this may lead to runtime failures due to *weird* 
   // codegen/linking behaviour, we change the name of the kernel, and the
-  // subhandler steals its name
+  // subhandler steals its name, we add a suffix to the subhandler later
+  // on when lowering the device module
   std::string OldName = F->getName().str();
   std::string NewName = OldName + "_NativeCPUKernel";
   const auto SubHandlerName = OldName;
@@ -165,7 +164,7 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   
 }
 
-// Clone the function and returns a new function with a new argument on type T
+// Clones the function and returns a new function with a new argument on type T
 // added as last argument
 Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
   auto *OldT = OldF->getFunctionType();

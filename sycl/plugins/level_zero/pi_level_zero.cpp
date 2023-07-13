@@ -723,18 +723,6 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
                                      BufferCreateInfo, RetMem);
 }
 
-pi_result piEnqueueNativeKernel(pi_queue Queue, void (*UserFunc)(void *),
-                                void *Args, size_t CbArgs,
-                                pi_uint32 NumMemObjects, const pi_mem *MemList,
-                                const void **ArgsMemLoc,
-                                pi_uint32 NumEventsInWaitList,
-                                const pi_event *EventWaitList,
-                                pi_event *Event) {
-  return pi2ur::piEnqueueNativeKernel(
-      Queue, UserFunc, Args, CbArgs, NumMemObjects, MemList, ArgsMemLoc,
-      NumEventsInWaitList, EventWaitList, Event);
-}
-
 // TODO: Check if the function_pointer_ret type can be converted to void**.
 pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
                                         const char *FunctionName,
@@ -1067,6 +1055,120 @@ pi_result piextProgramSetSpecializationConstant(pi_program Prog,
                                                       SpecValue);
 }
 
+// Command buffer extension
+pi_result piextCommandBufferCreate(pi_context Context, pi_device Device,
+                                   const pi_ext_command_buffer_desc *Desc,
+                                   pi_ext_command_buffer *RetCommandBuffer) {
+  return pi2ur::piextCommandBufferCreate(Context, Device, Desc,
+                                         RetCommandBuffer);
+}
+
+pi_result piextCommandBufferRetain(pi_ext_command_buffer CommandBuffer) {
+  return pi2ur::piextCommandBufferRetain(CommandBuffer);
+}
+
+pi_result piextCommandBufferRelease(pi_ext_command_buffer CommandBuffer) {
+  return pi2ur::piextCommandBufferRelease(CommandBuffer);
+}
+
+pi_result piextCommandBufferFinalize(pi_ext_command_buffer CommandBuffer) {
+  return pi2ur::piextCommandBufferFinalize(CommandBuffer);
+}
+
+pi_result piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer CommandBuffer, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferNDRangeKernel(
+      CommandBuffer, Kernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
+      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferMemcpyUSM(
+    pi_ext_command_buffer CommandBuffer, void *DstPtr, const void *SrcPtr,
+    size_t Size, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemcpyUSM(CommandBuffer, DstPtr, SrcPtr, Size,
+                                            NumSyncPointsInWaitList,
+                                            SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer CommandBuffer, pi_mem SrcMem, pi_mem DstMem,
+    size_t SrcOffset, size_t DstOffset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferCopy(
+      CommandBuffer, SrcMem, DstMem, SrcOffset, DstOffset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem SrcMem, pi_mem DstMem,
+    pi_buff_rect_offset SrcOrigin, pi_buff_rect_offset DstOrigin,
+    pi_buff_rect_region Region, size_t SrcRowPitch, size_t SrcSlicePitch,
+    size_t DstRowPitch, size_t DstSlicePitch, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferCopyRect(
+      CommandBuffer, SrcMem, DstMem, SrcOrigin, DstOrigin, Region, SrcRowPitch,
+      SrcSlicePitch, DstRowPitch, DstSlicePitch, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, size_t Offset,
+    size_t Size, void *Dst, pi_uint32 NumEventsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferRead(CommandBuffer, Buffer, Offset,
+                                                Size, Dst, NumEventsInWaitList,
+                                                SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer,
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, void *Ptr,
+    pi_uint32 NumEventsInWaitList, const pi_ext_sync_point *SyncPointWaitList,
+    pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferReadRect(
+      CommandBuffer, Buffer, BufferOffset, HostOffset, Region, BufferRowPitch,
+      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr, NumEventsInWaitList,
+      SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, size_t Offset,
+    size_t Size, const void *Ptr, pi_uint32 NumEventsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferWrite(CommandBuffer, Buffer, Offset,
+                                                 Size, Ptr, NumEventsInWaitList,
+                                                 SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer,
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, const void *Ptr,
+    pi_uint32 NumEventsInWaitList, const pi_ext_sync_point *SyncPointWaitList,
+    pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferWriteRect(
+      CommandBuffer, Buffer, BufferOffset, HostOffset, Region, BufferRowPitch,
+      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr, NumEventsInWaitList,
+      SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
+                                    pi_queue Queue,
+                                    pi_uint32 NumEventsInWaitList,
+                                    const pi_event *EventWaitList,
+                                    pi_event *Event) {
+  return pi2ur::piextEnqueueCommandBuffer(
+      CommandBuffer, Queue, NumEventsInWaitList, EventWaitList, Event);
+}
+
 const char SupportedVersion[] = _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) { // missing
@@ -1110,6 +1212,28 @@ pi_result piTearDown(void *PluginParameter) {
 pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
                                   uint64_t *HostTime) {
   return pi2ur::piGetDeviceAndHostTimer(Device, DeviceTime, HostTime);
+}
+
+pi_result piextEnablePeerAccess(pi_device command_device,
+                                pi_device peer_device) {
+
+  return pi2ur::piextEnablePeerAccess(command_device, peer_device);
+}
+
+pi_result piextDisablePeerAccess(pi_device command_device,
+                                 pi_device peer_device) {
+
+  return pi2ur::piextDisablePeerAccess(command_device, peer_device);
+}
+
+pi_result piextPeerAccessGetInfo(pi_device command_device,
+                                 pi_device peer_device, pi_peer_attr attr,
+                                 size_t ParamValueSize, void *ParamValue,
+                                 size_t *ParamValueSizeRet) {
+
+  return pi2ur::piextPeerAccessGetInfo(command_device, peer_device, attr,
+                                       ParamValueSize, ParamValue,
+                                       ParamValueSizeRet);
 }
 
 #ifdef _WIN32

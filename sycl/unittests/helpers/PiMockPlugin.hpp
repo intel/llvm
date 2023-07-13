@@ -839,15 +839,6 @@ inline pi_result mock_piEnqueueKernelLaunch(
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piEnqueueNativeKernel(
-    pi_queue queue, void (*user_func)(void *), void *args, size_t cb_args,
-    pi_uint32 num_mem_objects, const pi_mem *mem_list,
-    const void **args_mem_loc, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
-  return PI_SUCCESS;
-}
-
 inline pi_result mock_piEnqueueEventsWait(pi_queue command_queue,
                                           pi_uint32 num_events_in_wait_list,
                                           const pi_event *event_wait_list,
@@ -1137,6 +1128,111 @@ inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
   return PI_SUCCESS;
 }
 
+inline pi_result
+mock_piextCommandBufferCreate(pi_context context, pi_device device,
+                              const pi_ext_command_buffer_desc *desc,
+                              pi_ext_command_buffer *ret_command_buffer) {
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferFinalize(pi_ext_command_buffer command_buffer) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferMemcpyUSM(
+    pi_ext_command_buffer command_buffer, void *dst_ptr, const void *src_ptr,
+    size_t size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t BufferRowPitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueCommandBuffer(
+    pi_ext_command_buffer command_buffer, pi_queue queue,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    size_t src_offset, size_t dst_offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
+    pi_buff_rect_region region, size_t src_row_pitch, size_t src_slice_pitch,
+    size_t dst_row_pitch, size_t dst_slice_pitch,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {
@@ -1181,5 +1277,27 @@ inline pi_result mock_piextEnqueueWriteHostPipe(
     pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
     const pi_event *events_waitlist, pi_event *event) {
   *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnablePeerAccess(pi_device command_device,
+                                            pi_device peer_device) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextDisablePeerAccess(pi_device command_device,
+                                             pi_device peer_device) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextPeerAccessGetInfo(pi_device command_device, pi_device peer_device,
+                            pi_peer_attr attr, size_t param_value_size,
+                            void *param_value, size_t *param_value_size_ret) {
+  if (param_value)
+    *static_cast<pi_int32 *>(param_value) = 1;
+  if (param_value_size_ret)
+    *param_value_size_ret = sizeof(pi_int32);
+
   return PI_SUCCESS;
 }

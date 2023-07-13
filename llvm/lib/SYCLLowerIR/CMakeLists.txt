@@ -71,6 +71,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   TargetHelpers.cpp
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
+  EmitSYCLNativeCPUHeader.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -82,6 +83,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMGenXIntrinsics
   LLVMDemangle
   LLVMTransformUtils
+  DeviceConfigFile
 
   LINK_LIBS
   LLVMGenXIntrinsics

@@ -94,7 +94,7 @@ entry:
 ```
 
 For the Native CPU target, the device compiler is in charge of materializing the SPIRV builtins (such as `@__spirv_BuiltInGlobalInvocationId`), so that they can be correctly updated by the runtime when executing the kernel. This is performed by the [PrepareSYCLNativeCPU pass](llvm/lib/SYCLLowerIR/PrepareSYCLNativeCPU.cpp).
-The PrepareSYCLNativeCPUPass also emits a `subhandler` function, which receives the kernel arguments from the SYCL runtime (packed in a vector), unpacks them, and forwards only the used ones to the actual kernel. \\
+The PrepareSYCLNativeCPUPass also emits a `subhandler` function, which receives the kernel arguments from the SYCL runtime (packed in a vector), unpacks them, and forwards only the used ones to the actual kernel. 
 
 
 ## PrepareSYCLNativeCPU Pass
@@ -121,6 +121,7 @@ entry:
   ret void
 }
 ```
+<<<<<<< HEAD
 This pass will also set the correct calling convention for the target, and handle calling convention-related function attributes, allowing to call the kernel from the runtime.
 
 The `subhandler` for the Native CPU kernel looks like: 
@@ -140,6 +141,7 @@ entry:
   ret void
 }
 ```
+<<<<<<< HEAD
 As you can see, the `subhandler` steals the kernel's function name, and receives two pointer arguments: the first one points to the kernel arguments from the SYCL runtime, and the second one to the `__nativecpu_state` struct.
 
 ## Kernel registration

@@ -1,6 +1,5 @@
 // This test checks for some basic Front End features for Native CPU:
 // * Kernel name mangling
-// * kernel_arg_type metadata node
 // * is-native-cpu module flag
 // RUN: %clang_cc1 -fsycl-is-device -S -emit-llvm -internal-isystem %S/Inputs -fsycl-is-native-cpu -o %t.ll %s 
 // RUN: FileCheck -input-file=%t.ll %s 
@@ -50,7 +49,7 @@ void gen() {
   test<float>(q);
 }
 
-// Check name mangling and kernel_arg_type metadata
+// Check name mangling 
 // CHECK-DAG: @_ZTS6init_aIiE_NativeCPUKernel({{.*}})
 // CHECK-DAG: @_ZTS6init_aIfE_NativeCPUKernel({{.*}})
 
