@@ -40,11 +40,6 @@ bool isDivergent(Operation *op, DataFlowSolver &solver) {
     return false;
 
   auto isUniform = [&](Value val) {
-    val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
-      return solver.lookupState<UnderlyingValueLattice>(val);
-    });
-    assert(val && "expected an underlying value");
-
     const auto *lattice = solver.lookupState<UniformityLattice>(val);
     assert(lattice && "expected uniformity information");
     assert(!lattice->getValue().isUninitialized() &&
@@ -292,14 +287,10 @@ void UniformityAnalysis::analyzeMemoryEffects(
       return mods;
     };
 
-    val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
-      return internalSolver.lookupState<UnderlyingValueLattice>(val);
-    });
-    assert(val && "expected an underlying value");
-
     // Merge mods and pMods together.
     std::optional<ModifiersTy> mods =
-        merge(rdef->getModifiers(val), rdef->getPotentialModifiers(val));
+        merge(rdef->getModifiers(val, internalSolver),
+              rdef->getPotentialModifiers(val, internalSolver));
     if (!mods)
       continue;
 

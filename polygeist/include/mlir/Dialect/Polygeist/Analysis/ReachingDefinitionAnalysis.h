@@ -106,10 +106,12 @@ public:
   ChangeResult removePotentialModifiers(Value val);
 
   /// Get the definitions that have modified \p val.
-  std::optional<ModifiersTy> getModifiers(Value val) const;
+  std::optional<ModifiersTy> getModifiers(Value val,
+                                          DataFlowSolver &solver) const;
 
   /// Get the definition that have possibly modified \p val.
-  std::optional<ModifiersTy> getPotentialModifiers(Value val) const;
+  std::optional<ModifiersTy>
+  getPotentialModifiers(Value val, DataFlowSolver &solver) const;
 
   /// Return the unique definition for the operand at index \p opIndex in
   /// operation \p op, or std::nullopt if it does not have a unique definition.
