@@ -760,8 +760,7 @@ template <typename T, int NElts = 1,
 __ESIMD_API std::enable_if_t<
     !std::is_pointer_v<AccessorTy> &&
         !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
-        std::is_integral_v<Toffset> &&
-        !std::is_same_v<Toffset, uint64_t>,
+        std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>,
     __ESIMD_NS::simd<T, N * NElts>>
 lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
            __ESIMD_NS::simd_mask<N> pred = 1) {
