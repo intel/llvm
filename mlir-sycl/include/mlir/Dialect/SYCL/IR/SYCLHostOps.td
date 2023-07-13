@@ -26,6 +26,12 @@ class SYCL_HostOp<string mnemonic, list<Trait> traits = []> :
     SYCL_Op<"host." # mnemonic, traits>;
 
 ////////////////////////////////////////////////////////////////////////////////
+// TRAIT DECLARATIONS
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLHostHandlerOp : SYCLOpTrait<"SYCLHostHandlerOp">;
+
+////////////////////////////////////////////////////////////////////////////////
 // OPERATIONS
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,7 +102,7 @@ def SYCLHostGetKernelOp
 
 def SYCLHostHandlerSetKernel
     : SYCL_HostOp<"handler.set_kernel",
-        [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+        [SYCLHostHandlerOp, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = [{
     Operation assigning a kernel to a `sycl::handler`, thus pairing the handler
     and the kernel being launched.
@@ -107,7 +113,8 @@ def SYCLHostHandlerSetKernel
   }];
 }
 
-def SYCLHostHandlerSetNDRange : SYCL_HostOp<"handler.set_nd_range"> {
+def SYCLHostHandlerSetNDRange
+    : SYCL_HostOp<"handler.set_nd_range", [SYCLHostHandlerOp]> {
   let summary = [{
     Operation assigning an nd-range to a `sycl::handler`, setting the nd-range
     of the kernel to be launched.

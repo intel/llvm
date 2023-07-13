@@ -278,3 +278,96 @@ gpu.module @device_functions {
     llvm.return %2 : !llvm.ptr
   }
 }
+
+// -----
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+
+gpu.module @device_functions {
+  gpu.func @foo() kernel {
+    gpu.return
+  }
+}
+
+llvm.mlir.global private unnamed_addr constant @range_str("range\00")
+    {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
+
+// COM: Check we can raise parallel_for(globalSize, kernel) to sycl.host.handler.set_nd_range
+
+// CHECK-LABEL:   llvm.func @raise_set_globalsize(
+// CHECK-SAME:                                    %[[VAL_0:.*]]: !llvm.ptr) {
+// CHECK-DAG:       %[[VAL_1:.*]] = arith.constant 512 : index
+// CHECK-DAG:       %[[VAL_2:.*]] = llvm.mlir.constant(512 : i64) : i64
+// CHECK-DAG:       %[[VAL_3:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:      sycl.host.handler.set_kernel %[[VAL_0]] -> @device_functions::@foo : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = sycl.range.constructor(%[[VAL_1]]) : (index) -> memref<1x!sycl_range_1_>
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_4]], %[[VAL_2]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> %[[VAL_5]] : !llvm.ptr, memref<1x!sycl_range_1_>
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+llvm.func @raise_set_globalsize(%handler: !llvm.ptr) {
+  %c0 = llvm.mlir.constant (0 : i32) : i32
+  %c1 = llvm.mlir.constant (1 : i64) : i64
+  sycl.host.handler.set_kernel %handler -> @device_functions::@foo : !llvm.ptr
+  %c512 = llvm.mlir.constant (512 : i64) : i64
+  %nullptr = llvm.mlir.null : !llvm.ptr
+  %range = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+  sycl.host.constructor(%range, %c512) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+  %str = llvm.mlir.addressof @range_str : !llvm.ptr
+  "llvm.intr.var.annotation"(%range, %str, %str, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  llvm.return
+}
+
+// -----
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+
+gpu.module @device_functions {
+  gpu.func @foo() kernel {
+    gpu.return
+  }
+}
+
+llvm.mlir.global private unnamed_addr constant @range_str("range\00")
+    {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
+llvm.mlir.global private unnamed_addr constant @offset_str("offset\00")
+    {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
+
+// COM: Check we can raise parallel_for(globalSize, offset, kernel) to sycl.host.handler.set_nd_range
+
+// CHECK-LABEL:   llvm.func @raise_set_globalsize_offset(
+// CHECK-SAME:                                           %[[VAL_0:.*]]: !llvm.ptr) {
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 512 : index
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 100 : index
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(512 : i64) : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mlir.constant(100 : i64) : i64
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:      sycl.host.handler.set_kernel %[[VAL_0]] -> @device_functions::@foo : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.alloca %[[VAL_5]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_7:.*]] = sycl.range.constructor(%[[VAL_1]]) : (index) -> memref<1x!sycl_range_1_>
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_6]], %[[VAL_3]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.alloca %[[VAL_5]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_9:.*]] = sycl.id.constructor(%[[VAL_2]]) : (index) -> memref<1x!sycl_id_1_>
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_8]], %[[VAL_4]]) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> %[[VAL_7]], %[[VAL_9]] : !llvm.ptr, memref<1x!sycl_range_1_>, memref<1x!sycl_id_1_>
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+llvm.func @raise_set_globalsize_offset(%handler: !llvm.ptr) {
+  %c0 = llvm.mlir.constant (0 : i32) : i32
+  %c1 = llvm.mlir.constant (1 : i64) : i64
+  sycl.host.handler.set_kernel %handler -> @device_functions::@foo : !llvm.ptr
+  %c100 = llvm.mlir.constant (100 : i64) : i64
+  %c512 = llvm.mlir.constant (512 : i64) : i64
+  %nullptr = llvm.mlir.null : !llvm.ptr
+  %range = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+  sycl.host.constructor(%range, %c512) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+  %offset = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+  sycl.host.constructor(%offset, %c100) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+  %rangeStr = llvm.mlir.addressof @range_str : !llvm.ptr
+  %offsetStr = llvm.mlir.addressof @offset_str : !llvm.ptr
+  "llvm.intr.var.annotation"(%range, %rangeStr, %rangeStr, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  "llvm.intr.var.annotation"(%offset, %offsetStr, %offsetStr, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  llvm.return
+}
