@@ -13,14 +13,102 @@
 #ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_REACHINGDEFINITIONANALYSIS_H
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_REACHINGDEFINITIONANALYSIS_H
 
+#include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
+#include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/DenseAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
+#include "mlir/Dialect/Polygeist/Analysis/DataFlowSolverWrapper.h"
 #include "mlir/Dialect/Polygeist/Utils/AliasUtils.h"
 #include <set>
 #include <variant>
 
 namespace mlir {
 namespace polygeist {
+
+/// A class representing the value a formal argument of a function has the
+/// caller of the function.
+class UnderlyingValue {
+  friend raw_ostream &operator<<(raw_ostream &, const UnderlyingValue &);
+
+public:
+  /// Create an underlying value state with a known underlying value.
+  explicit UnderlyingValue(std::optional<Value> val = std::nullopt)
+      : val(val) {}
+
+  /// Whether the state is uninitialized.
+  bool isUninitialized() const { return !val.has_value(); }
+
+  /// Returns the underlying value.
+  Value get() const {
+    assert(!isUninitialized() && "Expecting the state to be initialized");
+    return *val;
+  }
+
+  /// Join two underlying values. If there are conflicting underlying values,
+  /// go to the pessimistic value.
+  static UnderlyingValue join(const UnderlyingValue &lhs,
+                              const UnderlyingValue &rhs) {
+    if (lhs.isUninitialized())
+      return rhs;
+    if (rhs.isUninitialized())
+      return lhs;
+    return lhs.val == rhs.val ? lhs : UnderlyingValue(Value{});
+  }
+
+  /// Compare underlying values.
+  bool operator==(const UnderlyingValue &rhs) const { return val == rhs.val; }
+
+  void print(raw_ostream &os) const { os << val; }
+
+private:
+  std::optional<Value> val;
+};
+
+struct UnderlyingValueLattice : public dataflow::Lattice<UnderlyingValue> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(UnderlyingValueLattice)
+  using Lattice::Lattice;
+};
+
+/// An analysis that uses forwarding of values along control-flow and callgraph
+/// edges to determine single underlying values for block arguments.
+class UnderlyingValueAnalysis
+    : public dataflow::SparseDataFlowAnalysis<UnderlyingValueLattice>,
+      public RequiredDataFlowAnalyses<UnderlyingValueAnalysis> {
+  friend class RequiredDataFlowAnalyses;
+
+public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(UnderlyingValueAnalysis)
+
+  using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
+
+  UnderlyingValueAnalysis(DataFlowSolver &solver)
+      : SparseDataFlowAnalysis<UnderlyingValueLattice>(solver) {}
+
+  /// Recursively retrieve the underlying value for \p value given the access
+  /// function \p getUnderlyingValFn.
+  static Value getMostUnderlyingValue(
+      Value value,
+      function_ref<const UnderlyingValueLattice *(Value)> getUnderlyingValFn);
+
+  /// The underlying value of the results of an operation are not known.
+  void visitOperation(Operation *op,
+                      ArrayRef<const UnderlyingValueLattice *> operands,
+                      ArrayRef<UnderlyingValueLattice *> results) override {
+    setAllToEntryStates(results);
+  }
+
+  /// At an entry point, the underlying value of a value is itself.
+  void setToEntryState(UnderlyingValueLattice *lattice) override {
+    propagateIfChanged(lattice,
+                       lattice->join(UnderlyingValue{lattice->getPoint()}));
+  }
+
+private:
+  /// Load required dataflow analyses.
+  static void loadRequiredAnalysesImpl(DataFlowSolverWrapper &solver) {
+    solver.load<dataflow::DeadCodeAnalysis>();
+  }
+};
 
 /// Represents the initial definition of a memory resource.
 class InitialDefinition {};
@@ -138,12 +226,15 @@ private:
 /// loaded from memory that might occur if the pointer/memref dereferenced by
 /// the load operation is possibly aliased to another pointer/memref.
 class ReachingDefinitionAnalysis
-    : public dataflow::DenseDataFlowAnalysis<ReachingDefinition> {
+    : public dataflow::DenseDataFlowAnalysis<ReachingDefinition>,
+      public RequiredDataFlowAnalyses<ReachingDefinitionAnalysis> {
+  friend class RequiredDataFlowAnalyses;
+
 public:
   using DenseDataFlowAnalysis::DenseDataFlowAnalysis;
 
   ReachingDefinitionAnalysis(DataFlowSolver &solver,
-                             mlir::AliasAnalysis &aliasAnalysis)
+                             AliasAnalysis &aliasAnalysis)
       : DenseDataFlowAnalysis<ReachingDefinition>(solver),
         aliasAnalysis(aliasAnalysis) {}
 
@@ -161,79 +252,15 @@ public:
   void setToEntryState(ReachingDefinition *lattice) override;
 
 private:
-  DenseMap<FunctionOpInterface, std::unique_ptr<AliasOracle>> aliasOracles;
+  /// Load required dataflow analyses.
+  static void loadRequiredAnalysesImpl(DataFlowSolverWrapper &solver) {
+    solver.load<dataflow::DeadCodeAnalysis>();
+    solver.load<dataflow::SparseConstantPropagation>();
+    solver.load<UnderlyingValueAnalysis>();
+  }
+
   AliasAnalysis &aliasAnalysis;
-};
-
-/// A class representing the value a formal argument of a function has the
-/// caller of the function.
-class UnderlyingValue {
-  friend raw_ostream &operator<<(raw_ostream &, const UnderlyingValue &);
-
-public:
-  /// Create an underlying value state with a known underlying value.
-  explicit UnderlyingValue(std::optional<Value> val = std::nullopt)
-      : val(val) {}
-
-  /// Whether the state is uninitialized.
-  bool isUninitialized() const { return !val.has_value(); }
-
-  /// Returns the underlying value.
-  Value get() const {
-    assert(!isUninitialized() && "Expecting the state to be initialized");
-    return *val;
-  }
-
-  /// Join two underlying values. If there are conflicting underlying values,
-  /// go to the pessimistic value.
-  static UnderlyingValue join(const UnderlyingValue &lhs,
-                              const UnderlyingValue &rhs) {
-    if (lhs.isUninitialized())
-      return rhs;
-    if (rhs.isUninitialized())
-      return lhs;
-    return lhs.val == rhs.val ? lhs : UnderlyingValue(Value{});
-  }
-
-  /// Compare underlying values.
-  bool operator==(const UnderlyingValue &rhs) const { return val == rhs.val; }
-
-  void print(raw_ostream &os) const { os << val; }
-
-private:
-  std::optional<Value> val;
-};
-
-struct UnderlyingValueLattice : public dataflow::Lattice<UnderlyingValue> {
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(UnderlyingValueLattice)
-  using Lattice::Lattice;
-};
-
-/// An analysis that uses forwarding of values along control-flow and callgraph
-/// edges to determine single underlying values for block arguments.
-class UnderlyingValueAnalysis
-    : public dataflow::SparseDataFlowAnalysis<UnderlyingValueLattice> {
-public:
-  using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
-
-  /// Recursively retrieve the underlying value for \p value given the access
-  /// function \p getUnderlyingValFn.
-  static Value getMostUnderlyingValue(
-      Value value,
-      function_ref<const UnderlyingValueLattice *(Value)> getUnderlyingValFn);
-
-  /// The underlying value of the results of an operation are not known.
-  void visitOperation(Operation *op,
-                      ArrayRef<const UnderlyingValueLattice *> operands,
-                      ArrayRef<UnderlyingValueLattice *> results) override {
-    setAllToEntryStates(results);
-  }
-
-  /// At an entry point, the underlying value of a value is itself.
-  void setToEntryState(UnderlyingValueLattice *lattice) override {
-    propagateIfChanged(lattice,
-                       lattice->join(UnderlyingValue{lattice->getPoint()}));
-  }
+  DenseMap<FunctionOpInterface, std::unique_ptr<AliasOracle>> aliasOracles;
 };
 
 } // namespace polygeist

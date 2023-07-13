@@ -17,6 +17,7 @@
 
 #include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
+#include "mlir/Dialect/Polygeist/Analysis/DataFlowSolverWrapper.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 
@@ -115,7 +116,9 @@ public:
 /// determine whether values are uniform or not w.r.t. threads. A uniform value
 /// is a value for which all threads agree on its content.
 class UniformityAnalysis
-    : public dataflow::SparseDataFlowAnalysis<UniformityLattice> {
+    : public dataflow::SparseDataFlowAnalysis<UniformityLattice>,
+      public RequiredDataFlowAnalyses<UniformityAnalysis> {
+  friend class RequiredDataFlowAnalyses;
   friend raw_ostream &operator<<(raw_ostream &, const UniformityAnalysis &);
 
 public:
@@ -143,6 +146,13 @@ public:
                                     unsigned firstIndex) override;
 
 private:
+  /// Load required dataflow analyses.
+  static void loadRequiredAnalysesImpl(DataFlowSolverWrapper &solver) {
+    solver.load<dataflow::DeadCodeAnalysis>();
+    solver.loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(
+        solver.getAliasAnalysis());
+  }
+
   /// Analyze an operation \p op that has memory side effects and uniform
   /// operands.
   void analyzeMemoryEffects(Operation *op,

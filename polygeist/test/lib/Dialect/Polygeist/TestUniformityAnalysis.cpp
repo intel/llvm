@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/UniformityAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Pass/Pass.h"
@@ -32,9 +31,8 @@ struct TestUniformityAnalysisPass
     aliasAnalysis.addAnalysisImplementation(
         sycl::AliasAnalysis(false /* relaxedAliasing*/));
 
-    DataFlowSolver solver;
-    solver.load<DeadCodeAnalysis>();
-    solver.load<UniformityAnalysis>(aliasAnalysis);
+    DataFlowSolverWrapper solver(aliasAnalysis);
+    solver.loadWithRequiredAnalysis<UniformityAnalysis>(aliasAnalysis);
 
     Operation *op = getOperation();
     if (failed(solver.initializeAndRun(op)))
