@@ -530,6 +530,7 @@ class ur_platform_backend_v(IntEnum):
     OPENCL = 2                                      ## The backend is OpenCL
     CUDA = 3                                        ## The backend is CUDA
     HIP = 4                                         ## The backend is HIP
+    NATIVE_CPU = 5                                  ## The backend is Native CPU
 
 class ur_platform_backend_t(c_int):
     def __str__(self):
