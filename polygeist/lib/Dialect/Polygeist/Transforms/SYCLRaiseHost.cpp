@@ -803,7 +803,7 @@ public:
     unsigned dimensions =
         cast<LLVM::LLVMArrayType>(at.getBody()[0]).getNumElements();
     return sycl::NdRangeType::get(type.getContext(), dimensions,
-                                  /*body=*/ArrayRef<Type>());
+                                  LLVM::LLVMVoidType::get(type.getContext()));
   }
 
 private:
@@ -1064,7 +1064,7 @@ RaiseNDRangeConstructor::getArgs(FunctionOpInterface func, LLVM::AllocaOp alloc,
     });
     // Build SYCL type. We do not care about the body.
     auto type = [&]() -> Type {
-      ArrayRef<Type> body;
+      std::array<Type, 1> body{LLVM::LLVMVoidType::get(func->getContext())};
       switch (iter.index()) {
       case 0:
       case 1:
