@@ -168,14 +168,25 @@ ChangeResult ReachingDefinition::removePotentialModifiers(Value val) {
 }
 
 std::optional<ReachingDefinition::ModifiersTy>
-ReachingDefinition::getModifiers(Value val) const {
+ReachingDefinition::getModifiers(Value val, DataFlowSolver &solver) const {
+  val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
+    return solver.lookupState<UnderlyingValueLattice>(val);
+  });
+  assert(val && "expected an underlying value");
+
   if (valueToModifiers.contains(val))
     return valueToModifiers.at(val);
   return std::nullopt;
 }
 
 std::optional<ReachingDefinition::ModifiersTy>
-ReachingDefinition::getPotentialModifiers(Value val) const {
+ReachingDefinition::getPotentialModifiers(Value val,
+                                          DataFlowSolver &solver) const {
+  val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
+    return solver.lookupState<UnderlyingValueLattice>(val);
+  });
+  assert(val && "expected an underlying value");
+
   if (valueToPotentialModifiers.contains(val))
     return valueToPotentialModifiers.at(val);
   return std::nullopt;
@@ -190,9 +201,9 @@ ReachingDefinition::getUniqueDefinition(unsigned opIndex, Operation *op,
     return std::nullopt;
 
   Value operand = op->getOperand(opIndex);
-  std::optional<ModifiersTy> mods = reachingDef->getModifiers(operand);
+  std::optional<ModifiersTy> mods = reachingDef->getModifiers(operand, solver);
   std::optional<ModifiersTy> pMods =
-      reachingDef->getPotentialModifiers(operand);
+      reachingDef->getPotentialModifiers(operand, solver);
 
   // If there are potential modifiers then there is no unique modifier.
   if (pMods.has_value() && !pMods->empty())

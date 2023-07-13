@@ -162,13 +162,14 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 !sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
 
 gpu.module @device_func {
-func.func private @affine(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_item_1_>) {
+func.func private @affine(%alloca_cond: memref<1xi1>, %arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_item_1_>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1_>
   %id = memref.cast %alloca : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
   %c0_i32 = arith.constant 0 : i32
   %tx = sycl.item.get_id(%arg1, %c0_i32) : (memref<?x!sycl_item_1_>, i32) -> i64
 
-  %c0_i64 = arith.constant 0 : i64
+ // condition is non-uniform (intra-procedurally).
+  %c0_i64 = arith.constant 0 : i64 
   %cond = arith.cmpi sgt, %tx, %c0_i64 : i64
   scf.if %cond {
     affine.for %ii = 0 to 256 {
@@ -178,10 +179,34 @@ func.func private @affine(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: mem
       %load1 = affine.load %subscr1[0] : memref<?xf32>
     }
   }
+
+  // condition is non-uniform (inter-procedurally).
+  %c0_index = arith.constant 0 : index
+  %cond1 = memref.load %alloca_cond[%c0_index] : memref<1xi1>
+  scf.if %cond1 {
+    affine.for %ii = 0 to 256 {
+      %i = arith.index_cast %ii : index to i64
+      sycl.constructor @id(%id, %i) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
+      %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_id_1_>) -> memref<?xf32>
+      %load1 = affine.load %subscr1[0] : memref<?xf32>
+    }
+  }
+
   return
 }
+
 gpu.func @kernel(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_item_1_>) kernel {
-  func.call @affine(%arg0, %arg1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_item_1_>) -> ()
+  %alloca = memref.alloca() : memref<1xi1>
+  %c0 = arith.constant 0 : index
+  %c0_i32 = arith.constant 0 : i32
+  %c0_i64 = arith.constant 0 : i64  
+  %tx = sycl.item.get_id(%arg1, %c0_i32) : (memref<?x!sycl_item_1_>, i32) -> i64  
+  %cond = arith.cmpi sgt, %tx, %c0_i64 : i64
+
+  // COM: Store the condition (non-uniform) into memory.
+  memref.store %cond, %alloca[%c0] : memref<1xi1>
+
+  func.call @affine(%alloca, %arg0, %arg1) : (memref<1xi1>, memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_item_1_>) -> ()
   gpu.return
 }
 }

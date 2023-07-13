@@ -299,7 +299,8 @@ void UniformityAnalysis::analyzeMemoryEffects(
 
     // Merge mods and pMods together.
     std::optional<ModifiersTy> mods =
-        merge(rdef->getModifiers(val), rdef->getPotentialModifiers(val));
+        merge(rdef->getModifiers(val, internalSolver),
+              rdef->getPotentialModifiers(val, internalSolver));
     if (!mods)
       continue;
 

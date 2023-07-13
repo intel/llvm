@@ -80,15 +80,8 @@ struct TestReachingDefinitionAnalysisPass
       // Print the reaching definitions for each operand.
       for (auto [index, operand] : llvm::enumerate(op->getOperands())) {
         llvm::errs() << " operand #" << index << "\n";
-
-        Value val = UnderlyingValueAnalysis::getMostUnderlyingValue(
-            operand, [&](Value val) {
-              return solver.lookupState<UnderlyingValueLattice>(val);
-            });
-        assert(val && "expected an underlying value");
-
-        auto mods = reachingDef->getModifiers(val);
-        auto pMods = reachingDef->getPotentialModifiers(val);
+        auto mods = reachingDef->getModifiers(operand, solver);
+        auto pMods = reachingDef->getPotentialModifiers(operand, solver);
         printOps(mods, " - mods: ");
         printOps(pMods, " - pMods: ");
       }
