@@ -1,10 +1,10 @@
-// RUN: %clang_cc1  -fsycl-is-device -ffp-builtin-accuracy=high:sin,sqrt -ffp-builtin-accuracy=medium:cos -ffp-builtin-accuracy=low:tan -ffp-builtin-accuracy=cuda:exp,acos -ffp-builtin-accuracy=sycl:log,asin -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes %s -o - | FileCheck --check-prefix CHECK-FUNC %s
-// RUN: %clang_cc1  -fsycl-is-device -ffp-builtin-accuracy=high -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes %s -o - | FileCheck --check-prefix CHECK-TU %s
-// RUN: %clang_cc1  -fsycl-is-device -ffp-builtin-accuracy=medium -ffp-builtin-accuracy=high:sin,sqrt -ffp-builtin-accuracy=medium:cos -ffp-builtin-accuracy=cuda:exp -ffp-builtin-accuracy=sycl:log -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes %s -o - | FileCheck --check-prefix CHECK-MIX %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ffp-builtin-accuracy=high:sin,sqrt -ffp-builtin-accuracy=medium:cos -ffp-builtin-accuracy=low:tan -ffp-builtin-accuracy=cuda:exp,acos -ffp-builtin-accuracy=sycl:log,asin -emit-llvm -triple spir64-unknown-unknown %s -o - | FileCheck --check-prefix CHECK-FUNC %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ffp-builtin-accuracy=high -emit-llvm -triple spir64-unknown-unknown %s -o - | FileCheck --check-prefix CHECK-TU %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ffp-builtin-accuracy=medium -ffp-builtin-accuracy=high:sin,sqrt -ffp-builtin-accuracy=medium:cos -ffp-builtin-accuracy=cuda:exp -ffp-builtin-accuracy=sycl:log -emit-llvm -triple spir64-unknown-unknown %s -o - | FileCheck --check-prefix CHECK-MIX %s
 
 // Tests that sycl_used_aspects metadata is attached to the fpbuiltin call based on -ffp-accuracy option.
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
 extern "C" SYCL_EXTERNAL double sin(double);
 extern "C" SYCL_EXTERNAL double cos(double);

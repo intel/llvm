@@ -1870,7 +1870,6 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
   // To ensure that, first check if Name has a required accuracy by visiting
   // the 'FPAccuracyFuncMap'; if no accuracy is mapped to Name (FuncAttrs
   // is empty), then set its accuracy from the TU's accuracy value.
-  MD = nullptr;
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {

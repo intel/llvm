@@ -22150,26 +22150,22 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     // Even if the current function doesn't have a clang builtin, create
     // an 'fpbuiltin-max-error' attribute for it; unless it's marked with
     // an NoBuiltin attribute.
-    if (!FD->hasAttr<NoBuiltinAttr>() &&
-        FD->getNameInfo().getName().isIdentifier()) {
-      Name = FD->getName();
-      FPAccuracyIntrinsicID =
-          llvm::StringSwitch<unsigned>(Name)
-              .Case("fadd", llvm::Intrinsic::fpbuiltin_fadd)
-              .Case("fdiv", llvm::Intrinsic::fpbuiltin_fdiv)
-              .Case("fmul", llvm::Intrinsic::fpbuiltin_fmul)
-              .Case("fsub", llvm::Intrinsic::fpbuiltin_fsub)
-              .Case("frem", llvm::Intrinsic::fpbuiltin_frem)
-              .Case("sincos", llvm::Intrinsic::fpbuiltin_sincos)
-              .Case("exp10", llvm::Intrinsic::fpbuiltin_exp10)
-              .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt)
-              .Default(0);
-      if (!FPAccuracyIntrinsicID) {
-        return nullptr;
-      }
-    } else {
+    if (FD->hasAttr<NoBuiltinAttr>() ||
+        !FD->getNameInfo().getName().isIdentifier())
       return nullptr;
-    }
+
+    Name = FD->getName();
+    FPAccuracyIntrinsicID =
+        llvm::StringSwitch<unsigned>(Name)
+            .Case("fadd", llvm::Intrinsic::fpbuiltin_fadd)
+            .Case("fdiv", llvm::Intrinsic::fpbuiltin_fdiv)
+            .Case("fmul", llvm::Intrinsic::fpbuiltin_fmul)
+            .Case("fsub", llvm::Intrinsic::fpbuiltin_fsub)
+            .Case("frem", llvm::Intrinsic::fpbuiltin_frem)
+            .Case("sincos", llvm::Intrinsic::fpbuiltin_sincos)
+            .Case("exp10", llvm::Intrinsic::fpbuiltin_exp10)
+            .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt)
+            .Default(0);
   } else {
     // The function has a clang builtin. Create an attribute for it
     // only if it has an fpbuiltin intrinsic.
@@ -22249,6 +22245,9 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
       break;
     }
   }
+  if (!FPAccuracyIntrinsicID)
+    return nullptr;
+
   Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
   return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
                                    FPAccuracyIntrinsicID);

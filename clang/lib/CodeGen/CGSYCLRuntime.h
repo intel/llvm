@@ -24,10 +24,10 @@ namespace CodeGen {
 class CodeGenModule;
 
 // These aspects are internal and used for device image splitting purposes only.
-// They are not exposed to the DPCPP users through "aspect" enum. That's why
+// They are not exposed to the SYCL users through "aspect" enum. That's why
 // they are intentionally assigned negative values to filter them out at the
 // stage of embedding used aspects as device requirements to the executable.
-// We don't pass these internal aspects to the DPCPP RT.
+// We don't pass these internal aspects to the SYCL RT.
 enum SYCLInternalAspect : int32_t {
   fp_intrinsic_accuracy_high = -1,
   fp_intrinsic_accuracy_medium = -2,
