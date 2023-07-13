@@ -8,7 +8,9 @@
 
 #pragma once
 
+#ifndef NDEBUG
 #include <sycl/detail/assert_happened.hpp>
+#endif
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
