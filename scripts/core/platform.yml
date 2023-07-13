@@ -291,3 +291,6 @@ etors:
     - name: HIP
       value: "4"
       desc: "The backend is HIP"
+    - name: NATIVE_CPU
+      value: "5"
+      desc: "The backend is Native CPU"

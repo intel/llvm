@@ -2052,6 +2052,11 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_PLATFORM_BACKEND_HIP:
         os << "UR_PLATFORM_BACKEND_HIP";
         break;
+
+    case UR_PLATFORM_BACKEND_NATIVE_CPU:
+        os << "UR_PLATFORM_BACKEND_NATIVE_CPU";
+        break;
+
     default:
         os << "unknown enumerator";
         break;
