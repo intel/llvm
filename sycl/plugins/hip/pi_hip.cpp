@@ -3178,30 +3178,6 @@ pi_result hip_piEnqueueKernelLaunch(
   return retError;
 }
 
-/// \TODO Not implemented
-pi_result
-hip_piEnqueueNativeKernel(pi_queue queue, void (*user_func)(void *), void *args,
-                          size_t cb_args, pi_uint32 num_mem_objects,
-                          const pi_mem *mem_list, const void **args_mem_loc,
-                          pi_uint32 num_events_in_wait_list,
-                          const pi_event *event_wait_list, pi_event *event) {
-  (void)queue;
-  (void)user_func;
-  (void)args;
-  (void)cb_args;
-  (void)num_mem_objects;
-  (void)mem_list;
-  (void)args_mem_loc;
-  (void)num_events_in_wait_list;
-  (void)event_wait_list;
-  (void)event;
-
-  sycl::detail::pi::die("Not implemented in HIP backend");
-  return {};
-}
-
-/// \TODO Not implemented
-
 pi_result hip_piMemImageCreate(pi_context context, pi_mem_flags flags,
                                const pi_image_format *image_format,
                                const pi_image_desc *image_desc, void *host_ptr,
@@ -6001,7 +5977,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piSamplerRelease, hip_piSamplerRelease)
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, hip_piEnqueueKernelLaunch)
-  _PI_CL(piEnqueueNativeKernel, hip_piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, hip_piEnqueueEventsWait)
   _PI_CL(piEnqueueEventsWaitWithBarrier, hip_piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, hip_piEnqueueMemBufferRead)
