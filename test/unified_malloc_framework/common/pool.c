@@ -57,9 +57,10 @@ static size_t nullMallocUsableSize(void *pool, void *ptr) {
     return 0;
 }
 
-static void nullFree(void *pool, void *ptr) {
+static enum umf_result_t nullFree(void *pool, void *ptr) {
     (void)pool;
     (void)ptr;
+    return UMF_RESULT_SUCCESS;
 }
 
 enum umf_result_t nullGetLastStatus(void *pool) {
@@ -151,11 +152,11 @@ static size_t traceMallocUsableSize(void *pool, void *ptr) {
     return umfPoolMallocUsableSize(tracePool->params.hUpstreamPool, ptr);
 }
 
-static void traceFree(void *pool, void *ptr) {
+static enum umf_result_t traceFree(void *pool, void *ptr) {
     struct tracePool *tracePool = (struct tracePool *)pool;
 
     tracePool->params.trace("free");
-    umfPoolFree(tracePool->params.hUpstreamPool, ptr);
+    return umfPoolFree(tracePool->params.hUpstreamPool, ptr);
 }
 
 enum umf_result_t traceGetLastStatus(void *pool) {

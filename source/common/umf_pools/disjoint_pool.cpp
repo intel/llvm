@@ -819,7 +819,7 @@ Bucket &DisjointPool::AllocImpl::findBucket(size_t Size) {
     return *(*It);
 }
 
-void DisjointPool::AllocImpl::deallocate(void *Ptr, bool &ToPool) try {
+void DisjointPool::AllocImpl::deallocate(void *Ptr, bool &ToPool) {
     auto *SlabPtr = AlignPtrDown(Ptr, SlabMinSize());
 
     // Lock the map on read
@@ -862,8 +862,6 @@ void DisjointPool::AllocImpl::deallocate(void *Ptr, bool &ToPool) try {
     // to some slab with an entry in the map. So we find a slab
     // but the range checks fail.
     memoryProviderFree(getMemHandle(), Ptr);
-} catch (MemoryProviderError &e) {
-    umf::getPoolLastStatusRef<DisjointPool>() = e.code;
 }
 
 void DisjointPool::AllocImpl::printStats(bool &TitlePrinted,
@@ -937,7 +935,7 @@ size_t DisjointPool::malloc_usable_size(void *) {
     return 0;
 }
 
-void DisjointPool::free(void *ptr) {
+enum umf_result_t DisjointPool::free(void *ptr) try {
     bool ToPool;
     impl->deallocate(ptr, ToPool);
 
@@ -950,7 +948,9 @@ void DisjointPool::free(void *ptr) {
                   << ", Current pool size for " << MT << " "
                   << impl->getParams().CurPoolSize << "\n";
     }
-    return;
+    return UMF_RESULT_SUCCESS;
+} catch (MemoryProviderError &e) {
+    return e.code;
 }
 
 enum umf_result_t DisjointPool::get_last_allocation_error() {

@@ -68,7 +68,7 @@ class DisjointPool {
     void *realloc(void *, size_t);
     void *aligned_malloc(size_t size, size_t alignment);
     size_t malloc_usable_size(void *);
-    void free(void *ptr);
+    enum umf_result_t free(void *ptr);
     enum umf_result_t get_last_allocation_error();
 
     DisjointPool();

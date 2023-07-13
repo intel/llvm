@@ -49,7 +49,7 @@ struct umf_memory_pool_ops_t {
     void *(*realloc)(void *pool, void *ptr, size_t size);
     void *(*aligned_malloc)(void *pool, size_t size, size_t alignment);
     size_t (*malloc_usable_size)(void *pool, void *ptr);
-    void (*free)(void *pool, void *);
+    enum umf_result_t (*free)(void *pool, void *);
     enum umf_result_t (*get_last_allocation_error)(void *pool);
 };
 

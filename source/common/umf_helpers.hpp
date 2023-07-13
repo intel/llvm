@@ -92,7 +92,7 @@ umf_memory_pool_ops_t poolMakeUniqueOps() {
     UMF_ASSIGN_OP(ops, T, aligned_malloc, ((void *)nullptr));
     UMF_ASSIGN_OP(ops, T, realloc, ((void *)nullptr));
     UMF_ASSIGN_OP(ops, T, malloc_usable_size, ((size_t)0));
-    UMF_ASSIGN_OP_NORETURN(ops, T, free);
+    UMF_ASSIGN_OP(ops, T, free, UMF_RESULT_SUCCESS);
     UMF_ASSIGN_OP(ops, T, get_last_allocation_error, UMF_RESULT_ERROR_UNKNOWN);
 
     return ops;
