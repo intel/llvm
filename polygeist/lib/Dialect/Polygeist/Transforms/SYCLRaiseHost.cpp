@@ -573,8 +573,13 @@ public:
     // translation from C++ types to MLIR types, which is not available here.
     Type elemTy = LLVM::LLVMVoidType::get(constructor->getContext());
 
-    return sycl::AccessorType::get(constructor.getContext(), elemTy, dimensions,
-                                   accessMode, accessTarget, {});
+    return sycl::AccessorType::get(
+        constructor.getContext(), elemTy, dimensions, accessMode, accessTarget,
+        // On the host, the body type of the accessor currently has no relevance
+        // for the analyses. However, leaving the body types empty leads to
+        // problems when parsing an MLIR file containing such an accessor type
+        // with empty body type list. Therefore, simply put !llvm.void for now.
+        LLVM::LLVMVoidType::get(constructor->getContext()));
   }
 
 private:
