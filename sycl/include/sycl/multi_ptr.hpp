@@ -1339,7 +1339,7 @@ template <class T, int dimensions, access::mode Mode,
 multi_ptr(accessor<T, dimensions, Mode, access::target::constant_buffer,
                    isPlaceholder, PropertyListT>)
     -> multi_ptr<T, access::address_space::constant_space,
-                 access::decorated::legacy>;
+                 access::decorated::no>;
 template <class T, int dimensions, access::mode Mode,
           access::placeholder isPlaceholder, typename PropertyListT>
 multi_ptr(accessor<T, dimensions, Mode, access::target::local, isPlaceholder,
