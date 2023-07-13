@@ -2056,7 +2056,6 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_PLATFORM_BACKEND_NATIVE_CPU:
         os << "UR_PLATFORM_BACKEND_NATIVE_CPU";
         break;
-
     default:
         os << "unknown enumerator";
         break;
