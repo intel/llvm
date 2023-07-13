@@ -124,9 +124,8 @@ class UniformityAnalysis
 public:
   using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
 
-  UniformityAnalysis(DataFlowSolver &solver, AliasAnalysis &aliasAnalysis);
-
-  LogicalResult initialize(Operation *top) override;
+  UniformityAnalysis(DataFlowSolver &solver)
+      : SparseDataFlowAnalysis<UniformityLattice>(solver), solver(solver) {}
 
   /// Set the initial state at an entry point. If the entry point is a kernel
   /// its argument are uniform. Otherwise the arguments have unknown uniformity.
@@ -234,7 +233,7 @@ private:
                              const Uniformity &uniformity);
 
 private:
-  DataFlowSolver internalSolver;
+  DataFlowSolver &solver;
 };
 
 } // namespace polygeist

@@ -1061,7 +1061,7 @@ void LoopInternalization::runOnGPUModule(gpu::GPUModuleOp gpuModule) {
 
   DataFlowSolverWrapper solver(aliasAnalysis);
   solver.load<dataflow::IntegerRangeAnalysis>();
-  solver.loadWithRequiredAnalysis<UniformityAnalysis>(aliasAnalysis);
+  solver.loadWithRequiredAnalysis<UniformityAnalysis>();
 
   if (failed(solver.initializeAndRun(gpuModule))) {
     LLVM_DEBUG(llvm::dbgs()

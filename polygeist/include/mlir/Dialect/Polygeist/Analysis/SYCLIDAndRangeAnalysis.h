@@ -14,7 +14,7 @@
 #ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLIDANDRANGEANALYSIS_H
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLIDANDRANGEANALYSIS_H
 
-#include "mlir/Analysis/DataFlowFramework.h"
+#include "mlir/Dialect/Polygeist/Analysis/DataFlowSolverWrapper.h"
 #include "mlir/Pass/AnalysisManager.h"
 
 namespace mlir {
@@ -75,7 +75,7 @@ private:
 
   AnalysisManager &am;
 
-  DataFlowSolver solver;
+  std::unique_ptr<DataFlowSolverWrapper> solver;
 
   bool initialized = false;
 };

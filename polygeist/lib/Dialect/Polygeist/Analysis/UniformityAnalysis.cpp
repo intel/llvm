@@ -40,11 +40,6 @@ bool isDivergent(Operation *op, DataFlowSolver &solver) {
     return false;
 
   auto isUniform = [&](Value val) {
-    val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
-      return solver.lookupState<UnderlyingValueLattice>(val);
-    });
-    assert(val && "expected an underlying value");
-
     const auto *lattice = solver.lookupState<UniformityLattice>(val);
     assert(lattice && "expected uniformity information");
     assert(!lattice->getValue().isUninitialized() &&
@@ -113,26 +108,6 @@ void Uniformity::print(raw_ostream &os) const { os << *this; }
 //===----------------------------------------------------------------------===//
 // UniformityAnalysis
 //===----------------------------------------------------------------------===//
-
-UniformityAnalysis::UniformityAnalysis(DataFlowSolver &solver,
-                                       AliasAnalysis &aliasAnalysis)
-    : SparseDataFlowAnalysis<UniformityLattice>(solver) {
-  // Load the reaching definition analysis (and the analyses it depends on).
-  // Reaching definition information are required by this analysis to reason
-  // about the uniformity of values loaded from memory.
-  internalSolver.load<DeadCodeAnalysis>();
-  internalSolver.load<SparseConstantPropagation>();
-  internalSolver.load<UnderlyingValueAnalysis>();
-  internalSolver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
-}
-
-LogicalResult UniformityAnalysis::initialize(Operation *top) {
-  // Run the dataflow analysis loaded in the internal solver.
-  if (failed(internalSolver.initializeAndRun(top)))
-    return failure();
-
-  return SparseDataFlowAnalysis::initialize(top);
-}
 
 void UniformityAnalysis::setToEntryState(UniformityLattice *lattice) {
   // The arguments of a gpu kernel are uniform by default.
@@ -269,15 +244,20 @@ void UniformityAnalysis::analyzeMemoryEffects(
     if (!isa<MemoryEffects::Read>(EI.getEffect()))
       continue;
 
+    if (!getOrCreateFor<ReachingDefinition>(op, op))
+      return;
+
     // Get the reaching def. and potential reaching def. of the value 'val'
     // and analyze them to determine its uniformity.
-    const ReachingDefinition *rdef =
-        internalSolver.lookupState<ReachingDefinition>(op);
+    const ReachingDefinition *rdef = solver.lookupState<ReachingDefinition>(op);
+
     if (!rdef) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Unable to find reaching definition\n");
       return propagateAllIfChanged(op->getResults(), Uniformity::getUnknown());
     }
+
+    LLVM_DEBUG(llvm::dbgs().indent(2) << "rdef: " << *rdef << "\n";);
 
     using ModifiersTy = ReachingDefinition::ModifiersTy;
     auto merge = [](std::optional<ModifiersTy> mods,
@@ -292,15 +272,10 @@ void UniformityAnalysis::analyzeMemoryEffects(
       return mods;
     };
 
-    val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
-      return internalSolver.lookupState<UnderlyingValueLattice>(val);
-    });
-    assert(val && "expected an underlying value");
-
     // Merge mods and pMods together.
     std::optional<ModifiersTy> mods =
-        merge(rdef->getModifiers(val, internalSolver),
-              rdef->getPotentialModifiers(val, internalSolver));
+        merge(rdef->getModifiers(val, solver),
+              rdef->getPotentialModifiers(val, solver));
     if (!mods)
       continue;
 

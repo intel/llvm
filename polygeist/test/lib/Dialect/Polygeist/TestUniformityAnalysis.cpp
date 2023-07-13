@@ -32,7 +32,7 @@ struct TestUniformityAnalysisPass
         sycl::AliasAnalysis(false /* relaxedAliasing*/));
 
     DataFlowSolverWrapper solver(aliasAnalysis);
-    solver.loadWithRequiredAnalysis<UniformityAnalysis>(aliasAnalysis);
+    solver.loadWithRequiredAnalysis<UniformityAnalysis>();
 
     Operation *op = getOperation();
     if (failed(solver.initializeAndRun(op)))
