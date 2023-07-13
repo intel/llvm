@@ -93,7 +93,7 @@ group<Dimensions> get_child_group(root_group<Dimensions> g) {
   return this_group<Dimensions>();
 }
 
-template <int Dimensions> sub_group get_child_group(group<Dimensions> g) {
+template <int Dimensions> sycl::sub_group get_child_group(group<Dimensions> g) {
   (void)g;
   return this_sub_group();
 }
