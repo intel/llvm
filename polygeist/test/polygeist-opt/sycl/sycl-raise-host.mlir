@@ -104,7 +104,8 @@ llvm.func @raise_sub_buffer() -> !llvm.ptr attributes {personality = @__gxx_pers
 
 llvm.func @__gxx_personality_v0(...) -> i32
 
-// CHECK-LABEL: !sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], ()>
+// CHECK-LABEL: !sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!llvm.void)>
+// CHECK:       !sycl_accessor_1_21llvm2Evoid_w_gb = !sycl.accessor<[1, !llvm.void, write, global_buffer], (!llvm.void)>
 
 // CHECK-LABEL:   llvm.func @raise_accessor() -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
 // CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
