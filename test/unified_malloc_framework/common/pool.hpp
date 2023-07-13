@@ -40,7 +40,7 @@ struct pool_base {
     void *realloc(void *, size_t) noexcept { return nullptr; }
     void *aligned_malloc(size_t, size_t) noexcept { return nullptr; }
     size_t malloc_usable_size(void *) noexcept { return 0; }
-    void free(void *) noexcept {}
+    enum umf_result_t free(void *) noexcept { return UMF_RESULT_SUCCESS; }
     enum umf_result_t get_last_allocation_error() noexcept {
         return UMF_RESULT_SUCCESS;
     }
@@ -71,7 +71,10 @@ struct malloc_pool : public pool_base {
         return ::malloc_usable_size(ptr);
 #endif
     }
-    void free(void *ptr) noexcept { return ::free(ptr); }
+    enum umf_result_t free(void *ptr) noexcept {
+        ::free(ptr);
+        return UMF_RESULT_SUCCESS;
+    }
 };
 
 struct proxy_pool : public pool_base {
@@ -108,9 +111,10 @@ struct proxy_pool : public pool_base {
         // TODO: not supported
         return 0;
     }
-    void free(void *ptr) noexcept {
+    enum umf_result_t free(void *ptr) noexcept {
         auto ret = umfMemoryProviderFree(provider, ptr, 0);
         EXPECT_EQ_NOEXCEPT(ret, UMF_RESULT_SUCCESS);
+        return ret;
     }
     umf_memory_provider_handle_t provider;
 };

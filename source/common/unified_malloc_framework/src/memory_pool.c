@@ -119,15 +119,16 @@ size_t umfPoolMallocUsableSize(umf_memory_pool_handle_t hPool, void *ptr) {
     return hPool->ops.malloc_usable_size(hPool->pool_priv, ptr);
 }
 
-void umfPoolFree(umf_memory_pool_handle_t hPool, void *ptr) {
-    hPool->ops.free(hPool->pool_priv, ptr);
+enum umf_result_t umfPoolFree(umf_memory_pool_handle_t hPool, void *ptr) {
+    return hPool->ops.free(hPool->pool_priv, ptr);
 }
 
-void umfFree(void *ptr) {
+enum umf_result_t umfFree(void *ptr) {
     umf_memory_pool_handle_t hPool = umfPoolByPtr(ptr);
     if (hPool) {
-        umfPoolFree(hPool, ptr);
+        return umfPoolFree(hPool, ptr);
     }
+    return UMF_RESULT_SUCCESS;
 }
 
 enum umf_result_t
