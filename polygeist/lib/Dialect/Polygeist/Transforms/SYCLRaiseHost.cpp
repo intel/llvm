@@ -89,6 +89,10 @@ private:
   std::size_t size;
 };
 
+static Type getEmptyBodyType(MLIRContext *ctx) {
+  return LLVM::LLVMVoidType::get(ctx);
+}
+
 /// Returns whether function \p demangled is a member of type \p targetType in
 /// namespace \p targetNamespace.
 static bool isMemberFunction(StringRef demangled, StringRef targetNamespace,
@@ -580,7 +584,7 @@ public:
         // for the analyses. However, leaving the body types empty leads to
         // problems when parsing an MLIR file containing such an accessor type
         // with empty body type list. Therefore, simply put !llvm.void for now.
-        LLVM::LLVMVoidType::get(constructor->getContext()));
+        getEmptyBodyType(constructor->getContext()));
   }
 
 private:
@@ -803,7 +807,7 @@ public:
     unsigned dimensions =
         cast<LLVM::LLVMArrayType>(at.getBody()[0]).getNumElements();
     return sycl::NdRangeType::get(type.getContext(), dimensions,
-                                  LLVM::LLVMVoidType::get(type.getContext()));
+                                  getEmptyBodyType(type.getContext()));
   }
 
 private:
@@ -1064,7 +1068,7 @@ RaiseNDRangeConstructor::getArgs(FunctionOpInterface func, LLVM::AllocaOp alloc,
     });
     // Build SYCL type. We do not care about the body.
     auto type = [&]() -> Type {
-      std::array<Type, 1> body{LLVM::LLVMVoidType::get(func->getContext())};
+      Type body = getEmptyBodyType(func->getContext());
       switch (iter.index()) {
       case 0:
       case 1:
