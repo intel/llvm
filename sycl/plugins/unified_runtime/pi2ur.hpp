@@ -9,7 +9,6 @@
 
 #include "ur_api.h"
 #include <cstdarg>
-#include <sycl/detail/cl.h>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
@@ -183,7 +182,6 @@ public:
   // Convert the value using a conversion map
   template <typename TypeUR, typename TypePI>
   pi_result convert(std::function<TypePI(TypeUR)> Func) {
-
     *param_value_size_ret = sizeof(TypePI);
 
     // There is no value to convert.
@@ -296,6 +294,7 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
   }
   return PI_SUCCESS;
 }
+
 /**
  * Translate UR device info values to PI info values
  * @param ParamName The name of the parameter
@@ -594,34 +593,6 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
   return error;
 }
 
-// Translate UR device info values to PI info values
-inline pi_result ur2piUSMAllocInfoValue(ur_usm_alloc_info_t ParamName,
-                                        size_t ParamValueSizePI,
-                                        size_t *ParamValueSizeUR,
-                                        void *ParamValue) {
-  ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
-
-  if (ParamName == UR_USM_ALLOC_INFO_TYPE) {
-    auto ConvertFunc = [](ur_usm_type_t UrValue) {
-      switch (UrValue) {
-      case UR_USM_TYPE_UNKNOWN:
-        return PI_MEM_TYPE_UNKNOWN;
-      case UR_USM_TYPE_HOST:
-        return PI_MEM_TYPE_HOST;
-      case UR_USM_TYPE_DEVICE:
-        return PI_MEM_TYPE_DEVICE;
-      case UR_USM_TYPE_SHARED:
-        return PI_MEM_TYPE_SHARED;
-      default:
-        die("UR_USM_ALLOC_INFO_TYPE: unhandled value");
-      }
-    };
-    return Value.convert<ur_usm_type_t, pi_usm_type>(ConvertFunc);
-  }
-
-  return PI_SUCCESS;
-}
-
 inline pi_result ur2piSamplerInfoValue(ur_sampler_info_t ParamName,
                                        size_t ParamValueSizePI,
                                        size_t *ParamValueSizeUR,
@@ -668,6 +639,34 @@ inline pi_result ur2piSamplerInfoValue(ur_sampler_info_t ParamName,
   default:
     return PI_SUCCESS;
   }
+}
+
+// Translate UR device info values to PI info values
+inline pi_result ur2piUSMAllocInfoValue(ur_usm_alloc_info_t ParamName,
+                                        size_t ParamValueSizePI,
+                                        size_t *ParamValueSizeUR,
+                                        void *ParamValue) {
+  ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
+
+  if (ParamName == UR_USM_ALLOC_INFO_TYPE) {
+    auto ConvertFunc = [](ur_usm_type_t UrValue) {
+      switch (UrValue) {
+      case UR_USM_TYPE_UNKNOWN:
+        return PI_MEM_TYPE_UNKNOWN;
+      case UR_USM_TYPE_HOST:
+        return PI_MEM_TYPE_HOST;
+      case UR_USM_TYPE_DEVICE:
+        return PI_MEM_TYPE_DEVICE;
+      case UR_USM_TYPE_SHARED:
+        return PI_MEM_TYPE_SHARED;
+      default:
+        die("UR_USM_ALLOC_INFO_TYPE: unhandled value");
+      }
+    };
+    return Value.convert<ur_usm_type_t, pi_usm_type>(ConvertFunc);
+  }
+
+  return PI_SUCCESS;
 }
 
 inline ur_result_t
@@ -1445,7 +1444,9 @@ inline pi_result piextContextCreateWithNativeHandle(
     pi_native_handle NativeHandle, pi_uint32 NumDevices,
     const pi_device *Devices, bool OwnNativeHandle, pi_context *RetContext) {
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(Devices, PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(RetContext, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(NumDevices, PI_ERROR_INVALID_VALUE);
 
   ur_native_handle_t NativeContext =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
@@ -1454,9 +1455,8 @@ inline pi_result piextContextCreateWithNativeHandle(
   ur_context_handle_t *UrContext =
       reinterpret_cast<ur_context_handle_t *>(RetContext);
 
-  ur_context_native_properties_t Properties{
-      UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
-
+  ur_context_native_properties_t Properties{};
+  Properties.isNativeHandleOwned = OwnNativeHandle;
   HANDLE_ERRORS(urContextCreateWithNativeHandle(
       NativeContext, NumDevices, UrDevices, &Properties, UrContext));
 
@@ -1615,6 +1615,7 @@ inline pi_result piextQueueCreateWithNativeHandle(
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
@@ -2414,7 +2415,8 @@ inline pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                           const void *ArgValue) {
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
-  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, ArgValue));
+  HANDLE_ERRORS(
+      urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
 
   return PI_SUCCESS;
 }
@@ -3203,8 +3205,8 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 ///
 /// \param queue is the queue to submit to
 /// \param ptr is the ptr to fill
-/// \param pitch is the total width of the destination memory including
-/// padding \param pattern is a pointer with the bytes of the pattern to set
+/// \param pitch is the total width of the destination memory including padding
+/// \param pattern is a pointer with the bytes of the pattern to set
 /// \param pattern_size is the size in bytes of the pattern
 /// \param width is width in bytes of each row to fill
 /// \param height is height the columns to fill
@@ -3879,17 +3881,6 @@ inline pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
 
   HANDLE_ERRORS(urEventGetInfo(UrEvent, PropName, ParamValueSize, ParamValue,
                                ParamValueSizeRet));
-
-  if (ParamName == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
-    /* If the PI_EVENT_INFO_COMMAND_EXECUTION_STATUS info value is
-     * PI_EVENT_QUEUED, change it to PI_EVENT_SUBMITTED. This change is needed
-     * since sycl::info::event::event_command_status has no equivalent to
-     * PI_EVENT_QUEUED. */
-    const auto param_value_int = static_cast<cl_int *>(ParamValue);
-    if (*param_value_int == PI_EVENT_QUEUED) {
-      *param_value_int = PI_EVENT_SUBMITTED;
-    }
-  }
 
   return PI_SUCCESS;
 }

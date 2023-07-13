@@ -1104,8 +1104,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
                             ///< sub-devices the device can be partitioned into
                             ///< according to the partitioning property.
 ) {
-
-
   // Other partitioning ways are not supported by Level Zero
   UR_ASSERT(Properties->PropCount == 1, UR_RESULT_ERROR_INVALID_VALUE);
   if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
