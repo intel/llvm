@@ -10167,9 +10167,9 @@ operator<<(std::ostream &os, const struct
     ur_params::serializePtr(os, *(params->phDevice));
 
     os << ", ";
-    os << ".interopSemaphoreDesc = ";
+    os << ".pInteropSemaphoreDesc = ";
 
-    ur_params::serializePtr(os, *(params->pinteropSemaphoreDesc));
+    ur_params::serializePtr(os, *(params->ppInteropSemaphoreDesc));
 
     os << ", ";
     os << ".phInteropSemaphore = ";
