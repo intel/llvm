@@ -151,7 +151,7 @@ struct ESIMDIntrinDesc {
   enum class GenXArgConversion : int16_t {
     NONE,   // no conversion
     TO_I1,  // convert vector of N-bit integer to 1-bit
-    TO_I8,  // convert vector of N-bit integer to 18-bit
+    TO_I8,  // convert vector of N-bit integer to 8-bit
     TO_I16, // convert vector of N-bit integer to 16-bit
     TO_I32, // convert vector of N-bit integer to 32-bit
     TO_I64, // convert vector of N-bit integer to 64-bit
