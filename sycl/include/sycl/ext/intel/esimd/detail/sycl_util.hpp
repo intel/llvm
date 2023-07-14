@@ -82,7 +82,7 @@ using EnableIfAccessor = std::enable_if_t<
 template <typename T, int Dimensions>
 __ESIMD_API uint32_t localAccessorToOffset(local_accessor<T, Dimensions> acc) {
   return static_cast<uint32_t>(
-      reinterpret_cast<std::uintptr_t>(acc.get_pointer()));
+      reinterpret_cast<std::uintptr_t>(acc.get_pointer().get()));
 }
 
 } // namespace ext::intel::esimd::detail

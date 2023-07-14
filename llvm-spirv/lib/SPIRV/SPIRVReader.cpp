@@ -3356,14 +3356,15 @@ bool SPIRVToLLVM::translate() {
     if (!postProcessBuiltinsReturningStruct(M, IsCpp))
       return false;
   }
-  eraseUselessFunctions(M);
-
-  DbgTran->addDbgInfoVersion();
-  DbgTran->finalize();
 
   for (SPIRVExtInst *EI : BM->getAuxDataInstVec()) {
     transAuxDataInst(EI);
   }
+
+  eraseUselessFunctions(M);
+
+  DbgTran->addDbgInfoVersion();
+  DbgTran->finalize();
 
   return true;
 }

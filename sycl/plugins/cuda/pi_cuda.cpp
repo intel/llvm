@@ -139,7 +139,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piSamplerRelease, pi2ur::piSamplerRelease)
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, pi2ur::piEnqueueKernelLaunch)
-  _PI_CL(piEnqueueNativeKernel, pi2ur::piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, pi2ur::piEnqueueEventsWait)
   _PI_CL(piEnqueueEventsWaitWithBarrier, pi2ur::piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, pi2ur::piEnqueueMemBufferRead)
@@ -198,7 +197,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferMemBufferCopyRect,
          pi2ur::piextCommandBufferMemBufferCopyRect)
   _PI_CL(piextEnqueueCommandBuffer, pi2ur::piextEnqueueCommandBuffer)
-
+  // Peer to Peer
+  _PI_CL(piextEnablePeerAccess, pi2ur::piextEnablePeerAccess)
+  _PI_CL(piextDisablePeerAccess, pi2ur::piextDisablePeerAccess)
+  _PI_CL(piextPeerAccessGetInfo, pi2ur::piextPeerAccessGetInfo)
 #undef _PI_CL
 
   return PI_SUCCESS;

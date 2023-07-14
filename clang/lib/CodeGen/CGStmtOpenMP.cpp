@@ -1266,10 +1266,16 @@ void CodeGenFunction::EmitOMPReductionClauseInit(
       // implicit variable.
       PrivateScope.addPrivate(LHSVD,
                               RedCG.getSharedLValue(Count).getAddress(*this));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      PrivateScope.addPrivate(RHSVD,
+                              GetAddrOfLocalVar(PrivateVD).withElementType(
+                                  ConvertTypeForMem(RHSVD->getType())));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
       PrivateScope.addPrivate(RHSVD, Builder.CreateElementBitCast(
                                          GetAddrOfLocalVar(PrivateVD),
                                          ConvertTypeForMem(RHSVD->getType()),
                                          "rhs.begin"));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     } else {
       QualType Type = PrivateVD->getType();
       bool IsArray = getContext().getAsArrayType(Type) != nullptr;
@@ -1277,15 +1283,25 @@ void CodeGenFunction::EmitOMPReductionClauseInit(
       // Store the address of the original variable associated with the LHS
       // implicit variable.
       if (IsArray) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        OriginalAddr =
+            OriginalAddr.withElementType(ConvertTypeForMem(LHSVD->getType()));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
         OriginalAddr = Builder.CreateElementBitCast(
             OriginalAddr, ConvertTypeForMem(LHSVD->getType()), "lhs.begin");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       }
       PrivateScope.addPrivate(LHSVD, OriginalAddr);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+          RHSVD, IsArray ? GetAddrOfLocalVar(PrivateVD).withElementType(
+                               ConvertTypeForMem(RHSVD->getType()))
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
       PrivateScope.addPrivate(
           RHSVD, IsArray ? Builder.CreateElementBitCast(
                                GetAddrOfLocalVar(PrivateVD),
                                ConvertTypeForMem(RHSVD->getType()), "rhs.begin")
                          : GetAddrOfLocalVar(PrivateVD));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     }
     ++ILHS;
     ++IRHS;
