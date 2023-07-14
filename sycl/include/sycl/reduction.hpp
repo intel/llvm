@@ -11,6 +11,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/atomic_ref.hpp>
+#include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/tuple.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
@@ -19,7 +20,6 @@
 #include <sycl/kernel.hpp>
 #include <sycl/known_identity.hpp>
 #include <sycl/properties/reduction_properties.hpp>
-#include <sycl/reduction_forward.hpp>
 #include <sycl/usm.hpp>
 
 #include <optional>
