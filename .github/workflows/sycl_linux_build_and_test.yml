@@ -78,10 +78,12 @@ on:
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
-      merge:
-        description: 'Merge default branch after the checkout'
-        type: boolean
-        default: true
+      merge_ref:
+        description: |
+          Commit-ish to merge post-checkout if non-empty. Must be reachable from
+          the default_branch input paramter.
+        type: string
+        default: 'FETCH_HEAD'
       retention-days:
         description: 'Artifacts retention period'
         type: string
@@ -96,38 +98,38 @@ jobs:
       options: -u 1001:1001
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
+    env:
+      CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
+      CCACHE_MAXSIZE: ${{ inputs.build_cache_size }}
     steps:
-    # GHA requires relative paths for actions. Copy actions from container root
-    # to CWD.
-    - run: cp -r /actions .
+    - uses: actions/checkout@v3
+      with:
+        sparse-checkout: |
+          devops/actions
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    - uses: ./actions/cached_checkout
+      uses: ./devops/actions/cleanup
+    - uses: ./devops/actions/cached_checkout
       with:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
+        merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
-        merge: ${{ inputs.merge }}
     - name: Configure
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
-        CACHE_ROOT: ${{ inputs.build_cache_root }}
-        CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
-        CACHE_SIZE: ${{ inputs.build_cache_size }}
         ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
-        mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
+        mkdir -p $CCACHE_DIR
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults $ARGS \
-          --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
-          --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
-          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
+          --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
@@ -222,45 +224,23 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.lts_matrix) }}
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.runs-on }}
-    env: ${{ matrix.env }}
-    container:
+    uses: ./.github/workflows/linux_single_e2e.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ toJSON(matrix.runs-on) }}
       image: ${{ matrix.image }}
-      options: ${{ matrix.container_options }}
-    steps:
-    - name: Reset GPU
-      if: ${{ contains(matrix.runs-on, 'gen9') && contains(matrix.runs-on, 'Linux') }}
-      run: |
-        sudo mount -t debugfs none /sys/kernel/debug
-        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    - name: Install drivers
-      if: env.compute_runtime_tag != ''
-      run: |
-        if [ -e /opt/install_drivers.sh ]; then
-          # TODO pack this script into container
-          wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/get_release.py
-          sudo mv get_release.py /opt/
-          sudo -E /opt/install_drivers.sh --all
-        fi
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v3
-      with:
-        persist-credentials: false
-        path: llvm
-        ref: ${{ inputs.build_ref || github.sha }}
-    # TODO should this action be packed into container as well?
-    - uses: ./llvm/devops/actions/e2e-tests
-      name: Run SYCL End-to-End tests
-      with:
-        sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-        sycl_archive: ${{ inputs.artifact_archive_name }}
-        decompress_command: ${{ inputs.artifact_decompress_command }}
-        targets: ${{ matrix.targets }}
-        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+      image_options: ${{ matrix.container_options }}
+      extra_cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+      target_devices: ${{ matrix.targets }}
+      ref: ${{ inputs.build_ref || github.sha }}
+      merge_ref: ${{ inputs.merge_ref }}
+      reset_gpu: ${{ contains(matrix.runs-on, 'gen9') && contains(matrix.runs-on, 'Linux') }}
+
+      sycl_toolchain_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
+      sycl_toolchain_archive: ${{ inputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ inputs.artifact_decompress_command }}
+
+      env: ${{ toJSON(matrix.env) }}
 
   khronos_sycl_cts:
     needs: build
@@ -281,9 +261,12 @@ jobs:
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
-    - run: cp -r /actions .
+    - uses: actions/checkout@v3
+      with:
+        sparse-checkout: |
+          devops/actions
     - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
+      uses: ./devops/actions/cleanup
     - name: Install drivers
       if: env.compute_runtime_tag != ''
       run: |

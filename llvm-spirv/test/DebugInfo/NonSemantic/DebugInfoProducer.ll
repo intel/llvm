@@ -56,10 +56,14 @@ attributes #0 = { noinline norecurse nounwind optnone "correctly-rounded-divide-
 ; CHECK-LLVM-100-SAME: flags: "-O2"
 
 ; CHECK-SPIRV-200: String [[#ProducerId:]] "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
+; CHECK-SPIRV-200: DebugBuildIdentifier [[#]] [[#]]
+; CHECK-SPIRV-200: DebugStoragePath [[#]]
 ; CHECK-SPIRV-200: DebugCompilationUnit [[#]] [[#]] [[#]] [[#]] [[#ProducerId]]
 ; CHECK-SPIRV-200: DebugEntryPoint [[#]] [[#]] [[#ProducerId]] [[#]] {{$}}
 
 ; CHECK-SPIRV-100: String [[#ProducerId:]] "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
+; CHECK-SPIRV-100: DebugBuildIdentifier [[#]] [[#]]
+; CHECK-SPIRV-100: DebugStoragePath [[#]]
 ; CHECK-SPIRV-100-NOT: DebugCompilationUnit [[#]] [[#]] [[#]] [[#]] [[#ProducerId]] {{$}}
 ; CHECK-SPIRV-100: DebugEntryPoint [[#]] [[#]] [[#ProducerId]] [[#]] {{$}}
 
