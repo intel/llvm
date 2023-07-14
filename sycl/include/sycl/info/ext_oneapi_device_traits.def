@@ -6,6 +6,9 @@ __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental,device, max_global_work_group
 __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<1>, id<1>, PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
 __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<2>, id<2>, PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
 __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<3>, id<3>, PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device, architecture,
+                         ext::oneapi::experimental::architecture,
+                         PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION)
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF

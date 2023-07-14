@@ -36,6 +36,9 @@
 #include <sycl/sampler.hpp>
 #include <sycl/stl.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
+#ifdef __SYCL_NATIVE_CPU__
+#include <sycl/detail/native_cpu.hpp>
+#endif
 
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
@@ -197,7 +200,7 @@ checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
   if (V > Limit)
-    throw runtime_error(NotIntMsg<T>::Msg, PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(make_error_code(errc::nd_range), NotIntMsg<T>::Msg);
 }
 #endif
 
@@ -372,10 +375,10 @@ private:
 
   void throwIfActionIsCreated() {
     if (detail::CG::None != getType())
-      throw sycl::runtime_error("Attempt to set multiple actions for the "
-                                "command group. Command group must consist of "
-                                "a single kernel or explicit memory operation.",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Attempt to set multiple actions for the "
+                            "command group. Command group must consist of "
+                            "a single kernel or explicit memory operation.");
   }
 
   constexpr static int AccessTargetMask = 0x7ff;
@@ -454,12 +457,25 @@ private:
     MStreamStorage.push_back(Stream);
   }
 
-  /// Saves buffers created by handling reduction feature in handler.
+  /// Saves resources created by handling reduction feature in handler.
   /// They are then forwarded to command group and destroyed only after
   /// the command group finishes the work on device/host.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
   void addReduction(const std::shared_ptr<const void> &ReduObj);
+
+  /// Saves buffers created by handling reduction feature in handler and marks
+  /// them as internal. They are then forwarded to command group and destroyed
+  /// only after the command group finishes the work on device/host.
+  ///
+  /// @param ReduBuf is a pointer to buffer that must be stored.
+  template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+  void
+  addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT, Enable>>
+                   &ReduBuf) {
+    detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
+    addReduction(std::shared_ptr<const void>(ReduBuf));
+  }
 
   ~handler() = default;
 
@@ -1680,24 +1696,6 @@ public:
         std::move(KernelFunc));
   }
 
-  /// Defines and invokes a SYCL kernel on host device.
-  ///
-  /// \param Func is a SYCL kernel function defined by lambda function or a
-  /// named function object type.
-  template <typename FuncT>
-  __SYCL_DEPRECATED(
-      "run_on_host_intel() is deprecated, use host_task() instead")
-  void run_on_host_intel(FuncT Func) {
-    throwIfActionIsCreated();
-    // No need to check if range is out of INT_MAX limits as it's compile-time
-    // known constant
-    MNDRDesc.set(range<1>{1});
-
-    MArgs = std::move(MAssociatedAccesors);
-    MHostKernel.reset(new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
-    setType(detail::CG::RunOnHostIntel);
-  }
-
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
@@ -1883,17 +1881,6 @@ public:
 #else
     detail::CheckDeviceCopyable<KernelType>();
 #endif
-  }
-
-  /// Invokes a lambda on the host. Dependencies are satisfied on the host.
-  ///
-  /// \param Func is a lambda that is executed on the host
-  template <typename FuncT>
-  __SYCL_DEPRECATED("interop_task() is deprecated, use host_task() instead")
-  void interop_task(FuncT Func) {
-
-    MInteropTask.reset(new detail::InteropTask(std::move(Func)));
-    setType(detail::CG::CodeplayInteropTask);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -2543,27 +2530,12 @@ public:
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
-  /// until all commands previously submitted to this queue have entered the
-  /// complete state.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-  void barrier() { ext_oneapi_barrier(); }
-
-  /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
   /// is empty, then the barrier has no effect.
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
   void ext_oneapi_barrier(const std::vector<event> &WaitList);
-
-  /// Prevents any commands submitted afterward to this queue from executing
-  /// until all events in WaitList have entered the complete state. If WaitList
-  /// is empty, then the barrier has no effect.
-  ///
-  /// \param WaitList is a vector of valid SYCL events that need to complete
-  /// before barrier command can be executed.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-  void barrier(const std::vector<event> &WaitList);
 
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on this handler's
@@ -2950,8 +2922,6 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
   std::unique_ptr<detail::HostTask> MHostTask;
-  // Storage for a lambda or function when using InteropTasks
-  std::unique_ptr<detail::InteropTask> MInteropTask;
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;

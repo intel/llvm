@@ -120,8 +120,19 @@ if (NOT SPIRV_TOOLS_FOUND)
   find_package(SPIRV-Tools-tools)
   if (SPIRV-Tools_FOUND AND SPIRV-Tools-tools_FOUND)
     set(SPIRV_TOOLS_FOUND TRUE)
-    set(SPIRV_TOOLS_LDFLAGS SPIRV-Tools-shared)
-    get_target_property(SPIRV_TOOLS_INCLUDE_DIRS SPIRV-Tools-shared INTERFACE_INCLUDE_DIRECTORIES)
+    # check for the existance of library targets in the found packages
+    if(TARGET SPIRV-Tools-shared)
+      # use the shared libary target if present
+      set(SPIRV-Tools-library SPIRV-Tools-shared)
+    elseif(TARGET SPIRV-Tools-static)
+      # otherwise fallback to the static library target
+      set(SPIRV-Tools-library SPIRV-Tools-static)
+    else()
+      message(FATAL_ERROR "Found SPIRV-Tools package but neither "
+              "SPIRV-Tools-shared or SPIRV-Tools-static targets exist.")
+    endif()
+    set(SPIRV_TOOLS_LDFLAGS ${SPIRV-Tools-library})
+    get_target_property(SPIRV_TOOLS_INCLUDE_DIRS ${SPIRV-Tools-library} INTERFACE_INCLUDE_DIRECTORIES)
   endif()
 endif()
 

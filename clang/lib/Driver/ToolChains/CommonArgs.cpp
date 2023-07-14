@@ -908,8 +908,6 @@ bool tools::addOpenMPRuntime(ArgStringList &CmdArgs, const ToolChain &TC,
   case Driver::OMPRT_IOMP5:
     CmdArgs.push_back("-liomp5");
     break;
-  case Driver::OMPRT_Unknown:
-    break;
   }
 
   if (ForceStaticHostRuntime)
@@ -1247,11 +1245,11 @@ bool tools::addXRayRuntime(const ToolChain&TC, const ArgList &Args, ArgStringLis
     return false;
 
   if (TC.getXRayArgs().needsXRayRt()) {
-    CmdArgs.push_back("-whole-archive");
+    CmdArgs.push_back("--whole-archive");
     CmdArgs.push_back(TC.getCompilerRTArgString(Args, "xray"));
     for (const auto &Mode : TC.getXRayArgs().modeList())
       CmdArgs.push_back(TC.getCompilerRTArgString(Args, Mode));
-    CmdArgs.push_back("-no-whole-archive");
+    CmdArgs.push_back("--no-whole-archive");
     return true;
   }
 
@@ -1815,8 +1813,6 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back(getAsNeededOption(TC, true));
 
   switch (UNW) {
-  case ToolChain::UNW_None:
-    return;
   case ToolChain::UNW_Libgcc: {
     if (LGT == LibGccType::StaticLibGcc)
       CmdArgs.push_back("-lgcc_eh");
@@ -1925,9 +1921,14 @@ SmallString<128> tools::getStatsFileName(const llvm::opt::ArgList &Args,
   return StatsFile;
 }
 
-void tools::addMultilibFlag(bool Enabled, const char *const Flag,
+void tools::addMultilibFlag(bool Enabled, const StringRef Flag,
                             Multilib::flags_list &Flags) {
-  Flags.push_back(std::string(Enabled ? "+" : "-") + Flag);
+  assert(Flag.front() == '-');
+  if (Enabled) {
+    Flags.push_back(Flag.str());
+  } else {
+    Flags.push_back(("!" + Flag.substr(1)).str());
+  }
 }
 
 void tools::addX86AlignBranchArgs(const Driver &D, const ArgList &Args,
