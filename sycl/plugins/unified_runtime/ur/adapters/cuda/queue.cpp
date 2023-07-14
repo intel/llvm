@@ -120,9 +120,6 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
               const ur_queue_properties_t *pProps, ur_queue_handle_t *phQueue) {
   try {
     std::unique_ptr<ur_queue_handle_t_> Queue{nullptr};
-    UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-    UR_ASSERT(phQueue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-    UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
     if (hContext->getDevice() != hDevice) {
       *phQueue = nullptr;
@@ -168,7 +165,6 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   assert(hQueue->getReferenceCount() > 0);
 
   hQueue->incrementReferenceCount();
@@ -176,8 +172,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   if (hQueue->decrementReferenceCount() > 0) {
     return UR_RESULT_SUCCESS;
   }
@@ -207,7 +201,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
     ScopedContext active(hQueue->getContext());
 
     hQueue->syncStreams</*ResetUsed=*/true>([&Result](CUstream s) {
@@ -230,7 +223,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 // same problem of having to flush cross-queue dependencies as some of the
 // other plugins, so it can be left as no-op.
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  std::ignore = hQueue;
   return UR_RESULT_SUCCESS;
 }
 
@@ -238,8 +231,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
                        ur_native_handle_t *phNativeQueue) {
   std::ignore = pDesc;
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeQueue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   ScopedContext Active(hQueue->getContext());
   *phNativeQueue =
@@ -265,7 +256,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   else if (CuFlags == CU_STREAM_NON_BLOCKING)
     Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
   else
-    sycl::detail::ur::die("Unknown cuda stream");
+    detail::ur::die("Unknown cuda stream");
 
   std::vector<CUstream> ComputeCuStreams(1, CuStream);
   std::vector<CUstream> TransferCuStreams(0);
@@ -289,9 +280,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    size_t propValueSize,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pPropValue || pPropSizeRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropSizeRet);
 
   switch (propName) {

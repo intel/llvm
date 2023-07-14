@@ -22,6 +22,7 @@
 #ifdef __SYCL_DEVICE_ONLY__
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+struct sub_group;
 namespace ext {
 namespace oneapi {
 struct sub_group;
@@ -61,6 +62,9 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
 };
 
 template <> struct group_scope<::sycl::ext::oneapi::sub_group> {
+  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
+};
+template <> struct group_scope<::sycl::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 
@@ -253,6 +257,9 @@ template <typename Group> struct GroupId {
 template <> struct GroupId<::sycl::ext::oneapi::sub_group> {
   using type = uint32_t;
 };
+template <> struct GroupId<::sycl::sub_group> {
+  using type = uint32_t;
+};
 template <typename Group, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT> GroupBroadcast(Group, T x, IdT local_id) {
   using GroupIdT = typename GroupId<Group>::type;
@@ -341,7 +348,7 @@ GroupBroadcast(const ext::oneapi::experimental::opportunistic_group &g, T x,
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 
   // TODO: Refactor to avoid duplication after design settles.
-  using GroupIdT = typename GroupId<sycl::ext::oneapi::sub_group>::type;
+  using GroupIdT = typename GroupId<::sycl::sub_group>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;

@@ -911,6 +911,13 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       .legalFor({S32, S64, S16})
       .scalarize(0)
       .clampScalar(0, S16, S64);
+
+    getActionDefinitionsBuilder({G_FLDEXP, G_STRICT_FLDEXP})
+      .legalFor({{S32, S32}, {S64, S32}, {S16, S16}})
+      .scalarize(0)
+      .maxScalarIf(typeIs(0, S16), 1, S16)
+      .clampScalar(1, S32, S32)
+      .lower();
   } else {
     getActionDefinitionsBuilder(G_FSQRT)
       .legalFor({S32, S64})
@@ -929,6 +936,13 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
         .scalarize(0)
         .clampScalar(0, S32, S64);
     }
+
+    getActionDefinitionsBuilder({G_FLDEXP, G_STRICT_FLDEXP})
+      .legalFor({{S32, S32}, {S64, S32}})
+      .scalarize(0)
+      .clampScalar(0, S32, S64)
+      .clampScalar(1, S32, S32)
+      .lower();
   }
 
   getActionDefinitionsBuilder(G_FPTRUNC)
@@ -1973,9 +1987,9 @@ bool AMDGPULegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
   case TargetOpcode::G_ATOMIC_CMPXCHG:
     return legalizeAtomicCmpXChg(MI, MRI, B);
   case TargetOpcode::G_FLOG:
-    return legalizeFlog(MI, B, numbers::ln2f);
+    return legalizeFlog(MI, B, numbers::ln2);
   case TargetOpcode::G_FLOG10:
-    return legalizeFlog(MI, B, numbers::ln2f / numbers::ln10f);
+    return legalizeFlog(MI, B, numbers::ln2 / numbers::ln10);
   case TargetOpcode::G_FEXP:
     return legalizeFExp(MI, B);
   case TargetOpcode::G_FPOW:
@@ -2373,9 +2387,7 @@ bool AMDGPULegalizerInfo::legalizeITOFP(
                         : B.buildUITOFP(S64, Unmerge.getReg(1));
 
     auto CvtLo = B.buildUITOFP(S64, Unmerge.getReg(0));
-    auto LdExp = B.buildIntrinsic(Intrinsic::amdgcn_ldexp, {S64}, false)
-                     .addUse(CvtHi.getReg(0))
-                     .addUse(ThirtyTwo.getReg(0));
+    auto LdExp = B.buildFLdexp(S64, CvtHi, ThirtyTwo);
 
     // TODO: Should this propagate fast-math-flags?
     B.buildFAdd(Dst, LdExp, CvtLo);
@@ -2406,10 +2418,7 @@ bool AMDGPULegalizerInfo::legalizeITOFP(
   auto Norm2 = B.buildOr(S32, Unmerge2.getReg(1), Adjust);
   auto FVal = Signed ? B.buildSITOFP(S32, Norm2) : B.buildUITOFP(S32, Norm2);
   auto Scale = B.buildSub(S32, ThirtyTwo, ShAmt);
-  B.buildIntrinsic(Intrinsic::amdgcn_ldexp, ArrayRef<Register>{Dst},
-                   /*HasSideEffects=*/false)
-      .addUse(FVal.getReg(0))
-      .addUse(Scale.getReg(0));
+  B.buildFLdexp(Dst, FVal, Scale);
   MI.eraseFromParent();
   return true;
 }
@@ -5652,7 +5661,29 @@ bool AMDGPULegalizerInfo::legalizeTrapIntrinsic(MachineInstr &MI,
 
 bool AMDGPULegalizerInfo::legalizeTrapEndpgm(
     MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B) const {
-  B.buildInstr(AMDGPU::S_ENDPGM).addImm(0);
+  const DebugLoc &DL = MI.getDebugLoc();
+  MachineBasicBlock &BB = B.getMBB();
+  MachineFunction *MF = BB.getParent();
+
+  if (BB.succ_empty() && std::next(MI.getIterator()) == BB.end()) {
+    BuildMI(BB, BB.end(), DL, B.getTII().get(AMDGPU::S_ENDPGM))
+      .addImm(0);
+    MI.eraseFromParent();
+    return true;
+  }
+
+  // We need a block split to make the real endpgm a terminator. We also don't
+  // want to break phis in successor blocks, so we can't just delete to the
+  // end of the block.
+  BB.splitAt(MI, false /*UpdateLiveIns*/);
+  MachineBasicBlock *TrapBB = MF->CreateMachineBasicBlock();
+  MF->push_back(TrapBB);
+  BuildMI(*TrapBB, TrapBB->end(), DL, B.getTII().get(AMDGPU::S_ENDPGM))
+    .addImm(0);
+  BuildMI(BB, &MI, DL, B.getTII().get(AMDGPU::S_CBRANCH_EXECNZ))
+    .addMBB(TrapBB);
+
+  BB.addSuccessor(TrapBB);
   MI.eraseFromParent();
   return true;
 }
