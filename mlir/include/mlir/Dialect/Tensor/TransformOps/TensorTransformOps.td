@@ -31,11 +31,14 @@ def ApplyFoldTensorEmptyPatternsOp : Op<Transform_Dialect,
     "apply_patterns.tensor.fold_tensor_empty",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
   let description = [{
-    Indicates that reassociative reshapes (tensor.collapse_shape /
-    tensor.expand_shape) should be folded with inverse rank expansions / rank
-    reductions (via tensor.insert_slice / tensor.extract_slice).
+    Indicates that tensor.extract_slice and reassociative reshapes should be
+    folded into tensor.empty.
+
+    If `fold_single_use_only` is set to "true", only tensor.empty that have a
+    single use are folded.
   }];
 
+  let arguments = (ins DefaultValuedAttr<BoolAttr, "false">:$fold_single_use_only);
   let assemblyFormat = "attr-dict";
 }
 def ApplyFoldIntoPackAndUnpackPatternsOp : Op<Transform_Dialect,
@@ -84,6 +87,17 @@ def ApplyReassociativeReshapeFoldingPatternsOp : Op<Transform_Dialect,
   let assemblyFormat = "attr-dict";
 }
 
+def ApplyRewriteTensorOpsAsConstantPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.tensor.rewrite_as_constant",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Indicates that tensor ops (such as tensor.generate) should be replaced with
+    constants (arith.constant) when possible.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
 def Transform_TensorPadOp : Transform_ConcreteOpType<"tensor.pad">;
 
 def MakeLoopIndependentOp
@@ -124,6 +138,7 @@ def MakeLoopIndependentOp
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::transform::TransformRewriter &rewriter,
         ::mlir::Operation *target,
         ::mlir::transform::ApplyToEachResultList &results,
         ::mlir::transform::TransformState &state);
