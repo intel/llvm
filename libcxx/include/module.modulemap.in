@@ -976,7 +976,7 @@ module std [system] {
   }
   module fstream {
     @requires_LIBCXX_ENABLE_LOCALIZATION@
-    @requires_LIBCXX_ENABLE_FSTREAM@
+    @requires_LIBCXX_ENABLE_FILESYSTEM@
     header "fstream"
     export *
   }
@@ -1076,11 +1076,12 @@ module std [system] {
     export *
 
     module __iterator {
-      module access                { private header "__iterator/access.h" }
-      module advance               { private header "__iterator/advance.h" }
-      module back_insert_iterator  { private header "__iterator/back_insert_iterator.h" }
-      module bounded_iter          { private header "__iterator/bounded_iter.h" }
-      module common_iterator       { private header "__iterator/common_iterator.h" }
+      module access                  { private header "__iterator/access.h" }
+      module advance                 { private header "__iterator/advance.h" }
+      module back_insert_iterator    { private header "__iterator/back_insert_iterator.h" }
+      module bounded_iter            { private header "__iterator/bounded_iter.h" }
+      module common_iterator         { private header "__iterator/common_iterator.h" }
+      module cpp17_iterator_concepts { private header "__iterator/cpp17_iterator_concepts.h" }
       module concepts {
         private header "__iterator/concepts.h"
         export concepts.equality_comparable
@@ -1210,6 +1211,7 @@ module std [system] {
       module temp_value                      { private header "__memory/temp_value.h" }
       module temporary_buffer                { private header "__memory/temporary_buffer.h" }
       module uninitialized_algorithms        { private header "__memory/uninitialized_algorithms.h" }
+      module uninitialized_buffer            { private header "__memory/uninitialized_buffer.h" }
       module unique_ptr                      { private header "__memory/unique_ptr.h" }
       module uses_allocator                  { private header "__memory/uses_allocator.h" }
       module uses_allocator_construction     { private header "__memory/uses_allocator_construction.h" }
@@ -1530,7 +1532,10 @@ module std [system] {
     export *
 
     module __thread {
+      module formatter            { private header "__thread/formatter.h" }
       module poll_with_backoff    { private header "__thread/poll_with_backoff.h" }
+      module this_thread          { private header "__thread/this_thread.h" }
+      module thread               { private header "__thread/thread.h" }
       module timed_backoff_policy { private header "__thread/timed_backoff_policy.h" }
     }
   }
@@ -1755,6 +1760,7 @@ module std [system] {
       module forward_like           { private header "__utility/forward_like.h" }
       module in_place               { private header "__utility/in_place.h" }
       module integer_sequence       { private header "__utility/integer_sequence.h" }
+      module is_pointer_in_range    { private header "__utility/is_pointer_in_range.h" }
       module move                   { private header "__utility/move.h" }
       module pair                   { private header "__utility/pair.h" }
       module pair_fwd               { private header "__fwd/pair.h" }

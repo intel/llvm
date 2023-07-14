@@ -420,6 +420,11 @@ void DWARFLinker::cleanupAuxiliarryData(LinkContext &Context) {
   DIEAlloc.Reset();
 }
 
+static bool isTlsAddressCode(uint8_t DW_OP_Code) {
+  return DW_OP_Code == dwarf::DW_OP_form_tls_address ||
+         DW_OP_Code == dwarf::DW_OP_GNU_push_tls_address;
+}
+
 std::optional<int64_t>
 DWARFLinker::getVariableRelocAdjustment(AddressesMap &RelocMgr,
                                         const DWARFDie &DIE) {
@@ -471,8 +476,7 @@ DWARFLinker::getVariableRelocAdjustment(AddressesMap &RelocMgr,
     case dwarf::DW_OP_const8u:
     case dwarf::DW_OP_const4s:
     case dwarf::DW_OP_const8s:
-      if (NextIt == Expression.end() ||
-          NextIt->getCode() != dwarf::DW_OP_form_tls_address)
+      if (NextIt == Expression.end() || !isTlsAddressCode(NextIt->getCode()))
         break;
       [[fallthrough]];
     case dwarf::DW_OP_addr: {
@@ -485,16 +489,14 @@ DWARFLinker::getVariableRelocAdjustment(AddressesMap &RelocMgr,
     } break;
     case dwarf::DW_OP_constx:
     case dwarf::DW_OP_addrx: {
-      if (std::optional<uint64_t> AddrOffsetSectionBase =
-              DIE.getDwarfUnit()->getAddrOffsetSectionBase()) {
-        uint64_t StartOffset = *AddrOffsetSectionBase + Op.getRawOperand(0);
-        uint64_t EndOffset =
-            StartOffset + DIE.getDwarfUnit()->getAddressByteSize();
-
+      if (std::optional<uint64_t> AddressOffset =
+              DIE.getDwarfUnit()->getIndexedAddressOffset(
+                  Op.getRawOperand(0))) {
         // Check relocation for the address.
         if (std::optional<int64_t> RelocAdjustment =
-                RelocMgr.getExprOpAddressRelocAdjustment(*U, Op, StartOffset,
-                                                         EndOffset))
+                RelocMgr.getExprOpAddressRelocAdjustment(
+                    *U, Op, *AddressOffset,
+                    *AddressOffset + DIE.getDwarfUnit()->getAddressByteSize()))
           return *RelocAdjustment;
       }
     } break;
@@ -1148,26 +1150,27 @@ void DWARFLinker::DIECloner::cloneExpression(
 
   uint64_t OpOffset = 0;
   for (auto &Op : Expression) {
-    auto Description = Op.getDescription();
+    auto Desc = Op.getDescription();
     // DW_OP_const_type is variable-length and has 3
-    // operands. DWARFExpression thus far only supports 2.
-    auto Op0 = Description.Op[0];
-    auto Op1 = Description.Op[1];
-    if ((Op0 == Encoding::BaseTypeRef && Op1 != Encoding::SizeNA) ||
-        (Op1 == Encoding::BaseTypeRef && Op0 != Encoding::Size1))
+    // operands. Thus far we only support 2.
+    if ((Desc.Op.size() == 2 && Desc.Op[0] == Encoding::BaseTypeRef) ||
+        (Desc.Op.size() == 2 && Desc.Op[1] == Encoding::BaseTypeRef &&
+         Desc.Op[0] != Encoding::Size1))
       Linker.reportWarning("Unsupported DW_OP encoding.", File);
 
-    if ((Op0 == Encoding::BaseTypeRef && Op1 == Encoding::SizeNA) ||
-        (Op1 == Encoding::BaseTypeRef && Op0 == Encoding::Size1)) {
+    if ((Desc.Op.size() == 1 && Desc.Op[0] == Encoding::BaseTypeRef) ||
+        (Desc.Op.size() == 2 && Desc.Op[1] == Encoding::BaseTypeRef &&
+         Desc.Op[0] == Encoding::Size1)) {
       // This code assumes that the other non-typeref operand fits into 1 byte.
       assert(OpOffset < Op.getEndOffset());
       uint32_t ULEBsize = Op.getEndOffset() - OpOffset - 1;
       assert(ULEBsize <= 16);
 
       // Copy over the operation.
+      assert(!Op.getSubCode() && "SubOps not yet supported");
       OutputBuffer.push_back(Op.getCode());
       uint64_t RefOffset;
-      if (Op1 == Encoding::SizeNA) {
+      if (Desc.Op.size() == 1) {
         RefOffset = Op.getRawOperand(0);
       } else {
         OutputBuffer.push_back(Op.getRawOperand(0));

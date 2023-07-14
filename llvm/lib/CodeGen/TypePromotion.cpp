@@ -722,8 +722,9 @@ bool TypePromotionImpl::isSupportedValue(Value *V) {
     case Instruction::Ret:
     case Instruction::Load:
     case Instruction::Trunc:
-    case Instruction::BitCast:
       return isSupportedType(I);
+    case Instruction::BitCast:
+      return I->getOperand(0)->getType() == I->getType();
     case Instruction::ZExt:
       return isSupportedType(I->getOperand(0));
     case Instruction::ICmp:
