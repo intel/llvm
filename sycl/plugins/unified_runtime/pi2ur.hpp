@@ -3199,7 +3199,7 @@ inline pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
 }
 
 inline pi_result piextUSMImport(const void *HostPtr, size_t Size,
-                                const pi_context Context) {
+                                pi_context Context) {
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
 
@@ -3210,8 +3210,7 @@ inline pi_result piextUSMImport(const void *HostPtr, size_t Size,
   return PI_SUCCESS;
 }
 
-inline pi_result piextUSMRelease(const void *HostPtr,
-                                 const pi_context Context) {
+inline pi_result piextUSMRelease(const void *HostPtr, pi_context Context) {
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
 

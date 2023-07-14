@@ -359,12 +359,12 @@ __SYCL_EXPORT pi_result piextUSMFree(pi_context Context, void *Ptr) {
 }
 
 __SYCL_EXPORT pi_result piextUSMImport(const void *HostPtr, size_t Size,
-                                       const pi_context Context) {
+                                       pi_context Context) {
   return pi2ur::piextUSMImport(HostPtr, Size, Context);
 }
 
 __SYCL_EXPORT pi_result piextUSMRelease(const void *HostPtr,
-                                        const pi_context Context) {
+                                        pi_context Context) {
   return pi2ur::piextUSMRelease(HostPtr, Context);
 }
 

@@ -2008,14 +2008,13 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
 /// \param size is the number of bytes to import
 /// \param context is the pi_context
 __SYCL_EXPORT pi_result piextUSMImport(const void *ptr, size_t size,
-                                       const pi_context context);
+                                       pi_context context);
 
 /// Release host system memory from USM.
 ///
 /// \param ptr start address of imported memory range
 /// \param context is the pi_context
-__SYCL_EXPORT pi_result piextUSMRelease(const void *ptr,
-                                        const pi_context context);
+__SYCL_EXPORT pi_result piextUSMRelease(const void *ptr, pi_context context);
 
 ///
 /// Device global variable

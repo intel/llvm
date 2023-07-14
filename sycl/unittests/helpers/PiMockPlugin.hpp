@@ -1303,11 +1303,10 @@ mock_piextPeerAccessGetInfo(pi_device command_device, pi_device peer_device,
 }
 
 inline pi_result mock_piextUSMImport(const void *HostPtr, size_t Size,
-                                     const pi_context Context) {
+                                     pi_context Context) {
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextUSMRelease(const void *HostPtr,
-                                      const pi_context Context) {
+inline pi_result mock_piextUSMRelease(const void *HostPtr, pi_context Context) {
   return PI_SUCCESS;
 }
