@@ -758,7 +758,7 @@ details:
 params:
     - type: $x_native_handle_t
       name: hNativeDevice
-      desc: "[in] the native handle of the device."
+      desc: "[in][nocheck] the native handle of the device."
     - type: $x_platform_handle_t
       name: hPlatform
       desc: "[in] handle of the platform instance"

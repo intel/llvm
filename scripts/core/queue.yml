@@ -272,7 +272,7 @@ params:
     - type: $x_native_handle_t
       name: hNativeQueue
       desc: |
-            [in] the native handle of the queue.
+            [in][nocheck] the native handle of the queue.
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
