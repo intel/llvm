@@ -1449,14 +1449,27 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
 Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
   if (!V->getType()->isPointerTy())
     return V;
-  auto GEP = cast<GEPOperator>(V);
-  assert(GEP->getNumOperands() == 3 && "must be a GEP from an array");
-  assert(GEP->getSourceElementType()->getArrayNumElements() == Size);
-  [[maybe_unused]] auto *OP1 = cast<ConstantInt>(GEP->getOperand(1));
-  [[maybe_unused]] auto *OP2 = cast<ConstantInt>(GEP->getOperand(2));
-  assert(OP1->getZExtValue() == 0);
-  assert(OP2->getZExtValue() == 0);
-  return new LoadInst(GEP->getSourceElementType(), GEP->getOperand(0), "", Pos);
+  Type *SourceTy;
+  Value *Addr;
+  if (auto *GV = dyn_cast<GlobalVariable>(V)) {
+    SourceTy = GV->getValueType();
+    Addr = GV;
+  } else if (auto *AI = dyn_cast<AllocaInst>(V)) {
+    SourceTy = AI->getAllocatedType();
+    Addr = AI;
+  } else if (auto *GEP = dyn_cast<GEPOperator>(V)) {
+    assert(GEP->getNumOperands() == 3 && "must be a GEP from an array");
+    SourceTy = GEP->getSourceElementType();
+    [[maybe_unused]] auto *OP1 = cast<ConstantInt>(GEP->getOperand(1));
+    [[maybe_unused]] auto *OP2 = cast<ConstantInt>(GEP->getOperand(2));
+    assert(OP1->getZExtValue() == 0);
+    assert(OP2->getZExtValue() == 0);
+    Addr = GEP->getOperand(0);
+  } else {
+    llvm_unreachable("Unknown array type");
+  }
+  assert(SourceTy->getArrayNumElements() == Size);
+  return new LoadInst(SourceTy, Addr, "", Pos);
 }
 
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
