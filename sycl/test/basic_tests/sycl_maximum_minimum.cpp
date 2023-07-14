@@ -1,11 +1,9 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
-
-#include <cassert>
-#include <iostream>
 #include <sycl/sycl.hpp>
 
 #include <algorithm>
+#include <cassert>
 #include <limits>
 
 int main() {
