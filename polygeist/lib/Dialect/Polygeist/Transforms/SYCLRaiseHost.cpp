@@ -1143,15 +1143,11 @@ LogicalResult RaiseNDRangeConstructor::Initializers::checkValidity() const {
   const auto checkInit = [=](ArrayRef<Operation *> ops) {
     if (ops.empty())
       return failure();
-    if (ops.size() == dimensions) {
-      if (dimensions == 1)
-        return success();
-      if (llvm::all_of(ops,
-                       [](Operation *op) { return isa<LLVM::StoreOp>(op); }))
-        return success();
+    if (ops.size() == dimensions)
       // When initializing each component, we must be using store operations
-      return failure();
-    }
+      return success(dimensions == 1 || llvm::all_of(ops, [](Operation *op) {
+                       return isa<LLVM::StoreOp>(op);
+                     }));
     // Should be a memcpy
     return success(ops.size() == 1 && isa<LLVM::MemcpyOp>(ops[0]));
   };
