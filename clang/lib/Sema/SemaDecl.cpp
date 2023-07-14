@@ -2096,7 +2096,7 @@ static void GenerateFixForUnusedDecl(const NamedDecl *D, ASTContext &Ctx,
   if (isa<LabelDecl>(D)) {
     SourceLocation AfterColon = Lexer::findLocationAfterToken(
         D->getEndLoc(), tok::colon, Ctx.getSourceManager(), Ctx.getLangOpts(),
-        true);
+        /*SkipTrailingWhitespaceAndNewline=*/false);
     if (AfterColon.isInvalid())
       return;
     Hint = FixItHint::CreateRemoval(
@@ -2151,7 +2151,8 @@ void Sema::DiagnoseUnusedDecl(const NamedDecl *D, DiagReceiverTy DiagReceiver) {
   else
     DiagID = diag::warn_unused_variable;
 
-  DiagReceiver(D->getLocation(), PDiag(DiagID) << D << Hint);
+  SourceLocation DiagLoc = D->getLocation();
+  DiagReceiver(DiagLoc, PDiag(DiagID) << D << Hint << SourceRange(DiagLoc));
 }
 
 void Sema::DiagnoseUnusedButSetDecl(const VarDecl *VD,
@@ -7944,6 +7945,18 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     }
   }
 
+  // WebAssembly tables are always in address space 1 (wasm_var). Don't apply
+  // address space if the table has local storage (semantic checks elsewhere
+  // will produce an error anyway).
+  if (const auto *ATy = dyn_cast<ArrayType>(NewVD->getType())) {
+    if (ATy && ATy->getElementType().isWebAssemblyReferenceType() &&
+        !NewVD->hasLocalStorage()) {
+      QualType Type = Context.getAddrSpaceQualType(
+          NewVD->getType(), Context.getLangASForBuiltinAddressSpace(1));
+      NewVD->setType(Type);
+    }
+  }
+
   // Handle attributes prior to checking for duplicates in MergeVarDecl
   ProcessDeclAttributes(S, NewVD, D);
 
@@ -8099,6 +8112,13 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
     if (!IsVariableTemplateSpecialization)
       D.setRedeclaration(CheckVariableDeclaration(NewVD, Previous));
+
+    // CheckVariableDeclaration will set NewVD as invalid if something is in
+    // error like WebAssembly tables being declared as arrays with a non-zero
+    // size, but then parsing continues and emits further errors on that line.
+    // To avoid that we check here if it happened and return nullptr.
+    if (NewVD->getType()->isWebAssemblyTableType() && NewVD->isInvalidDecl())
+      return nullptr;
 
     if (NewTemplate) {
       VarTemplateDecl *PrevVarTemplate =
@@ -8707,6 +8727,28 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
     }
   }
 
+  // WebAssembly tables must be static with a zero length and can't be
+  // declared within functions.
+  if (T->isWebAssemblyTableType()) {
+    if (getCurScope()->getParent()) { // Parent is null at top-level
+      Diag(NewVD->getLocation(), diag::err_wasm_table_in_function);
+      NewVD->setInvalidDecl();
+      return;
+    }
+    if (NewVD->getStorageClass() != SC_Static) {
+      Diag(NewVD->getLocation(), diag::err_wasm_table_must_be_static);
+      NewVD->setInvalidDecl();
+      return;
+    }
+    const auto *ATy = dyn_cast<ConstantArrayType>(T.getTypePtr());
+    if (!ATy || ATy->getSize().getSExtValue() != 0) {
+      Diag(NewVD->getLocation(),
+           diag::err_typecheck_wasm_table_must_have_zero_length);
+      NewVD->setInvalidDecl();
+      return;
+    }
+  }
+
   bool isVM = T->isVariablyModifiedType();
   if (isVM || NewVD->hasAttr<CleanupAttr>() ||
       NewVD->hasAttr<BlocksAttr>())
@@ -8778,7 +8820,7 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
   }
 
   if (!NewVD->hasLocalStorage() && T->isSizelessType() &&
-      !T->isWebAssemblyReferenceType()) {
+      !T.isWebAssemblyReferenceType()) {
     Diag(NewVD->getLocation(), diag::err_sizeless_nonlocal) << T;
     NewVD->setInvalidDecl();
     return;
@@ -9213,15 +9255,6 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
     D.getMutableDeclSpec().ClearConstexprSpec();
   }
   Expr *TrailingRequiresClause = D.getTrailingRequiresClause();
-
-  // Check that the return type is not an abstract class type.
-  // For record types, this is done by the AbstractClassUsageDiagnoser once
-  // the class has been completely parsed.
-  if (!DC->isRecord() &&
-      SemaRef.RequireNonAbstractType(
-          D.getIdentifierLoc(), R->castAs<FunctionType>()->getReturnType(),
-          diag::err_abstract_type_in_decl, SemaRef.AbstractReturnType))
-    D.setInvalidType();
 
   if (Name.getNameKind() == DeclarationName::CXXConstructorName) {
     // This is a C++ constructor declaration.
@@ -10779,6 +10812,14 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       QualType ElemTy = PipeTy->getElementType();
       if (ElemTy->isReferenceType() || ElemTy->isPointerType()) {
         Diag(Param->getTypeSpecStartLoc(), diag::err_reference_pipe_type );
+        D.setInvalidType();
+      }
+    }
+    // WebAssembly tables can't be used as function parameters.
+    if (Context.getTargetInfo().getTriple().isWasm()) {
+      if (PT->getUnqualifiedDesugaredType()->isWebAssemblyTableType()) {
+        Diag(Param->getTypeSpecStartLoc(),
+             diag::err_wasm_table_as_function_parameter);
         D.setInvalidType();
       }
     }
@@ -13169,6 +13210,14 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
     return;
   }
 
+  // WebAssembly tables can't be used to initialise a variable.
+  if (Init && !Init->getType().isNull() &&
+      Init->getType()->isWebAssemblyTableType()) {
+    Diag(Init->getExprLoc(), diag::err_wasm_table_art) << 0;
+    VDecl->setInvalidDecl();
+    return;
+  }
+
   // C++11 [decl.spec.auto]p6. Deduce the type which 'auto' stands in for.
   if (VDecl->getType()->isUndeducedType()) {
     // Attempt typo correction early so that the type of the init expression can
@@ -14964,14 +15013,6 @@ ParmVarDecl *Sema::CheckParameter(DeclContext *DC, SourceLocation StartLoc,
     checkNonTrivialCUnion(New->getType(), New->getLocation(),
                           NTCUC_FunctionParam, NTCUK_Destruct|NTCUK_Copy);
 
-  // Parameters can not be abstract class types.
-  // For record types, this is done by the AbstractClassUsageDiagnoser once
-  // the class has been completely parsed.
-  if (!CurContext->isRecord() &&
-      RequireNonAbstractType(NameLoc, T, diag::err_abstract_type_in_decl,
-                             AbstractParamType))
-    New->setInvalidDecl();
-
   // Parameter declarators cannot be interface types. All ObjC objects are
   // passed by reference.
   if (T->isObjCObjectType()) {
@@ -15299,6 +15340,8 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
   // function is entered, we need to reset this tracking, since the entered
   // function might be not an immediate function.
   ExprEvalContexts.back().InImmediateFunctionContext = FD->isConsteval();
+  ExprEvalContexts.back().InImmediateEscalatingFunctionContext =
+      getLangOpts().CPlusPlus20 && FD->isImmediateEscalating();
 
   // Check for defining attributes before the check for redefinition.
   if (const auto *Attr = FD->getAttr<AliasAttr>()) {
@@ -15376,13 +15419,19 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
     }
   }
 
-  // The return type of a function definition must be complete (C99 6.9.1p3),
-  // unless the function is deleted (C++ specifc, C++ [dcl.fct.def.general]p2)
+  // The return type of a function definition must be complete (C99 6.9.1p3).
+  // C++23 [dcl.fct.def.general]/p2
+  // The type of [...] the return for a function definition
+  // shall not be a (possibly cv-qualified) class type that is incomplete
+  // or abstract within the function body unless the function is deleted.
   QualType ResultType = FD->getReturnType();
   if (!ResultType->isDependentType() && !ResultType->isVoidType() &&
       !FD->isInvalidDecl() && BodyKind != FnBodyKind::Delete &&
-      RequireCompleteType(FD->getLocation(), ResultType,
-                          diag::err_func_def_incomplete_result))
+      (RequireCompleteType(FD->getLocation(), ResultType,
+                           diag::err_func_def_incomplete_result) ||
+       RequireNonAbstractType(FD->getLocation(), FD->getReturnType(),
+                              diag::err_abstract_type_in_decl,
+                              AbstractReturnType)))
     FD->setInvalidDecl();
 
   if (FnBodyScope)
@@ -15608,10 +15657,11 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
     // one is already popped when finishing the lambda in BuildLambdaExpr().
     // This is meant to pop the context added in ActOnStartOfFunctionDef().
     ExitFunctionBodyRAII ExitRAII(*this, isLambdaCallOperator(FD));
-
     if (FD) {
       FD->setBody(Body);
       FD->setWillHaveBody(false);
+      CheckImmediateEscalatingFunctionDefinition(
+          FD, FSI->FoundImmediateEscalatingExpression);
 
       if (getLangOpts().CPlusPlus14) {
         if (!FD->isInvalidDecl() && Body && !FD->isDependentContext() &&
