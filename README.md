@@ -112,6 +112,8 @@ List of options provided by CMake:
 | UR_BUILD_TOOLS | Build tools | ON/OFF | ON |
 | UR_BUILD_ADAPTER_L0 | Fetch and use level-zero adapter from SYCL | ON/OFF | OFF |
 | UR_BUILD_ADAPTER_CUDA | Fetch and use cuda adapter from SYCL | ON/OFF | OFF |
+| UR_BUILD_ADAPTER_HIP | Fetch and use hip adapter from SYCL | ON/OFF | OFF |
+| UR_HIP_PLATFORM | Build hip adapter for AMD or NVIDIA platform | AMD/NVIDIA | AMD |
 
 **General**:
 
