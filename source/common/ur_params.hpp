@@ -396,8 +396,8 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_exp_sampler_mip_properties_t params);
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_exp_interop_memory_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_interop_mem_desc_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_exp_interop_semaphore_desc_t params);
@@ -1223,8 +1223,8 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
         break;
 
-    case UR_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC:
-        os << "UR_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC";
+    case UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC";
         break;
 
     case UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC:
@@ -1462,9 +1462,9 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
         ur_params::serializePtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC: {
-        const ur_exp_interop_memory_desc_t *pstruct =
-            (const ur_exp_interop_memory_desc_t *)ptr;
+    case UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC: {
+        const ur_exp_interop_mem_desc_t *pstruct =
+            (const ur_exp_interop_mem_desc_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
 
@@ -9590,9 +9590,9 @@ operator<<(std::ostream &os,
     os << "}";
     return os;
 }
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_exp_interop_memory_desc_t params) {
-    os << "(struct ur_exp_interop_memory_desc_t){";
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_interop_mem_desc_t params) {
+    os << "(struct ur_exp_interop_mem_desc_t){";
 
     os << ".stype = ";
 
@@ -10083,9 +10083,9 @@ inline std::ostream &operator<<(
     os << *(params->psize);
 
     os << ", ";
-    os << ".interopMemDesc = ";
+    os << ".pInteropMemDesc = ";
 
-    ur_params::serializePtr(os, *(params->pinteropMemDesc));
+    ur_params::serializePtr(os, *(params->ppInteropMemDesc));
 
     os << ", ";
     os << ".phInteropMem = ";

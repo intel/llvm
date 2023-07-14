@@ -241,7 +241,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,     ///< ::ur_kernel_arg_local_properties_t
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,     ///< ::ur_exp_command_buffer_desc_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,  ///< ::ur_exp_sampler_mip_properties_t
-    UR_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC = 0x2001,     ///< ::ur_exp_interop_memory_desc_t
+    UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC = 0x2001,        ///< ::ur_exp_interop_mem_desc_t
     UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC = 0x2002,  ///< ::ur_exp_interop_semaphore_desc_t
     UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,         ///< ::ur_exp_file_descriptor_t
     UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,            ///< ::ur_exp_win32_handle_t
@@ -6662,12 +6662,12 @@ typedef struct ur_exp_sampler_mip_properties_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes an interop memory resource descriptor
-typedef struct ur_exp_interop_memory_desc_t {
+typedef struct ur_exp_interop_mem_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be
-                               ///< ::UR_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC
+                               ///< ::UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
 
-} ur_exp_interop_memory_desc_t;
+} ur_exp_interop_mem_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes an interop semaphore resource descriptor
@@ -7076,18 +7076,18 @@ urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == interopMemDesc`
+///         + `NULL == pInteropMemDesc`
 ///         + `NULL == phInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImportOpaqueFDExp(
-    ur_context_handle_t hContext,                 ///< [in] handle of the context object
-    ur_device_handle_t hDevice,                   ///< [in] handle of the device object
-    size_t size,                                  ///< [in] size of the external memory
-    ur_exp_interop_memory_desc_t *interopMemDesc, ///< [in] the interop memory descriptor
-    ur_exp_interop_mem_handle_t *phInteropMem     ///< [out] interop memory handle to the external memory
+    ur_context_handle_t hContext,               ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                 ///< [in] handle of the device object
+    size_t size,                                ///< [in] size of the external memory
+    ur_exp_interop_mem_desc_t *pInteropMemDesc, ///< [in] the interop memory descriptor
+    ur_exp_interop_mem_handle_t *phInteropMem   ///< [out] interop memory handle to the external memory
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9243,7 +9243,7 @@ typedef struct ur_bindless_images_import_opaque_fd_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
     size_t *psize;
-    ur_exp_interop_memory_desc_t **pinteropMemDesc;
+    ur_exp_interop_mem_desc_t **ppInteropMemDesc;
     ur_exp_interop_mem_handle_t **pphInteropMem;
 } ur_bindless_images_import_opaque_fd_exp_params_t;
 
