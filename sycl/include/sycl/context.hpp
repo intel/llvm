@@ -19,7 +19,6 @@
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
 
 // 4.6.2 Context class
 

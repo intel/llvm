@@ -11,6 +11,7 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
 
+#include <functional>
 #include <vector>
 
 // 4.6.1 Device selection class
@@ -20,6 +21,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declarations
 class device;
+enum class aspect;
 
 namespace ext::oneapi {
 class filter_selector;
