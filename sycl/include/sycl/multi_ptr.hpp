@@ -150,7 +150,8 @@ public:
                 (Space == access::address_space::generic_space ||
                  Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.get_pointer().get()) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // The following constructors are necessary to create multi_ptr<const
   // ElementType, Space, DecorateAddress> from accessor<ElementType, ...>.
