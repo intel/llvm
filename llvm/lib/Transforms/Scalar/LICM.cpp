@@ -360,12 +360,6 @@ INITIALIZE_PASS_END(LegacyLICMPass, "licm", "Loop Invariant Code Motion", false,
                     false)
 
 Pass *llvm::createLICMPass() { return new LegacyLICMPass(); }
-Pass *llvm::createLICMPass(unsigned LicmMssaOptCap,
-                           unsigned LicmMssaNoAccForPromotionCap,
-                           bool LicmAllowSpeculation) {
-  return new LegacyLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap,
-                            LicmAllowSpeculation);
-}
 
 llvm::SinkAndHoistLICMFlags::SinkAndHoistLICMFlags(bool IsSink, Loop &L,
                                                    MemorySSA &MSSA)
@@ -1226,6 +1220,15 @@ bool llvm::canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
 
     // Handle simple cases by querying alias analysis.
     MemoryEffects Behavior = AA->getMemoryEffects(CI);
+
+    // FIXME: we don't handle the semantics of thread local well. So that the
+    // address of thread locals are fake constants in coroutines. So We forbid
+    // to treat onlyReadsMemory call in coroutines as constants now. Note that
+    // it is possible to hide a thread local access in a onlyReadsMemory call.
+    // Remove this check after we handle the semantics of thread locals well.
+    if (Behavior.onlyReadsMemory() && CI->getFunction()->isPresplitCoroutine())
+      return false;
+
     if (Behavior.doesNotAccessMemory())
       return true;
     if (Behavior.onlyReadsMemory()) {
@@ -1709,6 +1712,8 @@ static bool sink(Instruction &I, LoopInfo *LI, DominatorTree *DT,
     // The PHI must be trivially replaceable.
     Instruction *New = sinkThroughTriviallyReplaceablePHI(
         PN, &I, LI, SunkCopies, SafetyInfo, CurLoop, MSSAU);
+    // As we sink the instruction out of the BB, drop its debug location.
+    New->dropLocation();
     PN->replaceAllUsesWith(New);
     eraseInstruction(*PN, *SafetyInfo, MSSAU);
     Changed = true;
