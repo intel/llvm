@@ -35,7 +35,7 @@
 template <class... Args> class sycl_compat_kernel_name;
 template <int Arg> class sycl_compat_kernel_scalar;
 
-#define __sycl_compat_align__(n) __attribute__((aligned(n)))
+#define __sycl_compat_align__(n) alignas(n)
 #define __sycl_compat_inline__ __inline__ __attribute__((always_inline))
 
 #define __sycl_compat_noinline__ __attribute__((noinline))

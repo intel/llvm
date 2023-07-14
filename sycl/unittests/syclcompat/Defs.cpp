@@ -25,9 +25,9 @@
 #include <syclcompat/defs.hpp>
 
 TEST(DEFS, Align) {
-  struct {
+  struct __sycl_compat_align__(16) {
     int a;
     char c;
-  } __sycl_compat_align__(16) s;
+  } s;
   EXPECT_EQ(sizeof(s), 16);
 }

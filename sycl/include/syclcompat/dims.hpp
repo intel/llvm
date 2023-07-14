@@ -32,11 +32,11 @@ class dim3 {
 public:
   const size_t x, y, z;
 
-  constexpr dim3(const sycl::range<3> &r) : x(r[2]), y(r[1]), z(r[0]) {}
+  dim3(const sycl::range<3> &r) : x(r[2]), y(r[1]), z(r[0]) {}
 
-  constexpr dim3(const sycl::range<2> &r) : x(r[1]), y(r[0]), z(1) {}
+  dim3(const sycl::range<2> &r) : x(r[1]), y(r[0]), z(1) {}
 
-  constexpr dim3(const sycl::range<1> &r) : x(r[0]), y(1), z(1) {}
+  dim3(const sycl::range<1> &r) : x(r[0]), y(1), z(1) {}
 
   constexpr dim3(size_t x, size_t y = 1, size_t z = 1) : x(x), y(y), z(z) {}
 
