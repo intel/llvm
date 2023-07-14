@@ -9,10 +9,9 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/pi.h>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/id.hpp>
+#include <sycl/range.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -21,6 +20,7 @@ class device;
 class platform;
 class kernel_id;
 enum class memory_scope;
+enum class memory_order;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {

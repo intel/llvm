@@ -17,6 +17,7 @@
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/property_list.hpp>
+#include <sycl/id.hpp>
 #include <sycl/range.hpp>
 #include <sycl/stl.hpp>
 

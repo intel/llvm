@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/property_list.hpp>
 
