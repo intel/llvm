@@ -127,6 +127,7 @@ add_sycl_plugin(level_zero
     "../unified_runtime/ur/adapters/level_zero/queue.cpp"
     "../unified_runtime/ur/adapters/level_zero/sampler.cpp"
     "../unified_runtime/ur/adapters/level_zero/usm.cpp"
+    "../unified_runtime/ur/adapters/level_zero/usm_p2p.cpp"
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
     "pi_level_zero.hpp"

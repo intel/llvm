@@ -1385,6 +1385,17 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer, pi_queue, pi_uint32,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextEnablePeerAccess(pi_device, pi_device) { DIE_NO_IMPLEMENTATION; }
+
+pi_result piextDisablePeerAccess(pi_device, pi_device) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextPeerAccessGetInfo(pi_device, pi_device, pi_peer_attr, size_t,
+                                 void *, size_t *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piTearDown(void *) {
   // Todo: is it fine as a no-op?
   return PI_SUCCESS;
