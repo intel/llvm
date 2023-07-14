@@ -723,18 +723,6 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
                                      BufferCreateInfo, RetMem);
 }
 
-pi_result piEnqueueNativeKernel(pi_queue Queue, void (*UserFunc)(void *),
-                                void *Args, size_t CbArgs,
-                                pi_uint32 NumMemObjects, const pi_mem *MemList,
-                                const void **ArgsMemLoc,
-                                pi_uint32 NumEventsInWaitList,
-                                const pi_event *EventWaitList,
-                                pi_event *Event) {
-  return pi2ur::piEnqueueNativeKernel(
-      Queue, UserFunc, Args, CbArgs, NumMemObjects, MemList, ArgsMemLoc,
-      NumEventsInWaitList, EventWaitList, Event);
-}
-
 // TODO: Check if the function_pointer_ret type can be converted to void**.
 pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
                                         const char *FunctionName,

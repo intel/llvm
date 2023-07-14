@@ -70,7 +70,8 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
     std::call_once(
         InitFlag,
         [](ur_result_t &Result) {
-          if (cuInit(0) != CUDA_SUCCESS) {
+          Result = UR_CHECK_ERROR(cuInit(0));
+          if (Result != UR_RESULT_SUCCESS) {
             NumPlatforms = 0;
             return;
           }
