@@ -188,7 +188,7 @@ details:
 params:
     - type: $x_native_handle_t
       name: hNativePlatform
-      desc: "[in] the native handle of the platform."
+      desc: "[in][nocheck] the native handle of the platform."
     - type: const $x_platform_native_properties_t*
       name: pProperties
       desc: "[in][optional] pointer to native platform properties struct."

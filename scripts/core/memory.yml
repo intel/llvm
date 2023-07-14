@@ -463,7 +463,7 @@ details:
 params:
     - type: $x_native_handle_t
       name: hNativeMem
-      desc: "[in] the native handle to the memory."
+      desc: "[in][nocheck] the native handle to the memory."
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object."
@@ -487,7 +487,7 @@ details:
 params:
     - type: $x_native_handle_t
       name: hNativeMem
-      desc: "[in] the native handle to the memory."
+      desc: "[in][nocheck] the native handle to the memory."
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object."
