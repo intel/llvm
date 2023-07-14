@@ -1,0 +1,22 @@
+name: Experiment with Linux GEN12 runners
+
+on:
+  workflow_dispatch:
+    inputs:
+      lit_filter:
+        required: false
+      devices:
+        default: 'ext_oneapi_level_zero:gpu'
+
+jobs:
+  e2e:
+    uses: ./.github/workflows/linux_single_e2e.yml
+    with:
+      name: "Linux GEN12 E2E"
+      runner: '["Linux", "gen12"]'
+      image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
+      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+      target_devices: ${{ inputs.devices }}
+      ref: ${{ github.sha }}
+
+      env: '{"LIT_FILTER":"${{ inputs.lit_filter }}"}'
