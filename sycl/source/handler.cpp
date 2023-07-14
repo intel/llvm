@@ -274,8 +274,7 @@ event handler::finalize() {
 
   std::unique_ptr<detail::CG> CommandGroup;
   switch (type) {
-  case detail::CG::Kernel:
-  case detail::CG::RunOnHostIntel: {
+  case detail::CG::Kernel: {
     // Copy kernel name here instead of move so that it's available after
     // running of this method by reductions implementation. This allows for
     // assert feature to check if kernel uses assertions
@@ -287,15 +286,12 @@ event handler::finalize() {
         MImpl->MKernelCacheConfig, MCodeLoc));
     break;
   }
-  case detail::CG::CodeplayInteropTask:
-    CommandGroup.reset(new detail::CGInteropTask(
-        std::move(MInteropTask), std::move(CGData), MCGType, MCodeLoc));
-    break;
   case detail::CG::CopyAccToPtr:
   case detail::CG::CopyPtrToAcc:
   case detail::CG::CopyAccToAcc:
-    CommandGroup.reset(new detail::CGCopy(MCGType, MSrcPtr, MDstPtr,
-                                          std::move(CGData), MCodeLoc));
+    CommandGroup.reset(
+        new detail::CGCopy(MCGType, MSrcPtr, MDstPtr, std::move(CGData),
+                           std::move(MImpl->MAuxiliaryResources), MCodeLoc));
     break;
   case detail::CG::Fill:
     CommandGroup.reset(new detail::CGFill(std::move(MPattern), MDstPtr,
@@ -731,11 +727,6 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   std::transform(
       WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
-}
-
-__SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-void handler::barrier(const std::vector<event> &WaitList) {
-  handler::ext_oneapi_barrier(WaitList);
 }
 
 using namespace sycl::detail;

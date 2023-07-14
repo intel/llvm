@@ -370,26 +370,26 @@ public:
     return GetCompilerType().GetTypeName();
   }
 
-  virtual lldb::LanguageType GetObjectRuntimeLanguage() {
+  lldb::LanguageType GetObjectRuntimeLanguage() {
     return GetCompilerType().GetMinimumLanguage();
   }
 
-  virtual uint32_t
+  uint32_t
   GetTypeInfo(CompilerType *pointee_or_element_compiler_type = nullptr) {
     return GetCompilerType().GetTypeInfo(pointee_or_element_compiler_type);
   }
 
-  virtual bool IsPointerType() { return GetCompilerType().IsPointerType(); }
+  bool IsPointerType() { return GetCompilerType().IsPointerType(); }
 
-  virtual bool IsArrayType() { return GetCompilerType().IsArrayType(); }
+  bool IsArrayType() { return GetCompilerType().IsArrayType(); }
 
-  virtual bool IsScalarType() { return GetCompilerType().IsScalarType(); }
+  bool IsScalarType() { return GetCompilerType().IsScalarType(); }
 
-  virtual bool IsPointerOrReferenceType() {
+  bool IsPointerOrReferenceType() {
     return GetCompilerType().IsPointerOrReferenceType();
   }
 
-  virtual bool IsPossibleDynamicType();
+  bool IsPossibleDynamicType();
 
   bool IsNilReference();
 
@@ -429,10 +429,6 @@ public:
     return (GetBitfieldBitSize() != 0) || (GetBitfieldBitOffset() != 0);
   }
 
-  virtual bool IsArrayItemForPointer() {
-    return m_flags.m_is_array_item_for_pointer;
-  }
-
   virtual const char *GetValueAsCString();
 
   virtual bool GetValueAsCString(const lldb_private::TypeFormatImpl &format,
@@ -469,7 +465,8 @@ public:
   /// Returns a unique id for this ValueObject.
   lldb::user_id_t GetID() const { return m_id.GetID(); }
 
-  virtual lldb::ValueObjectSP GetChildAtIndex(size_t idx, bool can_create);
+  virtual lldb::ValueObjectSP GetChildAtIndex(size_t idx,
+                                              bool can_create = true);
 
   // this will always create the children if necessary
   lldb::ValueObjectSP GetChildAtIndexPath(llvm::ArrayRef<size_t> idxs,
@@ -487,7 +484,7 @@ public:
                      ConstString *name_of_error = nullptr);
 
   virtual lldb::ValueObjectSP GetChildMemberWithName(llvm::StringRef name,
-                                                     bool can_create);
+                                                     bool can_create = true);
 
   virtual size_t GetIndexOfChildWithName(llvm::StringRef name);
 
@@ -627,7 +624,7 @@ public:
 
   // The backing bits of this value object were updated, clear any descriptive
   // string, so we know we have to refetch them.
-  virtual void ValueUpdated() {
+  void ValueUpdated() {
     ClearUserVisibleData(eClearUserVisibleDataItemsValue |
                          eClearUserVisibleDataItemsSummary |
                          eClearUserVisibleDataItemsDescription);
