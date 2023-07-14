@@ -65,7 +65,7 @@ class TemplatedScalar(TemplatedType):
   # a requirement that the type is one of the types in valid_types.
   def get_requirements(self, type_name):
     valid_type_str = ', '.join(self.valid_types)
-    return [f'detail::CheckTypeIn<{type_name}, {valid_type_str}>()']
+    return [f'detail::check_type_in_v<{type_name}, {valid_type_str}>']
 
   def __hash__(self):
     return hash(("scalar", frozenset(self.valid_types)))
@@ -1127,7 +1127,7 @@ def get_arg_requirement(arg_type, arg_type_name):
 # given list have the same type.
 def get_all_same_type_requirement(template_names):
   template_name_args = ', '.join(template_names)
-  return f'detail::CheckAllSameOpType<{template_name_args}>()'
+  return f'detail::check_all_same_op_type_v<{template_name_args}>'
 
 # Generates the function return type, including SFINAE if the generated builtin
 # has template arguments.

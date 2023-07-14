@@ -98,6 +98,10 @@ template <typename T, typename... Ts> constexpr bool CheckTypeIn() {
   return false;
 }
 
+// NOTE: We need a constexpr variable definition for the constexpr functions
+//       as MSVC thinks function definitions are the same otherwise.
+template <typename... Ts> constexpr bool check_type_in_v = CheckTypeIn<Ts...>();
+
 template <size_t N, size_t... Ns> constexpr bool CheckSizeIn() {
   constexpr bool SameSize[] = {(N == Ns)...};
   // Replace with std::any_of with C++20.
@@ -107,21 +111,26 @@ template <size_t N, size_t... Ns> constexpr bool CheckSizeIn() {
   return false;
 }
 
+// NOTE: We need a constexpr variable definition for the constexpr functions
+//       as MSVC thinks function definitions are the same otherwise.
+template <size_t... Ns> constexpr bool check_size_in_v = CheckSizeIn<Ns...>();
+
 template <typename T, typename... Ts>
 struct is_valid_elem_type : std::false_type {};
 template <typename T, size_t N, typename... Ts>
 struct is_valid_elem_type<marray<T, N>, Ts...>
-    : std::bool_constant<CheckTypeIn<T, Ts...>()> {};
+    : std::bool_constant<check_type_in_v<T, Ts...>> {};
 template <typename T, int N, typename... Ts>
 struct is_valid_elem_type<vec<T, N>, Ts...>
-    : std::bool_constant<CheckTypeIn<T, Ts...>()> {};
+    : std::bool_constant<check_type_in_v<T, Ts...>> {};
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes,
           typename... Ts>
 struct is_valid_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                                     OperationCurrentT, Indexes...>,
                           Ts...>
-    : std::bool_constant<CheckTypeIn<typename VecT::element_type, Ts...>()> {};
+    : std::bool_constant<check_type_in_v<typename VecT::element_type, Ts...>> {
+};
 
 template <typename T>
 struct num_elements : std::integral_constant<size_t, 1> {};
@@ -137,7 +146,7 @@ struct num_elements<SwizzleOp<VecT, OperationLeftT, OperationRightT,
 
 template <typename T, size_t... Ns>
 struct is_valid_size
-    : std::bool_constant<CheckSizeIn<num_elements<T>::value, Ns...>()> {};
+    : std::bool_constant<check_size_in_v<num_elements<T>::value, Ns...>> {};
 
 template <typename T, typename... Ts>
 constexpr bool is_valid_elem_type_v = is_valid_elem_type<T, Ts...>::value;
@@ -182,6 +191,11 @@ template <typename T, typename... Ts> constexpr bool CheckAllSameOpType() {
       return false;
   return true;
 }
+
+// NOTE: We need a constexpr variable definition for the constexpr functions
+//       as MSVC thinks function definitions are the same otherwise.
+template <typename... Ts>
+constexpr bool check_all_same_op_type_v = CheckAllSameOpType<Ts...>();
 
 template <size_t Size> struct get_signed_int_by_size {
   using type = std::conditional_t<
