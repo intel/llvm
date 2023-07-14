@@ -41,6 +41,20 @@ namespace usm {
 void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
                        alloc Kind, const property_list &PropList,
                        const detail::code_location &CodeLoc) {
+  // if no device in context has spect::usm_host_allocations then raise
+  // feature_not_supported exception
+  bool raiseUsmException = true;
+  for (auto device : Ctxt.get_devices()) {
+    if (device.has(sycl::aspect::usm_device_allocations)) {
+      raiseUsmException = false;
+    }
+  }
+  if (raiseUsmException == true) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "usm not supported");
+  }
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
   detail::tls_code_loc_t CL(CodeLoc);
@@ -232,11 +246,23 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind, const property_list &PropList,
                    const detail::code_location &CodeLoc) {
-  if (Dev.has(sycl::aspect::usm_device_allocations) == false) {
+  if (Kind == alloc::device &&
+      Dev.has(sycl::aspect::usm_device_allocations) == false) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "usm not supported");
+  } else if (Kind == alloc::shared &&
+             Dev.has(sycl::aspect::usm_shared_allocations) == false) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "usm not supported");
+  } else if (Kind == alloc::host &&
+             Dev.has(sycl::aspect::usm_host_allocations) == false) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "usm not supported");
   }
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
   detail::tls_code_loc_t CL(CodeLoc);
