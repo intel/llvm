@@ -6,10 +6,10 @@
 add_subdirectory(null)
 
 
-if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_CUDA)
+if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP)
     # fetch adapter sources from SYCL
     set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
-    FetchSource(https://github.com/intel/llvm.git sycl-nightly/20230706 "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
+    FetchSource(https://github.com/intel/llvm.git sycl-nightly/20230713 "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
 
     get_program_version_major_minor(git GIT_VERSION)
     set(GIT_QUIET_OPTION "")
@@ -21,9 +21,13 @@ if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_CUDA)
 endif()
 
 if(UR_BUILD_ADAPTER_L0)
-add_subdirectory(level_zero)
+    add_subdirectory(level_zero)
 endif()
 
 if(UR_BUILD_ADAPTER_CUDA)
-add_subdirectory(cuda)
+    add_subdirectory(cuda)
+endif()
+
+if(UR_BUILD_ADAPTER_HIP)
+    add_subdirectory(hip)
 endif()

@@ -32,6 +32,7 @@ option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace 
 option(UR_BUILD_TOOLS "build ur tools" ON)
 option(UR_BUILD_ADAPTER_L0 "build level 0 adapter from SYCL" OFF)
 option(UR_BUILD_ADAPTER_CUDA "build cuda adapter from SYCL" OFF)
+option(UR_BUILD_ADAPTER_HIP "build hip adapter from SYCL" OFF)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
