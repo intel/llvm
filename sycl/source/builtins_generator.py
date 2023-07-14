@@ -3,17 +3,25 @@ import sys
 import os
 from collections import defaultdict
 
+# Common super class representing a templated type.
+# valid_types - A list of the valid types for the instantiation of the template.
+# valid_sizes - A list of the valid sizes for the type instantiating the
+#   template. This is used by vec and marray to restrict their sizes and may be
+#   None to signify no restrictions.
 class TemplatedType:
   def __init__(self, valid_types, valid_sizes):
     self.valid_types = valid_types
     self.valid_sizes = valid_sizes
 
+# Class representing a sycl::vec type in SYCL builtins.
 class Vec(TemplatedType):
-  def __init__(self, valid_types, valid_sizes = {1,2,3,4,8,16},
-               deprecation_message=None):
+  def __init__(self, valid_types, valid_sizes = {1,2,3,4,8,16}):
     super().__init__(valid_types, valid_sizes)
-    self.deprecation_message = deprecation_message
 
+  # Gets the constexpr requirements of a vector type argument:
+  #  1. The argument must be either a vector or a swizzle.
+  #  2. The element type of the argument must be in valid_types
+  #  3. The number of elements must be in valid_sizes. 
   def get_requirements(self, type_name):
     valid_type_str = ', '.join(self.valid_types)
     valid_sizes_str = ', '.join(map(str, self.valid_sizes))
@@ -24,10 +32,16 @@ class Vec(TemplatedType):
   def __hash__(self):
     return hash(("vec", frozenset(self.valid_types), frozenset(self.valid_sizes)))
 
+# Class representing a sycl::marray type in SYCL builtins.
 class Marray(TemplatedType):
   def __init__(self, valid_types, valid_sizes = None):
     super().__init__(valid_types, valid_sizes)
 
+  # Gets the constexpr requirements of an marray type argument:
+  #  1. The argument must be an marray.
+  #  2. The element type of the argument must be in valid_types
+  #  3. The number of elements must be in valid_sizes. If valid_sizes is None,
+  #     this requirement is excluded.
   def get_requirements(self, type_name):
     valid_type_str = ', '.join(self.valid_types)
     result = [f'detail::is_marray_v<{type_name}>',
@@ -41,10 +55,14 @@ class Marray(TemplatedType):
     valid_sizes_set = frozenset(self.valid_sizes) if self.valid_sizes else None
     return hash(("marray", frozenset(self.valid_types), valid_sizes_set))
 
+# Represents a templated scalar type, i.e. a template type that can have any of
+# the specified scalar types.
 class TemplatedScalar(TemplatedType):
   def __init__(self, valid_types):
     super().__init__(valid_types, None)
 
+  # Gets the constexpr requirements of the scalar template type, which is only
+  # a requirement that the type is one of the types in valid_types.
   def get_requirements(self, type_name):
     valid_type_str = ', '.join(self.valid_types)
     return [f'detail::CheckTypeIn<{type_name}, {valid_type_str}>()']
@@ -52,6 +70,49 @@ class TemplatedScalar(TemplatedType):
   def __hash__(self):
     return hash(("scalar", frozenset(self.valid_types)))
 
+# A class representing a sycl::multi_ptr type.
+# element_type - The type pointed to by the multi_ptr.
+class MultiPtr:
+  def __init__(self, element_type):
+    self.element_type = element_type
+
+  def __str__(self):
+    return f'multi_ptr<{self.element_type}, Space, IsDecorated>'
+
+# A class representing a raw pointer type.
+# element_type - The type pointed to by the raw pointer.
+# TODO: Raw pointer variants kept for compatibility. They are deprecated and
+#       should be removed.
+class RawPtr:
+  def __init__(self, element_type):
+    self.element_type = element_type
+    self.deprecation_message = "SYCL builtin functions with raw pointer arguments have been deprecated. Please use multi_ptr."
+
+  def __str__(self):
+    return f'{self.element_type}*'
+
+# A class representing the special builtins type for using the element type of
+# another argument.
+# parent_idx - The index of the parent argument in the corresponding builtin.
+class ElementType:
+  def __init__(self, parent_idx):
+    self.parent_idx = parent_idx
+
+# A class representing the special cases where a utility trait is applied to
+# another argument type to get the corresponding type.
+# trait - The name of the trait to use for converting the type.
+# parent_idx - The index of the parent argument in the corresponding builtin.
+# NOTE: Traits are primarily defined in sycl/include/sycl/builtins_utils.hpp.
+class ConversionTraitType:
+  def __init__(self, trait, parent_idx):
+    self.trait = trait
+    self.parent_idx = parent_idx
+
+# A class representing an instantiated template argument, i.e. a template
+# argument with a given type and an assigned template name.
+# template_name - The name of the argument's type in the template function.
+# template_type - The associated type picked from the valid types in the builtin
+#   definition.
 class InstantiatedTemplatedArg:
   def __init__(self, template_name, templated_type):
     self.template_name = template_name
@@ -60,6 +121,11 @@ class InstantiatedTemplatedArg:
   def __str__(self):
     return self.template_name
 
+# A class representing an instantiated template return type, i.e. an association
+# between the return type of a builtin and a related template argument.
+# related_arg_type - The related template argument type.
+# template_type - The associated type picked from the valid types in the builtin
+#   definition.
 class InstantiatedTemplatedReturnType:
   def __init__(self, related_arg_type, templated_type):
     self.related_arg_type = related_arg_type
@@ -71,26 +137,10 @@ class InstantiatedTemplatedReturnType:
       return f'detail::get_vec_t<{self.related_arg_type}>'
     return str(self.related_arg_type)
 
-class MultiPtr:
-  def __init__(self, element_type):
-    self.element_type = element_type
-
-  def __str__(self):
-    return f'multi_ptr<{self.element_type}, Space, IsDecorated>'
-
-# TODO: Raw pointer variants kept for compatibility. They should be deprecated.
-class RawPtr:
-  def __init__(self, element_type):
-    self.element_type = element_type
-    self.deprecation_message = "SYCL builtin functions with raw pointer arguments have been deprecated. Please use multi_ptr."
-
-  def __str__(self):
-    return f'{self.element_type}*'
-
-class ElementType:
-  def __init__(self, parent_idx):
-    self.parent_idx = parent_idx
-
+# A class representing an instantiated version of ElementType containing the
+# referenced type.
+# referenced_type - The referenced type.
+# parent_idx - The index of the parent argument in the corresponding builtin.
 class InstantiatedElementType:
   def __init__(self, referenced_type, parent_idx):
     self.referenced_type = referenced_type
@@ -102,11 +152,11 @@ class InstantiatedElementType:
       return f'detail::get_elem_type_t<{self.referenced_type}>'
     return self.referenced_type
 
-class ConversionTraitType:
-  def __init__(self, trait, parent_idx):
-    self.trait = trait
-    self.parent_idx = parent_idx
-
+# A class representing an instantiated version of ConversionTraitType containing
+# the parent type.
+# parent_type - The parent type.
+# trait - The name of the trait to use for converting the type.
+# parent_idx - The index of the parent argument in the corresponding builtin.
 class InstantiatedConversionTraitType:
   def __init__(self, parent_type, trait, parent_idx):
     self.parent_type = parent_type
@@ -117,28 +167,22 @@ class InstantiatedConversionTraitType:
     return f'detail::{self.trait}<{self.parent_type}>'
 
 ### GENTYPE DEFINITIONS
-# NOTE: Marray is currently explicitly defined.
 
-floatn = [Vec(["float"])]
 vfloatn = [Vec(["float"])]
 vfloat3or4 = [Vec(["float"], {3,4})]
 mfloatn = [Marray(["float"])]
 mfloat3or4 = [Marray(["float"], {3,4})]
 genfloatf = ["float", Vec(["float"]), Marray(["float"])]
 
-doublen = [Vec(["double"])]
 vdoublen = [Vec(["double"])]
 vdouble3or4 = [Vec(["double"], {3,4})]
 mdoublen = [Marray(["double"])]
 mdouble3or4 = [Marray(["double"], {3,4})]
-genfloatd = ["double", Vec(["double"])]
 
-halfn = [Vec(["half"])]
 vhalfn = [Vec(["half"])]
 vhalf3or4 = [Vec(["half"], {3,4})]
 mhalfn = [Marray(["half"])]
 mhalf3or4 = [Marray(["half"], {3,4})]
-genfloath = ["half", Vec(["half"])]
 
 genfloat = ["float", "double", "half", Vec(["float", "double", "half"]),
             Marray(["float", "double", "half"])]
@@ -159,24 +203,18 @@ gengeohalf = ["half", Vec(["half"], {1,2,3,4}), Marray(["half"], {1,2,3,4})]
 vint8n = [Vec(["int8_t"])]
 vint16n = [Vec(["int16_t"])]
 vint32n = [Vec(["int32_t"])]
-vint64n = [Vec(["int64_t"])]
+vint64n = [Vec(["int64_t", "long long"])]
 vuint8n = [Vec(["uint8_t"])]
 vuint16n = [Vec(["uint16_t"])]
 vuint32n = [Vec(["uint32_t"])]
-vuint64n = [Vec(["uint64_t"])]
-vint64n_ext = [Vec(["int64_t", "long long"])]
-vuint64n_ext = [Vec(["uint64_t", "unsigned long long"])]
+vuint64n = [Vec(["uint64_t", "unsigned long long"])]
 
 mint8n = [Marray(["int8_t"])]
 mint16n = [Marray(["int16_t"])]
 mint32n = [Marray(["int32_t"])]
-mint64n = [Marray(["int64_t"])]
 muint8n = [Marray(["uint8_t"])]
 muint16n = [Marray(["uint16_t"])]
 muint32n = [Marray(["uint32_t"])]
-muint64n = [Marray(["uint64_t"])]
-mcharn = [Marray(["char"])]
-mshortn = [Marray(["short"])]
 mintn = [Marray(["int"])]
 mushortn = [Marray(["unsigned short"])]
 muintn = [Marray(["unsigned int"])]
@@ -191,9 +229,6 @@ geninteger = ["char", "signed char", "short", "int", "long", "long long",
               Marray(["char", "signed char", "short", "int", "long", "long long",
                       "unsigned char", "unsigned short", "unsigned int",
                       "unsigned long", "unsigned long long"])]
-mgeninteger = [Marray(["char", "signed char", "short", "int", "long", "long long",
-                       "unsigned char", "unsigned short", "unsigned int",
-                       "unsigned long", "unsigned long long"])]
 sigeninteger = ["char", "signed char", "short", "int", "long", "long long"]
 vigeninteger = [Vec(["int8_t", "int16_t", "int32_t", "int64_t", "long long"])] # long long non-standard. Deprecated.
 migeninteger = [Marray(["char", "signed char", "short", "int", "long", "long long"])]
@@ -202,9 +237,6 @@ igeninteger = ["char", "signed char", "short", "int", "long", "long long",
                 Marray(["char", "signed char", "short", "int", "long", "long long"])]
 vugeninteger = [Vec(["uint8_t", "uint16_t", "uint32_t", "uint64_t",
                      "unsigned char", "unsigned short", "unsigned int", "unsigned long", "unsigned long long"])] # Non-standard. Deprecated.
-mugeninteger = [Marray(["unsigned char", "unsigned short", "unsigned int", "unsigned long", "unsigned long long"])]
-sugeninteger = ["unsigned char", "unsigned short", "unsigned int",
-                "unsigned long", "unsigned long long"]
 ugeninteger = [Vec(["uint8_t", "uint16_t", "uint32_t", "uint64_t",
                     "unsigned char", "unsigned short", "unsigned int", "unsigned long", "unsigned long long"]), # Non-standard. Deprecated.
                Marray(["unsigned char", "unsigned short", "unsigned int", "unsigned long", "unsigned long long"]),
@@ -251,25 +283,21 @@ intelements0 = [ConversionTraitType("int_elements_t", 0)]
 boolelements0 = [ConversionTraitType("bool_elements_t", 0)]
 upsampledint0 = [ConversionTraitType("upsampled_int_t", 0)]
 
+# Map of builtin type group names and the associated types.
 builtin_types = {
-  "floatn" : floatn,
   "vfloatn" : vfloatn,
   "vfloat3or4" : vfloat3or4,
   "mfloatn" : mfloatn,
   "mfloat3or4" : mfloat3or4,
   "genfloatf" : genfloatf,
-  "doublen" : doublen,
   "vdoublen" : vdoublen,
   "vdouble3or4" : vdouble3or4,
   "mdoublen" : mdoublen,
   "mdouble3or4" : mdouble3or4,
-  "genfloatd" : genfloatd,
-  "halfn" : halfn,
   "vhalfn" : vhalfn,
   "vhalf3or4" : vhalf3or4,
   "mhalfn" : mhalfn,
   "mhalf3or4" : mhalf3or4,
-  "genfloath" : genfloath,
   "genfloat" : genfloat,
   "vgenfloat" : vgenfloat,
   "sgenfloat" : sgenfloat,
@@ -287,40 +315,30 @@ builtin_types = {
   "vint16n" : vint16n,
   "vint32n" : vint32n,
   "vint64n" : vint64n,
-  "vint64n_ext" : vint64n_ext,
   "vuint8n" : vuint8n,
   "vuint16n" : vuint16n,
   "vuint32n" : vuint32n,
   "vuint64n" : vuint64n,
-  "vuint64n_ext" : vuint64n_ext,
   "mint8n" : mint8n,
   "mint16n" : mint16n,
   "mint32n" : mint32n,
-  "mint64n" : mint64n,
   "muint8n" : muint8n,
   "muint16n" : muint16n,
   "muint32n" : muint32n,
-  "muint64n" : muint64n,
-  "mcharn" : mcharn,
-  "mshortn" : mshortn,
   "mintn" : mintn,
   "mushortn" : mushortn,
   "muintn" : muintn,
   "mulongn" : mulongn,
   "mbooln" : mbooln,
   "geninteger" : geninteger,
-  "mgeninteger" : mgeninteger,
   "sigeninteger" : sigeninteger,
   "vigeninteger" : vigeninteger,
   "migeninteger" : migeninteger,
   "igeninteger" : igeninteger,
-  "sugeninteger" : sugeninteger,
   "vugeninteger" : vugeninteger,
-  "mugeninteger" : mugeninteger,
   "ugeninteger" : ugeninteger,
   "igenint32" : igenint32,
   "ugenint32" : ugenint32,
-  "genint32" : genint32,
   "sgentype" : sgentype,
   "vgentype" : vgentype,
   "mgentype" : mgentype,
@@ -328,13 +346,7 @@ builtin_types = {
   "floatptr" : floatptr,
   "doubleptr" : doubleptr,
   "halfptr" : halfptr,
-  "vfloatnptr" : vfloatnptr,
-  "vdoublenptr" : vdoublenptr,
-  "vhalfnptr" : vhalfnptr,
   "vgenfloatptr" : vgenfloatptr,
-  "mfloatnptr" : mfloatnptr,
-  "mdoublenptr" : mdoublenptr,
-  "mhalfnptr" : mhalfnptr,
   "mgenfloatptr" : mgenfloatptr,
   "mintnptr" : mintnptr,
   "vint32nptr" : vint32ptr,
@@ -373,25 +385,33 @@ builtin_types = {
 
 ### BUILTINS
 
+# Finds the first templated argument in a type list.
 def find_first_template_arg(arg_types):
   for arg_type in arg_types:
     if isinstance(arg_type, InstantiatedTemplatedArg):
       return arg_type
   return None
 
+# Returns true if the argument type is a templated marray.
 def is_marray_arg(arg_type):
   return isinstance(arg_type, InstantiatedTemplatedArg) and isinstance(arg_type.templated_type, Marray)
 
+# Returns true if the argument type is a templated vector.
 def is_vec_arg(arg_type):
   return isinstance(arg_type, InstantiatedTemplatedArg) and isinstance(arg_type.templated_type, Vec)
 
-def convert_vec_arg_name(arg_type, arg_name):
+# Converts an argument name to a valid argument to be passed to another
+# function. For vector arguments this is done by converting the argument into
+# the associated vector type, needed for swizzles.
+def convert_arg_name(arg_type, arg_name):
   if is_vec_arg(arg_type):
-    return f'typename detail::get_vec_t<{arg_type}>({arg_name})'
+    return f'detail::get_vec_t<{arg_type}>({arg_name})'
   return arg_name
 
+# Gets the arguments to be used inside builtins when calling the implementation
+# invoke functions.
 def get_invoke_args(arg_types, arg_names, convert_args=[]):
-  result = list(map(convert_vec_arg_name, arg_types, arg_names))
+  result = list(map(convert_arg_name, arg_types, arg_names))
   for (arg_idx, type_conv) in convert_args:
     # type_conv is either an index or a conversion function/type.
     conv = type_conv if isinstance(type_conv, str) else arg_types[type_conv]
@@ -403,6 +423,22 @@ def get_invoke_args(arg_types, arg_names, convert_args=[]):
     result[arg_idx] = f'{conv}({result[arg_idx]})'
   return result
 
+# Common super class representing a builtin definition.
+# return_type - The name of the type group of the return type. Must match a key
+#   in builtin_types.
+# arg_types - The names of the type group of each argument in the builtin.
+# invoke_name - The implementation invoke function name associated with the
+#   builtin. For scalar and vector builtins this is prefixed by
+#   __sycl_std::__invoke_.
+# custom_invoke - A function object to be used for generating a custom body for
+#   the builtin.
+# size_alias - A name to use as an alias for the size associated with vector and
+#   marray arguments.
+# marray_use_loop - A bool specifying if marray builtins from this definition
+#   should use a loop-based implementation instead of the default vectorized
+#   implementation used when possible.
+# template_scalar_args - A bool specifying if the builtin should combine the
+#   scalar arguments into common template types.
 class DefCommon:
   def __init__(self, return_type, arg_types, invoke_name, invoke_prefix,
                custom_invoke, size_alias, marray_use_loop,
@@ -416,12 +452,19 @@ class DefCommon:
     self.marray_use_loop = marray_use_loop
     self.template_scalar_args = template_scalar_args
 
+  # Requires that a size alias is specified in the function boy. This returns
+  # the size alias name and any needed initialization of it. If the size alias
+  # hasn't been explicitly requested in the definition, one will be generated
+  # using the alternative_name.
   def require_size_alias(self, alternative_name, marray_type):
     if not self.size_alias:
       # If there isn't a size alias defined, we add one.
       return (alternative_name, f'  constexpr size_t {alternative_name} = detail::num_elements<{marray_type.template_name}>::value;\n')
     return (self.size_alias, '')
 
+  # Converts arguments in an marray loop builtin implementation to scalars.
+  # The variable I must be defined in the scope where the generated arguments
+  # are used and indicate the index of the used element.
   def convert_loop_arg(self, arg_type, arg_name):
     if isinstance(arg_type, MultiPtr):
       return f'address_space_cast<Space, IsDecorated, detail::get_elem_type_t<{arg_type.element_type}>>(&(*{arg_name})[I])'
@@ -429,7 +472,9 @@ class DefCommon:
       return str(arg_name) + '[I]'
     return str(arg_name)
 
-  def get_marray_loop_invoke_body(self, namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type):
+  # Generated the body of a loop-based implementation of marray builtins.
+  def get_marray_loop_invoke_body(self, namespaced_builtin_name, return_type,
+                                  arg_types, arg_names, first_marray_type):
     result = ""
     args = [self.convert_loop_arg(arg_type, arg_name) for arg_type, arg_name in zip(arg_types, arg_names)]
     joined_args = ', '.join(args)
@@ -440,7 +485,11 @@ class DefCommon:
     Res[I] = {namespaced_builtin_name}({joined_args});
   return Res;"""
 
-  def get_marray_vec_cast_invoke_body(self, namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type):
+  # Generates the body of a direct vector cast implementation for marray
+  # builtins.
+  def get_marray_vec_cast_invoke_body(self, namespaced_builtin_name,
+                                      return_type, arg_types, arg_names,
+                                      first_marray_type):
     result = ""
     vec_cast_args = [f'detail::to_vec({arg_name})' if is_marray_arg(arg_type) else str(arg_name) for arg_type, arg_name in zip(arg_types, arg_names)]
     joined_vec_cast_args = ', '.join(vec_cast_args)
@@ -450,7 +499,10 @@ class DefCommon:
       vec_call = f'detail::to_marray({vec_call})'
     return result + f'  return {vec_call};'
 
-  def get_marray_vectorized_invoke_body(self, namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type):
+  # Generates the body of a vectorized implementation for marray builtins.
+  def get_marray_vectorized_invoke_body(self, namespaced_builtin_name,
+                                        return_type, arg_types, arg_names,
+                                        first_marray_type):
     result = ""
     (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
     result = result + size_alias_init
@@ -472,7 +524,9 @@ class DefCommon:
     Res[{size_alias} - 1] = {namespaced_builtin_name}({joined_rem_args});
   return Res;"""
 
-  def get_marray_invoke_body(self, namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type):
+  # Generates the body of an marray builtin.
+  def get_marray_invoke_body(self, namespaced_builtin_name, return_type,
+                             arg_types, arg_names, first_marray_type):
     # If the associated marray types have restriction on their sizes, we assume
     # they can be converted directly to vector.
     if first_marray_type.templated_type.valid_sizes:
@@ -483,13 +537,17 @@ class DefCommon:
     # Otherwise, we vectorize the body.
     return self.get_marray_vectorized_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type)
 
-  def get_invoke_body(self, builtin_name, namespace, invoke_name, return_type, arg_types, arg_names):
+  # Generates the body of a builtin.
+  def get_invoke_body(self, builtin_name, namespace, invoke_name, return_type,
+                      arg_types, arg_names):
     for arg_type in arg_types:
       if is_marray_arg(arg_type):
         namespaced_builtin_name = f'{namespace}::{builtin_name}' if namespace else builtin_name
         return self.get_marray_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, arg_type)
     return self.get_scalar_vec_invoke_body(invoke_name, return_type, arg_types, arg_names)
 
+  # Generates the builtin defined by this instance, using the specific types and
+  # names.
   def get_invoke(self, builtin_name, namespace, return_type, arg_types, arg_names):
     if self.custom_invoke:
       return self.custom_invoke(return_type, arg_types, arg_names)
@@ -501,6 +559,12 @@ class DefCommon:
         result = result + f'  constexpr size_t {self.size_alias} = detail::num_elements<{template_arg.template_name}>::value;'
     return result + self.get_invoke_body(builtin_name, namespace, invoke_name, return_type, arg_types, arg_names)
 
+# A class representing a builtin definition.
+# fast_math_invoke_name - Similar to invoke_name, but will only be used for
+#   valid types when fast math is enabled.
+# convert_args - A list of either strings or tuples specifying how to convert
+#   arguments when calling the implementation invocation function.
+# NOTE: For additional members, see DefCommon.
 class Def(DefCommon):
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
@@ -517,6 +581,7 @@ class Def(DefCommon):
     # conversion function or type.
     self.convert_args = convert_args
 
+  # Generates the body of scalar and vector builtins.
   def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
     invoke_args = get_invoke_args(arg_types, arg_names, self.convert_args)
     result = ""
@@ -526,6 +591,8 @@ class Def(DefCommon):
   }}\n"""
     return result + f'  return __sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<{return_type}>({(", ".join(invoke_args))});'
 
+# A class representing a relational builtin definition.
+# NOTE: For members, see DefCommon.
 class RelDef(DefCommon):
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None,
@@ -535,33 +602,42 @@ class RelDef(DefCommon):
     super().__init__(return_type, arg_types, invoke_name, invoke_prefix,
                      custom_invoke, None, True, template_scalar_args)
 
+  # Generates the body of scalar and vector builtins.
   def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
     if self.custom_invoke:
       return self.custom_invoke(return_type, arg_types, arg_names)
     invoke_args = ', '.join(get_invoke_args(arg_types, arg_names))
     return f'  return detail::RelConverter<{return_type}>::apply(__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<detail::internal_rel_ret_t<{return_type}>>({invoke_args}));'
 
+# Generates the custom body for signed scalar `abs`.
 def custom_signed_abs_scalar_invoke(return_type, _, arg_names):
   args = ' ,'.join(arg_names)
   return f'return static_cast<{return_type}>(__sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}));'
 
+# Generates the custom body for signed vector `abs`.
 def custom_signed_abs_vec_invoke(return_type, arg_types, arg_names):
   args = ' ,'.join(get_invoke_args(arg_types, arg_names))
   return f'return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}).template convert<detail::get_elem_type_t<{return_type}>>();'
 
+# Creates a function for generating the custom body for either `any` or `all`
+# scalar and vector builtins.
 def get_custom_any_all_vec_invoke(invoke_name):
   return (lambda _, arg_types, arg_names: f"""  using VecT = detail::get_vec_t<{arg_types[0]}>;
   return detail::rel_sign_bit_test_ret_t<detail::get_vec_t<VecT>>(
       __sycl_std::__invoke_{invoke_name}<detail::rel_sign_bit_test_ret_t<VecT>>(
           detail::rel_sign_bit_test_arg_t<VecT>({get_invoke_args(arg_types, arg_names)[0]})));""")
 
+# Generates the custom body for `select` with the last argument being bool.
 def custom_bool_select_invoke(return_type, _, arg_names):
   return f"""  return __sycl_std::__invoke_select<{return_type}>(
       {arg_names[0]}, {arg_names[1]}, static_cast<detail::get_select_opencl_builtin_c_arg_type<{return_type}>>({arg_names[2]}));"""
 
+# Creates a function for generating the custom body for either `any` or `all`
+# marray builtins.
 def get_custom_any_all_marray_invoke(builtin):
   return (lambda _, arg_types, arg_names: f'  return std::{builtin}_of({arg_names[0]}.begin(), {arg_names[0]}.end(), [](detail::get_elem_type_t<{arg_types[0]}> X) {{ return {builtin}(X); }});')
 
+# List of all builtins definitions in the sycl namespace.
 sycl_builtins = {# Math functions
                  "acos": [Def("genfloat", ["genfloat"])],
                  "acosh": [Def("genfloat", ["genfloat"])],
@@ -642,7 +718,7 @@ sycl_builtins = {# Math functions
                  "nan": [Def("samesizefloat0", ["vuint32n"]),
                          Def("samesizefloat0", ["muintn"], marray_use_loop=True),
                          Def("samesizefloat0", ["unsigned int"]),
-                         Def("samesizefloat0", ["vuint64n_ext"]),
+                         Def("samesizefloat0", ["vuint64n"]),
                          Def("samesizefloat0", ["mulongn"], marray_use_loop=True),
                          Def("samesizefloat0", ["unsigned long"]),
                          Def("samesizefloat0", ["unsigned long long"]),
@@ -870,27 +946,28 @@ sycl_builtins = {# Math functions
                  "select": [Def("vint8n", ["vint8n", "vint8n", "vint8n"]),
                             Def("vint16n", ["vint16n", "vint16n", "vint16n"]),
                             Def("vint32n", ["vint32n", "vint32n", "vint32n"]),
-                            Def("vint64n_ext", ["vint64n_ext", "vint64n_ext", "vint64n_ext"]),
+                            Def("vint64n", ["vint64n", "vint64n", "vint64n"]),
                             Def("vuint8n", ["vuint8n", "vuint8n", "vint8n"]),
                             Def("vuint16n", ["vuint16n", "vuint16n", "vint16n"]),
                             Def("vuint32n", ["vuint32n", "vuint32n", "vint32n"]),
-                            Def("vuint64n_ext", ["vuint64n_ext", "vuint64n_ext", "vint64n_ext"]),
+                            Def("vuint64n", ["vuint64n", "vuint64n", "vint64n"]),
                             Def("vfloatn", ["vfloatn", "vfloatn", "vint32n"]),
-                            Def("vdoublen", ["vdoublen", "vdoublen", "vint64n_ext"]),
+                            Def("vdoublen", ["vdoublen", "vdoublen", "vint64n"]),
                             Def("vhalfn", ["vhalfn", "vhalfn", "vint16n"]),
                             Def("vint8n", ["vint8n", "vint8n", "vuint8n"]),
                             Def("vint16n", ["vint16n", "vint16n", "vuint16n"]),
                             Def("vint32n", ["vint32n", "vint32n", "vuint32n"]),
-                            Def("vint64n_ext", ["vint64n_ext", "vint64n_ext", "vuint64n_ext"]),
+                            Def("vint64n", ["vint64n", "vint64n", "vuint64n"]),
                             Def("vuint8n", ["vuint8n", "vuint8n", "vuint8n"]),
                             Def("vuint16n", ["vuint16n", "vuint16n", "vuint16n"]),
                             Def("vuint32n", ["vuint32n", "vuint32n", "vuint32n"]),
-                            Def("vuint64n_ext", ["vuint64n_ext", "vuint64n_ext", "vuint64n_ext"]),
+                            Def("vuint64n", ["vuint64n", "vuint64n", "vuint64n"]),
                             Def("vfloatn", ["vfloatn", "vfloatn", "vuint32n"]),
-                            Def("vdoublen", ["vdoublen", "vdoublen", "vuint64n_ext"]),
+                            Def("vdoublen", ["vdoublen", "vdoublen", "vuint64n"]),
                             Def("vhalfn", ["vhalfn", "vhalfn", "vuint16n"]),
                             Def("sgentype", ["sgentype", "sgentype", "bool"], custom_invoke=custom_bool_select_invoke),
                             Def("mgentype", ["mgentype", "mgentype", "mbooln"], marray_use_loop=True)]}
+# List of all builtins definitions in the sycl::native namespace.
 native_builtins = {"cos": [Def("genfloatf", ["genfloatf"], invoke_prefix="native_")],
                    "divide": [Def("genfloatf", ["genfloatf", "genfloatf"], invoke_prefix="native_")],
                    "exp": [Def("genfloatf", ["genfloatf"], invoke_prefix="native_")],
@@ -905,6 +982,7 @@ native_builtins = {"cos": [Def("genfloatf", ["genfloatf"], invoke_prefix="native
                    "sin": [Def("genfloatf", ["genfloatf"], invoke_prefix="native_")],
                    "sqrt": [Def("genfloatf", ["genfloatf"], invoke_prefix="native_")],
                    "tan": [Def("genfloatf", ["genfloatf"], invoke_prefix="native_")]}
+# List of all builtins definitions in the sycl::half_precision namespace.
 half_precision_builtins = {"cos": [Def("genfloatf", ["genfloatf"], invoke_prefix="half_")],
                            "divide": [Def("genfloatf", ["genfloatf", "genfloatf"], invoke_prefix="half_")],
                            "exp": [Def("genfloatf", ["genfloatf"], invoke_prefix="half_")],
@@ -920,12 +998,15 @@ half_precision_builtins = {"cos": [Def("genfloatf", ["genfloatf"], invoke_prefix
                            "sqrt": [Def("genfloatf", ["genfloatf"], invoke_prefix="half_")],
                            "tan": [Def("genfloatf", ["genfloatf"], invoke_prefix="half_")]}
 
+# All builtin definitions grouped by their namespace.
 builtins_groups = [(None, sycl_builtins),
                    ("native", native_builtins),
                    ("half_precision", half_precision_builtins)]
 
 ### GENERATION
 
+# Selects a type from a mapping. If the mapped type needs a parent-typem they
+# are instantiated with it here.
 def select_from_mapping(mappings, arg_types, arg_type):
   mapping = mappings[arg_type]
   # In some cases we may need to limit definitions to smaller than geninteger so
@@ -938,33 +1019,47 @@ def select_from_mapping(mappings, arg_types, arg_type):
     return InstantiatedConversionTraitType(parent_mapping, mapping.trait, mapping.parent_idx)
   return mapping
 
+# Instantiates an argument by its type.
 def instantiate_arg(idx, arg):
   if isinstance(arg, TemplatedType):
+    # Instantiate the template type by giving it a name based on its index.
     return InstantiatedTemplatedArg(f'T{idx}', arg)
   if isinstance(arg, MultiPtr):
+    # Instantiate the pointed-to type.
     return MultiPtr(instantiate_arg(idx, arg.element_type))
   if isinstance(arg, RawPtr):
+    # Instantiate the pointed-to type.
     return RawPtr(instantiate_arg(idx, arg.element_type))
   if isinstance(arg, InstantiatedElementType):
+    # Instantiate the referenced type.
     return InstantiatedElementType(instantiate_arg(arg.parent_idx, arg.referenced_type), arg.parent_idx)
   if isinstance(arg, InstantiatedConversionTraitType):
+    # Instantiate the parent type.
     return InstantiatedConversionTraitType(instantiate_arg(arg.parent_idx, arg.parent_type), arg.trait, arg.parent_idx)
   return arg
 
+# Instantiates a return type by its type.
 def instantiate_return_type(return_type, instantiated_args):
   if isinstance(return_type, TemplatedType):
+    # Instantiate the tempalte type by giving it the first template argument
+    # in the function.
     first_templated = find_first_template_arg(instantiated_args)
     return InstantiatedTemplatedReturnType(str(first_templated), return_type)
   if isinstance(return_type, MultiPtr):
+    # Instantiate the pointed-to type.
     return MultiPtr(instantiate_return_type(return_type.element_type, instantiated_args))
   if isinstance(return_type, RawPtr):
+    # Instantiate the pointed-to type.
     return RawPtr(instantiate_return_type(return_type.element_type, instantiated_args))
   if isinstance(return_type, InstantiatedElementType):
+    # Instantiate the referenced type.
     return InstantiatedElementType(instantiate_return_type(return_type.referenced_type, instantiated_args), return_type.parent_idx)
   if isinstance(return_type, InstantiatedConversionTraitType):
+    # Instantiate the parent type.
     return InstantiatedConversionTraitType(instantiate_return_type(return_type.parent_type, instantiated_args), return_type.trait, return_type.parent_idx)
   return return_type
 
+# Checks that the selected types form a valid combination.
 def is_valid_combination(return_type, arg_types):
   marray_arg_seen = False
   vec_arg_seen = False
@@ -981,6 +1076,8 @@ def is_valid_combination(return_type, arg_types):
   # 2. marray and raw pointers were never supported together and shouldn't be.
   return not (marray_arg_seen and (vec_arg_seen or raw_ptr_seen))
 
+# Converts the scalar arguments in the type list to a single templated scalar
+# type.
 def convert_scalars_to_templated(type_list):
   result = []
   scalars = []
@@ -993,6 +1090,8 @@ def convert_scalars_to_templated(type_list):
     result.append(TemplatedScalar(scalars))
   return result
 
+# Generates all return and argument type combinations for a given builtin
+# definition.
 def type_combinations(return_type, arg_types, template_scalars):
   unique_types = list(dict.fromkeys(arg_types + [return_type]))
   unique_type_lists = [builtin_types[unique_type] for unique_type in unique_types]
@@ -1010,6 +1109,7 @@ def type_combinations(return_type, arg_types, template_scalars):
       result.append((instantiated_return_type, instantiated_arg_types))
   return result
 
+# Returns all the unique template arguments in the argument type list.
 def get_all_template_args(arg_types):
   result = []
   for arg_type in arg_types:
@@ -1019,13 +1119,18 @@ def get_all_template_args(arg_types):
       result = result + get_all_template_args([arg_type.element_type])
   return result
 
+# Returns the conjunction of all requirements for the given argument.
 def get_arg_requirement(arg_type, arg_type_name):
   return '(' + (' && '.join(arg_type.get_requirements(arg_type_name))) + ')'
 
+# Returns the template requirement that all the template type names in the
+# given list have the same type.
 def get_all_same_type_requirement(template_names):
   template_name_args = ', '.join(template_names)
   return f'detail::CheckAllSameOpType<{template_name_args}>()'
 
+# Generates the function return type, including SFINAE if the generated builtin
+# has template arguments.
 def get_func_return(return_type, arg_types):
   temp_args = get_all_template_args(arg_types)
   if len(temp_args) > 0:
@@ -1046,15 +1151,20 @@ def get_func_return(return_type, arg_types):
     return f'std::enable_if_t<{conjunc_reqs}, {return_type}>'
   return str(return_type)
 
-def get_template_args(return_type, arg_types):
+# Gets a list of the template arguments for the given argument types. If there
+# are multi_ptr arguments the space and decoration is added to the end of the
+# template arguments.
+def get_template_args(arg_types):
   temp_args = get_all_template_args(arg_types)
   result = [f'typename {temp_arg.template_name}' for temp_arg in temp_args]
-  for t in ([return_type] + arg_types):
+  for t in arg_types:
     if isinstance(t, MultiPtr):
       result.append('access::address_space Space')
       result.append('access::decorated IsDecorated')
+      break
   return result
 
+# Gets the deprecation statement for a given builtin.
 def get_deprecation(builtin, return_type, arg_types):
   # TODO: Check builtin for deprecation message and prioritize that.
   for t in [return_type] + arg_types:
@@ -1062,8 +1172,10 @@ def get_deprecation(builtin, return_type, arg_types):
       return f'__SYCL_DEPRECATED("{t.deprecation_message}")\n'
   return ''
 
+# Get the prefix for a builtin function definitions. This can include `inline`,
+# the template definition, and any associated deprecation attribute.
 def get_func_prefix(builtin, return_type, arg_types):
-  template_args = get_template_args(return_type, arg_types)
+  template_args = get_template_args(arg_types)
   func_deprecation = get_deprecation(builtin, return_type, arg_types)
   result = ""
   if template_args:
@@ -1074,6 +1186,7 @@ def get_func_prefix(builtin, return_type, arg_types):
     result = result + "inline "
   return result
 
+# Generates a builtin function definition.
 def generate_builtin(builtin_name, namespace, builtin, return_type, arg_types):
   func_prefix = get_func_prefix(builtin, return_type, arg_types)
   func_return = get_func_return(return_type, arg_types)
@@ -1086,6 +1199,9 @@ def generate_builtin(builtin_name, namespace, builtin, return_type, arg_types):
 }}
 """
 
+# Generates all buitlins for the builtin definitions specified. Returns the
+# resulting builtin function definitions in three different lists: scalar,
+# vector and marray builtins.
 def generate_builtins(builtins, namespace):
   scalar_result = []
   vector_result = []
@@ -1104,6 +1220,7 @@ def generate_builtins(builtins, namespace):
           scalar_result.append(generated_builtin)
   return (scalar_result, vector_result, marray_result)
 
+# Generates a builtins header.
 def generate_file(directory, file_name, extra_includes, generated_builtins):
   instantiated_extra_includes = ('\n'.join([f'#include <{inc}>' for inc in extra_includes]))
 
@@ -1150,6 +1267,7 @@ if __name__ == "__main__":
   if len(sys.argv) != 2:
     raise ValueError("Invalid number of arguments! Must be given an output path.")
 
+  # Generate the builtins.
   scalar_builtins = []
   vector_builtins = []
   marray_builtins = []
@@ -1159,6 +1277,8 @@ if __name__ == "__main__":
     vector_builtins.append((namespace, vb))
     marray_builtins.append((namespace, mb))
 
+  # Write the builtins to new header files, separated by whether or not they
+  # are scalar, vector or marray builtins.
   file_path = sys.argv[1]
   generate_file(file_path, "builtins_scalar_gen.hpp", [], scalar_builtins)
   generate_file(file_path, "builtins_vector_gen.hpp", [], vector_builtins)
