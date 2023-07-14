@@ -224,7 +224,7 @@ params:
     - type: $x_native_handle_t
       name: hNativeContext
       desc: |
-            [in] the native handle of the context.
+            [in][nocheck] the native handle of the context.
     - type: uint32_t
       name: numDevices
       desc: "[in] number of devices associated with the context"

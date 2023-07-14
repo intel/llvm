@@ -201,7 +201,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 /// @brief Intercept function for urPlatformCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
-        hNativePlatform, ///< [in] the native handle of the platform.
+        hNativePlatform, ///< [in][nocheck] the native handle of the platform.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -215,10 +215,6 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativePlatform) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == phPlatform) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -556,8 +552,9 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urDeviceCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ///< [in] the native handle of the device.
-    ur_platform_handle_t hPlatform,   ///< [in] handle of the platform instance
+    ur_native_handle_t
+        hNativeDevice, ///< [in][nocheck] the native handle of the device.
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
     const ur_device_native_properties_t *
         pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
@@ -571,10 +568,6 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeDevice) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hPlatform) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -797,7 +790,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in] the native handle of the context.
+        hNativeContext,  ///< [in][nocheck] the native handle of the context.
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
         phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
@@ -814,10 +807,6 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeContext) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == phDevices) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -1113,8 +1102,9 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemBufferCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    ur_native_handle_t
+        hNativeMem, ///< [in][nocheck] the native handle to the memory.
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
     const ur_mem_native_properties_t *
         pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
@@ -1128,10 +1118,6 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -1150,8 +1136,9 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemImageCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    ur_native_handle_t
+        hNativeMem, ///< [in][nocheck] the native handle to the memory.
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification.
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description.
@@ -1168,10 +1155,6 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -1475,7 +1458,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
 /// @brief Intercept function for urSamplerCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeSampler,           ///< [in] the native handle of the sampler.
+        hNativeSampler, ///< [in][nocheck] the native handle of the sampler.
     ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_sampler_native_properties_t *
         pProperties, ///< [in][optional] pointer to native sampler properties struct.
@@ -1490,10 +1473,6 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeSampler) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -2698,7 +2677,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
 /// @brief Intercept function for urProgramCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeProgram,           ///< [in] the native handle of the program.
+        hNativeProgram, ///< [in][nocheck] the native handle of the program.
     ur_context_handle_t hContext, ///< [in] handle of the context instance
     const ur_program_native_properties_t *
         pProperties, ///< [in][optional] pointer to native program properties struct.
@@ -2713,10 +2692,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeProgram) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -3210,8 +3185,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
-    ur_context_handle_t hContext,     ///< [in] handle of the context object
+    ur_native_handle_t
+        hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_program_handle_t
         hProgram, ///< [in] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *
@@ -3227,10 +3203,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeKernel) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -3425,9 +3397,10 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue, ///< [in] the native handle of the queue.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
-    ur_device_handle_t hDevice,      ///< [in] handle of the device object
+    ur_native_handle_t
+        hNativeQueue, ///< [in][nocheck] the native handle of the queue.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_queue_native_properties_t *
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
@@ -3441,10 +3414,6 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeQueue) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -3709,8 +3678,9 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent, ///< [in] the native handle of the event.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
+    ur_native_handle_t
+        hNativeEvent, ///< [in][nocheck] the native handle of the event.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_event_native_properties_t *
         pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t
@@ -3724,10 +3694,6 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeEvent) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
