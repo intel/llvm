@@ -259,8 +259,8 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     MD.push_back(MDString::get(Ctx, "streaming"));
     if (getAttributeAsInteger<uint32_t>(Attr))
       MD.push_back(MDString::get(Ctx, "stall_free_return"));
-    return std::pair<std::string, MDNode *>(
-        "ip_interface", MDNode::get(Ctx, MD));
+    return std::pair<std::string, MDNode *>("ip_interface",
+                                            MDNode::get(Ctx, MD));
   }
 
   if (AttrKindStr == "sycl-register-map-interface") {
@@ -271,8 +271,8 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     MD.push_back(MDString::get(Ctx, "csr"));
     if (getAttributeAsInteger<uint32_t>(Attr))
       MD.push_back(MDString::get(Ctx, "wait_for_done_write"));
-    return std::pair<std::string, MDNode *>(
-        "ip_interface", MDNode::get(Ctx, MD));
+    return std::pair<std::string, MDNode *>("ip_interface",
+                                            MDNode::get(Ctx, MD));
   }
 
   if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
@@ -376,7 +376,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     if (isHostPipeVariable(GV)) {
       auto VarName = getGlobalVariableUniqueId(GV);
       MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
-                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE, 
+                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE,
                                               VarName));
     }
 

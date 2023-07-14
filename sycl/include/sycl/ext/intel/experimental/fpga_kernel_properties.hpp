@@ -50,7 +50,7 @@ struct pipelined_key {
 };
 
 template <streaming_interface_options_enum option =
-    streaming_interface_accept_downstream_stall>
+              streaming_interface_options_enum::accept_downstream_stall>
 inline constexpr streaming_interface_key::value_t<option> streaming_interface;
 
 inline constexpr streaming_interface_key::value_t<
@@ -62,7 +62,7 @@ inline constexpr streaming_interface_key::value_t<
     streaming_interface_remove_downstream_stall;
 
 template <register_map_interface_options_enum option =
-    register_map_interface_options_enum::do_not_wait_for_done_write>
+              register_map_interface_options_enum::do_not_wait_for_done_write>
 inline constexpr register_map_interface_key::value_t<option>
     register_map_interface;
 
