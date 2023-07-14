@@ -1877,4 +1877,52 @@ float __devicelib_imf_fadd_rd(float, float);
 
 DEVICE_EXTERN_C_INLINE
 float __imf_fadd_rd(float x, float y) { return __devicelib_imf_fadd_rd(x, y); }
+
+DEVICE_EXTERN_C
+float __devicelib_imf_fdiv_rz(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fdiv_rz(float x, float y) { return __devicelib_imf_fdiv_rz(x, y); }
+
+DEVICE_EXTERN_C
+float __devicelib_imf_fdiv_rn(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fdiv_rn(float x, float y) { return __devicelib_imf_fdiv_rn(x, y); }
+
+DEVICE_EXTERN_C
+float __devicelib_imf_fdiv_ru(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fdiv_ru(float x, float y) { return __devicelib_imf_fdiv_ru(x, y); }
+
+DEVICE_EXTERN_C
+float __devicelib_imf_fdiv_rd(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fdiv_rd(float x, float y) { return __devicelib_imf_fdiv_rd(x, y); }
+
+DEVICE_EXTERN_C
+float __devicelib_imf_frcp_rz(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_frcp_rz(float x) { return __devicelib_imf_frcp_rz(x); }
+
+DEVICE_EXTERN_C
+float __devicelib_imf_frcp_rn(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_frcp_rn(float x) { return __devicelib_imf_frcp_rn(x); }
+
+DEVICE_EXTERN_C
+float __devicelib_imf_frcp_ru(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_frcp_ru(float x) { return __devicelib_imf_frcp_ru(x); }
+
+DEVICE_EXTERN_C
+float __devicelib_imf_frcp_rd(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_frcp_rd(float x) { return __devicelib_imf_frcp_rd(x); }
 #endif // __LIBDEVICE_IMF_ENABLED__
