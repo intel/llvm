@@ -96,8 +96,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                                  : std::unique_lock<std::mutex>();
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};
@@ -159,8 +158,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                                  : std::unique_lock<std::mutex>();
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};
@@ -202,8 +200,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                                  : std::unique_lock<std::mutex>();
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};
@@ -247,8 +244,7 @@ event queue_impl::memcpyToDeviceGlobal(
                                  : std::unique_lock<std::mutex>();
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};
@@ -293,8 +289,7 @@ event queue_impl::memcpyFromDeviceGlobal(
                                  : std::unique_lock<std::mutex>();
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};

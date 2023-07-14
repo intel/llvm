@@ -978,15 +978,6 @@ inline pi_result mock_piEnqueueKernelLaunch(
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piEnqueueNativeKernel(
-    pi_queue queue, void (*user_func)(void *), void *args, size_t cb_args,
-    pi_uint32 num_mem_objects, const pi_mem *mem_list,
-    const void **args_mem_loc, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
-  return PI_SUCCESS;
-}
-
 inline pi_result mock_piEnqueueEventsWait(pi_queue command_queue,
                                           pi_uint32 num_events_in_wait_list,
                                           const pi_event *event_wait_list,
@@ -1435,5 +1426,27 @@ inline pi_result mock_piextEnqueueWriteHostPipe(
     pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
     const pi_event *events_waitlist, pi_event *event) {
   *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnablePeerAccess(pi_device command_device,
+                                            pi_device peer_device) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextDisablePeerAccess(pi_device command_device,
+                                             pi_device peer_device) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextPeerAccessGetInfo(pi_device command_device, pi_device peer_device,
+                            pi_peer_attr attr, size_t param_value_size,
+                            void *param_value, size_t *param_value_size_ret) {
+  if (param_value)
+    *static_cast<pi_int32 *>(param_value) = 1;
+  if (param_value_size_ret)
+    *param_value_size_ret = sizeof(pi_int32);
+
   return PI_SUCCESS;
 }

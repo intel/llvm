@@ -583,7 +583,7 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
     bool UseCopyEngine, bool AllowBatching,
     ze_command_queue_handle_t *ForcedCmdQueue) {
   // Immediate commandlists have been pre-allocated and are always available.
-  if (Queue->Device->ImmCommandListUsed) {
+  if (Queue->UsingImmCmdLists) {
     CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
     if (CommandList->second.EventList.size() >
         ImmCmdListsEventCleanupThreshold) {

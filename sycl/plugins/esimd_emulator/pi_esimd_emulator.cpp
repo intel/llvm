@@ -1925,12 +1925,6 @@ pi_result piextKernelGetNativeHandle(pi_kernel, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
-                                pi_uint32, const pi_mem *, const void **,
-                                pi_uint32, const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piextGetDeviceFunctionPointer(pi_device, pi_program, const char *,
                                         pi_uint64 *) {
   DIE_NO_IMPLEMENTATION;
@@ -2251,6 +2245,43 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #include <sycl/detail/pi.def>
 
   return PI_SUCCESS;
+}
+
+pi_result piextEnablePeerAccess(pi_device command_device,
+                                pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextEnablePeerAccess not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result piextDisablePeerAccess(pi_device command_device,
+                                 pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextDisablePeerAccess not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result piextPeerAccessGetInfo(pi_device command_device,
+                                 pi_device peer_device, pi_peer_attr attr,
+                                 size_t ParamValueSize, void *ParamValue,
+                                 size_t *ParamValueSizeRet) {
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
+
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  // Zero return value indicates that all of the queries currently return false.
+  return ReturnValue(pi_int32{0});
 }
 
 pi_result piextMemUnsampledImageHandleDestroy(pi_context, pi_device,

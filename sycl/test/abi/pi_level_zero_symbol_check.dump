@@ -32,7 +32,6 @@ piEnqueueMemImageFill
 piEnqueueMemImageRead
 piEnqueueMemImageWrite
 piEnqueueMemUnmap
-piEnqueueNativeKernel
 piEventCreate
 piEventGetInfo
 piEventGetProfilingInfo
@@ -103,6 +102,8 @@ piextDestroyExternalSemaphore
 piextDeviceCreateWithNativeHandle
 piextDeviceGetNativeHandle
 piextDeviceSelectBinary
+piextDisablePeerAccess
+piextEnablePeerAccess
 piextEnqueueCommandBuffer
 piextEnqueueReadHostPipe
 piextEnqueueWriteHostPipe
@@ -120,6 +121,7 @@ piextMemGetNativeHandle
 piextMemImageAllocate
 piextMemImageCopy
 piextMemImageCreateWithNativeHandle
+piextPeerAccessGetInfo
 piextMemImageFree
 piextMemImageGetInfo
 piextMemImportOpaqueFD

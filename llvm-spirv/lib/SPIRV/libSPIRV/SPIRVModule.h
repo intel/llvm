@@ -203,6 +203,14 @@ public:
                        SPIRVWord Column) = 0;
   virtual const std::shared_ptr<const SPIRVLine> &getCurrentLine() const = 0;
   virtual void setCurrentLine(const std::shared_ptr<const SPIRVLine> &) = 0;
+  virtual void addDebugLine(SPIRVEntry *E, SPIRVType *TheType,
+                            SPIRVId FileNameId, SPIRVWord LineStart,
+                            SPIRVWord LineEnd, SPIRVWord ColumnStart,
+                            SPIRVWord ColumnEnd) = 0;
+  virtual const std::shared_ptr<const SPIRVExtInst> &
+  getCurrentDebugLine() const = 0;
+  virtual void
+  setCurrentDebugLine(const std::shared_ptr<const SPIRVExtInst> &) = 0;
   virtual const SPIRVDecorateGeneric *addDecorate(SPIRVDecorateGeneric *) = 0;
   virtual SPIRVDecorationGroup *addDecorationGroup() = 0;
   virtual SPIRVDecorationGroup *
@@ -310,6 +318,8 @@ public:
                                        const std::vector<SPIRVValue *> &,
                                        SPIRVBasicBlock *,
                                        SPIRVInstruction * = nullptr) = 0;
+  virtual SPIRVEntry *createDebugInfo(SPIRVWord, SPIRVType *,
+                                      const std::vector<SPIRVWord> &) = 0;
   virtual SPIRVEntry *addDebugInfo(SPIRVWord, SPIRVType *,
                                    const std::vector<SPIRVWord> &) = 0;
   virtual SPIRVEntry *addAuxData(SPIRVWord, SPIRVType *,

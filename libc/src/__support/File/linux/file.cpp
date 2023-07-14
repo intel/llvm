@@ -24,7 +24,6 @@ FileIOResult write_func(File *, const void *, size_t);
 FileIOResult read_func(File *, void *, size_t);
 ErrorOr<long> seek_func(File *, long, int);
 int close_func(File *);
-int flush_func(File *);
 
 } // anonymous namespace
 
@@ -34,9 +33,8 @@ class LinuxFile : public File {
 public:
   constexpr LinuxFile(int file_descriptor, uint8_t *buffer, size_t buffer_size,
                       int buffer_mode, bool owned, File::ModeFlags modeflags)
-      : File(&write_func, &read_func, &seek_func, &close_func, flush_func,
-             &cleanup_file<LinuxFile>, buffer, buffer_size, buffer_mode, owned,
-             modeflags),
+      : File(&write_func, &read_func, &seek_func, &close_func, buffer,
+             buffer_size, buffer_mode, owned, modeflags),
         fd(file_descriptor) {}
 
   int get_fd() const { return fd; }
@@ -88,15 +86,7 @@ int close_func(File *f) {
   if (ret < 0) {
     return -ret;
   }
-  return 0;
-}
-
-int flush_func(File *f) {
-  auto *lf = reinterpret_cast<LinuxFile *>(f);
-  int ret = __llvm_libc::syscall_impl(SYS_fsync, lf->get_fd());
-  if (ret < 0) {
-    return -ret;
-  }
+  delete lf;
   return 0;
 }
 
@@ -183,3 +173,10 @@ static LinuxFile StdErr(2, nullptr, STDERR_BUFFER_SIZE, _IONBF, false,
 File *stderr = &StdErr;
 
 } // namespace __llvm_libc
+
+// Provide the external defintitions of the standard IO streams.
+extern "C" {
+FILE *stdin = reinterpret_cast<FILE *>(&__llvm_libc::StdIn);
+FILE *stderr = reinterpret_cast<FILE *>(&__llvm_libc::StdErr);
+FILE *stdout = reinterpret_cast<FILE *>(&__llvm_libc::StdOut);
+}
