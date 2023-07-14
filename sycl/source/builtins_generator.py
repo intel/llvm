@@ -479,7 +479,7 @@ class DefCommon:
     args = [self.convert_loop_arg(arg_type, arg_name) for arg_type, arg_name in zip(arg_types, arg_names)]
     joined_args = ', '.join(args)
     (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
-    result = result + size_alias_init
+    result += size_alias_init
     return result + f"""  {return_type} Res;
   for (int I = 0; I < {size_alias}; ++I)
     Res[I] = {namespaced_builtin_name}({joined_args});
@@ -505,7 +505,7 @@ class DefCommon:
                                         first_marray_type):
     result = ""
     (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
-    result = result + size_alias_init
+    result += size_alias_init
     # Adjust arguments for partial results and the remaining work at the end.
     imm_args = []
     rem_args = []
@@ -556,7 +556,7 @@ class DefCommon:
     if self.size_alias:
       template_arg = find_first_template_arg(arg_types)
       if template_arg:
-        result = result + f'  constexpr size_t {self.size_alias} = detail::num_elements<{template_arg.template_name}>::value;'
+        result += f'  constexpr size_t {self.size_alias} = detail::num_elements<{template_arg.template_name}>::value;'
     return result + self.get_invoke_body(builtin_name, namespace, invoke_name, return_type, arg_types, arg_names)
 
 # A class representing a builtin definition.
@@ -586,7 +586,7 @@ class Def(DefCommon):
     invoke_args = get_invoke_args(arg_types, arg_names, self.convert_args)
     result = ""
     if self.fast_math_invoke_name:
-      result = result + f"""  if constexpr (detail::use_fast_math_v<{arg_types[0]}>) {{
+      result += f"""  if constexpr (detail::use_fast_math_v<{arg_types[0]}>) {{
     return __sycl_std::__invoke_{self.fast_math_invoke_name}<{return_type}>({(", ".join(invoke_args))});
   }}\n"""
     return result + f'  return __sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<{return_type}>({(", ".join(invoke_args))});'
@@ -1116,7 +1116,7 @@ def get_all_template_args(arg_types):
     if isinstance(arg_type, InstantiatedTemplatedArg):
       result.append(arg_type)
     if isinstance(arg_type, MultiPtr) or isinstance(arg_type, RawPtr):
-      result = result + get_all_template_args([arg_type.element_type])
+      result += get_all_template_args([arg_type.element_type])
   return result
 
 # Returns the conjunction of all requirements for the given argument.
@@ -1179,11 +1179,11 @@ def get_func_prefix(builtin, return_type, arg_types):
   func_deprecation = get_deprecation(builtin, return_type, arg_types)
   result = ""
   if template_args:
-    result = result + "template <%s>\n" % (', '.join(template_args))
+    result += "template <%s>\n" % (', '.join(template_args))
   if func_deprecation:
-    result = result + func_deprecation
+    result += func_deprecation
   if not template_args:
-    result = result + "inline "
+    result += "inline "
   return result
 
 # Generates a builtin function definition.
