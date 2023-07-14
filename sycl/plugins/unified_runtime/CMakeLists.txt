@@ -186,6 +186,8 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/ur.cpp"
       "ur/usm_allocator.cpp"
       "ur/usm_allocator.hpp"
+      "ur/adapters/hip/adapter.cpp"
+      "ur/adapters/hip/adapter.hpp"
       "ur/adapters/hip/common.cpp"
       "ur/adapters/hip/common.hpp"
       "ur/adapters/hip/context.cpp"
