@@ -45,6 +45,7 @@ function(add_conformance_test_with_platform_environment name)
 endfunction()
 
 add_subdirectory(testing)
+add_subdirectory(adapters)
 
 add_subdirectory(platform)
 add_subdirectory(device)
