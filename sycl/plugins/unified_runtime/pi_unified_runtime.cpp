@@ -722,16 +722,6 @@ __SYCL_EXPORT pi_result piMemRelease(pi_mem Mem) {
   return pi2ur::piMemRelease(Mem);
 }
 
-__SYCL_EXPORT pi_result piEnqueueNativeKernel(
-    pi_queue Queue, void (*UserFunc)(void *), void *Args, size_t CbArgs,
-    pi_uint32 NumMemObjects, const pi_mem *MemList, const void **ArgsMemLoc,
-    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event) {
-  return pi2ur::piEnqueueNativeKernel(
-      Queue, UserFunc, Args, CbArgs, NumMemObjects, MemList, ArgsMemLoc,
-      NumEventsInWaitList, EventWaitList, Event);
-}
-
 __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
     pi_device Device, pi_program Program, const char *FunctionName,
     pi_uint64 *FunctionPointerRet) {
@@ -1252,7 +1242,6 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piEnqueueMemBufferRead)
   _PI_API(piEnqueueEventsWaitWithBarrier)
   _PI_API(piEnqueueEventsWait)
-  _PI_API(piEnqueueNativeKernel)
   _PI_API(piEnqueueMemImageFill)
 
   _PI_API(piEventSetCallback)

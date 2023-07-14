@@ -483,6 +483,23 @@ public:
       }
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH;
     }
+    // Track that submission modes do not conflict.
+    bool SubmissionSeen = false;
+    if (PropList.has_property<
+            ext::intel::property::queue::no_immediate_command_list>()) {
+      SubmissionSeen = true;
+      CreationFlags |= PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE;
+    }
+    if (PropList.has_property<
+            ext::intel::property::queue::immediate_command_list>()) {
+      if (SubmissionSeen) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue cannot be constructed with different submission modes.");
+      }
+      SubmissionSeen = true;
+      CreationFlags |= PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+    }
     return CreationFlags;
   }
 

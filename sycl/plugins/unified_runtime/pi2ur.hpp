@@ -291,7 +291,7 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
       case UR_PLATFORM_BACKEND_CUDA:
         return PI_EXT_PLATFORM_BACKEND_CUDA;
       case UR_PLATFORM_BACKEND_HIP:
-        return PI_EXT_PLATFORM_BACKEND_CUDA;
+        return PI_EXT_PLATFORM_BACKEND_HIP;
       default:
         die("UR_PLATFORM_INFO_BACKEND: unhandled value");
       }
@@ -1455,7 +1455,9 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
                 PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
                 PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS |
                 PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW |
-                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)),
+                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH |
+                PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE |
+                PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -1482,6 +1484,10 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
     UrProperties.flags |= UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
   if (Properties[1] & __SYCL_PI_CUDA_USE_DEFAULT_STREAM)
     UrProperties.flags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
+  if (Properties[1] & PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE)
+    UrProperties.flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+  if (Properties[1] & PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE)
+    UrProperties.flags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
 
   ur_queue_index_properties_t IndexProperties{};
   IndexProperties.stype = UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES;
@@ -1961,28 +1967,6 @@ piEnqueueMemImageFill(pi_queue Queue, pi_mem Image, const void *FillColor,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   die("piEnqueueMemImageFill: not implemented");
-  return PI_SUCCESS;
-}
-
-inline pi_result
-piEnqueueNativeKernel(pi_queue Queue, void (*UserFunc)(void *), void *Args,
-                      size_t CbArgs, pi_uint32 NumMemObjects,
-                      const pi_mem *MemList, const void **ArgsMemLoc,
-                      pi_uint32 NumEventsInWaitList,
-                      const pi_event *EventsWaitList, pi_event *Event) {
-  std::ignore = UserFunc;
-  std::ignore = Args;
-  std::ignore = CbArgs;
-  std::ignore = NumMemObjects;
-  std::ignore = MemList;
-  std::ignore = ArgsMemLoc;
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventsWaitList;
-  std::ignore = Event;
-
-  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-
-  die("piEnqueueNativeKernel: not implemented");
   return PI_SUCCESS;
 }
 
