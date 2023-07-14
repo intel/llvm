@@ -2585,7 +2585,6 @@ def fno_global_isel : Flag<["-"], "fno-global-isel">, Group<f_clang_Group>,
 def fno_experimental_isel : Flag<["-"], "fno-experimental-isel">, Group<f_clang_Group>,
   Alias<fno_global_isel>;
 def faltmathlib : Joined<["-"], "faltmathlib=">, Group<f_Group>, Flags<[CC1Option]>,
-    HelpText<"Use the given alternate math library">,
     Values<"SVMLAltMathLibrary,TestAltMathLibrary,none">,
     NormalizedValuesScope<"CodeGenOptions">,
     NormalizedValues<["SVMLAltMathLibrary", "TestAltMathLibrary","NoAltMathLibrary"]>,
