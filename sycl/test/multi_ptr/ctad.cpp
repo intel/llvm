@@ -47,9 +47,10 @@ int main() {
                       sycl::access::decorated::no>;
   using globlConstMPtr = sycl::multi_ptr<const int, address_space::global_space,
                                          sycl::access::decorated::no>;
-  using constMPtr = sycl::multi_ptr<int, address_space::constant_space,
+  using constMPtr = sycl::multi_ptr<const int, address_space::constant_space,
                                     sycl::access::decorated::legacy>;
-  using constDefaultMPtr = sycl::multi_ptr<int, address_space::constant_space>;
+  using constDefaultMPtr =
+      sycl::multi_ptr<const int, address_space::constant_space>;
   using localMPtr = sycl::multi_ptr<int, address_space::local_space,
                                     sycl::access::decorated::no>;
   using legacyMPtr = sycl::multi_ptr<int, address_space::global_space,

@@ -1324,30 +1324,30 @@ private:
 #ifdef __cpp_deduction_guides
 template <class T, int dimensions, access::placeholder isPlaceholder,
           typename PropertyListT>
-multi_ptr(accessor<T, dimensions, access::mode::read, access::target::device,
+multi_ptr(accessor<T, dimensions, access::mode::read, target::device,
                    isPlaceholder, PropertyListT>)
     -> multi_ptr<const T, access::address_space::global_space,
                  access::decorated::no>;
 template <class T, int dimensions, access::placeholder isPlaceholder,
           typename PropertyListT>
-multi_ptr(accessor<T, dimensions, access::mode::write, access::target::device,
+multi_ptr(accessor<T, dimensions, access::mode::write, target::device,
                    isPlaceholder, PropertyListT>)
     -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
 template <class T, int dimensions, access::placeholder isPlaceholder,
           typename PropertyListT>
-multi_ptr(accessor<T, dimensions, access::mode::read_write,
-                   access::target::device, isPlaceholder, PropertyListT>)
-    -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
-template <class T, int dimensions, access::mode Mode,
-          access::placeholder isPlaceholder, typename PropertyListT>
-multi_ptr(accessor<T, dimensions, Mode, access::target::constant_buffer,
+multi_ptr(accessor<T, dimensions, access::mode::read_write, target::device,
                    isPlaceholder, PropertyListT>)
-    -> multi_ptr<T, access::address_space::constant_space,
-                 access::decorated::no>;
+    -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
+template <class T, int dimensions, access::placeholder isPlaceholder,
+          typename PropertyListT>
+multi_ptr(accessor<T, dimensions, access_mode::read, target::constant_buffer,
+                   isPlaceholder, PropertyListT>)
+    -> multi_ptr<const T, access::address_space::constant_space,
+                 access::decorated::legacy>;
 template <class T, int dimensions, access::mode Mode,
           access::placeholder isPlaceholder, typename PropertyListT>
-multi_ptr(accessor<T, dimensions, Mode, access::target::local, isPlaceholder,
-                   PropertyListT>)
+multi_ptr(
+    accessor<T, dimensions, Mode, target::local, isPlaceholder, PropertyListT>)
     -> multi_ptr<T, access::address_space::local_space, access::decorated::no>;
 template <typename T, int dimensions>
 multi_ptr(local_accessor<T, dimensions>)
