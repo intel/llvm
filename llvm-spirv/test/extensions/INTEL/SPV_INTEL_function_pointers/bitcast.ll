@@ -4,20 +4,23 @@
 ; }
 ; void bar() {
 ;    int (*fun_ptr)(int) = &foo;
+;    fun_ptr(0);
 ; }
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: TypeFunction [[#FOO_TY:]] [[#]] [[#]]
-; CHECK-SPIRV: TypeFunction [[#DEST_TY:]] [[#]] [[#]]
-; CHECK-SPIRV: TypePointer [[#DEST_TY_PTR:]] [[#]] [[#DEST_TY]]
-; CHECK-SPIRV: TypePointer [[#FOO_TY_PTR:]] [[#]] [[#FOO_TY]]
+; CHECK-SPIRV-DAG: TypeInt [[#I8:]] 8
+; CHECK-SPIRV-DAG: TypeInt [[#I32:]] 32
+; CHECK-SPIRV-DAG: TypeFunction [[#FOO_TY:]] [[#I8]] [[#I8]]
+; CHECK-SPIRV-DAG: TypeFunction [[#DEST_TY:]] [[#I32]] [[#I32]]
+; CHECK-SPIRV-DAG: TypePointer [[#DEST_TY_PTR:]] [[#]] [[#DEST_TY]]
+; CHECK-SPIRV-DAG: TypePointer [[#FOO_TY_PTR:]] [[#]] [[#FOO_TY]]
 ; CHECK-SPIRV: ConstantFunctionPointerINTEL [[#FOO_TY_PTR]] [[#FOO_PTR:]] [[#FOO:]]
 ; CHECK-SPIRV: Function [[#]] [[#FOO]] [[#]] [[#FOO_TY]]
 
@@ -37,8 +40,8 @@ define dso_local spir_func signext i8 @foo(i8 signext %0) #0 {
 
 ; Function Attrs: noinline nounwind optnone
 define dso_local spir_func void @bar() #0 {
-  %1 = alloca i32 (i32)*, align 4
-  store i32 (i32)* bitcast (i8 (i8)* @foo to i32 (i32)*), i32 (i32)** %1, align 4
+  %1 = bitcast i8 (i8)* @foo to i32 (i32)*
+  %2 = call i32 %1(i32 0)
   ret void
 }
 

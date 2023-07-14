@@ -1919,12 +1919,6 @@ pi_result piextKernelGetNativeHandle(pi_kernel, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
-                                pi_uint32, const pi_mem *, const void **,
-                                pi_uint32, const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piextGetDeviceFunctionPointer(pi_device, pi_program, const char *,
                                         pi_uint64 *) {
   DIE_NO_IMPLEMENTATION;
