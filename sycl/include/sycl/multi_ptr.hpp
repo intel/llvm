@@ -210,7 +210,11 @@ public:
   multi_ptr(
       local_accessor<typename std::remove_const_t<RelayElementType>, Dimensions>
           Accessor)
-      : multi_ptr(Accessor.get_pointer().get()) {}
+      // Not having get_decorated() results in facing issue represented in
+      // https://github.com/intel/llvm/issues/9745.
+      // TODO: would be good to simplify it in future without facing above issue
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Assignment and access operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -466,7 +470,8 @@ public:
       typename = typename std::enable_if_t<
           RelaySpace == Space && Space == access::address_space::local_space>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.get_pointer().get()) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -593,7 +598,8 @@ public:
       typename = typename std::enable_if_t<
           RelaySpace == Space && Space == access::address_space::local_space>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.get_pointer().get()) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
