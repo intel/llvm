@@ -1,10 +1,12 @@
 name: Experiment with Linux GEN12 runners
-run-name: Linux GEN12 ${{ inputs.lit_filter }} on ${{ inputs.devices }}
+run-name: Linux GEN12 ${{ inputs.lit_filter }} / no ${{ inputs.lit_filter_out}} on ${{ inputs.devices }}
 
 on:
   workflow_dispatch:
     inputs:
       lit_filter:
+        required: false
+      lit_filter_out:
         required: false
       devices:
         default: 'ext_oneapi_level_zero:gpu'
@@ -20,4 +22,4 @@ jobs:
       target_devices: ${{ inputs.devices }}
       ref: ${{ github.sha }}
 
-      env: '{"LIT_FILTER":"${{ inputs.lit_filter }}"}'
+      env: '{"LIT_FILTER":"${{ inputs.lit_filter }}","LIT_FILTER_OUT":"${{ inputs.lit_filter_out }}"}'
