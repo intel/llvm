@@ -5572,6 +5572,10 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
     // PushDeclContext because we don't have a scope.
     Sema::ContextRAII savedContext(*this, Function);
 
+    FPFeaturesStateRAII SavedFPFeatures(*this);
+    CurFPFeatures = FPOptions(getLangOpts());
+    FpPragmaStack.CurrentValue = FPOptionsOverride();
+
     if (addInstantiatedParametersToScope(Function, PatternDecl, Scope,
                                          TemplateArgs))
       return;
