@@ -148,8 +148,9 @@ public:
                 RelaySpace == Space &&
                 (Space == access::address_space::generic_space ||
                  Space == access::address_space::local_space)>>
-  __SYCL2020_DEPRECATED("multi_ptr construction using target::local specialized "
-                        "accessor is deprecated since SYCL 2020")
+  __SYCL2020_DEPRECATED(
+      "multi_ptr construction using target::local specialized "
+      "accessor is deprecated since SYCL 2020")
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::local,
                      isPlaceholder, PropertyListT>
                 Accessor)
@@ -470,8 +471,9 @@ public:
       access::address_space RelaySpace = Space,
       typename = typename std::enable_if_t<
           RelaySpace == Space && Space == access::address_space::local_space>>
-  __SYCL2020_DEPRECATED("multi_ptr construction using target::local specialized "
-                        "accessor is deprecated since SYCL 2020")
+  __SYCL2020_DEPRECATED(
+      "multi_ptr construction using target::local specialized "
+      "accessor is deprecated since SYCL 2020")
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::local,
                      isPlaceholder, PropertyListT>
                 Accessor)
