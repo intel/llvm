@@ -29,7 +29,7 @@ int main() {
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name(ptr noundef byval(%struct.NontriviallyCopyable)
 // CHECK-NOT: define {{.*}}spir_func void @{{.*}}device_func{{.*}}({{.*}}byval(%struct.NontriviallyCopyable)
-// CHECK: define dso_local spir_func void @_Z11device_func20NontriviallyCopyable(ptr noundef %X)
+// CHECK: define {{.*}}spir_func void @_Z11device_func20NontriviallyCopyable(ptr noundef %X)
 // CHECK: %X.indirect_addr = alloca ptr addrspace(4)
 // CHECK: %X.indirect_addr.ascast = addrspacecast ptr %X.indirect_addr to ptr addrspace(4)
 // CHECK: %X.ascast = addrspacecast ptr %X to ptr addrspace(4)

@@ -175,7 +175,7 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]
     // CHECK-NOT: !scheduler_target_fmax_mhz
     // CHECK-SAME: {
-    // CHECK: define dso_local spir_func void @_Z3foov()
+    // CHECK: define {{.*}}spir_func void @_Z3foov()
     h.single_task<class kernel_name4>(
         []() { foo(); });
 
@@ -195,7 +195,7 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name8() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]
     // CHECK-NOT: !num_simd_work_items
     // CHECK-SAME: {
-    // CHECK: define dso_local spir_func void @_Z4foo1v()
+    // CHECK: define {{.*}}spir_func void @_Z4foo1v()
     h.single_task<class kernel_name8>(
         []() { foo1(); });
 
@@ -215,7 +215,7 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name12() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]
     // CHECK-NOT: !no_global_work_offset
     // CHECK-SAME: {
-    // CHECK: define dso_local spir_func void @_Z4foo2v()
+    // CHECK: define {{.*}}spir_func void @_Z4foo2v()
     h.single_task<class kernel_name12>(
         []() { foo2(); });
 
@@ -235,7 +235,7 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name16() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]
     // CHECK-NOT: !max_global_work_dim
     // CHECK-SAME: {
-    // CHECK: define dso_local spir_func void @_Z4foo3v()
+    // CHECK: define {{.*}}spir_func void @_Z4foo3v()
     h.single_task<class kernel_name16>(
         []() { foo3(); });
 
@@ -255,7 +255,7 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name20() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]
     // CHECK-NOT: !reqd_sub_group_size
     // CHECK-SAME: {
-    // CHECK: define dso_local spir_func void @_Z4foo4v()
+    // CHECK: define {{.*}}spir_func void @_Z4foo4v()
     Functor4 f4;
     h.single_task<class kernel_name20>(f4);
 
@@ -275,7 +275,7 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name24() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]
     // CHECK-NOT: !reqd_work_group_size
     // CHECK-SAME: {
-    // CHECK: define dso_local spir_func void @_Z4foo5v()
+    // CHECK: define {{.*}}spir_func void @_Z4foo5v()
     Functor6 f6;
     h.single_task<class kernel_name24>(f6);
 
@@ -295,7 +295,7 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name28() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]
     // CHECK-NOT: !max_work_group_size
     // CHECK-SAME: {
-    // CHECK: define dso_local spir_func void @_Z4foo6v()
+    // CHECK: define {{.*}}spir_func void @_Z4foo6v()
     Functor8 f8;
     h.single_task<class kernel_name28>(f8);
 
@@ -320,7 +320,7 @@ int main() {
     // CHECK: define {{.*}}spir_func void @{{.*}}Functor10{{.*}}(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) %this) #3 comdat align 2
     // CHECK-NOT: noalias
     // CHECK-SAME: {
-    // CHECK: define dso_local spir_func void @_Z4foo8v()
+    // CHECK: define {{.*}}spir_func void @_Z4foo8v()
     Functor10 f10;
     h.single_task<class kernel_name32>(f10);
 
@@ -350,7 +350,7 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name38()
     // CHECK-NOT: !work_group_size_hint
     // CHECK-SAME: {
-    // CHECK: define dso_local spir_func void @_Z5foo11v()
+    // CHECK: define {{.*}}spir_func void @_Z5foo11v()
     h.single_task<class kernel_name38>(
         []() { foo11(); });
 
