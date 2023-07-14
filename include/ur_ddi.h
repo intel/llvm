@@ -1375,7 +1375,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportOpaqueFDExp_t)(
     ur_context_handle_t,
     ur_device_handle_t,
     size_t,
-    ur_exp_interop_memory_desc_t *,
+    ur_exp_interop_mem_desc_t *,
     ur_exp_interop_mem_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

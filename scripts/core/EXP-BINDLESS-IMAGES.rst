@@ -64,7 +64,7 @@ Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_structure_type_t
     ${X}_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES
-    ${X}_STRUCTURE_TYPE_EXP_INTEROP_MEMORY_DESC
+    ${X}_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC
     ${X}_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC
     ${X}_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR
     ${X}_STRUCTURE_TYPE_EXP_WIN32_HANDLE
@@ -123,7 +123,7 @@ Types
 * ${x}_exp_image_mem_handle_t
 * ${x}_exp_interop_mem_handle_t
 * ${x}_exp_interop_semaphore_handle_t
-* ${x}_exp_interop_memory_desc_t
+* ${x}_exp_interop_mem_desc_t
 * ${x}_exp_interop_semaphore_desc_t
 * ${x}_exp_file_descriptor_t
 * ${x}_exp_win32_handle_t
@@ -171,6 +171,8 @@ Changelog
 +----------+-------------------------------------------------------------+
 | 4.0      || Added platform specific interop resource handles.          |
 |          || Added and updated to use new interop resource descriptors. |
++----------+-------------------------------------------------------------+
+| 5.0      | Update interop struct and func param names to adhere to convention. |
 +----------+-------------------------------------------------------------+
 
 Contributors

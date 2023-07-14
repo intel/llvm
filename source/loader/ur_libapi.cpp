@@ -6304,7 +6304,7 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == interopMemDesc`
+///         + `NULL == pInteropMemDesc`
 ///         + `NULL == phInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -6313,8 +6313,8 @@ ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
-    ur_exp_interop_memory_desc_t
-        *interopMemDesc, ///< [in] the interop memory descriptor
+    ur_exp_interop_mem_desc_t
+        *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
         *phInteropMem ///< [out] interop memory handle to the external memory
     ) try {
@@ -6324,7 +6324,7 @@ ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnImportOpaqueFDExp(hContext, hDevice, size, interopMemDesc,
+    return pfnImportOpaqueFDExp(hContext, hDevice, size, pInteropMemDesc,
                                 phInteropMem);
 } catch (...) {
     return exceptionToResult(std::current_exception());
