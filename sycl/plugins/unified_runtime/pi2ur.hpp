@@ -4661,8 +4661,16 @@ inline pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
   ur_exp_interop_mem_handle_t *UrRetHandle =
       reinterpret_cast<ur_exp_interop_mem_handle_t *>(RetHandle);
 
-  HANDLE_ERRORS(urBindlessImagesImportOpaqueFDExp(UrContext, UrDevice, Size,
-                                                  FileDescriptor, UrRetHandle));
+  ur_exp_file_descriptor_t PosixFD{};
+  PosixFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
+  PosixFD.fd = FileDescriptor;
+
+  ur_exp_interop_mem_desc_t InteropMemDesc{};
+  InteropMemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC;
+  InteropMemDesc.pNext = &PosixFD;
+
+  HANDLE_ERRORS(urBindlessImagesImportOpaqueFDExp(
+      UrContext, UrDevice, Size, &InteropMemDesc, UrRetHandle));
 
   return PI_SUCCESS;
 }
@@ -4719,8 +4727,16 @@ piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
   ur_exp_interop_semaphore_handle_t *UrRetHandle =
       reinterpret_cast<ur_exp_interop_semaphore_handle_t *>(RetHandle);
 
+  ur_exp_file_descriptor_t PosixFD{};
+  PosixFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
+  PosixFD.fd = FileDescriptor;
+
+  ur_exp_interop_semaphore_desc_t InteropSemDesc{};
+  InteropSemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC;
+  InteropSemDesc.pNext = &PosixFD;
+
   HANDLE_ERRORS(urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
-      UrContext, UrDevice, FileDescriptor, UrRetHandle));
+      UrContext, UrDevice, &InteropSemDesc, UrRetHandle));
 
   return PI_SUCCESS;
 }

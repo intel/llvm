@@ -165,11 +165,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    uint32_t fileDescriptor, ur_exp_interop_mem_handle_t *phInteropMem) {
+    ur_exp_interop_mem_desc_t *pInteropMemDesc,
+    ur_exp_interop_mem_handle_t *phInteropMem) {
   std::ignore = hContext;
   std::ignore = hDevice;
   std::ignore = size;
-  std::ignore = fileDescriptor;
+  std::ignore = pInteropMemDesc;
   std::ignore = phInteropMem;
   urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -203,11 +204,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    uint32_t fileDescriptor,
+    ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc,
     ur_exp_interop_semaphore_handle_t *phInteropSemaphoreHandle) {
   std::ignore = hContext;
   std::ignore = hDevice;
-  std::ignore = fileDescriptor;
+  std::ignore = pInteropSemaphoreDesc;
   std::ignore = phInteropSemaphoreHandle;
   urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

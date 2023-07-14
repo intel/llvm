@@ -732,7 +732,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    uint32_t fileDescriptor, ur_exp_interop_mem_handle_t *phInteropMem) {
+    ur_exp_interop_mem_desc_t *pInteropMemDesc,
+    ur_exp_interop_mem_handle_t *phInteropMem) {
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
@@ -740,9 +741,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ScopedContext Active(hDevice->getContext());
 
     CUDA_EXTERNAL_MEMORY_HANDLE_DESC extMemDesc = {};
-    extMemDesc.handle.fd = fileDescriptor;
-    extMemDesc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
     extMemDesc.size = size;
+
+    void *pNext = const_cast<void *>(pInteropMemDesc->pNext);
+    while (pNext != nullptr) {
+      const ur_base_desc_t *BaseDesc =
+          reinterpret_cast<const ur_base_desc_t *>(pNext);
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR) {
+        const ur_exp_file_descriptor_t *FileDescriptor =
+            reinterpret_cast<const ur_exp_file_descriptor_t *>(pNext);
+
+        extMemDesc.handle.fd = FileDescriptor->fd;
+        extMemDesc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
+      } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      }
+      pNext = const_cast<void *>(BaseDesc->pNext);
+    }
 
     CUexternalMemory extMem;
     UR_CHECK_ERROR(cuImportExternalMemory(&extMem, &extMemDesc));
@@ -824,7 +839,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    uint32_t fileDescriptor,
+    ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc,
     ur_exp_interop_semaphore_handle_t *phInteropSemaphoreHandle) {
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
@@ -832,12 +847,26 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
   try {
     ScopedContext Active(hDevice->getContext());
 
-    CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC ext_sem_desc = {};
-    ext_sem_desc.handle.fd = fileDescriptor;
-    ext_sem_desc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
+    CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC extSemDesc = {};
+
+    void *pNext = const_cast<void *>(pInteropSemaphoreDesc->pNext);
+    while (pNext != nullptr) {
+      const ur_base_desc_t *BaseDesc =
+          reinterpret_cast<const ur_base_desc_t *>(pNext);
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR) {
+        const ur_exp_file_descriptor_t *FileDescriptor =
+            reinterpret_cast<const ur_exp_file_descriptor_t *>(pNext);
+
+        extSemDesc.handle.fd = FileDescriptor->fd;
+        extSemDesc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
+      } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      }
+      pNext = const_cast<void *>(BaseDesc->pNext);
+    }
 
     CUexternalSemaphore semaphore;
-    UR_CHECK_ERROR(cuImportExternalSemaphore(&semaphore, &ext_sem_desc));
+    UR_CHECK_ERROR(cuImportExternalSemaphore(&semaphore, &extSemDesc));
 
     *phInteropSemaphoreHandle = (ur_exp_interop_semaphore_handle_t)semaphore;
   } catch (ur_result_t Err) {
