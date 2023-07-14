@@ -5955,8 +5955,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
-    ur_exp_interop_memory_desc_t
-        *interopMemDesc, ///< [in] the interop memory descriptor
+    ur_exp_interop_mem_desc_t
+        *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
         *phInteropMem ///< [out] interop memory handle to the external memory
 ) {
@@ -5976,7 +5976,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == interopMemDesc) {
+        if (NULL == pInteropMemDesc) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
@@ -5986,7 +5986,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     }
 
     ur_result_t result = pfnImportOpaqueFDExp(hContext, hDevice, size,
-                                              interopMemDesc, phInteropMem);
+                                              pInteropMemDesc, phInteropMem);
 
     return result;
 }
