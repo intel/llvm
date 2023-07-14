@@ -31,7 +31,7 @@ jobs:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
-      merge: false
+      merge_ref: ''
 
   windows_default:
     name: Windows

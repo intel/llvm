@@ -52,6 +52,8 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       ref: ${{ inputs.ref }}
       reset_gpu: ${{ matrix.reset_gpu }}
+      # TODO: should we do the merge?
+      merge_ref: ''
 
   aws_start:
     name: AWS Start
@@ -74,6 +76,8 @@ jobs:
       target_devices: all
       ref: ${{ inputs.ref }}
       reset_gpu: false
+      # TODO: should we do the merge?
+      merge_ref: ''
 
   aws_stop:
     name: AWS Stop
