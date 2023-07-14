@@ -5426,7 +5426,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == interopSemaphoreDesc`
+///         + `NULL == pInteropSemaphoreDesc`
 ///         + `NULL == phInteropSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -5434,7 +5434,7 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_desc_t
-        *interopSemaphoreDesc, ///< [in] the interop semaphore descriptor
+        *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
         phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
 ) {
