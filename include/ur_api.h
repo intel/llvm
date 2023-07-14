@@ -758,13 +758,11 @@ typedef struct ur_platform_native_properties_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativePlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPlatform`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformCreateWithNativeHandle(
-    ur_native_handle_t hNativePlatform,                 ///< [in] the native handle of the platform.
+    ur_native_handle_t hNativePlatform,                 ///< [in][nocheck] the native handle of the platform.
     const ur_platform_native_properties_t *pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *phPlatform                    ///< [out] pointer to the handle of the platform object created.
 );
@@ -1564,13 +1562,12 @@ typedef struct ur_device_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeDevice`
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice,                 ///< [in] the native handle of the device.
+    ur_native_handle_t hNativeDevice,                 ///< [in][nocheck] the native handle of the device.
     ur_platform_handle_t hPlatform,                   ///< [in] handle of the platform instance
     const ur_device_native_properties_t *pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t *phDevice                      ///< [out] pointer to the handle of the device object created.
@@ -1899,14 +1896,12 @@ typedef struct ur_context_native_properties_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
 ///         + `NULL == phContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreateWithNativeHandle(
-    ur_native_handle_t hNativeContext,                 ///< [in] the native handle of the context.
+    ur_native_handle_t hNativeContext,                 ///< [in][nocheck] the native handle of the context.
     uint32_t numDevices,                               ///< [in] number of devices associated with the context
     const ur_device_handle_t *phDevices,               ///< [in][range(0, numDevices)] list of devices associated with the context
     const ur_context_native_properties_t *pProperties, ///< [in][optional] pointer to native context properties struct
@@ -2377,13 +2372,12 @@ typedef struct ur_mem_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeMem`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phMem`
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem,                 ///< [in] the native handle to the memory.
+    ur_native_handle_t hNativeMem,                 ///< [in][nocheck] the native handle to the memory.
     ur_context_handle_t hContext,                  ///< [in] handle of the context object.
     const ur_mem_native_properties_t *pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t *phMem                         ///< [out] pointer to handle of buffer memory object created.
@@ -2403,7 +2397,6 @@ urMemBufferCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeMem`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
@@ -2411,7 +2404,7 @@ urMemBufferCreateWithNativeHandle(
 ///         + `NULL == phMem`
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem,                 ///< [in] the native handle to the memory.
+    ur_native_handle_t hNativeMem,                 ///< [in][nocheck] the native handle to the memory.
     ur_context_handle_t hContext,                  ///< [in] handle of the context object.
     const ur_image_format_t *pImageFormat,         ///< [in] pointer to image format specification.
     const ur_image_desc_t *pImageDesc,             ///< [in] pointer to image description.
@@ -2740,13 +2733,12 @@ typedef struct ur_sampler_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeSampler`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phSampler`
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerCreateWithNativeHandle(
-    ur_native_handle_t hNativeSampler,                 ///< [in] the native handle of the sampler.
+    ur_native_handle_t hNativeSampler,                 ///< [in][nocheck] the native handle of the sampler.
     ur_context_handle_t hContext,                      ///< [in] handle of the context object
     const ur_sampler_native_properties_t *pProperties, ///< [in][optional] pointer to native sampler properties struct.
     ur_sampler_handle_t *phSampler                     ///< [out] pointer to the handle of the sampler object created.
@@ -4073,13 +4065,12 @@ typedef struct ur_program_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeProgram`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithNativeHandle(
-    ur_native_handle_t hNativeProgram,                 ///< [in] the native handle of the program.
+    ur_native_handle_t hNativeProgram,                 ///< [in][nocheck] the native handle of the program.
     ur_context_handle_t hContext,                      ///< [in] handle of the context instance
     const ur_program_native_properties_t *pProperties, ///< [in][optional] pointer to native program properties struct.
     ur_program_handle_t *phProgram                     ///< [out] pointer to the handle of the program object created.
@@ -4653,14 +4644,13 @@ typedef struct ur_kernel_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeKernel`
 ///         + `NULL == hContext`
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel,                 ///< [in] the native handle of the kernel.
+    ur_native_handle_t hNativeKernel,                 ///< [in][nocheck] the native handle of the kernel.
     ur_context_handle_t hContext,                     ///< [in] handle of the context object
     ur_program_handle_t hProgram,                     ///< [in] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *pProperties, ///< [in][optional] pointer to native kernel properties struct
@@ -4946,14 +4936,13 @@ typedef struct ur_queue_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeQueue`
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phQueue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue,                 ///< [in] the native handle of the queue.
+    ur_native_handle_t hNativeQueue,                 ///< [in][nocheck] the native handle of the queue.
     ur_context_handle_t hContext,                    ///< [in] handle of the context object
     ur_device_handle_t hDevice,                      ///< [in] handle of the device object
     const ur_queue_native_properties_t *pProperties, ///< [in][optional] pointer to native queue properties struct
@@ -5308,13 +5297,12 @@ typedef struct ur_event_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeEvent`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent,                 ///< [in] the native handle of the event.
+    ur_native_handle_t hNativeEvent,                 ///< [in][nocheck] the native handle of the event.
     ur_context_handle_t hContext,                    ///< [in] handle of the context object
     const ur_event_native_properties_t *pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t *phEvent                       ///< [out] pointer to the handle of the event object created.
