@@ -86,8 +86,8 @@ etors:
     - name: EXP_SAMPLER_MIP_PROPERTIES
       desc: $x_exp_sampler_mip_properties_t
       value: "0x2000"
-    - name: EXP_INTEROP_MEMORY_DESC
-      desc: $x_exp_interop_memory_desc_t
+    - name: EXP_INTEROP_MEM_DESC
+      desc: $x_exp_interop_mem_desc_t
       value: "0x2001"
     - name: EXP_INTEROP_SEMAPHORE_DESC
       desc: $x_exp_interop_semaphore_desc_t
@@ -166,7 +166,7 @@ members:
 type: struct
 desc: "Describes an interop memory resource descriptor"
 class: $xBindlessImages
-name: $x_exp_interop_memory_desc_t
+name: $x_exp_interop_mem_desc_t
 base: $x_base_desc_t
 members: []
 --- #--------------------------------------------------------------------------
@@ -562,8 +562,8 @@ params:
     - type: size_t
       name: size
       desc: "[in] size of the external memory"
-    - type: $x_exp_interop_memory_desc_t*
-      name: interopMemDesc
+    - type: $x_exp_interop_mem_desc_t*
+      name: pInteropMemDesc
       desc: "[in] the interop memory descriptor"
     - type: $x_exp_interop_mem_handle_t*
       name: phInteropMem
