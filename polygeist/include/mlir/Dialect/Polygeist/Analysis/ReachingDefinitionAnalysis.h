@@ -65,7 +65,6 @@ private:
 };
 
 struct UnderlyingValueLattice : public dataflow::Lattice<UnderlyingValue> {
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(UnderlyingValueLattice)
   using Lattice::Lattice;
 };
 
@@ -77,8 +76,6 @@ class UnderlyingValueAnalysis
   friend class RequiredDataFlowAnalyses;
 
 public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(UnderlyingValueAnalysis)
-
   using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
 
   UnderlyingValueAnalysis(DataFlowSolver &solver)
