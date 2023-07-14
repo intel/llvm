@@ -71,7 +71,7 @@ namespace detail {
 class queue_impl;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-static event submitAssertCapture(queue &, event &, queue *,
+inline event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
 } // namespace detail
