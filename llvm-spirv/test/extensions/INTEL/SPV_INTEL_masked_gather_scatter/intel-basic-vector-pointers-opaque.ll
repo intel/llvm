@@ -3,9 +3,6 @@
 ; RUN: llvm-spirv %t.spv --to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
-
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-OPAQUE
 
@@ -36,14 +33,6 @@
 ; CHECK-SPIRV: GenericCastToPtr [[#TYPEVEC1]]
 ; CHECK-SPIRV: FunctionCall [[#TYPEVEC3]]
 ; CHECK-SPIRV: InBoundsPtrAccessChain [[#TYPEVEC3]]
-
-; CHECK-LLVM: alloca <4 x i8 addrspace(4)*>
-; CHECK-LLVM: alloca <4 x i8 addrspace(4)*>
-; CHECK-LLVM: load <4 x i8 addrspace(4)*>, <4 x i8 addrspace(4)*>*
-; CHECK-LLVM: store <4 x i8 addrspace(4)*> %[[#]], <4 x i8 addrspace(4)*>*
-; CHECK-LLVM: addrspacecast <4 x i8 addrspace(4)*> %{{.*}} to <4 x i8 addrspace(1)*>
-; CHECK-LLVM: call spir_func <4 x i32 addrspace(1)*> @boo(<4 x i8 addrspace(1)*>
-; CHECK-LLVM: getelementptr inbounds i32, <4 x i32 addrspace(1)*> %{{.*}}, i32 1
 
 ; CHECK-LLVM-OPAQUE: alloca <4 x ptr addrspace(4)>
 ; CHECK-LLVM-OPAQUE: alloca <4 x ptr addrspace(4)>
