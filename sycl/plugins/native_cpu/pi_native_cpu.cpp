@@ -146,7 +146,7 @@ static inline pi_result piEnqueueMemBufferReadWriteRect_impl(
     size_t HostSlicePitch,
     typename std::conditional<IsRead, void *, const void *>::type DstMem,
     pi_uint32, const pi_event *, pi_event *) {
-  // TODO: events, check other constaints, performance optimisations
+  // TODO: events, check other constraints, performance optimizations
   // Replace by functionality from UR where possible
 
   if (BufferRowPitch == 0)
