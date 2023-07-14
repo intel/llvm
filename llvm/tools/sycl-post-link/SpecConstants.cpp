@@ -218,6 +218,7 @@ void collectCompositeElementsInfoRecursive(
     // Such ID is expected to be a padding within a non-packed struct, we need
     // to move offset to account for it.
     Offset += M.getDataLayout().getTypeSizeInBits(Ty) * /* bits in byte */ 8;
+    ++IDIter;
     // But otherwise we just skip such values, they are not reported to runtime.
     return;
   }
@@ -562,6 +563,7 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
       IDs.push_back({IDs.back().ID + 1, true});
     }
     Elements.push_back(Def);
+    Index++;
   };
   auto LoopIteration = [&](Type *Ty, size_t &LocalIndex) {
     // Select corresponding element of the default value.
