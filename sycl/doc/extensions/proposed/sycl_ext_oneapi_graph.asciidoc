@@ -542,9 +542,10 @@ added dependency will lead to a cycle in a specific `command_graph` and can be
 passed to a `command_graph` on construction via the property list parameter.
 As a result, no errors are reported when a function tries to create a cyclic
 dependency. Thus, it's the user's responsibility to create an acyclic graph
-for execution when this property is set. Creating a `command_graph` in
-executable state through `finalize` from a graph with cyclic dependencies
-is not allowed and results in undefined behavior.
+for execution when this property is set. Creating a cycle in a `command_graph`
+puts that `command_graph` into an undefined state. Any further operations
+performed on a `command_graph` in this state will result in undefined
+behavior.
 
 ==== Executable Graph Update
 
