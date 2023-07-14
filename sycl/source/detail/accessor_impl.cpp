@@ -54,6 +54,33 @@ void constructorNotification(void *BufferObj, void *AccessorObj,
   XPTIRegistry::bufferAccessorNotification(
       BufferObj, AccessorObj, (uint32_t)Target, (uint32_t)Mode, CodeLoc);
 }
+
+void unsampledImageConstructorNotification(void *ImageObj, void *AccessorObj,
+                                           std::optional<image_target> Target,
+                                           access::mode Mode, const void *Type,
+                                           uint32_t ElemSize,
+                                           const code_location &CodeLoc) {
+  if (Target)
+    XPTIRegistry::unsampledImageAccessorNotification(
+        ImageObj, AccessorObj, (uint32_t)*Target, (uint32_t)Mode, Type,
+        ElemSize, CodeLoc);
+  else
+    XPTIRegistry::unsampledImageHostAccessorNotification(
+        ImageObj, AccessorObj, (uint32_t)Mode, Type, ElemSize, CodeLoc);
+}
+
+void sampledImageConstructorNotification(void *ImageObj, void *AccessorObj,
+                                         std::optional<image_target> Target,
+                                         const void *Type, uint32_t ElemSize,
+                                         const code_location &CodeLoc) {
+  if (Target)
+    XPTIRegistry::sampledImageAccessorNotification(
+        ImageObj, AccessorObj, (uint32_t)*Target, Type, ElemSize, CodeLoc);
+  else
+    XPTIRegistry::sampledImageHostAccessorNotification(ImageObj, AccessorObj,
+                                                       Type, ElemSize, CodeLoc);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -78,10 +78,12 @@ on:
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
-      merge:
-        description: 'Merge default branch after the checkout'
-        type: boolean
-        default: true
+      merge_ref:
+        description: |
+          Commit-ish to merge post-checkout if non-empty. Must be reachable from
+          the default_branch input paramter.
+        type: string
+        default: 'FETCH_HEAD'
       retention-days:
         description: 'Artifacts retention period'
         type: string
@@ -111,8 +113,8 @@ jobs:
       with:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
+        merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
-        merge: ${{ inputs.merge }}
     - name: Configure
       env:
         CC: ${{ inputs.cc }}
@@ -231,8 +233,8 @@ jobs:
       extra_cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
       target_devices: ${{ matrix.targets }}
       ref: ${{ inputs.build_ref || github.sha }}
+      merge_ref: ${{ inputs.merge_ref }}
       reset_gpu: ${{ contains(matrix.runs-on, 'gen9') && contains(matrix.runs-on, 'Linux') }}
-      merge: ${{ inputs.merge }}
 
       sycl_toolchain_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
       sycl_toolchain_archive: ${{ inputs.artifact_archive_name }}

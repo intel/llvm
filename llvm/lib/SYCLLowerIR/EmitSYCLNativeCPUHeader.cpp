@@ -33,133 +33,12 @@
 using namespace llvm;
 
 namespace {
-SmallVector<bool> getArgMask(const Function *F) {
-  SmallVector<bool> Res;
-  auto *UsedNode = F->getMetadata("sycl_kernel_omit_args");
-  if (!UsedNode) {
-    // the metadata node is not available if -fenable-sycl-dae
-    // was not set; set everything to true in the mask.
-    for (unsigned I = 0; I < F->getFunctionType()->getNumParams(); I++) {
-      Res.push_back(true);
-    }
-    return Res;
-  }
-  auto NumOperands = UsedNode->getNumOperands();
-  for (unsigned I = 0; I < NumOperands; I++) {
-    auto &Op = UsedNode->getOperand(I);
-    if (auto *CAM = dyn_cast<ConstantAsMetadata>(Op.get())) {
-      if (auto *Const = dyn_cast<ConstantInt>(CAM->getValue())) {
-        auto Val = Const->getValue();
-        Res.push_back(!Val.getBoolValue());
-      } else {
-        report_fatal_error("Unable to retrieve constant int from "
-                           "sycl_kernel_omit_args metadata node");
-      }
-    } else {
-      report_fatal_error(
-          "Error while processing sycl_kernel_omit_args metadata node");
-    }
-  }
-  return Res;
-}
 
-SmallVector<StringRef> getArgTypeNames(const Function *F) {
-  SmallVector<StringRef> Res;
-  auto *TNNode = F->getMetadata("kernel_arg_type");
-  assert(TNNode &&
-         "kernel_arg_type metadata node is required for sycl native CPU");
-  auto NumOperands = TNNode->getNumOperands();
-  for (unsigned I = 0; I < NumOperands; I++) {
-    auto &Op = TNNode->getOperand(I);
-    auto *MDS = dyn_cast<MDString>(Op.get());
-    if (!MDS)
-      report_fatal_error("error while processing kernel_arg_types metadata");
-    Res.push_back(MDS->getString());
-  }
-  return Res;
-}
-
-void emitKernelDecl(const Function *F, const SmallVector<bool> &ArgMask,
-                    const SmallVector<StringRef> &ArgTypeNames,
-                    raw_ostream &O) {
-  auto EmitArgDecl = [&](const Argument *Arg, unsigned Index) {
-    Type *ArgTy = Arg->getType();
-    if (isa<PointerType>(ArgTy))
-      return "void *";
-    return ArgTypeNames[Index].data();
-  };
-
-  auto NumParams = F->getFunctionType()->getNumParams();
-  O << "extern \"C\" void " << F->getName() << "(";
-
-  unsigned I = 0, UsedI = 0;
-  for (; I + 1 < ArgMask.size() && UsedI + 1 < NumParams; I++) {
-    if (!ArgMask[I])
-      continue;
-    O << EmitArgDecl(F->getArg(UsedI), I) << ", ";
-    UsedI++;
-  }
-
-  // parameters may have been removed.
-  bool NoUsedArgs = true;
-  for (auto &Entry : ArgMask) {
-    NoUsedArgs &= !Entry;
-  }
-  if (NoUsedArgs) {
-    O << ");\n";
-    return;
-  }
-  // find the index of the last used arg
-  while (!ArgMask[I] && I + 1 < ArgMask.size())
-    I++;
-  O << EmitArgDecl(F->getArg(UsedI), I) << ", __nativecpu_state *);\n";
-}
-
-void emitSubKernelHandler(const Function *F, const SmallVector<bool> &ArgMask,
-                          const SmallVector<StringRef> &ArgTypeNames,
-                          raw_ostream &O) {
-  SmallVector<unsigned> UsedArgIdx;
-  auto EmitParamCast = [&](Argument *Arg, unsigned Index) {
-    std::string Res;
-    llvm::raw_string_ostream OS(Res);
-    UsedArgIdx.push_back(Index);
-    if (isa<PointerType>(Arg->getType())) {
-      OS << "  void* arg" << Index << " = ";
-      OS << "MArgs[" << Index << "].getPtr();\n";
-      return OS.str();
-    }
-    auto TN = ArgTypeNames[Index].str();
-    OS << "  " << TN << " arg" << Index << " = ";
-    OS << "*(" << TN << "*)"
-       << "MArgs[" << Index << "].getPtr();\n";
-    return OS.str();
-  };
-
-  O << "\ninline static void " << F->getName() << "subhandler(";
+void emitSubKernelHandler(const Function *F, raw_ostream &O) {
+  O << "\nextern \"C\" void " << F->getName() << "subhandler(";
   O << "const sycl::detail::NativeCPUArgDesc *MArgs, "
-       "__nativecpu_state *state) {\n";
-  // Retrieve only the args that are used
-  for (unsigned I = 0, UsedI = 0;
-       I < ArgMask.size() && UsedI < F->getFunctionType()->getNumParams();
-       I++) {
-    if (ArgMask[I]) {
-      O << EmitParamCast(F->getArg(UsedI), I);
-      UsedI++;
-    }
-  }
-  // Emit the actual kernel call
-  O << "  " << F->getName() << "(";
-  if (UsedArgIdx.size() == 0) {
-    O << ");\n";
-  } else {
-    for (unsigned I = 0; I < UsedArgIdx.size() - 1; I++) {
-      O << "arg" << UsedArgIdx[I] << ", ";
-    }
-    if (UsedArgIdx.size() >= 1)
-      O << "arg" << UsedArgIdx.back();
-    O << ", state);\n";
-  }
-  O << "};\n\n";
+       "__nativecpu_state *state);\n";
+  return;
 }
 
 // Todo: maybe we could use clang-offload-wrapper for this,
@@ -254,10 +133,7 @@ PreservedAnalyses EmitSYCLNativeCPUHeaderPass::run(Module &M,
   O << "extern \"C\" void __sycl_register_lib(pi_device_binaries desc);\n";
 
   for (auto *F : Kernels) {
-    auto ArgMask = getArgMask(F);
-    auto ArgTypeNames = getArgTypeNames(F);
-    emitKernelDecl(F, ArgMask, ArgTypeNames, O);
-    emitSubKernelHandler(F, ArgMask, ArgTypeNames, O);
+    emitSubKernelHandler(F, O);
     emitSYCLRegisterLib(F, O);
   }
 

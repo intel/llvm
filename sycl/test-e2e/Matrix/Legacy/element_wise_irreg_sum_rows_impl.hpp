@@ -43,7 +43,7 @@ void matrix_sum_rows(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
+           sycl::sub_group sg = spmd_item.get_sub_group();
 
            joint_matrix<T, TK, TN, matrix_layout::packed_b> sub_b(sg);
 
