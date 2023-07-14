@@ -1,25 +1,11 @@
-// RUNx: %{build} -o %t.out
-// RUNx: %{run} %t.out
-//
-// RUN: %{build} -fsycl-device-code-split=per_source -DUSE_DEVICE_IMAGE_SCOPE -o %t_dev_img_scope.out
-// RUN: %{run} %t_dev_img_scope.out
+#pragma once
 
-// Tests that device_global with no kernel uses can be copied to and from.
+#include "common.hpp"
 
-#include <sycl/sycl.hpp>
+device_global<int, TestProperties> MemcpyDeviceGlobal;
+device_global<int, TestProperties> CopyDeviceGlobal;
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental;
-
-#ifdef USE_DEVICE_IMAGE_SCOPE
-device_global<int, decltype(properties(device_image_scope))> MemcpyDeviceGlobal;
-device_global<int, decltype(properties(device_image_scope))> CopyDeviceGlobal;
-#else
-device_global<int> MemcpyDeviceGlobal;
-device_global<int> CopyDeviceGlobal;
-#endif
-
-int main() {
+int test() {
   queue Q;
   int MemcpyWrite = 42, CopyWrite = 24, MemcpyRead = 1, CopyRead = 2;
 
