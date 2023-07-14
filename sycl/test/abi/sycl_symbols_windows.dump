@@ -1289,6 +1289,11 @@
 ?reset@filter_selector@oneapi@ext@_V1@sycl@@QEBAXXZ
 ?resize@AccessorImplHost@detail@_V1@sycl@@QEAAX_K@Z
 ?resize@buffer_impl@detail@_V1@sycl@@QEAAX_K@Z
+?sampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0V?$optional@W4image_target@_V1@sycl@@@std@@PEBXIAEBUcode_location@123@@Z
+?sampledImageConstructorNotification@image_plain@detail@_V1@sycl@@IEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@AEBUimage_sampler@34@@Z
+?sampledImageConstructorNotification@image_impl@detail@_V1@sycl@@QEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@AEBUimage_sampler@34@@Z
+?sampledImageDestructorNotification@image_plain@detail@_V1@sycl@@IEAAXPEAX@Z
+?sampledImageDestructorNotification@image_impl@detail@_V1@sycl@@QEAAXPEAX@Z
 ?saveCodeLoc@handler@_V1@sycl@@AEAAXUcode_location@detail@23@@Z
 ?select_device@detail@_V1@sycl@@YA?AVdevice@23@AEBV?$function@$$A6AHAEBVdevice@_V1@sycl@@@Z@std@@@Z
 ?select_device@detail@_V1@sycl@@YA?AVdevice@23@AEBV?$function@$$A6AHAEBVdevice@_V1@sycl@@@Z@std@@AEBVcontext@23@@Z
@@ -4924,6 +4929,11 @@
 ?throwIfActionIsCreated@handler@_V1@sycl@@AEAAXXZ
 ?throw_asynchronous@queue@_V1@sycl@@QEAAXXZ
 ?unmap@MemoryManager@detail@_V1@sycl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@1V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
+?unsampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0V?$optional@W4image_target@_V1@sycl@@@std@@W4mode@access@23@PEBXIAEBUcode_location@123@@Z
+?unsampledImageConstructorNotification@image_impl@detail@_V1@sycl@@QEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@@Z
+?unsampledImageConstructorNotification@image_plain@detail@_V1@sycl@@IEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@@Z
+?unsampledImageDestructorNotification@image_impl@detail@_V1@sycl@@QEAAXPEAX@Z
+?unsampledImageDestructorNotification@image_plain@detail@_V1@sycl@@IEAAXPEAX@Z
 ?unset_flag@stream@_V1@sycl@@AEBAXI@Z
 ?update@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$command_graph@$0A@@34567@@Z
 ?updateHostMemory@SYCLMemObjT@detail@_V1@sycl@@IEAAXQEAX@Z

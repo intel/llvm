@@ -122,26 +122,35 @@ entry:
   ret void
 }
 ```
-This pass will also set the correct calling convention for the target, and handle calling convention-related function attributes, allowing to call the kernel from the runtime.
+This pass will also set the correct calling convention for the target, and handle calling convention-related function attributes, allowing to call the kernel from the runtime. \\
+Additionally, this pass emits the definition for a `subhandler` function, which unpacks the vector of kernel arguments coming from the SYCL runtime, and forwards only the used arguments to the kernel. For our example the `subhandler` IR is:
+
+```llvm
+define weak void @_Z6Samplesubhandler(ptr %0, ptr %1) #4 {
+entry:
+  %2 = getelementptr %0, ptr %0, i64 0
+  %3 = load ptr, ptr %2, align 8
+  %4 = getelementptr %0, ptr %0, i64 3
+  %5 = load ptr, ptr %4, align 8
+  %6 = getelementptr %0, ptr %0, i64 4
+  %7 = load ptr, ptr %6, align 8
+  %8 = getelementptr %0, ptr %0, i64 7
+  %9 = load ptr, ptr %8, align 8
+  call void @_ZTS10SimpleVaddIiE_NativeCPUKernel(ptr %3, ptr %5, ptr %7, ptr %9, ptr %1)
+  ret void
+}
+```
 
 ## EmitSYCLNativeCPUHeader pass
 
 This pass emits an additional integration header, that will be compiled by the host compiler during the host compilation step. This header is included by the main integration footer and does not need to be managed manually. Its main purpose is to enable the SYCL runtime to register kernels and to call kernels that had unused parameters removed by the optimizer. The header contains, for each kernel:
-* The kernel declaration as a C++ function, all pointer arguments are emitted as `void *`, the scalar arguments maintain their type.
-* A `subhandler` definition, which unpacks the vector of kernel arguments coming from the SYCL runtime, and forwards only the used arguments to the kernel.
+* The subhandler declaration as a C++ function.
 * The definition of `_pi_offload_entry_struct`, `pi_device_binary_struct` and `pi_device_binaries_struct` variables, and a call to `__sycl_register_lib`, which allows to register the kernel to the sycl runtime (the call to `__sycl_register_lib` is performed at program startup via the constructor of a global). The Native CPU integration header is always named `<main-sycl-int-header>.hc`.
 
 The Native CPU integration header for our example is:
 
 ```c++
-extern "C" void _Z6Sample(void *, void *, void *, nativecpu_state *);
-
-inline static void _Z6Samplesubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, nativecpu_state *state) {
-  void* arg0 = MArgs[0].getPtr();
-  void* arg1 = MArgs[1].getPtr();
-  void* arg2 = MArgs[2].getPtr();
-  _Z6Sample(arg0, arg1, arg2, state);
-};
+extern "C" void _Z6Samplesubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, nativecpu_state *state);
 
 static _pi_offload_entry_struct _pi_offload_entry_struct_Z6Sample{(void*)&_Z6Samplesubhandler, const_cast<char*>("_Z6Sample"), 1, 0, 0 };
 static pi_device_binary_struct pi_device_binary_struct_Z6Sample{0, 4, 0, __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN, nullptr, nullptr, nullptr, nullptr, (unsigned char*)&_Z6Samplesubhandler, (unsigned char*)&_Z6Samplesubhandler + 1, &_pi_offload_entry_struct_Z6Sample, &_pi_offload_entry_struct_Z6Sample+1, nullptr, nullptr };
