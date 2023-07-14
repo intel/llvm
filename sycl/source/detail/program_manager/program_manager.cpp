@@ -48,7 +48,7 @@ namespace detail {
 
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
-static constexpr int DbgProgMgr = 0;
+static constexpr int DbgProgMgr = 3;
 
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
@@ -1048,26 +1048,42 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
 
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
+  RTDeviceBinaryImage *Img = nullptr;
+  if (auto KernelId = m_KernelName2KernelIDs.find(KernelName); KernelId != m_KernelName2KernelIDs.end())
+  {
+    auto [ItBegin, ItEnd] = m_KernelIDs2BinImage.equal_range(KernelId->second);
+    std::vector<pi_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
+    assert(RawImgs.size() &&
+          "No device image found for the given kernel id");
+    auto It = ItBegin;
+    for (unsigned I = 0; It != ItEnd; ++It, ++I)
+      RawImgs[I] = const_cast<pi_device_binary>(&It->second->getRawData());
 
-  auto KernelId = m_KernelName2KernelIDs.find(KernelName);
-  assert(KernelId != m_KernelName2KernelIDs.end() &&
-        "No kernel id found for the given kernel name");
+    pi_uint32 ImgInd = 0;
+    getSyclObjImpl(Context)->getPlugin()->call<PiApiKind::piextDeviceSelectBinary>(
+        getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
+        (pi_uint32)RawImgs.size(), &ImgInd);
+    std::advance(It, ImgInd);
+    Img = It->second;
+  }
+  else if (auto [ItBegin, ItEnd] = m_ServiceKernels.equal_range(KernelName); ItBegin != ItEnd)
+  {
+    std::vector<pi_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
+    assert(RawImgs.size() &&
+          "No device image found for the given kernel id");
+    auto It = ItBegin;
+    for (unsigned I = 0; It != ItEnd; ++It, ++I)
+      RawImgs[I] = const_cast<pi_device_binary>(&It->second->getRawData());
 
-  auto [ItBegin, ItEnd] = m_KernelIDs2BinImage.equal_range(KernelId->second);
-  std::vector<pi_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
-  assert(RawImgs.size() &&
-        "No device image found for the given kernel id");
-  auto It = ItBegin;
-  for (unsigned I = 0; It != ItEnd; ++It, ++I)
-    RawImgs[I] = const_cast<pi_device_binary>(&It->second->getRawData());
-
-  pi_uint32 ImgInd = 0;
-  getSyclObjImpl(Context)->getPlugin()->call<PiApiKind::piextDeviceSelectBinary>(
-      getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
-      (pi_uint32)RawImgs.size(), &ImgInd);
-
-  std::advance(It, ImgInd);
-  RTDeviceBinaryImage *Img = It->second;
+    pi_uint32 ImgInd = 0;
+    getSyclObjImpl(Context)->getPlugin()->call<PiApiKind::piextDeviceSelectBinary>(
+        getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
+        (pi_uint32)RawImgs.size(), &ImgInd);
+    std::advance(It, ImgInd);
+    Img = It->second;
+  }
+  else
+    assert(false && "No kernel id found for the given kernel name");
 
   CheckJITCompilationForImage(Img, JITCompilationIsRequired);
 
@@ -1330,7 +1346,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
         // __sycl_service_kernel__ in the mangled name, primarily as part of
         // the namespace of the name type.
         if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-          m_ServiceKernels.insert(EntriesIt->name);
+          m_ServiceKernels.insert(std::make_pair(EntriesIt->name, Img));
           continue;
         }
 
