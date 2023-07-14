@@ -1,4 +1,5 @@
 name: Experiment with Linux GEN12 runners
+run-name: Linux GEN12 ${{ inputs.lit_filter }} on ${{ inputs.devices }}
 
 on:
   workflow_dispatch:
