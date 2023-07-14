@@ -10,7 +10,7 @@
 
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/detail/boost/mp11.hpp>
+#include <sycl/detail/boost/mp11/algorithm.hpp>
 
 #include <tuple>
 
