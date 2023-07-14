@@ -642,7 +642,7 @@ params:
       name: hDevice
       desc: "[in] handle of the device object"
     - type: $x_exp_interop_semaphore_desc_t*
-      name: interopSemaphoreDesc
+      name: pInteropSemaphoreDesc
       desc: "[in] the interop semaphore descriptor"
     - type: $x_exp_interop_semaphore_handle_t*
       name: phInteropSemaphore
