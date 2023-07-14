@@ -35,8 +35,7 @@ template <typename T = void> struct logical_or {
 
 template <> struct logical_or<void> : std::logical_or<void> {};
 
-// sycl::minimum and sycl::maximum definition should be consistent
-// with std::min and std::max respectively
+// sycl::minimum definition should be consistent with std::min
 template <typename T = void> struct minimum {
   T operator()(const T &lhs, const T &rhs) const {
     return (rhs < lhs) ? rhs : lhs;
@@ -54,6 +53,7 @@ template <> struct minimum<void> {
   }
 };
 
+// sycl::maximum definition should be consistent with std::max
 template <typename T = void> struct maximum {
   T operator()(const T &lhs, const T &rhs) const {
     return (lhs < rhs) ? rhs : lhs;
