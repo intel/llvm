@@ -397,16 +397,25 @@ public:
   ///  3. Add the payload and generate a unique ID
   ///  4. Cache the computed hash in the payload
   uint64_t makeHash(xpti::payload_t *Payload) {
-    uint32_t name_id = 0, stack_id = 0, source_id = 0, line_no = 0;
+    uint32_t name_id = 0, source_id = 0, line_no = 0, col_no = 0;
     // Initialize to invalid hash value
     uint64_t HashValue = xpti::invalid_uid;
-    // If no flags are set, then the payload is not valid
-    if (Payload->flags == 0)
-      return HashValue;
     // If the hash value has been cached, return and bail early
     if (Payload->flags & static_cast<uint64_t>(payload_flag_t::HashAvailable))
       return Payload->internal;
 
+    // While instrumenting libraries or middleware, there are situations when
+    // codeptr information is not available. In order to avoid a situation where
+    // code location information is not available due to NDEBUG beinfg declared,
+    // we will end up with collision as all payloads will end up being invalid.
+    //
+    // To mitigate this, the hashing function will continue to rely on the
+    // payload information when it is available and when it is not, we will rely
+    // on a monotonically increaing 64-bit value that is unique.  The way the
+    // payload information is going to be packed into uid.p1 and uid.p2 will
+    // also change with caller/callee no longer being relied upon as the cost of
+    // capturing this information is too high.
+    //
     //  Add the string information to the string table and use the string IDs
     //  (in addition to any unique addresses) to create a hash value
     if ((Payload->flags &
@@ -420,22 +429,40 @@ public:
       source_id =
           MStringTableRef.add(Payload->source_file, &Payload->source_file);
       line_no = Payload->line_no;
+      col_no = Payload->column_no;
     }
-    if ((Payload->flags &
-         static_cast<uint64_t>(payload_flag_t::StackTraceAvailable))) {
-      // Add caller/callee information ot string table
-      stack_id =
-          MStringTableRef.add(Payload->stack_trace, &Payload->stack_trace);
+    // Using stack trace information has been eliminated as the cost of walking
+    // the stack one level is considered too HIGH for tracing; The new hash
+    // relies on packing the source_file_name:function_name and line_no:col_no.
+    //
+    // New Hash function will create two 64-bit values by packing:
+    //  p1 = [source string ID]:[function name string ID]
+    //       63              32 31                      0
+    //  p2 = [    line number ]:[      column number    ]
+    //       63              32 31                      0
+    //
+    //  p3 will contain a monotonically increasing 64-bit value if p1 and p2 are
+    //  absent
+    //
+    if (name_id && source_id) {
+      // uid.p3 will be 0 when uid.p1 and uid.p2 are set here
+      Payload->uid.p1 = XPTI_PACK32_RET64(source_id, name_id);
+      Payload->uid.p2 = XPTI_PACK32_RET64(line_no, col_no);
     }
-    // Pack the 1st 64-bit value with string ID from source file name and line
-    // number; pack the 2nd 64-bit value with stack backtrace string ID and the
-    // kernel name string ID
-    Payload->uid.p1 = XPTI_PACK32_RET64(source_id, line_no);
-    Payload->uid.p2 = XPTI_PACK32_RET64(stack_id, name_id);
-    // The code pointer for the kernel is already in 64-bit format
-    if ((Payload->flags &
-         static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)))
-      Payload->uid.p3 = (uint64_t)Payload->code_ptr_va;
+    // Replacing the old logic of using codeptr value as shown below:
+    //    if ((Payload->flags &
+    //       static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)))
+    //    Payload->uid.p3 = (uint64_t)Payload->code_ptr_va;
+    //  with:
+    //    Payload->uid.p3 = makeUniqueID();
+    //
+    // This guartantees us with unique 64-bit IDs when NDEBUG is used during
+    // compilations which disables the code location information capture
+    else {
+      // uid.p1 && uid.p2 will be zero when uid.p3 is set to a unique 64-bit
+      // value
+      Payload->uid.p3 = makeUniqueID();
+    }
     // Generate the hash from the information available and this will be our
     // unique ID for the trace point.
     HashValue = Payload->uid.hash();
@@ -804,9 +831,6 @@ public:
   createEvent(const xpti::payload_t *Payload, uint16_t EventType,
               xpti::trace_activity_type_t ActivityType, uint64_t *InstanceNo) {
     if (!Payload || !InstanceNo)
-      return nullptr;
-
-    if (Payload->flags == 0)
       return nullptr;
 
     xpti::trace_event_data_t *Event = MTracepoints.create(Payload, InstanceNo);
