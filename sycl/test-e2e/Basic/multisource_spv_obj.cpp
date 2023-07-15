@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: cuda || hip
+//
 // Separate kernel sources and host code sources
 // RUN: %{build} -fsycl-device-obj=spirv -c -o %t.kernel.o -DINIT_KERNEL -DCALC_KERNEL
 // RUN: %{build} -fsycl-device-obj=spirv -c -o %t.main.o -DMAIN_APP
