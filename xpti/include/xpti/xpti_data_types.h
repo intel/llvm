@@ -79,8 +79,12 @@ struct uid_t {
   /// dynamic stack walk is performed, the upper 32-bits contain the string ID
   /// of the caller->callee combination string.
   uint64_t p2 = 0;
-  /// Contains the address of the kernel object or SYCL object references and
-  /// only the lower 32-bits will be used to generate the hash
+  /// Previous implementations stored a reference to a SYCL object in p3 and
+  /// since such references are generally not available whn the payload and UID
+  /// are created, p3 will now contain a monotonically increasing 64-bit value
+  /// that is always considered unique. In the case payload information is
+  /// invalid (when NDEBUG is provided at compile time), the hash will return
+  /// the unique value in p3
   uint64_t p3 = 0;
   /// Hash generation helper
   hash_t helper;
