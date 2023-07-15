@@ -132,7 +132,7 @@ struct IsCompileTimeProperty<intel::experimental::pipelined_key>
 
 template <intel::experimental::streaming_interface_options_enum Stall_Free>
 struct PropertyMetaInfo<
-    intel::experimental::streaming_interface_key::value_t<Stall>> {
+    intel::experimental::streaming_interface_key::value_t<Stall_Free>> {
   static constexpr const char *name = "sycl-streaming-interface";
   static constexpr intel::experimental::streaming_interface_options_enum value =
       Stall_Free;
