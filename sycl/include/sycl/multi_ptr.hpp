@@ -99,10 +99,6 @@ public:
                                std::add_lvalue_reference_t<value_type>>);
   // Legacy has a different interface.
   static_assert(DecorateAddress != access::decorated::legacy);
-  // constant_space is only supported in legacy multi_ptr.
-  static_assert(Space != access::address_space::constant_space,
-                "SYCL 2020 multi_ptr does not support the deprecated "
-                "constant_space address space.");
 
   // Constructors
   multi_ptr() : m_Pointer(nullptr) {}
@@ -164,6 +160,19 @@ public:
                  Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
       : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+
+  // Only if Space == constant_space
+  template <
+      int dimensions, access::placeholder isPlaceholder, typename PropertyListT,
+      access::address_space _Space = Space,
+      typename = typename std::enable_if_t<
+          _Space == Space && Space == access::address_space::constant_space>>
+  multi_ptr(
+      accessor<ElementType, dimensions, access_mode::read,
+               access::target::constant_buffer, isPlaceholder, PropertyListT>
+          Accessor)
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // The following constructors are necessary to create multi_ptr<const
   // ElementType, Space, DecorateAddress> from accessor<ElementType, ...>.
@@ -227,6 +236,22 @@ public:
       local_accessor<typename std::remove_const_t<RelayElementType>, Dimensions>
           Accessor)
       : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+
+  // Only if Space == constant_space and element type is const
+  template <
+      int dimensions, access::placeholder isPlaceholder, typename PropertyListT,
+      access::address_space _Space = Space,
+      typename RelayElementType = ElementType,
+      typename = typename std::enable_if_t<
+          _Space == Space && Space == access::address_space::constant_space &&
+          std::is_const_v<RelayElementType> &&
+          std::is_same_v<RelayElementType, ElementType>>>
+  multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, dimensions,
+                     access_mode::read, access::target::constant_buffer,
+                     isPlaceholder, PropertyListT>
+                Accessor)
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Assignment and access operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -433,10 +458,6 @@ public:
                                std::add_pointer_t<value_type>>);
   // Legacy has a different interface.
   static_assert(DecorateAddress != access::decorated::legacy);
-  // constant_space is only supported in legacy multi_ptr.
-  static_assert(Space != access::address_space::constant_space,
-                "SYCL 2020 multi_ptr does not support the deprecated "
-                "constant_space address space.");
 
   // Constructors
   multi_ptr() : m_Pointer(nullptr) {}
@@ -489,6 +510,19 @@ public:
                  Space == access::address_space::generic_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
       : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+
+  // Only if Space == constant_space
+  template <
+      typename ElementType, int dimensions, typename PropertyListT,
+      access::address_space _Space = Space,
+      typename = typename std::enable_if_t<
+          _Space == Space && Space == access::address_space::constant_space>>
+  multi_ptr(accessor<ElementType, dimensions, access_mode::read,
+                     access::target::constant_buffer,
+                     access::placeholder::false_t, PropertyListT>
+                Accessor)
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -623,6 +657,19 @@ public:
                  Space == access::address_space::generic_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
       : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+
+  // Only if Space == constant_space
+  template <
+      typename ElementType, int dimensions, typename PropertyListT,
+      access::address_space _Space = Space,
+      typename = typename std::enable_if_t<
+          _Space == Space && Space == access::address_space::constant_space>>
+  multi_ptr(accessor<ElementType, dimensions, access_mode::read,
+                     access::target::constant_buffer,
+                     access::placeholder::false_t, PropertyListT>
+                Accessor)
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -1343,7 +1390,7 @@ template <class T, int dimensions, access::placeholder isPlaceholder,
 multi_ptr(accessor<T, dimensions, access_mode::read, target::constant_buffer,
                    isPlaceholder, PropertyListT>)
     -> multi_ptr<const T, access::address_space::constant_space,
-                 access::decorated::legacy>;
+                 access::decorated::no>;
 template <class T, int dimensions, access::mode Mode,
           access::placeholder isPlaceholder, typename PropertyListT>
 multi_ptr(
