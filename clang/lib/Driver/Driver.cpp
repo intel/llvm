@@ -7516,6 +7516,8 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       Archs.insert(CudaArchToString(CudaArch::HIPDefault));
     else if (Kind == Action::OFK_OpenMP)
       Archs.insert(StringRef());
+    else if (Kind == Action::OFK_SYCL)
+      Archs.insert(StringRef());
   } else {
     Args.ClaimAllArgs(options::OPT_offload_arch_EQ);
     Args.ClaimAllArgs(options::OPT_no_offload_arch_EQ);
@@ -7540,7 +7542,7 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
   OffloadAction::DeviceDependences DDeps;
 
   const Action::OffloadKind OffloadKinds[] = {
-      Action::OFK_OpenMP, Action::OFK_Cuda, Action::OFK_HIP};
+      Action::OFK_OpenMP, Action::OFK_Cuda, Action::OFK_HIP, Action::OFK_SYCL};
 
   for (Action::OffloadKind Kind : OffloadKinds) {
     SmallVector<const ToolChain *, 2> ToolChains;
