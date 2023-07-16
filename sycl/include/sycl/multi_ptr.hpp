@@ -129,7 +129,7 @@ public:
           (Space == access::address_space::generic_space ||
            Space == access::address_space::global_space ||
            Space == access::address_space::ext_intel_global_device_space)>>
-  multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
+  multi_ptr(accessor<ElementType, Dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(detail::cast_AS<decorated_type *>(
@@ -147,7 +147,7 @@ public:
   __SYCL2020_DEPRECATED(
       "multi_ptr construction using target::local specialized "
       "accessor is deprecated since SYCL 2020")
-  multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::local,
+  multi_ptr(accessor<ElementType, Dimensions, Mode, target::local,
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer().get()) {}
@@ -167,10 +167,12 @@ public:
       access::address_space _Space = Space,
       typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space>>
-  multi_ptr(
-      accessor<ElementType, dimensions, access_mode::read,
-               access::target::constant_buffer, isPlaceholder, PropertyListT>
-          Accessor)
+  __SYCL2020_DEPRECATED(
+      "multi_ptr construction using target::constant_buffer specialized "
+      "accessor is deprecated since SYCL 2020")
+  multi_ptr(accessor<ElementType, dimensions, access_mode::read,
+                     target::constant_buffer, isPlaceholder, PropertyListT>
+                Accessor)
       : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
                       .get_decorated()) {}
 
@@ -198,7 +200,7 @@ public:
           std::is_const_v<RelayElementType> &&
           std::is_same_v<RelayElementType, ElementType>>>
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
-                     Mode, access::target::device, isPlaceholder, PropertyListT>
+                     Mode, target::device, isPlaceholder, PropertyListT>
                 Accessor)
       : m_Pointer(detail::cast_AS<decorated_type *>(
             Accessor.template get_multi_ptr<DecorateAddress>()
@@ -219,7 +221,7 @@ public:
       "multi_ptr construction using target::local specialized "
       "accessor is deprecated since SYCL 2020")
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
-                     Mode, access::target::local, isPlaceholder, PropertyListT>
+                     Mode, target::local, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer().get()) {}
 
@@ -246,9 +248,12 @@ public:
           _Space == Space && Space == access::address_space::constant_space &&
           std::is_const_v<RelayElementType> &&
           std::is_same_v<RelayElementType, ElementType>>>
+  __SYCL2020_DEPRECATED(
+      "multi_ptr construction using target::constant_buffer specialized "
+      "accessor is deprecated since SYCL 2020")
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, dimensions,
-                     access_mode::read, access::target::constant_buffer,
-                     isPlaceholder, PropertyListT>
+                     access_mode::read, target::constant_buffer, isPlaceholder,
+                     PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
                       .get_decorated()) {}
@@ -479,7 +484,7 @@ public:
           (Space == access::address_space::global_space ||
            Space == access::address_space::generic_space ||
            Space == access::address_space::ext_intel_global_device_space)>>
-  multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
+  multi_ptr(accessor<ElementType, Dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(detail::cast_AS<decorated_type *>(
@@ -496,7 +501,7 @@ public:
   __SYCL2020_DEPRECATED(
       "multi_ptr construction using target::local specialized "
       "accessor is deprecated since SYCL 2020")
-  multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::local,
+  multi_ptr(accessor<ElementType, Dimensions, Mode, target::local,
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer().get()) {}
@@ -517,9 +522,12 @@ public:
       access::address_space _Space = Space,
       typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space>>
+  __SYCL2020_DEPRECATED(
+      "multi_ptr construction using target::constant_buffer specialized "
+      "accessor is deprecated since SYCL 2020")
   multi_ptr(accessor<ElementType, dimensions, access_mode::read,
-                     access::target::constant_buffer,
-                     access::placeholder::false_t, PropertyListT>
+                     target::constant_buffer, access::placeholder::false_t,
+                     PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
                       .get_decorated()) {}
@@ -626,7 +634,7 @@ public:
           (Space == access::address_space::global_space ||
            Space == access::address_space::generic_space ||
            Space == access::address_space::ext_intel_global_device_space)>>
-  multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
+  multi_ptr(accessor<ElementType, Dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(detail::cast_AS<decorated_type *>(
@@ -643,7 +651,7 @@ public:
   __SYCL2020_DEPRECATED(
       "multi_ptr construction using target::local specialized "
       "accessor is deprecated since SYCL 2020")
-  multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::local,
+  multi_ptr(accessor<ElementType, Dimensions, Mode, target::local,
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer().get()) {}
@@ -664,9 +672,12 @@ public:
       access::address_space _Space = Space,
       typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space>>
+  __SYCL2020_DEPRECATED(
+      "multi_ptr construction using target::constant_buffer specialized "
+      "accessor is deprecated since SYCL 2020")
   multi_ptr(accessor<ElementType, dimensions, access_mode::read,
-                     access::target::constant_buffer,
-                     access::placeholder::false_t, PropertyListT>
+                     target::constant_buffer, access::placeholder::false_t,
+                     PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
                       .get_decorated()) {}
@@ -842,7 +853,7 @@ public:
           (Space == access::address_space::generic_space ||
            Space == access::address_space::global_space ||
            Space == access::address_space::ext_intel_global_device_space)>>
-  multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
+  multi_ptr(accessor<ElementType, dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(detail::cast_AS<pointer_t>(Accessor.get_pointer().get())) {}
@@ -854,7 +865,7 @@ public:
       typename = typename std::enable_if_t<
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
-  multi_ptr(accessor<ElementType, dimensions, Mode, access::target::local,
+  multi_ptr(accessor<ElementType, dimensions, Mode, target::local,
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -870,10 +881,9 @@ public:
       typename PropertyListT, access::address_space _Space = Space,
       typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space>>
-  multi_ptr(
-      accessor<ElementType, dimensions, Mode, access::target::constant_buffer,
-               isPlaceholder, PropertyListT>
-          Accessor)
+  multi_ptr(accessor<ElementType, dimensions, Mode, target::constant_buffer,
+                     isPlaceholder, PropertyListT>
+                Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
   // The following constructors are necessary to create multi_ptr<const
@@ -900,7 +910,7 @@ public:
            Space == access::address_space::ext_intel_global_device_space) &&
           std::is_const_v<ET> && std::is_same_v<ET, ElementType>>>
   multi_ptr(accessor<typename std::remove_const_t<ET>, dimensions, Mode,
-                     access::target::device, isPlaceholder, PropertyListT>
+                     target::device, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
@@ -914,7 +924,7 @@ public:
                  Space == access::address_space::local_space) &&
                 std::is_const_v<ET> && std::is_same_v<ET, ElementType>>>
   multi_ptr(accessor<typename std::remove_const_t<ET>, dimensions, Mode,
-                     access::target::local, isPlaceholder, PropertyListT>
+                     target::local, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
@@ -938,10 +948,9 @@ public:
       typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space &&
           std::is_const_v<ET> && std::is_same_v<ET, ElementType>>>
-  multi_ptr(
-      accessor<typename std::remove_const_t<ET>, dimensions, Mode,
-               access::target::constant_buffer, isPlaceholder, PropertyListT>
-          Accessor)
+  multi_ptr(accessor<typename std::remove_const_t<ET>, dimensions, Mode,
+                     target::constant_buffer, isPlaceholder, PropertyListT>
+                Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
   // TODO: This constructor is the temporary solution for the existing problem
@@ -1149,7 +1158,7 @@ public:
           (Space == access::address_space::generic_space ||
            Space == access::address_space::global_space ||
            Space == access::address_space::ext_intel_global_device_space)>>
-  multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
+  multi_ptr(accessor<ElementType, dimensions, Mode, target::device,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -1161,7 +1170,7 @@ public:
       typename = typename std::enable_if_t<
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
-  multi_ptr(accessor<ElementType, dimensions, Mode, access::target::local,
+  multi_ptr(accessor<ElementType, dimensions, Mode, target::local,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -1182,10 +1191,9 @@ public:
       typename PropertyListT, access::address_space _Space = Space,
       typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space>>
-  multi_ptr(
-      accessor<ElementType, dimensions, Mode, access::target::constant_buffer,
-               access::placeholder::false_t, PropertyListT>
-          Accessor)
+  multi_ptr(accessor<ElementType, dimensions, Mode, target::constant_buffer,
+                     access::placeholder::false_t, PropertyListT>
+                Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
   using ReturnPtr = detail::const_if_const_AS<Space, void> *;
@@ -1299,7 +1307,7 @@ public:
           (Space == access::address_space::generic_space ||
            Space == access::address_space::global_space ||
            Space == access::address_space::ext_intel_global_device_space)>>
-  multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
+  multi_ptr(accessor<ElementType, dimensions, Mode, target::device,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -1311,7 +1319,7 @@ public:
       typename = typename std::enable_if_t<
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
-  multi_ptr(accessor<ElementType, dimensions, Mode, access::target::local,
+  multi_ptr(accessor<ElementType, dimensions, Mode, target::local,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -1332,10 +1340,9 @@ public:
       typename PropertyListT, access::address_space _Space = Space,
       typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space>>
-  multi_ptr(
-      accessor<ElementType, dimensions, Mode, access::target::constant_buffer,
-               access::placeholder::false_t, PropertyListT>
-          Accessor)
+  multi_ptr(accessor<ElementType, dimensions, Mode, target::constant_buffer,
+                     access::placeholder::false_t, PropertyListT>
+                Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Returns the underlying OpenCL C pointer
