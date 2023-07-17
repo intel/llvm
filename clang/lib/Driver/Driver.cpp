@@ -9713,53 +9713,53 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(
     // the normal getToolChain call, as it seems a reasonable way to categorize
     // things.
     switch (TargetDeviceOffloadKind) {
-      case Action::OFK_Cuda:
-        TC = std::make_unique<toolchains::CudaToolChain>(
+    case Action::OFK_Cuda:
+      TC = std::make_unique<toolchains::CudaToolChain>(
           *this, Target, HostTC, Args, TargetDeviceOffloadKind);
-        break;
-      case Action::OFK_HIP: {
-        if (Target.getArch() == llvm::Triple::amdgcn &&
-            Target.getVendor() == llvm::Triple::AMD &&
-            Target.getOS() == llvm::Triple::AMDHSA)
-          TC = std::make_unique<toolchains::HIPAMDToolChain>(
-              *this, Target, HostTC, Args, TargetDeviceOffloadKind);
-        else if (Target.getArch() == llvm::Triple::spirv64 &&
-                 Target.getVendor() == llvm::Triple::UnknownVendor &&
-                 Target.getOS() == llvm::Triple::UnknownOS)
-          TC = std::make_unique<toolchains::HIPSPVToolChain>(*this, Target,
-                                                             HostTC, Args);
-        break;
-      }
-      case Action::OFK_OpenMP:
-        // omp + nvptx
-        TC = std::make_unique<toolchains::CudaToolChain>(
+      break;
+    case Action::OFK_HIP: {
+      if (Target.getArch() == llvm::Triple::amdgcn &&
+          Target.getVendor() == llvm::Triple::AMD &&
+          Target.getOS() == llvm::Triple::AMDHSA)
+        TC = std::make_unique<toolchains::HIPAMDToolChain>(
+            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+      else if (Target.getArch() == llvm::Triple::spirv64 &&
+               Target.getVendor() == llvm::Triple::UnknownVendor &&
+               Target.getOS() == llvm::Triple::UnknownOS)
+        TC = std::make_unique<toolchains::HIPSPVToolChain>(*this, Target,
+                                                           HostTC, Args);
+      break;
+    }
+    case Action::OFK_OpenMP:
+      // omp + nvptx
+      TC = std::make_unique<toolchains::CudaToolChain>(
           *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+      break;
+    case Action::OFK_SYCL:
+      switch (Target.getArch()) {
+      case llvm::Triple::spir:
+      case llvm::Triple::spir64:
+        TC = std::make_unique<toolchains::SYCLToolChain>(
+            *this, Target, HostTC, Args, DeviceTraitsMacrosArgs);
         break;
-      case Action::OFK_SYCL:
-        switch (Target.getArch()) {
-          case llvm::Triple::spir:
-          case llvm::Triple::spir64:
-            TC = std::make_unique<toolchains::SYCLToolChain>(
-                *this, Target, HostTC, Args, DeviceTraitsMacrosArgs);
-            break;
-          case llvm::Triple::nvptx:
-          case llvm::Triple::nvptx64:
-            TC = std::make_unique<toolchains::CudaToolChain>(
-              *this, Target, HostTC, Args, TargetDeviceOffloadKind);
-            break;
-          case llvm::Triple::amdgcn:
-            TC = std::make_unique<toolchains::HIPAMDToolChain>(
-                *this, Target, HostTC, Args, TargetDeviceOffloadKind);
-            break;
-          default:
-            if (isSYCLNativeCPU(Args)) {
+      case llvm::Triple::nvptx:
+      case llvm::Triple::nvptx64:
+        TC = std::make_unique<toolchains::CudaToolChain>(
+            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+        break;
+      case llvm::Triple::amdgcn:
+        TC = std::make_unique<toolchains::HIPAMDToolChain>(
+            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+        break;
+      default:
+        if (isSYCLNativeCPU(Args)) {
           TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target,
                                                            HostTC, Args);
-            }
-          break;
         }
+        break;
+      }
       break;
-      default:
+    default:
       break;
     }
   }
