@@ -2284,7 +2284,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferCopyRect(
 /// \param sync_point The sync_point associated with this memory operation.
 __SYCL_EXPORT pi_result piextCommandBufferMemBufferRead(
     pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
-    size_t size, void *dst, pi_uint32 num_events_in_wait_list,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
