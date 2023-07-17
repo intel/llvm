@@ -22250,39 +22250,31 @@ RValue CodeGenFunction::EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E) {
   Value *PtrVal = EmitScalarExpr(PtrArg);
   auto &Ctx = CGM.getContext();
 
-  // Create the pointer annotation
+  // Create the pointer annotation.
   Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
                                  {PtrVal->getType(), CGM.ConstGlobalsPtrTy});
 
   SmallString<256> AnnotStr;
   llvm::raw_svector_ostream Out(AnnotStr);
 
-  SmallVector<const StringLiteral *, 32> Params;
-  SmallVector<APSInt, 32> Values;
-
-  for (unsigned i = 1, e = E->getNumArgs(); i != e; i++) {
-    if (i <= e / 2) {
-      auto Arg = E->getArg(i)->IgnoreParenCasts();
-      const StringLiteral *Str = dyn_cast<const StringLiteral>(Arg);
-      Expr::EvalResult Result;
-      if (!Str && Arg->EvaluateAsRValue(Result, Ctx) && Result.Val.isLValue()) {
-        const auto *LVE = Result.Val.getLValueBase().dyn_cast<const Expr *>();
-        Str = dyn_cast<const StringLiteral>(LVE);
-      }
-      assert(Str && "Constant parameter string is invalid?");
-      Params.push_back(Str);
-    } else {
-      auto IntVal = E->getArg(i)->getIntegerConstantExpr(Ctx);
-      assert(IntVal.has_value() &&
-             "Constant integer arg isn't actually constant?");
-      Values.push_back(IntVal.value());
-    }
-  }
-
   SmallVector<std::pair<std::string, std::string>, 4> Properties;
-  for (unsigned i = 0; i < Params.size(); i++) {
+
+  for (unsigned i = 1, e = E->getNumArgs(); i <= e / 2; i++) {
+    auto Arg = E->getArg(i)->IgnoreParenCasts();
+    const StringLiteral *Str = dyn_cast<const StringLiteral>(Arg);
+    Expr::EvalResult Result;
+    if (!Str && Arg->EvaluateAsRValue(Result, Ctx) && Result.Val.isLValue()) {
+      const auto *LVE = Result.Val.getLValueBase().dyn_cast<const Expr *>();
+      Str = dyn_cast<const StringLiteral>(LVE);
+    }
+    assert(Str && "Constant parameter string is invalid?");
+
+    auto IntVal = E->getArg(i + e / 2)->getIntegerConstantExpr(Ctx);
+    assert(IntVal.has_value() &&
+           "Constant integer arg isn't actually constant?");
+
     Properties.push_back(
-        std::make_pair(Params[i]->getString().str(), toString(Values[i], 10)));
+        std::make_pair(Str->getString().str(), toString(IntVal.value(), 10)));
   }
 
   llvm::Value *Ann =

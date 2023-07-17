@@ -5902,21 +5902,18 @@ bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
   return false;
 }
 
-/// Check that the first argument to __builtin_intel_ptr_annotation is a pointer
-/// and the following arguments are property pairs
 bool Sema::CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
                                                           CallExpr *TheCall) {
   unsigned NumArgs = TheCall->getNumArgs();
-  // Make sure we have the minimum number of provided arguments
+  // Make sure we have the minimum number of provided arguments.
   if (checkArgCountAtLeast(*this, TheCall, 1)) {
     return true;
   }
 
-  // Make sure we have odd number of arguments
+  // Make sure we have odd number of arguments.
   if (!(NumArgs & 0x1)) {
     return Diag(TheCall->getEndLoc(),
-                diag::err_intel_sycl_ptr_annotation_mismatch)
-           << 0;
+                diag::err_intel_sycl_ptr_annotation_arg_number_mismatch);
   }
 
   // First argument should be a pointer.
@@ -5926,31 +5923,31 @@ bool Sema::CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
   if (!isa<PointerType>(PointerArgType))
     return Diag(PointerArg->getBeginLoc(),
                 diag::err_intel_sycl_ptr_annotation_mismatch)
-           << 1;
+           << 0;
 
-  // Following arguments are paired in format ("String",integer)
-  llvm::APSInt Result;
-  for (unsigned I = 1; I != NumArgs; ++I) {
-    if (I <= NumArgs / 2) {
-      // must be string Literal/const char*
-      auto Arg = TheCall->getArg(I)->IgnoreParenImpCasts();
-      Expr::EvalResult Result;
-      if (!isa<StringLiteral>(Arg) &&
-          !maybeConstEvalStringLiteral(this->Context, Arg)) {
-        Diag(TheCall->getArg(I)->getBeginLoc(),
-             diag::err_intel_sycl_ptr_annotation_mismatch)
-            << 2;
-        return true;
-      }
-    } else {
-      // must be integer
-      if (SemaBuiltinConstantArg(TheCall, I, Result))
-        return true;
+  // Following arguments are paired in format ("String", integer).
+  unsigned I = 1;
+  for (; I <= NumArgs / 2; ++I) {
+    // must be string Literal/const char*
+    auto Arg = TheCall->getArg(I)->IgnoreParenImpCasts();
+    Expr::EvalResult Result;
+    if (!isa<StringLiteral>(Arg) &&
+        !maybeConstEvalStringLiteral(this->Context, Arg)) {
+      Diag(TheCall->getArg(I)->getBeginLoc(),
+           diag::err_intel_sycl_ptr_annotation_mismatch)
+          << 1;
+      return true;
     }
   }
 
+  llvm::APSInt Result;
+  for (; I != NumArgs; ++I) {
+    // must be integer
+    if (SemaBuiltinConstantArg(TheCall, I, Result))
+      return true;
+  }
+
   // Set the return type to be the same as the type of the first argument
-  // (pointer argument)
   TheCall->setType(PointerArgType);
   return false;
 }

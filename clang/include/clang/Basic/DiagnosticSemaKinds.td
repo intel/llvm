@@ -166,10 +166,12 @@ def err_intel_fpga_mem_arg_mismatch
     : Error<"builtin parameter must be %select{"
             "a pointer"
             "|a non-negative integer constant}0">;
+
+def err_intel_sycl_ptr_annotation_arg_number_mismatch
+    :Error<"number of parameters must be odd number">;
 def err_intel_sycl_ptr_annotation_mismatch
     : Error<"builtin parameter must be %select{"
-            "odd number of arguments"
-            "|a pointer"
+            "a pointer"
             "|a string literal or constexpr const char*}0">;
 
 // C99 variable-length arrays

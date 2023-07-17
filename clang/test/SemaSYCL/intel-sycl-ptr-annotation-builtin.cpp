@@ -23,7 +23,7 @@ void foo(float *A, int *B, State *C) {
   __builtin_intel_sycl_ptr_annotation();
   // expected-error@-1{{too few arguments to function call, expected 1, have 0}}
   x = __builtin_intel_sycl_ptr_annotation(A, "test");
-  // expected-error@-1{{builtin parameter must be odd number of arguments}}
+  // expected-error@-1{{number of parameters must be odd number}}
   y = __builtin_intel_sycl_ptr_annotation(B, "test", i);
   // expected-error@-1{{argument to '__builtin_intel_sycl_ptr_annotation' must be a constant integer}}
   z = __builtin_intel_sycl_ptr_annotation(C, p, 0);
