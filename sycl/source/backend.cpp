@@ -37,6 +37,8 @@ static const PluginPtr &getPlugin(backend Backend) {
     return pi::getPlugin<backend::ext_oneapi_level_zero>();
   case backend::ext_oneapi_cuda:
     return pi::getPlugin<backend::ext_oneapi_cuda>();
+  case backend::ext_oneapi_hip:
+    return pi::getPlugin<backend::ext_oneapi_hip>();
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "getPlugin: Unsupported backend " +
