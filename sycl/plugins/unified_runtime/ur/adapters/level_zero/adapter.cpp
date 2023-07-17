@@ -185,9 +185,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
-                 size_t PropSize, void *PropValue, size_t *PropSizeRet) {
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
+                                                     ur_adapter_info_t PropName,
+                                                     size_t PropSize,
+                                                     void *PropValue,
+                                                     size_t *PropSizeRet) {
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
 
   switch (PropName) {
