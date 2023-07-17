@@ -5352,8 +5352,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Add device trait macros args to CmdArgs and SYCLTargetMacroArg.
     const auto DeviceTraitMacrosArgs = TC.getDeviceTraitMacrosArgs();
     for (const auto &Arg : DeviceTraitMacrosArgs) {
-      CmdArgs.push_back(Arg);
-      D.addSYCLTargetMacroArg(Args, Arg);
+      if (IsSYCLOffloadDevice)
+        D.addSYCLTargetMacroArg(Args, Arg);
+      else
+        CmdArgs.push_back(Arg);
     }
   }
 

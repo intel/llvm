@@ -9739,9 +9739,9 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(
         switch (Target.getArch()) {
           case llvm::Triple::spir:
           case llvm::Triple::spir64:
-          TC = std::make_unique<toolchains::SYCLToolChain>(
-              *this, Target, HostTC, Args, DeviceTraitsMacrosArgs);
-          break;
+            TC = std::make_unique<toolchains::SYCLToolChain>(
+                *this, Target, HostTC, Args, DeviceTraitsMacrosArgs);
+            break;
           case llvm::Triple::nvptx:
           case llvm::Triple::nvptx64:
             TC = std::make_unique<toolchains::CudaToolChain>(
@@ -10057,10 +10057,10 @@ llvm::opt::ArgStringList driver::populateSYCLDeviceTraitMacrosArgs(
       TripleIt = TargetTable.find(TargetTripleStr);
       Found = (TripleIt != TargetTable.end());
       if (!Found) {
-          auto Pos = TargetTripleStr.find_last_of('-');
-          EmptyTriple = (Pos == std::string::npos);
-          TargetTripleStr =
-              EmptyTriple ? TargetTripleStr : TargetTripleStr.substr(0, Pos);
+        auto Pos = TargetTripleStr.find_last_of('-');
+        EmptyTriple = (Pos == std::string::npos);
+        TargetTripleStr =
+            EmptyTriple ? TargetTripleStr : TargetTripleStr.substr(0, Pos);
       }
     }
     if (Found) {
@@ -10070,22 +10070,22 @@ llvm::opt::ArgStringList driver::populateSYCLDeviceTraitMacrosArgs(
       const auto &AspectList = TargetInfo.aspects;
       const auto &MaySupportOtherAspects = TargetInfo.maySupportOtherAspects;
       if (!AnyDeviceHasAnyAspect)
-          AnyDeviceHasAnyAspect = MaySupportOtherAspects;
+        AnyDeviceHasAnyAspect = MaySupportOtherAspects;
       for (const auto &aspect : AspectList) {
-          // If target has an entry in the config file, the set of aspects
-          // supported by all devices supporting the target is 'AspectList'. If
-          // there's no entry, such set is empty.
-          const auto &AspectIt = AllDevicesHave.find(aspect);
-          if (AspectIt != AllDevicesHave.end())
+        // If target has an entry in the config file, the set of aspects
+        // supported by all devices supporting the target is 'AspectList'. If
+        // there's no entry, such set is empty.
+        const auto &AspectIt = AllDevicesHave.find(aspect);
+        if (AspectIt != AllDevicesHave.end())
           ++AllDevicesHave[aspect];
-          else
+        else
           AllDevicesHave[aspect] = 1;
-          // If target has an entry in the config file AND
-          // 'MaySupportOtherAspects' is false, the set of aspects supported by
-          // any device supporting the target is 'AspectList'. If there's no
-          // entry OR 'MaySupportOtherAspects' is true, such set contains all
-          // the aspects.
-          AnyDeviceHas[aspect] = true;
+        // If target has an entry in the config file AND
+        // 'MaySupportOtherAspects' is false, the set of aspects supported by
+        // any device supporting the target is 'AspectList'. If there's no
+        // entry OR 'MaySupportOtherAspects' is true, such set contains all
+        // the aspects.
+        AnyDeviceHas[aspect] = true;
       }
     }
   }
