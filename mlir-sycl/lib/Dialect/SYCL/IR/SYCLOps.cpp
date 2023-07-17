@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -51,6 +52,61 @@ template <typename Ty> static Ty getMemRefElementType(Type ty) {
     return {};
   return dyn_cast<Ty>(mt.getElementType());
 }
+
+/// Test \p id is default constructed and it is not modified.
+static bool isDefaultConstructedID(Value id) {
+  // Check it is default constructed
+  auto constructor = id.getDefiningOp<sycl::SYCLIDConstructorOp>();
+  if (!constructor || !constructor.getArgs().empty())
+    return false;
+
+  // Conservatively check it has not been modified after construction
+  return llvm::all_of(id.getUsers(), [=](Operation *op) {
+    if (auto get = dyn_cast<SYCLIDGetOp>(op))
+      // sycl.id.get should only be used when returning a scalar
+      return !isa<MemRefType>(get.getRes().getType());
+    return isa<SYCLNDRangeConstructorOp, SYCLIDConstructorOp, SYCLConstructorOp,
+               affine::AffineLoadOp, memref::LoadOp>(op);
+  });
+}
+
+namespace {
+/// Transform:
+/// ```
+/// %off = sycl.id.constructor() : () -> memref<?x!sycl_id_X_>
+/// sycl.nd_range.constructor(%gs, %ls, %off)
+///   : (memref<?x!sycl_range_X_>,
+///      memref<?x!sycl_range_X_>,
+///      memref<?x!sycl_id_X_>)
+///   -> memref<?x!sycl_nd_range_X_>
+/// ```
+/// To:
+/// ```
+/// sycl.nd_range.constructor(%gs, %ls)
+///   : (memref<?x!sycl_range_X_>, memref<?x!sycl_range_X_>)
+///   -> memref<?x!sycl_nd_range_X_>
+/// ```
+class SYCLNDRangeConstructorEraseDefaultOffset
+    : public OpRewritePattern<SYCLNDRangeConstructorOp> {
+public:
+  using OpRewritePattern<SYCLNDRangeConstructorOp>::OpRewritePattern;
+
+  LogicalResult match(SYCLNDRangeConstructorOp op) const final {
+    OperandRange args = op.getArgs();
+    return success(args.size() == offsetOperandIndex + 1 &&
+                   isDefaultConstructedID(args[offsetOperandIndex]));
+  }
+
+  void rewrite(SYCLNDRangeConstructorOp op,
+               PatternRewriter &rewriter) const final {
+    rewriter.updateRootInPlace(op,
+                               [=] { op->eraseOperand(offsetOperandIndex); });
+  }
+
+private:
+  constexpr static unsigned offsetOperandIndex = 2;
+};
+} // namespace
 
 bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
   if (Inputs.size() != 1 || Outputs.size() != 1)
@@ -404,6 +460,11 @@ LogicalResult SYCLNDRangeConstructorOp::verify() {
     break;
   }
   return emitBadSignatureError(*this);
+}
+
+void SYCLNDRangeConstructorOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<SYCLNDRangeConstructorEraseDefaultOffset>(context);
 }
 
 void SYCLNDRangeConstructorOp::getEffects(
