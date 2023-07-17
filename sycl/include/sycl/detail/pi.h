@@ -1355,12 +1355,6 @@ __SYCL_EXPORT pi_result piextMemImageCreateWithNativeHandle(
 __SYCL_EXPORT pi_result piProgramCreate(pi_context context, const void *il,
                                         size_t length, pi_program *res_program);
 
-__SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
-                                                    pi_uint32 count,
-                                                    const char **strings,
-                                                    const size_t *lengths,
-                                                    pi_program *ret_program);
-
 /// Creates a PI program for a context and loads the given binary into it.
 ///
 /// \param context is the PI context to associate the program with.
@@ -2284,7 +2278,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferCopyRect(
 /// \param sync_point The sync_point associated with this memory operation.
 __SYCL_EXPORT pi_result piextCommandBufferMemBufferRead(
     pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
-    size_t size, void *dst, pi_uint32 num_events_in_wait_list,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
