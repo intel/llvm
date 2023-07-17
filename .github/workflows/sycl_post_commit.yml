@@ -6,6 +6,7 @@ on:
     - sycl
     - sycl-devops-pr/**
 
+
 jobs:
   # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:
