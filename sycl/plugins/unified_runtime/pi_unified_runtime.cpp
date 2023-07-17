@@ -576,15 +576,6 @@ __SYCL_EXPORT pi_result piProgramCreateWithBinary(
                                           Metadata, BinaryStatus, Program);
 }
 
-__SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context Context,
-                                                    pi_uint32 Count,
-                                                    const char **Strings,
-                                                    const size_t *Lengths,
-                                                    pi_program *RetProgram) {
-  return pi2ur::piclProgramCreateWithSource(Context, Count, Strings, Lengths,
-                                            RetProgram);
-}
-
 __SYCL_EXPORT pi_result piProgramGetInfo(pi_program Program,
                                          pi_program_info ParamName,
                                          size_t ParamValueSize,
@@ -720,16 +711,6 @@ __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
 
 __SYCL_EXPORT pi_result piMemRelease(pi_mem Mem) {
   return pi2ur::piMemRelease(Mem);
-}
-
-__SYCL_EXPORT pi_result piEnqueueNativeKernel(
-    pi_queue Queue, void (*UserFunc)(void *), void *Args, size_t CbArgs,
-    pi_uint32 NumMemObjects, const pi_mem *MemList, const void **ArgsMemLoc,
-    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event) {
-  return pi2ur::piEnqueueNativeKernel(
-      Queue, UserFunc, Args, CbArgs, NumMemObjects, MemList, ArgsMemLoc,
-      NumEventsInWaitList, EventWaitList, Event);
 }
 
 __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
@@ -1206,7 +1187,6 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piextKernelSetArgSampler)
   _PI_API(piKernelGetSubGroupInfo)
   _PI_API(piProgramCreateWithBinary)
-  _PI_API(piclProgramCreateWithSource)
   _PI_API(piProgramGetInfo)
   _PI_API(piProgramCompile)
   _PI_API(piProgramGetBuildInfo)
@@ -1252,7 +1232,6 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piEnqueueMemBufferRead)
   _PI_API(piEnqueueEventsWaitWithBarrier)
   _PI_API(piEnqueueEventsWait)
-  _PI_API(piEnqueueNativeKernel)
   _PI_API(piEnqueueMemImageFill)
 
   _PI_API(piEventSetCallback)

@@ -30,8 +30,8 @@ template <> struct element_type_traits<bfloat16> {
   // operations to:
   using EnclosingCppT = float;
   // Can't map bfloat16 operations to opertations on RawT:
-  static inline constexpr bool use_native_cpp_ops = false;
-  static inline constexpr bool is_floating_point = true;
+  static constexpr bool use_native_cpp_ops = false;
+  static constexpr bool is_floating_point = true;
 };
 
 #ifdef __SYCL_DEVICE_ONLY__
