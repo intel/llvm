@@ -2680,7 +2680,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piSamplerRelease, clReleaseSampler)
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, clEnqueueNDRangeKernel)
-  _PI_CL(piEnqueueNativeKernel, clEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, clEnqueueMarkerWithWaitList)
   _PI_CL(piEnqueueEventsWaitWithBarrier, clEnqueueBarrierWithWaitList)
   _PI_CL(piEnqueueMemBufferRead, clEnqueueReadBuffer)
@@ -2727,6 +2726,12 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferMemBufferCopy, piextCommandBufferMemBufferCopy)
   _PI_CL(piextCommandBufferMemBufferCopyRect,
          piextCommandBufferMemBufferCopyRect)
+  _PI_CL(piextCommandBufferMemBufferRead, piextCommandBufferMemBufferRead)
+  _PI_CL(piextCommandBufferMemBufferReadRect,
+         piextCommandBufferMemBufferReadRect)
+  _PI_CL(piextCommandBufferMemBufferWrite, piextCommandBufferMemBufferWrite)
+  _PI_CL(piextCommandBufferMemBufferWriteRect,
+         piextCommandBufferMemBufferWriteRect)
   _PI_CL(piextEnqueueCommandBuffer, piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)

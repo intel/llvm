@@ -76,6 +76,16 @@ static event submitAssertCapture(queue &, event &, queue *,
 #endif
 } // namespace detail
 
+namespace ext {
+namespace oneapi {
+namespace experimental {
+// State of a queue with regards to graph recording,
+// returned by info::queue::state
+enum class queue_state { executing, recording };
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
 /// A SYCL queue can be used to submit command groups to be executed by the SYCL
@@ -283,6 +293,9 @@ public:
   /// \return SYCL device this queue was constructed with.
   device get_device() const;
 
+  /// \return State the queue is currently in.
+  ext::oneapi::experimental::queue_state ext_oneapi_get_state() const;
+
   /// \return true if this queue is a SYCL host queue.
   __SYCL2020_DEPRECATED(
       "is_host() is deprecated as the host device is no longer supported.")
@@ -384,19 +397,6 @@ public:
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
-  /// until all commands previously submitted to this queue have entered the
-  /// complete state.
-  ///
-  /// \param CodeLoc is the code location of the submit call (default argument)
-  /// \return a SYCL event object, which corresponds to the queue the command
-  /// group is being enqueued on.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_submit_barrier' instead")
-  event submit_barrier(
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return ext_oneapi_submit_barrier(CodeLoc);
-  }
-
-  /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
   /// is empty, then ext_oneapi_submit_barrier has no effect.
   ///
@@ -410,22 +410,6 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
                   CodeLoc);
-  }
-
-  /// Prevents any commands submitted afterward to this queue from executing
-  /// until all events in WaitList have entered the complete state. If WaitList
-  /// is empty, then submit_barrier has no effect.
-  ///
-  /// \param WaitList is a vector of valid SYCL events that need to complete
-  /// before barrier command can be executed.
-  /// \param CodeLoc is the code location of the submit call (default argument)
-  /// \return a SYCL event object, which corresponds to the queue the command
-  /// group is being enqueued on.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_submit_barrier' instead")
-  event submit_barrier(
-      const std::vector<event> &WaitList,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return ext_oneapi_submit_barrier(WaitList, CodeLoc);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the

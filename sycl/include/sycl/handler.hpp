@@ -1542,6 +1542,12 @@ private:
     setType(detail::CG::CodeplayHostTask);
   }
 
+  /// @brief Get the command graph if any associated with this handler. It can
+  /// come from either the associated queue or from being set explicitly through
+  /// the appropriate constructor.
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  getCommandGraph() const;
+
 public:
   handler(const handler &) = delete;
   handler(handler &&) = delete;
@@ -1694,24 +1700,6 @@ public:
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
         std::move(KernelFunc));
-  }
-
-  /// Defines and invokes a SYCL kernel on host device.
-  ///
-  /// \param Func is a SYCL kernel function defined by lambda function or a
-  /// named function object type.
-  template <typename FuncT>
-  __SYCL_DEPRECATED(
-      "run_on_host_intel() is deprecated, use host_task() instead")
-  void run_on_host_intel(FuncT Func) {
-    throwIfActionIsCreated();
-    // No need to check if range is out of INT_MAX limits as it's compile-time
-    // known constant
-    MNDRDesc.set(range<1>{1});
-
-    MArgs = std::move(MAssociatedAccesors);
-    MHostKernel.reset(new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
-    setType(detail::CG::RunOnHostIntel);
   }
 
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
@@ -2548,27 +2536,12 @@ public:
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
-  /// until all commands previously submitted to this queue have entered the
-  /// complete state.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-  void barrier() { ext_oneapi_barrier(); }
-
-  /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
   /// is empty, then the barrier has no effect.
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
   void ext_oneapi_barrier(const std::vector<event> &WaitList);
-
-  /// Prevents any commands submitted afterward to this queue from executing
-  /// until all events in WaitList have entered the complete state. If WaitList
-  /// is empty, then the barrier has no effect.
-  ///
-  /// \param WaitList is a vector of valid SYCL events that need to complete
-  /// before barrier command can be executed.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-  void barrier(const std::vector<event> &WaitList);
 
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on this handler's

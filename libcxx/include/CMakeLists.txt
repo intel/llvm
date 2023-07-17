@@ -90,6 +90,8 @@ set(files
   __algorithm/pstl_find.h
   __algorithm/pstl_for_each.h
   __algorithm/pstl_frontend_dispatch.h
+  __algorithm/pstl_generate.h
+  __algorithm/pstl_is_partitioned.h
   __algorithm/pstl_merge.h
   __algorithm/pstl_replace.h
   __algorithm/pstl_stable_sort.h
@@ -435,6 +437,7 @@ set(files
   __iterator/common_iterator.h
   __iterator/concepts.h
   __iterator/counted_iterator.h
+  __iterator/cpp17_iterator_concepts.h
   __iterator/data.h
   __iterator/default_sentinel.h
   __iterator/distance.h
@@ -499,6 +502,7 @@ set(files
   __memory/temp_value.h
   __memory/temporary_buffer.h
   __memory/uninitialized_algorithms.h
+  __memory/uninitialized_buffer.h
   __memory/unique_ptr.h
   __memory/uses_allocator.h
   __memory/uses_allocator_construction.h
@@ -669,7 +673,10 @@ set(files
   __system_error/error_code.h
   __system_error/error_condition.h
   __system_error/system_error.h
+  __thread/formatter.h
   __thread/poll_with_backoff.h
+  __thread/this_thread.h
+  __thread/thread.h
   __thread/timed_backoff_policy.h
   __threading_support
   __tree
@@ -831,6 +838,7 @@ set(files
   __utility/forward_like.h
   __utility/in_place.h
   __utility/integer_sequence.h
+  __utility/is_pointer_in_range.h
   __utility/move.h
   __utility/pair.h
   __utility/piecewise_construct.h
@@ -990,7 +998,7 @@ set(files
   wctype.h
   )
 
-foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_FSTREAM LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
+foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
   if (NOT ${${feature}})
     set(requires_${feature} "requires LIBCXX_CONFIGURED_WITHOUT_SUPPORT_FOR_THIS_HEADER")
   endif()

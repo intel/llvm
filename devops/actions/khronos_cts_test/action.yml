@@ -25,14 +25,17 @@ post-if: false
 runs:
   using: "composite"
   steps:
+  - uses: actions/checkout@v3
+    with:
+      sparse-checkout: |
+        devops/actions
   - run: |
-      cp -r /actions .
       git config --global --add safe.directory /__w/repo_cache/KhronosGroup/SYCL-CTS
     shell: bash
   - run: apt update && apt install -yqq opencl-headers ocl-icd-opencl-dev
     shell: bash
   - name: Checkout SYCL CTS
-    uses: ./actions/cached_checkout
+    uses: ./devops/actions/cached_checkout
     with:
       path: khronos_sycl_cts
       repository: 'KhronosGroup/SYCL-CTS'

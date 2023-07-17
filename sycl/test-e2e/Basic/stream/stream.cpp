@@ -1,6 +1,5 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out %if !gpu || linux %{ | FileCheck %s %}
-// XFAIL: hip
 
 //==------------------ stream.cpp - SYCL stream basic test -----------------==//
 //
