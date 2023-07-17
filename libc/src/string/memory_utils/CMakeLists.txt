@@ -6,6 +6,8 @@ add_header_library(
     aarch64/memcpy_implementations.h
     bcmp_implementations.h
     bzero_implementations.h
+    generic/aligned_access.h
+    generic/byte_per_byte.h
     memcmp_implementations.h
     memcpy_implementations.h
     memmove_implementations.h
@@ -24,6 +26,7 @@ add_header_library(
     libc.src.__support.CPP.type_traits
     libc.src.__support.macros.config
     libc.src.__support.macros.optimization
+    libc.src.__support.macros.properties.architectures
 )
 
 add_header_library(

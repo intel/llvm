@@ -467,10 +467,10 @@ def warn_drv_assuming_mfloat_abi_is : Warning<
   "unknown platform, assuming -mfloat-abi=%0">;
 def warn_drv_unsupported_float_abi_by_lib : Warning<
   "float ABI '%0' is not supported by current library">,
-  InGroup<DiagGroup<"unsupported-abi">>;
+  InGroup<UnsupportedABI>;
 def warn_drv_no_floating_point_registers: Warning<
-  "'%0': selected processor lacks floating point registers; flag ignored">,
-  InGroup<OptionIgnored>;
+  "'%0': selected processor lacks floating point registers">,
+  InGroup<UnsupportedABI>;
 def warn_ignoring_ftabstop_value : Warning<
   "ignoring invalid -ftabstop value '%0', using default value %1">;
 def warn_drv_overriding_flag_option : Warning<
@@ -791,9 +791,18 @@ def warn_drv_sarif_format_unstable : Warning<
 def err_drv_riscv_unsupported_with_linker_relaxation : Error<
   "%0 is unsupported with RISC-V linker relaxation (-mrelax)">;
 
+def warn_drv_loongarch_conflicting_implied_val : Warning<
+  "ignoring '%0' as it conflicts with that implied by '%1' (%2)">,
+  InGroup<OptionIgnored>;
 def err_drv_loongarch_invalid_mfpu_EQ : Error<
   "invalid argument '%0' to -mfpu=; must be one of: 64, 32, none, 0 (alias for none)">;
 
 def err_drv_expand_response_file : Error<
   "failed to expand response file: %0">;
+
+def warn_drv_missing_multilib : Warning<
+  "no multilib found matching flags: %0">,
+  InGroup<DiagGroup<"missing-multilib">>;
+def note_drv_available_multilibs : Note<
+  "available multilibs are:%0">;
 }

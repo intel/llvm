@@ -362,7 +362,7 @@ define <2 x i1> @and_ne_with_diff_one_splatvec(<2 x i32> %x) {
 ; on an 'and' that should have been killed. It's not obvious
 ; why, but removing anything hides the bug, hence the long test.
 
-define void @simplify_before_foldAndOfICmps() {
+define void @simplify_before_foldAndOfICmps(ptr %p) {
 ; CHECK-LABEL: @simplify_before_foldAndOfICmps(
 ; CHECK-NEXT:    [[A8:%.*]] = alloca i16, align 2
 ; CHECK-NEXT:    [[L7:%.*]] = load i16, ptr [[A8]], align 2
@@ -379,9 +379,9 @@ define void @simplify_before_foldAndOfICmps() {
 ; CHECK-NEXT:    [[C18:%.*]] = or i1 [[C7]], [[TMP3]]
 ; CHECK-NEXT:    [[TMP4:%.*]] = sext i1 [[C3]] to i64
 ; CHECK-NEXT:    [[G26:%.*]] = getelementptr i1, ptr null, i64 [[TMP4]]
-; CHECK-NEXT:    store i16 [[L7]], ptr undef, align 2
-; CHECK-NEXT:    store i1 [[C18]], ptr undef, align 1
-; CHECK-NEXT:    store ptr [[G26]], ptr undef, align 8
+; CHECK-NEXT:    store i16 [[L7]], ptr [[P:%.*]], align 2
+; CHECK-NEXT:    store i1 [[C18]], ptr [[P]], align 1
+; CHECK-NEXT:    store ptr [[G26]], ptr [[P]], align 8
 ; CHECK-NEXT:    ret void
 ;
   %A8 = alloca i16
@@ -412,9 +412,9 @@ define void @simplify_before_foldAndOfICmps() {
   store i16 undef, ptr %G21
   %C18 = icmp ule i1 %C10, %C7
   %G26 = getelementptr i1, ptr null, i1 %C3
-  store i16 %B33, ptr undef
-  store i1 %C18, ptr undef
-  store ptr %G26, ptr undef
+  store i16 %B33, ptr %p
+  store i1 %C18, ptr %p
+  store ptr %G26, ptr %p
   ret void
 }
 
@@ -2567,4 +2567,118 @@ define <2 x i1> @icmp_ne_m1_or_ne_m1(<2 x i8> %x, <2 x i8> %y) {
   %ry = icmp ne <2 x i8> %y, <i8 -1, i8 undef>
   %r = or <2 x i1> %rx, %ry
   ret <2 x i1> %r
+}
+
+define i32 @icmp_slt_0_or_icmp_sgt_0_i32(i32 %x) {
+; CHECK-LABEL: @icmp_slt_0_or_icmp_sgt_0_i32(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp ne i32 [[X:%.*]], 0
+; CHECK-NEXT:    [[E:%.*]] = zext i1 [[TMP1]] to i32
+; CHECK-NEXT:    ret i32 [[E]]
+;
+  %A = icmp slt i32 %x, 0
+  %B = icmp sgt i32 %x, 0
+  %C = zext i1 %A to i32
+  %D = zext i1 %B to i32
+  %E = or i32 %C, %D
+  ret i32 %E
+}
+
+define i64 @icmp_slt_0_or_icmp_sgt_0_i64(i64 %x) {
+; CHECK-LABEL: @icmp_slt_0_or_icmp_sgt_0_i64(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp ne i64 [[X:%.*]], 0
+; CHECK-NEXT:    [[E:%.*]] = zext i1 [[TMP1]] to i64
+; CHECK-NEXT:    ret i64 [[E]]
+;
+  %A = icmp slt i64 %x, 0
+  %B = icmp sgt i64 %x, 0
+  %C = zext i1 %A to i64
+  %D = zext i1 %B to i64
+  %E = or i64 %C, %D
+  ret i64 %E
+}
+
+define i64 @icmp_slt_0_or_icmp_sgt_0_i64_fail0(i64 %x) {
+; CHECK-LABEL: @icmp_slt_0_or_icmp_sgt_0_i64_fail0(
+; CHECK-NEXT:    [[E:%.*]] = lshr i64 [[X:%.*]], 63
+; CHECK-NEXT:    ret i64 [[E]]
+;
+  %B = icmp slt i64 %x, 0
+  %C = lshr i64 %x, 63
+  %D = zext i1 %B to i64
+  %E = or i64 %C, %D
+  ret i64 %E
+}
+
+define i64 @icmp_slt_0_or_icmp_sgt_0_i64_fail1(i64 %x) {
+; CHECK-LABEL: @icmp_slt_0_or_icmp_sgt_0_i64_fail1(
+; CHECK-NEXT:    [[B:%.*]] = icmp sgt i64 [[X:%.*]], 0
+; CHECK-NEXT:    [[C:%.*]] = ashr i64 [[X]], 63
+; CHECK-NEXT:    [[D:%.*]] = zext i1 [[B]] to i64
+; CHECK-NEXT:    [[E:%.*]] = or i64 [[C]], [[D]]
+; CHECK-NEXT:    ret i64 [[E]]
+;
+  %B = icmp sgt i64 %x, 0
+  %C = ashr i64 %x, 63
+  %D = zext i1 %B to i64
+  %E = or i64 %C, %D
+  ret i64 %E
+}
+
+define i64 @icmp_slt_0_or_icmp_sgt_0_i64_fail2(i64 %x) {
+; CHECK-LABEL: @icmp_slt_0_or_icmp_sgt_0_i64_fail2(
+; CHECK-NEXT:    [[B:%.*]] = icmp sgt i64 [[X:%.*]], 0
+; CHECK-NEXT:    [[C:%.*]] = lshr i64 [[X]], 62
+; CHECK-NEXT:    [[D:%.*]] = zext i1 [[B]] to i64
+; CHECK-NEXT:    [[E:%.*]] = or i64 [[C]], [[D]]
+; CHECK-NEXT:    ret i64 [[E]]
+;
+  %B = icmp sgt i64 %x, 0
+  %C = lshr i64 %x, 62
+  %D = zext i1 %B to i64
+  %E = or i64 %C, %D
+  ret i64 %E
+}
+
+define i64 @icmp_slt_0_or_icmp_sgt_0_i64_fail3(i64 %x) {
+; CHECK-LABEL: @icmp_slt_0_or_icmp_sgt_0_i64_fail3(
+; CHECK-NEXT:    [[C:%.*]] = ashr i64 [[X:%.*]], 62
+; CHECK-NEXT:    [[X_LOBIT:%.*]] = lshr i64 [[X]], 63
+; CHECK-NEXT:    [[E:%.*]] = or i64 [[C]], [[X_LOBIT]]
+; CHECK-NEXT:    ret i64 [[E]]
+;
+  %B = icmp slt i64 %x, 0
+  %C = ashr i64 %x, 62
+  %D = zext i1 %B to i64
+  %E = or i64 %C, %D
+  ret i64 %E
+}
+
+define <2 x i64> @icmp_slt_0_or_icmp_sgt_0_i64x2(<2 x i64> %x) {
+; CHECK-LABEL: @icmp_slt_0_or_icmp_sgt_0_i64x2(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp ne <2 x i64> [[X:%.*]], zeroinitializer
+; CHECK-NEXT:    [[E:%.*]] = zext <2 x i1> [[TMP1]] to <2 x i64>
+; CHECK-NEXT:    ret <2 x i64> [[E]]
+;
+  %A = icmp slt <2 x i64> %x, <i64 0,i64 0>
+  %B = icmp sgt <2 x i64> %x, <i64 0,i64 0>
+  %C = zext <2 x i1> %A to <2 x i64>
+  %D = zext <2 x i1> %B to <2 x i64>
+  %E = or <2 x i64> %C, %D
+  ret <2 x i64> %E
+}
+
+define <2 x i64> @icmp_slt_0_or_icmp_sgt_0_i64x2_fail(<2 x i64> %x) {
+; CHECK-LABEL: @icmp_slt_0_or_icmp_sgt_0_i64x2_fail(
+; CHECK-NEXT:    [[B:%.*]] = icmp sgt <2 x i64> [[X:%.*]], <i64 1, i64 1>
+; CHECK-NEXT:    [[C:%.*]] = lshr <2 x i64> [[X]], <i64 63, i64 63>
+; CHECK-NEXT:    [[D:%.*]] = zext <2 x i1> [[B]] to <2 x i64>
+; CHECK-NEXT:    [[E:%.*]] = or <2 x i64> [[C]], [[D]]
+; CHECK-NEXT:    ret <2 x i64> [[E]]
+;
+  %B = icmp sgt <2 x i64> %x, <i64 1, i64 1>
+  %C = lshr <2 x i64> %x, <i64 63, i64 63>
+  %D = zext <2 x i1> %B to <2 x i64>
+  %E = or <2 x i64> %C, %D
+  ret <2 x i64> %E
+
 }

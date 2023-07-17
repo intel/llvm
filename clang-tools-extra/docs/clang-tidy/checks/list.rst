@@ -255,6 +255,7 @@ Clang-Tidy Checks
    `misc-confusable-identifiers <misc/confusable-identifiers.html>`_,
    `misc-const-correctness <misc/const-correctness.html>`_, "Yes"
    `misc-definitions-in-headers <misc/definitions-in-headers.html>`_, "Yes"
+   `misc-header-include-cycle <misc/header-include-cycle.html>`_,
    `misc-include-cleaner <misc/include-cleaner.html>`_, "Yes"
    `misc-misleading-bidirectional <misc/misleading-bidirectional.html>`_,
    `misc-misleading-identifier <misc/misleading-identifier.html>`_,
@@ -301,6 +302,7 @@ Clang-Tidy Checks
    `modernize-use-noexcept <modernize/use-noexcept.html>`_, "Yes"
    `modernize-use-nullptr <modernize/use-nullptr.html>`_, "Yes"
    `modernize-use-override <modernize/use-override.html>`_, "Yes"
+   `modernize-use-std-print <modernize/use-std-print.html>`_, "Yes"
    `modernize-use-trailing-return-type <modernize/use-trailing-return-type.html>`_, "Yes"
    `modernize-use-transparent-functors <modernize/use-transparent-functors.html>`_, "Yes"
    `modernize-use-uncaught-exceptions <modernize/use-uncaught-exceptions.html>`_, "Yes"

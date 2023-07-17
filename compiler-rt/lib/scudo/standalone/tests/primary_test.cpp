@@ -116,7 +116,10 @@ struct SizeClassAllocator<TestConfig1, SizeClassMapT>
 
 template <template <typename> class BaseConfig, typename SizeClassMapT>
 struct TestAllocator : public SizeClassAllocator<BaseConfig, SizeClassMapT> {
-  ~TestAllocator() { this->unmapTestOnly(); }
+  ~TestAllocator() {
+    this->verifyAllBlocksAreReleasedTestOnly();
+    this->unmapTestOnly();
+  }
 
   void *operator new(size_t size) {
     void *p = nullptr;
@@ -286,7 +289,7 @@ SCUDO_TYPED_TEST(ScudoPrimaryTest, PrimaryThreaded) {
   std::condition_variable Cv;
   bool Ready = false;
   std::thread Threads[32];
-  for (scudo::uptr I = 0; I < ARRAY_SIZE(Threads); I++)
+  for (scudo::uptr I = 0; I < ARRAY_SIZE(Threads); I++) {
     Threads[I] = std::thread([&]() {
       static thread_local typename Primary::CacheT Cache;
       Cache.init(nullptr, Allocator.get());
@@ -305,13 +308,22 @@ SCUDO_TYPED_TEST(ScudoPrimaryTest, PrimaryThreaded) {
         if (P)
           V.push_back(std::make_pair(ClassId, P));
       }
+
+      // Try to interleave pushBlocks(), popBatch() and releaseToOS().
+      Allocator->releaseToOS(scudo::ReleaseToOS::Force);
+
       while (!V.empty()) {
         auto Pair = V.back();
         Cache.deallocate(Pair.first, Pair.second);
         V.pop_back();
+        // This increases the chance of having non-full TransferBatches and it
+        // will jump into the code path of merging TransferBatches.
+        if (std::rand() % 8 == 0)
+          Cache.drain();
       }
       Cache.destroy(nullptr);
     });
+  }
   {
     std::unique_lock<std::mutex> Lock(Mutex);
     Ready = true;
@@ -386,4 +398,10 @@ SCUDO_TYPED_TEST(ScudoPrimaryTest, MemoryGroup) {
   EXPECT_LE(*std::max_element(Blocks.begin(), Blocks.end()) -
                 *std::min_element(Blocks.begin(), Blocks.end()),
             GroupSizeMem * 2);
+
+  while (!Blocks.empty()) {
+    Cache.deallocate(ClassId, reinterpret_cast<void *>(Blocks.back()));
+    Blocks.pop_back();
+  }
+  Cache.drain();
 }

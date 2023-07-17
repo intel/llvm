@@ -1,0 +1,115 @@
+From c794def412bba687e0a010240cf9e2e5bd6cb1f8 Mon Sep 17 00:00:00 2001
+From: Dmitry Sidorov <dmitry.sidorov@intel.com>
+Date: Fri, 19 May 2023 22:06:06 +0200
+Subject: [PATCH 5/5] [DebugInfo] Fix DebugTypeVector Component Count (#2006)
+
+It should be OpConstant
+
+Signed-off-by: Sidorov, Dmitry <dmitry.sidorov@intel.com>
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/c794def
+---
+ lib/SPIRV/LLVMToSPIRVDbgTran.cpp    |  2 ++
+ test/DebugInfo/X86/rematerialize.ll | 16 ++++++++--------
+ test/DebugInfo/X86/sycl-vec-3.ll    | 12 ++++++------
+ test/DebugInfo/X86/vector.ll        | 18 +++++++++---------
+ 4 files changed, 25 insertions(+), 23 deletions(-)
+
+diff --git a/lib/SPIRV/LLVMToSPIRVDbgTran.cpp b/lib/SPIRV/LLVMToSPIRVDbgTran.cpp
+index afc533774ba9..59b223fae3a1 100644
+--- a/lib/SPIRV/LLVMToSPIRVDbgTran.cpp
++++ b/lib/SPIRV/LLVMToSPIRVDbgTran.cpp
+@@ -698,6 +698,8 @@ LLVMToSPIRVDbgTran::transDbgArrayTypeNonSemantic(const DICompositeType *AT) {
+     if (AT->isVector()) {
+       assert(N == 1 && "Multidimensional vector is not expected!");
+       Ops[ComponentCountIdx] = static_cast<SPIRVWord>(Count->getZExtValue());
++      if (isNonSemanticDebugInfo())
++        transformToConstant(Ops, {ComponentCountIdx});
+       return BM->addDebugInfo(SPIRVDebug::TypeVector, getVoidTy(), Ops);
+     }
+     Ops[SubrangesIdx + I] = transDbgEntry(SR)->getId();
+diff --git a/test/DebugInfo/X86/rematerialize.ll b/test/DebugInfo/X86/rematerialize.ll
+index 3407886eadda..1e43b8d25660 100644
+--- a/test/DebugInfo/X86/rematerialize.ll
++++ b/test/DebugInfo/X86/rematerialize.ll
+@@ -5,15 +5,15 @@
+ ; RUN: llc -O2 -filetype=obj -mtriple=x86_64-unknown-linux-gnu < %t.ll \
+ ; RUN: | llvm-dwarfdump -debug-line - | FileCheck %s
+ 
+-; RUNx: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+-; RUNx: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+-; RUNx: llc -O2 -filetype=obj -mtriple=x86_64-unknown-linux-gnu < %t.ll \
+-; RUNx: | llvm-dwarfdump -debug-line - | FileCheck %s
++; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
++; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
++; RUN: llc -O2 -filetype=obj -mtriple=x86_64-unknown-linux-gnu < %t.ll \
++; RUN: | llvm-dwarfdump -debug-line - | FileCheck %s
+ 
+-; RUNx: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+-; RUNx: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+-; RUNx: llc -O2 -filetype=obj -mtriple=x86_64-unknown-linux-gnu < %t.ll \
+-; RUNx: | llvm-dwarfdump -debug-line - | FileCheck %s
++; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
++; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
++; RUN: llc -O2 -filetype=obj -mtriple=x86_64-unknown-linux-gnu < %t.ll \
++; RUN: | llvm-dwarfdump -debug-line - | FileCheck %s
+ ;
+ ; Generated with clang -O2 -g from
+ ;
+diff --git a/test/DebugInfo/X86/sycl-vec-3.ll b/test/DebugInfo/X86/sycl-vec-3.ll
+index 63b799bd6468..aa0b960d8fb1 100644
+--- a/test/DebugInfo/X86/sycl-vec-3.ll
++++ b/test/DebugInfo/X86/sycl-vec-3.ll
+@@ -3,13 +3,13 @@
+ ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+ ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+ 
+-; RUNx: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-100
+-; RUNx: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+-; RUNx: llvm-dis %t.rev.bc -o - | FileCheck %s
++; RUN: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-100
++; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
++; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+ 
+-; RUNx: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-200
+-; RUNx: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+-; RUNx: llvm-dis %t.rev.bc -o - | FileCheck %s
++; RUN: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-200
++; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
++; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+ 
+ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+ target triple = "spir64-unknown-unknown"
+diff --git a/test/DebugInfo/X86/vector.ll b/test/DebugInfo/X86/vector.ll
+index af5e5a909f64..5efdd3d5d64d 100644
+--- a/test/DebugInfo/X86/vector.ll
++++ b/test/DebugInfo/X86/vector.ll
+@@ -4,15 +4,15 @@
+ ; RUN: llc -mtriple=x86_64-linux-gnu -O0 -filetype=obj -o %t %t.ll
+ ; RUN: llvm-dwarfdump -debug-info %t | FileCheck %s
+ 
+-; RUNx: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-100
+-; RUNx: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+-; RUNx: llc -mtriple=x86_64-linux-gnu -O0 -filetype=obj -o %t %t.ll
+-; RUNx: llvm-dwarfdump -debug-info %t | FileCheck %s
+-
+-; RUNx: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-200
+-; RUNx: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+-; RUNx: llc -mtriple=x86_64-linux-gnu -O0 -filetype=obj -o %t %t.ll
+-; RUNx: llvm-dwarfdump -debug-info %t | FileCheck %s
++; RUN: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-100
++; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
++; RUN: llc -mtriple=x86_64-linux-gnu -O0 -filetype=obj -o %t %t.ll
++; RUN: llvm-dwarfdump -debug-info %t | FileCheck %s
++
++; RUN: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-200
++; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
++; RUN: llc -mtriple=x86_64-linux-gnu -O0 -filetype=obj -o %t %t.ll
++; RUN: llvm-dwarfdump -debug-info %t | FileCheck %s
+ 
+ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+ target triple = "spir64-unknown-unknown"
+-- 
+2.31.1
+

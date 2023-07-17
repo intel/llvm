@@ -3,10 +3,20 @@
 ! RUN: bbc -fopenacc -emit-fir %s -o - | FileCheck %s
 
 ! CHECK-LABEL: acc.firstprivate.recipe @firstprivatization_ref_10xf32 : !fir.ref<!fir.array<10xf32>> init {
-! CHECK: ^bb0(%arg0: !fir.ref<!fir.array<10xf32>>):
-! CHECK:   acc.yield %arg0 : !fir.ref<!fir.array<10xf32>>
+! CHECK: ^bb0(%{{.*}}: !fir.ref<!fir.array<10xf32>>):
+! CHECK:   %[[ALLOCA:.*]] = fir.alloca !fir.array<10xf32> 
+! CHECK:   acc.yield %[[ALLOCA]] : !fir.ref<!fir.array<10xf32>>
 ! CHECK: } copy {
-! CHECK:  ^bb0(%arg0: !fir.ref<!fir.array<10xf32>>, %arg1: !fir.ref<!fir.array<10xf32>>):
+! CHECK: ^bb0(%[[SRC:.*]]: !fir.ref<!fir.array<10xf32>>, %[[DST:.*]]: !fir.ref<!fir.array<10xf32>>):
+! CHECK:   %[[LB0:.*]] = arith.constant 0 : index
+! CHECK:   %[[UB0:.*]] = arith.constant 9 : index
+! CHECK:   %[[STEP0:.*]] = arith.constant 1 : index
+! CHECK:   fir.do_loop %[[IV0:.*]] = %[[LB0]] to %[[UB0]] step %[[STEP0]] {
+! CHECK:     %[[COORD0:.*]] = fir.coordinate_of %[[SRC]], %[[IV0]] : (!fir.ref<!fir.array<10xf32>>, index) -> !fir.ref<f32>
+! CHECK:     %[[COORD1:.*]] = fir.coordinate_of %[[DST]], %[[IV0]] : (!fir.ref<!fir.array<10xf32>>, index) -> !fir.ref<f32>
+! CHECK:     %[[LOAD:.*]] = fir.load %[[COORD0]] : !fir.ref<f32>
+! CHECK:     fir.store %[[LOAD]] to %[[COORD1]] : !fir.ref<f32>
+! CHECK:   }
 ! CHECK:   acc.terminator
 ! CHECK: }
 
@@ -464,8 +474,11 @@ subroutine acc_parallel_loop
     a(i) = b(i)
   END DO
 
-! CHECK:      acc.parallel firstprivate(@firstprivatization_ref_10xf32 -> %[[B]] : !fir.ref<!fir.array<10xf32>>) private(@privatization_ref_10xf32 -> %[[A]] : !fir.ref<!fir.array<10xf32>>) {
-! CHECK:        acc.loop private(@privatization_ref_10xf32 -> %[[A]] : !fir.ref<!fir.array<10xf32>>) {
+! CHECK:      %[[ACC_PRIVATE_A:.*]] = acc.private varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "a"}
+! CHECK:      %[[ACC_PRIVATE_B:.*]] = acc.firstprivate varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "b"}
+! CHECK:      acc.parallel firstprivate(@firstprivatization_ref_10xf32 -> %[[ACC_PRIVATE_B]] : !fir.ref<!fir.array<10xf32>>) private(@privatization_ref_10xf32 -> %[[ACC_PRIVATE_A]] : !fir.ref<!fir.array<10xf32>>) {
+! CHECK:      %[[ACC_PRIVATE_A:.*]] = acc.private varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "a"}
+! CHECK:        acc.loop private(@privatization_ref_10xf32 -> %[[ACC_PRIVATE_A]] : !fir.ref<!fir.array<10xf32>>) {
 ! CHECK:          fir.do_loop
 ! CHECK:          acc.yield
 ! CHECK-NEXT:   }{{$}}

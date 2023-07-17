@@ -1,0 +1,313 @@
+From 31d5db3d38a89a0fdb22e76e997afc2a31488438 Mon Sep 17 00:00:00 2001
+From: Viktoria Maximova <viktoria.maksimova@intel.com>
+Date: Fri, 19 May 2023 06:16:07 -0700
+Subject: [PATCH 2/5] [DebugInfo] Translate checksum info inside DebugSource
+ instruction (#1996)
+
+It's done in scope of NonSemantic.Shader.200.DebugInfo spec to have a
+proper solution for translation of checksum info (instead of the W/A
+done for OpenCL DebugInfo spec in #936)
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/31d5db3
+---
+ lib/SPIRV/LLVMToSPIRVDbgTran.cpp              | 26 +++++++++++++---
+ lib/SPIRV/SPIRVToLLVMDbgTran.cpp              | 30 +++++++++++++++----
+ lib/SPIRV/SPIRVToLLVMDbgTran.h                |  4 +--
+ lib/SPIRV/libSPIRV/SPIRV.debug.h              | 23 +++++++++++++-
+ test/DebugInfo/DebugInfoChecksum.ll           | 20 ++++++++++---
+ .../DebugInfo/DebugInfoChecksumCompileUnit.ll | 25 ++++++++++++----
+ .../NonSemantic/DebugSourceContinued.ll       | 13 ++++++--
+ 7 files changed, 118 insertions(+), 23 deletions(-)
+
+diff --git a/lib/SPIRV/LLVMToSPIRVDbgTran.cpp b/lib/SPIRV/LLVMToSPIRVDbgTran.cpp
+index 910edece5ddc..0f8bf4ced8a7 100644
+--- a/lib/SPIRV/LLVMToSPIRVDbgTran.cpp
++++ b/lib/SPIRV/LLVMToSPIRVDbgTran.cpp
+@@ -1347,11 +1347,24 @@ SPIRVExtInst *LLVMToSPIRVDbgTran::getSource(const T *DIEntry) {
+   Ops[FileIdx] = BM->getString(FileName)->getId();
+   DIFile *F = DIEntry ? DIEntry->getFile() : nullptr;
+ 
+-  if (F && F->getRawChecksum() && !isNonSemanticDebugInfo()) {
++  if (F && F->getRawChecksum()) {
+     auto CheckSum = F->getChecksum().value();
+-    Ops.push_back(BM->getString("//__" + CheckSum.getKindAsString().str() +
+-                                ":" + CheckSum.Value.str())
+-                      ->getId());
++
++    if (!isNonSemanticDebugInfo())
++      Ops.push_back(BM->getString("//__" + CheckSum.getKindAsString().str() +
++                                  ":" + CheckSum.Value.str())
++                        ->getId());
++    else if (BM->getDebugInfoEIS() ==
++             SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
++      SPIRVDebug::FileChecksumKind ChecksumKind =
++          SPIRV::DbgChecksumKindMap::map(CheckSum.Kind);
++
++      Ops.push_back(
++          BM->addIntegerConstant(static_cast<SPIRVTypeInt *>(getInt32Ty()),
++                                 ChecksumKind)
++              ->getId());
++      Ops.push_back(BM->getString(CheckSum.Value.str())->getId());
++    }
+   }
+ 
+   if (F && F->getRawSource() && isNonSemanticDebugInfo()) {
+@@ -1361,6 +1374,11 @@ SPIRVExtInst *LLVMToSPIRVDbgTran::getSource(const T *DIEntry) {
+     constexpr size_t MaxStrSize = MaxNumWords * 4 - 1;
+     const size_t NumWords = getSizeInWords(Str);
+ 
++    if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200 &&
++        Ops.size() == MinOperandCount) {
++      Ops.push_back(getDebugInfoNoneId());
++      Ops.push_back(getDebugInfoNoneId());
++    }
+     Ops.push_back(BM->getString(Str.substr(0, MaxStrSize))->getId());
+     SPIRVExtInst *Source = static_cast<SPIRVExtInst *>(
+         BM->addDebugInfo(SPIRVDebug::Source, getVoidTy(), Ops));
+diff --git a/lib/SPIRV/SPIRVToLLVMDbgTran.cpp b/lib/SPIRV/SPIRVToLLVMDbgTran.cpp
+index 2c335f6f40cf..2fc16c61510c 100644
+--- a/lib/SPIRV/SPIRVToLLVMDbgTran.cpp
++++ b/lib/SPIRV/SPIRVToLLVMDbgTran.cpp
+@@ -136,9 +136,9 @@ const std::string &SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
+ }
+ 
+ const std::string
+-SPIRVToLLVMDbgTran::getStringContinued(const SPIRVId Id,
+-                                       SPIRVExtInst *DebugInst) {
+-  if (getDbgInst<SPIRVDebug::DebugInfoNone>(Id))
++SPIRVToLLVMDbgTran::getStringSourceContinued(const SPIRVId Id,
++                                             SPIRVExtInst *DebugInst) {
++  if (!isValidId(Id) || getDbgInst<SPIRVDebug::DebugInfoNone>(Id))
+     return "";
+   std::string Str = BM->get<SPIRVString>(Id)->getStr();
+   using namespace SPIRVDebug::Operand::SourceContinued;
+@@ -1488,8 +1488,28 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
+                      ParseChecksum(ChecksumStr));
+   }
+ 
+-  return getDIFile(getString(SourceArgs[FileIdx]), std::nullopt,
+-                   getStringContinued(SourceArgs[TextIdx], Source));
++  std::optional<DIFile::ChecksumInfo<StringRef>> CS;
++  SPIRVWord StrIdx = SourceArgs[TextIdx];
++  if (Source->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
++    if (!getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumKind]) &&
++        !getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumValue])) {
++      llvm::DIFile::ChecksumKind Kind = SPIRV::DbgChecksumKindMap::rmap(
++          static_cast<SPIRVDebug::FileChecksumKind>(
++              BM->get<SPIRVConstant>(SourceArgs[ChecksumKind])
++                  ->getZExtIntValue()));
++      StringRef Checksum = getString(SourceArgs[ChecksumValue]);
++      size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
++      CS.emplace(Kind, Checksum.substr(0, ChecksumEndPos));
++    }
++
++    if (SourceArgs.size() == MaxOperandCount)
++      StrIdx = SourceArgs[TextNonSemIdx];
++    else
++      StrIdx = SPIRVID_INVALID;
++  }
++
++  return getDIFile(getString(SourceArgs[FileIdx]), CS,
++                   getStringSourceContinued(StrIdx, Source));
+ }
+ 
+ DIBuilder &SPIRVToLLVMDbgTran::getDIBuilder(const SPIRVExtInst *DebugInst) {
+diff --git a/lib/SPIRV/SPIRVToLLVMDbgTran.h b/lib/SPIRV/SPIRVToLLVMDbgTran.h
+index c6268da3a567..069f0e5bf3e4 100644
+--- a/lib/SPIRV/SPIRVToLLVMDbgTran.h
++++ b/lib/SPIRV/SPIRVToLLVMDbgTran.h
+@@ -196,8 +196,8 @@ private:
+     return nullptr;
+   }
+   const std::string &getString(const SPIRVId Id);
+-  const std::string getStringContinued(const SPIRVId Id,
+-                                       SPIRVExtInst *DebugInst);
++  const std::string getStringSourceContinued(const SPIRVId Id,
++                                             SPIRVExtInst *DebugInst);
+   SPIRVWord getConstantValueOrLiteral(const std::vector<SPIRVWord> &,
+                                       const SPIRVWord,
+                                       const SPIRVExtInstSetKind);
+diff --git a/lib/SPIRV/libSPIRV/SPIRV.debug.h b/lib/SPIRV/libSPIRV/SPIRV.debug.h
+index b7265ce8bc52..66a1d1c044b3 100644
+--- a/lib/SPIRV/libSPIRV/SPIRV.debug.h
++++ b/lib/SPIRV/libSPIRV/SPIRV.debug.h
+@@ -4,6 +4,7 @@
+ #include "spirv/unified1/spirv.hpp"
+ #include "spirv_internal.hpp"
+ #include "llvm/BinaryFormat/Dwarf.h"
++#include "llvm/IR/DebugInfoMetadata.h"
+ 
+ namespace SPIRVDebug {
+ 
+@@ -287,6 +288,12 @@ enum ImportedEntityTag {
+   ImportedDeclaration = 1,
+ };
+ 
++enum FileChecksumKind {
++  MD5 = 0,
++  SHA1 = 1,
++  SHA256 = 2,
++};
++
+ namespace Operand {
+ 
+ namespace CompilationUnit {
+@@ -305,7 +312,12 @@ namespace Source {
+ enum {
+   FileIdx         = 0,
+   TextIdx         = 1,
+-  MinOperandCount = 1
++  // For NonSemantic.Shader.DebugInfo.200
++  ChecksumKind    = 1,
++  ChecksumValue   = 2,
++  TextNonSemIdx   = 3,
++  MinOperandCount = 1,
++  MaxOperandCount = 4
+ };
+ }
+ 
+@@ -1339,6 +1351,15 @@ inline void DbgImportedEntityMap::init() {
+   add(dwarf::DW_TAG_imported_declaration, SPIRVDebug::ImportedDeclaration);
+ }
+ 
++typedef SPIRVMap<llvm::DIFile::ChecksumKind, SPIRVDebug::FileChecksumKind>
++  DbgChecksumKindMap;
++template <>
++inline void DbgChecksumKindMap::init() {
++  add(llvm::DIFile::CSK_MD5,    SPIRVDebug::MD5);
++  add(llvm::DIFile::CSK_SHA1,   SPIRVDebug::SHA1);
++  add(llvm::DIFile::CSK_SHA256, SPIRVDebug::SHA256);
++}
++
+ } // namespace SPIRV
+ 
+ #endif // SPIRV_DEBUG_H
+diff --git a/test/DebugInfo/DebugInfoChecksum.ll b/test/DebugInfo/DebugInfoChecksum.ll
+index 6a637beae157..150f9377b7ff 100644
+--- a/test/DebugInfo/DebugInfoChecksum.ll
++++ b/test/DebugInfo/DebugInfoChecksum.ll
+@@ -11,12 +11,18 @@
+ ; ./clang -cc1 -debug-info-kind=standalone -S -emit-llvm -triple spir -gcodeview -gcodeview-ghash main.cpp
+ 
+ ; RUN: llvm-as %s -o %t.bc
+-; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV
++; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV-OCL
+ ; RUN: llvm-spirv %t.bc -o %t.spv
+ ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+ ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+ ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
+ 
++; RUN: llvm-spirv %t.bc -spirv-text --spirv-debug-info-version=nonsemantic-shader-200 -o - | FileCheck %s --check-prefix CHECK-SPIRV-200
++; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-200 -o %t.spv
++; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
++; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
++; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
++
+ ; ModuleID = 'source.bc'
+ source_filename = "main.cpp"
+ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+@@ -41,9 +47,15 @@ attributes #0 = { noinline norecurse nounwind optnone "correctly-rounded-divide-
+ 
+ ; CHECK-LLVM: !DIFile(filename: "main.cpp"
+ ; CHECK-LLVM-SAME: checksumkind: CSK_MD5, checksum: "7bb56387968a9caa6e9e35fff94eaf7b"
+-; CHECK-SPIRV: String [[#REG:]] "//__CSK_MD5:7bb56387968a9caa6e9e35fff94eaf7b"
+-; CHECK-SPIRV: DebugSource
+-; CHECK-SPIRV-SAME: [[#REG]]
++
++; CHECK-SPIRV-OCL: String [[#REG:]] "//__CSK_MD5:7bb56387968a9caa6e9e35fff94eaf7b"
++; CHECK-SPIRV-OCL: DebugSource [[#]] [[#REG]]
++
++; 0 means MD5
++; CHECK-SPIRV-200: String [[#Val:]] "7bb56387968a9caa6e9e35fff94eaf7b"
++; CHECK-SPIRV-200: TypeInt [[#TypeInt32:]] 32
++; CHECK-SPIRV-200: Constant [[#TypeInt32]] [[#Kind:]] 0
++; CHECK-SPIRV-200: DebugSource [[#]] [[#Kind]] [[#Val]]
+ 
+ !0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !1, producer: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 7d09e1d7cf27ce781e83f9d388a7a3e1e6487ead)", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, nameTableKind: None)
+ !1 = !DIFile(filename: "<stdin>", directory: "oneAPI", checksumkind: CSK_MD5, checksum: "7bb56387968a9caa6e9e35fff94eaf7b")
+diff --git a/test/DebugInfo/DebugInfoChecksumCompileUnit.ll b/test/DebugInfo/DebugInfoChecksumCompileUnit.ll
+index be00cb8dbc46..137ff0c3eeaa 100644
+--- a/test/DebugInfo/DebugInfoChecksumCompileUnit.ll
++++ b/test/DebugInfo/DebugInfoChecksumCompileUnit.ll
+@@ -1,10 +1,16 @@
+ ; RUN: llvm-as %s -o %t.bc
+-; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV
++; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV-OCL
+ ; RUN: llvm-spirv %t.bc -o %t.spv
+ ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+ ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+ ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
+ 
++; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV-200
++; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-200 -o %t.spv
++; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
++; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
++; RUN: FileCheck %s --input-file %t.rev.ll --check-prefixes=CHECK-LLVM,CHECK-LLVM-200
++
+ ; ModuleID = 'array-transform.bc'
+ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024"
+ target triple = "spir64-unknown-unknown"
+@@ -14,11 +20,20 @@ target triple = "spir64-unknown-unknown"
+ 
+ ; CHECK-LLVM: !DIFile(filename: "array-transform.cpp"
+ ; CHECK-LLVM-SAME: checksumkind: CSK_MD5, checksum: "7768106c1e51aa084de0ffae6fbe50c4"
+-; CHECK-SPIRV: String [[#ChecksumInfo:]] "//__CSK_MD5:7768106c1e51aa084de0ffae6fbe50c4"
+-; CHECK-SPIRV: DebugSource
+-; CHECK-SPIRV-SAME: [[#ChecksumInfo]]
++; CHECK-LLVM-200-SAME: source: "int main() {}"
++
++; CHECK-SPIRV-OCL: String [[#ChecksumInfo:]] "//__CSK_MD5:7768106c1e51aa084de0ffae6fbe50c4"
++; CHECK-SPIRV-OCL: DebugSource
++; CHECK-SPIRV-OCL-SAME: [[#ChecksumInfo]]
++
++; CHECK-SPIRV-200: String [[#Val:]] "7768106c1e51aa084de0ffae6fbe50c4"
++; CHECK-SPIRV-200: String [[#Source:]] "int main() {}"
++; CHECK-SPIRV-200: TypeInt [[#TypeInt32:]] 32
++; 0 means MD5
++; CHECK-SPIRV-200: Constant [[#TypeInt32]] [[#Kind:]] 0
++; CHECK-SPIRV-200: DebugSource [[#]] [[#Kind]] [[#Val]] [[#Source]]
+ 
+ !0 = !{i32 2, !"Debug Info Version", i32 3}
+ !1 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !2, producer: "spirv", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !3, imports: !3)
+-!2 = !DIFile(filename: "array-transform.cpp", directory: "D:\\path\\to", checksumkind: CSK_MD5, checksum: "7768106c1e51aa084de0ffae6fbe50c4")
++!2 = !DIFile(filename: "array-transform.cpp", directory: "D:\\path\\to", checksumkind: CSK_MD5, checksum: "7768106c1e51aa084de0ffae6fbe50c4", source: "int main() {}")
+ !3 = !{}
+diff --git a/test/DebugInfo/NonSemantic/DebugSourceContinued.ll b/test/DebugInfo/NonSemantic/DebugSourceContinued.ll
+index 4f2443e1710a..b34e04824fec 100644
+--- a/test/DebugInfo/NonSemantic/DebugSourceContinued.ll
++++ b/test/DebugInfo/NonSemantic/DebugSourceContinued.ll
+@@ -1,11 +1,18 @@
+ ; RUN: llvm-as %s -o %t.bc
+ ; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-100 -spirv-text -o %t.spt
+-; RUN: FileCheck %s --input-file %t.spt --check-prefix CHECK-SPIRV
++; RUN: FileCheck %s --input-file %t.spt --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-100
+ ; RUN: llvm-spirv %t.bc  --spirv-debug-info-version=nonsemantic-shader-100 -o %t.spv
+ ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+ ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+ ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
+ 
++; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text -o %t.spt
++; RUN: FileCheck %s --input-file %t.spt --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-200
++; RUN: llvm-spirv %t.bc  --spirv-debug-info-version=nonsemantic-shader-200 -o %t.spv
++; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
++; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
++; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
++
+ ; CHECK-LLVM: !DIFile(filename: "t.c", directory: "/test", source: "A
+ ; CHECK-LLVM-SAME-COUNT-200000: A
+ ; CHECK-LLVM-SAME: MayThe4thBeWithYou
+@@ -19,7 +26,9 @@
+ ; CHECK-SPIRV-SAME-COUNT-262130: A
+ ; CHECK-SPIRV: String [[#Str3:]] "A
+ ; CHECK-SPIRV-SAME-COUNT-5755: A
+-; CHECK-SPIRV: DebugSource [[#]] [[#Str]]
++; CHECK-SPIRV-100: DebugSource [[#]] [[#Str]]
++; CHECK-SPIRV-200: [[#NONE:]] [[#]] DebugInfoNone
++; CHECK-SPIRV-200: DebugSource [[#]] [[#NONE]] [[#NONE]] [[#Str]]
+ ; CHECK-SPIRV: DebugSourceContinued [[#Str2]]
+ ; CHECK-SPIRV: DebugSourceContinued [[#Str3]]
+ 
+-- 
+2.31.1
+

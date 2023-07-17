@@ -283,4 +283,25 @@ TEST_F(FIRTypesTest, getTypeAsString) {
   EXPECT_EQ("10x20xi64", fir::getTypeAsString(arrTy, *kindMap));
   EXPECT_EQ(
       "idx", fir::getTypeAsString(mlir::IndexType::get(&context), *kindMap));
+  EXPECT_EQ("ptr_i32",
+      fir::getTypeAsString(
+          fir::PointerType::get(mlir::IntegerType::get(&context, 32)),
+          *kindMap));
+  EXPECT_EQ("heap_i32",
+      fir::getTypeAsString(
+          fir::HeapType::get(mlir::IntegerType::get(&context, 32)), *kindMap));
+  EXPECT_EQ("box_i32",
+      fir::getTypeAsString(
+          fir::BoxType::get(mlir::IntegerType::get(&context, 32)), *kindMap));
+  EXPECT_EQ("class_i32",
+      fir::getTypeAsString(
+          fir::ClassType::get(mlir::IntegerType::get(&context, 32)), *kindMap));
+  EXPECT_EQ("class_none",
+      fir::getTypeAsString(
+          fir::ClassType::get(mlir::NoneType::get(&context)), *kindMap));
+  auto derivedTy = fir::RecordType::get(&context, "derived");
+  llvm::SmallVector<std::pair<std::string, mlir::Type>> components;
+  components.emplace_back("p1", mlir::IntegerType::get(&context, 64));
+  derivedTy.finalize({}, components);
+  EXPECT_EQ("rec_derived", fir::getTypeAsString(derivedTy, *kindMap));
 }

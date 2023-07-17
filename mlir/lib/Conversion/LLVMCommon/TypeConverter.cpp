@@ -193,7 +193,12 @@ Type LLVMTypeConverter::convertIntegerType(IntegerType type) {
   return IntegerType::get(&getContext(), type.getWidth());
 }
 
-Type LLVMTypeConverter::convertFloatType(FloatType type) { return type; }
+Type LLVMTypeConverter::convertFloatType(FloatType type) {
+  if (type.isFloat8E5M2() || type.isFloat8E4M3FN() || type.isFloat8E5M2FNUZ() ||
+      type.isFloat8E4M3FNUZ() || type.isFloat8E4M3B11FNUZ())
+    return IntegerType::get(&getContext(), type.getWidth());
+  return type;
+}
 
 // Convert a `ComplexType` to an LLVM type. The result is a complex number
 // struct with entries for the
@@ -459,9 +464,11 @@ Type LLVMTypeConverter::convertVectorType(VectorType type) {
   if (type.getShape().empty())
     return VectorType::get({1}, elementType);
   Type vectorType = VectorType::get(type.getShape().back(), elementType,
-                                    type.getNumScalableDims());
+                                    type.getScalableDims().back());
   assert(LLVM::isCompatibleVectorType(vectorType) &&
          "expected vector type compatible with the LLVM dialect");
+  assert((type.isScalable() == type.allDimsScalable()) &&
+         "expected scalable vector with all dims scalable");
   auto shape = type.getShape();
   for (int i = shape.size() - 2; i >= 0; --i)
     vectorType = LLVM::LLVMArrayType::get(vectorType, shape[i]);

@@ -645,6 +645,13 @@ func.func @bad_assign_2(%arg0: !fir.ref<!fir.box<!fir.heap<!fir.array<?xi32>>>>,
 }
 
 // -----
+func.func @bad_assign_3(%arg0: !fir.ref<!fir.box<!fir.heap<!fir.array<?x!fir.char<1,?>>>>>, %arg1: !fir.box<!fir.array<?x!fir.char<1,?>>>) {
+  // expected-error@+1 {{'hlfir.assign' op `keep_lhs_length_if_realloc` does not make sense for `temporary_lhs` assignments}}
+  hlfir.assign %arg1 to %arg0 realloc keep_lhs_len temporary_lhs : !fir.box<!fir.array<?x!fir.char<1,?>>>, !fir.ref<!fir.box<!fir.heap<!fir.array<?x!fir.char<1,?>>>>>
+  return
+}
+
+// -----
 func.func @bad_parent_comp1(%arg0: !fir.box<!fir.array<10x!fir.type<t2{i:i32,j:i32}>>>) {
   // expected-error@+1 {{'hlfir.parent_comp' op must be provided a shape if and only if the base is an array}}
   %2 = hlfir.parent_comp %arg0 : (!fir.box<!fir.array<10x!fir.type<t2{i:i32,j:i32}>>>) -> !fir.box<!fir.array<10x!fir.type<t1{i:i32}>>>
@@ -938,5 +945,26 @@ func.func @bad_elsewhere_3(%mask: !fir.ref<!fir.array<10x!fir.logical<4>>>, %x: 
       hlfir.yield %x : !fir.ref<!fir.array<10xf32>>
     }
   }
+  return
+}
+
+// -----
+func.func @bad_get_length_1(%arg0: !hlfir.expr<i32>) {
+  // expected-error@+1 {{'hlfir.get_length' op operand #0 must be any character scalar or array expression type, but got '!hlfir.expr<i32>'}}
+  %1 = hlfir.get_length %arg0 : (!hlfir.expr<i32>) -> index
+  return
+}
+
+// -----
+func.func @bad_get_length_2(%arg0: !hlfir.expr<?xi32>) {
+  // expected-error@+1 {{'hlfir.get_length' op operand #0 must be any character scalar or array expression type, but got '!hlfir.expr<?xi32>'}}
+  %1 = hlfir.get_length %arg0 : (!hlfir.expr<?xi32>) -> index
+  return
+}
+
+// -----
+func.func @bad_get_length_3(%arg0: !hlfir.expr<!fir.boxchar<1>>) {
+  // expected-error@+1 {{'hlfir.get_length' op operand #0 must be any character scalar or array expression type, but got '!hlfir.expr<!fir.boxchar<1>>'}}
+  %1 = hlfir.get_length %arg0 : (!hlfir.expr<!fir.boxchar<1>>) -> index
   return
 }

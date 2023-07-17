@@ -401,8 +401,7 @@ def C_SD : CStore_rri<0b111, "c.sd", GPRC, uimm8_lsb000>,
 
 let rd = 0, imm = 0, hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_NOP : RVInst16CI<0b000, 0b01, (outs), (ins), "c.nop", "">,
-            Sched<[WriteNop]>
-{
+            Sched<[WriteNop]> {
   let Inst{6-2} = 0;
 }
 
@@ -509,8 +508,8 @@ def C_J : RVInst16CJ<0b101, 0b01, (outs), (ins simm12_lsb0:$offset),
   let isBarrier=1;
 }
 
-def C_BEQZ : Bcz<0b110, "c.beqz", GPRC>, Sched<[WriteJmp]>;
-def C_BNEZ : Bcz<0b111, "c.bnez", GPRC>, Sched<[WriteJmp]>;
+def C_BEQZ : Bcz<0b110, "c.beqz", GPRC>, Sched<[WriteJmp, ReadJmp]>;
+def C_BNEZ : Bcz<0b111, "c.bnez", GPRC>, Sched<[WriteJmp, ReadJmp]>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_SLLI : RVInst16CI<0b000, 0b10, (outs GPRNoX0:$rd_wb),
@@ -551,7 +550,7 @@ def C_LDSP : CStackLoad<0b011, "c.ldsp", GPRNoX0, uimm9_lsb000>,
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_JR : RVInst16CR<0b1000, 0b10, (outs), (ins GPRNoX0:$rs1),
-                      "c.jr", "$rs1">, Sched<[WriteJmpReg]> {
+                      "c.jr", "$rs1">, Sched<[WriteJalr, ReadJalr]> {
   let isBarrier = 1;
   let isTerminator = 1;
   let rs2 = 0;
@@ -622,8 +621,7 @@ def C_UNIMP : RVInst16<(outs), (ins), "c.unimp", "", [], InstFormatOther>,
 //===----------------------------------------------------------------------===//
 
 let Predicates = [HasStdExtCOrZca, HasRVCHints], hasSideEffects = 0, mayLoad = 0,
-    mayStore = 0 in
-{
+    mayStore = 0 in {
 
 let rd = 0 in
 def C_NOP_HINT : RVInst16CI<0b000, 0b01, (outs), (ins simm6nonzero:$imm),
@@ -659,8 +657,7 @@ def C_LUI_HINT : RVInst16CI<0b011, 0b01, (outs GPRX0:$rd),
 }
 
 def C_MV_HINT : RVInst16CR<0b1000, 0b10, (outs GPRX0:$rs1), (ins GPRNoX0:$rs2),
-                           "c.mv", "$rs1, $rs2">, Sched<[WriteIALU, ReadIALU]>
-{
+                           "c.mv", "$rs1, $rs2">, Sched<[WriteIALU, ReadIALU]> {
   let Inst{11-7} = 0;
   let DecoderMethod = "decodeRVCInstrRdRs2";
 }

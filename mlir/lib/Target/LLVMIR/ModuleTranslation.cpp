@@ -360,6 +360,12 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
         llvmType,
         intAttr.getValue().sextOrTrunc(llvmType->getIntegerBitWidth()));
   if (auto floatAttr = dyn_cast<FloatAttr>(attr)) {
+    const llvm::fltSemantics &sem = floatAttr.getValue().getSemantics();
+    // Special case for 8-bit floats, which are represented by integers due to
+    // the lack of native fp8 types in LLVM at the moment.
+    if (APFloat::getSizeInBits(sem) == 8 && llvmType->isIntegerTy(8))
+      return llvm::ConstantInt::get(llvmType,
+                                    floatAttr.getValue().bitcastToAPInt());
     if (llvmType !=
         llvm::Type::getFloatingPointTy(llvmType->getContext(),
                                        floatAttr.getValue().getSemantics())) {
@@ -726,11 +732,9 @@ LogicalResult ModuleTranslation::convertGlobals() {
         addrSpace);
 
     if (std::optional<mlir::SymbolRefAttr> comdat = op.getComdat()) {
-      StringRef name = comdat->getLeafReference().getValue();
-      if (!llvmModule->getComdatSymbolTable().contains(name))
-        return emitError(op.getLoc(), "global references non-existant comdat");
-      llvm::Comdat *llvmComdat = llvmModule->getOrInsertComdat(name);
-      var->setComdat(llvmComdat);
+      auto selectorOp = cast<ComdatSelectorOp>(
+          SymbolTable::lookupNearestSymbolFrom(op, *comdat));
+      var->setComdat(comdatMapping.lookup(selectorOp));
     }
 
     if (op.getUnnamedAddr().has_value())
@@ -897,8 +901,8 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
       llvmFunc->setPersonalityFn(pfunc);
   }
 
-  if (auto gc = func.getGarbageCollector())
-    llvmFunc->setGC(gc->str());
+  if (std::optional<StringRef> section = func.getSection())
+    llvmFunc->setSection(*section);
 
   if (auto armStreaming = func.getArmStreaming())
     llvmFunc->addFnAttr("aarch64_pstate_sm_enabled");
@@ -1027,6 +1031,22 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
 
     // Convert visibility attribute.
     llvmFunc->setVisibility(convertVisibilityToLLVM(function.getVisibility_()));
+
+    // Convert the comdat attribute.
+    if (std::optional<mlir::SymbolRefAttr> comdat = function.getComdat()) {
+      auto selectorOp = cast<ComdatSelectorOp>(
+          SymbolTable::lookupNearestSymbolFrom(function, *comdat));
+      llvmFunc->setComdat(comdatMapping.lookup(selectorOp));
+    }
+
+    if (auto gc = function.getGarbageCollector())
+      llvmFunc->setGC(gc->str());
+
+    if (auto unnamedAddr = function.getUnnamedAddr())
+      llvmFunc->setUnnamedAddr(convertUnnamedAddrToLLVM(*unnamedAddr));
+
+    if (auto alignment = function.getAlignment())
+      llvmFunc->setAlignment(llvm::MaybeAlign(*alignment));
   }
 
   return success();
@@ -1047,17 +1067,16 @@ LogicalResult ModuleTranslation::convertFunctions() {
 }
 
 LogicalResult ModuleTranslation::convertComdats() {
-  for (ComdatOp comdat : getModuleBody(mlirModule).getOps<ComdatOp>()) {
-    for (ComdatSelectorOp selector : comdat.getOps<ComdatSelectorOp>()) {
-      StringRef name = selector.getName();
+  for (auto comdatOp : getModuleBody(mlirModule).getOps<ComdatOp>()) {
+    for (auto selectorOp : comdatOp.getOps<ComdatSelectorOp>()) {
       llvm::Module *module = getLLVMModule();
-      if (module->getComdatSymbolTable().contains(name)) {
-        return emitError(selector.getLoc())
+      if (module->getComdatSymbolTable().contains(selectorOp.getSymName()))
+        return emitError(selectorOp.getLoc())
                << "comdat selection symbols must be unique even in different "
                   "comdat regions";
-      }
-      llvm::Comdat *comdat = module->getOrInsertComdat(name);
-      comdat->setSelectionKind(convertComdatToLLVM(selector.getComdat()));
+      llvm::Comdat *comdat = module->getOrInsertComdat(selectorOp.getSymName());
+      comdat->setSelectionKind(convertComdatToLLVM(selectorOp.getComdat()));
+      comdatMapping.try_emplace(selectorOp, comdat);
     }
   }
   return success();
@@ -1300,12 +1319,13 @@ llvm::OpenMPIRBuilder *ModuleTranslation::getOpenMPBuilder() {
   if (!ompBuilder) {
     ompBuilder = std::make_unique<llvm::OpenMPIRBuilder>(*llvmModule);
 
-    bool isDevice = false;
+    bool isTargetDevice = false;
     llvm::StringRef hostIRFilePath = "";
 
-    if (Attribute deviceAttr = mlirModule->getAttr("omp.is_device"))
+    if (Attribute deviceAttr = mlirModule->getAttr("omp.is_target_device"))
       if (::llvm::isa<mlir::BoolAttr>(deviceAttr))
-        isDevice = ::llvm::dyn_cast<mlir::BoolAttr>(deviceAttr).getValue();
+        isTargetDevice =
+            ::llvm::dyn_cast<mlir::BoolAttr>(deviceAttr).getValue();
 
     if (Attribute filepath = mlirModule->getAttr("omp.host_ir_filepath"))
       if (::llvm::isa<mlir::StringAttr>(filepath))
@@ -1316,7 +1336,7 @@ llvm::OpenMPIRBuilder *ModuleTranslation::getOpenMPBuilder() {
 
     // TODO: set the flags when available
     llvm::OpenMPIRBuilderConfig config(
-        isDevice, /* IsTargetCodegen */ false,
+        isTargetDevice, /* IsGPU */ false,
         /* HasRequiresUnifiedSharedMemory */ false,
         /* OpenMPOffloadMandatory */ false);
     ompBuilder->setConfig(config);
@@ -1396,9 +1416,9 @@ mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
   LLVM::ensureDistinctSuccessors(module);
 
   ModuleTranslation translator(module, std::move(llvmModule));
-  if (failed(translator.convertFunctionSignatures()))
-    return nullptr;
   if (failed(translator.convertComdats()))
+    return nullptr;
+  if (failed(translator.convertFunctionSignatures()))
     return nullptr;
   if (failed(translator.convertGlobals()))
     return nullptr;

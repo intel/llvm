@@ -1,0 +1,321 @@
+From 7ebb38937029bf02fd03282e15e6652c40260922 Mon Sep 17 00:00:00 2001
+From: LU-JOHN <111294400+LU-JOHN@users.noreply.github.com>
+Date: Fri, 19 May 2023 15:05:37 -0500
+Subject: [PATCH 4/5] [DebugInfo] Support translation of
+ DebugBuildIdentifier/DebugStoragePath instruction (#1977)
+
+LLVM compileUnit dwoId is translated to/from DebugBuildIdentifier.
+LLVM compileUnit splitDebugFilename is translated to/from DebugStoragePath.
+
+Specification:
+https://github.com/KhronosGroup/SPIRV-Registry/blob/main/nonsemantic/NonSemantic.Shader.DebugInfo.100.asciidoc#DebugBuildIdentifier
+https://github.com/KhronosGroup/SPIRV-Registry/blob/main/nonsemantic/NonSemantic.Shader.DebugInfo.100.asciidoc#DebugStoragePath
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/7ebb389
+---
+ lib/SPIRV/LLVMToSPIRVDbgTran.cpp  | 50 ++++++++++++++++++++++++++++
+ lib/SPIRV/LLVMToSPIRVDbgTran.h    |  7 ++++
+ lib/SPIRV/SPIRVToLLVMDbgTran.cpp  | 55 +++++++++++++++++++++++++++++--
+ lib/SPIRV/SPIRVToLLVMDbgTran.h    |  7 ++++
+ lib/SPIRV/libSPIRV/SPIRV.debug.h  | 17 ++++++++++
+ lib/SPIRV/libSPIRV/SPIRVExtInst.h |  2 ++
+ test/DebugInfo/storagePath_dwo.ll | 33 +++++++++++++++++++
+ 7 files changed, 169 insertions(+), 2 deletions(-)
+ create mode 100644 test/DebugInfo/storagePath_dwo.ll
+
+diff --git a/lib/SPIRV/LLVMToSPIRVDbgTran.cpp b/lib/SPIRV/LLVMToSPIRVDbgTran.cpp
+index 0f8bf4ced8a7..afc533774ba9 100644
+--- a/lib/SPIRV/LLVMToSPIRVDbgTran.cpp
++++ b/lib/SPIRV/LLVMToSPIRVDbgTran.cpp
+@@ -546,6 +546,9 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgCompileUnit(const DICompileUnit *CU) {
+   Ops[SPIRVDebugInfoVersionIdx] = SPIRVDebug::DebugInfoVersion;
+   Ops[DWARFVersionIdx] = M->getDwarfVersion();
+   Ops[SourceIdx] = getSource(CU)->getId();
++
++  generateBuildIdentifierAndStoragePath(CU);
++
+   auto DwarfLang =
+       static_cast<llvm::dwarf::SourceLanguage>(CU->getSourceLanguage());
+   Ops[LanguageIdx] =
+@@ -1405,6 +1408,53 @@ SPIRVExtInst *LLVMToSPIRVDbgTran::getSource(const T *DIEntry) {
+   return Source;
+ }
+ 
++void LLVMToSPIRVDbgTran::generateBuildIdentifierAndStoragePath(
++    const DICompileUnit *DIEntry) {
++  // get information from LLVM IR
++  auto BuildIdentifier = DIEntry->getDWOId();
++  const std::string BuildIdentifierString = std::to_string(BuildIdentifier);
++  const std::string StoragePath = DIEntry->getSplitDebugFilename().str();
++
++  using namespace SPIRVDebug::Operand;
++
++  if (BuildIdentifierInsn || StoragePathInsn) {
++#ifndef NDEBUG
++    assert(BuildIdentifierInsn && StoragePathInsn &&
++           "BuildIdentifier and StoragePath instructions must both be created");
++
++    auto PreviousBuildIdentifierString =
++        BM->get<SPIRVString>(
++              BuildIdentifierInsn
++                  ->getArguments()[BuildIdentifier::IdentifierIdx])
++            ->getStr();
++    assert(PreviousBuildIdentifierString == BuildIdentifierString &&
++           "New BuildIdentifier should match previous BuildIdentifier");
++    auto PreviousStoragePath =
++        BM->get<SPIRVString>(
++              StoragePathInsn->getArguments()[StoragePath::PathIdx])
++            ->getStr();
++    assert(PreviousStoragePath == StoragePath &&
++           "New StoragePath should match previous StoragePath");
++#endif
++    return;
++  }
++
++  // generate BuildIdentifier inst
++  SPIRVWordVec BuildIdentifierOps(BuildIdentifier::OperandCount);
++  BuildIdentifierOps[BuildIdentifier::IdentifierIdx] =
++      BM->getString(BuildIdentifierString)->getId();
++  BuildIdentifierOps[BuildIdentifier::FlagsIdx] =
++      BM->getLiteralAsConstant(1)->getId(); // Placeholder value for now
++  BuildIdentifierInsn = static_cast<SPIRVExtInst *>(BM->addDebugInfo(
++      SPIRVDebug::BuildIdentifier, getVoidTy(), BuildIdentifierOps));
++
++  // generate StoragePath inst
++  SPIRVWordVec StoragePathOps(StoragePath::OperandCount);
++  StoragePathOps[StoragePath::PathIdx] = BM->getString(StoragePath)->getId();
++  StoragePathInsn = static_cast<SPIRVExtInst *>(
++      BM->addDebugInfo(SPIRVDebug::StoragePath, getVoidTy(), StoragePathOps));
++}
++
+ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFileType(const DIFile *F) {
+   return BM->getString(getFullPath(F));
+ }
+diff --git a/lib/SPIRV/LLVMToSPIRVDbgTran.h b/lib/SPIRV/LLVMToSPIRVDbgTran.h
+index da6685c66d35..6e24d61d0fb7 100644
+--- a/lib/SPIRV/LLVMToSPIRVDbgTran.h
++++ b/lib/SPIRV/LLVMToSPIRVDbgTran.h
+@@ -146,6 +146,10 @@ private:
+   template <class T> SPIRVExtInst *getSource(const T *DIEntry);
+   SPIRVEntry *transDbgFileType(const DIFile *F);
+ 
++  // Generate instructions recording identifier and file where debug information
++  // was split to
++  void generateBuildIdentifierAndStoragePath(const DICompileUnit *DIEntry);
++
+   // Local Variables
+   SPIRVEntry *transDbgLocalVariable(const DILocalVariable *Var);
+ 
+@@ -170,6 +174,9 @@ private:
+   std::unordered_map<const DICompileUnit *, SPIRVExtInst *> SPIRVCUMap;
+   std::vector<const DbgVariableIntrinsic *> DbgDeclareIntrinsics;
+   std::vector<const DbgVariableIntrinsic *> DbgValueIntrinsics;
++
++  inline static SPIRVExtInst *BuildIdentifierInsn{nullptr};
++  inline static SPIRVExtInst *StoragePathInsn{nullptr};
+ }; // class LLVMToSPIRVDbgTran
+ 
+ } // namespace SPIRV
+diff --git a/lib/SPIRV/SPIRVToLLVMDbgTran.cpp b/lib/SPIRV/SPIRVToLLVMDbgTran.cpp
+index 2fc16c61510c..3f7d7ddd6848 100644
+--- a/lib/SPIRV/SPIRVToLLVMDbgTran.cpp
++++ b/lib/SPIRV/SPIRVToLLVMDbgTran.cpp
+@@ -217,6 +217,18 @@ SPIRVToLLVMDbgTran::transCompilationUnit(const SPIRVExtInst *DebugInst,
+   // TODO: Remove this workaround once we switch to NonSemantic.Shader.* debug
+   // info by default
+   auto Producer = findModuleProducer();
++  assert(BuilderMap.size() != 0 && "No debug compile units");
++  if (BuilderMap.size()==1)
++    // Only initialize once
++    setBuildIdentifierAndStoragePath();
++
++  if (!StoragePath.empty()) {
++    return BuilderMap[DebugInst->getId()]->createCompileUnit(
++        SourceLang, getFile(Ops[SourceIdx]), Producer, false, "", 0,
++        StoragePath, DICompileUnit::DebugEmissionKind::FullDebug,
++        BuildIdentifier);
++  }
++
+   return BuilderMap[DebugInst->getId()]->createCompileUnit(
+       SourceLang, getFile(Ops[SourceIdx]), Producer, false, Flags, 0);
+ }
+@@ -398,8 +410,8 @@ SPIRVToLLVMDbgTran::transTypeArrayDynamic(const SPIRVExtInst *DebugInst) {
+       getDIBuilder(DebugInst).getOrCreateArray(Subscripts);
+   size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
+ 
+-  auto TransOperand = [&](SPIRVWord Idx) -> PointerUnion<DIExpression *,
+-                                                         DIVariable *> {
++  auto TransOperand =
++      [&](SPIRVWord Idx) -> PointerUnion<DIExpression *, DIVariable *> {
+     if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[Idx])) {
+       if (const auto *GV = getDbgInst<SPIRVDebug::GlobalVariable>(Ops[Idx]))
+         return transDebugInst<DIGlobalVariable>(GV);
+@@ -1344,6 +1356,8 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
+   case SPIRVDebug::Operation: // To be translated with transExpression
+   case SPIRVDebug::Source:    // To be used by other instructions
+   case SPIRVDebug::SourceContinued:
++  case SPIRVDebug::BuildIdentifier: // To be used by transCompilationUnit
++  case SPIRVDebug::StoragePath:     // To be used by transCompilationUnit
+     return nullptr;
+ 
+   case SPIRVDebug::Expression:
+@@ -1512,6 +1526,43 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
+                    getStringSourceContinued(StrIdx, Source));
+ }
+ 
++void SPIRVToLLVMDbgTran::setBuildIdentifierAndStoragePath() {
++#ifndef NDEBUG
++  bool FoundBuildIdentifier{false};
++  bool FoundStoragePath{false};
++#endif
++
++  for (SPIRVExtInst *EI : BM->getDebugInstVec()) {
++    if (EI->getExtOp() == SPIRVDebug::BuildIdentifier) {
++      using namespace SPIRVDebug::Operand::BuildIdentifier;
++      SPIRVWordVec BuildIdentifierArgs = EI->getArguments();
++      assert(BuildIdentifierArgs.size() == OperandCount &&
++             "Invalid number of operands");
++      assert(!FoundBuildIdentifier &&
++             "More than one BuildIdentifier instruction not allowed");
++      BuildIdentifier = strtoull(
++          getString(BuildIdentifierArgs[IdentifierIdx]).c_str(), NULL, 10);
++#ifndef NDEBUG
++      FoundBuildIdentifier = true;
++#endif
++    } else if (EI->getExtOp() == SPIRVDebug::StoragePath) {
++      using namespace SPIRVDebug::Operand::StoragePath;
++      SPIRVWordVec StoragePathArgs = EI->getArguments();
++      assert(StoragePathArgs.size() == OperandCount &&
++             "Invalid number of operands");
++      assert(!FoundStoragePath &&
++             "More than one StoragePath instruction not allowed");
++      StoragePath = getString(StoragePathArgs[PathIdx]);
++#ifndef NDEBUG
++      FoundStoragePath = true;
++#endif
++    }
++  }
++  assert(((FoundBuildIdentifier && FoundStoragePath) ||
++          (!FoundBuildIdentifier && !FoundStoragePath)) &&
++         "BuildIdentifier and StoragePath must both be set or both unset");
++}
++
+ DIBuilder &SPIRVToLLVMDbgTran::getDIBuilder(const SPIRVExtInst *DebugInst) {
+   assert(BuilderMap.size() != 0 && "No debug compile units");
+   if (BuilderMap.size() == 1)
+diff --git a/lib/SPIRV/SPIRVToLLVMDbgTran.h b/lib/SPIRV/SPIRVToLLVMDbgTran.h
+index 069f0e5bf3e4..819a5d44118c 100644
+--- a/lib/SPIRV/SPIRVToLLVMDbgTran.h
++++ b/lib/SPIRV/SPIRVToLLVMDbgTran.h
+@@ -89,6 +89,7 @@ public:
+ 
+ private:
+   DIFile *getFile(const SPIRVId SourceId);
++
+   DIFile *
+   getDIFile(const std::string &FileName,
+             std::optional<DIFile::ChecksumInfo<StringRef>> CS = std::nullopt,
+@@ -203,6 +204,12 @@ private:
+                                       const SPIRVExtInstSetKind);
+   std::string findModuleProducer();
+   std::optional<DIFile::ChecksumInfo<StringRef>> ParseChecksum(StringRef Text);
++
++  // BuildIdentifier and StoragePath must both be set or both unset.
++  // If StoragePath is empty both variables are unset and not valid.
++  uint64_t BuildIdentifier{0};
++  std::string StoragePath{};
++  void setBuildIdentifierAndStoragePath();
+ };
+ } // namespace SPIRV
+ 
+diff --git a/lib/SPIRV/libSPIRV/SPIRV.debug.h b/lib/SPIRV/libSPIRV/SPIRV.debug.h
+index 66a1d1c044b3..af05707487b0 100644
+--- a/lib/SPIRV/libSPIRV/SPIRV.debug.h
++++ b/lib/SPIRV/libSPIRV/SPIRV.debug.h
+@@ -57,6 +57,8 @@ enum Instruction {
+   InstCount                     = 37,
+   FunctionDefinition            = 101,
+   SourceContinued               = 102,
++  BuildIdentifier               = 105,
++  StoragePath                   = 106,
+   EntryPoint                    = 107,
+   Module                        = 200,
+   TypeSubrange                  = 201,
+@@ -321,6 +323,21 @@ enum {
+ };
+ }
+ 
++namespace BuildIdentifier {
++enum {
++  IdentifierIdx = 0,
++  FlagsIdx      = 1,
++  OperandCount  = 2
++};
++}
++
++namespace StoragePath {
++enum {
++  PathIdx       = 0,
++  OperandCount  = 1
++};
++}
++
+ namespace TypeBasic {
+ enum {
+   NameIdx                 = 0,
+diff --git a/lib/SPIRV/libSPIRV/SPIRVExtInst.h b/lib/SPIRV/libSPIRV/SPIRVExtInst.h
+index 29413923e068..f28af37acefa 100644
+--- a/lib/SPIRV/libSPIRV/SPIRVExtInst.h
++++ b/lib/SPIRV/libSPIRV/SPIRVExtInst.h
+@@ -264,6 +264,8 @@ template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
+   add(SPIRVDebug::FunctionDefinition, "DebugFunctionDefinition");
+   add(SPIRVDebug::SourceContinued, "DebugSourceContinued");
+   add(SPIRVDebug::EntryPoint, "DebugEntryPoint");
++  add(SPIRVDebug::BuildIdentifier, "DebugBuildIdentifier");
++  add(SPIRVDebug::StoragePath, "DebugStoragePath");
+ }
+ SPIRV_DEF_NAMEMAP(SPIRVDebugExtOpKind, SPIRVDebugExtOpMap)
+ 
+diff --git a/test/DebugInfo/storagePath_dwo.ll b/test/DebugInfo/storagePath_dwo.ll
+new file mode 100644
+index 000000000000..bef31521afef
+--- /dev/null
++++ b/test/DebugInfo/storagePath_dwo.ll
+@@ -0,0 +1,33 @@
++; Test checks that dwoId and splitDebugFilename is preserved from LLVM IR to spirv
++; and spirv to LLVM IR translation.
++
++; RUN: llvm-as %s -o %t.bc
++; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV
++; RUN: llvm-spirv %t.bc -o %t.spv
++; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
++; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
++; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
++
++; CHECK-SPIRV: String [[#stringA_id:]] "11111"
++; CHECK-SPIRV: String [[#stringA_sf:]] "debugA_info.dwo"
++; CHECK-SPIRV: [[#buildID_A:]] [[#]] DebugBuildIdentifier [[#stringA_id]]
++; CHECK-SPIRV: [[#storageID_A:]] [[#]] DebugStoragePath [[#stringA_sf]]
++
++; CHECK-LLVM: !DICompileUnit
++; CHECK-LLVM-SAME: splitDebugFilename: "debugA_info.dwo"
++; CHECK-LLVM-SAME: dwoId: 11111
++; CHECK-LLVM: !DICompileUnit
++; CHECK-LLVM-SAME: splitDebugFilename: "debugA_info.dwo"
++; CHECK-LLVM-SAME: dwoId: 11111
++
++!llvm.dbg.cu = !{!7, !0}
++!llvm.module.flags = !{!3, !4}
++
++!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "Clang", isOptimized: false, runtimeVersion: 2, splitDebugFilename: "debugA_info.dwo", emissionKind: FullDebug, enums: !2, retainedTypes: !2, globals: !2, imports: !2, dwoId: 11111)
++!1 = !DIFile(filename: "<stdin>", directory: "/")
++!2 = !{}
++!3 = !{i32 2, !"Dwarf Version", i32 4}
++!4 = !{i32 2, !"Debug Info Version", i32 3}
++!5 = !{!6}
++!6 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
++!7 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "Clang", isOptimized: false, runtimeVersion: 2, splitDebugFilename: "debugA_info.dwo", dwoId: 11111, emissionKind: FullDebug, retainedTypes: !5)
+-- 
+2.31.1
+

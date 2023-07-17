@@ -131,7 +131,7 @@ static llvm::cl::opt<bool> enableOpenMP("fopenmp",
                                         llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-    enableOpenMPDevice("fopenmp-is-device",
+    enableOpenMPDevice("fopenmp-is-target-device",
                        llvm::cl::desc("enable openmp device compilation"),
                        llvm::cl::init(false));
 
@@ -398,7 +398,7 @@ int main(int argc, char **argv) {
   // enable parsing of OpenACC
   if (enableOpenACC) {
     options.features.Enable(Fortran::common::LanguageFeature::OpenACC);
-    options.predefinitions.emplace_back("_OPENACC", "202011");
+    options.predefinitions.emplace_back("_OPENACC", "202211");
   }
 
   Fortran::common::IntrinsicTypeDefaultKinds defaultKinds;

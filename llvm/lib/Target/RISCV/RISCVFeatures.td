@@ -323,7 +323,7 @@ def FeatureStdExtZk
                         FeatureStdExtZkt]>;
 
 def FeatureStdExtZca
-    : SubtargetFeature<"experimental-zca", "HasStdExtZca", "true",
+    : SubtargetFeature<"zca", "HasStdExtZca", "true",
                        "'Zca' (part of the C extension, excluding compressed "
                        "floating point loads/stores)">;
 
@@ -335,7 +335,7 @@ def HasStdExtCOrZca
                                    "compressed floating point loads/stores)">;
 
 def FeatureStdExtZcb
-    : SubtargetFeature<"experimental-zcb", "HasStdExtZcb", "true",
+    : SubtargetFeature<"zcb", "HasStdExtZcb", "true",
                        "'Zcb' (Compressed basic bit manipulation instructions)",
                        [FeatureStdExtZca]>;
 def HasStdExtZcb : Predicate<"Subtarget->hasStdExtZcb()">,
@@ -343,8 +343,9 @@ def HasStdExtZcb : Predicate<"Subtarget->hasStdExtZcb()">,
                              "'Zcb' (Compressed basic bit manipulation instructions)">;
 
 def FeatureStdExtZcd
-    : SubtargetFeature<"experimental-zcd", "HasStdExtZcd", "true",
-                       "'Zcd' (Compressed Double-Precision Floating-Point Instructions)">;
+    : SubtargetFeature<"zcd", "HasStdExtZcd", "true",
+                       "'Zcd' (Compressed Double-Precision Floating-Point Instructions)",
+                       [FeatureStdExtZca]>;
 
 def HasStdExtCOrZcd
     : Predicate<"Subtarget->hasStdExtC() || Subtarget->hasStdExtZcd()">,
@@ -353,8 +354,9 @@ def HasStdExtCOrZcd
                                    "'Zcd' (Compressed Double-Precision Floating-Point Instructions)">;
 
 def FeatureStdExtZcf
-    : SubtargetFeature<"experimental-zcf", "HasStdExtZcf", "true",
-                       "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
+    : SubtargetFeature<"zcf", "HasStdExtZcf", "true",
+                       "'Zcf' (Compressed Single-Precision Floating-Point Instructions)",
+                       [FeatureStdExtZca]>;
 
 def HasStdExtCOrZcf
     : Predicate<"Subtarget->hasStdExtC() || Subtarget->hasStdExtZcf()">,
@@ -363,7 +365,7 @@ def HasStdExtCOrZcf
                                    "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
 
 def FeatureStdExtZcmp
-    : SubtargetFeature<"experimental-zcmp", "HasStdExtZcmp", "true",
+    : SubtargetFeature<"zcmp", "HasStdExtZcmp", "true",
                        "'Zcmp' (sequenced instuctions for code-size reduction)", 
                        [FeatureStdExtZca]>;
 def HasStdExtZcmp : Predicate<"Subtarget->hasStdExtZcmp() && !Subtarget->hasStdExtC()">,
@@ -371,7 +373,7 @@ def HasStdExtZcmp : Predicate<"Subtarget->hasStdExtZcmp() && !Subtarget->hasStdE
                                "'Zcmp' (sequenced instuctions for code-size reduction)">;
 
 def FeatureStdExtZcmt
-    : SubtargetFeature<"experimental-zcmt", "HasStdExtZcmt", "true",
+    : SubtargetFeature<"zcmt", "HasStdExtZcmt", "true",
                        "'Zcmt' (table jump instuctions for code-size reduction)", 
                        [FeatureStdExtZca, FeatureStdExtZicsr]>; 
 def HasStdExtZcmt : Predicate<"Subtarget->hasStdExtZcmt()">,
@@ -654,6 +656,13 @@ def HasHalfFPLoadStoreMove
                                     "'Zfbfmin' (Scalar BF16 Converts) or "
                                     "'Zvfbfwma' (Vector BF16 widening mul-add)">;
 
+def FeatureStdExtZacas
+    : SubtargetFeature<"experimental-zacas", "HasStdExtZacas", "true",
+                       "'Zacas' (Atomic Compare-And-Swap Instructions)">;
+def HasStdExtZacas : Predicate<"Subtarget->hasStdExtZacas()">,
+                               AssemblerPredicate<(all_of FeatureStdExtZacas),
+                               "'Zacas' (Atomic Compare-And-Swap Instructions)">;
+
 //===----------------------------------------------------------------------===//
 // Vendor extensions
 //===----------------------------------------------------------------------===//
@@ -752,6 +761,12 @@ def HasVendorXSfvcp : Predicate<"Subtarget->hasVendorXSfvcp()">,
                                 AssemblerPredicate<(all_of FeatureVendorXSfvcp),
                                 "'XSfvcp' (SiFive Custom Vector Coprocessor Interface Instructions)">;
 
+def FeatureVendorXSfcie
+    : SubtargetFeature<"xsfcie", "HasVendorXSfcie", "true",
+                       "'XSfcie' (SiFive Custom Instruction Extension SCIE.)">;
+def HasVendorXSfcie : Predicate<"Subtarget->hasVendorXSfcie()">,
+                        AssemblerPredicate<(all_of FeatureVendorXSfcie),
+                        "'XSfcie' (SiFive Custom Instruction Extension SCIE.)">;
 
 def FeatureVendorXCVbitmanip
     : SubtargetFeature<"xcvbitmanip", "HasVendorXCVbitmanip", "true",
@@ -759,6 +774,13 @@ def FeatureVendorXCVbitmanip
 def HasVendorXCVbitmanip : Predicate<"Subtarget->hasVendorXCVbitmanip()">,
                                 AssemblerPredicate<(all_of FeatureVendorXCVbitmanip),
                                 "'XCVbitmanip' (Bit Manipulation)">;
+
+def FeatureVendorXCVmac
+    : SubtargetFeature<"xcvmac", "HasVendorXCVmac", "true",
+                       "'XCVmac' (Multiply-Accumulate)">;
+def HasVendorXCVmac : Predicate<"Subtarget->hasVendorXCVmac()">,
+                                AssemblerPredicate<(all_of FeatureVendorXCVmac),
+                                "'XCVmac' (Multiply-Accumulate)">;
 
 //===----------------------------------------------------------------------===//
 // LLVM specific features and extensions
@@ -797,6 +819,11 @@ foreach i = {1-31} in
 
 def FeatureSaveRestore : SubtargetFeature<"save-restore", "EnableSaveRestore",
                                           "true", "Enable save/restore.">;
+
+def FeatureTrailingSeqCstFence : SubtargetFeature<"seq-cst-trailing-fence",
+                                          "EnableSeqCstTrailingFence",
+                                          "true",
+                                          "Enable trailing fence for seq-cst store.">;
 
 def FeatureUnalignedScalarMem
    : SubtargetFeature<"unaligned-scalar-mem", "EnableUnalignedScalarMem",

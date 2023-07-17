@@ -927,6 +927,7 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(MN->getRawSubclassData());
     ID.AddInteger(MN->getPointerInfo().getAddrSpace());
     ID.AddInteger(MN->getMemOperand()->getFlags());
+    ID.AddInteger(MN->getMemoryVT().getRawBits());
   }
 }
 
@@ -5095,14 +5096,95 @@ bool SelectionDAG::isKnownNeverZero(SDValue Op, unsigned Depth) const {
                                [](ConstantSDNode *C) { return !C->isZero(); }))
     return true;
 
-  // TODO: Recognize more cases here.
+  // TODO: Recognize more cases here. Most of the cases are also incomplete to
+  // some degree.
   switch (Op.getOpcode()) {
-  default: break;
+  default:
+    break;
+
   case ISD::OR:
-    if (isKnownNeverZero(Op.getOperand(1), Depth + 1) ||
-        isKnownNeverZero(Op.getOperand(0), Depth + 1))
+    return isKnownNeverZero(Op.getOperand(1), Depth + 1) ||
+           isKnownNeverZero(Op.getOperand(0), Depth + 1);
+
+  case ISD::VSELECT:
+  case ISD::SELECT:
+    return isKnownNeverZero(Op.getOperand(1), Depth + 1) &&
+           isKnownNeverZero(Op.getOperand(2), Depth + 1);
+
+  case ISD::SHL:
+    if (Op->getFlags().hasNoSignedWrap() || Op->getFlags().hasNoUnsignedWrap())
+      return isKnownNeverZero(Op.getOperand(0), Depth + 1);
+
+    // 1 << X is never zero. TODO: This can be expanded if we can bound X.
+    // The expression is really !Known.One[BitWidth-MaxLog2(Known):0].isZero()
+    if (computeKnownBits(Op.getOperand(0), Depth + 1).One[0])
       return true;
     break;
+
+  case ISD::UADDSAT:
+  case ISD::UMAX:
+    return isKnownNeverZero(Op.getOperand(1), Depth + 1) ||
+           isKnownNeverZero(Op.getOperand(0), Depth + 1);
+
+  case ISD::UMIN:
+    return isKnownNeverZero(Op.getOperand(1), Depth + 1) &&
+           isKnownNeverZero(Op.getOperand(0), Depth + 1);
+
+  case ISD::ROTL:
+  case ISD::ROTR:
+  case ISD::BITREVERSE:
+  case ISD::BSWAP:
+  case ISD::CTPOP:
+  case ISD::ABS:
+    return isKnownNeverZero(Op.getOperand(0), Depth + 1);
+
+  case ISD::SRA:
+  case ISD::SRL:
+    if (Op->getFlags().hasExact())
+      return isKnownNeverZero(Op.getOperand(0), Depth + 1);
+    // Signed >> X is never zero. TODO: This can be expanded if we can bound X.
+    // The expression is really
+    // !Known.One[SignBit:SignBit-(BitWidth-MaxLog2(Known))].isZero()
+    if (computeKnownBits(Op.getOperand(0), Depth + 1).isNegative())
+      return true;
+    break;
+
+  case ISD::UDIV:
+  case ISD::SDIV:
+    // div exact can only produce a zero if the dividend is zero.
+    // TODO: For udiv this is also true if Op1 u<= Op0
+    if (Op->getFlags().hasExact())
+      return isKnownNeverZero(Op.getOperand(0), Depth + 1);
+    break;
+
+  case ISD::ADD:
+    if (Op->getFlags().hasNoUnsignedWrap())
+      if (isKnownNeverZero(Op.getOperand(1), Depth + 1) ||
+          isKnownNeverZero(Op.getOperand(0), Depth + 1))
+        return true;
+    // TODO: There are a lot more cases we can prove for add.
+    break;
+
+  case ISD::SUB: {
+    if (isNullConstant(Op.getOperand(0)))
+      return isKnownNeverZero(Op.getOperand(1), Depth + 1);
+
+    std::optional<bool> ne =
+        KnownBits::ne(computeKnownBits(Op.getOperand(0), Depth + 1),
+                      computeKnownBits(Op.getOperand(1), Depth + 1));
+    return ne && *ne;
+  }
+
+  case ISD::MUL:
+    if (Op->getFlags().hasNoSignedWrap() || Op->getFlags().hasNoUnsignedWrap())
+      if (isKnownNeverZero(Op.getOperand(1), Depth + 1) &&
+          isKnownNeverZero(Op.getOperand(0), Depth + 1))
+        return true;
+    break;
+
+  case ISD::ZERO_EXTEND:
+  case ISD::SIGN_EXTEND:
+    return isKnownNeverZero(Op.getOperand(0), Depth + 1);
   }
 
   return computeKnownBits(Op, Depth).isNonZero();
@@ -5112,7 +5194,7 @@ bool SelectionDAG::isEqualTo(SDValue A, SDValue B) const {
   // Check the obvious case.
   if (A == B) return true;
 
-  // For for negative and positive zero.
+  // For negative and positive zero.
   if (const ConstantFPSDNode *CA = dyn_cast<ConstantFPSDNode>(A))
     if (const ConstantFPSDNode *CB = dyn_cast<ConstantFPSDNode>(B))
       if (CA->isZero() && CB->isZero()) return true;
@@ -8066,6 +8148,7 @@ SDValue SelectionDAG::getMemIntrinsicNode(unsigned Opcode, const SDLoc &dl,
         Opcode, dl.getIROrder(), VTList, MemVT, MMO));
     ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
     ID.AddInteger(MMO->getFlags());
+    ID.AddInteger(MemVT.getRawBits());
     void *IP = nullptr;
     if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
       cast<MemIntrinsicSDNode>(E)->refineAlignment(MMO);
@@ -11636,22 +11719,51 @@ SelectionDAG::matchBinOpReduction(SDNode *Extract, ISD::NodeType &BinOp,
 }
 
 SDValue SelectionDAG::UnrollVectorOp(SDNode *N, unsigned ResNE) {
-  assert(N->getNumValues() == 1 &&
-         "Can't unroll a vector with multiple results!");
-
   EVT VT = N->getValueType(0);
-  unsigned NE = VT.getVectorNumElements();
   EVT EltVT = VT.getVectorElementType();
-  SDLoc dl(N);
+  unsigned NE = VT.getVectorNumElements();
 
-  SmallVector<SDValue, 8> Scalars;
-  SmallVector<SDValue, 4> Operands(N->getNumOperands());
+  SDLoc dl(N);
 
   // If ResNE is 0, fully unroll the vector op.
   if (ResNE == 0)
     ResNE = NE;
   else if (NE > ResNE)
     NE = ResNE;
+
+  if (N->getNumValues() == 2) {
+    SmallVector<SDValue, 8> Scalars0, Scalars1;
+    SmallVector<SDValue, 4> Operands(N->getNumOperands());
+    EVT VT1 = N->getValueType(1);
+    EVT EltVT1 = VT1.getVectorElementType();
+
+    unsigned i;
+    for (i = 0; i != NE; ++i) {
+      for (unsigned j = 0, e = N->getNumOperands(); j != e; ++j) {
+        SDValue Operand = N->getOperand(j);
+        EVT OperandVT = Operand.getValueType();
+
+        // A vector operand; extract a single element.
+        EVT OperandEltVT = OperandVT.getVectorElementType();
+        Operands[j] = getNode(ISD::EXTRACT_VECTOR_ELT, dl, OperandEltVT,
+                              Operand, getVectorIdxConstant(i, dl));
+      }
+
+      SDValue EltOp = getNode(N->getOpcode(), dl, {EltVT, EltVT1}, Operands);
+      Scalars0.push_back(EltOp);
+      Scalars1.push_back(EltOp.getValue(1));
+    }
+
+    SDValue Vec0 = getBuildVector(VT, dl, Scalars0);
+    SDValue Vec1 = getBuildVector(VT1, dl, Scalars1);
+    return getMergeValues({Vec0, Vec1}, dl);
+  }
+
+  assert(N->getNumValues() == 1 &&
+         "Can't unroll a vector with multiple results!");
+
+  SmallVector<SDValue, 8> Scalars;
+  SmallVector<SDValue, 4> Operands(N->getNumOperands());
 
   unsigned i;
   for (i= 0; i != NE; ++i) {

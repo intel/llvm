@@ -120,7 +120,7 @@ std::optional<unsigned> Program::getGlobal(const ValueDecl *VD) {
   // Map the decl to the existing index.
   if (Index) {
     GlobalIndices[VD] = *Index;
-    return {};
+    return std::nullopt;
   }
 
   return Index;
@@ -135,7 +135,7 @@ std::optional<unsigned> Program::getOrCreateGlobal(const ValueDecl *VD,
     GlobalIndices[VD] = *Idx;
     return Idx;
   }
-  return {};
+  return std::nullopt;
 }
 
 std::optional<unsigned> Program::getOrCreateDummy(const ParmVarDecl *PD) {
@@ -154,7 +154,7 @@ std::optional<unsigned> Program::getOrCreateDummy(const ParmVarDecl *PD) {
     DummyParams[PD] = *Idx;
     return Idx;
   }
-  return {};
+  return std::nullopt;
 }
 
 std::optional<unsigned> Program::createGlobal(const ValueDecl *VD,
@@ -162,7 +162,7 @@ std::optional<unsigned> Program::createGlobal(const ValueDecl *VD,
   assert(!getGlobal(VD));
   bool IsStatic, IsExtern;
   if (auto *Var = dyn_cast<VarDecl>(VD)) {
-    IsStatic = !Var->hasLocalStorage();
+    IsStatic = Context::shouldBeGloballyIndexed(VD);
     IsExtern = !Var->getAnyInitializer();
   } else {
     IsStatic = false;
@@ -173,7 +173,7 @@ std::optional<unsigned> Program::createGlobal(const ValueDecl *VD,
       GlobalIndices[P] = *Idx;
     return *Idx;
   }
-  return {};
+  return std::nullopt;
 }
 
 std::optional<unsigned> Program::createGlobal(const Expr *E) {
@@ -194,7 +194,7 @@ std::optional<unsigned> Program::createGlobal(const DeclTy &D, QualType Ty,
                             IsTemporary);
   }
   if (!Desc)
-    return {};
+    return std::nullopt;
 
   // Allocate a block for storage.
   unsigned I = Globals.size();
@@ -222,10 +222,8 @@ Record *Program::getOrCreateRecord(const RecordDecl *RD) {
     return nullptr;
 
   // Deduplicate records.
-  auto It = Records.find(RD);
-  if (It != Records.end()) {
+  if (auto It = Records.find(RD); It != Records.end())
     return It->second;
-  }
 
   // We insert nullptr now and replace that later, so recursive calls
   // to this function with the same RecordDecl don't run into

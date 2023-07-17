@@ -12,6 +12,7 @@
 #include "Config.h"
 #include "InputSection.h"
 #include "lld/Common/ErrorHandler.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/MathExtras.h"
@@ -223,6 +224,10 @@ uint64_t getPPC64TocBase();
 uint64_t getAArch64Page(uint64_t expr);
 void riscvFinalizeRelax(int passes);
 void mergeRISCVAttributesSections();
+void addArmInputSectionMappingSymbols();
+void addArmSyntheticSectionMappingSymbol(Defined *);
+void sortArmMappingSymbols();
+void convertArmInstructionstoBE8(InputSection *sec, uint8_t *buf);
 
 LLVM_LIBRARY_VISIBILITY extern const TargetInfo *target;
 TargetInfo *getTarget();

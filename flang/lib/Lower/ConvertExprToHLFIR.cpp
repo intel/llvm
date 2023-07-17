@@ -719,6 +719,7 @@ private:
     if (recordType.isDependentType())
       TODO(getLoc(), "Designate derived type with length parameters in HLFIR");
     mlir::Type fieldType = recordType.getType(partInfo.componentName);
+    assert(fieldType && "component name is not known");
     mlir::Type fieldBaseType =
         hlfir::getFortranElementOrSequenceType(fieldType);
     partInfo.componentShape = genComponentShape(componentSym, fieldBaseType);
@@ -774,16 +775,13 @@ private:
       llvm::ArrayRef<mlir::Value> resultExtents) {
     fir::FirOpBuilder &builder = getBuilder();
     mlir::Value shape = builder.genShape(loc, resultExtents);
-    // For polymorphic entities, it will be needed to add a mold on the
-    // hlfir.elemental_addr/hlfir.elemental so that we are able to create
-    // temporary storage for it.
-    if (partInfo.base && partInfo.base->isPolymorphic())
-      TODO(loc, "vector subscripted polymorphic entity in HLFIR");
     // The type parameters to be added on the hlfir.elemental_addr are the ones
     // of the whole designator (not the ones of the vector subscripted part).
     // These are not yet known and will be added when finalizing the designator
     // lowering.
-    auto elementalAddrOp = builder.create<hlfir::ElementalAddrOp>(loc, shape);
+    auto elementalAddrOp =
+        builder.create<hlfir::ElementalAddrOp>(loc, shape,
+                                               /*isUnordered=*/true);
     setVectorSubscriptElementAddrOp(elementalAddrOp);
     builder.setInsertionPointToEnd(&elementalAddrOp.getBody().front());
     mlir::Region::BlockArgListType indices = elementalAddrOp.getIndices();
@@ -824,6 +822,15 @@ private:
                              hlfir::EntityWithAttributes elementAddr) {
     fir::FirOpBuilder &builder = getBuilder();
     builder.setInsertionPointToEnd(&elementalAddrOp.getBody().front());
+    // For polymorphic entities, it will be needed to add a mold on the
+    // hlfir.elemental so that we are able to create temporary storage
+    // for it using the dynamic type. It seems that a reference to the mold
+    // entity can be created by evaluating the hlfir.elemental_addr
+    // for a single index. The evaluation should be legal as long as
+    // the hlfir.elemental_addr has no side effects, otherwise,
+    // it is not clear how to get the mold reference.
+    if (elementAddr.isPolymorphic())
+      TODO(loc, "vector subscripted polymorphic entity in HLFIR");
     builder.create<hlfir::YieldOp>(loc, elementAddr);
     builder.setInsertionPointAfter(elementalAddrOp);
   }
@@ -1512,7 +1519,8 @@ private:
       return unaryOp.gen(l, b, op.derived(), leftVal);
     };
     mlir::Value elemental = hlfir::genElementalOp(loc, builder, elementType,
-                                                  shape, typeParams, genKernel);
+                                                  shape, typeParams, genKernel,
+                                                  /*isUnordered=*/true);
     fir::FirOpBuilder *bldr = &builder;
     getStmtCtx().attachCleanup(
         [=]() { bldr->create<hlfir::DestroyOp>(loc, elemental); });
@@ -1557,7 +1565,8 @@ private:
       return binaryOp.gen(l, b, op.derived(), leftVal, rightVal);
     };
     mlir::Value elemental = hlfir::genElementalOp(loc, builder, elementType,
-                                                  shape, typeParams, genKernel);
+                                                  shape, typeParams, genKernel,
+                                                  /*isUnordered=*/true);
     fir::FirOpBuilder *bldr = &builder;
     getStmtCtx().attachCleanup(
         [=]() { bldr->create<hlfir::DestroyOp>(loc, elemental); });
@@ -1686,7 +1695,9 @@ private:
             loc, resultType, varOp, /*shape=*/nullptr,
             /*typeparams=*/mlir::ValueRange{});
         auto rhs = gen(expr);
-        builder.create<hlfir::AssignOp>(loc, rhs, lhs);
+        builder.create<hlfir::AssignOp>(loc, rhs, lhs, /*realloc=*/false,
+                                        /*keep_lhs_length_if_realloc=*/false,
+                                        /*temporary_lhs=*/true);
         continue;
       }
 
@@ -1741,8 +1752,48 @@ private:
           attrs &&
           bitEnumContainsAny(attrs.getFlags(),
                              fir::FortranVariableFlagsEnum::allocatable);
-      auto rhs = gen(expr);
-      builder.create<hlfir::AssignOp>(loc, rhs, lhs, allowRealloc);
+      // If the component is allocatable, then we have to check
+      // whether the RHS value is allocatable or not.
+      // If it is not allocatable, then AssignOp can be used directly.
+      // If it is allocatable, then using AssignOp for unallocated RHS
+      // will cause illegal dereference. When an unallocated allocatable
+      // value is used to construct an allocatable component, the component
+      // must just stay unallocated.
+
+      // If the component is allocatable and RHS is NULL() expression, then
+      // we can just skip it: the LHS must remain unallocated with its
+      // defined rank.
+      if (allowRealloc &&
+          Fortran::evaluate::UnwrapExpr<Fortran::evaluate::NullPointer>(expr))
+        continue;
+
+      hlfir::Entity rhs = gen(expr);
+      if (!allowRealloc || !rhs.isMutableBox()) {
+        rhs = hlfir::loadTrivialScalar(loc, builder, rhs);
+        builder.create<hlfir::AssignOp>(loc, rhs, lhs, allowRealloc,
+                                        /*keep_lhs_length_if_realloc=*/false,
+                                        /*temporary_lhs=*/true);
+        continue;
+      }
+
+      auto [rhsExv, cleanup] =
+          hlfir::translateToExtendedValue(loc, builder, rhs);
+      assert(!cleanup && "unexpected cleanup");
+      auto *fromBox = rhsExv.getBoxOf<fir::MutableBoxValue>();
+      if (!fromBox)
+        fir::emitFatalError(loc, "allocatable entity could not be lowered "
+                                 "to mutable box");
+      mlir::Value isAlloc =
+          fir::factory::genIsAllocatedOrAssociatedTest(builder, loc, *fromBox);
+      builder.genIfThen(loc, isAlloc)
+          .genThen([&]() {
+            rhs = hlfir::loadTrivialScalar(loc, builder, rhs);
+            builder.create<hlfir::AssignOp>(
+                loc, rhs, lhs, allowRealloc,
+                /*keep_lhs_length_if_realloc=*/false,
+                /*temporary_lhs=*/true);
+          })
+          .end();
     }
 
     return varOp;

@@ -420,6 +420,27 @@ let TargetPrefix = "riscv" in {
     let ScalarOperand = 2;
     let VLOperand = 4;
   }
+  // For destination vector type is the same as first source vector.
+  // Input: (passthru, vector_in, vector_in/scalar_in, frm, vl)
+  class RISCVBinaryAAXUnMaskedRoundingMode
+        : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                    [LLVMMatchType<0>, LLVMMatchType<0>, llvm_any_ty,
+                     llvm_anyint_ty, LLVMMatchType<2>],
+                    [ImmArg<ArgIndex<3>>, IntrNoMem]>, RISCVVIntrinsic {
+    let ScalarOperand = 2;
+    let VLOperand = 4;
+  }
+  // For destination vector type is the same as first source vector (with mask).
+  // Input: (maskedoff, vector_in, vector_in/scalar_in, mask, frm, vl, policy)
+  class RISCVBinaryAAXMaskedRoundingMode
+       : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                   [LLVMMatchType<0>, LLVMMatchType<0>, llvm_any_ty,
+                    LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, llvm_anyint_ty,
+                    LLVMMatchType<2>, LLVMMatchType<2>],
+                   [ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<6>>, IntrNoMem]>, RISCVVIntrinsic {
+    let ScalarOperand = 2;
+    let VLOperand = 5;
+  }
   // For destination vector type is the same as first source vector. The
   // second source operand must match the destination type or be an XLen scalar.
   // Input: (passthru, vector_in, vector_in/scalar_in, vl)
@@ -1088,6 +1109,10 @@ let TargetPrefix = "riscv" in {
     def "int_riscv_" # NAME : RISCVBinaryAAXUnMasked;
     def "int_riscv_" # NAME # "_mask" : RISCVBinaryAAXMasked;
   }
+  multiclass RISCVBinaryAAXRoundingMode {
+    def "int_riscv_" # NAME : RISCVBinaryAAXUnMaskedRoundingMode;
+    def "int_riscv_" # NAME # "_mask" : RISCVBinaryAAXMaskedRoundingMode;
+  }
   // Like RISCVBinaryAAX, but the second operand is used a shift amount so it
   // must be a vector or an XLen scalar.
   multiclass RISCVBinaryAAShift {
@@ -1296,9 +1321,9 @@ let TargetPrefix = "riscv" in {
   defm vwmaccus : RISCVTernaryWide;
   defm vwmaccsu : RISCVTernaryWide;
 
-  defm vfadd : RISCVBinaryAAX;
-  defm vfsub : RISCVBinaryAAX;
-  defm vfrsub : RISCVBinaryAAX;
+  defm vfadd : RISCVBinaryAAXRoundingMode;
+  defm vfsub : RISCVBinaryAAXRoundingMode;
+  defm vfrsub : RISCVBinaryAAXRoundingMode;
 
   defm vfwadd : RISCVBinaryABX;
   defm vfwsub : RISCVBinaryABX;
@@ -1613,27 +1638,38 @@ class ScalarCryptoByteSelectAny
                             [IntrNoMem, IntrSpeculatable, ImmArg<ArgIndex<2>>]>;
 
 // Zknd
-def int_riscv_aes32dsi  : ScalarCryptoByteSelect32;
-def int_riscv_aes32dsmi : ScalarCryptoByteSelect32;
+def int_riscv_aes32dsi  : ScalarCryptoByteSelect32,
+                          ClangBuiltin<"__builtin_riscv_aes32dsi_32">;
+def int_riscv_aes32dsmi : ScalarCryptoByteSelect32,
+                          ClangBuiltin<"__builtin_riscv_aes32dsmi_32">;
 
-def int_riscv_aes64ds   : ScalarCryptoGprGprIntrinsic64;
-def int_riscv_aes64dsm  : ScalarCryptoGprGprIntrinsic64;
+def int_riscv_aes64ds   : ScalarCryptoGprGprIntrinsic64,
+                          ClangBuiltin<"__builtin_riscv_aes64ds_64">;
+def int_riscv_aes64dsm  : ScalarCryptoGprGprIntrinsic64,
+                          ClangBuiltin<"__builtin_riscv_aes64dsm_64">;
 
-def int_riscv_aes64im   : ScalarCryptoGprIntrinsic64;
+def int_riscv_aes64im   : ScalarCryptoGprIntrinsic64,
+                          ClangBuiltin<"__builtin_riscv_aes64im_64">;
 
 // Zkne
-def int_riscv_aes32esi  : ScalarCryptoByteSelect32;
-def int_riscv_aes32esmi : ScalarCryptoByteSelect32;
+def int_riscv_aes32esi  : ScalarCryptoByteSelect32,
+                          ClangBuiltin<"__builtin_riscv_aes32esi_32">;
+def int_riscv_aes32esmi : ScalarCryptoByteSelect32,
+                          ClangBuiltin<"__builtin_riscv_aes32esmi_32">;
 
-def int_riscv_aes64es   : ScalarCryptoGprGprIntrinsic64;
-def int_riscv_aes64esm  : ScalarCryptoGprGprIntrinsic64;
+def int_riscv_aes64es   : ScalarCryptoGprGprIntrinsic64,
+                          ClangBuiltin<"__builtin_riscv_aes64es_64">;
+def int_riscv_aes64esm  : ScalarCryptoGprGprIntrinsic64,
+                          ClangBuiltin<"__builtin_riscv_aes64esm_64">;
 
 // Zknd & Zkne
-def int_riscv_aes64ks2  : ScalarCryptoGprGprIntrinsic64;
+def int_riscv_aes64ks2  : ScalarCryptoGprGprIntrinsic64,
+                          ClangBuiltin<"__builtin_riscv_aes64ks2_64">;
 def int_riscv_aes64ks1i : DefaultAttrsIntrinsic<[llvm_i64_ty],
                                                 [llvm_i64_ty, llvm_i32_ty],
                                                 [IntrNoMem, IntrSpeculatable,
-                                                 ImmArg<ArgIndex<1>>]>;
+                                                 ImmArg<ArgIndex<1>>]>,
+                          ClangBuiltin<"__builtin_riscv_aes64ks1i_64">;
 
 // Zknh
 def int_riscv_sha256sig0 : ScalarCryptoGprIntrinsicAny;
@@ -1641,17 +1677,27 @@ def int_riscv_sha256sig1 : ScalarCryptoGprIntrinsicAny;
 def int_riscv_sha256sum0 : ScalarCryptoGprIntrinsicAny;
 def int_riscv_sha256sum1 : ScalarCryptoGprIntrinsicAny;
 
-def int_riscv_sha512sig0l : ScalarCryptoGprGprIntrinsic32;
-def int_riscv_sha512sig0h : ScalarCryptoGprGprIntrinsic32;
-def int_riscv_sha512sig1l : ScalarCryptoGprGprIntrinsic32;
-def int_riscv_sha512sig1h : ScalarCryptoGprGprIntrinsic32;
-def int_riscv_sha512sum0r : ScalarCryptoGprGprIntrinsic32;
-def int_riscv_sha512sum1r : ScalarCryptoGprGprIntrinsic32;
+def int_riscv_sha512sig0l : ScalarCryptoGprGprIntrinsic32,
+                            ClangBuiltin<"__builtin_riscv_sha512sig0l_32">;
+def int_riscv_sha512sig0h : ScalarCryptoGprGprIntrinsic32,
+                            ClangBuiltin<"__builtin_riscv_sha512sig0h_32">;
+def int_riscv_sha512sig1l : ScalarCryptoGprGprIntrinsic32,
+                            ClangBuiltin<"__builtin_riscv_sha512sig1l_32">;
+def int_riscv_sha512sig1h : ScalarCryptoGprGprIntrinsic32,
+                            ClangBuiltin<"__builtin_riscv_sha512sig1h_32">;
+def int_riscv_sha512sum0r : ScalarCryptoGprGprIntrinsic32,
+                            ClangBuiltin<"__builtin_riscv_sha512sum0r_32">;
+def int_riscv_sha512sum1r : ScalarCryptoGprGprIntrinsic32,
+                            ClangBuiltin<"__builtin_riscv_sha512sum1r_32">;
 
-def int_riscv_sha512sig0 : ScalarCryptoGprIntrinsic64;
-def int_riscv_sha512sig1 : ScalarCryptoGprIntrinsic64;
-def int_riscv_sha512sum0 : ScalarCryptoGprIntrinsic64;
-def int_riscv_sha512sum1 : ScalarCryptoGprIntrinsic64;
+def int_riscv_sha512sig0 : ScalarCryptoGprIntrinsic64,
+                           ClangBuiltin<"__builtin_riscv_sha512sig0_64">;
+def int_riscv_sha512sig1 : ScalarCryptoGprIntrinsic64,
+                           ClangBuiltin<"__builtin_riscv_sha512sig1_64">;
+def int_riscv_sha512sum0 : ScalarCryptoGprIntrinsic64,
+                           ClangBuiltin<"__builtin_riscv_sha512sum0_64">;
+def int_riscv_sha512sum1 : ScalarCryptoGprIntrinsic64,
+                           ClangBuiltin<"__builtin_riscv_sha512sum1_64">;
 
 // Zksed
 def int_riscv_sm4ks      : ScalarCryptoByteSelectAny;

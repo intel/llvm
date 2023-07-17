@@ -272,6 +272,7 @@ DEFAULT_PARAMETERS = [
         if experimental
         else [
             AddFeature("libcpp-has-no-incomplete-pstl"),
+            AddFeature("libcpp-has-no-experimental-stop_token"),
         ],
     ),
     Parameter(
@@ -293,6 +294,23 @@ DEFAULT_PARAMETERS = [
             AddCompileFlag("-D_LIBCPP_ENABLE_ASSERTIONS=1"),
             AddFeature("libcpp-has-assertions"),
         ],
+    ),
+    Parameter(
+        name="hardening_mode",
+        choices=["unchecked", "hardened", "debug"],
+        type=str,
+        default="unchecked",
+        help="Whether to enable the hardened mode or the debug mode when compiling the test suite. This is only "
+        "meaningful when running the tests against libc++.",
+        actions=lambda hardening_mode: filter(
+            None,
+            [
+                AddCompileFlag("-D_LIBCPP_ENABLE_HARDENED_MODE=1") if hardening_mode == "hardened" else None,
+                AddCompileFlag("-D_LIBCPP_ENABLE_DEBUG_MODE=1")    if hardening_mode == "debug" else None,
+                AddFeature("libcpp-has-hardened-mode")             if hardening_mode == "hardened" else None,
+                AddFeature("libcpp-has-debug-mode")                if hardening_mode == "debug" else None,
+            ],
+        ),
     ),
     Parameter(
         name="additional_features",

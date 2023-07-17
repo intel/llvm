@@ -229,9 +229,10 @@ public:
         reshape.getLoc(),
         RankedTensorType::get(intermediateShape,
                               reshape.getType().getElementType()),
-        adaptor.getInput1());
-    Value expand =
-        rewriter.create<tosa::ReshapeOp>(reshape.getLoc(), resultTy, collapse);
+        adaptor.getInput1(), rewriter.getDenseI64ArrayAttr(intermediateShape));
+    Value expand = rewriter.create<tosa::ReshapeOp>(
+        reshape.getLoc(), resultTy, collapse,
+        rewriter.getDenseI64ArrayAttr(resultTy.getShape()));
     rewriter.replaceOp(reshape, expand);
 
     return success();
@@ -367,8 +368,8 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
 
     SmallVector<OpFoldResult> strides(rank, rewriter.getIndexAttr(1));
     SmallVector<OpFoldResult> offsets(rank, rewriter.getIndexAttr(0));
-    SmallVector<OpFoldResult> sizes = tensor::createDimValues(
-        rewriter, op.getLoc(), adaptor.getOperands()[0]);
+    SmallVector<OpFoldResult> sizes =
+        tensor::getMixedSizes(rewriter, op.getLoc(), adaptor.getOperands()[0]);
 
     // Pre-compute the offsets along the axis dimension.
     // The axisOffsets will be of size rank + 1, where the last value
@@ -403,7 +404,7 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
         loc, resultType.getShape(), resultType.getElementType(), dynDims);
 
     for (auto [arg, offset] : llvm::zip(adaptor.getOperands(), axisOffsets)) {
-      auto sizes = tensor::createDimValues(rewriter, op.getLoc(), arg);
+      auto sizes = tensor::getMixedSizes(rewriter, op.getLoc(), arg);
       offsets[axis] = offset;
       result = rewriter.createOrFold<tensor::InsertSliceOp>(
           loc, arg, result, offsets, sizes, strides);

@@ -93,6 +93,10 @@ public:
     // Not supported by the Secondary Cache, but not an error either.
     return true;
   }
+
+  void getStats(UNUSED ScopedString *Str) {
+    Str->append("Secondary Cache Disabled\n");
+  }
 };
 
 static const uptr MaxUnusedCachePages = 4U;
@@ -131,6 +135,23 @@ public:
 template <typename Config> class MapAllocatorCache {
 public:
   using CacheConfig = typename Config::Secondary::Cache;
+
+  void getStats(ScopedString *Str) {
+    ScopedLock L(Mutex);
+    Str->append("Stats: MapAllocatorCache: EntriesCount: %d, "
+                "MaxEntriesCount: %u, MaxEntrySize: %zu\n",
+                EntriesCount, atomic_load_relaxed(&MaxEntriesCount),
+                atomic_load_relaxed(&MaxEntrySize));
+    for (CachedBlock Entry : Entries) {
+      if (!Entry.CommitBase)
+        continue;
+      Str->append("StartBlockAddress: 0x%zx, EndBlockAddress: 0x%zx, "
+                  "BlockSize: %zu\n",
+                  Entry.CommitBase, Entry.CommitBase + Entry.CommitSize,
+                  Entry.CommitSize);
+    }
+  }
+
   // Ensure the default maximum specified fits the array.
   static_assert(CacheConfig::DefaultMaxEntriesCount <=
                     CacheConfig::EntriesArraySize,
@@ -152,7 +173,7 @@ public:
     bool EntryCached = false;
     bool EmptyCache = false;
     const s32 Interval = atomic_load_relaxed(&ReleaseToOsIntervalMs);
-    const u64 Time = getMonotonicTime();
+    const u64 Time = getMonotonicTimeFast();
     const u32 MaxCount = atomic_load_relaxed(&MaxEntriesCount);
     CachedBlock Entry;
     Entry.CommitBase = H->CommitBase;
@@ -433,8 +454,6 @@ public:
     return getBlockEnd(Ptr) - reinterpret_cast<uptr>(Ptr);
   }
 
-  void getStats(ScopedString *Str);
-
   void disable() NO_THREAD_SAFETY_ANALYSIS {
     Mutex.lock();
     Cache.disable();
@@ -465,6 +484,8 @@ public:
   void disableMemoryTagging() { Cache.disableMemoryTagging(); }
 
   void unmapTestOnly() { Cache.unmapTestOnly(); }
+
+  void getStats(ScopedString *Str);
 
 private:
   typename Config::Secondary::template CacheT<Config> Cache;
@@ -621,6 +642,7 @@ void MapAllocator<Config>::getStats(ScopedString *Str) EXCLUDES(Mutex) {
               NumberOfAllocs, AllocatedBytes >> 10, NumberOfFrees,
               FreedBytes >> 10, NumberOfAllocs - NumberOfFrees,
               (AllocatedBytes - FreedBytes) >> 10, LargestSize >> 20);
+  Cache.getStats(Str);
 }
 
 } // namespace scudo

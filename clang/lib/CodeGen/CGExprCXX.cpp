@@ -502,7 +502,11 @@ static void EmitNullBaseClassInitialization(CodeGenFunction &CGF,
   if (Base->isEmpty())
     return;
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  DestPtr = DestPtr.withElementType(CGF.Int8Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   DestPtr = CGF.Builder.CreateElementBitCast(DestPtr, CGF.Int8Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   const ASTRecordLayout &Layout = CGF.getContext().getASTRecordLayout(Base);
   CharUnits NVSize = Layout.getNonVirtualSize();
@@ -555,8 +559,12 @@ static void EmitNullBaseClassInitialization(CodeGenFunction &CGF,
         std::max(Layout.getNonVirtualAlignment(), DestPtr.getAlignment());
     NullVariable->setAlignment(Align.getAsAlign());
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Address SrcPtr(NullVariable, CGF.Int8Ty, Align);
+#else
     Address SrcPtr =
         Address(CGF.EmitCastToVoidPtr(NullVariable), CGF.Int8Ty, Align);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     // Get and call the appropriate llvm.memcpy overload.
     for (std::pair<CharUnits, CharUnits> Store : Stores) {
@@ -1077,7 +1085,11 @@ void CodeGenFunction::EmitNewArrayInitializer(
     if (const ConstantArrayType *CAT = dyn_cast_or_null<ConstantArrayType>(
             AllocType->getAsArrayTypeUnsafe())) {
       ElementTy = ConvertTypeForMem(AllocType);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      CurPtr = CurPtr.withElementType(ElementTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
       CurPtr = Builder.CreateElementBitCast(CurPtr, ElementTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       InitListElements *= getContext().getConstantArrayElementCount(CAT);
     }
 
@@ -1134,7 +1146,11 @@ void CodeGenFunction::EmitNewArrayInitializer(
     }
 
     // Switch back to initializing one base element at a time.
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    CurPtr = CurPtr.withElementType(BeginPtr.getElementType());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     CurPtr = Builder.CreateElementBitCast(CurPtr, BeginPtr.getElementType());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   // If all elements have already been initialized, skip any further
@@ -1716,7 +1732,11 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
   }
 
   llvm::Type *elementTy = ConvertTypeForMem(allocType);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Address result = allocation.withElementType(elementTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Address result = Builder.CreateElementBitCast(allocation, elementTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Passing pointer through launder.invariant.group to avoid propagation of
   // vptrs information which may be included in previous type.
@@ -2311,6 +2331,15 @@ llvm::Value *CodeGenFunction::EmitDynamicCast(Address ThisAddr,
 
   llvm::Value *Value;
   if (isDynamicCastToVoid) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Value = CGM.getCXXABI().emitDynamicCastToVoid(*this, ThisAddr, SrcRecordTy);
+  } else {
+    assert(DestRecordTy->isRecordType() &&
+           "destination type must be a record type!");
+    Value = CGM.getCXXABI().emitDynamicCastCall(*this, ThisAddr, SrcRecordTy,
+                                                DestTy, DestRecordTy, CastEnd);
+
+#else
     Value = CGM.getCXXABI().EmitDynamicCastToVoid(*this, ThisAddr, SrcRecordTy,
                                                   DestTy);
   } else {
@@ -2318,6 +2347,7 @@ llvm::Value *CodeGenFunction::EmitDynamicCast(Address ThisAddr,
            "destination type must be a record type!");
     Value = CGM.getCXXABI().EmitDynamicCastCall(*this, ThisAddr, SrcRecordTy,
                                                 DestTy, DestRecordTy, CastEnd);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     CastNotNull = Builder.GetInsertBlock();
   }
 

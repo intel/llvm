@@ -2667,11 +2667,14 @@ HasNonDeletedDefaultedEqualityComparison(const CXXRecordDecl *Decl) {
   return llvm::all_of(Decl->bases(),
                       [](const CXXBaseSpecifier &BS) {
                         if (const auto *RD = BS.getType()->getAsCXXRecordDecl())
-                          HasNonDeletedDefaultedEqualityComparison(RD);
+                          return HasNonDeletedDefaultedEqualityComparison(RD);
                         return true;
                       }) &&
          llvm::all_of(Decl->fields(), [](const FieldDecl *FD) {
            auto Type = FD->getType();
+           if (Type->isArrayType())
+             Type = Type->getBaseElementTypeUnsafe()->getCanonicalTypeUnqualified();
+
            if (Type->isReferenceType() || Type->isEnumeralType())
              return false;
            if (const auto *RD = Type->getAsCXXRecordDecl())
@@ -2684,7 +2687,7 @@ bool QualType::isTriviallyEqualityComparableType(
     const ASTContext &Context) const {
   QualType CanonicalType = getCanonicalType();
   if (CanonicalType->isIncompleteType() || CanonicalType->isDependentType() ||
-      CanonicalType->isEnumeralType())
+      CanonicalType->isEnumeralType() || CanonicalType->isArrayType())
     return false;
 
   if (const auto *RD = CanonicalType->getAsCXXRecordDecl()) {

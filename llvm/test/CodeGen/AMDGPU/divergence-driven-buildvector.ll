@@ -80,7 +80,6 @@ define i32 @divergent_vec_0_i16(i16 %a) {
 ; GFX11-LABEL: divergent_vec_0_i16:
 ; GFX11:       ; %bb.0:
 ; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX11-NEXT:    v_lshlrev_b32_e32 v0, 16, v0
 ; GFX11-NEXT:    s_setpc_b64 s[30:31]
   %tmp = insertelement <2 x i16> undef, i16 0, i32 0
@@ -165,7 +164,6 @@ define i32 @divergent_vec_i16_0(i16 %a) {
 ; GFX11-LABEL: divergent_vec_i16_0:
 ; GFX11:       ; %bb.0:
 ; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX11-NEXT:    v_and_b32_e32 v0, 0xffff, v0
 ; GFX11-NEXT:    s_setpc_b64 s[30:31]
   %tmp = insertelement <2 x i16> undef, i16 %a, i32 0
@@ -250,7 +248,6 @@ define float @divergent_vec_f16_0(half %a) {
 ; GFX11-LABEL: divergent_vec_f16_0:
 ; GFX11:       ; %bb.0:
 ; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX11-NEXT:    v_and_b32_e32 v0, 0xffff, v0
 ; GFX11-NEXT:    s_setpc_b64 s[30:31]
   %tmp = insertelement <2 x half> undef, half %a, i32 0
@@ -350,7 +347,6 @@ define i32 @divergent_vec_i16_LL(i16 %a, i16 %b) {
 ; GFX11-LABEL: divergent_vec_i16_LL:
 ; GFX11:       ; %bb.0:
 ; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX11-NEXT:    v_perm_b32 v0, v1, v0, 0x5040100
 ; GFX11-NEXT:    s_setpc_b64 s[30:31]
   %tmp = insertelement <2 x i16> undef, i16 %a, i32 0
@@ -439,7 +435,6 @@ define i32 @divergent_vec_i16_LH(i16 %a, i32 %b) {
 ; GFX11-LABEL: divergent_vec_i16_LH:
 ; GFX11:       ; %bb.0:
 ; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX11-NEXT:    v_bfi_b32 v0, 0xffff, v0, v1
 ; GFX11-NEXT:    s_setpc_b64 s[30:31]
   %shift = lshr i32 %b, 16
@@ -455,14 +450,13 @@ define amdgpu_kernel void @uniform_vec_i16_HH(ptr addrspace(1) %out, i32 %a, i32
 ; GCN:       ; %bb.0:
 ; GCN-NEXT:    s_load_dwordx4 s[0:3], s[0:1], 0x9
 ; GCN-NEXT:    s_mov_b32 s7, 0xf000
-; GCN-NEXT:    s_waitcnt lgkmcnt(0)
-; GCN-NEXT:    s_lshr_b32 s2, s2, 16
-; GCN-NEXT:    s_and_b32 s3, s3, 0xffff0000
-; GCN-NEXT:    s_or_b32 s2, s2, s3
 ; GCN-NEXT:    s_mov_b32 s6, -1
+; GCN-NEXT:    s_waitcnt lgkmcnt(0)
 ; GCN-NEXT:    s_mov_b32 s4, s0
 ; GCN-NEXT:    s_mov_b32 s5, s1
+; GCN-NEXT:    s_lshr_b32 s0, s3, 16
 ; GCN-NEXT:    v_mov_b32_e32 v0, s2
+; GCN-NEXT:    v_alignbit_b32 v0, s0, v0, 16
 ; GCN-NEXT:    buffer_store_dword v0, off, s[4:7], 0
 ; GCN-NEXT:    s_endpgm
 ;
@@ -511,9 +505,8 @@ define i32 @divergent_vec_i16_HH(i32 %a, i32 %b) {
 ; GCN-LABEL: divergent_vec_i16_HH:
 ; GCN:       ; %bb.0:
 ; GCN-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GCN-NEXT:    v_lshrrev_b32_e32 v0, 16, v0
-; GCN-NEXT:    v_and_b32_e32 v1, 0xffff0000, v1
-; GCN-NEXT:    v_or_b32_e32 v0, v0, v1
+; GCN-NEXT:    v_lshrrev_b32_e32 v1, 16, v1
+; GCN-NEXT:    v_alignbit_b32 v0, v1, v0, 16
 ; GCN-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX9-LABEL: divergent_vec_i16_HH:
@@ -533,7 +526,6 @@ define i32 @divergent_vec_i16_HH(i32 %a, i32 %b) {
 ; GFX11-LABEL: divergent_vec_i16_HH:
 ; GFX11:       ; %bb.0:
 ; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX11-NEXT:    v_perm_b32 v0, v1, v0, 0x7060302
 ; GFX11-NEXT:    s_setpc_b64 s[30:31]
   %shift_a = lshr i32 %a, 16
@@ -641,7 +633,6 @@ define float @divergent_vec_f16_LL(half %a, half %b) {
 ; GFX11-LABEL: divergent_vec_f16_LL:
 ; GFX11:       ; %bb.0:
 ; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX11-NEXT:    v_perm_b32 v0, v1, v0, 0x5040100
 ; GFX11-NEXT:    s_setpc_b64 s[30:31]
   %tmp = insertelement <2 x half> undef, half %a, i32 0
@@ -676,7 +667,6 @@ define <2 x i16> @build_vec_v2i16_undeflo_divergent(ptr addrspace(3) %in) #0 {
 ; GFX11-LABEL: build_vec_v2i16_undeflo_divergent:
 ; GFX11:       ; %bb.0: ; %entry
 ; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX11-NEXT:    ds_load_u16_d16 v0, v0
 ; GFX11-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX11-NEXT:    s_setpc_b64 s[30:31]

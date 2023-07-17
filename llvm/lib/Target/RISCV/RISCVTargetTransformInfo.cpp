@@ -471,7 +471,8 @@ InstructionCost RISCVTTIImpl::getInterleavedMemoryOpCost(
       // it's getMemoryOpCost returns a really expensive cost for types like
       // <6 x i8>, which show up when doing interleaves of Factor=3 etc.
       // Should the memory op cost of these be cheaper?
-      if (TLI->isLegalInterleavedAccessType(LegalFVTy, Factor, DL)) {
+      if (TLI->isLegalInterleavedAccessType(LegalFVTy, Factor, Alignment,
+                                            AddressSpace, DL)) {
         InstructionCost LegalMemCost = getMemoryOpCost(
             Opcode, LegalFVTy, Alignment, AddressSpace, CostKind);
         return LT.first + LegalMemCost;
@@ -1212,15 +1213,15 @@ unsigned RISCVTTIImpl::getEstimatedVLFor(VectorType *Ty) {
 }
 
 InstructionCost
-RISCVTTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
-                                     bool IsUnsigned, FastMathFlags FMF,
+RISCVTTIImpl::getMinMaxReductionCost(Intrinsic::ID IID, VectorType *Ty,
+                                     FastMathFlags FMF,
                                      TTI::TargetCostKind CostKind) {
   if (isa<FixedVectorType>(Ty) && !ST->useRVVForFixedLengthVectors())
-    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, FMF, CostKind);
+    return BaseT::getMinMaxReductionCost(IID, Ty, FMF, CostKind);
 
   // Skip if scalar size of Ty is bigger than ELEN.
   if (Ty->getScalarSizeInBits() > ST->getELEN())
-    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, FMF, CostKind);
+    return BaseT::getMinMaxReductionCost(IID, Ty, FMF, CostKind);
 
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Ty);
   if (Ty->getElementType()->isIntegerTy(1))
@@ -1641,7 +1642,7 @@ InstructionCost RISCVTTIImpl::getPointersChainCost(
     } else {
       SmallVector<const Value *> Indices(GEP->indices());
       Cost += getGEPCost(GEP->getSourceElementType(), GEP->getPointerOperand(),
-                         Indices, CostKind);
+                         Indices, AccessTy, CostKind);
     }
   }
   return Cost;

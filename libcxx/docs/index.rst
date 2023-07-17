@@ -40,6 +40,7 @@ Getting Started with libc++
    TestingLibcxx
    Contributing
    Modules
+   HardenedMode
    ReleaseProcedure
    Status/Cxx14
    Status/Cxx17
@@ -180,7 +181,6 @@ Design Documents
    DesignDocs/ABIVersioning
    DesignDocs/AtomicDesign
    DesignDocs/CapturingConfigInfo
-   DesignDocs/DebugMode
    DesignDocs/ExperimentalFeatures
    DesignDocs/ExtendedCXX03Support
    DesignDocs/FeatureTestMacros

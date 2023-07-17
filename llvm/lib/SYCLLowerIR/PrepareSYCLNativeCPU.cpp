@@ -38,6 +38,7 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <functional>
 #include <numeric>
+#include <set>
 #include <vector>
 
 using namespace llvm;

@@ -82,6 +82,7 @@ cc_library(
             "lib/Analysis/*.cpp",
             "lib/Analysis/*.h",
             "lib/Analysis/DataFlow/*.cpp",
+            "lib/Analysis/DataFlow/*.h",
         ],
     ),
     includes = ["lib/Dialect/Test"],
@@ -700,10 +701,15 @@ cc_library(
     deps = [
         ":TestDialect",
         "//mlir:AffineDialect",
+        "//mlir:ArithDialect",
+        "//mlir:ArithTransforms",
+        "//mlir:FuncDialect",
         "//mlir:MemRefDialect",
         "//mlir:MemRefTransforms",
         "//mlir:Pass",
         "//mlir:Transforms",
+        "//mlir:VectorDialect",
+        "//mlir:VectorTransforms",
     ],
 )
 

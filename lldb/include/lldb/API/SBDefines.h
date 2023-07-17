@@ -34,7 +34,9 @@
 // supports the attribute.
 #if defined(SWIG) || _cplusplus < 201402L
 #undef LLDB_DEPRECATED
-#define LLDB_DEPRECATED(MSG, FIX)
+#undef LLDB_DEPRECATED_FIXME
+#define LLDB_DEPRECATED(MSG)
+#define LLDB_DEPRECATED_FIXME(MSG, FIX)
 #endif
 
 // Forward Declarations
@@ -123,6 +125,10 @@ typedef bool (*SBBreakpointHitCallback)(void *baton, SBProcess &process,
 
 typedef void (*SBDebuggerDestroyCallback)(lldb::user_id_t debugger_id,
                                           void *baton);
+
+typedef SBError (*SBPlatformLocateModuleCallback)(
+    void *baton, const SBModuleSpec &module_spec, SBFileSpec &module_file_spec,
+    SBFileSpec &symbol_file_spec);
 
 typedef void *ScriptedObject;
 }
