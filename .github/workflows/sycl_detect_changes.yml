@@ -15,7 +15,7 @@ jobs:
     runs-on: [Linux, build]
     timeout-minutes: 3
     outputs:
-      filters: ${{ steps.changes.outputs.changes }}
+      filters: ${{ steps.result.outputs.result }}
     steps:
       - name: Check file changes
         uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50
@@ -59,3 +59,18 @@ jobs:
               - *drivers_and_configs
               # Temporary, until plugins are enabled in nightly image.
               - sycl/**
+
+      - name: Set output
+        id: result
+        uses: actions/github-script@v6
+        with:
+          script: |
+            console.log("Number of files changed:");
+            console.log(context.payload.pull_request.changed_files);
+            if (context.payload.pull_request.changed_files < 500) {
+              return '${{ steps.changes.outputs.changes }}';
+            }
+            // Treat everything as changed for huge PRs.
+            return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "ci", "drivers_and_configs", "test_build"];
+
+      - run: echo '${{ steps.result.outputs.result }}'
