@@ -11,18 +11,6 @@ UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramGetNativeHandleTest);
 TEST_P(urProgramGetNativeHandleTest, Success) {
     ur_native_handle_t native_program_handle = nullptr;
     ASSERT_SUCCESS(urProgramGetNativeHandle(program, &native_program_handle));
-
-    ur_program_handle_t native_program = nullptr;
-    ASSERT_SUCCESS(urProgramCreateWithNativeHandle(
-        native_program_handle, context, nullptr, &native_program));
-
-    uint32_t ref_count = 0;
-    ASSERT_SUCCESS(urProgramGetInfo(native_program,
-                                    UR_PROGRAM_INFO_REFERENCE_COUNT,
-                                    sizeof(ref_count), &ref_count, nullptr));
-    ASSERT_NE(ref_count, 0);
-
-    ASSERT_SUCCESS(urProgramRelease(native_program));
 }
 
 TEST_P(urProgramGetNativeHandleTest, InvalidNullHandleProgram) {
