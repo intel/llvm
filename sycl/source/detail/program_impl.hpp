@@ -156,22 +156,6 @@ public:
   void compile_with_kernel_name(std::string KernelName,
                                 std::string CompileOptions);
 
-  /// Compiles the OpenCL C kernel function defined by source string.
-  ///
-  /// This member function sets the state of this SYCL program to
-  /// program_state::compiled.
-  /// If the program was not in the program_state::none state,
-  /// an invalid_object_error SYCL exception is thrown. If the compilation
-  /// fails, a compile_program_error SYCL exception is thrown. If any device
-  /// that the program is being compiled for returns false for the device
-  /// information query info::device::is_compiler_available, a
-  /// feature_not_supported SYCL exception is thrown.
-  ///
-  /// \param KernelSource is a string containing OpenCL C kernel source code.
-  /// \param CompileOptions is a string containing OpenCL compile options.
-  void compile_with_source(std::string KernelSource,
-                           std::string CompileOptions = "");
-
   /// Builds the SYCL kernel function into encapsulated raw program.
   ///
   /// The SYCL kernel function is defined by the kernel name.
@@ -188,22 +172,6 @@ public:
   /// \param BuildOptions is a string containing OpenCL compile options.
   /// \param M is an OS handle to user code module.
   void build_with_kernel_name(std::string KernelName, std::string BuildOptions);
-
-  /// Builds the OpenCL C kernel function defined by source code.
-  ///
-  /// This member function sets the state of this SYCL program to
-  /// program_state::linked. If this program was not in program_state::none,
-  /// an invalid_object_error SYCL exception is thrown. If the compilation
-  /// fails, a compile_program_error SYCL exception is thrown. If any device
-  /// that the program is being built for returns false for the device
-  /// information queries info::device::is_compiler_available or
-  /// info::device::is_linker_available, a feature_not_supported SYCL
-  /// exception is thrown.
-  ///
-  /// \param KernelSource is a string containing OpenCL C kernel source code.
-  /// \param BuildOptions is a string containing OpenCL build options.
-  void build_with_source(std::string KernelSource,
-                         std::string BuildOptions = "");
 
   /// Links encapsulated raw program.
   ///
@@ -363,11 +331,6 @@ private:
   void
   create_pi_program_with_kernel_name(const std::string &KernelName,
                                      bool JITCompilationIsRequired = false);
-
-  /// Creates an OpenCL program from OpenCL C source code.
-  ///
-  /// \param Source is a string containing OpenCL C source code.
-  void create_cl_program_with_source(const std::string &Source);
 
   /// Compiles underlying plugin interface program.
   ///
