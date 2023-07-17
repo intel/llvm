@@ -240,6 +240,22 @@ static Value getHandler(FunctionOpInterface op) {
   return handler;
 }
 
+static std::optional<LLVM::LLVMArrayType>
+getNumAndTypeOfComponents(LLVM::LLVMStructType structTy) {
+  if (structTy.getBody().empty())
+    return std::nullopt;
+
+  auto detailType = dyn_cast<LLVM::LLVMStructType>(structTy.getBody().front());
+  static llvm::Regex arrayRegex{"class.sycl::_V1::detail::array(\\.[0-9]+)?"};
+  if (!detailType || !arrayRegex.match(detailType.getName()) ||
+      detailType.getBody().empty())
+    return std::nullopt;
+
+  auto arrayType = dyn_cast<LLVM::LLVMArrayType>(detailType.getBody().front());
+
+  return arrayType;
+}
+
 namespace {
 template <typename SourceOp>
 class OpOrInterfaceHostRaisePatternBase : public RewritePattern {
@@ -623,6 +639,16 @@ public:
       values.push_back(c.store.getValue());
     }
 
+    // Check we are not dealing with a default constructor
+    if constexpr (tag.hasDefaultConstructor()) {
+      auto matcher = m_Zero();
+      if (llvm::all_of(values, [&](Value value) {
+            Operation *definingOp = values.front().getDefiningOp();
+            return definingOp && matchPattern(definingOp, matcher);
+          }))
+        values.clear();
+    }
+
     // Find the last of the stores in the block and insert the constructor after
     // it.
     auto *lastStore = findLastComponentInBlock(op->getBlock(), components);
@@ -638,24 +664,6 @@ public:
   }
 
 private:
-  std::optional<LLVM::LLVMArrayType>
-  getNumAndTypeOfComponents(LLVM::LLVMStructType structTy) const {
-    if (structTy.getBody().empty())
-      return std::nullopt;
-
-    auto detailType =
-        dyn_cast<LLVM::LLVMStructType>(structTy.getBody().front());
-    static llvm::Regex arrayRegex{"class.sycl::_V1::detail::array(\\.[0-9]+)?"};
-    if (!detailType || !arrayRegex.match(detailType.getName()) ||
-        detailType.getBody().empty())
-      return std::nullopt;
-
-    auto arrayType =
-        dyn_cast<LLVM::LLVMArrayType>(detailType.getBody().front());
-
-    return arrayType;
-  }
-
   struct Component {
 
     Component(size_t offset, LLVM::StoreOp storeOp)
@@ -743,6 +751,8 @@ public:
 
   const llvm::Regex &getTypeName() const { return regex; }
 
+  constexpr static bool hasDefaultConstructor() { return false; }
+
 private:
   llvm::Regex regex;
 };
@@ -752,6 +762,46 @@ struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
       IDTypeTag>::RaiseArrayConstructorBasePattern;
 };
 
+class RaiseIDDefaultConstructor : public OpHostRaisePattern<LLVM::MemsetOp> {
+public:
+  using OpHostRaisePattern<LLVM::MemsetOp>::OpHostRaisePattern;
+
+  LogicalResult matchAndRewrite(LLVM::MemsetOp op,
+                                PatternRewriter &rewriter) const final {
+    // Check the destination is an alloca of id type
+    auto alloc = op.getDst().getDefiningOp<LLVM::AllocaOp>();
+    if (!alloc || !alloc.getElemType().has_value())
+      return failure();
+
+    Type allocTy = *alloc.getElemType();
+    if (!isClassType(allocTy, tag.getTypeName()))
+      return failure();
+
+    // The value being used as a filler is 0
+    Operation *zero = op.getVal().getDefiningOp();
+    if (!zero || !matchPattern(zero, m_Zero()))
+      return failure();
+
+    std::optional<LLVM::LLVMArrayType> arrayTyOrNone =
+        getNumAndTypeOfComponents(cast<LLVM::LLVMStructType>(allocTy));
+    if (!arrayTyOrNone)
+      // Failed to identify the number of dimensions/components
+      return failure();
+
+    unsigned numComponents = arrayTyOrNone->getNumElements();
+    Type componentTy = arrayTyOrNone->getElementType();
+
+    Type constructedType =
+        rewriter.getType<sycl::IDType>(numComponents, componentTy);
+    rewriter.replaceOpWithNewOp<sycl::SYCLHostConstructorOp>(
+        op, alloc, /*args=*/ValueRange(), TypeAttr::get(constructedType));
+    return success();
+  }
+
+private:
+  IDTypeTag tag;
+};
+
 class RangeTypeTag {
 public:
   using SYCLType = mlir::sycl::RangeType;
@@ -759,6 +809,8 @@ public:
   RangeTypeTag() : regex{"class.sycl::_V1::range(\\.[0-9]+])?"} {}
 
   const llvm::Regex &getTypeName() const { return regex; }
+
+  constexpr static bool hasDefaultConstructor() { return true; }
 
 private:
   llvm::Regex regex;
@@ -1366,8 +1418,9 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   // prioritized, as RaiseSetNDRange depends on those. Also, raising of id and
   // range constructors should be prioritized, as nd_range constructor uses
   // them.
-  rewritePatterns.add<RaiseIDConstructor, RaiseRangeConstructor>(context,
-                                                                 /*benefit=*/3);
+  rewritePatterns.add<RaiseIDDefaultConstructor, RaiseIDConstructor,
+                      RaiseRangeConstructor>(context,
+                                             /*benefit=*/3);
   rewritePatterns.add<RaiseNDRangeConstructor>(context,
                                                /*benefit=*/2);
   rewritePatterns.add<RaiseSetNDRange>(context, /*benefit=*/1);
