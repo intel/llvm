@@ -21,10 +21,10 @@ namespace ext::oneapi::experimental {
 namespace detail {
 // Trait for checking that all size_t values are non-zero.
 template <size_t... Xs> struct AllNonZero {
-  static inline constexpr bool value = true;
+  static constexpr bool value = true;
 };
 template <size_t X, size_t... Xs> struct AllNonZero<X, Xs...> {
-  static inline constexpr bool value = X > 0 && AllNonZero<Xs...>::value;
+  static constexpr bool value = X > 0 && AllNonZero<Xs...>::value;
 };
 } // namespace detail
 
