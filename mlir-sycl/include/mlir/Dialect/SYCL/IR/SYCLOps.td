@@ -626,6 +626,7 @@ def SYCLNDRangeConstructorOp : SYCLConstructor<"nd_range"> {
                         ::mlir::MemoryEffects::Effect>> &effects);
   }];
   let hasVerifier = true;
+  let hasCanonicalizer = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
