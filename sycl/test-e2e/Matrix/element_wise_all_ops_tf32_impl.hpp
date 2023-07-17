@@ -39,7 +39,7 @@ void matrix_verify_add(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TN, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
@@ -75,7 +75,7 @@ void matrix_verify_sub(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TN, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
@@ -110,7 +110,7 @@ void matrix_verify_mul(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TN, layout::row_major> sub_a;
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
            auto wi_slice_a =
@@ -144,7 +144,7 @@ void matrix_verify_div(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TN, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(4.0));
 
@@ -178,7 +178,7 @@ void matrix_verify_logic(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TN, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
