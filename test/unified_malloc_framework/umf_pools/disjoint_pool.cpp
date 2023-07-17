@@ -33,6 +33,42 @@ static auto makePool() {
     return std::move(pool);
 }
 
+using umf_test::test;
+
+TEST_F(test, freeErrorPropagation) {
+    static enum umf_result_t freeReturn = UMF_RESULT_SUCCESS;
+    struct memory_provider : public umf_test::provider_base {
+        enum umf_result_t alloc(size_t size, size_t, void **ptr) noexcept {
+            *ptr = malloc(size);
+            return UMF_RESULT_SUCCESS;
+        }
+        enum umf_result_t free(void *ptr, size_t size) noexcept {
+            ::free(ptr);
+            return freeReturn;
+        }
+    };
+
+    auto [ret, providerUnique] =
+        umf::memoryProviderMakeUnique<memory_provider>();
+    ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
+
+    auto config = poolConfig();
+    config.MaxPoolableSize =
+        0; // force all allocations to go to memory provider
+
+    auto [retp, pool] = umf::poolMakeUnique<usm::DisjointPool, 1>(
+        {std::move(providerUnique)}, config);
+    EXPECT_EQ(retp, UMF_RESULT_SUCCESS);
+
+    static constexpr size_t size = 1024;
+    void *ptr = umfPoolMalloc(pool.get(), size);
+
+    freeReturn = UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+    auto freeRet = umfFree(ptr);
+
+    EXPECT_EQ(freeRet, freeReturn);
+}
+
 INSTANTIATE_TEST_SUITE_P(disjointPoolTests, umfPoolTest,
                          ::testing::Values(makePool));
 

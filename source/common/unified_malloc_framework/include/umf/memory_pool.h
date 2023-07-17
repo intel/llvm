@@ -94,14 +94,20 @@ size_t umfPoolMallocUsableSize(umf_memory_pool_handle_t hPool, void *ptr);
 /// \brief Frees the memory space of the specified hPool pointed by ptr.
 /// \param hPool specified memory hPool
 /// \param ptr pointer to the allocated memory
+/// \return UMF_RESULT_SUCCESS on success or appropriate error code on failure.
+///         Whether any status other than UMF_RESULT_SUCCESS can be returned
+///         depends on the memory provider used by the pool.
 ///
-void umfPoolFree(umf_memory_pool_handle_t hPool, void *ptr);
+enum umf_result_t umfPoolFree(umf_memory_pool_handle_t hPool, void *ptr);
 
 ///
 /// \brief Frees the memory space pointed by ptr if it belongs to UMF pool, does nothing otherwise.
 /// \param ptr pointer to the allocated memory
+/// \return UMF_RESULT_SUCCESS on success or appropriate error code on failure.
+///         Whether any status other than UMF_RESULT_SUCCESS can be returned
+///         depends on the memory provider used by the pool.
 ///
-void umfFree(void *ptr);
+enum umf_result_t umfFree(void *ptr);
 
 ///
 /// \brief Retrieve umf_result_t representing the error of the last failed allocation
