@@ -7,9 +7,11 @@
 //===-----------------------------------------------------------------===//
 
 #include <atomic>
+#include <mutex>
 
 struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
+  std::mutex Mutex;
 };
 
 extern ur_adapter_handle_t_ Adapter;

@@ -15,6 +15,7 @@ void disableCUDATracing();
 
 struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
+  std::mutex Mutex;
 };
 
 ur_adapter_handle_t_ adapter{};
@@ -31,7 +32,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
              uint32_t *pNumAdapters) {
-  if (phAdapters) {
+  if (NumEntries > 0 && phAdapters) {
+    std::lock_guard<std::mutex> Lock{adapter.Mutex};
     if (adapter.RefCount++ == 0) {
       enableCUDATracing();
     }
@@ -47,13 +49,15 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
+  std::lock_guard<std::mutex> Lock{adapter.Mutex};
   adapter.RefCount++;
 
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  if (--(adapter.RefCount) == 0) {
+  std::lock_guard<std::mutex> Lock{adapter.Mutex};
+  if (--adapter.RefCount == 0) {
     disableCUDATracing();
   }
   return UR_RESULT_SUCCESS;
@@ -66,14 +70,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
-                 size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
+                                                     ur_adapter_info_t propName,
+                                                     size_t propSize,
+                                                     void *pPropValue,
+                                                     size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
-  case UR_ADAPTER_INFO_ADAPTER_BACKEND:
+  case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_ADAPTER_BACKEND_CUDA);
+  case UR_ADAPTER_INFO_REFERENCE_COUNT:
+    return ReturnValue(adapter.RefCount.load());
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }

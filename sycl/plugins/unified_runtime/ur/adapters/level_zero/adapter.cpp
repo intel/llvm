@@ -141,6 +141,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
                           ///< adapters available.
 ) {
   if (NumEntries > 0 && Adapters) {
+    std::lock_guard<std::mutex> Lock{Adapter.Mutex};
     // TODO: Some initialization that happens in urPlatformsGet could be moved
     // here for when RefCount reaches 1
     Adapter.RefCount++;
@@ -155,6 +156,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
+  std::lock_guard<std::mutex> Lock{Adapter.Mutex};
   if (--Adapter.RefCount == 0) {
     adapterStateTeardown();
   }
@@ -163,6 +165,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
+  std::lock_guard<std::mutex> Lock{Adapter.Mutex};
   Adapter.RefCount++;
 
   return UR_RESULT_SUCCESS;
@@ -183,13 +186,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterGetInfo(ur_adapter_handle_t Adapter, ur_adapter_info_t PropName,
+urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
                  size_t PropSize, void *PropValue, size_t *PropSizeRet) {
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
 
   switch (PropName) {
-  case UR_ADAPTER_INFO_ADAPTER_BACKEND:
+  case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_ADAPTER_BACKEND_LEVEL_ZERO);
+  case UR_ADAPTER_INFO_REFERENCE_COUNT:
+    return ReturnValue(Adapter.RefCount.load());
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }

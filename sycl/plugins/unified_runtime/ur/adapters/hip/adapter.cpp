@@ -30,6 +30,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
     uint32_t, ur_adapter_handle_t *phAdapters, uint32_t *pNumAdapters) {
   if (phAdapters) {
+    adapter.RefCount++;
     *phAdapters = &adapter;
   }
   if (pNumAdapters) {
@@ -63,8 +64,10 @@ urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
-  case UR_ADAPTER_INFO_ADAPTER_BACKEND:
+  case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_ADAPTER_BACKEND_HIP);
+  case UR_ADAPTER_INFO_REFERENCE_COUNT:
+    return ReturnValue(adapter.RefCount.load());
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
