@@ -227,8 +227,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       LinkSYCLDeviceLibs =
           LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
     } else {
-      LinkSYCLDeviceLibs =
-          LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[0]);
+      LinkSYCLDeviceLibs = LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[0]);
     }
     for (size_t Idx = 1; Idx < InputFileNum; ++Idx)
       LinkSYCLDeviceLibs =
