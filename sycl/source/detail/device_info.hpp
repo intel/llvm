@@ -619,11 +619,41 @@ struct get_device_info_impl<
               ext::oneapi::experimental::info::device::architecture>::value,
           sizeof(DeviceIp), &DeviceIp, nullptr);
       return ReturnHelper(MapDeviceIpToArch, DeviceIp);
+    } else if (Dev->is_gpu() && backend::ext_oneapi_cuda == CurrentBackend) {
+      std::map<std::string, oneapi_exp_arch> MapSMToArch = {
+          {"5.0", oneapi_exp_arch::nvidia_gpu_sm_50},
+          {"5.2", oneapi_exp_arch::nvidia_gpu_sm_52},
+          {"5.3", oneapi_exp_arch::nvidia_gpu_sm_53},
+          {"6.0", oneapi_exp_arch::nvidia_gpu_sm_60},
+          {"6.1", oneapi_exp_arch::nvidia_gpu_sm_61},
+          {"6.2", oneapi_exp_arch::nvidia_gpu_sm_62},
+          {"7.0", oneapi_exp_arch::nvidia_gpu_sm_70},
+          {"7.2", oneapi_exp_arch::nvidia_gpu_sm_72},
+          {"7.5", oneapi_exp_arch::nvidia_gpu_sm_75},
+          {"8.0", oneapi_exp_arch::nvidia_gpu_sm_80},
+          {"8.6", oneapi_exp_arch::nvidia_gpu_sm_86},
+          {"8.7", oneapi_exp_arch::nvidia_gpu_sm_87},
+          {"8.9", oneapi_exp_arch::nvidia_gpu_sm_89},
+          {"9.0", oneapi_exp_arch::nvidia_gpu_sm_90},
+      };
+      size_t resultSize = 0;
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(), PiInfoCode<info::device::backend_version>::value,
+          /*param_value_size=*/0,
+          /*param_value_size=*/nullptr, &resultSize);
+
+      std::unique_ptr<char[]> DeviceSM(new char[resultSize]);
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(), PiInfoCode<info::device::backend_version>::value,
+          resultSize, DeviceSM.get(), nullptr);
+
+      return ReturnHelper(MapSMToArch, std::string(DeviceSM.get()));
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
       // TODO: add support of different CPU architectures to
       // sycl_ext_oneapi_device_architecture
       return sycl::ext::oneapi::experimental::architecture::x86_64;
-    } // else is not needed
+    }
+    // else is not needed
     // TODO: add support of other arhitectures by extending with else if
 
     // Generating a user-friendly error message
