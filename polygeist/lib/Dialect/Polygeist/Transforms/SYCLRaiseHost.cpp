@@ -156,6 +156,19 @@ static LogicalResult partialDemangle(llvm::ItaniumPartialDemangler &demangler,
   return failure(!symbol || demangler.partialDemangle(symbol.getName().data()));
 }
 
+/// Get the parameter list of the function with name \p functionName from the
+/// demangler.
+static FailureOr<DemangleResult>
+getDemangledParameterList(StringRef functionName) {
+  llvm::ItaniumPartialDemangler Demangler;
+  if (Demangler.partialDemangle(functionName.data()))
+    return failure();
+
+  return DemangleResult::get([&](char *buf, size_t *size) {
+    return Demangler.getFunctionParameters(buf, size);
+  });
+}
+
 template <typename T> static auto getUsersOfType(Value value) {
   constexpr auto filter = [](const OpOperand &operand) -> bool {
     return isa<T>(operand.getOwner());
@@ -510,10 +523,10 @@ public:
     // the type of the first parameter of the demangled constructor function
     // name.
     bool isSubBuffer = false;
-    StringRef demangled{demangledName};
-    if (auto paramStart = demangled.find('('); paramStart != StringRef::npos) {
-      if (demangled.drop_front(paramStart + 1).starts_with("sycl::_V1::buffer"))
-        isSubBuffer = true;
+    auto failureOrParams = getDemangledParameterList(constructorName);
+    if (succeeded(failureOrParams)) {
+      auto paramList = static_cast<StringRef>(*failureOrParams);
+      isSubBuffer = paramList.starts_with("(sycl::_V1::buffer");
     }
 
     // FIXME: There's currently no good way to obtain the element type of the
@@ -557,6 +570,15 @@ public:
     llvm::SmallVector<StringRef> matches;
     bool regexMatch = accessorTemplate.match(demangledName, &matches);
 
+    bool needsRange = true;
+    bool needsID = true;
+    auto failureOrParams = getDemangledParameterList(constructorName);
+    if (succeeded(failureOrParams)) {
+      auto paramList = static_cast<StringRef>(*failureOrParams);
+      needsRange = paramList.find("sycl::_V1::range") != StringRef::npos;
+      needsID = paramList.find("sycl::_V1::id") != StringRef::npos;
+    }
+
     if (!regexMatch)
       return nullptr;
 
@@ -572,19 +594,32 @@ public:
     sycl::AccessMode accessMode = *accessModeOrNone;
     sycl::Target accessTarget = *accessTargetOrNone;
 
+    auto *context = constructor->getContext();
     // FIXME: There's currently no good way to obtain the element type of the
     // accessor from the constructor call (or allocation). Parsing it from the
     // demangled name, as done for other parameters above, would require
     // translation from C++ types to MLIR types, which is not available here.
-    Type elemTy = LLVM::LLVMVoidType::get(constructor->getContext());
+    Type elemTy = LLVM::LLVMVoidType::get(context);
 
-    return sycl::AccessorType::get(
-        constructor.getContext(), elemTy, dimensions, accessMode, accessTarget,
-        // On the host, the body type of the accessor currently has no relevance
-        // for the analyses. However, leaving the body types empty leads to
-        // problems when parsing an MLIR file containing such an accessor type
-        // with empty body type list. Therefore, simply put !llvm.void for now.
-        getEmptyBodyType(constructor->getContext()));
+    // On the host, the body type of the accessor currently has no relevance
+    // for the analyses. However, to encode whether the constructed accessor
+    // requires the range and id (offset) parameter, the corresponding type is
+    // added to the list of body types, if they are required. Otherwise, the
+    // body remains empty, encoded by a single `!llvm.void` type, as leaving the
+    // body types empty leads to problems when parsing an MLIR file containing
+    // such an accessor type with empty body type list.
+    SmallVector<Type, 2> bodyTypes;
+    if (needsRange)
+      bodyTypes.push_back(
+          sycl::RangeType::get(context, dimensions, getEmptyBodyType(context)));
+    if (needsID)
+      bodyTypes.push_back(
+          sycl::IDType::get(context, dimensions, getEmptyBodyType(context)));
+    if (!needsRange && !needsID)
+      bodyTypes.push_back(getEmptyBodyType(context));
+
+    return sycl::AccessorType::get(context, elemTy, dimensions, accessMode,
+                                   accessTarget, bodyTypes);
   }
 
 private:
