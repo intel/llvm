@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
+#include <sycl/ext/intel/experimental/fpga_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/fpga_lsu.hpp>
 #include <sycl/ext/intel/experimental/pipes.hpp>
 #include <sycl/ext/intel/fpga_device_selector.hpp>
