@@ -58,9 +58,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
-                 size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
+                                                     ur_adapter_info_t propName,
+                                                     size_t propSize,
+                                                     void *pPropValue,
+                                                     size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
