@@ -88,6 +88,10 @@ template <typename T> void testMultPtr() {
                 multi_ptr<const void, access::address_space::local_space,
                           access::decorated::legacy>(localAccessor);
 
+            auto local_ptr5 =
+                multi_ptr<T, access::address_space::generic_space,
+                          access::decorated::legacy>(localAccessor);
+
             // Construct extension pointer from accessors.
             auto dev_ptr =
                 multi_ptr<const T,
