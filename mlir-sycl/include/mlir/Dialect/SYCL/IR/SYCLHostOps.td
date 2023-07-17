@@ -121,7 +121,7 @@ def SYCLHostHandlerSetNDRange
 
     The `range` operand expects an `nd_range` pointer or a `range` pointer. In
     the latter case, an `id` pointer can be optionally given as the `offset`. In
-    the former ase, the `nd_range_passed` attribute must be set.
+    the former case, the `nd_range` attribute must be set.
   }];
   let arguments = (ins LLVM_AnyPointer:$handler,
                        LLVM_PointerTo<LLVM_AnyStruct>:$range,
