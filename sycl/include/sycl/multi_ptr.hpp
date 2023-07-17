@@ -109,16 +109,6 @@ public:
       : m_Pointer(ptr) {}
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
 
-  // Explicit conversion from multi_ptr<T> to multi_ptr<const T>
-  template <typename NonConstElementType = std::remove_const_t<ElementType>,
-            typename = typename std::enable_if_t<
-                std::is_const_v<ElementType> &&
-                std::is_same_v<NonConstElementType,
-                               std::remove_const_t<ElementType>>>>
-  explicit multi_ptr(
-      multi_ptr<NonConstElementType, Space, DecorateAddress> MPtr)
-      : m_Pointer(MPtr.get_decorated()) {}
-
   // Only if Space is in
   // {global_space, ext_intel_global_device_space, generic_space}
   template <
@@ -159,7 +149,8 @@ public:
                 (Space == access::address_space::generic_space ||
                  Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Only if Space == constant_space
   template <
@@ -237,7 +228,11 @@ public:
   multi_ptr(
       local_accessor<typename std::remove_const_t<RelayElementType>, Dimensions>
           Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      // Not having get_decorated() results in facing issue represented in
+      // https://github.com/intel/llvm/issues/9745.
+      // TODO: would be good to simplify it in future without facing above issue
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Only if Space == constant_space and element type is const
   template <
@@ -514,7 +509,8 @@ public:
                 (Space == access::address_space::local_space ||
                  Space == access::address_space::generic_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Only if Space == constant_space
   template <
@@ -664,7 +660,8 @@ public:
                 (Space == access::address_space::local_space ||
                  Space == access::address_space::generic_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Only if Space == constant_space
   template <
