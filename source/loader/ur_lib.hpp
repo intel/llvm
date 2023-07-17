@@ -23,16 +23,24 @@
 #include "tracing/ur_tracing_layer.hpp"
 #endif
 
+#include <atomic>
 #include <mutex>
 #include <set>
 #include <vector>
 
 struct ur_loader_config_handle_t_ {
     std::set<std::string> enabledLayers;
-    uint32_t refCount = 1;
+    std::atomic_uint32_t refCount = 1;
 
-    size_t incrementReferenceCount() { return ++refCount; }
-    size_t decrementReferenceCount() { return --refCount; }
+    uint32_t incrementReferenceCount() {
+        return refCount.fetch_add(1, std::memory_order_acq_rel) + 1;
+    }
+    uint32_t decrementReferenceCount() {
+        return refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
+    }
+    uint32_t getReferenceCount() {
+        return refCount.load(std::memory_order_acquire);
+    }
     std::set<std::string> &getEnabledLayerNames() { return enabledLayers; }
 };
 
