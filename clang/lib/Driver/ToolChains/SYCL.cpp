@@ -223,7 +223,13 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     };
     size_t InputFileNum = InputFiles.size();
     bool LinkSYCLDeviceLibs = (InputFileNum >= 2);
-    LinkSYCLDeviceLibs = LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
+    if (IsRDC) {
+      LinkSYCLDeviceLibs =
+          LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
+    } else {
+      LinkSYCLDeviceLibs =
+          LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[0]);
+    }
     for (size_t Idx = 1; Idx < InputFileNum; ++Idx)
       LinkSYCLDeviceLibs =
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
