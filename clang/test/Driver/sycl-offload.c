@@ -100,18 +100,18 @@
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.  The same graph should be generated when no -fsycl-targets is used
-/// The same phase graph will be used with -fsycl-use-bitcode
+/// The same phase graph will be used with -fsycl-device-obj=llvmir
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
 // RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-use-bitcode -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-obj=spirv -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-use-bitcode -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fsycl-device-obj=spirv -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-use-bitcode -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-obj=llvmir -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fsycl-use-bitcode -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fsycl-device-obj=llvmir -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASES: 1: append-footer, {0}, c++, (host-sycl)
@@ -298,10 +298,10 @@
 /// ###########################################################################
 
 /// Check -fsycl-is-device and emitting to .spv when compiling for the device
-/// when using -fno-sycl-use-bitcode
-// RUN:   %clang -### -fno-sycl-use-bitcode -fsycl -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
+/// when using -fsycl-device-obj=spirv
+// RUN:   %clang -### -fsycl-device-obj=spirv -fsycl -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE-NO-BITCODE %s
-// RUN:   %clang_cl -### -fno-sycl-use-bitcode -fsycl -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl-device-obj=spirv -fsycl -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE-NO-BITCODE %s
 
 // CHK-FSYCL-IS-DEVICE-NO-BITCODE: clang{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc" {{.*}}.c
