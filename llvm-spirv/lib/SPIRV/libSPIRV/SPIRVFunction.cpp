@@ -143,7 +143,8 @@ bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
     SPIRVEntry *Entry = Decoder.getEntry();
 
     if (Decoder.OpCode == OpLine) {
-      Module->add(Entry);
+      std::shared_ptr<const SPIRVLine> L(static_cast<SPIRVLine *>(Entry));
+      Module->setCurrentLine(L);
       continue;
     }
 
@@ -159,6 +160,17 @@ bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
     assert(Inst);
     if (Inst->getOpCode() == OpUndef) {
       Module->add(Inst);
+    } else if (Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                               SPIRVDebug::DebugNoLine) ||
+               Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                               SPIRVDebug::DebugNoLine)) {
+      continue;
+    } else if (Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                               SPIRVDebug::DebugLine) ||
+               Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                               SPIRVDebug::DebugLine)) {
+      std::shared_ptr<const SPIRVExtInst> DL(static_cast<SPIRVExtInst *>(Inst));
+      Module->setCurrentDebugLine(DL);
     } else {
       if (Inst->isExtInst(SPIRVEIS_Debug, SPIRVDebug::Scope) ||
           Inst->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100, SPIRVDebug::Scope) ||

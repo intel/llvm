@@ -3809,15 +3809,9 @@ llvm::Constant *CGObjCMac::EmitIvarList(const ObjCImplementationDecl *ID,
   ivarList.fillPlaceholderWithInt(countSlot, ObjCTypes.IntTy, count);
 
   llvm::GlobalVariable *GV;
-  if (ForClass)
-    GV =
-        CreateMetadataVar("OBJC_CLASS_VARIABLES_" + ID->getName(), ivarList,
-                          "__OBJC,__class_vars,regular,no_dead_strip",
-                          CGM.getPointerAlign(), true);
-  else
-    GV = CreateMetadataVar("OBJC_INSTANCE_VARIABLES_" + ID->getName(), ivarList,
-                           "__OBJC,__instance_vars,regular,no_dead_strip",
-                           CGM.getPointerAlign(), true);
+  GV = CreateMetadataVar("OBJC_INSTANCE_VARIABLES_" + ID->getName(), ivarList,
+                         "__OBJC,__instance_vars,regular,no_dead_strip",
+                         CGM.getPointerAlign(), true);
   return llvm::ConstantExpr::getBitCast(GV, ObjCTypes.IvarListPtrTy);
 }
 
@@ -5026,8 +5020,10 @@ void CGObjCMac::EmitGCMemmoveCollectable(CodeGen::CodeGenFunction &CGF,
                                          Address DestPtr,
                                          Address SrcPtr,
                                          llvm::Value *size) {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   SrcPtr = CGF.Builder.CreateElementBitCast(SrcPtr, CGF.Int8Ty);
   DestPtr = CGF.Builder.CreateElementBitCast(DestPtr, CGF.Int8Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *args[] = { DestPtr.getPointer(), SrcPtr.getPointer(), size };
   CGF.EmitNounwindRuntimeCall(ObjCTypes.GcMemmoveCollectableFn(), args);
 }
@@ -5293,12 +5289,7 @@ llvm::Constant *CGObjCCommonMac::GetClassName(StringRef RuntimeName) {
 }
 
 llvm::Function *CGObjCCommonMac::GetMethodDefinition(const ObjCMethodDecl *MD) {
-  llvm::DenseMap<const ObjCMethodDecl*, llvm::Function*>::iterator
-      I = MethodDefinitions.find(MD);
-  if (I != MethodDefinitions.end())
-    return I->second;
-
-  return nullptr;
+  return MethodDefinitions.lookup(MD);
 }
 
 /// GetIvarLayoutName - Returns a unique constant for the given
@@ -7705,8 +7696,10 @@ void CGObjCNonFragileABIMac::EmitGCMemmoveCollectable(
   Address DestPtr,
   Address SrcPtr,
   llvm::Value *Size) {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   SrcPtr = CGF.Builder.CreateElementBitCast(SrcPtr, CGF.Int8Ty);
   DestPtr = CGF.Builder.CreateElementBitCast(DestPtr, CGF.Int8Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *args[] = { DestPtr.getPointer(), SrcPtr.getPointer(), Size };
   CGF.EmitNounwindRuntimeCall(ObjCTypes.GcMemmoveCollectableFn(), args);
 }

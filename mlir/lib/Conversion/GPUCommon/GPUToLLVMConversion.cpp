@@ -97,8 +97,13 @@ protected:
   Type llvmPointerPointerType =
       this->getTypeConverter()->getPointerType(llvmPointerType);
   Type llvmInt8Type = IntegerType::get(context, 8);
+  Type llvmInt16Type = IntegerType::get(context, 16);
   Type llvmInt32Type = IntegerType::get(context, 32);
   Type llvmInt64Type = IntegerType::get(context, 64);
+  Type llvmInt8PointerType =
+      this->getTypeConverter()->getPointerType(llvmInt8Type);
+  Type llvmInt64PointerType =
+      this->getTypeConverter()->getPointerType(llvmInt64Type);
   Type llvmIntPtrType = IntegerType::get(
       context, this->getTypeConverter()->getPointerBitwidth(0));
 
@@ -182,7 +187,14 @@ protected:
       {llvmPointerType /* void *dst */, llvmPointerType /* void *src */,
        llvmIntPtrType /* intptr_t sizeBytes */,
        llvmPointerType /* void *stream */}};
-  FunctionCallBuilder memsetCallBuilder = {
+  FunctionCallBuilder memset16CallBuilder = {
+      "mgpuMemset16",
+      llvmVoidType,
+      {llvmPointerType /* void *dst */,
+       llvmInt16Type /* unsigned short value */,
+       llvmIntPtrType /* intptr_t sizeBytes */,
+       llvmPointerType /* void *stream */}};
+  FunctionCallBuilder memset32CallBuilder = {
       "mgpuMemset32",
       llvmVoidType,
       {llvmPointerType /* void *dst */, llvmInt32Type /* unsigned int value */,
@@ -224,6 +236,12 @@ protected:
       {llvmIntPtrType, llvmIntPtrType, llvmIntPtrType, llvmPointerType,
        llvmPointerType, llvmPointerType, llvmInt32Type, llvmInt32Type,
        llvmPointerType /* void *stream */}};
+  FunctionCallBuilder createCooAoSCallBuilder = {
+      "mgpuCreateCooAoS", // deprecated in cuSPARSE 11.2
+      llvmPointerType,
+      {llvmIntPtrType, llvmIntPtrType, llvmIntPtrType, llvmPointerType,
+       llvmPointerType, llvmInt32Type, llvmInt32Type,
+       llvmPointerType /* void *stream */}};
   FunctionCallBuilder createCsrCallBuilder = {
       "mgpuCreateCsr",
       llvmPointerType,
@@ -245,30 +263,68 @@ protected:
       {llvmPointerType, llvmInt32Type, llvmPointerType, llvmPointerType,
        llvmPointerType, llvmInt32Type, llvmPointerType,
        llvmPointerType /* void *stream */}};
-  FunctionCallBuilder spMMBufferSizeCallBuilder = {
+  FunctionCallBuilder createSpMMBufferSizeCallBuilder = {
       "mgpuSpMMBufferSize",
       llvmIntPtrType,
       {llvmPointerType, llvmInt32Type, llvmInt32Type, llvmPointerType,
        llvmPointerType, llvmPointerType, llvmInt32Type,
        llvmPointerType /* void *stream */}};
-  FunctionCallBuilder spMMCallBuilder = {
+  FunctionCallBuilder createSpMMCallBuilder = {
       "mgpuSpMM",
       llvmVoidType,
       {llvmPointerType, llvmInt32Type, llvmInt32Type, llvmPointerType,
        llvmPointerType, llvmPointerType, llvmInt32Type, llvmPointerType,
        llvmPointerType /* void *stream */}};
-  FunctionCallBuilder SDDMMBufferSizeCallBuilder = {
+  FunctionCallBuilder createSDDMMBufferSizeCallBuilder = {
       "mgpuSDDMMBufferSize",
       llvmIntPtrType,
       {llvmPointerType, llvmInt32Type, llvmInt32Type, llvmPointerType,
        llvmPointerType, llvmPointerType, llvmInt32Type,
        llvmPointerType /* void *stream */}};
-  FunctionCallBuilder SDDMMCallBuilder = {
+  FunctionCallBuilder createSDDMMCallBuilder = {
       "mgpuSDDMM",
       llvmVoidType,
       {llvmPointerType, llvmInt32Type, llvmInt32Type, llvmPointerType,
        llvmPointerType, llvmPointerType, llvmInt32Type, llvmPointerType,
        llvmPointerType /* void *stream */}};
+  FunctionCallBuilder createSparseLtEnvCallBuilder = {
+      "mgpuCreateSparseLtEnv",
+      llvmVoidType,
+      {llvmPointerType, llvmPointerType /* void *stream */}};
+  FunctionCallBuilder destroySparseLtEnvCallBuilder = {
+      "mgpuDestroySparseLtEnv",
+      llvmVoidType,
+      {llvmPointerType, llvmPointerType /* void *stream */}};
+  FunctionCallBuilder createLtDnMatCallBuilder = {
+      "mgpuCreateCuSparseLtDnMat",
+      llvmVoidType,
+      {llvmPointerType, llvmPointerType, llvmIntPtrType, llvmIntPtrType,
+       llvmPointerType, llvmInt32Type, llvmPointerType /* void *stream */}};
+  FunctionCallBuilder destroyCuSparseLtSpMatBuilder = {
+      "mgpuDestroyCuSparseLtSpMat",
+      llvmVoidType,
+      {llvmPointerType, llvmPointerType /* void *stream */}};
+  FunctionCallBuilder destroyCuSparseLtDnMatBuilder = {
+      "mgpuDestroyCuSparseLtDnMat",
+      llvmVoidType,
+      {llvmPointerType, llvmPointerType /* void *stream */}};
+  FunctionCallBuilder create2To4SpMatCallBuilder = {
+      "mgpuCusparseLtCreate2To4SpMat",
+      llvmVoidType,
+      {llvmPointerType, llvmPointerType, llvmIntPtrType, llvmIntPtrType,
+       llvmPointerType, llvmInt32Type, llvmPointerType /* void *stream */}};
+  FunctionCallBuilder createCuSparseLtSpMMBufferSizeBuilder = {
+      "mgpuCuSparseLtSpMMBufferSize",
+      llvmVoidType,
+      {llvmPointerType, llvmPointerType, llvmInt32Type, llvmInt32Type,
+       llvmPointerType, llvmPointerType, llvmPointerType, llvmInt32Type,
+       llvmPointerType /*void *stream*/}};
+  FunctionCallBuilder createCuSparseLtSpMMBuilder = {
+      "mgpuCuSparseLtSpMM",
+      llvmVoidType,
+      {llvmPointerType, llvmPointerType, llvmPointerType, llvmPointerType,
+       llvmPointerType, llvmPointerType, llvmPointerType,
+       llvmPointerType /*void *stream*/}};
 };
 
 /// A rewrite pattern to convert gpu.host_register operations into a GPU runtime
@@ -487,51 +543,31 @@ private:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-class ConvertCreateDnVecOpToGpuRuntimeCallPattern
-    : public ConvertOpToGpuRuntimeCallPattern<gpu::CreateDnVecOp> {
+class ConvertCreateDnTensorOpToGpuRuntimeCallPattern
+    : public ConvertOpToGpuRuntimeCallPattern<gpu::CreateDnTensorOp> {
 public:
-  ConvertCreateDnVecOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter)
-      : ConvertOpToGpuRuntimeCallPattern<gpu::CreateDnVecOp>(typeConverter) {}
+  ConvertCreateDnTensorOpToGpuRuntimeCallPattern(
+      LLVMTypeConverter &typeConverter)
+      : ConvertOpToGpuRuntimeCallPattern<gpu::CreateDnTensorOp>(typeConverter) {
+  }
 
 private:
   LogicalResult
-  matchAndRewrite(gpu::CreateDnVecOp op, OpAdaptor adaptor,
+  matchAndRewrite(gpu::CreateDnTensorOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-class ConvertDestroyDnVecOpToGpuRuntimeCallPattern
-    : public ConvertOpToGpuRuntimeCallPattern<gpu::DestroyDnVecOp> {
+class ConvertDestroyDnTensorOpToGpuRuntimeCallPattern
+    : public ConvertOpToGpuRuntimeCallPattern<gpu::DestroyDnTensorOp> {
 public:
-  ConvertDestroyDnVecOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter)
-      : ConvertOpToGpuRuntimeCallPattern<gpu::DestroyDnVecOp>(typeConverter) {}
+  ConvertDestroyDnTensorOpToGpuRuntimeCallPattern(
+      LLVMTypeConverter &typeConverter)
+      : ConvertOpToGpuRuntimeCallPattern<gpu::DestroyDnTensorOp>(
+            typeConverter) {}
 
 private:
   LogicalResult
-  matchAndRewrite(gpu::DestroyDnVecOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override;
-};
-
-class ConvertCreateDnMatOpToGpuRuntimeCallPattern
-    : public ConvertOpToGpuRuntimeCallPattern<gpu::CreateDnMatOp> {
-public:
-  ConvertCreateDnMatOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter)
-      : ConvertOpToGpuRuntimeCallPattern<gpu::CreateDnMatOp>(typeConverter) {}
-
-private:
-  LogicalResult
-  matchAndRewrite(gpu::CreateDnMatOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override;
-};
-
-class ConvertDestroyDnMatOpToGpuRuntimeCallPattern
-    : public ConvertOpToGpuRuntimeCallPattern<gpu::DestroyDnMatOp> {
-public:
-  ConvertDestroyDnMatOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter)
-      : ConvertOpToGpuRuntimeCallPattern<gpu::DestroyDnMatOp>(typeConverter) {}
-
-private:
-  LogicalResult
-  matchAndRewrite(gpu::DestroyDnMatOp op, OpAdaptor adaptor,
+  matchAndRewrite(gpu::DestroyDnTensorOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
@@ -547,6 +583,18 @@ private:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
+class ConvertCreateCooAoSOpToGpuRuntimeCallPattern
+    : public ConvertOpToGpuRuntimeCallPattern<gpu::CreateCooAoSOp> {
+public:
+  ConvertCreateCooAoSOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter)
+      : ConvertOpToGpuRuntimeCallPattern<gpu::CreateCooAoSOp>(typeConverter) {}
+
+private:
+  LogicalResult
+  matchAndRewrite(gpu::CreateCooAoSOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+
 class ConvertCreateCsrOpToGpuRuntimeCallPattern
     : public ConvertOpToGpuRuntimeCallPattern<gpu::CreateCsrOp> {
 public:
@@ -556,6 +604,20 @@ public:
 private:
   LogicalResult
   matchAndRewrite(gpu::CreateCsrOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+
+class ConvertCreate2To4SpMatOpToGpuRuntimeCallPattern
+    : public ConvertOpToGpuRuntimeCallPattern<gpu::Create2To4SpMatOp> {
+public:
+  ConvertCreate2To4SpMatOpToGpuRuntimeCallPattern(
+      LLVMTypeConverter &typeConverter)
+      : ConvertOpToGpuRuntimeCallPattern<gpu::Create2To4SpMatOp>(
+            typeConverter) {}
+
+private:
+  LogicalResult
+  matchAndRewrite(gpu::Create2To4SpMatOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
@@ -654,6 +716,7 @@ private:
 void GpuToLLVMConversionPass::runOnOperation() {
   LowerToLLVMOptions options(&getContext());
   options.useOpaquePointers = useOpaquePointers;
+  options.useBarePtrCallConv = hostBarePtrCallConv;
 
   LLVMTypeConverter converter(&getContext(), options);
   RewritePatternSet patterns(&getContext());
@@ -697,6 +760,15 @@ static int32_t getCuSparseIndexTypeFrom(Type type) {
   // TODO: add support to CUSPARSE_INDEX_16U: 1
 }
 
+static int32_t getCuSparseLtDataTypeFrom(Type type) {
+  if (type.isF16())
+    return 0; // CUSPARSE_COMPUTE_16F,
+  if (type.isInteger(32))
+    return 1; // CUSPARSE_COMPUTE_32I
+  llvm_unreachable("unsupported type");
+  // TODO: add support to TF32
+}
+
 // Corresponding to cudaDataType_t defined in CUDA library_types.h.
 static int32_t getCuSparseDataTypeFrom(Type type) {
   if (llvm::isa<ComplexType>(type)) {
@@ -733,6 +805,39 @@ static int32_t getCuSparseDataTypeFrom(Type type) {
     return 10; // CUDA_R_32I
 
   llvm_unreachable("unsupported element type");
+}
+
+// TODO:  We may want a run-time (of the mlir compiler) disablement/warning:
+// cusparseLt currently won't work for cuda architecture <8.0 and will trigger a
+// runtime (of the CUDA program) error , but it might be great if we could at
+// least output a warning when we found the target architecture is <8.0 and the
+// user still wants to use cusparseLt. to make sure when lowering gpu sparse
+// dialect to llvm calls, the cusparselt calls are disabled for cuda
+// architecture <8.0
+static bool is2To4Sparsity(Value spMat) {
+  if (auto op = spMat.getDefiningOp<gpu::Create2To4SpMatOp>())
+    return true;
+  if (auto op = spMat.getDefiningOp<gpu::CreateCooOp>())
+    return false;
+  if (auto op = spMat.getDefiningOp<gpu::CreateCsrOp>())
+    return false;
+  if (auto op = spMat.getDefiningOp<gpu::CreateCooAoSOp>())
+    return false;
+  // Print the spMat defining op
+  spMat.getDefiningOp()->print(llvm::errs());
+  llvm_unreachable("cannot find spmat def");
+}
+
+static bool isSpMMCusparseLtOp(Value op) {
+  for (Operation *user : op.getUsers()) {
+    auto spmmOp = dyn_cast<gpu::SpMMOp>(user);
+    // If the other operator is 50% sparsity then we should use cusparseLt
+    if (!spmmOp)
+      continue;
+    if (is2To4Sparsity(spmmOp.getSpmatA()))
+      return true;
+  }
+  return false;
 }
 
 // Returns whether all operands are of LLVM type.
@@ -1244,22 +1349,29 @@ LogicalResult ConvertMemsetOpToGpuRuntimeCallPattern::matchAndRewrite(
   auto loc = memsetOp.getLoc();
 
   Type valueType = adaptor.getValue().getType();
-  if (!valueType.isIntOrFloat() || valueType.getIntOrFloatBitWidth() != 32) {
-    return rewriter.notifyMatchFailure(memsetOp,
-                                       "value must be a 32 bit scalar");
+  unsigned bitWidth = valueType.getIntOrFloatBitWidth();
+  // Ints and floats of 16 or 32 bit width are allowed.
+  if (!valueType.isIntOrFloat() || (bitWidth != 16 && bitWidth != 32)) {
+    return rewriter.notifyMatchFailure(
+        memsetOp, "value must be a 16 or 32 bit int or float");
   }
+
+  unsigned valueTypeWidth = valueType.getIntOrFloatBitWidth();
+  Type bitCastType = valueTypeWidth == 32 ? llvmInt32Type : llvmInt16Type;
 
   MemRefDescriptor dstDesc(adaptor.getDst());
   Value numElements = getNumElements(rewriter, loc, memRefType, dstDesc);
 
   auto value =
-      rewriter.create<LLVM::BitcastOp>(loc, llvmInt32Type, adaptor.getValue());
+      rewriter.create<LLVM::BitcastOp>(loc, bitCastType, adaptor.getValue());
   auto dst = bitAndAddrspaceCast(loc, rewriter, llvmPointerType,
                                  dstDesc.alignedPtr(rewriter, loc),
                                  *getTypeConverter());
 
   auto stream = adaptor.getAsyncDependencies().front();
-  memsetCallBuilder.create(loc, rewriter, {dst, value, numElements, stream});
+  FunctionCallBuilder builder =
+      valueTypeWidth == 32 ? memset32CallBuilder : memset16CallBuilder;
+  builder.create(loc, rewriter, {dst, value, numElements, stream});
 
   rewriter.replaceOp(memsetOp, {stream});
   return success();
@@ -1281,13 +1393,6 @@ static Value genConstInt32From(OpBuilder &builder, Location loc, T TValue) {
                                           static_cast<int32_t>(TValue));
 }
 
-static Value genConstInt32FromComputeMode(OpBuilder &builder, Location loc,
-                                          Type computeType) {
-  auto computeTypeInt = getCuSparseDataTypeFrom(computeType);
-  auto computeTypeConst = genConstInt32From(builder, loc, computeTypeInt);
-  return computeTypeConst;
-}
-
 LogicalResult ConvertCreateSparseEnvOpToGpuRuntimeCallPattern::matchAndRewrite(
     gpu::CreateSparseEnvOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -1296,8 +1401,22 @@ LogicalResult ConvertCreateSparseEnvOpToGpuRuntimeCallPattern::matchAndRewrite(
     return failure();
   Location loc = op.getLoc();
   auto stream = adaptor.getAsyncDependencies().front();
-  auto handle =
-      createSparseEnvCallBuilder.create(loc, rewriter, {stream}).getResult();
+  // Use the cusparseLt create call if the dnmat is used with spmat with
+  // 2:4 sparsity
+  Value handle;
+  if (isSpMMCusparseLtOp(op.getEnv())) {
+    // CUDA runner asserts the size is 11024 bytes.
+    auto handleSz = rewriter.create<LLVM::ConstantOp>(
+        loc, getIndexType(), rewriter.getIndexAttr(11024));
+    handle = rewriter.create<LLVM::AllocaOp>(loc, llvmInt8PointerType,
+                                             llvmInt8Type, handleSz);
+    handle = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, handle);
+    createSparseLtEnvCallBuilder.create(loc, rewriter, {handle, stream})
+        .getResult();
+  } else {
+    handle =
+        createSparseEnvCallBuilder.create(loc, rewriter, {stream}).getResult();
+  }
   rewriter.replaceOp(op, {handle, stream});
   return success();
 }
@@ -1310,78 +1429,103 @@ LogicalResult ConvertDestroySparseEnvOpToGpuRuntimeCallPattern::matchAndRewrite(
     return failure();
   Location loc = op.getLoc();
   auto stream = adaptor.getAsyncDependencies().front();
-  destroySparseEnvCallBuilder.create(loc, rewriter, {adaptor.getEnv(), stream});
+  // Use the cusparseLt destroy call if the dnmat is used with spmat with
+  // 2:4 sparsity
+  if (isSpMMCusparseLtOp(op.getEnv())) {
+    destroySparseLtEnvCallBuilder.create(loc, rewriter,
+                                         {adaptor.getEnv(), stream});
+  } else {
+    destroySparseEnvCallBuilder.create(loc, rewriter,
+                                       {adaptor.getEnv(), stream});
+  }
   rewriter.replaceOp(op, {stream});
   return success();
 }
 
-LogicalResult ConvertCreateDnVecOpToGpuRuntimeCallPattern::matchAndRewrite(
-    gpu::CreateDnVecOp op, OpAdaptor adaptor,
+LogicalResult ConvertCreateDnTensorOpToGpuRuntimeCallPattern::matchAndRewrite(
+    gpu::CreateDnTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   if (failed(areAllLLVMTypes(op, adaptor.getOperands(), rewriter)) ||
       failed(isAsyncWithOneDependency(rewriter, op)))
     return failure();
   Location loc = op.getLoc();
   auto stream = adaptor.getAsyncDependencies().front();
-  Value pVec =
+  Value pTensor =
       MemRefDescriptor(adaptor.getMemref()).allocatedPtr(rewriter, loc);
   if (!getTypeConverter()->useOpaquePointers())
-    pVec = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, pVec);
+    pTensor = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, pTensor);
   Type dType = op.getMemref().getType().getElementType();
   auto dtp = genConstInt32From(rewriter, loc, getCuSparseDataTypeFrom(dType));
-  auto handle =
-      createDnVecCallBuilder
-          .create(loc, rewriter, {adaptor.getSize(), pVec, dtp, stream})
-          .getResult();
-  rewriter.replaceOp(op, {handle, stream});
-  return success();
-}
 
-LogicalResult ConvertDestroyDnVecOpToGpuRuntimeCallPattern::matchAndRewrite(
-    gpu::DestroyDnVecOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  if (failed(areAllLLVMTypes(op, adaptor.getOperands(), rewriter)) ||
-      failed(isAsyncWithOneDependency(rewriter, op)))
-    return failure();
-  Location loc = op.getLoc();
-  auto stream = adaptor.getAsyncDependencies().front();
-  destroyDnVecCallBuilder.create(loc, rewriter, {adaptor.getDvec(), stream});
-  rewriter.replaceOp(op, {stream});
-  return success();
-}
+  SmallVector<Value, 4> dims;
+  for (Value dim : adaptor.getDims()) {
+    dims.push_back(dim);
+  }
 
-LogicalResult ConvertCreateDnMatOpToGpuRuntimeCallPattern::matchAndRewrite(
-    gpu::CreateDnMatOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  if (failed(areAllLLVMTypes(op, adaptor.getOperands(), rewriter)) ||
-      failed(isAsyncWithOneDependency(rewriter, op)))
-    return failure();
-  Location loc = op.getLoc();
-  auto stream = adaptor.getAsyncDependencies().front();
-  Value pMat =
-      MemRefDescriptor(adaptor.getMemref()).allocatedPtr(rewriter, loc);
-  if (!getTypeConverter()->useOpaquePointers())
-    pMat = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, pMat);
-  Type dType = op.getMemref().getType().getElementType();
-  auto dtp = genConstInt32From(rewriter, loc, getCuSparseDataTypeFrom(dType));
-  auto handle =
-      createDnMatCallBuilder
+  Value handle;
+  // TODO: For now, we track the use of the handle and lower it to cusparse /
+  // cusparseLt accordingly. If in a block, both cusparse and cusparseLt are
+  // used, we require two separate Creation ops to be the correct logic. In
+  // future, we may add support to using one handle in sparse tensor / GPU
+  // dialect in both cusparse and cusparseLt. use the cusparseLt create call if
+  // the dnmat is used with spmat with 2:4 sparsity
+  if (dims.size() == 2) {
+    if (isSpMMCusparseLtOp(op.getDnTensor())) {
+      auto envHandle = adaptor.getEnv();
+      auto handleSz = rewriter.create<LLVM::ConstantOp>(
+          loc, getIndexType(), rewriter.getIndexAttr(11032));
+      handle = rewriter.create<LLVM::AllocaOp>(loc, llvmInt8PointerType,
+                                               llvmInt8Type, handleSz);
+      handle = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, handle);
+
+      createLtDnMatCallBuilder
           .create(loc, rewriter,
-                  {adaptor.getRows(), adaptor.getCols(), pMat, dtp, stream})
+                  {handle, envHandle, dims[0], dims[1], pTensor, dtp, stream})
           .getResult();
+    } else {
+      handle =
+          createDnMatCallBuilder
+              .create(loc, rewriter, {dims[0], dims[1], pTensor, dtp, stream})
+              .getResult();
+    }
+  } else {
+    assert(dims.size() == 1 && "Only 1D and 2D tensors are supported");
+    handle = createDnVecCallBuilder
+                 .create(loc, rewriter, {dims[0], pTensor, dtp, stream})
+                 .getResult();
+  }
   rewriter.replaceOp(op, {handle, stream});
   return success();
 }
 
-LogicalResult ConvertDestroyDnMatOpToGpuRuntimeCallPattern::matchAndRewrite(
-    gpu::DestroyDnMatOp op, OpAdaptor adaptor,
+LogicalResult ConvertDestroyDnTensorOpToGpuRuntimeCallPattern::matchAndRewrite(
+    gpu::DestroyDnTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   if (failed(areAllLLVMTypes(op, adaptor.getOperands(), rewriter)) ||
       failed(isAsyncWithOneDependency(rewriter, op)))
     return failure();
   Location loc = op.getLoc();
   auto stream = adaptor.getAsyncDependencies().front();
-  destroyDnMatCallBuilder.create(loc, rewriter, {adaptor.getDmat(), stream});
+  auto definingOp = op.getDnTensor().getDefiningOp<gpu::CreateDnTensorOp>();
+  SmallVector<Value, 4> dims;
+  for (Value dim : definingOp.getDims()) {
+    dims.push_back(dim);
+  }
+  if (dims.size() == 2) {
+    // Use the cusparseLt destroy call if the dnmat is used with spmat with
+    // 2:4 sparsity
+    if (isSpMMCusparseLtOp(op.getDnTensor())) {
+      destroyCuSparseLtDnMatBuilder.create(loc, rewriter,
+                                           {adaptor.getDnTensor(), stream});
+    } else {
+      destroyDnMatCallBuilder.create(loc, rewriter,
+                                     {adaptor.getDnTensor(), stream});
+    }
+  } else {
+    assert(dims.size() == 1 && "Only 1D and 2D tensors are supported");
+    destroyDnVecCallBuilder.create(loc, rewriter,
+                                   {adaptor.getDnTensor(), stream});
+  }
   rewriter.replaceOp(op, {stream});
   return success();
 }
@@ -1416,6 +1560,36 @@ LogicalResult ConvertCreateCooOpToGpuRuntimeCallPattern::matchAndRewrite(
           .create(loc, rewriter,
                   {adaptor.getRows(), adaptor.getCols(), adaptor.getNnz(),
                    pRowIdxs, pColIdxs, pValues, itp, dtp, stream})
+          .getResult();
+  rewriter.replaceOp(op, {handle, stream});
+  return success();
+}
+
+LogicalResult ConvertCreateCooAoSOpToGpuRuntimeCallPattern::matchAndRewrite(
+    gpu::CreateCooAoSOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  if (failed(areAllLLVMTypes(op, adaptor.getOperands(), rewriter)) ||
+      failed(isAsyncWithOneDependency(rewriter, op)))
+    return failure();
+  Location loc = op.getLoc();
+  auto stream = adaptor.getAsyncDependencies().front();
+  Value pIdxs = MemRefDescriptor(adaptor.getIdxs()).allocatedPtr(rewriter, loc);
+  Value pValues =
+      MemRefDescriptor(adaptor.getValues()).allocatedPtr(rewriter, loc);
+  if (!getTypeConverter()->useOpaquePointers()) {
+    pIdxs = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, pIdxs);
+    pValues = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, pValues);
+  }
+  Type iType = llvm::cast<MemRefType>(op.getIdxs().getType()).getElementType();
+  Type dType =
+      llvm::cast<MemRefType>(op.getValues().getType()).getElementType();
+  auto itp = genConstInt32From(rewriter, loc, getCuSparseIndexTypeFrom(iType));
+  auto dtp = genConstInt32From(rewriter, loc, getCuSparseDataTypeFrom(dType));
+  auto handle =
+      createCooAoSCallBuilder
+          .create(loc, rewriter,
+                  {adaptor.getRows(), adaptor.getCols(), adaptor.getNnz(),
+                   pIdxs, pValues, itp, dtp, stream})
           .getResult();
   rewriter.replaceOp(op, {handle, stream});
   return success();
@@ -1459,6 +1633,39 @@ LogicalResult ConvertCreateCsrOpToGpuRuntimeCallPattern::matchAndRewrite(
   return success();
 }
 
+LogicalResult ConvertCreate2To4SpMatOpToGpuRuntimeCallPattern::matchAndRewrite(
+    gpu::Create2To4SpMatOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  if (failed(areAllLLVMTypes(op, adaptor.getOperands(), rewriter)) ||
+      failed(isAsyncWithOneDependency(rewriter, op)))
+    return failure();
+  Location loc = op.getLoc();
+  auto stream = adaptor.getAsyncDependencies().front();
+  Value pMat =
+      MemRefDescriptor(adaptor.getMemref()).allocatedPtr(rewriter, loc);
+  if (!getTypeConverter()->useOpaquePointers())
+    pMat = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, pMat);
+  Type dType =
+      llvm::cast<MemRefType>(op.getMemref().getType()).getElementType();
+  auto dtp = genConstInt32From(rewriter, loc, getCuSparseDataTypeFrom(dType));
+  auto envHandle = adaptor.getEnv();
+
+  // CUDA runner asserts the size is 44104 bytes.
+  auto handleSz = rewriter.create<LLVM::ConstantOp>(
+      loc, getIndexType(), rewriter.getIndexAttr(44104));
+  Value handle = rewriter.create<LLVM::AllocaOp>(loc, llvmInt8PointerType,
+                                                 llvmInt8Type, handleSz);
+  handle = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, handle);
+
+  create2To4SpMatCallBuilder
+      .create(loc, rewriter,
+              {handle, envHandle, adaptor.getRows(), adaptor.getCols(), pMat,
+               dtp, stream})
+      .getResult();
+  rewriter.replaceOp(op, {handle, stream});
+  return success();
+}
+
 LogicalResult ConvertDestroySpMatOpToGpuRuntimeCallPattern::matchAndRewrite(
     gpu::DestroySpMatOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -1467,7 +1674,14 @@ LogicalResult ConvertDestroySpMatOpToGpuRuntimeCallPattern::matchAndRewrite(
     return failure();
   Location loc = op.getLoc();
   auto stream = adaptor.getAsyncDependencies().front();
-  destroySpMatCallBuilder.create(loc, rewriter, {adaptor.getSpmat(), stream});
+  // Use the cusparseLt destroy call if the spmat is 2:4 sparsity
+  if (is2To4Sparsity(op.getSpmat())) {
+    destroyCuSparseLtSpMatBuilder.create(loc, rewriter,
+                                         {adaptor.getSpmat(), stream});
+
+  } else {
+    destroySpMatCallBuilder.create(loc, rewriter, {adaptor.getSpmat(), stream});
+  }
   rewriter.replaceOp(op, {stream});
   return success();
 }
@@ -1480,8 +1694,8 @@ LogicalResult ConvertSpMVBufferSizeOpToGpuRuntimeCallPattern::matchAndRewrite(
     return failure();
   Location loc = op.getLoc();
   auto modeA = genConstInt32From(rewriter, loc, op.getModeA());
-  auto computeType =
-      genConstInt32FromComputeMode(rewriter, loc, adaptor.getComputeType());
+  auto computeType = genConstInt32From(
+      rewriter, loc, getCuSparseDataTypeFrom(adaptor.getComputeType()));
   auto stream = adaptor.getAsyncDependencies().front();
   auto bufferSize =
       spMVBufferSizeCallBuilder
@@ -1501,8 +1715,8 @@ LogicalResult ConvertSpMVOpToGpuRuntimeCallPattern::matchAndRewrite(
     return failure();
   Location loc = op.getLoc();
   auto modeA = genConstInt32From(rewriter, loc, adaptor.getModeA());
-  auto computeType =
-      genConstInt32FromComputeMode(rewriter, loc, adaptor.getComputeType());
+  auto computeType = genConstInt32From(
+      rewriter, loc, getCuSparseDataTypeFrom(adaptor.getComputeType()));
   auto stream = adaptor.getAsyncDependencies().front();
   Value pBuf =
       MemRefDescriptor(adaptor.getBuffer()).allocatedPtr(rewriter, loc);
@@ -1526,16 +1740,48 @@ LogicalResult ConvertSpMMBufferSizeOpToGpuRuntimeCallPattern::matchAndRewrite(
   auto modeA = genConstInt32From(rewriter, loc, adaptor.getModeA());
   auto modeB = genConstInt32From(rewriter, loc, adaptor.getModeB());
   auto stream = adaptor.getAsyncDependencies().front();
-  auto computeType =
-      genConstInt32FromComputeMode(rewriter, loc, adaptor.getComputeType());
+  Value bufferSize;
+  if (is2To4Sparsity(op.getSpmatA())) {
+    auto computeType = genConstInt32From(
+        rewriter, loc, getCuSparseLtDataTypeFrom(adaptor.getComputeType()));
+    auto three = rewriter.create<LLVM::ConstantOp>(loc, getIndexType(),
+                                                   rewriter.getIndexAttr(3));
+    auto bufferSize = rewriter.create<LLVM::AllocaOp>(loc, llvmInt64PointerType,
+                                                      llvmInt64Type, three);
+    createCuSparseLtSpMMBufferSizeBuilder
+        .create(loc, rewriter,
+                {bufferSize, adaptor.getEnv(), modeA, modeB,
+                 adaptor.getSpmatA(), adaptor.getDnmatB(), adaptor.getDnmatC(),
+                 computeType, stream})
+        .getResult();
 
-  auto bufferSize = spMMBufferSizeCallBuilder
-                        .create(loc, rewriter,
-                                {adaptor.getEnv(), modeA, modeB,
-                                 adaptor.getSpmatA(), adaptor.getDnmatB(),
-                                 adaptor.getDnmatC(), computeType, stream})
-                        .getResult();
-  rewriter.replaceOp(op, {bufferSize, stream});
+    auto bufferSizePtr1 = rewriter.create<LLVM::GEPOp>(
+        loc, llvmInt64PointerType, llvmInt64PointerType, bufferSize,
+        ValueRange{rewriter.create<LLVM::ConstantOp>(
+            loc, getIndexType(), rewriter.getIndexAttr(1))});
+    auto bufferSizePtr2 = rewriter.create<LLVM::GEPOp>(
+        loc, llvmInt64PointerType, llvmInt64PointerType, bufferSize,
+        ValueRange{rewriter.create<LLVM::ConstantOp>(
+            loc, getIndexType(), rewriter.getIndexAttr(2))});
+    auto bufferSize0 =
+        rewriter.create<LLVM::LoadOp>(loc, llvmInt64Type, bufferSize);
+    auto bufferSize1 =
+        rewriter.create<LLVM::LoadOp>(loc, llvmInt64Type, bufferSizePtr1);
+    auto bufferSize2 =
+        rewriter.create<LLVM::LoadOp>(loc, llvmInt64Type, bufferSizePtr2);
+
+    rewriter.replaceOp(op, {bufferSize0, bufferSize1, bufferSize2, stream});
+  } else {
+    auto computeType = genConstInt32From(
+        rewriter, loc, getCuSparseDataTypeFrom(adaptor.getComputeType()));
+    bufferSize = createSpMMBufferSizeCallBuilder
+                     .create(loc, rewriter,
+                             {adaptor.getEnv(), modeA, modeB,
+                              adaptor.getSpmatA(), adaptor.getDnmatB(),
+                              adaptor.getDnmatC(), computeType, stream})
+                     .getResult();
+    rewriter.replaceOp(op, {bufferSize, stream});
+  }
   return success();
 }
 
@@ -1548,10 +1794,10 @@ LogicalResult ConvertSDDMMBufferSizeOpToGpuRuntimeCallPattern::matchAndRewrite(
   Location loc = op.getLoc();
   auto modeA = genConstInt32From(rewriter, loc, adaptor.getModeA());
   auto modeB = genConstInt32From(rewriter, loc, adaptor.getModeB());
-  auto computeType =
-      genConstInt32FromComputeMode(rewriter, loc, adaptor.getComputeType());
+  auto computeType = genConstInt32From(
+      rewriter, loc, getCuSparseDataTypeFrom(adaptor.getComputeType()));
   auto stream = adaptor.getAsyncDependencies().front();
-  auto bufferSize = SDDMMBufferSizeCallBuilder
+  auto bufferSize = createSDDMMBufferSizeCallBuilder
                         .create(loc, rewriter,
                                 {adaptor.getEnv(), modeA, modeB,
                                  adaptor.getDnmatA(), adaptor.getDnmatB(),
@@ -1570,18 +1816,34 @@ LogicalResult ConvertSpMMOpToGpuRuntimeCallPattern::matchAndRewrite(
   Location loc = op.getLoc();
   auto modeA = genConstInt32From(rewriter, loc, adaptor.getModeA());
   auto modeB = genConstInt32From(rewriter, loc, adaptor.getModeB());
-  auto computeType =
-      genConstInt32FromComputeMode(rewriter, loc, adaptor.getComputeType());
+  auto computeType = genConstInt32From(
+      rewriter, loc, getCuSparseDataTypeFrom(adaptor.getComputeType()));
 
   auto stream = adaptor.getAsyncDependencies().front();
-  Value pBuf =
-      MemRefDescriptor(adaptor.getBuffer()).allocatedPtr(rewriter, loc);
-  if (!getTypeConverter()->useOpaquePointers())
-    pBuf = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, pBuf);
-  spMMCallBuilder.create(loc, rewriter,
-                         {adaptor.getEnv(), modeA, modeB, adaptor.getSpmatA(),
-                          adaptor.getDnmatB(), adaptor.getDnmatC(), computeType,
-                          pBuf, stream});
+
+  // Lower to cusparseLt if applicable
+  if (is2To4Sparsity(op.getSpmatA())) {
+    SmallVector<Value> pBufs;
+    for (Value buffer : adaptor.getBuffers()) {
+      Value pBuf = MemRefDescriptor(buffer).allocatedPtr(rewriter, loc);
+      if (!getTypeConverter()->useOpaquePointers())
+        pBuf = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, pBuf);
+      pBufs.push_back(pBuf);
+    }
+    createCuSparseLtSpMMBuilder.create(
+        loc, rewriter,
+        {adaptor.getEnv(), adaptor.getSpmatA(), adaptor.getDnmatB(),
+         adaptor.getDnmatC(), pBufs[0], pBufs[1], pBufs[2], stream});
+  } else {
+    Value pBuf = MemRefDescriptor(adaptor.getBuffers().front())
+                     .allocatedPtr(rewriter, loc);
+    if (!getTypeConverter()->useOpaquePointers())
+      pBuf = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, pBuf);
+    createSpMMCallBuilder.create(
+        loc, rewriter,
+        {adaptor.getEnv(), modeA, modeB, adaptor.getSpmatA(),
+         adaptor.getDnmatB(), adaptor.getDnmatC(), computeType, pBuf, stream});
+  }
   rewriter.replaceOp(op, {stream});
   return success();
 }
@@ -1601,8 +1863,8 @@ LogicalResult ConvertSDDMMOpToGpuRuntimeCallPattern::matchAndRewrite(
       failed(isAsyncWithOneDependency(rewriter, op)))
     return failure();
   Location loc = op.getLoc();
-  auto computeType =
-      genConstInt32FromComputeMode(rewriter, loc, adaptor.getComputeType());
+  auto computeType = genConstInt32From(
+      rewriter, loc, getCuSparseDataTypeFrom(adaptor.getComputeType()));
   auto modeA = genConstInt32From(rewriter, loc, adaptor.getModeA());
   auto modeB = genConstInt32From(rewriter, loc, adaptor.getModeB());
   auto stream = adaptor.getAsyncDependencies().front();
@@ -1610,10 +1872,10 @@ LogicalResult ConvertSDDMMOpToGpuRuntimeCallPattern::matchAndRewrite(
       MemRefDescriptor(adaptor.getBuffer()).allocatedPtr(rewriter, loc);
   if (!getTypeConverter()->useOpaquePointers())
     pBuf = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, pBuf);
-  SDDMMCallBuilder.create(loc, rewriter,
-                          {adaptor.getEnv(), modeA, modeB, adaptor.getDnmatA(),
-                           adaptor.getDnmatB(), adaptor.getSpmatC(),
-                           computeType, pBuf, stream});
+  createSDDMMCallBuilder.create(
+      loc, rewriter,
+      {adaptor.getEnv(), modeA, modeB, adaptor.getDnmatA(), adaptor.getDnmatB(),
+       adaptor.getSpmatC(), computeType, pBuf, stream});
   rewriter.replaceOp(op, {stream});
   return success();
 }
@@ -1623,8 +1885,7 @@ void mlir::populateGpuToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                StringRef gpuBinaryAnnotation,
                                                bool kernelBarePtrCallConv) {
   addOpaquePointerConversion<gpu::AsyncTokenType>(converter);
-  addOpaquePointerConversion<gpu::SparseDnVecHandleType>(converter);
-  addOpaquePointerConversion<gpu::SparseDnMatHandleType>(converter);
+  addOpaquePointerConversion<gpu::SparseDnTensorHandleType>(converter);
   addOpaquePointerConversion<gpu::SparseSpMatHandleType>(converter);
   addOpaquePointerConversion<gpu::SparseEnvHandleType>(converter);
 
@@ -1640,12 +1901,12 @@ void mlir::populateGpuToLLVMConversionPatterns(LLVMTypeConverter &converter,
                ConvertAsyncYieldToGpuRuntimeCallPattern,
                ConvertCreateSparseEnvOpToGpuRuntimeCallPattern,
                ConvertDestroySparseEnvOpToGpuRuntimeCallPattern,
-               ConvertCreateDnVecOpToGpuRuntimeCallPattern,
-               ConvertDestroyDnVecOpToGpuRuntimeCallPattern,
-               ConvertCreateDnMatOpToGpuRuntimeCallPattern,
-               ConvertDestroyDnMatOpToGpuRuntimeCallPattern,
+               ConvertCreateDnTensorOpToGpuRuntimeCallPattern,
+               ConvertDestroyDnTensorOpToGpuRuntimeCallPattern,
                ConvertCreateCooOpToGpuRuntimeCallPattern,
+               ConvertCreateCooAoSOpToGpuRuntimeCallPattern,
                ConvertCreateCsrOpToGpuRuntimeCallPattern,
+               ConvertCreate2To4SpMatOpToGpuRuntimeCallPattern,
                ConvertDestroySpMatOpToGpuRuntimeCallPattern,
                ConvertSpMVBufferSizeOpToGpuRuntimeCallPattern,
                ConvertSpMVOpToGpuRuntimeCallPattern,

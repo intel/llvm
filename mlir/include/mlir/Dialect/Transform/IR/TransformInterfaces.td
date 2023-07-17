@@ -41,10 +41,15 @@ def TransformOpInterface : OpInterface<"TransformOpInterface"> {
         transformation represented by the current op is targeted. Returns a
         special status object indicating whether the transformation succeeded
         or failed, and, if it failed, whether the failure is recoverable or not.
+
+        IR must be created, modified and deleted with the provided rewriter.
+        implementations are responsible for setting the insertion point of the
+        rewriter to the desired location.
       }],
       /*returnType=*/"::mlir::DiagnosedSilenceableFailure",
       /*name=*/"apply",
       /*arguments=*/(ins
+          "::mlir::transform::TransformRewriter &":$rewriter,
           "::mlir::transform::TransformResults &":$transformResults,
           "::mlir::transform::TransformState &":$state
     )>,
@@ -99,6 +104,11 @@ def TransformOpInterface : OpInterface<"TransformOpInterface"> {
       diag << $_op->getName() << " failed to apply";
       diag.attachNote(target->getLoc()) << "when applied to this op";
       return diag;
+    }
+
+    /// Returns all operands that are handles and being consumed by this op.
+    ::llvm::SmallVector<OpOperand *> getConsumedHandleOpOperands() {
+      return ::mlir::transform::detail::getConsumedHandleOpOperands($_op);
     }
   }];
 
@@ -186,6 +196,10 @@ def NavigationTransformOpTrait : NativeOpTrait<"NavigationTransformOpTrait"> {
 }
 
 def ParamProducerTransformOpTrait : NativeOpTrait<"ParamProducerTransformOpTrait"> {
+  let cppNamespace = "::mlir::transform";
+}
+
+def ReportTrackingListenerFailuresOpTrait : NativeOpTrait<"ReportTrackingListenerFailuresOpTrait"> {
   let cppNamespace = "::mlir::transform";
 }
 

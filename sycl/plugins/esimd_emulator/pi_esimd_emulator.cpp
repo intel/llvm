@@ -1355,11 +1355,6 @@ pi_result piclProgramCreateWithBinary(pi_context, pi_uint32, const pi_device *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piclProgramCreateWithSource(pi_context, pi_uint32, const char **,
-                                      const size_t *, pi_program *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piProgramGetInfo(pi_program, pi_program_info, size_t, void *,
                            size_t *) {
   DIE_NO_IMPLEMENTATION;
@@ -1916,12 +1911,6 @@ pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
 }
 
 pi_result piextKernelGetNativeHandle(pi_kernel, pi_native_handle *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
-                                pi_uint32, const pi_mem *, const void **,
-                                pi_uint32, const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 

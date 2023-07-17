@@ -92,7 +92,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   // Program
   _PI_CL(piProgramCreate, pi2ur::piProgramCreate)
-  _PI_CL(piclProgramCreateWithSource, pi2ur::piclProgramCreateWithSource)
   _PI_CL(piProgramCreateWithBinary, pi2ur::piProgramCreateWithBinary)
   _PI_CL(piProgramGetInfo, pi2ur::piProgramGetInfo)
   _PI_CL(piProgramCompile, pi2ur::piProgramCompile)
@@ -139,7 +138,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piSamplerRelease, pi2ur::piSamplerRelease)
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, pi2ur::piEnqueueKernelLaunch)
-  _PI_CL(piEnqueueNativeKernel, pi2ur::piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, pi2ur::piEnqueueEventsWait)
   _PI_CL(piEnqueueEventsWaitWithBarrier, pi2ur::piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, pi2ur::piEnqueueMemBufferRead)

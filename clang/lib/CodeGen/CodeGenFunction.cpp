@@ -854,6 +854,19 @@ static bool matchesStlAllocatorFn(const Decl *D, const ASTContext &Ctx) {
   return true;
 }
 
+bool CodeGenFunction::isInAllocaArgument(CGCXXABI &ABI, QualType Ty) {
+  const CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+  return RD && ABI.getRecordArgABI(RD) == CGCXXABI::RAA_DirectInMemory;
+}
+
+bool CodeGenFunction::hasInAllocaArg(const CXXMethodDecl *MD) {
+  return getTarget().getTriple().getArch() == llvm::Triple::x86 &&
+         getTarget().getCXXABI().isMicrosoft() &&
+         llvm::any_of(MD->parameters(), [&](ParmVarDecl *P) {
+           return isInAllocaArgument(CGM.getCXXABI(), P->getType());
+         });
+}
+
 /// Return the UBSan prologue signature for \p FD if one is available.
 static llvm::Constant *getPrologueSignature(CodeGenModule &CGM,
                                             const FunctionDecl *FD) {
@@ -1709,6 +1722,17 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     // The lambda static invoker function is special, because it forwards or
     // clones the body of the function call operator (but is actually static).
     EmitLambdaStaticInvokeBody(cast<CXXMethodDecl>(FD));
+
+  } else if (isa<CXXMethodDecl>(FD) &&
+             isLambdaCallOperator(cast<CXXMethodDecl>(FD)) &&
+             cast<CXXMethodDecl>(FD)->getParent()->getLambdaStaticInvoker() &&
+             hasInAllocaArg(cast<CXXMethodDecl>(FD)
+                                ->getParent()
+                                ->getLambdaStaticInvoker()) &&
+             !FnInfo.isDelegateCall()) {
+    // If emitting a lambda with static invoker on X86 Windows, change
+    // the call operator body.
+    EmitLambdaInAllocaCallOpBody(cast<CXXMethodDecl>(FD));
   } else if (FD->isDefaulted() && isa<CXXMethodDecl>(FD) &&
              (cast<CXXMethodDecl>(FD)->isCopyAssignmentOperator() ||
               cast<CXXMethodDecl>(FD)->isMoveAssignmentOperator())) {
@@ -2197,8 +2221,12 @@ static void emitNonZeroVLAInit(CodeGenFunction &CGF, QualType baseType,
   llvm::Value *baseSizeInChars
     = llvm::ConstantInt::get(CGF.IntPtrTy, baseSize.getQuantity());
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Address begin = dest.withElementType(CGF.Int8Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Address begin =
     Builder.CreateElementBitCast(dest, CGF.Int8Ty, "vla.begin");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *end = Builder.CreateInBoundsGEP(
       begin.getElementType(), begin.getPointer(), sizeInChars, "vla.end");
 
@@ -2242,9 +2270,13 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
     }
   }
 
-  // Cast the dest ptr to the appropriate i8 pointer type.
   if (DestPtr.getElementType() != Int8Ty)
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    DestPtr = DestPtr.withElementType(Int8Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    // Cast the dest ptr to the appropriate i8 pointer type.
     DestPtr = Builder.CreateElementBitCast(DestPtr, Int8Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Get size and alignment info for this aggregate.
   CharUnits size = getContext().getTypeSizeInChars(Ty);
@@ -2404,7 +2436,11 @@ llvm::Value *CodeGenFunction::emitArrayLength(const ArrayType *origArrayType,
     }
 
     llvm::Type *baseType = ConvertType(eltType);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    addr = addr.withElementType(baseType);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     addr = Builder.CreateElementBitCast(addr, baseType, "array.begin");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   } else {
     // Create the actual GEP.
     addr = Address(Builder.CreateInBoundsGEP(
@@ -2760,7 +2796,6 @@ void CodeGenFunction::EmitVarAnnotations(const VarDecl *D, llvm::Value *V) {
                        Builder.CreateBitCast(V, I8PtrTy, V->getName()),
                        I->getAnnotation(), D->getLocation(), I);
 }
-
 Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
                                               Address Addr) {
   assert(D->hasAttr<AnnotateAttr>() && "no annotate attribute");
@@ -2769,8 +2804,11 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
   auto *PTy = dyn_cast<llvm::PointerType>(VTy);
   unsigned AS = PTy ? PTy->getAddressSpace() : 0;
   llvm::PointerType *IntrinTy =
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      llvm::PointerType::get(CGM.getLLVMContext(), AS);
+#else
       llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
-
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
   // don't perform bitcasts if value is integer
   if (Addr.getElementType()->isIntegerTy()) {
@@ -2818,7 +2856,11 @@ Address CodeGenFunction::EmitFieldSYCLAnnotations(const FieldDecl *D,
   unsigned AS = PTy ? PTy->getAddressSpace() : 0;
   llvm::Type *IntrType = VTy;
   if (!Addr.getElementType()->isIntegerTy())
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    IntrType = llvm::PointerType::get(CGM.getLLVMContext(), AS);
+#else
     IntrType = llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
                                        {IntrType, CGM.ConstGlobalsPtrTy});
 

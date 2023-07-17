@@ -507,15 +507,6 @@ inline pi_result mock_piProgramCreate(pi_context context, const void *il,
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piclProgramCreateWithSource(pi_context context,
-                                                  pi_uint32 count,
-                                                  const char **strings,
-                                                  const size_t *lengths,
-                                                  pi_program *ret_program) {
-  *ret_program = createDummyHandle<pi_program>();
-  return PI_SUCCESS;
-}
-
 inline pi_result mock_piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
@@ -834,15 +825,6 @@ inline pi_result mock_piEnqueueKernelLaunch(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
-  return PI_SUCCESS;
-}
-
-inline pi_result mock_piEnqueueNativeKernel(
-    pi_queue queue, void (*user_func)(void *), void *args, size_t cb_args,
-    pi_uint32 num_mem_objects, const pi_mem *mem_list,
-    const void **args_mem_loc, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
   *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
