@@ -643,8 +643,7 @@ public:
     if constexpr (tag.hasDefaultConstructor()) {
       auto matcher = m_Zero();
       if (llvm::all_of(values, [&](Value value) {
-            Operation *definingOp = values.front().getDefiningOp();
-            return definingOp && matchPattern(definingOp, matcher);
+            return matchPattern(value, matcher);
           }))
         values.clear();
     }
