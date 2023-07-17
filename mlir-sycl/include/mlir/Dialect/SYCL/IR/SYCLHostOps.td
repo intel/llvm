@@ -127,19 +127,17 @@ def SYCLHostHandlerSetNDRange
                        LLVM_AnyPointer:$range,
                        Optional<LLVM_AnyPointer>:$offset,
                        UnitAttr:$nd_range);
-  let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "::mlir::Value":$handler,
                    "::mlir::Value":$range,
                    "bool":$nd_range), [{
-      if (nd_range)
-        $_state.addAttribute("nd_range", $_builder.getUnitAttr());
-      $_state.addOperands({handler, range});
+      auto ndRangeAttr = nd_range ? $_builder.getUnitAttr() : UnitAttr();
+      build($_builder, $_state, handler, range, /*offset=*/Value(), ndRangeAttr);
     }]>,
     OpBuilder<(ins "::mlir::Value":$handler,
                    "::mlir::Value":$range,
                    "::mlir::Value":$offset), [{
-      $_state.addOperands({handler, range, offset});
+      build($_builder, $_state, handler, range, offset);
     }]>
   ];
   let assemblyFormat = [{
@@ -201,31 +199,25 @@ def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
     Optional<LLVM_AnyPointer>:$offset,
     Variadic<AnyType>:$args,
     UnitAttr:$nd_range);
-  let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
                    "::mlir::ValueRange":$args), [{
-      $_state.addAttribute("kernel_name", kernel_name);
-      $_state.addOperands({/*range=/Value(), /*offset=*/Value()});
-      $_state.addOperands({args});
+      build($_builder, $_state, kernel_name, /*range=*/Value(),
+            /*offset=*/Value(), args);
     }]>,
     OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
                    "::mlir::Value":$range,
                    "::mlir::ValueRange":$args,
                    "bool":$nd_range), [{
-      if (nd_range)
-        $_state.addAttribute("nd_range", $_builder.getUnitAttr());
-      $_state.addAttribute("kernel_name", kernel_name);
-      $_state.addOperands({range, /*offset=*/Value()});
-      $_state.addOperands(args);
+      auto ndRangeAttr = nd_range ? $_builder.getUnitAttr() : UnitAttr();
+      build($_builder, $_state, kernel_name, range,
+            /*offset=*/Value(), args, ndRangeAttr);
     }]>,
     OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
                    "::mlir::Value":$range,
                    "::mlir::Value":$offset,
                    "::mlir::ValueRange":$args), [{
-      $_state.addAttribute("kernel_name", kernel_name);
-      $_state.addOperands({range, offset});
-      $_state.addOperands(args);
+      build($_builder, $_state, kernel_name, range, offset, args);
     }]>
   ];
   let assemblyFormat = [{
