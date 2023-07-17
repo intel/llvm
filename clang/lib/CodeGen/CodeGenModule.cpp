@@ -2349,10 +2349,6 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
       Fn->setMetadata("kernel_arg_exclusive_ptr",
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
     }
-    if (LangOpts.SYCLIsNativeCPU) {
-      Fn->setMetadata("kernel_arg_type",
-                      llvm::MDNode::get(VMContext, argTypeNames));
-    }
   } else {
     if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
       Fn->setMetadata("kernel_arg_addr_space",
