@@ -54,8 +54,8 @@ void context_t::parseEnvEnabledLayers() {
 
 void context_t::initLayers() const {
     for (auto &l : layers) {
-        if (l->isAvailable() && l->isEnabled(enabledLayerNames)) {
-            l->init(&context->urDdiTable);
+        if (l->isAvailable()) {
+            l->init(&context->urDdiTable, enabledLayerNames);
         }
     }
 }

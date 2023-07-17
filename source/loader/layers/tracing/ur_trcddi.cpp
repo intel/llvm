@@ -6782,8 +6782,13 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     return result;
 }
 
-ur_result_t context_t::init(ur_dditable_t *dditable) {
+ur_result_t context_t::init(ur_dditable_t *dditable,
+                            const std::set<std::string> &enabledLayerNames) {
     ur_result_t result = UR_RESULT_SUCCESS;
+
+    if (!enabledLayerNames.count(name)) {
+        return result;
+    }
 
     if (UR_RESULT_SUCCESS == result) {
         result = ur_tracing_layer::urGetGlobalProcAddrTable(

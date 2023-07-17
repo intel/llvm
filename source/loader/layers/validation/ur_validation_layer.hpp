@@ -30,11 +30,11 @@ class __urdlllocal context_t : public proxy_layer_context_t {
     ~context_t();
 
     bool isAvailable() const override { return true; }
-    bool isEnabled(const std::set<std::string> &enabledLayerNames) override;
     std::vector<std::string> getNames() const override {
         return {nameFullValidation, nameParameterValidation, nameLeakChecking};
     }
-    ur_result_t init(ur_dditable_t *dditable) override;
+    ur_result_t init(ur_dditable_t *dditable,
+                     const std::set<std::string> &enabledLayerNames) override;
 
   private:
     const std::string nameFullValidation = "UR_LAYER_FULL_VALIDATION";

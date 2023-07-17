@@ -138,9 +138,23 @@ namespace ur_validation_layer
     }
 
     %endfor
-    ${x}_result_t context_t::init(${x}_dditable_t *dditable) {
+    ${x}_result_t
+    context_t::init(ur_dditable_t *dditable,
+                    const std::set<std::string> &enabledLayerNames) {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
         
+        if (enabledLayerNames.count(nameFullValidation)) {
+            enableParameterValidation = true;
+            enableLeakChecking = true;
+        } else {
+            if (enabledLayerNames.count(nameParameterValidation)) {
+                enableParameterValidation = true;
+            }
+            if (enabledLayerNames.count(nameLeakChecking)) {
+                enableLeakChecking = true;
+            }
+        }
+
         if(!enableParameterValidation && !enableLeakChecking) {
             return result;
         }

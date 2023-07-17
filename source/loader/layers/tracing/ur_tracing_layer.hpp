@@ -30,12 +30,9 @@ class __urdlllocal context_t : public proxy_layer_context_t {
 
     bool isAvailable() const override;
 
-    bool isEnabled(const std::set<std::string> &enabledLayerNames) override {
-        return enabledLayerNames.find(name) != enabledLayerNames.end();
-    }
-
     std::vector<std::string> getNames() const override { return {name}; }
-    ur_result_t init(ur_dditable_t *dditable) override;
+    ur_result_t init(ur_dditable_t *dditable,
+                     const std::set<std::string> &enabledLayerNames) override;
     uint64_t notify_begin(uint32_t id, const char *name, void *args);
     void notify_end(uint32_t id, const char *name, void *args,
                     ur_result_t *resultp, uint64_t instance);

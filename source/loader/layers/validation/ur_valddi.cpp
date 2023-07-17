@@ -8145,8 +8145,21 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     return result;
 }
 
-ur_result_t context_t::init(ur_dditable_t *dditable) {
+ur_result_t context_t::init(ur_dditable_t *dditable,
+                            const std::set<std::string> &enabledLayerNames) {
     ur_result_t result = UR_RESULT_SUCCESS;
+
+    if (enabledLayerNames.count(nameFullValidation)) {
+        enableParameterValidation = true;
+        enableLeakChecking = true;
+    } else {
+        if (enabledLayerNames.count(nameParameterValidation)) {
+            enableParameterValidation = true;
+        }
+        if (enabledLayerNames.count(nameLeakChecking)) {
+            enableLeakChecking = true;
+        }
+    }
 
     if (!enableParameterValidation && !enableLeakChecking) {
         return result;
