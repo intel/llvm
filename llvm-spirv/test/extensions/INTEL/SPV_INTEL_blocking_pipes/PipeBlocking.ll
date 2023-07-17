@@ -3,8 +3,8 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; FIXME: add more negative test cases
 ; RUN: llvm-spirv %t.spt -to-binary -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: llvm-spirv -r %t.spv -o %t.bc --spirv-target-env=SPV-IR
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
@@ -30,15 +30,12 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: 6 Load [[PipeWTy]] [[PipeW:[0-9]+]] {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV: 5 WritePipeBlockingINTEL [[PipeW]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 
-; CHECK-LLVM: %opencl.pipe_ro_t = type opaque
-; CHECK-LLVM: %opencl.pipe_wo_t = type opaque
+; CHECK-LLVM: call spir_func void @__read_pipe_2_bl(ptr addrspace(1) %0, ptr addrspace(4) %{{[0-9]+}}, i32 4, i32 4)
+; CHECK-LLVM: call spir_func void @__read_pipe_2_bl(ptr addrspace(1) %0, ptr addrspace(4) %{{[0-9]+}}, i32 4, i32 4)
+; CHECK-LLVM: call spir_func void @__write_pipe_2_bl(ptr addrspace(1) %0, ptr addrspace(4) %{{[0-9]+}}, i32 4, i32 4)
+; CHECK-LLVM: call spir_func void @__write_pipe_2_bl(ptr addrspace(1) %0, ptr addrspace(4) %{{[0-9]+}}, i32 4, i32 4)
 
-; CHECK-LLVM: call spir_func void @__read_pipe_2_bl(%opencl.pipe_ro_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
-; CHECK-LLVM: call spir_func void @__read_pipe_2_bl(%opencl.pipe_ro_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
-; CHECK-LLVM: call spir_func void @__write_pipe_2_bl(%opencl.pipe_wo_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
-; CHECK-LLVM: call spir_func void @__write_pipe_2_bl(%opencl.pipe_wo_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
-
-; CHECK-LLVM: call spir_func void @__write_pipe_2_bl(%opencl.pipe_wo_t addrspace(1)*{{.*}}, i8 addrspace(4)* %{{[0-9]+}}, i32 2, i32 2)
+; CHECK-LLVM: call spir_func void @__write_pipe_2_bl(ptr addrspace(1){{.*}}, ptr addrspace(4) %{{[0-9]+}}, i32 2, i32 2)
 
 ; CHECK-SPV-IR: call spir_func void @_Z30__spirv_WritePipeBlockingINTEL{{.*}}(target("spirv.Pipe", 1){{.*}}, ptr addrspace(4){{.*}}, i32 2, i32 2)
 
@@ -106,8 +103,8 @@ entry:
 
 declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePvii(%opencl.pipe_wo_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
 
-; CHECK-LLVM: declare spir_func void @__read_pipe_2_bl(%opencl.pipe_ro_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
-; CHECK-LLVM: declare spir_func void @__write_pipe_2_bl(%opencl.pipe_wo_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
+; CHECK-LLVM: declare spir_func void @__read_pipe_2_bl(ptr addrspace(1), ptr addrspace(4), i32, i32)
+; CHECK-LLVM: declare spir_func void @__write_pipe_2_bl(ptr addrspace(1), ptr addrspace(4), i32, i32)
 
 ; Function Attrs: convergent mustprogress norecurse nounwind
 define linkonce_odr dso_local spir_func void @WritePipeBLockingi9Pointer(i9 addrspace(4)* align 2 dereferenceable(2) %_Data) {
