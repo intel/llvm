@@ -1,4 +1,4 @@
-name: SYCL Pre Commit
+name: SYCL Pre Commit on Windows
 
 on:
   pull_request_target:
@@ -66,41 +66,7 @@ jobs:
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "hip_amdgpu;lin_intel;esimd_emu;cuda_aws;win_l0_gen12"
-
-  linux_default:
-    name: Linux
-    # Only build and test patches, that have passed all linter checks, because
-    # the next commit is likely to be a follow-up on that job.
-    needs: [lint, test_matrix, detect_changes]
-    if: |
-      always()
-      && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
-      && contains(needs.detect_changes.outputs.filters, 'test_build')
-      && !contains(needs.detect_changes.outputs.filters, 'ci')
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    secrets: inherit
-    with:
-      build_ref: ${{ github.event.pull_request.head.sha }}
-      merge_ref: ${{ github.event.pull_request.base.sha }}
-      build_cache_root: "/__w/"
-      build_cache_size: "8G"
-      build_artifact_suffix: "default"
-      build_cache_suffix: "default"
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
-      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
-      check_filters: ${{ needs.detect_changes.outputs.filters }}
-
-  linux_e2e_on_nightly:
-    name: Linux SYCL E2E on Nightly
-    needs: [detect_changes]
-    if: |
-      !contains(needs.detect_changes.outputs.filters, 'test_build')
-      && !contains(needs.detect_changes.outputs.filters, 'ci')
-    uses: ./.github/workflows/linux_matrix_e2e_on_nightly.yml
-    secrets: inherit
-    with:
-      ref: ${{ github.event.pull_request.head.sha }}
+      lts_config: "win_l0_gen12"
 
   windows_default:
     name: Windows
