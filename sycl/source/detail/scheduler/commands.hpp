@@ -110,7 +110,6 @@ public:
     EMPTY_TASK,
     HOST_TASK,
     FUSION,
-    ENQUEUE_TO_CMD_BUFFER,
     EXEC_CMD_BUFFER,
   };
 
@@ -742,7 +741,7 @@ private:
   FusionStatus MStatus;
 };
 
-// Enqueues a given kernel to a sycl::detail::pi::PiExtCommandBuffer
+// Enqueues a given kernel to a PiExtCommandBuffer
 pi_int32 enqueueImpCommandBufferKernel(
     context Ctx, DeviceImplPtr DeviceImpl,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer,

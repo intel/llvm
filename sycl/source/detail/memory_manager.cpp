@@ -41,15 +41,15 @@ uint64_t emitMemAllocBeginTrace(uintptr_t ObjHandle, size_t AllocSize,
   (void)GuardZone;
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_begin);
+  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
     xpti::mem_alloc_data_t MemAlloc{ObjHandle, 0 /* alloc ptr */, AllocSize,
                                     GuardZone};
 
     CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(
-        GMemAllocStreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_begin),
-        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
+                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
   }
 #endif
   return CorrelationID;
@@ -64,13 +64,13 @@ void emitMemAllocEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
   (void)GuardZone;
   (void)CorrelationID;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_end);
+  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
     xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, AllocSize, GuardZone};
 
-    xptiNotifySubscribers(
-        GMemAllocStreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_end),
-        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
+                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
   }
 #endif
 }
@@ -80,15 +80,15 @@ uint64_t emitMemReleaseBeginTrace(uintptr_t ObjHandle, uintptr_t AllocPtr) {
   (void)AllocPtr;
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_begin);
+  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
     xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
                                     0 /* guard zone */};
 
     CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(
-        GMemAllocStreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_begin),
-        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
+                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
   }
 #endif
   return CorrelationID;
@@ -100,14 +100,14 @@ void emitMemReleaseEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
   (void)AllocPtr;
   (void)CorrelationID;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_end);
+  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
     xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
                                     0 /* guard zone */};
 
-    xptiNotifySubscribers(
-        GMemAllocStreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_end),
-        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
+                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
   }
 #endif
 }
@@ -1246,6 +1246,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+  (void)DstAccessRange;
 
   const PluginPtr &Plugin = Context->getPlugin();
 
@@ -1260,45 +1261,43 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
   size_t DstSzWidthBytes = DstSize[DstPos.XTerm] * DstElemSize;
   size_t SrcSzWidthBytes = SrcSize[SrcPos.XTerm] * SrcElemSize;
 
-  if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
-    if (1 == DimDst && 1 == DimSrc) {
-      Plugin->call<PiApiKind::piextCommandBufferMemBufferCopy>(
-          CommandBuffer,
-          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
-          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), SrcXOffBytes,
-          DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(), Deps.data(),
-          OutSyncPoint);
-    } else {
-      // passing 0 for pitches not allowed. Because clEnqueueCopyBufferRect will
-      // calculate both src and dest pitch using region[0], which is not correct
-      // if src and dest are not the same size.
-      size_t SrcRowPitch = SrcSzWidthBytes;
-      size_t SrcSlicePitch = (DimSrc <= 1)
-                                 ? SrcSzWidthBytes
-                                 : SrcSzWidthBytes * SrcSize[SrcPos.YTerm];
-      size_t DstRowPitch = DstSzWidthBytes;
-      size_t DstSlicePitch = (DimDst <= 1)
-                                 ? DstSzWidthBytes
-                                 : DstSzWidthBytes * DstSize[DstPos.YTerm];
-
-      pi_buff_rect_offset_struct SrcOrigin{
-          SrcXOffBytes, SrcOffset[SrcPos.YTerm], SrcOffset[SrcPos.ZTerm]};
-      pi_buff_rect_offset_struct DstOrigin{
-          DstXOffBytes, DstOffset[DstPos.YTerm], DstOffset[DstPos.ZTerm]};
-      pi_buff_rect_region_struct Region{SrcAccessRangeWidthBytes,
-                                        SrcAccessRange[SrcPos.YTerm],
-                                        SrcAccessRange[SrcPos.ZTerm]};
-
-      Plugin->call<PiApiKind::piextCommandBufferMemBufferCopyRect>(
-          CommandBuffer,
-          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
-          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), &SrcOrigin,
-          &DstOrigin, &Region, SrcRowPitch, SrcSlicePitch, DstRowPitch,
-          DstSlicePitch, Deps.size(), Deps.data(), OutSyncPoint);
-    }
-  } else {
+  if (MemType != detail::SYCLMemObjI::MemObjType::Buffer) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Images are not supported in Graphs");
+  }
+
+  if (1 == DimDst && 1 == DimSrc) {
+    Plugin->call<PiApiKind::piextCommandBufferMemBufferCopy>(
+        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+        sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), SrcXOffBytes,
+        DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(), Deps.data(),
+        OutSyncPoint);
+  } else {
+    // passing 0 for pitches not allowed. Because clEnqueueCopyBufferRect will
+    // calculate both src and dest pitch using region[0], which is not correct
+    // if src and dest are not the same size.
+    size_t SrcRowPitch = SrcSzWidthBytes;
+    size_t SrcSlicePitch = (DimSrc <= 1)
+                               ? SrcSzWidthBytes
+                               : SrcSzWidthBytes * SrcSize[SrcPos.YTerm];
+    size_t DstRowPitch = DstSzWidthBytes;
+    size_t DstSlicePitch = (DimDst <= 1)
+                               ? DstSzWidthBytes
+                               : DstSzWidthBytes * DstSize[DstPos.YTerm];
+
+    pi_buff_rect_offset_struct SrcOrigin{SrcXOffBytes, SrcOffset[SrcPos.YTerm],
+                                         SrcOffset[SrcPos.ZTerm]};
+    pi_buff_rect_offset_struct DstOrigin{DstXOffBytes, DstOffset[DstPos.YTerm],
+                                         DstOffset[DstPos.ZTerm]};
+    pi_buff_rect_region_struct Region{SrcAccessRangeWidthBytes,
+                                      SrcAccessRange[SrcPos.YTerm],
+                                      SrcAccessRange[SrcPos.ZTerm]};
+
+    Plugin->call<PiApiKind::piextCommandBufferMemBufferCopyRect>(
+        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+        sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), &SrcOrigin,
+        &DstOrigin, &Region, SrcRowPitch, SrcSlicePitch, DstRowPitch,
+        DstSlicePitch, Deps.size(), Deps.data(), OutSyncPoint);
   }
 }
 
@@ -1326,39 +1325,37 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
   size_t DstSzWidthBytes = DstSize[DstPos.XTerm] * DstElemSize;
   size_t SrcSzWidthBytes = SrcSize[SrcPos.XTerm] * SrcElemSize;
 
-  if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
-    if (1 == DimDst && 1 == DimSrc) {
-      Plugin->call<PiApiKind::piextCommandBufferMemBufferRead>(
-          CommandBuffer,
-          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem), SrcXOffBytes,
-          SrcAccessRangeWidthBytes, DstMem + DstXOffBytes, Deps.size(),
-          Deps.data(), OutSyncPoint);
-    } else {
-      size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
-      size_t BufferSlicePitch =
-          (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[SrcPos.YTerm] : 0;
-      size_t HostRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
-      size_t HostSlicePitch =
-          (3 == DimDst) ? DstSzWidthBytes * DstSize[DstPos.YTerm] : 0;
-
-      pi_buff_rect_offset_struct BufferOffset{
-          SrcXOffBytes, SrcOffset[SrcPos.YTerm], SrcOffset[SrcPos.ZTerm]};
-      pi_buff_rect_offset_struct HostOffset{
-          DstXOffBytes, DstOffset[DstPos.YTerm], DstOffset[DstPos.ZTerm]};
-      pi_buff_rect_region_struct RectRegion{SrcAccessRangeWidthBytes,
-                                            SrcAccessRange[SrcPos.YTerm],
-                                            SrcAccessRange[SrcPos.ZTerm]};
-
-      Plugin->call<PiApiKind::piextCommandBufferMemBufferReadRect>(
-          CommandBuffer,
-          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
-          &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
-          BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem, Deps.size(),
-          Deps.data(), OutSyncPoint);
-    }
-  } else {
+  if (MemType != detail::SYCLMemObjI::MemObjType::Buffer) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Images are not supported in Graphs");
+  }
+
+  if (1 == DimDst && 1 == DimSrc) {
+    Plugin->call<PiApiKind::piextCommandBufferMemBufferRead>(
+        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+        SrcXOffBytes, SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
+        Deps.size(), Deps.data(), OutSyncPoint);
+  } else {
+    size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
+    size_t BufferSlicePitch =
+        (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[SrcPos.YTerm] : 0;
+    size_t HostRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
+    size_t HostSlicePitch =
+        (3 == DimDst) ? DstSzWidthBytes * DstSize[DstPos.YTerm] : 0;
+
+    pi_buff_rect_offset_struct BufferOffset{
+        SrcXOffBytes, SrcOffset[SrcPos.YTerm], SrcOffset[SrcPos.ZTerm]};
+    pi_buff_rect_offset_struct HostOffset{DstXOffBytes, DstOffset[DstPos.YTerm],
+                                          DstOffset[DstPos.ZTerm]};
+    pi_buff_rect_region_struct RectRegion{SrcAccessRangeWidthBytes,
+                                          SrcAccessRange[SrcPos.YTerm],
+                                          SrcAccessRange[SrcPos.ZTerm]};
+
+    Plugin->call<PiApiKind::piextCommandBufferMemBufferReadRect>(
+        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+        &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
+        BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem, Deps.size(),
+        Deps.data(), OutSyncPoint);
   }
 }
 
@@ -1386,39 +1383,37 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
   size_t DstSzWidthBytes = DstSize[DstPos.XTerm] * DstElemSize;
   size_t SrcSzWidthBytes = SrcSize[SrcPos.XTerm] * SrcElemSize;
 
-  if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
-    if (1 == DimDst && 1 == DimSrc) {
-      Plugin->call<PiApiKind::piextCommandBufferMemBufferWrite>(
-          CommandBuffer,
-          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), DstXOffBytes,
-          DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes, Deps.size(),
-          Deps.data(), OutSyncPoint);
-    } else {
-      size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
-      size_t BufferSlicePitch =
-          (3 == DimDst) ? DstSzWidthBytes * DstSize[DstPos.YTerm] : 0;
-      size_t HostRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
-      size_t HostSlicePitch =
-          (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[SrcPos.YTerm] : 0;
-
-      pi_buff_rect_offset_struct BufferOffset{
-          DstXOffBytes, DstOffset[DstPos.YTerm], DstOffset[DstPos.ZTerm]};
-      pi_buff_rect_offset_struct HostOffset{
-          SrcXOffBytes, SrcOffset[SrcPos.YTerm], SrcOffset[SrcPos.ZTerm]};
-      pi_buff_rect_region_struct RectRegion{DstAccessRangeWidthBytes,
-                                            DstAccessRange[DstPos.YTerm],
-                                            DstAccessRange[DstPos.ZTerm]};
-
-      Plugin->call<PiApiKind::piextCommandBufferMemBufferWriteRect>(
-          CommandBuffer,
-          sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
-          &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
-          BufferSlicePitch, HostRowPitch, HostSlicePitch, SrcMem, Deps.size(),
-          Deps.data(), OutSyncPoint);
-    }
-  } else {
+  if (MemType != detail::SYCLMemObjI::MemObjType::Buffer) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Images are not supported in Graphs");
+  }
+
+  if (1 == DimDst && 1 == DimSrc) {
+    Plugin->call<PiApiKind::piextCommandBufferMemBufferWrite>(
+        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
+        DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
+        Deps.size(), Deps.data(), OutSyncPoint);
+  } else {
+    size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
+    size_t BufferSlicePitch =
+        (3 == DimDst) ? DstSzWidthBytes * DstSize[DstPos.YTerm] : 0;
+    size_t HostRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
+    size_t HostSlicePitch =
+        (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[SrcPos.YTerm] : 0;
+
+    pi_buff_rect_offset_struct BufferOffset{
+        DstXOffBytes, DstOffset[DstPos.YTerm], DstOffset[DstPos.ZTerm]};
+    pi_buff_rect_offset_struct HostOffset{SrcXOffBytes, SrcOffset[SrcPos.YTerm],
+                                          SrcOffset[SrcPos.ZTerm]};
+    pi_buff_rect_region_struct RectRegion{DstAccessRangeWidthBytes,
+                                          DstAccessRange[DstPos.YTerm],
+                                          DstAccessRange[DstPos.ZTerm]};
+
+    Plugin->call<PiApiKind::piextCommandBufferMemBufferWriteRect>(
+        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
+        &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
+        BufferSlicePitch, HostRowPitch, HostSlicePitch, SrcMem, Deps.size(),
+        Deps.data(), OutSyncPoint);
   }
 }
 

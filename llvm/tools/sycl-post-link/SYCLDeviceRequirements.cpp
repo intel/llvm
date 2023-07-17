@@ -22,10 +22,10 @@ void llvm::getSYCLDeviceRequirements(
     const module_split::ModuleDesc &MD,
     std::map<StringRef, util::PropertyValue> &Requirements) {
   auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                             unsigned OpNo) -> unsigned {
+                                             unsigned OpNo) -> int32_t {
     Constant *C =
         cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
-    return static_cast<uint32_t>(C->getUniqueInteger().getZExtValue());
+    return static_cast<int32_t>(C->getUniqueInteger().getSExtValue());
   };
 
   // { LLVM-IR metadata name , [SYCL/Device requirements] property name }, see:
@@ -41,10 +41,16 @@ void llvm::getSYCLDeviceRequirements(
     std::set<uint32_t> Values;
     for (const Function &F : MD.getModule()) {
       if (const MDNode *MDN = F.getMetadata(MDName)) {
-        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
-          Values.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
+        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+          // Don't put internal aspects (with negative integer value) into the
+          // requirements, they are used only for device image splitting.
+          auto Val = ExtractIntegerFromMDNodeOperand(MDN, I);
+          if (Val >= 0)
+            Values.insert(Val);
+        }
       }
     }
+
     // We don't need the "fixed_target" property if it's empty
     if (std::string(MDName) == "sycl_fixed_targets" && Values.empty())
       continue;
@@ -64,10 +70,11 @@ void llvm::getSYCLDeviceRequirements(
     if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
       assert(MDN->getNumOperands() == 1);
       auto MDValue = ExtractIntegerFromMDNodeOperand(MDN, 0);
+      assert(MDValue >= 0);
       if (!SubGroupSize)
         SubGroupSize = MDValue;
       else
-        assert(*SubGroupSize == MDValue);
+        assert(*SubGroupSize == static_cast<uint32_t>(MDValue));
     }
   }
   // Do not attach reqd_sub_group_size if there is no attached metadata

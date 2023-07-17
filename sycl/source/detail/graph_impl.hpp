@@ -110,15 +110,7 @@ public:
   std::unique_ptr<sycl::detail::CG> getCGCopy() const {
     switch (MCGType) {
     case sycl::detail::CG::Kernel:
-    case sycl::detail::CG::RunOnHostIntel:
       return createCGCopy<sycl::detail::CGExecKernel>();
-    case sycl::detail::CG::CodeplayInteropTask:
-      assert(false);
-      break;
-    // TODO: Uncomment this once we implement support for interop task so we can
-    // test required changes to the CG class.
-
-    // return createCGCopy<sycl::detail::CGInteropTask>();
     case sycl::detail::CG::CopyAccToPtr:
     case sycl::detail::CG::CopyPtrToAcc:
     case sycl::detail::CG::CopyAccToAcc:
@@ -312,7 +304,7 @@ public:
   /// @param Queue In-order queue to register \p Node for.
   /// @param Node Last node that was added to this graph from \p Queue.
   void setLastInorderNode(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                             std::shared_ptr<node_impl> Node) {
+                          std::shared_ptr<node_impl> Node) {
     std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
     MInorderQueueMap[QueueWeakPtr] = Node;
   }
@@ -368,7 +360,7 @@ public:
   /// Turns the internal graph representation into UR command-buffers for a
   /// device.
   /// @param Device Device to create backend command-buffers for.
-  void createURCommandBuffers(sycl::device Device);
+  void createCommandBuffers(sycl::device Device);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.

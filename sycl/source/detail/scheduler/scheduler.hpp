@@ -367,6 +367,7 @@ public:
   /// It's called by SYCL's queue.submit.
   ///
   /// \param CommandGroup is a unique_ptr to a command group to be added.
+  /// \param Queue Queue that is registering the command-group.
   /// \param CommandBuffer Optional command buffer to enqueue to instead of
   /// directly to the queue.
   /// \param Dependencies Optional list of dependency
@@ -881,21 +882,6 @@ protected:
   std::mutex MAuxiliaryResourcesMutex;
 
   QueueImplPtr DefaultHostQueue;
-
-  // This thread local flag is a workaround for a problem with managing
-  // auxiliary resources. We would like to release internal buffers used for
-  // reductions in a deferred manner, but marking them individually isn't an
-  // option since all auxiliary resources (buffers, host memory, USM) are passed
-  // to the library as type erased shared pointers. This flag makes it so that
-  // release of every memory object is deferred while it's set, and it should
-  // only be set during release of auxiliary resources.
-  // TODO Remove once ABI breaking changes are allowed.
-  friend class SYCLMemObjT;
-  static thread_local bool ForceDeferredMemObjRelease;
-  struct ForceDeferredReleaseWrapper {
-    ForceDeferredReleaseWrapper() { ForceDeferredMemObjRelease = true; };
-    ~ForceDeferredReleaseWrapper() { ForceDeferredMemObjRelease = false; };
-  };
 
   friend class Command;
   friend class DispatchHostTask;

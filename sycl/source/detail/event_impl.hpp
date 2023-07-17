@@ -260,7 +260,7 @@ public:
   }
 
   // Sets a sync point which is used when this event represents an enqueue to a
-  // sycl::detail::pi::PiExtCommandBuffer.
+  // Command Bufferr.
   void setSyncPoint(sycl::detail::pi::PiExtSyncPoint SyncPoint) {
     MSyncPoint = SyncPoint;
   }

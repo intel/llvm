@@ -291,7 +291,7 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
       case UR_PLATFORM_BACKEND_CUDA:
         return PI_EXT_PLATFORM_BACKEND_CUDA;
       case UR_PLATFORM_BACKEND_HIP:
-        return PI_EXT_PLATFORM_BACKEND_CUDA;
+        return PI_EXT_PLATFORM_BACKEND_HIP;
       default:
         die("UR_PLATFORM_INFO_BACKEND: unhandled value");
       }
@@ -1455,7 +1455,9 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
                 PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
                 PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS |
                 PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW |
-                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)),
+                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH |
+                PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE |
+                PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -1482,6 +1484,10 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
     UrProperties.flags |= UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
   if (Properties[1] & __SYCL_PI_CUDA_USE_DEFAULT_STREAM)
     UrProperties.flags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
+  if (Properties[1] & PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE)
+    UrProperties.flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+  if (Properties[1] & PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE)
+    UrProperties.flags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
 
   ur_queue_index_properties_t IndexProperties{};
   IndexProperties.stype = UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES;
@@ -1961,28 +1967,6 @@ piEnqueueMemImageFill(pi_queue Queue, pi_mem Image, const void *FillColor,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   die("piEnqueueMemImageFill: not implemented");
-  return PI_SUCCESS;
-}
-
-inline pi_result
-piEnqueueNativeKernel(pi_queue Queue, void (*UserFunc)(void *), void *Args,
-                      size_t CbArgs, pi_uint32 NumMemObjects,
-                      const pi_mem *MemList, const void **ArgsMemLoc,
-                      pi_uint32 NumEventsInWaitList,
-                      const pi_event *EventsWaitList, pi_event *Event) {
-  std::ignore = UserFunc;
-  std::ignore = Args;
-  std::ignore = CbArgs;
-  std::ignore = NumMemObjects;
-  std::ignore = MemList;
-  std::ignore = ArgsMemLoc;
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventsWaitList;
-  std::ignore = Event;
-
-  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-
-  die("piEnqueueNativeKernel: not implemented");
   return PI_SUCCESS;
 }
 
@@ -4320,6 +4304,61 @@ inline pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
 }
 
 // Command-buffer extension
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// usm-p2p
+
+inline pi_result piextEnablePeerAccess(pi_device command_device,
+                                       pi_device peer_device) {
+  auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
+  auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
+
+  HANDLE_ERRORS(urUsmP2PEnablePeerAccessExp(commandDevice, peerDevice));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextDisablePeerAccess(pi_device command_device,
+                                        pi_device peer_device) {
+  auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
+  auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
+
+  HANDLE_ERRORS(urUsmP2PDisablePeerAccessExp(commandDevice, peerDevice));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextPeerAccessGetInfo(pi_device command_device, pi_device peer_device,
+                       pi_peer_attr attr, size_t param_value_size,
+                       void *param_value, size_t *param_value_size_ret) {
+  auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
+  auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
+
+  ur_exp_peer_info_t propName;
+  switch (attr) {
+  case PI_PEER_ACCESS_SUPPORTED: {
+    propName = UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED;
+    break;
+  }
+  case PI_PEER_ATOMICS_SUPPORTED: {
+    propName = UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED;
+    break;
+  }
+  default: {
+    return PI_ERROR_INVALID_VALUE;
+  }
+  }
+
+  HANDLE_ERRORS(urUsmP2PPeerAccessGetInfoExp(
+      commandDevice, peerDevice, propName, param_value_size, param_value,
+      param_value_size_ret));
+
+  return PI_SUCCESS;
+}
+
+// usm-p2p
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace pi2ur

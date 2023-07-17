@@ -57,8 +57,8 @@ void connectToExitNodes(
 /// @return True if a dependency was added in this node or any of its
 /// successors.
 bool checkForRequirement(sycl::detail::AccessorImplHost *Req,
-                           const std::shared_ptr<node_impl> &CurrentNode,
-                           std::set<std::shared_ptr<node_impl>> &Deps) {
+                         const std::shared_ptr<node_impl> &CurrentNode,
+                         std::set<std::shared_ptr<node_impl>> &Deps) {
   bool SuccessorAddedDep = false;
   for (auto &Successor : CurrentNode->MSuccessors) {
     SuccessorAddedDep |= checkForRequirement(Req, Successor, Deps);
@@ -238,15 +238,12 @@ void exec_graph_impl::findRealDeps(
     }
   } else {
     // Verify that the sync point has actually been set for this node.
-    if (auto SyncPoint = MPiSyncPoints.find(CurrentNode);
-        SyncPoint != MPiSyncPoints.end()) {
-      // Check if the dependency has already been added.
-      if (std::find(Deps.begin(), Deps.end(), SyncPoint->second) ==
-          Deps.end()) {
-        Deps.push_back(SyncPoint->second);
-      }
-    } else {
-      assert(false && "No sync point has been set for node dependency.");
+    auto SyncPoint = MPiSyncPoints.find(CurrentNode);
+    assert(SyncPoint != MPiSyncPoints.end() &&
+           "No sync point has been set for node dependency.");
+    // Check if the dependency has already been added.
+    if (std::find(Deps.begin(), Deps.end(), SyncPoint->second) == Deps.end()) {
+      Deps.push_back(SyncPoint->second);
     }
   }
 }
@@ -290,11 +287,11 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNode(
 
   sycl::detail::EventImplPtr Event =
       sycl::detail::Scheduler::getInstance().addCG(
-          std::move(Node->getCGCopy()), AllocaQueue, CommandBuffer, Deps);
+          Node->getCGCopy(), AllocaQueue, CommandBuffer, Deps);
 
   return Event->getSyncPoint();
 }
-void exec_graph_impl::createURCommandBuffers(sycl::device Device) {
+void exec_graph_impl::createCommandBuffers(sycl::device Device) {
   // TODO we only have a single command-buffer per graph here, but
   // this will need to be multiple command-buffers for non-trivial graphs
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
@@ -444,8 +441,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       } else {
 
         sycl::detail::EventImplPtr EventImpl =
-            sycl::detail::Scheduler::getInstance().addCG(
-                std::move(NodeImpl->getCGCopy()), Queue);
+            sycl::detail::Scheduler::getInstance().addCG(NodeImpl->getCGCopy(),
+                                                         Queue);
 
         ScheduledEvents.push_back(EventImpl);
       }
@@ -585,7 +582,7 @@ void executable_command_graph::finalizeImpl() {
   impl->schedule();
 
   auto Context = impl->getContext();
-  for (auto Device : impl->getContext().get_devices()) {
+  for (auto Device : Context.get_devices()) {
     bool CmdBufSupport =
         Device.get_info<
             ext::oneapi::experimental::info::device::graph_support>() ==
@@ -598,7 +595,7 @@ void executable_command_graph::finalizeImpl() {
 #endif
 
     if (CmdBufSupport) {
-      impl->createURCommandBuffers(Device);
+      impl->createCommandBuffers(Device);
     }
   }
 }
