@@ -12,6 +12,7 @@
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 
+#include <algorithm>
 #include <bitset>
 #include <memory>
 #include <vector>
