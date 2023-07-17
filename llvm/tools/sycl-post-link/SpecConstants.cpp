@@ -217,7 +217,7 @@ void collectCompositeElementsInfoRecursive(
   if (IDIter->Undef) {
     // Such ID is expected to be a padding within a non-packed struct, we need
     // to move offset to account for it.
-    Offset += M.getDataLayout().getTypeSizeInBits(Ty) * /* bits in byte */ 8;
+    // Offset += M.getDataLayout().getTypeSizeInBits(Ty) * /* bits in byte */ 8;
     ++IDIter;
     // But otherwise we just skip such values, they are not reported to runtime.
     return;
@@ -411,9 +411,11 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
     const ID *IDPtr = IDs.data();
     collectCompositeElementsInfoRecursive(M, SCTy, IDPtr, Offset, Result);
 
-    // We may have padding elements so, the amount of values modifiable by
-    // runtime could be smaller than amount of IDs we have.
-    assert(Result.size() <= IDs.size());
+    // Not all IDs are turned into metadata, because some of them may represent
+    // padding within structures. Additionally, there could be emitted an extra
+    // special ID describing post-struct padding to align spec constants for
+    // runtime.
+    assert(Result.size() <= IDs.size() + 1);
 
     for (unsigned I = 0; I < Result.size(); ++I) {
       MDOps.push_back(ConstantAsMetadata::get(
