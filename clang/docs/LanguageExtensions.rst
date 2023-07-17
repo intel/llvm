@@ -645,6 +645,10 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
                                              rounding halfway cases to even (that is, to the nearest value
                                              that is an even integer), regardless of the current rounding
                                              direction.
+ T __builtin_elementwise_round(T x)          round x to the nearest  integer value in floating point format,      floating point types
+                                             rounding halfway cases away from zero, regardless of the
+                                             current rounding direction. May raise floating-point
+                                             exceptions.
  T __builtin_elementwise_trunc(T x)          return the integral value nearest to but no larger in            floating point types
                                              magnitude than x
  T __builtin_elementwise_canonicalize(T x)   return the platform specific canonical encoding                  floating point types
@@ -2313,6 +2317,138 @@ targets.
     atomic_add(a, 1);
   }
 
+WebAssembly Features
+====================
+
+Clang supports the WebAssembly features documented below. For further 
+information related to the semantics of the builtins, please refer to the `WebAssembly Specification <https://webassembly.github.io/spec/core/>`_.
+In this section, when we refer to reference types, we are referring to 
+WebAssembly reference types, not C++ reference types unless stated
+otherwise.
+
+``__builtin_wasm_table_set``
+----------------------------
+
+This builtin function stores a value in a WebAssembly table. 
+It takes three arguments.
+The first argument is the table to store a value into, the second 
+argument is the index to which to store the value into, and the
+third argument is a value of reference type to store in the table.
+It returns nothing.
+
+.. code-block:: c++
+
+  static __externref_t table[0];
+  extern __externref_t JSObj;
+
+  void store(int index) {
+    __builtin_wasm_table_set(table, index, JSObj);
+  } 
+
+``__builtin_wasm_table_get``
+----------------------------
+
+This builtin function is the counterpart to ``__builtin_wasm_table_set``
+and loads a value from a WebAssembly table of reference typed values.
+It takes 2 arguments.
+The first argument is a table of reference typed values and the 
+second argument is an index from which to load the value. It returns
+the loaded reference typed value.
+
+.. code-block:: c++
+
+  static __externref_t table[0];
+  
+  __externref_t load(int index) {
+    __externref_t Obj = __builtin_wasm_table_get(table, index);
+    return Obj;
+  }
+
+``__builtin_wasm_table_size``
+-----------------------------
+
+This builtin function returns the size of the WebAssembly table.
+Takes the table as an argument and returns an unsigned integer (``size_t``)
+with the current table size.
+
+.. code-block:: c++
+
+  typedef void (*__funcref funcref_t)();
+  static __funcref table[0];
+
+  size_t getSize() {
+    return __builtin_wasm_table_size(table);
+  }
+
+``__builtin_wasm_table_grow``
+-----------------------------
+
+This builtin function grows the WebAssembly table by a certain amount.
+Currently, as all WebAssembly tables created in C/C++ are zero-sized, 
+this always needs to be called to grow the table. 
+
+It takes three arguments. The first argument is the WebAssembly table 
+to grow. The second argument is the reference typed value to store in 
+the new table entries (the initialization value), and the third argument
+is the amound to grow the table by. It returns the previous table size
+or -1. It will return -1 if not enough space could be allocated.
+
+.. code-block:: c++
+
+  typedef void (*__funcref funcref_t)();
+  static __funcref table[0];
+
+  // grow returns the new table size or -1 on error.
+  int grow(__funcref fn, int delta) {
+    int prevSize = __builtin_wasm_table_grow(table, fn, delta);
+    if (prevSize == -1)
+      return -1;
+    return prevSize + delta;
+  }
+
+``__builtin_wasm_table_fill``
+-----------------------------
+
+This builtin function sets all the entries of a WebAssembly table to a given 
+reference typed value. It takes four arguments. The first argument is 
+the WebAssembly table, the second argument is the index that starts the 
+range, the third argument is the value to set in the new entries, and 
+the fourth and the last argument is the size of the range. It returns 
+nothing.
+
+.. code-block:: c++
+
+  static __externref_t table[0];
+
+  // resets a table by setting all of its entries to a given value.
+  void reset(__externref_t Obj) {
+    int Size = __builtin_wasm_table_size(table);
+    __builtin_wasm_table_fill(table, 0, Obj, Size);
+  }
+
+``__builtin_wasm_table_copy``
+-----------------------------
+
+This builtin function copies elements from a source WebAssembly table 
+to a possibly overlapping destination region. It takes five arguments.
+The first argument is the destination WebAssembly table, and the second
+argument is the source WebAssembly table. The third argument is the 
+destination index from where the copy starts, the fourth argument is the 
+source index from there the copy starts, and the fifth and last argument
+is the number of elements to copy. It returns nothing.
+
+.. code-block:: c++
+
+  static __externref_t tableSrc[0];
+  static __externref_t tableDst[0];
+
+  // Copy nelem elements from [src, src + nelem - 1] in tableSrc to
+  // [dst, dst + nelem - 1] in tableDst
+  void copy(int dst, int src, int nelem) {
+    __builtin_wasm_table_copy(tableDst, tableSrc, dst, src, nelem);
+  }
+
+
 Builtin Functions
 =================
 
@@ -3377,6 +3513,69 @@ Query for this feature with ``__has_builtin(__builtin_add_overflow)``, etc.
 
 Floating point builtins
 ---------------------------------------
+
+``__builtin_isfpclass``
+-----------------------
+
+``__builtin_isfpclass`` is used to test if the specified floating-point value
+falls into one of the specified floating-point classes.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    int __builtin_isfpclass(fp_type expr, int mask)
+
+``fp_type`` is a floating-point type supported by the target. ``mask`` is an
+integer constant expression, where each bit represents floating-point class to
+test. The function returns boolean value.
+
+**Example of use**:
+
+.. code-block:: c++
+
+  if (__builtin_isfpclass(x, 448)) {
+     // `x` is positive finite value
+	 ...
+  }
+
+**Description**:
+
+The ``__builtin_isfpclass()`` builtin is a generalization of functions ``isnan``,
+``isinf``, ``isfinite`` and some others defined by the C standard. It tests if
+the floating-point value, specified by the first argument, falls into any of data
+classes, specified by the second argument. The later is a bitmask, in which each
+data class is represented by a bit using the encoding:
+
+========== =================== ======================
+Mask value Data class          Macro
+========== =================== ======================
+0x0001     Signaling NaN       __FPCLASS_SNAN
+0x0002     Quiet NaN           __FPCLASS_QNAN
+0x0004     Negative infinity   __FPCLASS_NEGINF
+0x0008     Negative normal     __FPCLASS_NEGNORMAL
+0x0010     Negative subnormal  __FPCLASS_NEGSUBNORMAL
+0x0020     Negative zero       __FPCLASS_NEGZERO
+0x0040     Positive zero       __FPCLASS_POSZERO
+0x0080     Positive subnormal  __FPCLASS_POSSUBNORMAL
+0x0100     Positive normal     __FPCLASS_POSNORMAL
+0x0200     Positive infinity   __FPCLASS_POSINF
+========== =================== ======================
+
+For convenience preprocessor defines macros for these values. The function
+returns 1 if ``expr`` falls into one of the specified data classes, 0 otherwise.
+
+In the example above the mask value 448 (0x1C0) contains the bits selecting
+positive zero, positive subnormal and positive normal classes.
+``__builtin_isfpclass(x, 448)`` would return true only if ``x`` if of any of
+these data classes. Using suitable mask value, the function can implement any of
+the standard classification functions, for example, ``__builtin_isfpclass(x, 3)``
+is identical to ``isnan``,``__builtin_isfpclass(x, 504)`` - to ``isfinite``
+and so on.
+
+This function never raises floating-point exceptions and does not canonicalize
+its input. The floating-point argument is not promoted, its data class is
+determined based on its representation in its actual semantic type.
 
 ``__builtin_canonicalize``
 --------------------------

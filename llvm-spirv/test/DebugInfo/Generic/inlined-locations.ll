@@ -1,11 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK,CHECK-DEFAULT
+
+; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-200 -o %t.spv
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK,CHECK-200
 
 ; Check that the "inlinedAt" attribute of a DILocation references another
 ; DILocation that is marked as distinct.  Note that the checks for distinct
 ; DILocations do not include the column number as SPIR-V does not allow for
-; representing this info.
+; representing this info (except for NonSemantic.Shader.DebugInfo.200). For
+; this specification we check that the column number is preserved during
+; translation.
 
 ; Built with clang -O -g from the source:
 ; bool f();
@@ -69,13 +74,15 @@ attributes #2 = { nounwind readnone speculatable }
 !16 = !DILocalVariable(name: "b", scope: !12, file: !1, line: 3, type: !17)
 !17 = !DIBasicType(name: "bool", size: 8, encoding: DW_ATE_boolean)
 !18 = distinct !DILocation(line: 9, column: 15, scope: !19, inlinedAt: !23)
-; CHECK: ![[loc1]] = distinct !DILocation(line: 9, scope: !{{.*}}, inlinedAt: ![[loc2:[0-9]+]])
+; CHECK-DEFAULT: ![[loc1]] = distinct !DILocation(line: 9, scope: !{{.*}}, inlinedAt: ![[loc2:[0-9]+]])
+; CHECK-200: ![[loc1]] = distinct !DILocation(line: 9, column: 15, scope: !{{.*}}, inlinedAt: ![[loc2:[0-9]+]])
 !19 = distinct !DILexicalBlock(scope: !20, file: !1, line: 9, column: 11)
 !20 = distinct !DISubprogram(name: "f2", linkageName: "_Z2f2v", scope: !1, file: !1, line: 8, type: !14, scopeLine: 8, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !21)
 !21 = !{!22}
 !22 = !DILocalVariable(name: "i", scope: !19, file: !1, line: 9, type: !10)
 !23 = distinct !DILocation(line: 15, column: 3, scope: !7)
-; CHECK: ![[loc2]] = distinct !DILocation(line: 15, scope: !{{.*}})
+; CHECK-DEFAULT: ![[loc2]] = distinct !DILocation(line: 15, scope: !{{.*}})
+; CHECK-200: ![[loc2]] = distinct !DILocation(line: 15, column: 3, scope: !{{.*}})
 !24 = !DILocation(line: 3, column: 12, scope: !12, inlinedAt: !18)
 ; CHECK: !{{.*}} = !DILocation(line: 3, column: 12, scope: !{{.*}}, inlinedAt: ![[loc1]])
 !25 = !DILocation(line: 16, column: 1, scope: !7)

@@ -1,0 +1,103 @@
+name: SYCL Pre Commit on Linux
+
+on:
+  pull_request_target:
+    branches:
+    - sycl
+    - sycl-devops-pr/**
+    # Do not run builds if changes are only in the following locations
+    paths-ignore:
+    - '.github/ISSUE_TEMPLATE/**'
+    - '.github/CODEOWNERS'
+    - 'sycl/doc/**'
+    - 'sycl/gdb/**'
+    - 'clang/docs/**'
+    - '**.md'
+    - '**.rst'
+    # For CI-related files we explicitly skip all the jobs below even if there
+    # were other (non-ignored) files modified in this PR.
+    - 'devops/*/**'
+
+permissions:
+  contents: read
+
+jobs:
+  detect_changes:
+    uses: ./.github/workflows/sycl_detect_changes.yml
+
+  lint:
+    needs: [detect_changes]
+    if: |
+      !contains(needs.detect_changes.outputs.filters, 'ci')
+    runs-on: [Linux, build]
+    container:
+      image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
+      options: -u 1001:1001
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ github.base_ref }}
+        sparse-checkout: |
+          devops/actions/cached_checkout
+          devops/actions/clang-format
+          devops/actions/cleanup
+    - name: Register cleanup after job is finished
+      uses: ./devops/actions/cleanup
+    - name: 'PR commits + 2'
+      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 2 ))" >> "${GITHUB_ENV}"
+    - uses: ./devops/actions/cached_checkout
+      with:
+        path: src
+        fetch-depth: ${{ env.PR_FETCH_DEPTH }}
+        ref: ${{ github.event.pull_request.head.sha }}
+        merge_ref: ''
+        cache_path: "/__w/repo_cache/"
+    - name: Run clang-format
+      uses: ./devops/actions/clang-format
+      with:
+        path: src
+
+  # This job generates matrix of tests for SYCL End-to-End tests
+  test_matrix:
+    needs: [detect_changes]
+    if: |
+      !contains(needs.detect_changes.outputs.filters, 'ci')
+    name: Generate Test Matrix
+    uses: ./.github/workflows/sycl_gen_test_matrix.yml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+      lts_config: "hip_amdgpu;lin_intel;esimd_emu;cuda_aws"
+
+  linux_default:
+    name: Linux
+    # Only build and test patches, that have passed all linter checks, because
+    # the next commit is likely to be a follow-up on that job.
+    needs: [lint, test_matrix, detect_changes]
+    if: |
+      always()
+      && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+      && contains(needs.detect_changes.outputs.filters, 'test_build')
+      && !contains(needs.detect_changes.outputs.filters, 'ci')
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
+    with:
+      build_ref: ${{ github.event.pull_request.head.sha }}
+      merge_ref: ${{ github.event.pull_request.base.sha }}
+      build_cache_root: "/__w/"
+      build_cache_size: "8G"
+      build_artifact_suffix: "default"
+      build_cache_suffix: "default"
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
+      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      check_filters: ${{ needs.detect_changes.outputs.filters }}
+
+  linux_e2e_on_nightly:
+    name: Linux SYCL E2E on Nightly
+    needs: [detect_changes]
+    if: |
+      !contains(needs.detect_changes.outputs.filters, 'test_build')
+      && !contains(needs.detect_changes.outputs.filters, 'ci')
+    uses: ./.github/workflows/linux_matrix_e2e_on_nightly.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}

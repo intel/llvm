@@ -125,6 +125,7 @@ bool CodeGenTypes::isRecordLayoutComplete(const Type *Ty) const {
   return I != RecordDeclTypes.end() && !I->second->isOpaque();
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 static bool
 isSafeToConvert(QualType T, CodeGenTypes &CGT,
                 llvm::SmallPtrSet<const RecordDecl*, 16> &AlreadyChecked);
@@ -212,6 +213,12 @@ static bool isSafeToConvert(const RecordDecl *RD, CodeGenTypes &CGT) {
 /// point.  This boils down to being whether it is complete, as well as whether
 /// we've temporarily deferred expanding the type because we're in a recursive
 /// context.
+#else
+/// isFuncParamTypeConvertible - Return true if the specified type in a
+/// function parameter or result position can be converted to an IR type at this
+/// point. This boils down to being whether it is complete.
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+
 bool CodeGenTypes::isFuncParamTypeConvertible(QualType Ty) {
   // Some ABIs cannot have their member pointers represented in IR unless
   // certain circumstances have been reached.
@@ -223,6 +230,7 @@ bool CodeGenTypes::isFuncParamTypeConvertible(QualType Ty) {
   if (!TT) return true;
 
   // Incomplete types cannot be converted.
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (TT->isIncompleteType())
     return false;
 
@@ -238,6 +246,11 @@ bool CodeGenTypes::isFuncParamTypeConvertible(QualType Ty) {
   // We decide this by checking whether ConvertRecordDeclType returns us an
   // opaque type for a struct that we know is defined.
   return isSafeToConvert(RT->getDecl(), *this);
+#else
+  // Incomplete types cannot be converted.
+  return !TT->isIncompleteType();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+
 }
 
 
@@ -337,7 +350,9 @@ static llvm::Type *getTypeForFormat(llvm::LLVMContext &VMContext,
 
 llvm::Type *CodeGenTypes::ConvertFunctionTypeInternal(QualType QFT) {
   assert(QFT.isCanonical());
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   const Type *Ty = QFT.getTypePtr();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   const FunctionType *FT = cast<FunctionType>(QFT.getTypePtr());
   // First, check whether we can build the full function type.  If the
   // function type depends on an incomplete type (e.g. a struct or enum), we
@@ -360,6 +375,7 @@ llvm::Type *CodeGenTypes::ConvertFunctionTypeInternal(QualType QFT) {
     return llvm::StructType::get(getLLVMContext());
   }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // While we're converting the parameter types for a function, we don't want
   // to recursively convert any pointed-to structs.  Converting directly-used
   // structs is ok though.
@@ -367,7 +383,7 @@ llvm::Type *CodeGenTypes::ConvertFunctionTypeInternal(QualType QFT) {
     SkippedLayout = true;
     return llvm::StructType::get(getLLVMContext());
   }
-
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   // The function type can be built; call the appropriate routines to
   // build it.
   const CGFunctionInfo *FI;
@@ -393,11 +409,13 @@ llvm::Type *CodeGenTypes::ConvertFunctionTypeInternal(QualType QFT) {
     ResultType = GetFunctionType(*FI);
   }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   RecordsBeingLaidOut.erase(Ty);
 
   if (RecordsBeingLaidOut.empty())
     while (!DeferredRecords.empty())
       ConvertRecordDeclType(DeferredRecords.pop_back_val());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   return ResultType;
 }
 
@@ -496,6 +514,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   if (const RecordType *RT = dyn_cast<RecordType>(Ty))
     return ConvertRecordDeclType(RT->getDecl());
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // The LLVM type we return for a given Clang type may not always be the same,
   // most notably when dealing with recursive structs. We mark these potential
   // cases with ShouldUseCache below. Builtin types cannot be recursive.
@@ -517,6 +536,18 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       return CachedType;
 #endif
   }
+#else
+  llvm::Type *CachedType = nullptr;
+  auto TCI = TypeCache.find(Ty);
+  if (TCI != TypeCache.end())
+    CachedType = TCI->second;
+    // With expensive checks, check that the type we compute matches the
+    // cached type.
+#ifndef EXPENSIVE_CHECKS
+  if (CachedType)
+    return CachedType;
+#endif
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // If we don't have it in the cache, convert it now.
   llvm::Type *ResultType = nullptr;
@@ -755,17 +786,20 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   case Type::RValueReference: {
     const ReferenceType *RTy = cast<ReferenceType>(Ty);
     QualType ETy = RTy->getPointeeType();
-    llvm::Type *PointeeType = ConvertTypeForMem(ETy);
     unsigned AS = getTargetAddressSpace(ETy);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    ResultType = llvm::PointerType::get(getLLVMContext(), AS);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *PointeeType = ConvertTypeForMem(ETy);
     ResultType = llvm::PointerType::get(PointeeType, AS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+
     break;
   }
   case Type::Pointer: {
     const PointerType *PTy = cast<PointerType>(Ty);
     QualType ETy = PTy->getPointeeType();
-    llvm::Type *PointeeType = ConvertTypeForMem(ETy);
-    if (PointeeType->isVoidTy())
-      PointeeType = llvm::Type::getInt8Ty(getLLVMContext());
+
     if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
       const Type *ClangETy = ETy.getTypePtrOrNull();
       if (ClangETy && ClangETy->isStructureOrClassType()) {
@@ -779,7 +813,16 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     }
 
     unsigned AS = getTargetAddressSpace(ETy);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    ResultType = llvm::PointerType::get(getLLVMContext(), AS);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *PointeeType = ConvertTypeForMem(ETy);
+    if (PointeeType->isVoidTy())
+      PointeeType = llvm::Type::getInt8Ty(getLLVMContext());
+
     ResultType = llvm::PointerType::get(PointeeType, AS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+
     break;
   }
 
@@ -857,12 +900,16 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   }
 
   case Type::ObjCObjectPointer: {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    ResultType = llvm::PointerType::getUnqual(getLLVMContext());
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
     // Protocol qualifications do not influence the LLVM type, we just return a
     // pointer to the underlying interface type. We don't need to worry about
     // recursive conversion.
     llvm::Type *T =
-      ConvertTypeForMem(cast<ObjCObjectPointerType>(Ty)->getPointeeType());
+        ConvertTypeForMem(cast<ObjCObjectPointerType>(Ty)->getPointeeType());
     ResultType = T->getPointerTo();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     break;
   }
 
@@ -878,10 +925,12 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   }
 
   case Type::BlockPointer: {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     const QualType FTy = cast<BlockPointerType>(Ty)->getPointeeType();
     llvm::Type *PointeeType = CGM.getLangOpts().OpenCL
                                   ? CGM.getGenericBlockLiteralType()
                                   : ConvertTypeForMem(FTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     // Block pointers lower to function type. For function type,
     // getTargetAddressSpace() returns default address space for
     // function pointer i.e. program address space. Therefore, for block
@@ -889,7 +938,12 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     // calling getTargetAddressSpace(), to ensure that we get the LLVM IR
     // address space for data pointers and not function pointers.
     unsigned AS = Context.getTargetAddressSpace(FTy.getAddressSpace());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    const QualType FTy = cast<BlockPointerType>(Ty)->getPointeeType();
+    ResultType = llvm::PointerType::get(getLLVMContext(), AS);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
     ResultType = llvm::PointerType::get(PointeeType, AS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     break;
   }
 
@@ -939,9 +993,12 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   assert(ResultType && "Didn't convert a type?");
   assert((!CachedType || CachedType == ResultType) &&
          "Cached type doesn't match computed type");
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (ShouldUseCache)
     TypeCache[Ty] = ResultType;
+#else
+  TypeCache[Ty] = ResultType;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   return ResultType;
 }
 
@@ -976,6 +1033,7 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
   if (!RD || !RD->isCompleteDefinition() || !Ty->isOpaque())
     return Ty;
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // If converting this type would cause us to infinitely loop, don't do it!
   if (!isSafeToConvert(RD, *this)) {
     DeferredRecords.push_back(RD);
@@ -986,7 +1044,7 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
   bool InsertResult = RecordsBeingLaidOut.insert(Key).second;
   (void)InsertResult;
   assert(InsertResult && "Recursively compiling a struct?");
-
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   // Force conversion of non-virtual base classes recursively.
   if (const CXXRecordDecl *CRD = dyn_cast<CXXRecordDecl>(RD)) {
     for (const auto &I : CRD->bases()) {
@@ -999,22 +1057,24 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
   std::unique_ptr<CGRecordLayout> Layout = ComputeRecordLayout(RD, Ty);
   CGRecordLayouts[Key] = std::move(Layout);
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // We're done laying out this struct.
   bool EraseResult = RecordsBeingLaidOut.erase(Key); (void)EraseResult;
   assert(EraseResult && "struct not in RecordsBeingLaidOut set?");
-
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   // If this struct blocked a FunctionType conversion, then recompute whatever
   // was derived from that.
   // FIXME: This is hugely overconservative.
   if (SkippedLayout)
     TypeCache.clear();
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // If we're done converting the outer-most record, then convert any deferred
   // structs as well.
   if (RecordsBeingLaidOut.empty())
     while (!DeferredRecords.empty())
       ConvertRecordDeclType(DeferredRecords.pop_back_val());
-
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   return Ty;
 }
 
