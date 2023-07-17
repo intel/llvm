@@ -327,15 +327,60 @@ struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
 template <typename T>
 struct is_valid_property<T, stable_key::value_t> : std::true_type {};
 
+// Check if a given property is supported for annotated_arg
+// e.g. `alignment` is not supported for annotated_arg
+template <typename PropT>
+using is_property_value_of_annotated_arg =
+    is_property_value_of<PropT,
+                         annotated_arg<void, detail::empty_properties_t>>;
+
+// Check if a given property is supported for annotated_ptr
+template <typename PropT>
+using is_property_value_of_annotated_ptr =
+    is_property_value_of<PropT,
+                         annotated_ptr<void, detail::empty_properties_t>>;
+
+// Validate anntoated_arg/annotated_ptr
+template <typename T> struct validate_annotated_type : std::false_type {};
+
+// Partial specializations for validating annotated_arg
 template <typename T, typename... Props>
-struct check_property_list : std::true_type {};
+struct validate_annotated_type<annotated_arg<T, detail::properties_t<Props...>>>
+    : std::true_type {};
 
 template <typename T, typename Prop, typename... Props>
-struct check_property_list<T, Prop, Props...>
-    : std::conditional_t<is_valid_property<T, Prop>::value,
-                         check_property_list<T, Props...>, std::false_type> {
-  static_assert(is_valid_property<T, Prop>::value,
-                "Property is invalid for the given type.");
+struct validate_annotated_type<
+    annotated_arg<T, detail::properties_t<Prop, Props...>>>
+    : std::conditional_t<is_valid_property<T, Prop>::value &&
+                             is_property_value_of_annotated_arg<Prop>::value,
+                         validate_annotated_type<
+                             annotated_arg<T, detail::properties_t<Props...>>>,
+                         std::false_type> {
+  static_assert(
+      is_valid_property<T, Prop>::value,
+      "Property is invalid for the underlying type of annotated_arg.");
+  static_assert(is_property_value_of_annotated_arg<Prop>::value,
+                "Property is not supported for annotated_arg.");
+};
+
+// Partial specializations for validating annotated_arg
+template <typename T, typename... Props>
+struct validate_annotated_type<annotated_ptr<T, detail::properties_t<Props...>>>
+    : std::true_type {};
+
+template <typename T, typename Prop, typename... Props>
+struct validate_annotated_type<
+    annotated_ptr<T, detail::properties_t<Prop, Props...>>>
+    : std::conditional_t<is_valid_property<T *, Prop>::value &&
+                             is_property_value_of_annotated_ptr<Prop>::value,
+                         validate_annotated_type<
+                             annotated_ptr<T, detail::properties_t<Props...>>>,
+                         std::false_type> {
+  static_assert(
+      is_valid_property<T *, Prop>::value,
+      "Property is invalid for the underlying type of annotated_ptr.");
+  static_assert(is_property_value_of_annotated_ptr<Prop>::value,
+                "Property is not supported for annotated_ptr.");
 };
 
 //===----------------------------------------------------------------------===//
@@ -353,6 +398,10 @@ template <> struct is_property_key<alignment_key> : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
     : std::true_type {};
+
+template <typename T, int K>
+struct is_valid_property<T, alignment_key::value_t<K>>
+    : std::bool_constant<std::is_pointer<T>::value> {};
 
 namespace detail {
 

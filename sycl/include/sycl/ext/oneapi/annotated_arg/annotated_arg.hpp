@@ -76,6 +76,9 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
 public:
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
+  static_assert(
+      validate_annotated_type<annotated_arg<T *, property_list_t>>::value,
+      "The property list contains invalid property.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;
@@ -178,8 +181,9 @@ public:
   static_assert(is_device_copyable_v<T>, "Type T must be device copyable.");
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
-  static_assert(check_property_list<T, Props...>::value,
-                "The property list contains invalid property.");
+  static_assert(
+      validate_annotated_type<annotated_arg<T, property_list_t>>::value,
+      "The property list contains invalid property.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;

@@ -121,6 +121,9 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 public:
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
+  static_assert(
+      validate_annotated_type<annotated_ptr<T, property_list_t>>::value,
+      "The property list contains invalid property.");
 
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
