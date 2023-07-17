@@ -139,3 +139,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
   *phContext = reinterpret_cast<ur_context_handle_t>(hNativeContext);
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] ur_context_extended_deleter_t pfnDeleter,
+    [[maybe_unused]] void *pUserData) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

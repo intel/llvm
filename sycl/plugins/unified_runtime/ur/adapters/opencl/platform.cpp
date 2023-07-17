@@ -149,9 +149,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urTearDown(void *pParams) {
 // Returns plugin specific backend option.
 // Current support is only for optimization options.
 // Return '-cl-opt-disable' for pFrontendOption = -O0 and '' for others.
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
-    ur_platform_handle_t hPlatform, const char *pFrontendOption,
-    const char **ppPlatformOption) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
+                           const char **ppPlatformOption) {
   using namespace std::literals;
   if (pFrontendOption == nullptr)
     return UR_RESULT_SUCCESS;
@@ -177,9 +177,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, const char **ppMessage, int32_t *pError) {
-
-  std::ignore = hPlatform;
+    ur_platform_handle_t, const char **ppMessage, int32_t *pError) {
   *ppMessage = cl_adapter::ErrorMessage;
   *pError = cl_adapter::ErrorMessageCode;
 

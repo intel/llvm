@@ -314,7 +314,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     BufferCreateType = CL_BUFFER_CREATE_TYPE_REGION;
     break;
   default:
-    break;
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   _cl_buffer_region BufferRegion;

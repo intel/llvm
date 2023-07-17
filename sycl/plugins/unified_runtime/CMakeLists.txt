@@ -256,6 +256,8 @@ if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     SOURCES
     "ur/ur.hpp"
     "ur/ur.cpp"
+    "ur/adapters/opencl/command_buffer.hpp"
+    "ur/adapters/opencl/command_buffer.cpp"
     "ur/adapters/opencl/common.cpp"
     "ur/adapters/opencl/common.hpp"
     "ur/adapters/opencl/context.cpp"
@@ -263,18 +265,17 @@ if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     "ur/adapters/opencl/device.cpp"
     "ur/adapters/opencl/device.hpp"
     "ur/adapters/opencl/enqueue.cpp"
+    "ur/adapters/opencl/event.cpp"
     "ur/adapters/opencl/kernel.cpp"
+    "ur/adapters/opencl/memory.cpp"
     "ur/adapters/opencl/platform.cpp"
     "ur/adapters/opencl/platform.hpp"
     "ur/adapters/opencl/program.cpp"
-    "ur/adapters/opencl/sampler.cpp"
-    "ur/adapters/opencl/memory.cpp"
-    "ur/adapters/opencl/event.cpp"
     "ur/adapters/opencl/queue.cpp"
+    "ur/adapters/opencl/sampler.cpp"
     "ur/adapters/opencl/ur_interface_loader.cpp"
     "ur/adapters/opencl/usm.cpp"
-    "ur/adapters/opencl/command_buffer.hpp"
-    "ur/adapters/opencl/command_buffer.cpp"
+
     INCLUDE_DIRS
     ${sycl_inc_dir}
     LIBRARIES
@@ -282,6 +283,11 @@ if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     Threads::Threads
     OpenCL-ICD
     )
+
+  set_target_properties("ur_adapter_opencl" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+  )
 endif()
 
 if (TARGET UnifiedRuntimeLoader)

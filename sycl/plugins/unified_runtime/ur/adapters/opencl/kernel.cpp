@@ -121,7 +121,7 @@ mapURKernelSubGroupInfoToCL(ur_kernel_sub_group_info_t URPropName) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
-                        ur_kernel_sub_group_info_t propName, size_t propSize,
+                        ur_kernel_sub_group_info_t propName, size_t,
                         void *pPropValue, size_t *pPropSizeRet) {
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -134,7 +134,7 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   if (propName == UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE) {
     // OpenCL needs an input value for PI_KERNEL_MAX_SUB_GROUP_SIZE so if no
     // value is given we use the max work item size of the device in the first
-    // dimention to avoid truncation of max sub-group size.
+    // dimension to avoid truncation of max sub-group size.
     uint32_t MaxDims = 0;
     ur_result_t URRet =
         urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS,
@@ -345,10 +345,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
-                     ur_mem_handle_t hArgValue) {
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_mem_obj_properties_t *, ur_mem_handle_t hArgValue) {
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   cl_int RetErr = clSetKernelArg(

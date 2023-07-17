@@ -58,7 +58,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
   pDdiTable->pfnGetNativeHandle = urContextGetNativeHandle;
   pDdiTable->pfnRelease = urContextRelease;
   pDdiTable->pfnRetain = urContextRetain;
-  //  pDdiTable->pfnSetExtendedDeleter = urContextSetExtendedDeleter;
+  pDdiTable->pfnSetExtendedDeleter = urContextSetExtendedDeleter;
   return UR_RESULT_SUCCESS;
 }
 
@@ -133,7 +133,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     return Result;
   }
   pDdiTable->pfnCreate = urSamplerCreate;
-  // pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
+  pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urSamplerGetInfo;
   pDdiTable->pfnGetNativeHandle = urSamplerGetNativeHandle;
   pDdiTable->pfnRelease = urSamplerRelease;
@@ -230,10 +230,11 @@ urGetUSMProcAddrTable(ur_api_version_t Version, ur_usm_dditable_t *pDdiTable) {
   pDdiTable->pfnFree = urUSMFree;
   pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
-  //  pDdiTable->pfnPoolCreate = nullptr;
-  //  pDdiTable->pfnPoolDestroy = nullptr;
-  //  pDdiTable->pfnPoolDestroy = nullptr;
-  //  pDdiTable->pfnSharedAlloc = nullptr;
+  pDdiTable->pfnPoolCreate = nullptr;
+  pDdiTable->pfnPoolRetain = nullptr;
+  pDdiTable->pfnPoolRelease = nullptr;
+  pDdiTable->pfnPoolGetInfo = nullptr;
+  pDdiTable->pfnSharedAlloc = urUSMSharedAlloc;
   return UR_RESULT_SUCCESS;
 }
 
@@ -253,6 +254,33 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   pDdiTable->pfnRetain = urDeviceRetain;
   pDdiTable->pfnSelectBinary = urDeviceSelectBinary;
   return UR_RESULT_SUCCESS;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
+    ur_api_version_t version, ur_command_buffer_exp_dditable_t *pDdiTable) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+  pDdiTable->pfnCreateExp = urCommandBufferCreateExp;
+  pDdiTable->pfnRetainExp = urCommandBufferRetainExp;
+  pDdiTable->pfnReleaseExp = urCommandBufferReleaseExp;
+  pDdiTable->pfnFinalizeExp = urCommandBufferFinalizeExp;
+  pDdiTable->pfnAppendKernelLaunchExp = urCommandBufferAppendKernelLaunchExp;
+  pDdiTable->pfnAppendMemcpyUSMExp = urCommandBufferAppendMemcpyUSMExp;
+  pDdiTable->pfnAppendMembufferCopyExp = urCommandBufferAppendMembufferCopyExp;
+  pDdiTable->pfnAppendMembufferCopyRectExp =
+      urCommandBufferAppendMembufferCopyRectExp;
+  pDdiTable->pfnAppendMembufferReadExp = urCommandBufferAppendMembufferReadExp;
+  pDdiTable->pfnAppendMembufferReadRectExp =
+      urCommandBufferAppendMembufferReadRectExp;
+  pDdiTable->pfnAppendMembufferWriteExp =
+      urCommandBufferAppendMembufferWriteExp;
+  pDdiTable->pfnAppendMembufferWriteRectExp =
+      urCommandBufferAppendMembufferWriteRectExp;
+  pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
+
+  return retVal;
 }
 
 #if defined(__cplusplus)

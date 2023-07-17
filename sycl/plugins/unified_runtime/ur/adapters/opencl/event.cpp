@@ -50,21 +50,6 @@ convertURProfilingInfoToCL(const ur_profiling_info_t PropName) {
   }
 }
 
-cl_int convertURProfilingInfoToCL(const ur_execution_info_t ExecutionInfo) {
-  switch (ExecutionInfo) {
-  case UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE:
-    return CL_COMPLETE;
-  case UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING:
-    return CL_RUNNING;
-  case UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED:
-    return CL_SUBMITTED;
-  case UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED:
-    return CL_QUEUED;
-  default:
-    return -1;
-  }
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
     const ur_event_native_properties_t *pProperties,
@@ -133,5 +118,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
                    ur_event_callback_t pfnNotify, void *pUserData) {
+  std::ignore = hEvent;
+  std::ignore = execStatus;
+  std::ignore = pfnNotify;
+  std::ignore = pUserData;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

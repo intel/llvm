@@ -131,7 +131,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
+urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
                        ur_native_handle_t *phNativeQueue) {
   return getNativeHandle(hQueue, phNativeQueue);
 }

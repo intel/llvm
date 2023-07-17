@@ -64,7 +64,7 @@ ur_result_t mapCLErrorToUR(cl_int Result) {
 }
 
 void cl_adapter::die(const char *Message) {
-  std::cerr << "ur_die: " << Message << std::endl;
+  std::cerr << "ur_die: " << Message << "\n";
   std::terminate();
 }
 
@@ -79,5 +79,3 @@ ur_result_t getNativeHandle(void *URObj, ur_native_handle_t *NativeHandle) {
   *NativeHandle = reinterpret_cast<ur_native_handle_t>(URObj);
   return UR_RESULT_SUCCESS;
 }
-
-cl_ext::ExtFuncPtrCacheT *ExtFuncPtrCache;

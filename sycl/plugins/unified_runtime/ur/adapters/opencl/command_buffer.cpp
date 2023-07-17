@@ -12,39 +12,34 @@
 /// Stub implementations of UR experimental feature command-buffers
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
-    ur_exp_command_buffer_handle_t *phCommandBuffer) {
-  (void)hContext;
-  (void)hDevice;
-  (void)pCommandBufferDesc;
-  (void)phCommandBuffer;
-  cl_adapter::die("Experimental Command-buffer feature is not "
-                  "implemented for OpenCL adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  (void)hCommandBuffer;
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] ur_device_handle_t hDevice,
+    [[maybe_unused]] const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
+    [[maybe_unused]] ur_exp_command_buffer_handle_t *phCommandBuffer) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  (void)hCommandBuffer;
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferRetainExp(
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  (void)hCommandBuffer;
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseExp(
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer) {
+
+  cl_adapter::die("Experimental Command-buffer feature is not "
+                  "implemented for OpenCL adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferFinalizeExp(
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
@@ -52,21 +47,16 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
-    uint32_t workDim, const size_t *pGlobalWorkOffset,
-    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
-    uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hKernel;
-  (void)workDim;
-  (void)pGlobalWorkOffset;
-  (void)pGlobalWorkSize;
-  (void)pLocalWorkSize;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] uint32_t workDim,
+    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    [[maybe_unused]] const size_t *pGlobalWorkSize,
+    [[maybe_unused]] const size_t *pLocalWorkSize,
+    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
@@ -74,17 +64,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
-    size_t size, uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)pDst;
-  (void)pSrc;
-  (void)size;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] void *pDst, [[maybe_unused]] const void *pSrc,
+    [[maybe_unused]] size_t size,
+    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
@@ -92,20 +78,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
-    ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
-    uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hSrcMem;
-  (void)hDstMem;
-  (void)srcOffset;
-  (void)dstOffset;
-  (void)size;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] ur_mem_handle_t hSrcMem,
+    [[maybe_unused]] ur_mem_handle_t hDstMem, [[maybe_unused]] size_t srcOffset,
+    [[maybe_unused]] size_t dstOffset, [[maybe_unused]] size_t size,
+    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
@@ -113,26 +93,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
-    ur_mem_handle_t hDstMem, ur_rect_offset_t srcOrigin,
-    ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
-    size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
-    uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hSrcMem;
-  (void)hDstMem;
-  (void)srcOrigin;
-  (void)dstOrigin;
-  (void)region;
-  (void)srcRowPitch;
-  (void)srcSlicePitch;
-  (void)dstRowPitch;
-  (void)dstSlicePitch;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] ur_mem_handle_t hSrcMem,
+    [[maybe_unused]] ur_mem_handle_t hDstMem,
+    [[maybe_unused]] ur_rect_offset_t srcOrigin,
+    [[maybe_unused]] ur_rect_offset_t dstOrigin,
+    [[maybe_unused]] ur_rect_region_t region,
+    [[maybe_unused]] size_t srcRowPitch, [[maybe_unused]] size_t srcSlicePitch,
+    [[maybe_unused]] size_t dstRowPitch, [[maybe_unused]] size_t dstSlicePitch,
+    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
@@ -141,19 +113,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
 
 UR_APIEXPORT
 ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
-    size_t offset, size_t size, const void *pSrc,
-    uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hBuffer;
-  (void)offset;
-  (void)size;
-  (void)pSrc;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
+    [[maybe_unused]] size_t size, [[maybe_unused]] const void *pSrc,
+    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
@@ -162,18 +128,13 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
 
 UR_APIEXPORT
 ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
-    size_t offset, size_t size, void *pDst, uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hBuffer;
-  (void)offset;
-  (void)size;
-  (void)pDst;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
+    [[maybe_unused]] size_t size, [[maybe_unused]] void *pDst,
+    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
@@ -182,26 +143,19 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
 
 UR_APIEXPORT
 ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
-    ur_rect_offset_t bufferOffset, ur_rect_offset_t hostOffset,
-    ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
-    size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
-    uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hBuffer;
-  (void)bufferOffset;
-  (void)hostOffset;
-  (void)region;
-  (void)bufferRowPitch;
-  (void)bufferSlicePitch;
-  (void)hostRowPitch;
-  (void)hostSlicePitch;
-  (void)pSrc;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] ur_mem_handle_t hBuffer,
+    [[maybe_unused]] ur_rect_offset_t bufferOffset,
+    [[maybe_unused]] ur_rect_offset_t hostOffset,
+    [[maybe_unused]] ur_rect_region_t region,
+    [[maybe_unused]] size_t bufferRowPitch,
+    [[maybe_unused]] size_t bufferSlicePitch,
+    [[maybe_unused]] size_t hostRowPitch,
+    [[maybe_unused]] size_t hostSlicePitch, [[maybe_unused]] void *pSrc,
+    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
@@ -210,27 +164,19 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
 
 UR_APIEXPORT
 ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
-    ur_rect_offset_t bufferOffset, ur_rect_offset_t hostOffset,
-    ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
-    size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
-    uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hBuffer;
-  (void)bufferOffset;
-  (void)hostOffset;
-  (void)region;
-  (void)bufferRowPitch;
-  (void)bufferSlicePitch;
-  (void)hostRowPitch;
-  (void)hostSlicePitch;
-  (void)pDst;
-
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] ur_mem_handle_t hBuffer,
+    [[maybe_unused]] ur_rect_offset_t bufferOffset,
+    [[maybe_unused]] ur_rect_offset_t hostOffset,
+    [[maybe_unused]] ur_rect_region_t region,
+    [[maybe_unused]] size_t bufferRowPitch,
+    [[maybe_unused]] size_t bufferSlicePitch,
+    [[maybe_unused]] size_t hostRowPitch,
+    [[maybe_unused]] size_t hostSlicePitch, [[maybe_unused]] void *pDst,
+    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");
@@ -238,14 +184,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  (void)hCommandBuffer;
-  (void)hQueue;
-  (void)numEventsInWaitList;
-  (void)phEventWaitList;
-  (void)phEvent;
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] ur_queue_handle_t hQueue,
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_event_handle_t *phEvent) {
 
   cl_adapter::die("Experimental Command-buffer feature is not "
                   "implemented for OpenCL adapter.");

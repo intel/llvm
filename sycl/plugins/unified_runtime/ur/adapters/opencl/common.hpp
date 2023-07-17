@@ -49,14 +49,14 @@
 namespace oclv {
 class OpenCLVersion {
 protected:
-  unsigned int ocl_major;
-  unsigned int ocl_minor;
+  unsigned int OCLMajor;
+  unsigned int OCLMinor;
 
 public:
-  OpenCLVersion() : ocl_major(0), ocl_minor(0) {}
+  OpenCLVersion() : OCLMajor(0), OCLMinor(0) {}
 
   OpenCLVersion(unsigned int OclMajor, unsigned int OclMinor)
-      : ocl_major(OclMajor), ocl_minor(OclMinor) {
+      : OCLMajor(OclMajor), OCLMinor(OclMinor) {
     if (!isValid()) {
       OclMajor = OclMinor = 0;
     }
@@ -64,7 +64,7 @@ public:
 
   OpenCLVersion(const char *Version) : OpenCLVersion(std::string(Version)) {}
 
-  OpenCLVersion(const std::string &Version) : ocl_major(0), ocl_minor(0) {
+  OpenCLVersion(const std::string &Version) : OCLMajor(0), OCLMinor(0) {
     /* The OpenCL specification defines the full version string as
      * 'OpenCL<space><ocl_major_version.ocl_minor_version><space><platform-specific
      * information>' for platforms and as
@@ -75,26 +75,26 @@ public:
     std::smatch Match;
 
     if (std::regex_search(Version, Match, Rx) && (Match.size() == 3)) {
-      ocl_major = strtoul(Match[1].str().c_str(), nullptr, 10);
-      ocl_minor = strtoul(Match[2].str().c_str(), nullptr, 10);
+      OCLMajor = strtoul(Match[1].str().c_str(), nullptr, 10);
+      OCLMinor = strtoul(Match[2].str().c_str(), nullptr, 10);
 
       if (!isValid()) {
-        ocl_major = ocl_minor = 0;
+        OCLMajor = OCLMinor = 0;
       }
     }
   }
 
   bool operator==(const OpenCLVersion &V) const {
-    return ocl_major == V.ocl_major && ocl_minor == V.ocl_minor;
+    return OCLMajor == V.OCLMajor && OCLMinor == V.OCLMinor;
   }
 
   bool operator!=(const OpenCLVersion &V) const { return !(*this == V); }
 
   bool operator<(const OpenCLVersion &V) const {
-    if (ocl_major == V.ocl_major)
-      return ocl_minor < V.ocl_minor;
+    if (OCLMajor == V.OCLMajor)
+      return OCLMinor < V.OCLMinor;
 
-    return ocl_major < V.ocl_major;
+    return OCLMajor < V.OCLMajor;
   }
 
   bool operator>(const OpenCLVersion &V) const { return V < *this; }
@@ -108,21 +108,21 @@ public:
   }
 
   bool isValid() const {
-    switch (ocl_major) {
+    switch (OCLMajor) {
     case 0:
       return false;
     case 1:
     case 2:
-      return ocl_minor <= 2;
+      return OCLMinor <= 2;
     case UINT_MAX:
       return false;
     default:
-      return ocl_minor != UINT_MAX;
+      return OCLMinor != UINT_MAX;
     }
   }
 
-  int getMajor() const { return ocl_major; }
-  int getMinor() const { return ocl_minor; }
+  unsigned int getMajor() const { return OCLMajor; }
+  unsigned int getMinor() const { return OCLMinor; }
 };
 
 inline const OpenCLVersion V1_0(1, 0);
@@ -232,7 +232,7 @@ template <typename T> struct FuncPtrCache {
 
 // FIXME: There's currently no mechanism for cleaning up this cache, meaning
 // that it is invalidated whenever a context is destroyed. This could lead to
-// reusing an invalid function pointer if another context happends to have the
+// reusing an invalid function pointer if another context happens to have the
 // same native handle.
 struct ExtFuncPtrCacheT {
   FuncPtrCache<clHostMemAllocINTEL_fn> clHostMemAllocINTELCache;
@@ -305,8 +305,8 @@ static ur_result_t getExtFuncFromContext(cl_context Context,
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
-  T FuncPtr =
-      (T)clGetExtensionFunctionAddressForPlatform(CurPlatform, FuncName);
+  T FuncPtr = reinterpret_cast<T>(
+      clGetExtensionFunctionAddressForPlatform(CurPlatform, FuncName));
 
   if (!FuncPtr) {
     // Cache that the extension is not available

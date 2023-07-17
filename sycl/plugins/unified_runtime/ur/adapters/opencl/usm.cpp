@@ -10,7 +10,7 @@
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
-               ur_usm_pool_handle_t pool, size_t size, void **ppMem) {
+               ur_usm_pool_handle_t, size_t size, void **ppMem) {
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
@@ -61,7 +61,7 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
-                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
+                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t,
                  size_t size, void **ppMem) {
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -117,7 +117,7 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
-                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
+                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t,
                  size_t size, void **ppMem) {
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -357,39 +357,24 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
-    ur_queue_handle_t hQueue, void *pMem, size_t pitch, size_t patternSize,
-    const void *pPattern, size_t width, size_t height,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = pMem;
-  std::ignore = pitch;
-  std::ignore = patternSize;
-  std::ignore = pPattern;
-  std::ignore = width;
-  std::ignore = height;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    [[maybe_unused]] ur_queue_handle_t hQueue, [[maybe_unused]] void *pMem,
+    [[maybe_unused]] size_t pitch, [[maybe_unused]] size_t patternSize,
+    [[maybe_unused]] const void *pPattern, [[maybe_unused]] size_t width,
+    [[maybe_unused]] size_t height,
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_event_handle_t *phEvent) {
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
-    ur_queue_handle_t hQueue, bool blocking, void *pDst, size_t dstPitch,
-    const void *pSrc, size_t srcPitch, size_t width, size_t height,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = blocking;
-  std::ignore = pDst;
-  std::ignore = dstPitch;
-  std::ignore = pSrc;
-  std::ignore = srcPitch;
-  std::ignore = width;
-  std::ignore = height;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    [[maybe_unused]] ur_queue_handle_t hQueue, [[maybe_unused]] bool blocking,
+    [[maybe_unused]] void *pDst, [[maybe_unused]] size_t dstPitch,
+    [[maybe_unused]] const void *pSrc, [[maybe_unused]] size_t srcPitch,
+    [[maybe_unused]] size_t width, [[maybe_unused]] size_t height,
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_event_handle_t *phEvent) {
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 

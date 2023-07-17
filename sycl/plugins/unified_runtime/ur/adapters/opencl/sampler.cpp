@@ -80,7 +80,6 @@ ur_sampler_addressing_mode_t cl2URAddressingMode(cl_addressing_mode Mode) {
 #undef CASE
 
   default:
-    std::cout << Mode << std::endl;
     assert(0 && "Unhandled: cl_addressing_mode");
     break;
   }
@@ -103,8 +102,7 @@ ur_sampler_filter_mode_t cl2URFilterMode(cl_filter_mode Mode) {
   }
 }
 
-void cl2URSamplerInfoValue(cl_sampler_info Info, size_t InfoSize,
-                           void *InfoValue) {
+void cl2URSamplerInfoValue(cl_sampler_info Info, void *InfoValue) {
   if (!InfoValue) {
     return;
   }
@@ -168,7 +166,7 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
     return Err;
   }
   // Convert OpenCL returns to UR
-  cl2URSamplerInfoValue(SamplerInfo, propSize, pPropValue);
+  cl2URSamplerInfoValue(SamplerInfo, pPropValue);
 
   return UR_RESULT_SUCCESS;
 }
@@ -198,15 +196,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
-    ur_native_handle_t hNativeSampler, ur_context_handle_t hContext,
-    const ur_sampler_native_properties_t *pProperties,
-    ur_sampler_handle_t *phSampler) {
+    ur_native_handle_t hNativeSampler, ur_context_handle_t,
+    const ur_sampler_native_properties_t *, ur_sampler_handle_t *phSampler) {
   UR_ASSERT(hNativeSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phSampler, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  std::ignore = hContext;
-  std::ignore = pProperties;
   *phSampler = reinterpret_cast<ur_sampler_handle_t>(
       cl_adapter::cast<cl_sampler>(hNativeSampler));
   return UR_RESULT_SUCCESS;
