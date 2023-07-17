@@ -119,13 +119,17 @@ def SYCLHostHandlerSetNDRange
     Operation assigning an nd-range to a `sycl::handler`, setting the nd-range
     of the kernel to be launched.
 
-    The input nd-range can be specified either with a memref to a
-    `sycl.nd_range` or a memref to a `sycl.range` (global size) and an optional
-    memref to a `sycl.id` (offset).
+    The `range` operand expects an `nd_range` pointer or a `range` pointer. In
+    the latter case, an `id` pointer can be optionally given as the `offset`. In
+    the former ase, the `nd_range_passed` attribute must be set.
   }];
-  let arguments = (ins LLVM_AnyPointer:$handler, Variadic<AnyType>:$nd_range);
+  let arguments = (ins LLVM_AnyPointer:$handler,
+                       LLVM_PointerTo<LLVM_AnyStruct>:$range,
+                       Optional<LLVM_PointerTo<LLVM_AnyStruct>>:$offset,
+                       UnitAttr:$nd_range);
   let assemblyFormat = [{
-    $handler `->` $nd_range attr-dict `:` type(operands)
+    $handler `->` (`nd_range` $nd_range^):(`range`)?  $range
+    (`,` `offset` $offset^)? attr-dict `:` type(operands)
   }];
   let hasVerifier = 1;
 }
@@ -160,8 +164,9 @@ def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
 
     If the `range` operand is not present, this operation represents a
     *single_task* launch, otherwise a *parallel_for* invocation. The `range`
-    operand either accepts an `nd_range` memref or a `range` memref. In the
-    latter case, an `id` memref can be optionally given as the `offset`.
+    operand expects an `nd_range` pointer or a `range` pointer. In the latter
+    case, an `id` pointer can be optionally given as the `offset`. In the former
+    ase, the `nd_range` attribute must be set.
 
     Note that due to the current focus on host-device optimizations for
     individual launches, this operation currently does not model the queue or
@@ -177,10 +182,12 @@ def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
 
   let arguments = (ins
     SymbolRefAttr:$kernel_name,
-    Optional<MemRefOf<[SYCL_NdRangeType, SYCL_RangeType]>>:$range,
-    Optional<MemRefOf<[SYCL_IDType]>>:$offset, Variadic<AnyType>:$args);
+    Optional<LLVM_PointerTo<LLVM_AnyStruct>>:$range,
+    Optional<LLVM_PointerTo<LLVM_AnyStruct>>:$offset,
+    Variadic<AnyType>:$args,
+    UnitAttr:$nd_range);
   let assemblyFormat = [{
-    $kernel_name (`[` $range^ (`,` $offset^)? `]`)? `` (`(` $args^ `)`)?
+    $kernel_name (`[` (`nd_range` $nd_range^):(```range`)? $range^ (`,` `offset` $offset^)? `]`)? `` (`(` $args^ `)`)?
       attr-dict `:` functional-type(operands, results)
   }];
   let hasVerifier = 1;

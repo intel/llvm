@@ -222,33 +222,6 @@ static FailureOr<StringRef> getAnnotation(LLVM::VarAnnotation annotation) {
   return global ? getStringValue(global) : FailureOr<StringRef>(failure());
 }
 
-/// Return the constructor responsible of the construction of \p value.
-///
-/// Returns an empty instance if conflicting users are found.
-static sycl::SYCLHostConstructorOp getConstructor(Value value) {
-  // TODO: Implement using ReachingDefinionAnalysis after testing with non
-  // structured control flow.
-  constexpr auto canOmitOperation = [](Operation *op) {
-    return isa<sycl::SYCLDialect>(op->getDialect()) ||
-           isa<LLVM::VarAnnotation, LLVM::LifetimeEndOp, LLVM::LifetimeStartOp>(
-               op);
-  };
-
-  sycl::SYCLHostConstructorOp constructor;
-  for (const OpOperand &operand : value.getUses()) {
-    Operation *op = operand.getOwner();
-    if (auto c = dyn_cast<sycl::SYCLHostConstructorOp>(op)) {
-      if (constructor)
-        return nullptr;
-      constructor = c;
-      continue;
-    }
-    if (!canOmitOperation(op))
-      return nullptr;
-  }
-  return constructor;
-}
-
 static Value getHandler(FunctionOpInterface op) {
   Value handler;
   // First search for any operation known to receive a pointer to a handler
@@ -1295,13 +1268,10 @@ public:
     if (!handler)
       return failure();
 
-    // Annotated values constructors
-    SmallVector<sycl::SYCLHostConstructorOp> constructors;
-    // Annotations
-    SmallVector<LLVM::VarAnnotation> annotations;
-
-    // We will fill the constructors and annotations vectors
-    const auto getConstructors = [&](LLVM::VarAnnotation annotation) {
+    // Gather arguments from annotations
+    bool ndRangePassed = false;
+    SmallVector<Argument, 2> arguments;
+    const auto getArguments = [&](LLVM::VarAnnotation annotation) {
       // Check the annotation is correct
       FailureOr<StringRef> failureOrAnnotationStr = getAnnotation(annotation);
       if (failed(failureOrAnnotationStr))
@@ -1312,106 +1282,60 @@ public:
             annotationStr == "range"))
         return WalkResult::advance();
 
-      // Get value's constructor
-      Value value = annotation.getVal();
-      sycl::SYCLHostConstructorOp constructor = getConstructor(value);
-      if (!constructor)
-        return WalkResult::interrupt();
+      ndRangePassed = annotationStr == "nd_range";
 
-      assert((TypeSwitch<Type, bool>(constructor.getType().getValue())
-                  .Case<sycl::NdRangeType>(
-                      [=](auto) { return annotationStr == "nd_range"; })
-                  .Case<sycl::IDType>(
-                      [=](auto) { return annotationStr == "offset"; })
-                  .Case<sycl::RangeType>(
-                      [=](auto) { return annotationStr == "range"; })
-                  .Default(false)) &&
-             "Invalid constructor type");
-
-      constructors.push_back(constructor);
-      annotations.push_back(annotation);
+      arguments.emplace_back(annotation, annotation.getVal());
 
       return WalkResult::advance();
     };
-    if (op.walk(getConstructors).wasInterrupted() || constructors.empty())
+    if (op.walk(getArguments).wasInterrupted() || arguments.empty())
       return failure();
+
+    assert(
+        (arguments.size() == 1 || (arguments.size() == 2 && !ndRangePassed)) &&
+        "Expecting nd-range or global size+[offset] combination");
 
     // We will introduce the operation after the last annotation
     OpBuilder::InsertionGuard ig(rewriter);
-    rewriter.setInsertionPointAfter(annotations.back());
-    Location loc = annotations.back().getLoc();
+    LLVM::VarAnnotation lastAnnotation = arguments.back().getAnnotation();
+    rewriter.setInsertionPointAfter(lastAnnotation);
+    Location loc = lastAnnotation.getLoc();
 
     // Remove annotations, no longer needed
     // Also prevents infinite recursion
     rewriter.updateRootInPlace(op, [&] {
-      for (LLVM::VarAnnotation annotation : annotations)
-        rewriter.eraseOp(annotation);
+      for (const Argument &arg : arguments)
+        rewriter.eraseOp(arg.getAnnotation());
     });
-
-    assert((constructors.size() < 3 &&
-            isa<sycl::NdRangeType, sycl::RangeType>(
-                constructors.front().getType().getValue()) &&
-            (constructors.size() == 1 ||
-             (isa<sycl::RangeType>(constructors.front().getType().getValue()) &&
-              isa<sycl::IDType>(constructors.back().getType().getValue())))) &&
-           "Expecting nd-range or global size+[offset] combination");
-
-    // TODO: nd_range constructor receives pointers to structs, so we are not
-    // able to handle this yet.
-    if (isa<sycl::NdRangeType>(constructors.front().getType().getValue()))
-      return failure();
-
-    SmallVector<Value> arguments = getArguments(op, constructors, rewriter);
 
     // Finally insert sycl.host.handler.set_nd_range after the last annotation
     rewriter.updateRootInPlace(op, [&] {
-      rewriter.create<sycl::SYCLHostHandlerSetNDRange>(loc, handler, arguments);
+      rewriter.create<sycl::SYCLHostHandlerSetNDRange>(
+          loc, handler, arguments[0].getValue(),
+          // Pass empty value if offset is not found
+          arguments.size() == 2 ? arguments[1].getValue() : Value(),
+          // Set nd_range_passed attribute if so
+          ndRangePassed ? rewriter.getAttr<UnitAttr>() : UnitAttr());
     });
 
     return success();
   }
 
 private:
-  static SmallVector<Value>
-  getArguments(FunctionOpInterface op,
-               ArrayRef<sycl::SYCLHostConstructorOp> constructors,
-               PatternRewriter &rewriter) {
-    SmallVector<Value> arguments;
-    OpBuilder::InsertionGuard ig(rewriter);
-    llvm::transform(
-        constructors, std::back_inserter(arguments),
-        [&](sycl::SYCLHostConstructorOp constructor) -> Value {
-          // Insert sycl.X.constructor right after sycl.host.constructor
-          rewriter.setInsertionPoint(constructor);
-          Location loc = constructor.getLoc();
-          Type type = constructor.getType().getValue();
-          auto mt = MemRefType::get(1, type);
-          return TypeSwitch<Type, Value>(type)
-              .Case<sycl::RangeType, sycl::IDType>([&](auto t) {
-                Value v;
-                rewriter.updateRootInPlace(op, [&] {
-                  SmallVector<Value> args;
-                  auto indexType = rewriter.getIndexType();
-                  // Cast each argument from iX to index
-                  llvm::transform(constructor.getArgs(),
-                                  std::back_inserter(args), [&](Value arg) {
-                                    assert(isa<IntegerType>(arg.getType()) &&
-                                           "Expecting integer type");
-                                    return rewriter.create<arith::IndexCastOp>(
-                                        loc, indexType, arg);
-                                  });
-                  // Create the required constructor operation depending on
-                  // the type
-                  using OpTy = std::conditional_t<
-                      std::is_same_v<decltype(t), sycl::RangeType>,
-                      sycl::SYCLRangeConstructorOp, sycl::SYCLIDConstructorOp>;
-                  v = rewriter.create<OpTy>(loc, mt, args);
-                });
-                return v;
-              });
-        });
-    return arguments;
-  }
+  class Argument {
+  public:
+    Argument(LLVM::VarAnnotation annotation, Value value)
+        : annotation(annotation), value(value) {
+      assert(annotation && value && "All members must be set");
+    }
+
+    LLVM::VarAnnotation getAnnotation() const { return annotation; }
+    Value getValue() const { return value; }
+
+  private:
+    LLVM::VarAnnotation annotation;
+    Value value;
+  };
 };
 } // namespace
 

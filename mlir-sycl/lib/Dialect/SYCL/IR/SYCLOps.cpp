@@ -541,33 +541,15 @@ SYCLHostHandlerSetKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
   return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
 }
 
-static LogicalResult verifyNdRange(Operation *op, ValueRange ndRange) {
-  TypeRange ndRangeType = ndRange.getTypes();
-  switch (ndRangeType.size()) {
-  case 1:
-    if (getMemRefElementType<NdRangeType>(ndRangeType[0]) ||
-        getMemRefElementType<RangeType>(ndRangeType[0]))
-      return success();
-    break;
-  case 2:
-    if (auto globalSizeType = getMemRefElementType<RangeType>(ndRangeType[0])) {
-      if (auto offsetType = getMemRefElementType<IDType>(ndRangeType[1])) {
-        return getDimensions(globalSizeType) == getDimensions(offsetType)
-                   ? success()
-                   : op->emitOpError(
-                         "expects both global size and offset to have "
-                         "the same number of dimensions");
-      }
-    }
-    break;
-  default:
-    break;
-  }
-  return emitBadSignatureError(op);
+static LogicalResult verifyNdRange(Operation *op, Value firstArg,
+                                   Value secondArg, bool ndRange) {
+  return ndRange && secondArg ? op->emitOpError("expects no offset argument if "
+                                                "the nd_range attribute is set")
+                              : success();
 }
 
 LogicalResult SYCLHostHandlerSetNDRange::verify() {
-  return verifyNdRange(*this, getNdRange());
+  return verifyNdRange(*this, getRange(), getOffset(), getNdRange());
 }
 
 LogicalResult
@@ -577,13 +559,18 @@ SYCLHostLaunchKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
 
 LogicalResult SYCLHostLaunchKernel::verify() {
   // TODO: verify that the given args match the kernel's signature.
-  SmallVector<Value, 2> rangeSpec;
-  if (auto range = getRange())
-    rangeSpec.push_back(range);
-  if (auto offset = getOffset())
-    rangeSpec.push_back(offset);
-
-  return rangeSpec.empty() ? success() : verifyNdRange(*this, rangeSpec);
+  Value range = getRange();
+  Value offset = getOffset();
+  bool ndRange = getNdRange();
+  if (!range) {
+    if (offset)
+      return emitOpError("expects no offset when no range is present");
+    if (ndRange)
+      return emitOpError(
+          "expects nd_range to be unset when a range is not present");
+    return success();
+  }
+  return verifyNdRange(*this, range, offset, ndRange);
 }
 
 #define GET_OP_CLASSES
