@@ -121,7 +121,6 @@ piextMemGetNativeHandle
 piextMemImageAllocate
 piextMemImageCopy
 piextMemImageCreateWithNativeHandle
-piextPeerAccessGetInfo
 piextMemImageFree
 piextMemImageGetInfo
 piextMemImportOpaqueFD
@@ -133,6 +132,7 @@ piextMemSampledImageCreate
 piextMemSampledImageHandleDestroy
 piextMemUnsampledImageCreate
 piextMemUnsampledImageHandleDestroy
+piextPeerAccessGetInfo
 piextPlatformCreateWithNativeHandle
 piextPlatformGetNativeHandle
 piextPluginGetOpaqueData

@@ -876,7 +876,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
-    // On CUDA bindless images can be backed by shared (managed) USM
+    // On CUDA bindless images can be backed by shared (managed) USM.
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
@@ -890,7 +890,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP: {
     int32_t tex_pitch_align = 0;
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&tex_pitch_align,
                              CU_DEVICE_ATTRIBUTE_TEXTURE_PITCH_ALIGNMENT,
                              hDevice->get()) == CUDA_SUCCESS);
@@ -898,7 +898,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
     int32_t tex_max_linear_width = 0;
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&tex_max_linear_width,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_WIDTH,
                              hDevice->get()) == CUDA_SUCCESS);
@@ -906,7 +906,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
     int32_t tex_max_linear_height = 0;
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(
             &tex_max_linear_height,
             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_HEIGHT,
@@ -915,7 +915,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP: {
     int32_t tex_max_linear_pitch = 0;
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&tex_max_linear_pitch,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_PITCH,
                              hDevice->get()) == CUDA_SUCCESS);
