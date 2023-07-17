@@ -163,7 +163,7 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
 
   // Map old arguments to new arguments
   ValueToValueMapTy VMap;
-  for (auto Pair : llvm::zip(OldF->args(), NewF->args())) {
+  for (const auto &Pair : llvm::zip(OldF->args(), NewF->args())) {
     auto &OldA = std::get<0>(Pair);
     auto &NewA = std::get<1>(Pair);
     VMap[&OldA] = &NewA;
