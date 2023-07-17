@@ -227,5 +227,4 @@ def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
   let hasVerifier = 1;
 }
 
-
 #endif // SYCL_HOST_OPS
