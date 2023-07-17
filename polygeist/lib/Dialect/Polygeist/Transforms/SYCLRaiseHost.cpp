@@ -1310,12 +1310,18 @@ public:
 
     // Finally insert sycl.host.handler.set_nd_range after the last annotation
     rewriter.updateRootInPlace(op, [&] {
-      rewriter.create<sycl::SYCLHostHandlerSetNDRange>(
-          loc, handler, arguments[0].getValue(),
-          // Pass empty value if offset is not found
-          arguments.size() == 2 ? arguments[1].getValue() : Value(),
-          // Set nd_range_passed attribute if so
-          ndRangePassed ? rewriter.getAttr<UnitAttr>() : UnitAttr());
+      switch (arguments.size()) {
+      case 1:
+        rewriter.create<sycl::SYCLHostHandlerSetNDRange>(
+            loc, handler, arguments[0].getValue(), ndRangePassed);
+        break;
+      case 2:
+        rewriter.create<sycl::SYCLHostHandlerSetNDRange>(
+            loc, handler, arguments[0].getValue(), arguments[1].getValue());
+        break;
+      default:
+        llvm_unreachable("Invalid number of arguments");
+      }
     });
 
     return success();

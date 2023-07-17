@@ -124,11 +124,26 @@ def SYCLHostHandlerSetNDRange
     the former case, the `nd_range` attribute must be set.
   }];
   let arguments = (ins LLVM_AnyPointer:$handler,
-                       LLVM_PointerTo<LLVM_AnyStruct>:$range,
-                       Optional<LLVM_PointerTo<LLVM_AnyStruct>>:$offset,
+                       LLVM_AnyPointer:$range,
+                       Optional<LLVM_AnyPointer>:$offset,
                        UnitAttr:$nd_range);
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<(ins "::mlir::Value":$handler,
+                   "::mlir::Value":$range,
+                   "bool":$nd_range), [{
+      if (nd_range)
+        $_state.addAttribute("nd_range", $_builder.getUnitAttr());
+      $_state.addOperands({handler, range});
+    }]>,
+    OpBuilder<(ins "::mlir::Value":$handler,
+                   "::mlir::Value":$range,
+                   "::mlir::Value":$offset), [{
+      $_state.addOperands({handler, range, offset});
+    }]>
+  ];
   let assemblyFormat = [{
-    $handler `->` (`nd_range` $nd_range^):(`range`)?  $range
+    $handler `->` (`nd_range` $nd_range^):(`range`)? $range
     (`,` `offset` $offset^)? attr-dict `:` type(operands)
   }];
   let hasVerifier = 1;
@@ -166,7 +181,7 @@ def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
     *single_task* launch, otherwise a *parallel_for* invocation. The `range`
     operand expects an `nd_range` pointer or a `range` pointer. In the latter
     case, an `id` pointer can be optionally given as the `offset`. In the former
-    ase, the `nd_range` attribute must be set.
+    case, the `nd_range` attribute must be set.
 
     Note that due to the current focus on host-device optimizations for
     individual launches, this operation currently does not model the queue or
@@ -182,15 +197,43 @@ def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
 
   let arguments = (ins
     SymbolRefAttr:$kernel_name,
-    Optional<LLVM_PointerTo<LLVM_AnyStruct>>:$range,
-    Optional<LLVM_PointerTo<LLVM_AnyStruct>>:$offset,
+    Optional<LLVM_AnyPointer>:$range,
+    Optional<LLVM_AnyPointer>:$offset,
     Variadic<AnyType>:$args,
     UnitAttr:$nd_range);
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
+                   "::mlir::ValueRange":$args), [{
+      $_state.addAttribute("kernel_name", kernel_name);
+      $_state.addOperands({/*range=/Value(), /*offset=*/Value()});
+      $_state.addOperands({args});
+    }]>,
+    OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
+                   "::mlir::Value":$range,
+                   "::mlir::ValueRange":$args,
+                   "bool":$nd_range), [{
+      if (nd_range)
+        $_state.addAttribute("nd_range", $_builder.getUnitAttr());
+      $_state.addAttribute("kernel_name", kernel_name);
+      $_state.addOperands({range, /*offset=*/Value()});
+      $_state.addOperands(args);
+    }]>,
+    OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
+                   "::mlir::Value":$range,
+                   "::mlir::Value":$offset,
+                   "::mlir::ValueRange":$args), [{
+      $_state.addAttribute("kernel_name", kernel_name);
+      $_state.addOperands({range, offset});
+      $_state.addOperands(args);
+    }]>
+  ];
   let assemblyFormat = [{
     $kernel_name (`[` (`nd_range` $nd_range^):(```range`)? $range^ (`,` `offset` $offset^)? `]`)? `` (`(` $args^ `)`)?
       attr-dict `:` functional-type(operands, results)
   }];
   let hasVerifier = 1;
 }
+
 
 #endif // SYCL_HOST_OPS
