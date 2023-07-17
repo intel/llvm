@@ -41,7 +41,7 @@
 ; CHECK-LLVM: ![[#File]] = !DIFile(filename: "foo.c", directory: "/tmp")
 ; CHECK-LLVM: ![[#CU2]] = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_17, file: ![[#File]], producer: "clang version 17", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
 ; CHECK-LLVM: ![[#Empty:]] = !{}
-; CHECK-LLVM: ![[#Func1]] = distinct !DISubprogram(name: "foo", scope: null, file: ![[#File]], line: 5, type: ![[#Func1T:]], scopeLine: 5, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: ![[#CU1]], templateParams: ![[#Empty]], retainedNodes: ![[#Empty]])
+; CHECK-LLVM: ![[#Func1]] = distinct !DISubprogram(name: "foo", scope: null, file: ![[#File]], line: 5, type: ![[#Func1T:]], scopeLine: 5, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: ![[#CU1]], templateParams: ![[#Empty]])
 ; CHECK-LLVM: ![[#Func1T]] = !DISubroutineType(types: ![[#Func1TP:]])
 ; CHECK-LLVM: ![[#Func1TP]] = !{null}
 ; CHECK-LLVM: ![[#Puts1Loc]] = !DILocation(line: 6, column: 3, scope: ![[#Puts1Scope:]])
