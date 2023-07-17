@@ -54,14 +54,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
-#include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
-#include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/UniformityAnalysis.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
@@ -1062,13 +1059,10 @@ void LoopInternalization::runOnGPUModule(gpu::GPUModuleOp gpuModule) {
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
-  DataFlowSolver solver;
-  solver.load<dataflow::DeadCodeAnalysis>();
-  solver.load<dataflow::SparseConstantPropagation>();
+  DataFlowSolverWrapper solver(aliasAnalysis);
   solver.load<dataflow::IntegerRangeAnalysis>();
-  solver.load<UnderlyingValueAnalysis>();
-  solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
-  solver.load<UniformityAnalysis>(aliasAnalysis);
+  solver.loadWithRequiredAnalysis<UniformityAnalysis>();
+
   if (failed(solver.initializeAndRun(gpuModule))) {
     LLVM_DEBUG(llvm::dbgs()
                << DEBUG_TYPE ": Unable to run required dataflow analysis\n");

@@ -1208,12 +1208,9 @@ MemoryAccessAnalysis &MemoryAccessAnalysis::initialize(bool relaxedAliasing) {
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
   // Run the dataflow analysis we depend on.
-  DataFlowSolver solver;
-  solver.load<DeadCodeAnalysis>();
-  solver.load<SparseConstantPropagation>();
+  DataFlowSolverWrapper solver(aliasAnalysis);
   solver.load<IntegerRangeAnalysis>();
-  solver.load<UnderlyingValueAnalysis>();
-  solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
+  solver.loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(aliasAnalysis);
 
   if (failed(solver.initializeAndRun(operation))) {
     operation->emitError("Failed to run required dataflow analysis");
