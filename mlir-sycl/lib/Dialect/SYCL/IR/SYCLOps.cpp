@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -65,7 +66,7 @@ static bool isDefaultConstructedID(Value id) {
       // sycl.id.get should only be used when returning a scalar
       return !isa<MemRefType>(get.getRes().getType());
     return isa<SYCLNDRangeConstructorOp, SYCLIDConstructorOp, SYCLConstructorOp,
-               memref::LoadOp>(op);
+               affine::AffineLoadOp, memref::LoadOp>(op);
   });
 }
 
