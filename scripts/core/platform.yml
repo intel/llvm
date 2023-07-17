@@ -167,6 +167,9 @@ params:
       name: phNativePlatform
       desc: |
             [out] a pointer to the native handle of the platform.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Native platform creation properties"
@@ -201,6 +204,9 @@ params:
     - type: "$x_platform_handle_t*"
       name: phPlatform
       desc: "[out] pointer to the handle of the platform object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get the platform specific compiler backend option from a generic frontend option."

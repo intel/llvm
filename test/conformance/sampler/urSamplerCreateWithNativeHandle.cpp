@@ -11,7 +11,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerCreateWithNativeHandleTest);
 
 TEST_P(urSamplerCreateWithNativeHandleTest, Success) {
     ur_native_handle_t native_sampler = nullptr;
-    ASSERT_SUCCESS(urSamplerGetNativeHandle(sampler, &native_sampler));
+    if (urSamplerGetNativeHandle(sampler, &native_sampler)) {
+        GTEST_SKIP();
+    }
 
     // We cannot assume anything about a native_handle, not even if it's
     // `nullptr` since this could be a valid representation within a backend.

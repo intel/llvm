@@ -436,6 +436,9 @@ params:
       name: phNativeMem
       desc: |
             [out] a pointer to the native handle of the mem.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Native memory object creation properties"
@@ -473,6 +476,9 @@ params:
     - type: $x_mem_handle_t*
       name: phMem
       desc: "[out] pointer to handle of buffer memory object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create runtime image memory object from native memory handle."
@@ -503,6 +509,9 @@ params:
     - type: $x_mem_handle_t*
       name: phMem
       desc: "[out] pointer to handle of image memory object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieve information about a memory object."
