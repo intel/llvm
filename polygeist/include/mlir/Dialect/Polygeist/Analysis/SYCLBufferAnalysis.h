@@ -14,7 +14,7 @@
 #ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLBUFFERANALYSIS_H
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLBUFFERANALYSIS_H
 
-#include "mlir/Analysis/DataFlowFramework.h"
+#include "mlir/Dialect/Polygeist/Analysis/DataFlowSolverWrapper.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/SYCLIDAndRangeAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
@@ -123,7 +123,7 @@ private:
 
   AnalysisManager &am;
 
-  DataFlowSolver solver;
+  std::unique_ptr<DataFlowSolverWrapper> solver;
 
   bool initialized = false;
 

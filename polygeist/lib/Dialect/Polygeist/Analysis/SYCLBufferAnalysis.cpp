@@ -14,6 +14,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
+#include <memory>
 
 #define DEBUG_TYPE "sycl-buffer-analysis"
 
@@ -136,13 +137,12 @@ SYCLBufferAnalysis &SYCLBufferAnalysis::initialize(bool useRelaxedAliasing) {
   aliasAnalysis->addAnalysisImplementation(
       sycl::AliasAnalysis(useRelaxedAliasing));
 
-  // Populate the solver and run the analyses needed by this analysis.
-  solver.load<dataflow::DeadCodeAnalysis>();
-  solver.load<dataflow::SparseConstantPropagation>();
-  solver.load<UnderlyingValueAnalysis>();
-  solver.load<ReachingDefinitionAnalysis>(*aliasAnalysis);
+  solver = std::make_unique<DataFlowSolverWrapper>(*aliasAnalysis);
 
-  if (failed(solver.initializeAndRun(operation))) {
+  // Populate the solver and run the analyses needed by this analysis.
+  solver->loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(*aliasAnalysis);
+
+  if (failed(solver->initializeAndRun(operation))) {
     operation->emitError("Failed to run required dataflow analyses");
     return *this;
   }
@@ -164,10 +164,10 @@ SYCLBufferAnalysis::getBufferInformationFromConstruction(Operation *op,
   assert(aliasAnalysis != nullptr && "Alias analysis not initialized");
 
   const polygeist::ReachingDefinition *reachingDef =
-      solver.lookupState<polygeist::ReachingDefinition>(op);
+      solver->lookupState<polygeist::ReachingDefinition>(op);
   assert(reachingDef && "expected a reaching definition");
 
-  auto mods = reachingDef->getModifiers(operand, solver);
+  auto mods = reachingDef->getModifiers(operand, *solver);
   if (!mods || mods->empty())
     return std::nullopt;
 
@@ -175,7 +175,7 @@ SYCLBufferAnalysis::getBufferInformationFromConstruction(Operation *op,
                     [&](const Definition &def) { return isConstructor(def); }))
     return std::nullopt;
 
-  auto pMods = reachingDef->getPotentialModifiers(operand, solver);
+  auto pMods = reachingDef->getPotentialModifiers(operand, *solver);
   if (pMods) {
     if (!llvm::all_of(
             *pMods, [&](const Definition &def) { return isConstructor(def); }))
