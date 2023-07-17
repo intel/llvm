@@ -9,6 +9,7 @@
 
 #include "ur_api.h"
 #include <cstdarg>
+#include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
 
@@ -18,38 +19,128 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_SUCCESS;
 
   switch (urResult) {
-  case UR_RESULT_ERROR_UNKNOWN:
-    return PI_ERROR_UNKNOWN;
-  case UR_RESULT_ERROR_DEVICE_LOST:
-    return PI_ERROR_DEVICE_NOT_FOUND;
   case UR_RESULT_ERROR_INVALID_OPERATION:
     return PI_ERROR_INVALID_OPERATION;
-  case UR_RESULT_ERROR_INVALID_PLATFORM:
-    return PI_ERROR_INVALID_PLATFORM;
-  case UR_RESULT_ERROR_INVALID_ARGUMENT:
-    return PI_ERROR_INVALID_ARG_VALUE;
+  case UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES:
+    return PI_ERROR_INVALID_QUEUE_PROPERTIES;
+  case UR_RESULT_ERROR_INVALID_QUEUE:
+    return PI_ERROR_INVALID_QUEUE;
   case UR_RESULT_ERROR_INVALID_VALUE:
     return PI_ERROR_INVALID_VALUE;
-  case UR_RESULT_ERROR_INVALID_EVENT:
-    return PI_ERROR_INVALID_EVENT;
+  case UR_RESULT_ERROR_INVALID_CONTEXT:
+    return PI_ERROR_INVALID_CONTEXT;
+  case UR_RESULT_ERROR_INVALID_PLATFORM:
+    return PI_ERROR_INVALID_PLATFORM;
   case UR_RESULT_ERROR_INVALID_BINARY:
     return PI_ERROR_INVALID_BINARY;
-  case UR_RESULT_ERROR_INVALID_KERNEL_NAME:
-    return PI_ERROR_INVALID_KERNEL_NAME;
-  case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
-    return PI_ERROR_BUILD_PROGRAM_FAILURE;
+  case UR_RESULT_ERROR_INVALID_PROGRAM:
+    return PI_ERROR_INVALID_PROGRAM;
+  case UR_RESULT_ERROR_INVALID_SAMPLER:
+    return PI_ERROR_INVALID_SAMPLER;
+  case UR_RESULT_ERROR_INVALID_MEM_OBJECT:
+    return PI_ERROR_INVALID_MEM_OBJECT;
+  case UR_RESULT_ERROR_INVALID_EVENT:
+    return PI_ERROR_INVALID_EVENT;
+  case UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    return PI_ERROR_INVALID_EVENT_WAIT_LIST;
+  case UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET:
+    return PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET;
   case UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
     return PI_ERROR_INVALID_WORK_GROUP_SIZE;
-  case UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY:
-    return PI_ERROR_OUT_OF_RESOURCES;
-  case UR_RESULT_ERROR_OUT_OF_HOST_MEMORY:
-    return PI_ERROR_OUT_OF_HOST_MEMORY;
-  case UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
-    return PI_ERROR_BUILD_PROGRAM_FAILURE;
+  case UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE:
+    return PI_ERROR_COMPILER_NOT_AVAILABLE;
+  case UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE:
+    return PI_ERROR_PROFILING_INFO_NOT_AVAILABLE;
+  case UR_RESULT_ERROR_DEVICE_NOT_FOUND:
+    return PI_ERROR_DEVICE_NOT_FOUND;
+  case UR_RESULT_ERROR_INVALID_DEVICE:
+    return PI_ERROR_INVALID_DEVICE;
+  case UR_RESULT_ERROR_DEVICE_REQUIRES_RESET:
+  case UR_RESULT_ERROR_DEVICE_LOST:
+    return PI_ERROR_DEVICE_NOT_AVAILABLE;
+  case UR_RESULT_ERROR_DEVICE_PARTITION_FAILED:
+    return PI_ERROR_DEVICE_PARTITION_FAILED;
+  case UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT:
+    return PI_ERROR_INVALID_DEVICE_PARTITION_COUNT;
+  case UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE:
+    return PI_ERROR_INVALID_WORK_ITEM_SIZE;
+  case UR_RESULT_ERROR_INVALID_WORK_DIMENSION:
+    return PI_ERROR_INVALID_WORK_DIMENSION;
+  case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
+    return PI_ERROR_INVALID_KERNEL_ARGS;
+  case UR_RESULT_ERROR_INVALID_KERNEL:
+    return PI_ERROR_INVALID_KERNEL;
+  case UR_RESULT_ERROR_INVALID_KERNEL_NAME:
+    return PI_ERROR_INVALID_KERNEL_NAME;
+  case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX:
+    return PI_ERROR_INVALID_ARG_INDEX;
+  case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE:
+    return PI_ERROR_INVALID_ARG_SIZE;
+  case UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_INVALID_IMAGE_SIZE:
+    return PI_ERROR_INVALID_IMAGE_SIZE;
+  case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+    return PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+  case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
+    return PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
+    return PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE;
+  case UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE:
+    return PI_ERROR_INVALID_PROGRAM_EXECUTABLE;
   case UR_RESULT_ERROR_UNINITIALIZED:
     return PI_ERROR_UNINITIALIZED;
+  case UR_RESULT_ERROR_OUT_OF_HOST_MEMORY:
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+  case UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY:
+  case UR_RESULT_ERROR_OUT_OF_RESOURCES:
+    return PI_ERROR_OUT_OF_RESOURCES;
+  case UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
+    return PI_ERROR_BUILD_PROGRAM_FAILURE;
+  case UR_RESULT_ERROR_PROGRAM_LINK_FAILURE:
+    return PI_ERROR_LINK_PROGRAM_FAILURE;
+  case UR_RESULT_ERROR_UNSUPPORTED_VERSION:
+  case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
+  case UR_RESULT_ERROR_INVALID_ARGUMENT:
+  case UR_RESULT_ERROR_INVALID_NULL_HANDLE:
+  case UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE:
+  case UR_RESULT_ERROR_INVALID_NULL_POINTER:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_INVALID_SIZE:
+  case UR_RESULT_ERROR_UNSUPPORTED_SIZE:
+    return PI_ERROR_INVALID_BUFFER_SIZE;
+  case UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT:
+  case UR_RESULT_ERROR_INVALID_ENUMERATION:
+  case UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
+    return PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  case UR_RESULT_ERROR_INVALID_NATIVE_BINARY:
+    return PI_ERROR_INVALID_BINARY;
+  case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
+    return PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
+  case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
+    return PI_ERROR_INVALID_WORK_DIMENSION;
+  case UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION:
+    return PI_ERROR_INVALID_VALUE;
+
+  case UR_RESULT_ERROR_PROGRAM_UNLINKED:
+    return PI_ERROR_INVALID_PROGRAM_EXECUTABLE;
+  case UR_RESULT_ERROR_OVERLAPPING_REGIONS:
+    return PI_ERROR_MEM_COPY_OVERLAP;
+  case UR_RESULT_ERROR_INVALID_HOST_PTR:
+    return PI_ERROR_INVALID_HOST_PTR;
+  case UR_RESULT_ERROR_INVALID_USM_SIZE:
+    return PI_ERROR_INVALID_BUFFER_SIZE;
+  case UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE:
+    return PI_ERROR_OUT_OF_RESOURCES;
   case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  case UR_RESULT_ERROR_UNKNOWN:
   default:
     return PI_ERROR_UNKNOWN;
   };
@@ -200,7 +291,7 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
       case UR_PLATFORM_BACKEND_CUDA:
         return PI_EXT_PLATFORM_BACKEND_CUDA;
       case UR_PLATFORM_BACKEND_HIP:
-        return PI_EXT_PLATFORM_BACKEND_CUDA;
+        return PI_EXT_PLATFORM_BACKEND_HIP;
       default:
         die("UR_PLATFORM_INFO_BACKEND: unhandled value");
       }
@@ -253,6 +344,10 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
         return PI_QUEUE_FLAG_ON_DEVICE;
       case UR_QUEUE_FLAG_ON_DEVICE_DEFAULT:
         return PI_QUEUE_FLAG_ON_DEVICE_DEFAULT;
+      case UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM:
+        return static_cast<uint64_t>(__SYCL_PI_CUDA_SYNC_WITH_DEFAULT);
+      case UR_QUEUE_FLAG_USE_DEFAULT_STREAM:
+        return static_cast<uint64_t>(__SYCL_PI_CUDA_USE_DEFAULT_STREAM);
       default:
         die("UR_DEVICE_INFO_QUEUE_PROPERTIES: unhandled value");
       }
@@ -952,6 +1047,9 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
     InfoType = UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE;
     break;
+  case PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION:
+    InfoType = UR_DEVICE_INFO_IP_VERSION;
+    break;
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE:
     InfoType = UR_DEVICE_INFO_BUILD_ON_SUBDEVICE;
     break;
@@ -1014,7 +1112,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     break;
   }
   case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
-    InfoType = UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
+    InfoType = UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
     break;
   }
   default:
@@ -1357,7 +1455,9 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
                 PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
                 PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS |
                 PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW |
-                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)),
+                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH |
+                PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE |
+                PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -1380,6 +1480,14 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
     UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_LOW;
   if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)
     UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
+  if (Properties[1] & __SYCL_PI_CUDA_SYNC_WITH_DEFAULT)
+    UrProperties.flags |= UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
+  if (Properties[1] & __SYCL_PI_CUDA_USE_DEFAULT_STREAM)
+    UrProperties.flags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
+  if (Properties[1] & PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE)
+    UrProperties.flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+  if (Properties[1] & PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE)
+    UrProperties.flags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
 
   ur_queue_index_properties_t IndexProperties{};
   IndexProperties.stype = UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES;
@@ -1641,20 +1749,6 @@ inline pi_result piProgramCreateWithBinary(
   return PI_SUCCESS;
 }
 
-inline pi_result piclProgramCreateWithSource(pi_context Context,
-                                             pi_uint32 Count,
-                                             const char **Strings,
-                                             const size_t *Lengths,
-                                             pi_program *RetProgram) {
-  std::ignore = Context;
-  std::ignore = Count;
-  std::ignore = Strings;
-  std::ignore = Lengths;
-  std::ignore = RetProgram;
-  die("piclProgramCreateWithSource: not supported in UR\n");
-  return PI_ERROR_INVALID_OPERATION;
-}
-
 inline pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
                                   size_t ParamValueSize, void *ParamValue,
                                   size_t *ParamValueSizeRet) {
@@ -1862,28 +1956,6 @@ piEnqueueMemImageFill(pi_queue Queue, pi_mem Image, const void *FillColor,
   return PI_SUCCESS;
 }
 
-inline pi_result
-piEnqueueNativeKernel(pi_queue Queue, void (*UserFunc)(void *), void *Args,
-                      size_t CbArgs, pi_uint32 NumMemObjects,
-                      const pi_mem *MemList, const void **ArgsMemLoc,
-                      pi_uint32 NumEventsInWaitList,
-                      const pi_event *EventsWaitList, pi_event *Event) {
-  std::ignore = UserFunc;
-  std::ignore = Args;
-  std::ignore = CbArgs;
-  std::ignore = NumMemObjects;
-  std::ignore = MemList;
-  std::ignore = ArgsMemLoc;
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventsWaitList;
-  std::ignore = Event;
-
-  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-
-  die("piEnqueueNativeKernel: not implemented");
-  return PI_SUCCESS;
-}
-
 inline pi_result piextGetDeviceFunctionPointer(pi_device Device,
                                                pi_program Program,
                                                const char *FunctionName,
@@ -1904,8 +1976,10 @@ inline pi_result piextGetDeviceFunctionPointer(pi_device Device,
 }
 
 // Special version of piKernelSetArg to accept pi_mem.
-inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
-                                         const pi_mem *ArgValue) {
+inline pi_result
+piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
+                        const pi_mem_obj_property *ArgProperties,
+                        const pi_mem *ArgValue) {
 
   // TODO: the better way would probably be to add a new PI API for
   // extracting native PI object from PI handle, and have SYCL
@@ -1918,21 +1992,43 @@ inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   if (ArgValue)
     UrMemory = reinterpret_cast<ur_mem_handle_t>(*ArgValue);
 
-  ur_kernel_arg_mem_obj_properties_t Properties{};
-
   // We don't yet know the device where this kernel will next be run on.
   // Thus we can't know the actual memory allocation that needs to be used.
   // Remember the memory object being used as an argument for this kernel
   // to process it later when the device is known (at the kernel enqueue).
   //
-  // TODO: for now we have to conservatively assume the access as read-write.
-  //       Improve that by passing SYCL buffer accessor type into
-  //       piextKernelSetArgMemObj.
-  //
-
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(
-      urKernelSetArgMemObj(UrKernel, ArgIndex, &Properties, UrMemory));
+  // the only applicable type, just ignore anything else
+  if (ArgProperties && ArgProperties->type == PI_KERNEL_ARG_MEM_OBJ_ACCESS) {
+    // following structure layout checks to be replaced with
+    // std::is_layout_compatible after move to C++20
+    static_assert(sizeof(pi_mem_obj_property) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t));
+    static_assert(sizeof(pi_mem_obj_property::type) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t::stype));
+    static_assert(sizeof(pi_mem_obj_property::pNext) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t::pNext));
+    static_assert(sizeof(pi_mem_obj_property::mem_access) ==
+                  sizeof(ur_kernel_arg_mem_obj_properties_t::memoryAccess));
+
+    static_assert(uint32_t(PI_ACCESS_READ_WRITE) ==
+                  uint32_t(UR_MEM_FLAG_READ_WRITE));
+    static_assert(uint32_t(PI_ACCESS_READ_ONLY) ==
+                  uint32_t(UR_MEM_FLAG_READ_ONLY));
+    static_assert(uint32_t(PI_ACCESS_WRITE_ONLY) ==
+                  uint32_t(UR_MEM_FLAG_WRITE_ONLY));
+    static_assert(uint32_t(PI_KERNEL_ARG_MEM_OBJ_ACCESS) ==
+                  uint32_t(UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES));
+
+    const ur_kernel_arg_mem_obj_properties_t *UrMemProperties =
+        reinterpret_cast<const ur_kernel_arg_mem_obj_properties_t *>(
+            ArgProperties);
+    HANDLE_ERRORS(
+        urKernelSetArgMemObj(UrKernel, ArgIndex, UrMemProperties, UrMemory));
+  } else {
+    HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, nullptr, UrMemory));
+  }
+
   return PI_SUCCESS;
 }
 
@@ -1943,7 +2039,8 @@ inline pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
-  HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, ArgValue));
+  HANDLE_ERRORS(
+      urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
   return PI_SUCCESS;
 }
 
@@ -1951,7 +2048,7 @@ inline pi_result piKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                        size_t ArgSize, const void *ArgValue) {
   std::ignore = ArgSize;
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, ArgValue));
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, ArgValue));
 
   return PI_SUCCESS;
 }
@@ -2013,17 +2110,15 @@ inline pi_result piKernelSetExecInfo(pi_kernel Kernel,
     break;
   }
   case PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG: {
-    PropName = UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG;
+    PropName = UR_KERNEL_EXEC_INFO_CACHE_CONFIG;
     auto Param = (*(static_cast<const pi_kernel_cache_config *>(ParamValue)));
     if (Param == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM) {
-      PropValue =
-          static_cast<uint64_t>(UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM);
+      PropValue = static_cast<uint64_t>(UR_KERNEL_CACHE_CONFIG_LARGE_SLM);
     } else if (Param == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA) {
-      PropValue =
-          static_cast<uint64_t>(UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA);
+      PropValue = static_cast<uint64_t>(UR_KERNEL_CACHE_CONFIG_LARGE_DATA);
       break;
     } else if (Param == PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT) {
-      PropValue = static_cast<uint64_t>(UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
+      PropValue = static_cast<uint64_t>(UR_KERNEL_CACHE_CONFIG_DEFAULT);
     } else {
       die("piKernelSetExecInfo: unsupported ParamValue\n");
     }
@@ -2032,8 +2127,8 @@ inline pi_result piKernelSetExecInfo(pi_kernel Kernel,
   default:
     die("piKernelSetExecInfo: unsupported ParamName\n");
   }
-  HANDLE_ERRORS(
-      urKernelSetExecInfo(UrKernel, PropName, ParamValueSize, &PropValue));
+  HANDLE_ERRORS(urKernelSetExecInfo(UrKernel, PropName, ParamValueSize, nullptr,
+                                    &PropValue));
 
   return PI_SUCCESS;
 }
@@ -2211,7 +2306,8 @@ inline pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                           const void *ArgValue) {
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
-  HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, ArgValue));
+  HANDLE_ERRORS(
+      urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
 
   return PI_SUCCESS;
 }
@@ -3919,7 +4015,7 @@ inline pi_result piextKernelSetArgSampler(pi_kernel Kernel, pi_uint32 ArgIndex,
   ur_sampler_handle_t UrSampler =
       reinterpret_cast<ur_sampler_handle_t>(*ArgValue);
 
-  HANDLE_ERRORS(urKernelSetArgSampler(UrKernel, ArgIndex, UrSampler));
+  HANDLE_ERRORS(urKernelSetArgSampler(UrKernel, ArgIndex, nullptr, UrSampler));
 
   return PI_SUCCESS;
 }
@@ -3947,6 +4043,308 @@ inline pi_result piSamplerRelease(pi_sampler Sampler) {
 }
 
 // Sampler
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// Command-buffer extension
+
+inline pi_result
+piextCommandBufferCreate(pi_context Context, pi_device Device,
+                         const pi_ext_command_buffer_desc *Desc,
+                         pi_ext_command_buffer *RetCommandBuffer) {
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  const ur_exp_command_buffer_desc_t *UrDesc =
+      reinterpret_cast<const ur_exp_command_buffer_desc_t *>(Desc);
+  ur_exp_command_buffer_handle_t *UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t *>(RetCommandBuffer);
+
+  HANDLE_ERRORS(
+      urCommandBufferCreateExp(UrContext, UrDevice, UrDesc, UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferRetain(pi_ext_command_buffer CommandBuffer) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferRetainExp(UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextCommandBufferRelease(pi_ext_command_buffer CommandBuffer) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferReleaseExp(UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextCommandBufferFinalize(pi_ext_command_buffer CommandBuffer) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferFinalizeExp(UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer CommandBuffer, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+
+  HANDLE_ERRORS(urCommandBufferAppendKernelLaunchExp(
+      UrCommandBuffer, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
+      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemcpyUSM(
+    pi_ext_command_buffer CommandBuffer, void *DstPtr, const void *SrcPtr,
+    size_t Size, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferAppendMemcpyUSMExp(
+      UrCommandBuffer, DstPtr, SrcPtr, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer CommandBuffer, pi_mem SrcMem, pi_mem DstMem,
+    size_t SrcOffset, size_t DstOffset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_mem_handle_t UrSrcMem = reinterpret_cast<ur_mem_handle_t>(SrcMem);
+  ur_mem_handle_t UrDstMem = reinterpret_cast<ur_mem_handle_t>(DstMem);
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferCopyExp(
+      UrCommandBuffer, UrSrcMem, UrDstMem, SrcOffset, DstOffset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem SrcMem, pi_mem DstMem,
+    pi_buff_rect_offset SrcOrigin, pi_buff_rect_offset DstOrigin,
+    pi_buff_rect_region Region, size_t SrcRowPitch, size_t SrcSlicePitch,
+    size_t DstRowPitch, size_t DstSlicePitch, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_mem_handle_t UrSrcMem = reinterpret_cast<ur_mem_handle_t>(SrcMem);
+  ur_mem_handle_t UrDstMem = reinterpret_cast<ur_mem_handle_t>(DstMem);
+
+  ur_rect_offset_t UrSrcOrigin{SrcOrigin->x_bytes, SrcOrigin->y_scalar,
+                               SrcOrigin->z_scalar};
+  ur_rect_offset_t UrDstOrigin{DstOrigin->x_bytes, DstOrigin->y_scalar,
+                               DstOrigin->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferCopyRectExp(
+      UrCommandBuffer, UrSrcMem, UrDstMem, UrSrcOrigin, UrDstOrigin, UrRegion,
+      SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer,
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, void *Ptr,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+  ur_rect_offset_t UrBufferOffset{BufferOffset->x_bytes, BufferOffset->y_scalar,
+                                  BufferOffset->z_scalar};
+  ur_rect_offset_t UrHostOffset{HostOffset->x_bytes, HostOffset->y_scalar,
+                                HostOffset->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferReadRectExp(
+      UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
+      BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer CommandBuffer, pi_mem Src, size_t Offset, size_t Size,
+    void *Dst, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  PI_ASSERT(Src, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Src);
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferReadExp(
+      UrCommandBuffer, UrBuffer, Offset, Size, Dst, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer,
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, const void *Ptr,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+  ur_rect_offset_t UrBufferOffset{BufferOffset->x_bytes, BufferOffset->y_scalar,
+                                  BufferOffset->z_scalar};
+  ur_rect_offset_t UrHostOffset{HostOffset->x_bytes, HostOffset->y_scalar,
+                                HostOffset->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferWriteRectExp(
+      UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
+      BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
+      const_cast<void *>(Ptr), NumSyncPointsInWaitList, SyncPointWaitList,
+      SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, size_t Offset,
+    size_t Size, const void *Ptr, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferWriteExp(
+      UrCommandBuffer, UrBuffer, Offset, Size, const_cast<void *>(Ptr),
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
+                                           pi_queue Queue,
+                                           pi_uint32 NumEventsInWaitList,
+                                           const pi_event *EventWaitList,
+                                           pi_event *Event) {
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  const ur_event_handle_t *UrEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urCommandBufferEnqueueExp(
+      UrCommandBuffer, UrQueue, NumEventsInWaitList, UrEventWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+// Command-buffer extension
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// usm-p2p
+
+inline pi_result piextEnablePeerAccess(pi_device command_device,
+                                       pi_device peer_device) {
+  auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
+  auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
+
+  HANDLE_ERRORS(urUsmP2PEnablePeerAccessExp(commandDevice, peerDevice));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextDisablePeerAccess(pi_device command_device,
+                                        pi_device peer_device) {
+  auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
+  auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
+
+  HANDLE_ERRORS(urUsmP2PDisablePeerAccessExp(commandDevice, peerDevice));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextPeerAccessGetInfo(pi_device command_device, pi_device peer_device,
+                       pi_peer_attr attr, size_t param_value_size,
+                       void *param_value, size_t *param_value_size_ret) {
+  auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
+  auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
+
+  ur_exp_peer_info_t propName;
+  switch (attr) {
+  case PI_PEER_ACCESS_SUPPORTED: {
+    propName = UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED;
+    break;
+  }
+  case PI_PEER_ATOMICS_SUPPORTED: {
+    propName = UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED;
+    break;
+  }
+  default: {
+    return PI_ERROR_INVALID_VALUE;
+  }
+  }
+
+  HANDLE_ERRORS(urUsmP2PPeerAccessGetInfoExp(
+      commandDevice, peerDevice, propName, param_value_size, param_value,
+      param_value_size_ret));
+
+  return PI_SUCCESS;
+}
+
+// usm-p2p
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace pi2ur

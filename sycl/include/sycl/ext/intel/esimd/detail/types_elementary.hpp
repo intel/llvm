@@ -96,14 +96,14 @@ using vector_type_t = typename raw_vector_type<Ty, N>::type;
 struct invalid_element_type;
 
 template <class T> struct is_clang_vector_type : std::false_type {
-  static inline constexpr int length = 0;
+  static constexpr int length = 0;
   using element_type = invalid_element_type;
 };
 
 template <class T, int N>
 struct is_clang_vector_type<T __attribute__((ext_vector_type(N)))>
     : std::true_type {
-  static inline constexpr int length = N;
+  static constexpr int length = N;
   using element_type = T;
 };
 template <class T>

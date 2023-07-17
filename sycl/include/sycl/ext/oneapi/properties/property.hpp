@@ -78,7 +78,7 @@ template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
 
 // (7.)
 template <> struct PropertyMetaInfo<bar_key::value_t> {
-  static constexpr const char *value = "sycl-bar";
+  static constexpr const char *name = "sycl-bar";
   static constexpr int value = 5;
 };
 
@@ -195,8 +195,10 @@ enum PropKind : uint32_t {
   UsesValid = 29,
   UseRootSync = 30,
   RegisterAllocMode = 31,
+  GRFSize = 32,
+  GRFSizeAutomatic = 33,
   // PropKindSize must always be the last value.
-  PropKindSize = 32,
+  PropKindSize = 34,
 };
 
 // This trait must be specialized for all properties and must have a unique
