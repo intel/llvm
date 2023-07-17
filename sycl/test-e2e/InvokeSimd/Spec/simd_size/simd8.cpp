@@ -1,3 +1,6 @@
+// https://github.com/intel/llvm/issues/10369
+// UNSUPPORTED: gpu
+//
 // Test not intended to run on PVC
 // UNSUPPORTED: gpu-intel-pvc
 //
