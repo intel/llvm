@@ -85,8 +85,8 @@ int main() {
   sycl::vec<int, 3> va4{1, 1, 1};
   sycl::vec<float, 3> va5{180, -180, -180};
   sycl::vec<float, 3> va6{1.4f, 4.2f, 5.3f};
-  sycl::vec<unsigned int, 3> va7{1, 2, 3};
-  sycl::vec<unsigned long int, 3> va8{1, 2, 3};
+  sycl::vec<uint32_t, 3> va7{1, 2, 3};
+  sycl::vec<uint64_t, 3> va8{1, 2, 3};
   sycl::vec<float, 3> va9{1.0f, 2.0f, 1.0f};
   sycl::vec<float, 3> va10{3.0f, 2.0f, 1.0f};
   sycl::vec<float, 2> va11{180, 180};

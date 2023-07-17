@@ -13,25 +13,34 @@ template <typename T, typename R, bool Expected = true> void test_nan_call() {
   static_assert(is_same<decltype(s::nan(T{0})), R>::value == Expected, "");
 }
 
-template <typename, typename> struct test;
+template <typename, typename> struct test_scalar;
 
-template <typename T, typename R> void check_nan(s::queue &Queue) {
+template <typename T, typename R> void check_scalar_nan(s::queue &Queue) {
   R Data{0};
-  s::vec<R, 2> VData{0};
   {
     s::buffer<R, 1> Buf(&Data, s::range<1>(1));
-    s::buffer<s::vec<R, 2>, 1> VBuf(&VData, s::range<1>(1));
     Queue.submit([&](s::handler &Cgh) {
       auto Acc = Buf.template get_access<s::access::mode::write>(Cgh);
-      auto VAcc = VBuf.template get_access<s::access::mode::write>(Cgh);
-      Cgh.single_task<test<T, R>>([=]() {
-        Acc[0] = s::nan(T{0});
-        VAcc[0] = s::nan(s::vec<T, 2>{0});
-      });
+      Cgh.single_task<test_scalar<T, R>>([=]() { Acc[0] = s::nan(T{0}); });
     });
     Queue.wait_and_throw();
   }
   assert(s::isnan(Data));
+}
+
+template <typename, typename> struct test_vec;
+
+template <typename T, typename R> void check_vec_nan(s::queue &Queue) {
+  s::vec<R, 2> VData{0};
+  {
+    s::buffer<s::vec<R, 2>, 1> VBuf(&VData, s::range<1>(1));
+    Queue.submit([&](s::handler &Cgh) {
+      auto VAcc = VBuf.template get_access<s::access::mode::write>(Cgh);
+      Cgh.single_task<test_vec<T, R>>(
+          [=]() { VAcc[0] = s::nan(s::vec<T, 2>{0}); });
+    });
+    Queue.wait_and_throw();
+  }
   assert(s::all(s::isnan(VData)));
 }
 
@@ -57,13 +66,18 @@ int main() {
     }
   });
 
-  if (Queue.get_device().has(sycl::aspect::fp16))
-    check_nan<unsigned short, s::half>(Queue);
+  if (Queue.get_device().has(sycl::aspect::fp16)) {
+    check_scalar_nan<unsigned short, s::half>(Queue);
+    check_vec_nan<uint16_t, s::half>(Queue);
+  }
 
-  check_nan<unsigned int, float>(Queue);
+  check_scalar_nan<unsigned int, float>(Queue);
+  check_vec_nan<uint32_t, float>(Queue);
   if (Queue.get_device().has(sycl::aspect::fp64)) {
-    check_nan<unsigned long, double>(Queue);
-    check_nan<unsigned long long, double>(Queue);
+    check_scalar_nan<unsigned long, double>(Queue);
+    check_scalar_nan<unsigned long long, double>(Queue);
+    check_vec_nan<uint64_t, double>(Queue);
+    check_vec_nan<unsigned long long, double>(Queue);
   }
   return 0;
 }
