@@ -9,7 +9,7 @@ llvm.func @__gxx_personality_v0(...) -> i32
 // CHECK:         operand #0
 // CHECK-NEXT:    buffer:
 // CHECK-NEXT:      Sub-Buffer: No
-// CHECK-NEXT:      Size: <unkown>
+// CHECK-NEXT:      Size: <unknown>
 llvm.func @unknown_size() -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
   %c1_i32 = arith.constant 1 : i32
   %0 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -80,7 +80,7 @@ llvm.func @sub_buffer_constant_size() -> !llvm.ptr attributes {personality = @__
 // CHECK:         operand #0
 // CHECK-NEXT:    buffer:
 // CHECK-NEXT:      Sub-Buffer: Yes
-// CHECK-NEXT:      Size: <unkown>
+// CHECK-NEXT:      Size: <unknown>
 // CHECK-NEXT:      Base buffer: %0 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK-NEXT:      Base buffer size: range{256}
 // CHECK-NEXT:      Sub-buffer offset: <unknown>

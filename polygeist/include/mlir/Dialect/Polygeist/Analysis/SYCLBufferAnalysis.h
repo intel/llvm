@@ -35,19 +35,16 @@ class BufferInformation {
 public:
   BufferInformation();
 
-  BufferInformation(llvm::ArrayRef<size_t> constRange,
-                    SubBufferLattice IsSubBuffer, Value baseBuffer,
-                    llvm::ArrayRef<size_t> constBaseBufferSize,
-                    llvm::ArrayRef<size_t> constSubBufferOffset);
+  BufferInformation(ArrayRef<size_t> constRange, SubBufferLattice IsSubBuffer,
+                    Value baseBuffer, ArrayRef<size_t> constBaseBufferSize,
+                    ArrayRef<size_t> constSubBufferOffset);
 
   /// Returns true if this buffer is always constructed with the same range as
   /// size.
   bool hasConstantSize() const { return !constantSize.empty(); }
 
   /// Returns the constant values for the size this buffer is constructed with.
-  const llvm::SmallVector<size_t, 3> &getConstantSize() const {
-    return constantSize;
-  }
+  ArrayRef<size_t> getConstantSize() const { return constantSize; }
 
   /// Returns information about whether this buffer is a sub-buffer of another
   /// buffer.
@@ -69,7 +66,7 @@ public:
   bool hasKnownBaseBufferSize() const { return !baseBufferSize.empty(); }
 
   /// Returns the constant values for the size of the base buffer if known.
-  const llvm::SmallVector<size_t, 3> &getKnownBaseBufferSize() const {
+  ArrayRef<size_t> getKnownBaseBufferSize() const {
     assert(hasKnownBaseBufferSize() &&
            "Base buffer size unknown or not constant");
     return baseBufferSize;
@@ -80,7 +77,7 @@ public:
   bool hasConstantOffset() const { return !subBufOffset.empty(); }
 
   /// Returns the constant values for the offset of this sub-buffer.
-  const llvm::SmallVector<size_t, 3> &getConstantOffset() const {
+  ArrayRef<size_t> getConstantOffset() const {
     assert(hasConstantOffset() && "Offset unknown or not constant");
     return subBufOffset;
   }

@@ -1,4 +1,4 @@
-//===- SYCLBufferAnalysis.h - Analysis for sycl::buffer -------------------===//
+//===- SYCLBufferAnalysis.cpp - Analysis for sycl::buffer -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -43,15 +43,15 @@ raw_ostream &operator<<(raw_ostream &os, const BufferInformation &info) {
     llvm::interleaveComma(info.getConstantSize(), os);
     os << "}\n";
   } else {
-    os << "<unkown>\n";
+    os << "<unknown>\n";
   }
   if (info.isSubBuffer() == SubBufferLattice::YES) {
     os.indent(4) << "Base buffer: ";
-    if (info.hasKnownBaseBuffer()) {
+    if (info.hasKnownBaseBuffer())
       os << info.getKnownBaseBuffer();
-    } else {
+    else
       os << "<unknown>";
-    }
+
     os << "\n";
     os.indent(4) << "Base buffer size: ";
     if (info.hasKnownBaseBufferSize()) {
@@ -75,7 +75,7 @@ raw_ostream &operator<<(raw_ostream &os, const BufferInformation &info) {
 
 BufferInformation::BufferInformation()
     : constantSize{}, subBuf{SubBufferLattice::MAYBE}, baseBuffer{nullptr},
-      subBufOffset{} {}
+      baseBufferSize{}, subBufOffset{} {}
 
 BufferInformation::BufferInformation(
     llvm::ArrayRef<size_t> constRange, SubBufferLattice IsSubBuffer,
@@ -110,12 +110,13 @@ BufferInformation::join(const BufferInformation &other,
                              jointBaseBufSize, jointOffset);
   }
 
-  // When control flow reaches this point, not both incoming information are
-  // definitely a sub-buffer. If they are both definitely *not* a sub-buffer,
-  // preserve that fact, otherwise be conservative and assume the resulting
-  // information might be a sub-buffer.
-  auto jointSubBuf =
-      (subBuf == other.subBuf) ? SubBufferLattice::NO : SubBufferLattice::MAYBE;
+  // When control flow reaches this point, either this or the incoming
+  // information are not definitely a sub-buffer. If they are both definitely
+  // *not* a sub-buffer, preserve that fact, otherwise be conservative and
+  // assume the resulting information might be a sub-buffer.
+  auto jointSubBuf = (subBuf == other.subBuf && subBuf == SubBufferLattice::NO)
+                         ? SubBufferLattice::NO
+                         : SubBufferLattice::MAYBE;
 
   return BufferInformation(jointSize, jointSubBuf, nullptr, {}, {});
 }
@@ -125,7 +126,8 @@ BufferInformation::join(const BufferInformation &other,
 //===----------------------------------------------------------------------===//
 
 SYCLBufferAnalysis::SYCLBufferAnalysis(Operation *op, AnalysisManager &mgr)
-    : operation(op), am(mgr), idRangeAnalysis(op, mgr) {}
+    : operation(op), am(mgr), aliasAnalysis(nullptr), idRangeAnalysis(op, mgr) {
+}
 
 SYCLBufferAnalysis &SYCLBufferAnalysis::initialize(bool useRelaxedAliasing) {
 
@@ -158,6 +160,7 @@ SYCLBufferAnalysis::getBufferInformationFromConstruction(Operation *op,
          "Analysis only available after successful initialization");
   assert(isa<LLVM::LLVMPointerType>(operand.getType()) &&
          "Expecting an LLVM pointer");
+  assert(aliasAnalysis != nullptr && "Alias analysis not initialized");
 
   const polygeist::ReachingDefinition *reachingDef =
       solver.lookupState<polygeist::ReachingDefinition>(op);
@@ -187,7 +190,7 @@ SYCLBufferAnalysis::getBufferInformationFromConstruction(Operation *op,
     } else {
       info = info.join(getInformation(def), *aliasAnalysis);
       if (!info.hasConstantSize() &&
-          info.isSubBuffer() != SubBufferLattice::YES)
+          info.isSubBuffer() == SubBufferLattice::MAYBE)
         // Early return: As soon as joining of the different information has led
         // to an info with no fixed size and no definitive sub-buffer
         // information, we can end the processing.
@@ -199,7 +202,7 @@ SYCLBufferAnalysis::getBufferInformationFromConstruction(Operation *op,
     for (const Definition &def : *pMods) {
       info = info.join(getInformation(def), *aliasAnalysis);
       if (!info.hasConstantSize() &&
-          info.isSubBuffer() != SubBufferLattice::YES)
+          info.isSubBuffer() == SubBufferLattice::MAYBE)
         // Early return: As soon as joining of the different information has led
         // to an info with no fixed size and no definitive sub-buffer
         // information, we can end the processing.
@@ -236,9 +239,10 @@ BufferInformation SYCLBufferAnalysis::getInformation(const Definition &def) {
     auto baseBufferInfo =
         getBufferInformationFromConstruction(constructor, baseBuffer);
 
-    auto baseBufferSize = (baseBufferInfo && baseBufferInfo->hasConstantSize())
-                              ? baseBufferInfo->getConstantSize()
-                              : SmallVector<size_t, 3>{};
+    auto baseBufferSize =
+        (baseBufferInfo && baseBufferInfo->hasConstantSize())
+            ? SmallVector<size_t, 3>(baseBufferInfo->getConstantSize())
+            : SmallVector<size_t, 3>{};
 
     SmallVector<size_t, 3> offset;
     if (constructor->getNumOperands() > 2) {
