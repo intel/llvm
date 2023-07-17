@@ -76,6 +76,18 @@ template <typename T> void testMultPtr() {
                                       access::decorated::legacy>(
                 localAccessor.get_pointer());
 
+            auto local_ptr2 =
+                multi_ptr<T, access::address_space::local_space,
+                          access::decorated::legacy>(localAccessor);
+
+            auto local_ptr3 =
+                multi_ptr<void, access::address_space::local_space,
+                          access::decorated::legacy>(localAccessor);
+
+            auto local_ptr4 =
+                multi_ptr<const void, access::address_space::local_space,
+                          access::decorated::legacy>(localAccessor);
+
             // Construct extension pointer from accessors.
             auto dev_ptr =
                 multi_ptr<const T,
