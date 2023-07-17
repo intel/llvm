@@ -858,7 +858,7 @@ public:
                 std::is_const_v<ET> && std::is_same_v<ET, ElementType>>>
   multi_ptr(
       local_accessor<typename std::remove_const_t<ET>, dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space and element type is const
   template <
@@ -1102,7 +1102,7 @@ public:
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space
   template <
@@ -1250,7 +1250,7 @@ public:
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space
   template <
