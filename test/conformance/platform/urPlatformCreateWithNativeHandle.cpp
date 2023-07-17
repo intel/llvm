@@ -10,7 +10,9 @@ using urPlatformCreateWithNativeHandleTest = uur::platform::urPlatformTest;
 TEST_F(urPlatformCreateWithNativeHandleTest, Success) {
     for (auto platform : platforms) {
         ur_native_handle_t native_handle = nullptr;
-        ASSERT_SUCCESS(urPlatformGetNativeHandle(platform, &native_handle));
+        if (urPlatformGetNativeHandle(platform, &native_handle)) {
+            continue;
+        };
 
         // We cannot assume anything about a native_handle, not even if it's
         // `nullptr` since this could be a valid representation within a backend.
@@ -31,7 +33,9 @@ TEST_F(urPlatformCreateWithNativeHandleTest, Success) {
 TEST_F(urPlatformCreateWithNativeHandleTest, InvalidNullPointerPlatform) {
     for (auto platform : platforms) {
         ur_native_handle_t native_handle = nullptr;
-        ASSERT_SUCCESS(urPlatformGetNativeHandle(platform, &native_handle));
+        if (urPlatformGetNativeHandle(platform, &native_handle)) {
+            continue;
+        }
         ASSERT_EQ_RESULT(
             UR_RESULT_ERROR_INVALID_NULL_POINTER,
             urPlatformCreateWithNativeHandle(native_handle, nullptr, nullptr));

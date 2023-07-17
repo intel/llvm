@@ -10,7 +10,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetNativeHandleTest);
 
 TEST_P(urEventGetNativeHandleTest, Success) {
     ur_native_handle_t native_event = nullptr;
-    ASSERT_SUCCESS(urEventGetNativeHandle(event, &native_event));
+    if (auto error = urEventGetNativeHandle(event, &native_event)) {
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
+    }
 }
 
 TEST_P(urEventGetNativeHandleTest, InvalidNullHandleEvent) {

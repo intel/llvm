@@ -10,7 +10,10 @@ UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramGetNativeHandleTest);
 
 TEST_P(urProgramGetNativeHandleTest, Success) {
     ur_native_handle_t native_program_handle = nullptr;
-    ASSERT_SUCCESS(urProgramGetNativeHandle(program, &native_program_handle));
+    if (auto error =
+            urProgramGetNativeHandle(program, &native_program_handle)) {
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
+    }
 }
 
 TEST_P(urProgramGetNativeHandleTest, InvalidNullHandleProgram) {

@@ -194,6 +194,9 @@ params:
       name: phNativeSampler
       desc: |
             [out] a pointer to the native handle of the sampler.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Native sampler creation properties"
@@ -231,3 +234,6 @@ params:
     - type: "$x_sampler_handle_t*"
       name: phSampler
       desc: "[out] pointer to the handle of the sampler object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."

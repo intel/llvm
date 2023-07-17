@@ -244,6 +244,9 @@ params:
       name: phNativeQueue
       desc: |
             [out] a pointer to the native handle of the queue.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Properties for for $xQueueCreateWithNativeHandle."
@@ -286,6 +289,9 @@ params:
       name: phQueue
       desc: |
             [out] pointer to the handle of the queue object created.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Blocks until all previously issued commands to the command queue are finished."
