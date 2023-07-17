@@ -39,7 +39,7 @@ void matrix_verify_add(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TN, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
@@ -52,7 +52,7 @@ void matrix_verify_add(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TK,
                N);
          }); // parallel for
    }).wait();
@@ -75,7 +75,7 @@ void matrix_verify_sub(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TN, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
@@ -87,7 +87,7 @@ void matrix_verify_sub(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TK,
                N);
          }); // parallel for
    }).wait();
@@ -110,7 +110,7 @@ void matrix_verify_mul(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TN, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
            auto wi_slice_a =
@@ -121,7 +121,7 @@ void matrix_verify_mul(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TK,
                N);
          }); // parallel for
    }).wait();
@@ -144,7 +144,7 @@ void matrix_verify_div(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TN, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(4.0));
 
@@ -156,7 +156,7 @@ void matrix_verify_div(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TK,
                N);
          }); // parallel for
    }).wait();
@@ -178,7 +178,7 @@ void matrix_verify_logic(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TN, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
@@ -206,7 +206,7 @@ void matrix_verify_logic(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TK,
                N);
          }); // parallel for
    }).wait();
@@ -224,7 +224,7 @@ int main() {
   big_matrix<float, MATRIX_M, MATRIX_N> MA((float *)&A);
 
   size_t NDRangeM = MATRIX_M / TM;
-  size_t NDRangeN = MATRIX_N / TN;
+  size_t NDRangeN = MATRIX_N / TK;
   queue q;
   nd_range<2> r({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ});
 
