@@ -7,8 +7,8 @@ target triple = "spir64-unknown-unknown"
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s
 
 ; Check conversion of get_image_width, get_image_height, get_image_depth,
 ; get_image_array_size, and get_image_dim OCL built-ins.
@@ -16,15 +16,7 @@ target triple = "spir64-unknown-unknown"
 ; and subsequent extract or shufflevector instructions. Unfortunately there is
 ; no get_image_dim for 1D images and get_image_dim cannot replace get_image_array_size
 
-; CHECK-DAG: %opencl.image1d_ro_t = type opaque
-; CHECK-DAG: %opencl.image1d_buffer_ro_t = type opaque
-; CHECK-DAG: %opencl.image1d_array_ro_t = type opaque
-; CHECK-DAG: %opencl.image2d_ro_t = type opaque
-; CHECK-DAG: %opencl.image2d_depth_ro_t = type opaque
-; CHECK-DAG: %opencl.image2d_array_ro_t = type opaque
 ; CHECK-SPIRV: 10 TypeImage [[ArrayTypeID:[0-9]+]] {{[0-9]+}} 0 0 1 0 0 0 0
-; CHECK-DAG: %opencl.image2d_array_depth_ro_t = type opaque
-; CHECK-DAG: %opencl.image3d_ro_t = type opaque
 
 %opencl.image1d_ro_t = type opaque
 %opencl.image1d_buffer_ro_t = type opaque

@@ -3,8 +3,8 @@
 ; RUN: llvm-spirv %t.spv --to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: not llvm-spirv %t.bc -opaque-pointers=0 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 ; CHECK-ERROR: RequiresExtension: Feature requires the following SPIR-V extension:
@@ -34,14 +34,14 @@
 ; CHECK-SPIRV: FunctionCall [[#VECTYPE1]]
 ; CHECK-SPIRV: InBoundsPtrAccessChain [[#VECTYPE1]]
 
-; CHECK-LLVM: alloca <4 x i8 addrspace(4)*>
-; CHECK-LLVM-NEXT: alloca <4 x i8 addrspace(4)*>
-; CHECK-LLVM-NEXT: load <4 x i8 addrspace(4)*>, <4 x i8 addrspace(4)*>*
-; CHECK-LLVM-NEXT: store <4 x i8 addrspace(4)*> %[[#]], <4 x i8 addrspace(4)*>*
-; CHECK-LLVM-NEXT: bitcast <4 x i8 addrspace(4)*> %[[#]] to <4 x i32 addrspace(4)*>
-; CHECK-LLVM-NEXT: addrspacecast <4 x i32 addrspace(4)*> %{{.*}} to <4 x i32 addrspace(1)*>
-; CHECK-LLVM-NEXT: call spir_func <4 x i32 addrspace(1)*> @boo(<4 x i32 addrspace(1)*>
-; CHECK-LLVM-NEXT: getelementptr inbounds i32, <4 x i32 addrspace(1)*> %{{.*}}, i32 1
+; CHECK-LLVM: alloca <4 x ptr addrspace(4)>
+; CHECK-LLVM-NEXT: alloca <4 x ptr addrspace(4)>
+; CHECK-LLVM-NEXT: load <4 x ptr addrspace(4)>
+; CHECK-LLVM-NEXT: store <4 x ptr addrspace(4)> %[[#]]
+; CHECK-LLVM-NEXT: bitcast <4 x ptr addrspace(4)> %[[#]] to <4 x ptr addrspace(4)>
+; CHECK-LLVM-NEXT: addrspacecast <4 x ptr addrspace(4)> %{{.*}} to <4 x ptr addrspace(1)>
+; CHECK-LLVM-NEXT: call spir_func <4 x ptr addrspace(1)> @boo(<4 x ptr addrspace(1)>
+; CHECK-LLVM-NEXT: getelementptr inbounds i32, <4 x ptr addrspace(1)> %{{.*}}, i32 1
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
