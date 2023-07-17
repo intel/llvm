@@ -28,6 +28,7 @@ context_t::context_t() {
             }
         }
     }
+    // Remove the trailing ";"
     availableLayers.pop_back();
     parseEnvEnabledLayers();
 }
@@ -40,20 +41,14 @@ bool context_t::layerExists(const std::string &layerName) const {
 }
 
 void context_t::parseEnvEnabledLayers() {
-    auto maybeEnableEnvVar = ur_getenv("UR_ENABLE_LAYERS");
-    if (!maybeEnableEnvVar.has_value()) {
+    auto maybeEnableEnvVarMap = getenv_to_map("UR_ENABLE_LAYERS", false);
+    if (!maybeEnableEnvVarMap.has_value()) {
         return;
     }
-    auto enableEnvVar = maybeEnableEnvVar.value();
+    auto enableEnvVarMap = maybeEnableEnvVarMap.value();
 
-    size_t pos = 0;
-    while ((pos = enableEnvVar.find(",")) != std::string::npos) {
-        enabledLayerNames.insert(enableEnvVar.substr(0, pos));
-        enableEnvVar.erase(0, enableEnvVar.find(";") + 1);
-    }
-
-    if (!enableEnvVar.empty()) {
-        enabledLayerNames.insert(enableEnvVar);
+    for (auto &key : enableEnvVarMap) {
+        enabledLayerNames.insert(key.first);
     }
 }
 
@@ -146,7 +141,8 @@ ur_result_t urLoaderConfigGetInfo(ur_loader_config_handle_t hLoaderConfig,
         break;
     }
     case UR_LOADER_CONFIG_INFO_REFERENCE_COUNT: {
-        auto truePropSize = sizeof(hLoaderConfig->refCount);
+        auto refCount = hLoaderConfig->getReferenceCount();
+        auto truePropSize = sizeof(refCount);
         if (pPropSizeRet) {
             *pPropSizeRet = truePropSize;
         }
@@ -154,7 +150,7 @@ ur_result_t urLoaderConfigGetInfo(ur_loader_config_handle_t hLoaderConfig,
             if (propSize != truePropSize) {
                 return UR_RESULT_ERROR_INVALID_SIZE;
             }
-            std::memcpy(pPropValue, &hLoaderConfig->refCount, truePropSize);
+            std::memcpy(pPropValue, &refCount, truePropSize);
         }
         break;
     }
