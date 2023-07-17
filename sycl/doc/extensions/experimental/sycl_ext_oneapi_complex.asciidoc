@@ -99,10 +99,7 @@ the decimal is treated as a complex number with a real component equal to
 the decimal and an imaginary component equal to 0.
 
 ```C++
-namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace sycl::ext::oneapi::experimental {
 
     template <typename T>
     class complex {
@@ -211,10 +208,7 @@ namespace experimental {
             /// Streams the complex number z in the format "(real,imaginary)" into `sycl::stream` x and return the result.
             friend const sycl::stream &operator<<(const sycl::stream &x, const complex<value_type> &z);
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::oneapi::experimental
 ```
 
 === Mathematical operations
@@ -245,10 +239,7 @@ to ensure that for their first argument `base` and second argument `exponent`:
   `pow(complex<sycl::half>(base), complex<sycl::half>(exponent))`.
 
 ```C++
-namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace sycl::ext::oneapi::experimental {
 
     /// VALUES:
     /// Returns the real component of the complex number z.
@@ -325,10 +316,7 @@ namespace experimental {
     // Compute the tangent of complex number x.
     template <class T> complex<T> tan(const complex<T> &);
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::oneapi::experimental
 ```
 
 == Suffixes for complex number literals
