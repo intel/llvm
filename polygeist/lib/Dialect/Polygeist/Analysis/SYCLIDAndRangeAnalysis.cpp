@@ -15,6 +15,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
+#include <memory>
 
 #define DEBUG_TYPE "sycl-id-range-analysis"
 
@@ -156,19 +157,16 @@ SYCLIDAndRangeAnalysis::SYCLIDAndRangeAnalysis(Operation *op,
 
 SYCLIDAndRangeAnalysis &
 SYCLIDAndRangeAnalysis::initialize(bool useRelaxedAliasing) {
-
   // Initialize the dataflow solver
   AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(
       sycl::AliasAnalysis(useRelaxedAliasing));
+  solver = std::make_unique<DataFlowSolverWrapper>(aliasAnalysis);
 
   // Populate the solver and run the analyses needed by this analysis.
-  solver.load<dataflow::DeadCodeAnalysis>();
-  solver.load<dataflow::SparseConstantPropagation>();
-  solver.load<UnderlyingValueAnalysis>();
-  solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
+  solver->loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(aliasAnalysis);
 
-  if (failed(solver.initializeAndRun(operation))) {
+  if (failed(solver->initializeAndRun(operation))) {
     operation->emitError("Failed to run required dataflow analyses");
     return *this;
   }
@@ -188,17 +186,17 @@ SYCLIDAndRangeAnalysis::getIDRangeInformationFromConstruction(Operation *op,
          "Expecting an LLVM pointer");
 
   const polygeist::ReachingDefinition *reachingDef =
-      solver.lookupState<polygeist::ReachingDefinition>(op);
+      solver->lookupState<polygeist::ReachingDefinition>(op);
   assert(reachingDef && "expected a reaching definition");
 
-  auto mods = reachingDef->getModifiers(operand, solver);
+  auto mods = reachingDef->getModifiers(operand, *solver);
   if (!mods || mods->empty())
     return std::nullopt;
 
   if (!llvm::all_of(*mods, isConstructor<Type>))
     return std::nullopt;
 
-  auto pMods = reachingDef->getPotentialModifiers(operand, solver);
+  auto pMods = reachingDef->getPotentialModifiers(operand, *solver);
   if (pMods) {
     if (!llvm::all_of(*pMods, isConstructor<Type>))
       return std::nullopt;

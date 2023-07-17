@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/AliasAnalysis.h"
-#include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
-#include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Pass/Pass.h"
@@ -35,11 +33,8 @@ struct TestReachingDefinitionAnalysisPass
     aliasAnalysis.addAnalysisImplementation(
         sycl::AliasAnalysis(false /* relaxedAliasing*/));
 
-    DataFlowSolver solver;
-    solver.load<DeadCodeAnalysis>();
-    solver.load<SparseConstantPropagation>();
-    solver.load<UnderlyingValueAnalysis>();
-    solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
+    DataFlowSolverWrapper solver(aliasAnalysis);
+    solver.loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(aliasAnalysis);
 
     Operation *op = getOperation();
     if (failed(solver.initializeAndRun(op)))
