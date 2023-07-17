@@ -2,6 +2,7 @@
 ; RUN: llc -mtriple=thumbv8m.base-eabi -mcpu=cortex-m23 -mattr=+execute-only %s -o - | FileCheck --check-prefix=CHECK --check-prefix=CHECK-T2BASE %s
 ; RUN: llc -mtriple=thumbv7m-eabi      -mattr=+execute-only %s -o - | FileCheck --check-prefix=CHECK --check-prefix=CHECK-T2 %s
 ; RUN: llc -mtriple=thumbv8m.main-eabi -mattr=+execute-only %s -o - | FileCheck --check-prefix=CHECK --check-prefix=CHECK-T2 %s
+; RUN: llc -mtriple=thumbv6m-eabi -mattr=+execute-only %s -o - | FileCheck --check-prefix=CHECK-T1 %s
 
 ; CHECK-NOT: {{^ *}}.text{{$}}
 ; CHECK: .section .text,"axy",%progbits,unique,0
@@ -11,7 +12,15 @@
 define i32 @global() minsize {
 ; CHECK-LABEL: global:
 ; CHECK: movw [[GLOBDEST:r[0-9]+]], :lower16:var
-; CHECK: movt [[GLOBDEST]], :upper16:var
+; CHECK-NEXT: movt [[GLOBDEST]], :upper16:var
+; CHECK-T1-LABEL: global:
+; CHECK-T1: movs [[GLOBDEST:r[0-9]+]], :upper8_15:var
+; CHECK-T1-NEXT: lsls [[GLOBDEST]], [[GLOBDEST]], #8
+; CHECK-T1-NEXT: adds [[GLOBDEST]], :upper0_7:var
+; CHECK-T1-NEXT: lsls [[GLOBDEST]], [[GLOBDEST]], #8
+; CHECK-T1-NEXT: adds [[GLOBDEST]], :lower8_15:var
+; CHECK-T1-NEXT: lsls [[GLOBDEST]], [[GLOBDEST]], #8
+; CHECK-T1-NEXT: adds [[GLOBDEST]], :lower0_7:var
 
   %val = load i32, ptr @var
   ret i32 %val
@@ -35,6 +44,27 @@ define i32 @jump_table(i32 %c, i32 %a, i32 %b) #0 {
 ; CHECK-NEXT: b.w
 ; CHECK-NEXT: b.w
 ; CHECK-NEXT: b.w
+
+; CHECK-T1-LABEL: jump_table:
+; CHECK-T1:      lsls [[REG_OFFSET:r[0-9]+]], {{r[0-9]+}}, #2
+; CHECK-T1-NEXT: movs [[REG_JT:r[0-9]+]], :upper8_15:.LJTI1_0
+; CHECK-T1-NEXT: lsls [[REG_JT]], [[REG_JT]], #8
+; CHECK-T1-NEXT: adds [[REG_JT]], :upper0_7:.LJTI1_0
+; CHECK-T1-NEXT: lsls [[REG_JT]], [[REG_JT]], #8
+; CHECK-T1-NEXT: adds [[REG_JT]], :lower8_15:.LJTI1_0
+; CHECK-T1-NEXT: lsls [[REG_JT]], [[REG_JT]], #8
+; CHECK-T1-NEXT: adds [[REG_JT]], :lower0_7:.LJTI1_0
+; CHECK-T1-NEXT: ldr  [[REG_ENTRY:r[0-9]+]], [[[REG_JT]], [[REG_OFFSET]]]
+; CHECK-T1-NEXT: mov  pc, [[REG_ENTRY]]
+; CHECK-T1:      .section .rodata,"a",%progbits
+; CHECK-T1-NEXT: .p2align 2, 0x0
+; CHECK-T1-NEXT: .LJTI1_0:
+; CHECK-T1-NEXT: .long
+; CHECK-T1-NEXT: .long
+; CHECK-T1-NEXT: .long
+; CHECK-T1-NEXT: .long
+; CHECK-T1-NEXT: .long
+; CHECK-T1-NEXT: .long
 
 entry:
   switch i32 %c, label %return [
@@ -80,7 +110,35 @@ return:                                           ; preds = %entry, %sw.bb8, %sw
 define hidden ptr @string_literal() {
 entry:
 ; CHECK-LABEL: string_literal:
-; CHECK-NOT: .asciz
-; CHECK: .fnend
+; CHECK: movw [[STRLIT:r[0-9]+]], :lower16:.L.str
+; CHECK-NEXT: movt [[STRLIT]], :upper16:.L.str
+; CHECK-T1-LABEL: string_literal:
+; CHECK-T1: movs [[STRLIT:r[0-9]+]], :upper8_15:.L.str
+; CHECK-T1-NEXT: lsls [[STRLIT]], [[STRLIT]], #8
+; CHECK-T1-NEXT: adds [[STRLIT]], :upper0_7:.L.str
+; CHECK-T1-NEXT: lsls [[STRLIT]], [[STRLIT]], #8
+; CHECK-T1-NEXT: adds [[STRLIT]], :lower8_15:.L.str
+; CHECK-T1-NEXT: lsls [[STRLIT]], [[STRLIT]], #8
+; CHECK-T1-NEXT: adds [[STRLIT]], :lower0_7:.L.str
+
     ret ptr @.str
+}
+
+@external_global = external global i32
+define i32 @test_external_global() {
+entry:
+; CHECK-LABEL: external_global:
+; CHECK: movw [[EXTGLOB:r[0-9]+]], :lower16:external_global
+; CHECK-NEXT: movt [[EXTGLOB]], :upper16:external_global
+; CHECK-T1-LABEL: external_global:
+; CHECK-T1: movs [[EXTGLOB:r[0-9]+]], :upper8_15:external_global
+; CHECK-T1-NEXT: lsls [[EXTGLOB]], [[EXTGLOB]], #8
+; CHECK-T1-NEXT: adds [[EXTGLOB]], :upper0_7:external_global
+; CHECK-T1-NEXT: lsls [[EXTGLOB]], [[EXTGLOB]], #8
+; CHECK-T1-NEXT: adds [[EXTGLOB]], :lower8_15:external_global
+; CHECK-T1-NEXT: lsls [[EXTGLOB]], [[EXTGLOB]], #8
+; CHECK-T1-NEXT: adds [[EXTGLOB]], :lower0_7:external_global
+
+  %v = load i32, ptr @external_global
+  ret i32 %v
 }

@@ -3,8 +3,9 @@
 ! RUN: bbc -fopenacc -emit-fir %s -o - | FileCheck %s
 
 ! CHECK-LABEL: acc.firstprivate.recipe @firstprivatization_ref_10xf32 : !fir.ref<!fir.array<10xf32>> init {
-! CHECK: ^bb0(%arg0: !fir.ref<!fir.array<10xf32>>):
-! CHECK:   acc.yield %arg0 : !fir.ref<!fir.array<10xf32>>
+! CHECK: ^bb0(%{{.*}}: !fir.ref<!fir.array<10xf32>>):
+! CHECK:   %[[ALLOCA:.*]] = fir.alloca !fir.array<10xf32>
+! CHECK:   acc.yield %[[ALLOCA]] : !fir.ref<!fir.array<10xf32>>
 ! CHECK: } copy {
 ! CHECK:  ^bb0(%arg0: !fir.ref<!fir.array<10xf32>>, %arg1: !fir.ref<!fir.array<10xf32>>):
 ! CHECK:   acc.terminator
@@ -380,8 +381,11 @@ subroutine acc_serial_loop
     a(i) = b(i)
   END DO
 
-! CHECK:      acc.serial firstprivate(@firstprivatization_ref_10xf32 -> %[[B]] : !fir.ref<!fir.array<10xf32>>) private(@privatization_ref_10xf32 -> %[[A]] : !fir.ref<!fir.array<10xf32>>) {
-! CHECK:        acc.loop private(@privatization_ref_10xf32 -> %[[A]] : !fir.ref<!fir.array<10xf32>>) {
+! CHECK:      %[[ACC_PRIVATE_A:.*]] = acc.private varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "a"}
+! CHECK:      %[[ACC_FPRIVATE_B:.*]] = acc.firstprivate varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "b"}
+! CHECK:      acc.serial firstprivate(@firstprivatization_ref_10xf32 -> %[[ACC_FPRIVATE_B]] : !fir.ref<!fir.array<10xf32>>) private(@privatization_ref_10xf32 -> %[[ACC_PRIVATE_A]] : !fir.ref<!fir.array<10xf32>>) {
+! CHECK:      %[[ACC_PRIVATE_A:.*]] = acc.private varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "a"}
+! CHECK:        acc.loop private(@privatization_ref_10xf32 -> %[[ACC_PRIVATE_A]] : !fir.ref<!fir.array<10xf32>>) {
 ! CHECK:          fir.do_loop
 ! CHECK:          acc.yield
 ! CHECK-NEXT:   }{{$}}

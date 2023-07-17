@@ -633,7 +633,7 @@ func.func @nvvm_invalid_mma_8(%a0 : i32, %a1 : i32,
 // -----
 
 func.func @atomicrmw_expected_ptr(%f32 : f32) {
-  // expected-error@+1 {{operand #0 must be LLVM pointer to floating point LLVM type or integer}}
+  // expected-error@+1 {{operand #0 must be LLVM pointer to floating point LLVM type or LLVM pointer type or integer}}
   %0 = "llvm.atomicrmw"(%f32, %f32) {bin_op=11, ordering=1} : (f32, f32) -> f32
   llvm.return
 }
@@ -857,6 +857,19 @@ module attributes {llvm.data_layout = "#vjkr32"} {
 
 // -----
 
+func.func @switch_superfluous_comma(%arg0 : i64) {
+  // expected-error@+3 {{custom op 'llvm.switch' expected integer value}}
+  llvm.switch %arg0 : i32, ^bb1 [
+    42: ^bb2,
+  ]
+^bb1:
+  llvm.return
+^bb2:
+  llvm.return
+}
+
+// -----
+
 func.func @switch_wrong_number_of_weights(%arg0 : i32) {
   // expected-error@+1 {{expects number of branch weights to match number of successors: 3 vs 2}}
   llvm.switch %arg0 : i32, ^bb1 [
@@ -867,6 +880,17 @@ func.func @switch_wrong_number_of_weights(%arg0 : i32) {
   llvm.return
 
 ^bb2(%1: i32, %2: i32): // pred: ^bb0
+  llvm.return
+}
+
+// -----
+
+func.func @switch_case_type_mismatch(%arg0 : i64) {
+  // expected-error@below {{expects case value type to match condition value type}}
+  "llvm.switch"(%arg0)[^bb1, ^bb2] <{case_operand_segments = array<i32: 0>, case_values = dense<42> : vector<1xi32>, operand_segment_sizes = array<i32: 1, 0, 0>}> : (i64) -> ()
+^bb1: // pred: ^bb0
+  llvm.return
+^bb2: // pred: ^bb0
   llvm.return
 }
 
@@ -1257,15 +1281,15 @@ func.func @bitcast(%arg0: vector<2x3xf32>) {
 
 func.func @cp_async(%arg0: !llvm.ptr<3>, %arg1: !llvm.ptr<1>) {
   // expected-error @below {{expected byte size to be either 4, 8 or 16.}}
-  nvvm.cp.async.shared.global %arg0, %arg1, 32 : !llvm.ptr<3>, !llvm.ptr<1>
+  nvvm.cp.async.shared.global %arg0, %arg1, 32, cache = cg : !llvm.ptr<3>, !llvm.ptr<1>
   return
 }
 
 // -----
 
 func.func @cp_async(%arg0: !llvm.ptr<3>, %arg1: !llvm.ptr<1>) {
-  // expected-error @below {{bypass l1 is only support for 16 bytes copy.}}
-  nvvm.cp.async.shared.global %arg0, %arg1, 8 {bypass_l1} : !llvm.ptr<3>, !llvm.ptr<1>
+  // expected-error @below {{CG cache modifier is only support for 16 bytes copy.}}
+  nvvm.cp.async.shared.global %arg0, %arg1, 8, cache = cg : !llvm.ptr<3>, !llvm.ptr<1>
   return
 }
 
@@ -1427,12 +1451,61 @@ func.func @invalid_target_ext_constant() {
 // -----
 
 llvm.comdat @__llvm_comdat {
-  // expected-error@+1 {{only comdat selector symbols can appear in a comdat region}}
+  // expected-error@below {{only comdat selector symbols can appear in a comdat region}}
   llvm.return
 }
 
 // -----
 
 llvm.mlir.global @not_comdat(0 : i32) : i32
-// expected-error@+1 {{expected comdat symbol}}
-llvm.mlir.global @invalid_comdat_use(0 : i32) comdat(@not_comdat) : i32
+// expected-error@below {{expected comdat symbol}}
+llvm.mlir.global @invalid_global_comdat(0 : i32) comdat(@not_comdat) : i32
+
+// -----
+
+// expected-error@below {{expected comdat symbol}}
+llvm.func @invalid_func_comdat() comdat(@foo) {
+  llvm.return
+}
+
+// -----
+
+func.func @invalid_zext_target_size_equal(%arg: i32)  {
+  // expected-error@+1 {{integer width of the output type is smaller or equal to the integer width of the input type}}
+  %0 = llvm.zext %arg : i32 to i32
+}
+
+// -----
+
+func.func @invalid_zext_target_size(%arg: i32)  {
+  // expected-error@+1 {{integer width of the output type is smaller or equal to the integer width of the input type}}
+  %0 = llvm.zext %arg : i32 to i16
+}
+
+// -----
+
+func.func @invalid_zext_target_size_vector(%arg: vector<1xi32>)  {
+  // expected-error@+1 {{integer width of the output type is smaller or equal to the integer width of the input type}}
+  %0 = llvm.zext %arg : vector<1xi32> to vector<1xi16>
+}
+
+// -----
+
+func.func @invalid_zext_target_shape(%arg: vector<1xi32>)  {
+  // expected-error@+1 {{input and output vectors are of incompatible shape}}
+  %0 = llvm.zext %arg : vector<1xi32> to vector<2xi64>
+}
+
+// -----
+
+func.func @invalid_zext_target_type(%arg: i32)  {
+  // expected-error@+1 {{input type is an integer but output type is a vector}}
+  %0 = llvm.zext %arg : i32 to vector<1xi64>
+}
+
+// -----
+
+func.func @invalid_zext_target_type_two(%arg: vector<1xi32>)  {
+  // expected-error@+1 {{input type is a vector but output type is an integer}}
+  %0 = llvm.zext %arg : vector<1xi32> to i64
+}

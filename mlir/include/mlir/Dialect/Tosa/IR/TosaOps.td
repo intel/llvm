@@ -44,12 +44,12 @@ def Tosa_ArgMaxOp : Tosa_Op<"argmax", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto4D: $input,
+    Tosa_Tensor: $input,
     I64Attr: $axis
   );
 
   let results = (outs
-    Tosa_TensorUpto4D: $output
+    Tosa_Tensor: $output
   );
 }
 
@@ -108,7 +108,7 @@ def Tosa_Conv2DOp : Tosa_Op<"conv2d", [
 
   let arguments = (ins
     Tosa_Tensor4D:$input,
-    Tosa_Tensor4D:$weight,
+    4DTensorOf<[Tosa_Weight]>:$weight,
     Tosa_Tensor1D:$bias,
 
     Tosa_IntArrayAttr4:$pad,
@@ -140,7 +140,7 @@ def Tosa_Conv3DOp : Tosa_Op<"conv3d", [
 
   let arguments = (ins
     Tosa_Tensor5D:$input,
-    Tosa_Tensor5D:$weight,
+    TensorRankOf<[Tosa_Weight], [5]>:$weight,
     Tosa_Tensor1D:$bias,
 
     Tosa_IntArrayAttr6:$pad,
@@ -173,7 +173,7 @@ def Tosa_DepthwiseConv2DOp : Tosa_Op<"depthwise_conv2d", [
 
   let arguments = (ins
     Tosa_Tensor4D:$input,
-    Tosa_Tensor4D:$weight,
+    4DTensorOf<[Tosa_Weight]>:$weight,
     Tosa_Tensor1D:$bias,
 
     Tosa_IntArrayAttr4:$pad,
@@ -235,7 +235,7 @@ def Tosa_FullyConnectedOp : Tosa_Op<"fully_connected", [
 
   let arguments = (ins
     Tosa_Tensor2D:$input,
-    Tosa_Tensor2D:$weight,
+    2DTensorOf<[Tosa_Weight]>:$weight,
     Tosa_Tensor1D:$bias,
     OptionalAttr<Tosa_ConvOpQuantizationAttr>:$quantization_info
   );
@@ -351,7 +351,7 @@ def Tosa_TransposeConv2DOp : Tosa_Op<"transpose_conv2d", [
 
   let arguments = (ins
     Tosa_Tensor4D:$input,
-    Tosa_Tensor4D:$filter,
+    4DTensorOf<[Tosa_Weight]>:$filter,
     Tosa_Tensor1D:$bias,
 
     Tosa_IntArrayAttr4:$out_pad,
@@ -1222,12 +1222,12 @@ def Tosa_ReduceAllOp : Tosa_Op<"reduce_all", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto4D:$input,
+    Tosa_Tensor:$input,
     I64Attr:$axis
   );
 
   let results = (outs
-    Tosa_Tensor1Dto4D:$output
+    Tosa_Tensor:$output
   );
 
   let hasFolder = 1;
@@ -1251,12 +1251,12 @@ def Tosa_ReduceAnyOp : Tosa_Op<"reduce_any", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto4D:$input,
+    Tosa_Tensor:$input,
     I64Attr:$axis
   );
 
   let results = (outs
-    Tosa_Tensor1Dto4D:$output
+    Tosa_Tensor:$output
   );
 
   let hasFolder = 1;
@@ -1280,12 +1280,12 @@ def Tosa_ReduceMaxOp : Tosa_Op<"reduce_max", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto4D:$input,
+    Tosa_Tensor:$input,
     I64Attr:$axis
   );
 
   let results = (outs
-    Tosa_Tensor1Dto4D:$output
+    Tosa_Tensor:$output
   );
 
   let hasFolder = 1;
@@ -1309,12 +1309,12 @@ def Tosa_ReduceMinOp : Tosa_Op<"reduce_min", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto4D:$input,
+    Tosa_Tensor:$input,
     I64Attr:$axis
   );
 
   let results = (outs
-    Tosa_Tensor1Dto4D:$output
+    Tosa_Tensor:$output
   );
 
   let hasFolder = 1;
@@ -1338,12 +1338,12 @@ def Tosa_ReduceProdOp : Tosa_Op<"reduce_prod", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto4D:$input,
+    Tosa_Tensor:$input,
     I64Attr:$axis
   );
 
   let results = (outs
-    Tosa_Tensor1Dto4D:$output
+    Tosa_Tensor:$output
   );
 
   let hasFolder = 1;
@@ -1367,12 +1367,12 @@ def Tosa_ReduceSumOp : Tosa_Op<"reduce_sum", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto4D:$input,
+    Tosa_Tensor:$input,
     I64Attr:$axis
   );
 
   let results = (outs
-    Tosa_Tensor1Dto4D:$output
+    Tosa_Tensor:$output
   );
 
   let hasFolder = 1;
@@ -1515,12 +1515,12 @@ def Tosa_ReverseOp: Tosa_Op<"reverse", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto4D:$input,
+    Tosa_Tensor:$input,
     I64Attr:$axis
   );
 
   let results = (outs
-    Tosa_Tensor1Dto4D:$output
+    Tosa_Tensor:$output
   );
 
   let hasFolder = 1;
@@ -1541,13 +1541,13 @@ def Tosa_SliceOp: Tosa_Op<"slice", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto6D:$input,
+    Tosa_Tensor:$input,
     DenseI64ArrayAttr:$start,
     DenseI64ArrayAttr:$size
   );
 
   let results = (outs
-    Tosa_Tensor1Dto6D:$output
+    Tosa_Tensor:$output
   );
 
   let hasCanonicalizer = 1;
@@ -1568,11 +1568,11 @@ def Tosa_TileOp: Tosa_Op<"tile", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto4D:$input1,
+    Tosa_Tensor:$input1,
     DenseI64ArrayAttr:$multiples);
 
   let results = (outs
-    Tosa_Tensor1Dto4D:$output
+    Tosa_Tensor:$output
   );
 
   let hasFolder = 1;
@@ -1592,12 +1592,12 @@ def Tosa_TransposeOp : Tosa_Op<"transpose", [
   }];
 
   let arguments = (ins
-    Tosa_Tensor1Dto6D:$input1,
+    Tosa_Tensor:$input1,
     Tosa_Int32Or64Tensor:$perms
   );
 
   let results = (
-    outs Tosa_Tensor1Dto6D:$output
+    outs Tosa_Tensor:$output
   );
 
   let extraClassDeclaration = [{
@@ -1817,7 +1817,7 @@ def Tosa_ConstOp : Tosa_Op<"const", [ConstantLike, Pure,
   );
 
   let results = (outs
-    Tosa_Tensor_Plus_F64:$output
+    TensorOf<[AnyTypeOf<[Tosa_AnyNumber_Plus_F64, Tosa_Int4]>]>:$output
   );
   let hasFolder = 1;
 }

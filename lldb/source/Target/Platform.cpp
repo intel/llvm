@@ -158,7 +158,7 @@ Status Platform::GetFileWithUUID(const FileSpec &platform_file,
 
 FileSpecList
 Platform::LocateExecutableScriptingResources(Target *target, Module &module,
-                                             Stream *feedback_stream) {
+                                             Stream &feedback_stream) {
   return FileSpecList();
 }
 
@@ -1060,7 +1060,7 @@ lldb::ProcessSP Platform::DebugProcess(ProcessLaunchInfo &launch_info,
                                        Debugger &debugger, Target &target,
                                        Status &error) {
   Log *log = GetLog(LLDBLog::Platform);
-  LLDB_LOG(log, "target = {0})", &target);
+  LLDB_LOG(log, "target = {0}", &target);
 
   ProcessSP process_sp;
   // Make sure we stop at the entry point
@@ -1969,6 +1969,14 @@ CompilerType Platform::GetSiginfoType(const llvm::Triple& triple) {
 
 Args Platform::GetExtraStartupCommands() {
   return {};
+}
+
+void Platform::SetLocateModuleCallback(LocateModuleCallback callback) {
+  m_locate_module_callback = callback;
+}
+
+Platform::LocateModuleCallback Platform::GetLocateModuleCallback() const {
+  return m_locate_module_callback;
 }
 
 PlatformSP PlatformList::GetOrCreate(llvm::StringRef name) {

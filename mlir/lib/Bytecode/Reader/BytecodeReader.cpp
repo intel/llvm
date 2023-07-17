@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: Support for big-endian architectures.
-
 #include "mlir/Bytecode/BytecodeReader.h"
 #include "mlir/AsmParser/AsmParser.h"
 #include "mlir/Bytecode/BytecodeImplementation.h"
@@ -27,6 +25,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Endian.h"
 #include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/SourceMgr.h"
@@ -203,8 +202,14 @@ public:
     // Handle the overwhelming uncommon case where the value required all 8
     // bytes (i.e. a really really big number). In this case, the marker byte is
     // all zeros: `00000000`.
-    if (LLVM_UNLIKELY(result == 0))
-      return parseBytes(sizeof(result), reinterpret_cast<uint8_t *>(&result));
+    if (LLVM_UNLIKELY(result == 0)) {
+      llvm::support::ulittle64_t resultLE;
+      if (failed(parseBytes(sizeof(resultLE),
+                            reinterpret_cast<uint8_t *>(&resultLE))))
+        return failure();
+      result = resultLE;
+      return success();
+    }
     return parseMultiByteVarInt(result);
   }
 
@@ -305,12 +310,13 @@ private:
            "unexpected number of trailing zeros in varint encoding");
 
     // Parse in the remaining bytes of the value.
-    if (failed(parseBytes(numBytes, reinterpret_cast<uint8_t *>(&result) + 1)))
+    llvm::support::ulittle64_t resultLE(result);
+    if (failed(parseBytes(numBytes, reinterpret_cast<uint8_t *>(&resultLE) + 1)))
       return failure();
 
     // Shift out the low-order bits that were used to mark how the value was
     // encoded.
-    result >>= (numBytes + 1);
+    result = resultLE >> (numBytes + 1);
     return success();
   }
 
@@ -988,6 +994,10 @@ public:
     return success();
   }
 
+  LogicalResult readBool(bool &result) override {
+    return reader.parseByte(result);
+  }
+
 private:
   AttrTypeReader &attrTypeReader;
   StringSectionReader &stringReader;
@@ -1311,11 +1321,11 @@ private:
     regionStack.push_back(std::move(it->getSecond()->second));
     lazyLoadableOps.erase(it->getSecond());
     lazyLoadableOpsMap.erase(it);
-    auto result = parseRegions(regionStack, regionStack.back());
-    assert((regionStack.empty() || failed(result)) &&
-           "broken invariant: regionStack should be empty when parseRegions "
-           "succeeds");
-    return result;
+
+    while (!regionStack.empty())
+      if (failed(parseRegions(regionStack, regionStack.back())))
+        return failure();
+    return success();
   }
 
   /// Return the context for this config.
@@ -2088,14 +2098,11 @@ BytecodeReader::Impl::parseRegions(std::vector<RegionReadState> &regionStack,
             childState.owningReader =
                 std::make_unique<EncodingReader>(sectionData, fileLoc);
             childState.reader = childState.owningReader.get();
-          }
 
-          if (lazyLoading) {
-            // If the user has a callback set, they have the opportunity
-            // to control lazyloading as we go.
-            if (!lazyOpsCallback || !lazyOpsCallback(*op)) {
-              lazyLoadableOps.push_back(
-                  std::make_pair(*op, std::move(childState)));
+            // If the user has a callback set, they have the opportunity to
+            // control lazyloading as we go.
+            if (lazyLoading && (!lazyOpsCallback || !lazyOpsCallback(*op))) {
+              lazyLoadableOps.emplace_back(*op, std::move(childState));
               lazyLoadableOpsMap.try_emplace(*op,
                                              std::prev(lazyLoadableOps.end()));
               continue;

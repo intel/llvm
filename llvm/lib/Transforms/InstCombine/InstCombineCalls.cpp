@@ -27,6 +27,7 @@
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Analysis/VectorUtils.h"
+#include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
@@ -1025,6 +1026,19 @@ static std::optional<bool> getKnownSign(Value *Op, Instruction *CxtI,
       ICmpInst::ICMP_SLT, Op, Constant::getNullValue(Op->getType()), CxtI, DL);
 }
 
+/// Return true if two values \p Op0 and \p Op1 are known to have the same sign.
+static bool signBitMustBeTheSame(Value *Op0, Value *Op1, Instruction *CxtI,
+                                 const DataLayout &DL, AssumptionCache *AC,
+                                 DominatorTree *DT) {
+  std::optional<bool> Known1 = getKnownSign(Op1, CxtI, DL, AC, DT);
+  if (!Known1)
+    return false;
+  std::optional<bool> Known0 = getKnownSign(Op0, CxtI, DL, AC, DT);
+  if (!Known0)
+    return false;
+  return *Known0 == *Known1;
+}
+
 /// Try to canonicalize min/max(X + C0, C1) as min/max(X, C1 - C0) + C0. This
 /// can trigger other combines.
 static Instruction *moveAddAfterMinMax(IntrinsicInst *II,
@@ -1488,10 +1502,16 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
 
   Intrinsic::ID IID = II->getIntrinsicID();
   switch (IID) {
-  case Intrinsic::objectsize:
-    if (Value *V = lowerObjectSizeCall(II, DL, &TLI, AA, /*MustSucceed=*/false))
+  case Intrinsic::objectsize: {
+    SmallVector<Instruction *> InsertedInstructions;
+    if (Value *V = lowerObjectSizeCall(II, DL, &TLI, AA, /*MustSucceed=*/false,
+                                       &InsertedInstructions)) {
+      for (Instruction *Inserted : InsertedInstructions)
+        Worklist.add(Inserted);
       return replaceInstUsesWith(CI, V);
+    }
     return nullptr;
+  }
   case Intrinsic::abs: {
     Value *IIOperand = II->getArgOperand(0);
     bool IntMinIsPoison = cast<Constant>(II->getArgOperand(1))->isOneValue();
@@ -2351,6 +2371,42 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     }
     break;
   }
+  case Intrinsic::ldexp: {
+    // ldexp(ldexp(x, a), b) -> ldexp(x, a + b)
+    //
+    // The danger is if the first ldexp would overflow to infinity or underflow
+    // to zero, but the combined exponent avoids it. We ignore this with
+    // reassoc.
+    //
+    // It's also safe to fold if we know both exponents are >= 0 or <= 0 since
+    // it would just double down on the overflow/underflow which would occur
+    // anyway.
+    //
+    // TODO: Could do better if we had range tracking for the input value
+    // exponent. Also could broaden sign check to cover == 0 case.
+    Value *Src = II->getArgOperand(0);
+    Value *Exp = II->getArgOperand(1);
+    Value *InnerSrc;
+    Value *InnerExp;
+    if (match(Src, m_OneUse(m_Intrinsic<Intrinsic::ldexp>(
+                       m_Value(InnerSrc), m_Value(InnerExp)))) &&
+        Exp->getType() == InnerExp->getType()) {
+      FastMathFlags FMF = II->getFastMathFlags();
+      FastMathFlags InnerFlags = cast<FPMathOperator>(Src)->getFastMathFlags();
+
+      if ((FMF.allowReassoc() && InnerFlags.allowReassoc()) ||
+          signBitMustBeTheSame(Exp, InnerExp, II, DL, &AC, &DT)) {
+        // TODO: Add nsw/nuw probably safe if integer type exceeds exponent
+        // width.
+        Value *NewExp = Builder.CreateAdd(InnerExp, Exp);
+        II->setArgOperand(1, NewExp);
+        II->setFastMathFlags(InnerFlags); // Or the inner flags.
+        return replaceOperand(*II, 0, InnerSrc);
+      }
+    }
+
+    break;
+  }
   case Intrinsic::ptrauth_auth:
   case Intrinsic::ptrauth_resign: {
     // (sign|resign) + (auth|resign) can be folded by omitting the middle
@@ -2652,6 +2708,7 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
         isValidAssumeForContext(II, LHS, &DT)) {
       MDNode *MD = MDNode::get(II->getContext(), std::nullopt);
       LHS->setMetadata(LLVMContext::MD_nonnull, MD);
+      LHS->setMetadata(LLVMContext::MD_noundef, MD);
       return RemoveConditionFromAssume(II);
 
       // TODO: apply nonnull return attributes to calls and invokes
@@ -2771,6 +2828,12 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     computeKnownBits(IIOperand, Known, 0, II);
     if (Known.isAllOnes() && isAssumeWithEmptyBundle(cast<AssumeInst>(*II)))
       return eraseInstFromFunction(*II);
+
+    // assume(false) is unreachable.
+    if (match(IIOperand, m_CombineOr(m_Zero(), m_Undef()))) {
+      CreateNonTerminatorUnreachable(II);
+      return eraseInstFromFunction(*II);
+    }
 
     // Update the cache of affected values for this assumption (we might be
     // here because we just simplified the condition).

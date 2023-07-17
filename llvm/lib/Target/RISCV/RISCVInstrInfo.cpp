@@ -245,7 +245,7 @@ static bool isConvertibleToVMV_V_V(const RISCVSubtarget &STI,
       for (const MachineOperand &MO : MBBI->explicit_operands()) {
         if (!MO.isReg() || !MO.isDef())
           continue;
-        if (!FoundDef && TRI->isSubRegisterEq(MO.getReg(), SrcReg)) {
+        if (!FoundDef && TRI->regsOverlap(MO.getReg(), SrcReg)) {
           // We only permit the source of COPY has the same LMUL as the defined
           // operand.
           // There are cases we need to keep the whole register copy if the LMUL
@@ -417,12 +417,13 @@ void RISCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 
   if (IsScalableVector) {
     bool UseVMV_V_V = false;
+    bool UseVMV_V_I = false;
     MachineBasicBlock::const_iterator DefMBBI;
-    unsigned VIOpc;
     if (isConvertibleToVMV_V_V(STI, MBB, MBBI, DefMBBI, LMul)) {
       UseVMV_V_V = true;
       // We only need to handle LMUL = 1/2/4/8 here because we only define
       // vector register classes for LMUL = 1/2/4/8.
+      unsigned VIOpc;
       switch (LMul) {
       default:
         llvm_unreachable("Impossible LMUL for vector register copy.");
@@ -443,24 +444,26 @@ void RISCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
         VIOpc = RISCV::PseudoVMV_V_I_M8;
         break;
       }
-    }
 
-    bool UseVMV_V_I = false;
-    if (UseVMV_V_V && (DefMBBI->getOpcode() == VIOpc)) {
-      UseVMV_V_I = true;
-      Opc = VIOpc;
+      if (DefMBBI->getOpcode() == VIOpc) {
+        UseVMV_V_I = true;
+        Opc = VIOpc;
+      }
     }
 
     if (NF == 1) {
       auto MIB = BuildMI(MBB, MBBI, DL, get(Opc), DstReg);
+      if (UseVMV_V_V)
+        MIB.addReg(DstReg, RegState::Undef);
       if (UseVMV_V_I)
-        MIB = MIB.add(DefMBBI->getOperand(1));
+        MIB = MIB.add(DefMBBI->getOperand(2));
       else
         MIB = MIB.addReg(SrcReg, getKillRegState(KillSrc));
       if (UseVMV_V_V) {
         const MCInstrDesc &Desc = DefMBBI->getDesc();
         MIB.add(DefMBBI->getOperand(RISCVII::getVLOpNum(Desc))); // AVL
         MIB.add(DefMBBI->getOperand(RISCVII::getSEWOpNum(Desc))); // SEW
+        MIB.addImm(0); // tu, mu
         MIB.addReg(RISCV::VL, RegState::Implicit);
         MIB.addReg(RISCV::VTYPE, RegState::Implicit);
       }
@@ -481,8 +484,11 @@ void RISCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
       for (; I != End; I += Incr) {
         auto MIB = BuildMI(MBB, MBBI, DL, get(Opc),
                            TRI->getSubReg(DstReg, SubRegIdx + I));
+        if (UseVMV_V_V)
+          MIB.addReg(TRI->getSubReg(DstReg, SubRegIdx + I),
+                     RegState::Undef);
         if (UseVMV_V_I)
-          MIB = MIB.add(DefMBBI->getOperand(1));
+          MIB = MIB.add(DefMBBI->getOperand(2));
         else
           MIB = MIB.addReg(TRI->getSubReg(SrcReg, SubRegIdx + I),
                            getKillRegState(KillSrc));
@@ -490,6 +496,7 @@ void RISCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
           const MCInstrDesc &Desc = DefMBBI->getDesc();
           MIB.add(DefMBBI->getOperand(RISCVII::getVLOpNum(Desc))); // AVL
           MIB.add(DefMBBI->getOperand(RISCVII::getSEWOpNum(Desc))); // SEW
+          MIB.addImm(0);  // tu, mu
           MIB.addReg(RISCV::VL, RegState::Implicit);
           MIB.addReg(RISCV::VTYPE, RegState::Implicit);
         }
@@ -1265,11 +1272,25 @@ unsigned RISCVInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     }
   }
 
+  if (Opcode == TargetOpcode::BUNDLE)
+    return getInstBundleLength(MI);
+
   if (MI.getParent() && MI.getParent()->getParent()) {
     if (isCompressibleInst(MI, STI))
       return 2;
   }
   return get(Opcode).getSize();
+}
+
+unsigned RISCVInstrInfo::getInstBundleLength(const MachineInstr &MI) const {
+  unsigned Size = 0;
+  MachineBasicBlock::const_instr_iterator I = MI.getIterator();
+  MachineBasicBlock::const_instr_iterator E = MI.getParent()->instr_end();
+  while (++I != E && I->isInsideBundle()) {
+    assert(!I->isBundle() && "No nested bundle!");
+    Size += getInstSizeInBytes(*I);
+  }
+  return Size;
 }
 
 bool RISCVInstrInfo::isAsCheapAsAMove(const MachineInstr &MI) const {
@@ -1634,16 +1655,22 @@ static void combineFPFusedMultiply(MachineInstr &Root, MachineInstr &Prev,
   DebugLoc MergedLoc =
       DILocation::getMergedLocation(Root.getDebugLoc(), Prev.getDebugLoc());
 
+  bool Mul1IsKill = Mul1.isKill();
+  bool Mul2IsKill = Mul2.isKill();
+  bool AddendIsKill = Addend.isKill();
+
+  // We need to clear kill flags since we may be extending the live range past
+  // a kill. If the mul had kill flags, we can preserve those since we know
+  // where the previous range stopped.
+  MRI.clearKillFlags(Mul1.getReg());
+  MRI.clearKillFlags(Mul2.getReg());
+
   MachineInstrBuilder MIB =
       BuildMI(*MF, MergedLoc, TII->get(FusedOpc), DstReg)
-          .addReg(Mul1.getReg(), getKillRegState(Mul1.isKill()))
-          .addReg(Mul2.getReg(), getKillRegState(Mul2.isKill()))
-          .addReg(Addend.getReg(), getKillRegState(Addend.isKill()))
+          .addReg(Mul1.getReg(), getKillRegState(Mul1IsKill))
+          .addReg(Mul2.getReg(), getKillRegState(Mul2IsKill))
+          .addReg(Addend.getReg(), getKillRegState(AddendIsKill))
           .setMIFlags(IntersectedFlags);
-
-  // Mul operands are not killed anymore.
-  Mul1.setIsKill(false);
-  Mul2.setIsKill(false);
 
   InsInstrs.push_back(MIB);
   if (MRI.hasOneNonDBGUse(Prev.getOperand(0).getReg()))
@@ -1814,6 +1841,10 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
   }
   if (RISCVII::hasSEWOp(TSFlags)) {
     unsigned OpIdx = RISCVII::getSEWOpNum(Desc);
+    if (!MI.getOperand(OpIdx).isImm()) {
+      ErrInfo = "SEW value expected to be an immediate";
+      return false;
+    }
     uint64_t Log2SEW = MI.getOperand(OpIdx).getImm();
     if (Log2SEW > 31) {
       ErrInfo = "Unexpected SEW value";
@@ -1827,6 +1858,10 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
   }
   if (RISCVII::hasVecPolicyOp(TSFlags)) {
     unsigned OpIdx = RISCVII::getVecPolicyOpNum(Desc);
+    if (!MI.getOperand(OpIdx).isImm()) {
+      ErrInfo = "Policy operand expected to be an immediate";
+      return false;
+    }
     uint64_t Policy = MI.getOperand(OpIdx).getImm();
     if (Policy > (RISCVII::TAIL_AGNOSTIC | RISCVII::MASK_AGNOSTIC)) {
       ErrInfo = "Invalid Policy Value";
@@ -2511,10 +2546,12 @@ MachineInstr *RISCVInstrInfo::convertToThreeAddress(MachineInstr &MI,
     MachineBasicBlock &MBB = *MI.getParent();
     MachineInstrBuilder MIB = BuildMI(MBB, MI, MI.getDebugLoc(), get(NewOpc))
                                   .add(MI.getOperand(0))
+                                  .addReg(MI.getOperand(0).getReg(), RegState::Undef)
                                   .add(MI.getOperand(1))
                                   .add(MI.getOperand(2))
                                   .add(MI.getOperand(3))
-                                  .add(MI.getOperand(4));
+                                  .add(MI.getOperand(4))
+                                  .add(MI.getOperand(5));
     MIB.copyImplicitOps(MI);
 
     if (LV) {

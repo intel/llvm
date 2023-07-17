@@ -111,6 +111,7 @@ static Constant *FoldBitCast(Constant *V, Type *DestTy) {
   if (SrcTy == DestTy)
     return V; // no-op cast
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // Check to see if we are casting a pointer to an aggregate to a pointer to
   // the first element.  If so, return the appropriate GEP instruction.
   if (PointerType *PTy = dyn_cast<PointerType>(V->getType()))
@@ -133,6 +134,7 @@ static Constant *FoldBitCast(Constant *V, Type *DestTy) {
           return ConstantExpr::getInBoundsGetElementPtr(
               PTy->getNonOpaquePointerElementType(), V, IdxList);
       }
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Handle casts from one vector constant to another.  We know that the src
   // and dest type have the same size (otherwise its an illegal cast).
@@ -2033,11 +2035,12 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
     return InBounds ? PoisonValue::get(GEPTy) : UndefValue::get(GEPTy);
 
   auto IsNoOp = [&]() {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     // For non-opaque pointers having multiple indices will change the result
     // type of the GEP.
     if (!C->getType()->getScalarType()->isOpaquePointerTy() && Idxs.size() != 1)
       return false;
-
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     // Avoid losing inrange information.
     if (InRangeIndex)
       return false;
@@ -2090,7 +2093,7 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
     if (auto *GEP = dyn_cast<GEPOperator>(CE))
       if (Constant *C = foldGEPOfGEP(GEP, PointeeTy, InBounds, Idxs))
         return C;
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     // Attempt to fold casts to the same type away.  For example, folding:
     //
     //   i32* getelementptr ([2 x i32]* bitcast ([3 x i32]* %X to [2 x i32]*),
@@ -2119,6 +2122,7 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
                                                 Idxs, InBounds, InRangeIndex);
       }
     }
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   // Check to see if any array indices are not within the corresponding

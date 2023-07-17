@@ -772,7 +772,7 @@ LLVMToSPIRVDbgTran::transDbgArrayTypeDynamic(const DICompositeType *AT) {
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {
   using namespace SPIRVDebug::Operand::TypeSubrange;
-  SPIRVWordVec Ops(OperandCount);
+  SPIRVWordVec Ops(MinOperandCount);
   auto TransOperand = [&Ops, this, ST](int Idx) -> void {
     Metadata *RawNode = nullptr;
     switch (Idx) {
@@ -784,9 +784,6 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {
       break;
     case CountIdx:
       RawNode = ST->getRawCountNode();
-      break;
-    case StrideIdx:
-      RawNode = ST->getRawStride();
       break;
     }
     if (!RawNode) {
@@ -815,8 +812,17 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {
                          : getDebugInfoNoneId();
     }
   };
-  for (int Idx = CountIdx; Idx < OperandCount; ++Idx)
+  for (int Idx = 0; Idx < MinOperandCount; ++Idx)
     TransOperand(Idx);
+  if (auto *RawNode = ST->getRawStride()) {
+    Ops.resize(MaxOperandCount);
+    if (auto *Node = dyn_cast<MDNode>(RawNode))
+      Ops[StrideIdx] = transDbgEntry(Node)->getId();
+    else
+      Ops[StrideIdx] =
+          SPIRVWriter->transValue(ST->getStride().get<ConstantInt *>(), nullptr)
+              ->getId();
+  }
   return BM->addDebugInfo(SPIRVDebug::TypeSubrange, getVoidTy(), Ops);
 }
 

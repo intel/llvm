@@ -86,6 +86,8 @@
 // ... add new file formats here ...
 #  endif
 
+// ABI {
+
 #  if _LIBCPP_ABI_VERSION >= 2
 // Change short string representation so that string data starts at offset 0,
 // improving its alignment in some cases.
@@ -191,6 +193,84 @@
 #    define _LIBCPP_ABI_BAD_FUNCTION_CALL_KEY_FUNCTION
 #  endif
 
+// Changes the iterator type of select containers (see below) to a bounded iterator that keeps track of whether it's
+// within the bounds of the original container and asserts it on every dereference.
+//
+// ABI impact: changes the iterator type of the relevant containers.
+//
+// Supported containers:
+// - `span`;
+// - `string_view`;
+// - `array`.
+// #define _LIBCPP_ABI_BOUNDED_ITERATORS
+
+// } ABI
+
+// HARDENING {
+
+// Enables the hardened mode which consists of all checks intended to be used in production. Hardened mode prioritizes
+// security-critical checks that can be done with relatively little overhead in constant time. Mutually exclusive with
+// `_LIBCPP_ENABLE_DEBUG_MODE`.
+//
+// #define _LIBCPP_ENABLE_HARDENED_MODE 1
+
+// Enables the debug mode which contains all the checks from the hardened mode and additionally more expensive checks
+// that may affect the complexity of algorithms. The debug mode is intended to be used for testing, not in production.
+// Mutually exclusive with `_LIBCPP_ENABLE_HARDENED_MODE`.
+//
+// #define _LIBCPP_ENABLE_DEBUG_MODE 1
+
+// Available checks:
+
+// TODO(hardening): add documentation for different checks here.
+
+#  ifndef _LIBCPP_ENABLE_HARDENED_MODE
+#    define _LIBCPP_ENABLE_HARDENED_MODE _LIBCPP_ENABLE_HARDENED_MODE_DEFAULT
+#  endif
+#  if _LIBCPP_ENABLE_HARDENED_MODE != 0 && _LIBCPP_ENABLE_HARDENED_MODE != 1
+#    error "_LIBCPP_ENABLE_HARDENED_MODE must be set to 0 or 1."
+#  endif
+
+#  ifndef _LIBCPP_ENABLE_DEBUG_MODE
+#    define _LIBCPP_ENABLE_DEBUG_MODE _LIBCPP_ENABLE_DEBUG_MODE_DEFAULT
+#  endif
+#  if _LIBCPP_ENABLE_DEBUG_MODE != 0 && _LIBCPP_ENABLE_DEBUG_MODE != 1
+#    error "_LIBCPP_ENABLE_DEBUG_MODE must be set to 0 or 1."
+#  endif
+
+#  if _LIBCPP_ENABLE_HARDENED_MODE && _LIBCPP_ENABLE_DEBUG_MODE
+#    error "Only one of _LIBCPP_ENABLE_HARDENED_MODE and _LIBCPP_ENABLE_DEBUG_MODE can be enabled."
+#  endif
+
+// Hardened mode checks.
+#  if _LIBCPP_ENABLE_HARDENED_MODE
+
+// Automatically enable assertions in hardened mode (unless the user explicitly turned them off).
+#    ifndef _LIBCPP_ENABLE_ASSERTIONS
+#      define _LIBCPP_ENABLE_ASSERTIONS 1
+#    endif
+
+// TODO(hardening): more checks to be added here...
+
+// Debug mode checks.
+#  elif _LIBCPP_ENABLE_DEBUG_MODE
+
+// Automatically enable assertions in debug mode (unless the user explicitly turned them off).
+#    ifndef _LIBCPP_ENABLE_ASSERTIONS
+#      define _LIBCPP_ENABLE_ASSERTIONS 1
+#    endif
+
+// TODO(hardening): more checks to be added here...
+
+// Disable all checks if neither the hardened mode nor the debug mode is enabled.
+#  else
+
+// TODO: more checks to be added here...
+
+#  endif // _LIBCPP_ENABLE_HARDENED_MODE
+
+// } HARDENING
+
 #  define _LIBCPP_TOSTRING2(x) #x
 #  define _LIBCPP_TOSTRING(x) _LIBCPP_TOSTRING2(x)
 
@@ -276,6 +356,10 @@
 // easier to grep for target specific flags once the feature is complete.
 #  if !defined(_LIBCPP_ENABLE_EXPERIMENTAL) && !defined(_LIBCPP_BUILDING_LIBRARY)
 #    define _LIBCPP_HAS_NO_INCOMPLETE_PSTL
+#  endif
+
+#  if !defined(_LIBCPP_ENABLE_EXPERIMENTAL) && !defined(_LIBCPP_BUILDING_LIBRARY)
+#    define _LIBCPP_HAS_NO_EXPERIMENTAL_STOP_TOKEN
 #  endif
 
 // Need to detect which libc we're using if we're on Linux.
@@ -460,8 +544,17 @@ typedef __char32_t char32_t;
 
 #  if defined(_LIBCPP_COMPILER_CLANG_BASED)
 
-#    if defined(__APPLE__) && !defined(__i386__) && !defined(__x86_64__) && (!defined(__arm__) || __ARM_ARCH_7K__ >= 2)
-#      define _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT
+#    if defined(__APPLE__)
+#      if defined(__i386__) || defined(__x86_64__)
+// use old string layout on x86_64 and i386
+#      elif defined(__arm__)
+// use old string layout on arm (which does not include aarch64/arm64), except on watch ABIs
+#        if defined(__ARM_ARCH_7K__) && __ARM_ARCH_7K__ >= 2
+#          define _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT
+#        endif
+#      else
+#        define _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT
+#      endif
 #    endif
 
 // Objective-C++ features (opt-in)
@@ -898,6 +991,12 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #  ifndef _LIBCPP_HAS_NO_ASAN
     extern "C" _LIBCPP_EXPORTED_FROM_ABI void
     __sanitizer_annotate_contiguous_container(const void*, const void*, const void*, const void*);
+#    if _LIBCPP_CLANG_VER >= 1600
+extern "C" _LIBCPP_EXPORTED_FROM_ABI void __sanitizer_annotate_double_ended_contiguous_container(
+    const void*, const void*, const void*, const void*, const void*, const void*);
+extern "C" _LIBCPP_EXPORTED_FROM_ABI int
+__sanitizer_verify_double_ended_contiguous_container(const void*, const void*, const void*, const void*);
+#    endif
 #  endif
 
 // Try to find out if RTTI is disabled.
@@ -1134,8 +1233,10 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #    define _LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS
 #  endif // _LIBCPP_ENABLE_CXX20_REMOVED_FEATURES
 
-#  define _LIBCPP_PUSH_MACROS _Pragma("push_macro(\"min\")") _Pragma("push_macro(\"max\")")
-#  define _LIBCPP_POP_MACROS _Pragma("pop_macro(\"min\")") _Pragma("pop_macro(\"max\")")
+// clang-format off
+#  define _LIBCPP_PUSH_MACROS _Pragma("push_macro(\"min\")") _Pragma("push_macro(\"max\")") _Pragma("push_macro(\"refresh()\")") _Pragma("push_macro(\"move(int, int)\")") _Pragma("push_macro(\"erase()\")")
+#  define _LIBCPP_POP_MACROS _Pragma("pop_macro(\"min\")") _Pragma("pop_macro(\"max\")") _Pragma("pop_macro(\"refresh()\")") _Pragma("pop_macro(\"move(int, int)\")") _Pragma("pop_macro(\"erase()\")")
+// clang-format on
 
 #  ifndef _LIBCPP_NO_AUTO_LINK
 #    if defined(_LIBCPP_ABI_MICROSOFT) && !defined(_LIBCPP_BUILDING_LIBRARY)

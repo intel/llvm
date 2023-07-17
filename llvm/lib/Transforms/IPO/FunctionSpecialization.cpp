@@ -55,7 +55,6 @@
 #include "llvm/Analysis/ValueLattice.h"
 #include "llvm/Analysis/ValueLatticeUtils.h"
 #include "llvm/Analysis/ValueTracking.h"
-#include "llvm/IR/ConstantFold.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Transforms/Scalar/SCCP.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -190,7 +189,10 @@ Cost InstCostVisitor::estimateSwitchInst(SwitchInst &I) {
   if (I.getCondition() != LastVisited->first)
     return 0;
 
-  auto *C = cast<ConstantInt>(LastVisited->second);
+  auto *C = dyn_cast<ConstantInt>(LastVisited->second);
+  if (!C)
+    return 0;
+
   BasicBlock *Succ = I.findCaseValue(C)->getCaseSuccessor();
   // Initialize the worklist with the dead basic blocks. These are the
   // destination labels which are different from the one corresponding
@@ -257,7 +259,7 @@ Constant *InstCostVisitor::visitLoadInst(LoadInst &I) {
 }
 
 Constant *InstCostVisitor::visitGetElementPtrInst(GetElementPtrInst &I) {
-  SmallVector<Value *, 8> Operands;
+  SmallVector<Constant *, 8> Operands;
   Operands.reserve(I.getNumOperands());
 
   for (unsigned Idx = 0, E = I.getNumOperands(); Idx != E; ++Idx) {
@@ -270,10 +272,8 @@ Constant *InstCostVisitor::visitGetElementPtrInst(GetElementPtrInst &I) {
     Operands.push_back(C);
   }
 
-  auto *Ptr = cast<Constant>(Operands[0]);
-  auto Ops = ArrayRef(Operands.begin() + 1, Operands.end());
-  return ConstantFoldGetElementPtr(I.getSourceElementType(), Ptr,
-                                   I.isInBounds(), std::nullopt, Ops);
+  auto Ops = ArrayRef(Operands.begin(), Operands.end());
+  return ConstantFoldInstOperands(&I, Ops, DL);
 }
 
 Constant *InstCostVisitor::visitSelectInst(SelectInst &I) {

@@ -23,6 +23,7 @@
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/Support/Debug.h"
 
@@ -71,6 +72,8 @@ namespace {
     void ExpandVTBL(MachineBasicBlock::iterator &MBBI,
                     unsigned Opc, bool IsExt);
     void ExpandMQQPRLoadStore(MachineBasicBlock::iterator &MBBI);
+    void ExpandTMOV32BitImm(MachineBasicBlock &MBB,
+                            MachineBasicBlock::iterator &MBBI);
     void ExpandMOV32BitImm(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator &MBBI);
     void CMSEClearGPRegs(MachineBasicBlock &MBB,
@@ -967,6 +970,115 @@ static MachineOperand makeImplicit(const MachineOperand &MO) {
   MachineOperand NewMO = MO;
   NewMO.setImplicit();
   return NewMO;
+}
+
+void ARMExpandPseudo::ExpandTMOV32BitImm(MachineBasicBlock &MBB,
+                                         MachineBasicBlock::iterator &MBBI) {
+  MachineInstr &MI = *MBBI;
+  Register DstReg = MI.getOperand(0).getReg();
+  bool DstIsDead = MI.getOperand(0).isDead();
+  const MachineOperand &MO = MI.getOperand(1);
+  MachineInstrBuilder Upper8_15, LSL_U8_15, Upper0_7, Lower8_15, Lower0_7;
+  unsigned MIFlags = MI.getFlags();
+
+  LLVM_DEBUG(dbgs() << "Expanding: "; MI.dump());
+
+  Upper8_15 =
+      BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(ARM::tMOVi8), DstReg)
+          .add(t1CondCodeOp(true));
+
+  LSL_U8_15 =
+      BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(ARM::tLSLri), DstReg)
+          .add(t1CondCodeOp(true))
+          .addReg(DstReg)
+          .addImm(8)
+          .add(predOps(ARMCC::AL))
+          .setMIFlags(MIFlags);
+
+  Upper0_7 = BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(ARM::tADDi8), DstReg)
+                 .add(t1CondCodeOp(true))
+                 .addReg(DstReg);
+
+  MachineInstr *LSL_U0_7 = MBB.getParent()->CloneMachineInstr(LSL_U8_15);
+  MBB.insert(MBBI, LSL_U0_7);
+
+  Lower8_15 =
+      BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(ARM::tADDi8), DstReg)
+          .add(t1CondCodeOp(true))
+          .addReg(DstReg);
+
+  MachineInstr *LSL_L8_15 = MBB.getParent()->CloneMachineInstr(LSL_U8_15);
+  MBB.insert(MBBI, LSL_L8_15);
+
+  Lower0_7 = BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(ARM::tADDi8))
+                 .addReg(DstReg, RegState::Define | getDeadRegState(DstIsDead))
+                 .add(t1CondCodeOp(true))
+                 .addReg(DstReg);
+
+  Upper8_15.setMIFlags(MIFlags);
+  Upper0_7.setMIFlags(MIFlags);
+  Lower8_15.setMIFlags(MIFlags);
+  Lower0_7.setMIFlags(MIFlags);
+
+  switch (MO.getType()) {
+  case MachineOperand::MO_Immediate: {
+    unsigned Imm = MO.getImm();
+    unsigned Hi8_15 = (Imm >> 24) & 0xff;
+    unsigned Hi0_7 = (Imm >> 16) & 0xff;
+    unsigned Lo8_15 = (Imm >> 8) & 0xff;
+    unsigned Lo0_7 = Imm & 0xff;
+    Upper8_15 = Upper8_15.addImm(Hi8_15);
+    Upper0_7 = Upper0_7.addImm(Hi0_7);
+    Lower8_15 = Lower8_15.addImm(Lo8_15);
+    Lower0_7 = Lower0_7.addImm(Lo0_7);
+    break;
+  }
+  case MachineOperand::MO_ExternalSymbol: {
+    const char *ES = MO.getSymbolName();
+    unsigned TF = MO.getTargetFlags();
+    Upper8_15 = Upper8_15.addExternalSymbol(ES, TF | ARMII::MO_HI_8_15);
+    Upper0_7 = Upper0_7.addExternalSymbol(ES, TF | ARMII::MO_HI_0_7);
+    Lower8_15 = Lower8_15.addExternalSymbol(ES, TF | ARMII::MO_LO_8_15);
+    Lower0_7 = Lower0_7.addExternalSymbol(ES, TF | ARMII::MO_LO_0_7);
+    break;
+  }
+  case MachineOperand::MO_JumpTableIndex: {
+    unsigned Idx = MO.getIndex();
+    unsigned TF = MO.getTargetFlags();
+    Upper8_15 = Upper8_15.addJumpTableIndex(Idx, TF | ARMII::MO_HI_8_15);
+    Upper0_7 = Upper0_7.addJumpTableIndex(Idx, TF | ARMII::MO_HI_0_7);
+    Lower8_15 = Lower8_15.addJumpTableIndex(Idx, TF | ARMII::MO_LO_8_15);
+    Lower0_7 = Lower0_7.addJumpTableIndex(Idx, TF | ARMII::MO_LO_0_7);
+    break;
+  }
+  default: {
+    const GlobalValue *GV = MO.getGlobal();
+    unsigned TF = MO.getTargetFlags();
+    Upper8_15 =
+        Upper8_15.addGlobalAddress(GV, MO.getOffset(), TF | ARMII::MO_HI_8_15);
+    Upper0_7 =
+        Upper0_7.addGlobalAddress(GV, MO.getOffset(), TF | ARMII::MO_HI_0_7);
+    Lower8_15 =
+        Lower8_15.addGlobalAddress(GV, MO.getOffset(), TF | ARMII::MO_LO_8_15);
+    Lower0_7 =
+        Lower0_7.addGlobalAddress(GV, MO.getOffset(), TF | ARMII::MO_LO_0_7);
+    break;
+  }
+  }
+
+  Upper8_15 = Upper8_15.add(predOps(ARMCC::AL));
+  Upper0_7 = Upper0_7.add(predOps(ARMCC::AL));
+  Lower8_15 = Lower8_15.add(predOps(ARMCC::AL));
+  Lower0_7 = Lower0_7.add(predOps(ARMCC::AL));
+
+  MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "To:        "; Upper8_15.getInstr()->dump(););
+  LLVM_DEBUG(dbgs() << "And:       "; LSL_U8_15.getInstr()->dump(););
+  LLVM_DEBUG(dbgs() << "And:       "; Upper0_7.getInstr()->dump(););
+  LLVM_DEBUG(dbgs() << "And:       "; LSL_U0_7->dump(););
+  LLVM_DEBUG(dbgs() << "And:       "; Lower8_15.getInstr()->dump(););
+  LLVM_DEBUG(dbgs() << "And:       "; LSL_L8_15->dump(););
+  LLVM_DEBUG(dbgs() << "And:       "; Lower0_7.getInstr()->dump(););
 }
 
 void ARMExpandPseudo::ExpandMOV32BitImm(MachineBasicBlock &MBB,
@@ -2656,6 +2768,21 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     case ARM::t2MOVi32imm:
     case ARM::t2MOVCCi32imm:
       ExpandMOV32BitImm(MBB, MBBI);
+      return true;
+
+    case ARM::tMOVi32imm:
+      ExpandTMOV32BitImm(MBB, MBBI);
+      return true;
+
+    case ARM::tLEApcrelJT:
+      // Inline jump tables are handled in ARMAsmPrinter.
+      if (MI.getMF()->getJumpTableInfo()->getEntryKind() ==
+          MachineJumpTableInfo::EK_Inline)
+        return false;
+
+      // Use a 32-bit immediate move to generate the address of the jump table.
+      assert(STI->isThumb() && "Non-inline jump tables expected only in thumb");
+      ExpandTMOV32BitImm(MBB, MBBI);
       return true;
 
     case ARM::SUBS_PC_LR: {

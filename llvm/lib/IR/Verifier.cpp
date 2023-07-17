@@ -38,6 +38,11 @@
 //  * A landingpad instruction must be the first non-PHI instruction in the
 //    block.
 //  * Landingpad instructions must be in a function with a personality function.
+//  * Convergence control intrinsics are introduced in ConvergentOperations.rst.
+//    The applied restrictions are too numerous to list here.
+//  * The convergence entry intrinsic and the loop heart must be the first
+//    non-PHI instruction in their respective block. This does not conflict with
+//    the landing pads, since these two kinds cannot occur in the same block.
 //  * All other things that are tested by asserts spread about the code...
 //
 //===----------------------------------------------------------------------===//
@@ -48,6 +53,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
@@ -58,6 +64,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
@@ -66,6 +73,7 @@
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/CycleInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -86,6 +94,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/LLVMContext.h"
@@ -221,6 +230,8 @@ private:
     AL->print(*OS);
   }
 
+  void Write(Printable P) { *OS << P << '\n'; }
+
   template <typename T> void Write(ArrayRef<T> Vs) {
     for (const T &V : Vs)
       Write(V);
@@ -318,6 +329,13 @@ class Verifier : public InstVisitor<Verifier>, VerifierSupport {
   /// The current source language.
   dwarf::SourceLanguage CurrentSourceLang = dwarf::DW_LANG_lo_user;
 
+  /// Whether the current function has convergencectrl operand bundles.
+  enum {
+    ControlledConvergence,
+    UncontrolledConvergence,
+    NoConvergence
+  } ConvergenceKind = NoConvergence;
+
   /// Whether source was present on the first DIFile encountered in each CU.
   DenseMap<const DICompileUnit *, bool> HasSourceDebugInfo;
 
@@ -397,6 +415,8 @@ public:
     // FIXME: We strip const here because the inst visitor strips const.
     visit(const_cast<Function &>(F));
     verifySiblingFuncletUnwinds();
+    if (ConvergenceKind == ControlledConvergence)
+      verifyConvergenceControl(const_cast<Function &>(F));
     InstsInThisBlock.clear();
     DebugFnArgs.clear();
     LandingPadResultTy = nullptr;
@@ -404,6 +424,7 @@ public:
     SiblingFuncletInfo.clear();
     verifyNoAliasScopeDecl();
     NoAliasScopeDecls.clear();
+    ConvergenceKind = NoConvergence;
 
     return !Broken;
   }
@@ -472,6 +493,8 @@ private:
   void visitModuleFlagCGProfileEntry(const MDOperand &MDO);
   void visitFunction(const Function &F);
   void visitBasicBlock(BasicBlock &BB);
+  void verifyRangeMetadata(const Value &V, const MDNode *Range, Type *Ty,
+                           bool IsAbsoluteSymbol);
   void visitRangeMetadata(Instruction &I, MDNode *Range, Type *Ty);
   void visitDereferenceableMetadata(Instruction &I, MDNode *MD);
   void visitProfMetadata(Instruction &I, MDNode *MD);
@@ -577,6 +600,7 @@ private:
   void verifyStatepoint(const CallBase &Call);
   void verifyFrameRecoverIndices();
   void verifySiblingFuncletUnwinds();
+  void verifyConvergenceControl(Function &F);
 
   void verifyFragmentExpression(const DbgVariableIntrinsic &I);
   template <typename ValueOrMetadata>
@@ -680,7 +704,15 @@ void Verifier::visitGlobalValue(const GlobalValue &GV) {
               Associated);
       }
     }
+
+    // FIXME: Why is getMetadata on GlobalValue protected?
+    if (const MDNode *AbsoluteSymbol =
+            GO->getMetadata(LLVMContext::MD_absolute_symbol)) {
+      verifyRangeMetadata(*GO, AbsoluteSymbol, DL.getIntPtrType(GO->getType()),
+                          true);
+    }
   }
+
   Check(!GV.hasAppendingLinkage() || isa<GlobalVariable>(GV),
         "Only global variables can have appending linkage!", &GV);
 
@@ -2525,6 +2557,118 @@ void Verifier::verifySiblingFuncletUnwinds() {
   }
 }
 
+void Verifier::verifyConvergenceControl(Function &F) {
+  DenseMap<BasicBlock *, SmallVector<CallBase *, 8>> LiveTokenMap;
+  DenseMap<const Cycle *, const CallBase *> CycleHearts;
+
+  // Just like the DominatorTree, compute the CycleInfo locally so that we
+  // can run the verifier outside of a pass manager and we don't rely on
+  // potentially out-dated analysis results.
+  CycleInfo CI;
+  CI.compute(F);
+
+  auto checkBundle = [&](OperandBundleUse &Bundle, CallBase *CB,
+                         SmallVectorImpl<CallBase *> &LiveTokens) {
+    Check(Bundle.Inputs.size() == 1 && Bundle.Inputs[0]->getType()->isTokenTy(),
+          "The 'convergencectrl' bundle requires exactly one token use.", CB);
+
+    Value *Token = Bundle.Inputs[0].get();
+    auto *Def = dyn_cast<CallBase>(Token);
+    Check(Def != nullptr,
+          "Convergence control tokens can only be produced by call "
+          "instructions.",
+          Token);
+
+    Check(llvm::is_contained(LiveTokens, Token),
+          "Convergence region is not well-nested.", Token, CB);
+
+    while (LiveTokens.back() != Token)
+      LiveTokens.pop_back();
+
+    // Check static rules about cycles.
+    auto *BB = CB->getParent();
+    auto *BBCycle = CI.getCycle(BB);
+    if (!BBCycle)
+      return;
+
+    BasicBlock *DefBB = Def->getParent();
+    if (DefBB == BB || BBCycle->contains(DefBB)) {
+      // degenerate occurrence of a loop intrinsic
+      return;
+    }
+
+    auto *II = dyn_cast<IntrinsicInst>(CB);
+    Check(II &&
+              II->getIntrinsicID() == Intrinsic::experimental_convergence_loop,
+          "Convergence token used by an instruction other than "
+          "llvm.experimental.convergence.loop in a cycle that does "
+          "not contain the token's definition.",
+          CB, CI.print(BBCycle));
+
+    while (true) {
+      auto *Parent = BBCycle->getParentCycle();
+      if (!Parent || Parent->contains(DefBB))
+        break;
+      BBCycle = Parent;
+    };
+
+    Check(BBCycle->isReducible() && BB == BBCycle->getHeader(),
+          "Cycle heart must dominate all blocks in the cycle.", CB, BB,
+          CI.print(BBCycle));
+    Check(!CycleHearts.count(BBCycle),
+          "Two static convergence token uses in a cycle that does "
+          "not contain either token's definition.",
+          CB, CycleHearts[BBCycle], CI.print(BBCycle));
+    CycleHearts[BBCycle] = CB;
+  };
+
+  ReversePostOrderTraversal<Function *> RPOT(&F);
+  SmallVector<CallBase *, 8> LiveTokens;
+  for (BasicBlock *BB : RPOT) {
+    LiveTokens.clear();
+    auto LTIt = LiveTokenMap.find(BB);
+    if (LTIt != LiveTokenMap.end()) {
+      LiveTokens = std::move(LTIt->second);
+      LiveTokenMap.erase(LTIt);
+    }
+
+    for (Instruction &I : *BB) {
+      CallBase *CB = dyn_cast<CallBase>(&I);
+      if (!CB)
+        continue;
+
+      auto Bundle = CB->getOperandBundle(LLVMContext::OB_convergencectrl);
+      if (Bundle)
+        checkBundle(*Bundle, CB, LiveTokens);
+
+      if (CB->getType()->isTokenTy())
+        LiveTokens.push_back(CB);
+    }
+
+    // Propagate token liveness
+    for (BasicBlock *Succ : successors(BB)) {
+      DomTreeNode *SuccNode = DT.getNode(Succ);
+      LTIt = LiveTokenMap.find(Succ);
+      if (LTIt == LiveTokenMap.end()) {
+        // We're the first predecessor: all tokens which dominate the
+        // successor are live for now.
+        LTIt = LiveTokenMap.try_emplace(Succ).first;
+        for (CallBase *LiveToken : LiveTokens) {
+          if (!DT.dominates(DT.getNode(LiveToken->getParent()), SuccNode))
+            break;
+          LTIt->second.push_back(LiveToken);
+        }
+      } else {
+        // Compute the intersection of live tokens.
+        auto It = llvm::partition(LTIt->second, [&LiveTokens](CallBase *Token) {
+          return llvm::is_contained(LiveTokens, Token);
+        });
+        LTIt->second.erase(It, LTIt->second.end());
+      }
+    }
+  }
+}
+
 // visitFunction - Verify that a function is ok.
 //
 void Verifier::visitFunction(const Function &F) {
@@ -2581,6 +2725,8 @@ void Verifier::visitFunction(const Function &F) {
   }
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
+  case CallingConv::AMDGPU_CS_Chain:
+  case CallingConv::AMDGPU_CS_ChainPreserve:
     Check(F.getReturnType()->isVoidTy(),
           "Calling convention requires void return type", &F);
     [[fallthrough]];
@@ -3251,6 +3397,20 @@ void Verifier::visitPHINode(PHINode &PN) {
   visitInstruction(PN);
 }
 
+static bool isControlledConvergent(const CallBase &Call) {
+  if (Call.getOperandBundle(LLVMContext::OB_convergencectrl))
+    return true;
+  if (const auto *F = dyn_cast<Function>(Call.getCalledOperand())) {
+    switch (F->getIntrinsicID()) {
+    case Intrinsic::experimental_convergence_anchor:
+    case Intrinsic::experimental_convergence_entry:
+    case Intrinsic::experimental_convergence_loop:
+      return true;
+    }
+  }
+  return false;
+}
+
 void Verifier::visitCallBase(CallBase &Call) {
   Check(Call.getCalledOperand()->getType()->isPointerTy(),
         "Called function must be a pointer!", Call);
@@ -3286,6 +3446,15 @@ void Verifier::visitCallBase(CallBase &Call) {
   if (IsIntrinsic)
     Check(Callee->getValueType() == FTy,
           "Intrinsic called with incompatible signature", Call);
+
+  // Disallow calls to functions with the amdgpu_cs_chain[_preserve] calling
+  // convention.
+  auto CC = Call.getCallingConv();
+  Check(CC != CallingConv::AMDGPU_CS_Chain &&
+            CC != CallingConv::AMDGPU_CS_ChainPreserve,
+        "Direct calls to amdgpu_cs_chain/amdgpu_cs_chain_preserve functions "
+        "not allowed. Please use the @llvm.amdgpu.cs.chain intrinsic instead.",
+        Call);
 
   auto VerifyTypeAlign = [&](Type *Ty, const Twine &Message) {
     if (!Ty->isSized())
@@ -3539,6 +3708,23 @@ void Verifier::visitCallBase(CallBase &Call) {
 
   if (Call.isInlineAsm())
     verifyInlineAsmCall(Call);
+
+  if (isControlledConvergent(Call)) {
+    Check(Call.isConvergent(),
+          "Expected convergent attribute on a controlled convergent call.",
+          Call);
+    Check(ConvergenceKind != UncontrolledConvergence,
+          "Cannot mix controlled and uncontrolled convergence in the same "
+          "function.",
+          Call);
+    ConvergenceKind = ControlledConvergence;
+  } else if (Call.isConvergent()) {
+    Check(ConvergenceKind != ControlledConvergence,
+          "Cannot mix controlled and uncontrolled convergence in the same "
+          "function.",
+          Call);
+    ConvergenceKind = UncontrolledConvergence;
+  }
 
   visitInstruction(Call);
 }
@@ -3891,10 +4077,10 @@ static bool isContiguous(const ConstantRange &A, const ConstantRange &B) {
   return A.getUpper() == B.getLower() || A.getLower() == B.getUpper();
 }
 
-void Verifier::visitRangeMetadata(Instruction &I, MDNode *Range, Type *Ty) {
-  assert(Range && Range == I.getMetadata(LLVMContext::MD_range) &&
-         "precondition violation");
-
+/// Verify !range and !absolute_symbol metadata. These have the same
+/// restrictions, except !absolute_symbol allows the full set.
+void Verifier::verifyRangeMetadata(const Value &I, const MDNode *Range,
+                                   Type *Ty, bool IsAbsoluteSymbol) {
   unsigned NumOperands = Range->getNumOperands();
   Check(NumOperands % 2 == 0, "Unfinished range!", Range);
   unsigned NumRanges = NumOperands / 2;
@@ -3914,8 +4100,14 @@ void Verifier::visitRangeMetadata(Instruction &I, MDNode *Range, Type *Ty) {
 
     APInt HighV = High->getValue();
     APInt LowV = Low->getValue();
+
+    // ConstantRange asserts if the ranges are the same except for the min/max
+    // value. Leave the cases it tolerates for the empty range error below.
+    Check(LowV != HighV || LowV.isMaxValue() || LowV.isMinValue(),
+          "The upper and lower limits cannot be the same value", &I);
+
     ConstantRange CurRange(LowV, HighV);
-    Check(!CurRange.isEmptySet() && !CurRange.isFullSet(),
+    Check(!CurRange.isEmptySet() && (IsAbsoluteSymbol || !CurRange.isFullSet()),
           "Range must not be empty!", Range);
     if (i != 0) {
       Check(CurRange.intersectWith(LastRange).isEmptySet(),
@@ -3938,6 +4130,12 @@ void Verifier::visitRangeMetadata(Instruction &I, MDNode *Range, Type *Ty) {
     Check(!isContiguous(FirstRange, LastRange), "Intervals are contiguous",
           Range);
   }
+}
+
+void Verifier::visitRangeMetadata(Instruction &I, MDNode *Range, Type *Ty) {
+  assert(Range && Range == I.getMetadata(LLVMContext::MD_range) &&
+         "precondition violation");
+  verifyRangeMetadata(I, Range, Ty, false);
 }
 
 void Verifier::checkAtomicMemAccessSize(Type *Ty, const Instruction *I) {
@@ -5899,6 +6097,41 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
           &Call);
     break;
   }
+  case Intrinsic::amdgcn_cs_chain: {
+    auto CallerCC = Call.getCaller()->getCallingConv();
+    switch (CallerCC) {
+    case CallingConv::AMDGPU_CS:
+    case CallingConv::AMDGPU_CS_Chain:
+    case CallingConv::AMDGPU_CS_ChainPreserve:
+      break;
+    default:
+      CheckFailed("Intrinsic can only be used from functions with the "
+                  "amdgpu_cs, amdgpu_cs_chain or amdgpu_cs_chain_preserve "
+                  "calling conventions",
+                  &Call);
+      break;
+    }
+    break;
+  }
+  case Intrinsic::experimental_convergence_entry:
+    Check(Call.getFunction()->isConvergent(),
+          "Entry intrinsic can occur only in a convergent function.", &Call);
+    Check(Call.getParent()->isEntryBlock(),
+          "Entry intrinsic must occur in the entry block.", &Call);
+    Check(Call.getParent()->getFirstNonPHI() == &Call,
+          "Entry intrinsic must occur at the start of the basic block.", &Call);
+    LLVM_FALLTHROUGH;
+  case Intrinsic::experimental_convergence_anchor:
+    Check(!Call.getOperandBundle(LLVMContext::OB_convergencectrl),
+          "Entry or anchor intrinsic must not have a convergencectrl bundle.",
+          &Call);
+    break;
+  case Intrinsic::experimental_convergence_loop:
+    Check(Call.getOperandBundle(LLVMContext::OB_convergencectrl),
+          "Loop intrinsic must have a convergencectrl bundle.", &Call);
+    Check(Call.getParent()->getFirstNonPHI() == &Call,
+          "Loop intrinsic must occur at the start of the basic block.", &Call);
+    break;
   };
 
   // Verify that there aren't any unmediated control transfers between funclets.

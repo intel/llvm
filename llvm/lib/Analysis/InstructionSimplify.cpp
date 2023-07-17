@@ -2717,15 +2717,12 @@ static bool haveNonOverlappingStorage(const Value *V1, const Value *V2) {
 // this optimization.
 static Constant *computePointerICmp(CmpInst::Predicate Pred, Value *LHS,
                                     Value *RHS, const SimplifyQuery &Q) {
+  assert(LHS->getType() == RHS->getType() && "Must have same types");
   const DataLayout &DL = Q.DL;
   const TargetLibraryInfo *TLI = Q.TLI;
   const DominatorTree *DT = Q.DT;
   const Instruction *CxtI = Q.CxtI;
   const InstrInfoQuery &IIQ = Q.IIQ;
-
-  // First, skip past any trivial no-ops.
-  LHS = LHS->stripPointerCasts();
-  RHS = RHS->stripPointerCasts();
 
   // A non-null pointer is not equal to a null pointer.
   if (isa<ConstantPointerNull>(RHS) && ICmpInst::isEquality(Pred) &&
@@ -2765,8 +2762,10 @@ static Constant *computePointerICmp(CmpInst::Predicate Pred, Value *LHS,
   // Even if an non-inbounds GEP occurs along the path we can still optimize
   // equality comparisons concerning the result.
   bool AllowNonInbounds = ICmpInst::isEquality(Pred);
-  APInt LHSOffset = stripAndComputeConstantOffsets(DL, LHS, AllowNonInbounds);
-  APInt RHSOffset = stripAndComputeConstantOffsets(DL, RHS, AllowNonInbounds);
+  unsigned IndexSize = DL.getIndexTypeSizeInBits(LHS->getType());
+  APInt LHSOffset(IndexSize, 0), RHSOffset(IndexSize, 0);
+  LHS = LHS->stripAndAccumulateConstantOffsets(DL, LHSOffset, AllowNonInbounds);
+  RHS = RHS->stripAndAccumulateConstantOffsets(DL, RHSOffset, AllowNonInbounds);
 
   // If LHS and RHS are related via constant offsets to the same base
   // value, we can replace it with an icmp which just compares the offsets.
@@ -2794,11 +2793,11 @@ static Constant *computePointerICmp(CmpInst::Predicate Pred, Value *LHS,
       }(LHS);
       Opts.NullIsUnknownSize = F ? NullPointerIsDefined(F) : true;
       if (getObjectSize(LHS, LHSSize, DL, TLI, Opts) &&
-          getObjectSize(RHS, RHSSize, DL, TLI, Opts) &&
-          !LHSOffset.isNegative() && !RHSOffset.isNegative() &&
-          LHSOffset.ult(LHSSize) && RHSOffset.ult(RHSSize)) {
-        return ConstantInt::get(getCompareTy(LHS),
-                                !CmpInst::isTrueWhenEqual(Pred));
+          getObjectSize(RHS, RHSSize, DL, TLI, Opts)) {
+        APInt Dist = LHSOffset - RHSOffset;
+        if (Dist.isNonNegative() ? Dist.ult(LHSSize) : (-Dist).ult(RHSSize))
+          return ConstantInt::get(getCompareTy(LHS),
+                                  !CmpInst::isTrueWhenEqual(Pred));
       }
     }
 
@@ -3996,10 +3995,9 @@ static Value *simplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
       return C;
   if (auto *CLHS = dyn_cast<PtrToIntOperator>(LHS))
     if (auto *CRHS = dyn_cast<PtrToIntOperator>(RHS))
-      if (Q.DL.getTypeSizeInBits(CLHS->getPointerOperandType()) ==
-              Q.DL.getTypeSizeInBits(CLHS->getType()) &&
-          Q.DL.getTypeSizeInBits(CRHS->getPointerOperandType()) ==
-              Q.DL.getTypeSizeInBits(CRHS->getType()))
+      if (CLHS->getPointerOperandType() == CRHS->getPointerOperandType() &&
+          Q.DL.getTypeSizeInBits(CLHS->getPointerOperandType()) ==
+              Q.DL.getTypeSizeInBits(CLHS->getType()))
         if (auto *C = computePointerICmp(Pred, CLHS->getPointerOperand(),
                                          CRHS->getPointerOperand(), Q))
           return C;
@@ -4140,14 +4138,16 @@ static Value *simplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
       case FCmpInst::FCMP_UGT:
       case FCmpInst::FCMP_UNE:
         // (X >= 0) implies (X > C) when (C < 0)
-        if (CannotBeOrderedLessThanZero(LHS, Q.DL, Q.TLI))
+        if (cannotBeOrderedLessThanZero(LHS, Q.DL, Q.TLI, 0,
+                                        Q.AC, Q.CxtI, Q.DT))
           return getTrue(RetTy);
         break;
       case FCmpInst::FCMP_OEQ:
       case FCmpInst::FCMP_OLE:
       case FCmpInst::FCMP_OLT:
         // (X >= 0) implies !(X < C) when (C < 0)
-        if (CannotBeOrderedLessThanZero(LHS, Q.DL, Q.TLI))
+        if (cannotBeOrderedLessThanZero(LHS, Q.DL, Q.TLI, 0, Q.AC, Q.CxtI,
+                                        Q.DT))
           return getFalse(RetTy);
         break;
       default:
@@ -4204,19 +4204,23 @@ static Value *simplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
   if (match(RHS, m_AnyZeroFP())) {
     switch (Pred) {
     case FCmpInst::FCMP_OGE:
-    case FCmpInst::FCMP_ULT:
+    case FCmpInst::FCMP_ULT: {
+      FPClassTest Interested = FMF.noNaNs() ? fcNegative : fcNegative | fcNan;
+      KnownFPClass Known = computeKnownFPClass(LHS, Q.DL, Interested, 0,
+                                               Q.TLI, Q.AC, Q.CxtI, Q.DT);
+
       // Positive or zero X >= 0.0 --> true
       // Positive or zero X <  0.0 --> false
-      if ((FMF.noNaNs() ||
-           isKnownNeverNaN(LHS, Q.DL, Q.TLI, 0, Q.AC, Q.CxtI, Q.DT)) &&
-          CannotBeOrderedLessThanZero(LHS, Q.DL, Q.TLI))
+      if ((FMF.noNaNs() || Known.isKnownNeverNaN()) &&
+          Known.cannotBeOrderedLessThanZero())
         return Pred == FCmpInst::FCMP_OGE ? getTrue(RetTy) : getFalse(RetTy);
       break;
+    }
     case FCmpInst::FCMP_UGE:
     case FCmpInst::FCMP_OLT:
       // Positive or zero or nan X >= 0.0 --> true
       // Positive or zero or nan X <  0.0 --> false
-      if (CannotBeOrderedLessThanZero(LHS, Q.DL, Q.TLI))
+      if (cannotBeOrderedLessThanZero(LHS, Q.DL, Q.TLI, 0, Q.AC, Q.CxtI, Q.DT))
         return Pred == FCmpInst::FCMP_UGE ? getTrue(RetTy) : getFalse(RetTy);
       break;
     default:
@@ -4897,9 +4901,9 @@ static Value *simplifyGEPInst(Type *SrcTy, Value *Ptr,
       any_of(Indices, [](const auto *V) { return isa<PoisonValue>(V); }))
     return PoisonValue::get(GEPTy);
 
+  // getelementptr undef, idx -> undef
   if (Q.isUndefValue(Ptr))
-    // If inbounds, we can choose an out-of-bounds pointer as a base pointer.
-    return InBounds ? PoisonValue::get(GEPTy) : UndefValue::get(GEPTy);
+    return UndefValue::get(GEPTy);
 
   bool IsScalableVec =
       isa<ScalableVectorType>(SrcTy) || any_of(Indices, [](const Value *V) {
@@ -5467,6 +5471,15 @@ static Constant *propagateNaN(Constant *In) {
   if (!In->isNaN())
     return ConstantFP::getNaN(Ty);
 
+  // If we known this is a NaN, and it's scalable vector, we must have a splat
+  // on our hands. Grab that before splatting a QNaN constant.
+  if (isa<ScalableVectorType>(Ty)) {
+    auto *Splat = In->getSplatValue();
+    assert(Splat && Splat->isNaN() &&
+           "Found a scalable-vector NaN but not a splat");
+    In = Splat;
+  }
+
   // Propagate an existing QNaN constant. If it is an SNaN, make it quiet, but
   // preserve the sign/payload.
   return ConstantFP::get(Ty, cast<ConstantFP>(In)->getValue().makeQuiet());
@@ -5542,7 +5555,7 @@ simplifyFAddInst(Value *Op0, Value *Op1, FastMathFlags FMF,
   // fadd X, 0 ==> X, when we know X is not -0
   if (canIgnoreSNaN(ExBehavior, FMF))
     if (match(Op1, m_PosZeroFP()) &&
-        (FMF.noSignedZeros() || CannotBeNegativeZero(Op0, Q.TLI)))
+        (FMF.noSignedZeros() || cannotBeNegativeZero(Op0, Q.DL, Q.TLI)))
       return Op0;
 
   if (!isDefaultFPEnvironment(ExBehavior, Rounding))
@@ -5604,7 +5617,7 @@ simplifyFSubInst(Value *Op0, Value *Op1, FastMathFlags FMF,
   // fsub X, -0 ==> X, when we know X is not -0
   if (canIgnoreSNaN(ExBehavior, FMF))
     if (match(Op1, m_NegZeroFP()) &&
-        (FMF.noSignedZeros() || CannotBeNegativeZero(Op0, Q.TLI)))
+        (FMF.noSignedZeros() || cannotBeNegativeZero(Op0, Q.DL, Q.TLI)))
       return Op0;
 
   // fsub -0.0, (fsub -0.0, X) ==> X

@@ -153,14 +153,16 @@ getTopologicallySortedBlocks(llvm::Function *func) {
 }
 
 ModuleImport::ModuleImport(ModuleOp mlirModule,
-                           std::unique_ptr<llvm::Module> llvmModule)
+                           std::unique_ptr<llvm::Module> llvmModule,
+                           bool emitExpensiveWarnings)
     : builder(mlirModule->getContext()), context(mlirModule->getContext()),
       mlirModule(mlirModule), llvmModule(std::move(llvmModule)),
       iface(mlirModule->getContext()),
       typeTranslator(*mlirModule->getContext()),
       debugImporter(std::make_unique<DebugImporter>(mlirModule)),
       loopAnnotationImporter(
-          std::make_unique<LoopAnnotationImporter>(*this, builder)) {
+          std::make_unique<LoopAnnotationImporter>(*this, builder)),
+      emitExpensiveWarnings(emitExpensiveWarnings) {
   builder.setInsertionPointToStart(mlirModule.getBody());
 }
 
@@ -170,8 +172,10 @@ MetadataOp ModuleImport::getGlobalMetadataOp() {
 
   OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToEnd(mlirModule.getBody());
-  return globalMetadataOp = builder.create<MetadataOp>(
-             mlirModule.getLoc(), getGlobalMetadataOpName());
+  globalMetadataOp = builder.create<MetadataOp>(mlirModule.getLoc(),
+                                                getGlobalMetadataOpName());
+  globalInsertionOp = globalMetadataOp;
+  return globalMetadataOp;
 }
 
 ComdatOp ModuleImport::getGlobalComdatOp() {
@@ -179,9 +183,11 @@ ComdatOp ModuleImport::getGlobalComdatOp() {
     return globalComdatOp;
 
   OpBuilder::InsertionGuard guard(builder);
-  builder.setInsertionPointToStart(mlirModule.getBody());
-  return globalComdatOp = builder.create<ComdatOp>(mlirModule.getLoc(),
-                                                   getGlobalComdatOpName());
+  builder.setInsertionPointToEnd(mlirModule.getBody());
+  globalComdatOp =
+      builder.create<ComdatOp>(mlirModule.getLoc(), getGlobalComdatOpName());
+  globalInsertionOp = globalComdatOp;
+  return globalComdatOp;
 }
 
 LogicalResult ModuleImport::processTBAAMetadata(const llvm::MDNode *node) {
@@ -557,17 +563,29 @@ LogicalResult ModuleImport::convertMetadata() {
   return success();
 }
 
-LogicalResult ModuleImport::convertComdats() {
-  ComdatOp comdat = getGlobalComdatOp();
-  OpBuilder::InsertionGuard guard(builder);
-  builder.setInsertionPointToEnd(&comdat.getBody().back());
-  for (auto &kv : llvmModule->getComdatSymbolTable()) {
-    StringRef name = kv.getKey();
-    llvm::Comdat::SelectionKind selector = kv.getValue().getSelectionKind();
-    builder.create<ComdatSelectorOp>(mlirModule.getLoc(), name,
-                                     convertComdatFromLLVM(selector));
-  }
+void ModuleImport::processComdat(const llvm::Comdat *comdat) {
+  if (comdatMapping.contains(comdat))
+    return;
 
+  ComdatOp comdatOp = getGlobalComdatOp();
+  OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToEnd(&comdatOp.getBody().back());
+  auto selectorOp = builder.create<ComdatSelectorOp>(
+      mlirModule.getLoc(), comdat->getName(),
+      convertComdatFromLLVM(comdat->getSelectionKind()));
+  auto symbolRef =
+      SymbolRefAttr::get(builder.getContext(), getGlobalComdatOpName(),
+                         FlatSymbolRefAttr::get(selectorOp.getSymNameAttr()));
+  comdatMapping.try_emplace(comdat, symbolRef);
+}
+
+LogicalResult ModuleImport::convertComdats() {
+  for (llvm::GlobalVariable &globalVar : llvmModule->globals())
+    if (globalVar.hasComdat())
+      processComdat(globalVar.getComdat());
+  for (llvm::Function &func : llvmModule->functions())
+    if (func.hasComdat())
+      processComdat(func.getComdat());
   return success();
 }
 
@@ -576,13 +594,13 @@ LogicalResult ModuleImport::convertGlobals() {
     if (globalVar.getName() == getGlobalCtorsVarName() ||
         globalVar.getName() == getGlobalDtorsVarName()) {
       if (failed(convertGlobalCtorsAndDtors(&globalVar))) {
-        return emitError(mlirModule.getLoc())
+        return emitError(UnknownLoc::get(context))
                << "unhandled global variable: " << diag(globalVar);
       }
       continue;
     }
     if (failed(convertGlobal(&globalVar))) {
-      return emitError(mlirModule.getLoc())
+      return emitError(UnknownLoc::get(context))
              << "unhandled global variable: " << diag(globalVar);
     }
   }
@@ -619,10 +637,12 @@ void ModuleImport::setNonDebugMetadataAttrs(llvm::Instruction *inst,
     if (!iface.isConvertibleMetadata(kind))
       continue;
     if (failed(iface.setMetadataAttrs(builder, kind, node, op, *this))) {
-      Location loc = debugImporter->translateLoc(inst->getDebugLoc());
-      emitWarning(loc) << "unhandled metadata: "
-                       << diagMD(node, llvmModule.get()) << " on "
-                       << diag(*inst);
+      if (emitExpensiveWarnings) {
+        Location loc = debugImporter->translateLoc(inst->getDebugLoc());
+        emitWarning(loc) << "unhandled metadata: "
+                         << diagMD(node, llvmModule.get()) << " on "
+                         << diag(*inst);
+      }
     }
   }
 }
@@ -761,8 +781,8 @@ Attribute ModuleImport::getConstantAsAttr(llvm::Constant *constant) {
 
   // Returns the static shape of the provided type if possible.
   auto getConstantShape = [&](llvm::Type *type) {
-    return llvm::dyn_cast_if_present<ShapedType>(getBuiltinTypeForAttr(convertType(type))
-        );
+    return llvm::dyn_cast_if_present<ShapedType>(
+        getBuiltinTypeForAttr(convertType(type)));
   };
 
   // Convert one-dimensional constant arrays or vectors that store 1/2/4/8-byte
@@ -829,8 +849,8 @@ Attribute ModuleImport::getConstantAsAttr(llvm::Constant *constant) {
 
   // Convert zero aggregates.
   if (auto *constZero = dyn_cast<llvm::ConstantAggregateZero>(constant)) {
-    auto shape = llvm::dyn_cast_if_present<ShapedType>(getBuiltinTypeForAttr(convertType(constZero->getType()))
-                     );
+    auto shape = llvm::dyn_cast_if_present<ShapedType>(
+        getBuiltinTypeForAttr(convertType(constZero->getType())));
     if (!shape)
       return {};
     // Convert zero aggregates with a static shape to splat elements attributes.
@@ -888,18 +908,8 @@ LogicalResult ModuleImport::convertGlobal(llvm::GlobalVariable *globalVar) {
   globalOp.setVisibility_(
       convertVisibilityFromLLVM(globalVar->getVisibility()));
 
-  if (globalVar->hasComdat()) {
-    llvm::Comdat *llvmComdat = globalVar->getComdat();
-    ComdatOp comdat = getGlobalComdatOp();
-    if (ComdatSelectorOp selector = dyn_cast<ComdatSelectorOp>(
-            comdat.lookupSymbol(llvmComdat->getName()))) {
-      auto symbolRef =
-          SymbolRefAttr::get(builder.getContext(), getGlobalComdatOpName(),
-                             FlatSymbolRefAttr::get(selector.getSymNameAttr()));
-      globalOp.setComdatAttr(symbolRef);
-    } else
-      return failure();
-  }
+  if (globalVar->hasComdat())
+    globalOp.setComdatAttr(comdatMapping.lookup(globalVar->getComdat()));
 
   return success();
 }
@@ -1009,7 +1019,7 @@ ModuleImport::getConstantsToConvert(llvm::Constant *constant) {
 }
 
 FailureOr<Value> ModuleImport::convertConstant(llvm::Constant *constant) {
-  Location loc = mlirModule.getLoc();
+  Location loc = UnknownLoc::get(context);
 
   // Convert constants that can be represented as attributes.
   if (Attribute attr = getConstantAsAttr(constant)) {
@@ -1178,7 +1188,7 @@ FailureOr<Value> ModuleImport::convertValue(llvm::Value *value) {
   if (auto *constant = dyn_cast<llvm::Constant>(value))
     return convertConstantExpr(constant);
 
-  Location loc = mlirModule.getLoc();
+  Location loc = UnknownLoc::get(context);
   if (auto *inst = dyn_cast<llvm::Instruction>(value))
     loc = translateLoc(inst->getDebugLoc());
   return emitError(loc) << "unhandled value: " << diag(*value);
@@ -1242,6 +1252,12 @@ FloatAttr ModuleImport::matchFloatAttr(llvm::Value *value) {
 DILocalVariableAttr ModuleImport::matchLocalVariableAttr(llvm::Value *value) {
   auto *nodeAsVal = cast<llvm::MetadataAsValue>(value);
   auto *node = cast<llvm::DILocalVariable>(nodeAsVal->getMetadata());
+  return debugImporter->translate(node);
+}
+
+DILabelAttr ModuleImport::matchLabelAttr(llvm::Value *value) {
+  auto *nodeAsVal = cast<llvm::MetadataAsValue>(value);
+  auto *node = cast<llvm::DILabel>(nodeAsVal->getMetadata());
   return debugImporter->translate(node);
 }
 
@@ -1348,7 +1364,7 @@ LogicalResult ModuleImport::convertInstruction(llvm::Instruction *inst) {
     unsigned numCases = swInst->getNumCases();
     SmallVector<SmallVector<Value>> caseOperands(numCases);
     SmallVector<ValueRange> caseOperandRefs(numCases);
-    SmallVector<int32_t> caseValues(numCases);
+    SmallVector<APInt> caseValues(numCases);
     SmallVector<Block *> caseBlocks(numCases);
     for (const auto &it : llvm::enumerate(swInst->cases())) {
       const llvm::SwitchInst::CaseHandle &caseHandle = it.value();
@@ -1356,7 +1372,7 @@ LogicalResult ModuleImport::convertInstruction(llvm::Instruction *inst) {
       if (failed(convertBranchArgs(swInst, succBB, caseOperands[it.index()])))
         return failure();
       caseOperandRefs[it.index()] = caseOperands[it.index()];
-      caseValues[it.index()] = caseHandle.getCaseValue()->getSExtValue();
+      caseValues[it.index()] = caseHandle.getCaseValue()->getValue();
       caseBlocks[it.index()] = lookupBlock(succBB);
     }
 
@@ -1683,6 +1699,8 @@ void ModuleImport::convertParameterAttributes(llvm::Function *func,
   // Convert the result attributes and attach them wrapped in an ArrayAttribute
   // to the funcOp.
   llvm::AttributeSet llvmResAttr = llvmAttrs.getRetAttrs();
+  if (!llvmResAttr.hasAttributes())
+    return;
   funcOp.setResAttrsAttr(
       builder.getArrayAttr(convertParameterAttribute(llvmResAttr, builder)));
 }
@@ -1703,12 +1721,10 @@ LogicalResult ModuleImport::processFunction(llvm::Function *func) {
   OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPoint(mlirModule.getBody(), mlirModule.getBody()->end());
 
+  Location loc = debugImporter->translateFuncLocation(func);
   LLVMFuncOp funcOp = builder.create<LLVMFuncOp>(
-      mlirModule.getLoc(), func->getName(), functionType,
+      loc, func->getName(), functionType,
       convertLinkageFromLLVM(func->getLinkage()), dsoLocal, cconv);
-
-  // Set the function debug information if available.
-  debugImporter->translate(func, funcOp);
 
   convertParameterAttributes(func, funcOp, builder);
 
@@ -1720,7 +1736,19 @@ LogicalResult ModuleImport::processFunction(llvm::Function *func) {
   if (func->hasGC())
     funcOp.setGarbageCollector(StringRef(func->getGC()));
 
+  if (func->hasAtLeastLocalUnnamedAddr())
+    funcOp.setUnnamedAddr(convertUnnamedAddrFromLLVM(func->getUnnamedAddr()));
+
+  if (func->hasSection())
+    funcOp.setSection(StringRef(func->getSection()));
+
   funcOp.setVisibility_(convertVisibilityFromLLVM(func->getVisibility()));
+
+  if (func->hasComdat())
+    funcOp.setComdatAttr(comdatMapping.lookup(func->getComdat()));
+
+  if (llvm::MaybeAlign maybeAlign = func->getAlign())
+    funcOp.setAlignment(maybeAlign->value());
 
   // Handle Function attributes.
   processFunctionAttributes(func, funcOp);
@@ -1781,8 +1809,10 @@ LogicalResult ModuleImport::processBasicBlock(llvm::BasicBlock *bb,
     if (Operation *op = lookupOperation(&inst)) {
       setNonDebugMetadataAttrs(&inst, op);
     } else if (inst.getOpcode() != llvm::Instruction::PHI) {
-      Location loc = debugImporter->translateLoc(inst.getDebugLoc());
-      emitWarning(loc) << "dropped instruction: " << diag(inst);
+      if (emitExpensiveWarnings) {
+        Location loc = debugImporter->translateLoc(inst.getDebugLoc());
+        emitWarning(loc) << "dropped instruction: " << diag(inst);
+      }
     }
   }
   return success();
@@ -1801,7 +1831,8 @@ ModuleImport::translateLoopAnnotationAttr(const llvm::MDNode *node,
 
 OwningOpRef<ModuleOp>
 mlir::translateLLVMIRToModule(std::unique_ptr<llvm::Module> llvmModule,
-                              MLIRContext *context) {
+                              MLIRContext *context,
+                              bool emitExpensiveWarnings) {
   // Preload all registered dialects to allow the import to iterate the
   // registered LLVMImportDialectInterface implementations and query the
   // supported LLVM IR constructs before starting the translation. Assumes the
@@ -1812,19 +1843,19 @@ mlir::translateLLVMIRToModule(std::unique_ptr<llvm::Module> llvmModule,
   assert(llvm::is_contained(context->getAvailableDialects(),
                             DLTIDialect::getDialectNamespace()));
   context->loadAllAvailableDialects();
-
   OwningOpRef<ModuleOp> module(ModuleOp::create(FileLineColLoc::get(
       StringAttr::get(context, llvmModule->getSourceFileName()), /*line=*/0,
       /*column=*/0)));
 
-  ModuleImport moduleImport(module.get(), std::move(llvmModule));
+  ModuleImport moduleImport(module.get(), std::move(llvmModule),
+                            emitExpensiveWarnings);
   if (failed(moduleImport.initializeImportInterface()))
     return {};
   if (failed(moduleImport.convertDataLayout()))
     return {};
-  if (failed(moduleImport.convertMetadata()))
-    return {};
   if (failed(moduleImport.convertComdats()))
+    return {};
+  if (failed(moduleImport.convertMetadata()))
     return {};
   if (failed(moduleImport.convertGlobals()))
     return {};

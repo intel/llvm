@@ -93,9 +93,9 @@
 1 FunctionEnd 
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM
-; RUN: llvm-spirv -r %t.spv -o %t.bc --spirv-target-env=SPV-IR
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.bc --spirv-target-env=SPV-IR
 ; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM-SPIRV
 
 ; CHECK-LLVM: %opencl.intel_sub_group_avc_mce_payload_t = type opaque

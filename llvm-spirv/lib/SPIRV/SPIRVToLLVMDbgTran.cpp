@@ -174,7 +174,7 @@ SPIRVToLLVMDbgTran::transCompilationUnit(const SPIRVExtInst *DebugInst,
   // Do nothing in case we have already translated the CU (e.g. during
   // DebugEntryPoint translation)
   if (BuilderMap[DebugInst->getId()])
-    return nullptr;
+    return cast<DICompileUnit>(DebugInstCache[DebugInst]);
 
   const SPIRVWordVec &Ops = DebugInst->getArguments();
 
@@ -556,8 +556,9 @@ DISubrange *
 SPIRVToLLVMDbgTran::transTypeSubrange(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::TypeSubrange;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
-  assert(Ops.size() == OperandCount && "Invalid number of operands");
-  std::vector<Metadata *> TranslatedOps(OperandCount, nullptr);
+  assert((Ops.size() == MinOperandCount || Ops.size() == MaxOperandCount) &&
+         "Invalid number of operands");
+  std::vector<Metadata *> TranslatedOps(MaxOperandCount, nullptr);
   auto TransOperand = [&Ops, &TranslatedOps, this](int Idx) -> void {
     if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[Idx])) {
       if (auto *GlobalVar = getDbgInst<SPIRVDebug::GlobalVariable>(Ops[Idx])) {
@@ -576,10 +577,11 @@ SPIRVToLLVMDbgTran::transTypeSubrange(const SPIRVExtInst *DebugInst) {
       }
     }
   };
-  for (int Idx = CountIdx; Idx < OperandCount; ++Idx)
+  for (size_t Idx = 0; Idx < Ops.size(); ++Idx)
     TransOperand(Idx);
   return getDIBuilder(DebugInst).getOrCreateSubrange(
-      TranslatedOps[0], TranslatedOps[1], TranslatedOps[2], TranslatedOps[3]);
+      TranslatedOps[CountIdx], TranslatedOps[LowerBoundIdx],
+      TranslatedOps[UpperBoundIdx], TranslatedOps[StrideIdx]);
 }
 
 DIStringType *
@@ -1052,8 +1054,8 @@ MDNode *SPIRVToLLVMDbgTran::transEntryPoint(const SPIRVExtInst *DebugInst) {
   std::string Producer = getString(Ops[CompilerSignatureIdx]);
   std::string CLArgs = getString(Ops[CommandLineArgsIdx]);
 
-  [[maybe_unused]] DICompileUnit *C =
-      transCompilationUnit(CU, Producer, CLArgs);
+  DICompileUnit *C = transCompilationUnit(CU, Producer, CLArgs); // NOLINT
+  DebugInstCache[CU] = C;
 
   return transFunction(EP, true /*IsMainSubprogram*/);
 }
@@ -1308,15 +1310,21 @@ DINode *SPIRVToLLVMDbgTran::transModule(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= OperandCount && "Invalid number of operands");
   DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
-  SPIRVWord Line =
-      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
+  // In case we translate DebugModuleINTEL instruction (not DebugModule of
+  // NonSemantic.Shader.200 spec), we should not apply the rule "literals are
+  // not allowed for NonSemantic specification". This is a hack to avoid getting
+  // constant value instead of literal in such case.
+  const SPIRVExtInstSetKind ExtKind =
+      DebugInst->getExtOp() == SPIRVDebug::Instruction::ModuleINTEL
+          ? SPIRVEIS_OpenCL_DebugInfo_100
+          : DebugInst->getExtSetKind();
+  SPIRVWord Line = getConstantValueOrLiteral(Ops, LineIdx, ExtKind);
   DIFile *File = getFile(Ops[SourceIdx]);
   StringRef Name = getString(Ops[NameIdx]);
   StringRef ConfigMacros = getString(Ops[ConfigMacrosIdx]);
   StringRef IncludePath = getString(Ops[IncludePathIdx]);
   StringRef ApiNotes = getString(Ops[ApiNotesIdx]);
-  bool IsDecl =
-      getConstantValueOrLiteral(Ops, IsDeclIdx, DebugInst->getExtSetKind());
+  bool IsDecl = getConstantValueOrLiteral(Ops, IsDeclIdx, ExtKind);
   return getDIBuilder(DebugInst).createModule(
       Scope, Name, ConfigMacros, IncludePath, ApiNotes, File, Line, IsDecl);
 }

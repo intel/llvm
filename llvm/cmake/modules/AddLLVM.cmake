@@ -1610,6 +1610,8 @@ function(add_unittest test_suite test_name)
     endif()
   endif()
 
+  target_link_options(${test_name} PRIVATE "${LLVM_UNITTEST_LINK_FLAGS}")
+
   set(outdir ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR})
   set_output_directory(${test_name} BINARY_DIR ${outdir} LIBRARY_DIR ${outdir})
   # libpthreads overrides some standard library symbols, so main
@@ -2358,9 +2360,6 @@ function(llvm_setup_rpath name)
     endif()
     if(LLVM_LINKER_IS_GNULD)
       # $ORIGIN is not interpreted at link time by ld.bfd
-      if(NOT LLVM_LIBRARY_OUTPUT_INTDIR)
-        message(SEND_ERROR "Project does not define LLVM_LIBRARY_OUTPUT_INTDIR and it is required")
-      endif()
       set_property(TARGET ${name} APPEND_STRING PROPERTY
                    LINK_FLAGS " -Wl,-rpath-link,${LLVM_LIBRARY_OUTPUT_INTDIR} ")
     endif()

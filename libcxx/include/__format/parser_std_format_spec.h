@@ -17,13 +17,11 @@
 /// affect the std-format-spec.
 
 #include <__algorithm/copy_n.h>
-#include <__algorithm/find_if.h>
 #include <__algorithm/min.h>
 #include <__assert>
 #include <__concepts/arithmetic.h>
 #include <__concepts/same_as.h>
 #include <__config>
-#include <__debug>
 #include <__format/format_arg.h>
 #include <__format/format_error.h>
 #include <__format/format_parse_context.h>
@@ -31,7 +29,7 @@
 #include <__format/unicode.h>
 #include <__format/width_estimation_table.h>
 #include <__iterator/concepts.h>
-#include <__iterator/readable_traits.h> // iter_value_t
+#include <__iterator/iterator_traits.h> // iter_value_t
 #include <__memory/addressof.h>
 #include <__type_traits/common_type.h>
 #include <__type_traits/is_trivially_copyable.h>
@@ -152,7 +150,7 @@ inline constexpr __fields __fields_floating_point{
     .__locale_specific_form_ = true,
     .__type_                 = true};
 inline constexpr __fields __fields_string{.__precision_ = true, .__type_ = true};
-inline constexpr __fields __fields_pointer{.__type_ = true};
+inline constexpr __fields __fields_pointer{.__zero_padding_ = true, .__type_ = true};
 
 #  if _LIBCPP_STD_VER >= 23
 inline constexpr __fields __fields_tuple{.__use_range_fill_ = true};
@@ -190,7 +188,8 @@ enum class _LIBCPP_ENUM_VIS __type : uint8_t {
   __decimal,
   __hexadecimal_lower_case,
   __hexadecimal_upper_case,
-  __pointer,
+  __pointer_lower_case,
+  __pointer_upper_case,
   __char,
   __hexfloat_lower_case,
   __hexfloat_upper_case,
@@ -443,9 +442,9 @@ private:
           || (same_as<_CharT, wchar_t> && sizeof(wchar_t) == 2)
 #    endif
   _LIBCPP_HIDE_FROM_ABI constexpr bool __parse_fill_align(_Iterator& __begin, _Iterator __end, bool __use_range_fill) {
-    _LIBCPP_ASSERT(__begin != __end,
-                   "when called with an empty input the function will cause "
-                   "undefined behavior by evaluating data not in the input");
+    _LIBCPP_ASSERT_UNCATEGORIZED(__begin != __end,
+                                 "when called with an empty input the function will cause "
+                                 "undefined behavior by evaluating data not in the input");
     __unicode::__code_point_view<_CharT> __view{__begin, __end};
     __unicode::__consume_result __consumed = __view.__consume();
     if (__consumed.__status != __unicode::__consume_result::__ok)
@@ -475,9 +474,9 @@ private:
   template <contiguous_iterator _Iterator>
     requires(same_as<_CharT, wchar_t> && sizeof(wchar_t) == 4)
   _LIBCPP_HIDE_FROM_ABI constexpr bool __parse_fill_align(_Iterator& __begin, _Iterator __end, bool __use_range_fill) {
-    _LIBCPP_ASSERT(__begin != __end,
-                   "when called with an empty input the function will cause "
-                   "undefined behavior by evaluating data not in the input");
+    _LIBCPP_ASSERT_UNCATEGORIZED(__begin != __end,
+                                 "when called with an empty input the function will cause "
+                                 "undefined behavior by evaluating data not in the input");
     if (__begin + 1 != __end && __parse_alignment(*(__begin + 1))) {
       if (!__unicode::__is_scalar_value(*__begin))
         std::__throw_format_error("The fill character contains an invalid value");
@@ -502,9 +501,9 @@ private:
   // range-fill and tuple-fill are identical
   template <contiguous_iterator _Iterator>
   _LIBCPP_HIDE_FROM_ABI constexpr bool __parse_fill_align(_Iterator& __begin, _Iterator __end, bool __use_range_fill) {
-    _LIBCPP_ASSERT(__begin != __end,
-                   "when called with an empty input the function will cause "
-                   "undefined behavior by evaluating data not in the input");
+    _LIBCPP_ASSERT_UNCATEGORIZED(__begin != __end,
+                                 "when called with an empty input the function will cause "
+                                 "undefined behavior by evaluating data not in the input");
     if (__begin + 1 != __end) {
       if (__parse_alignment(*(__begin + 1))) {
         __validate_fill_character(*__begin, __use_range_fill);
@@ -582,8 +581,8 @@ private:
 
     __format::__parse_number_result __r = __format::__parse_number(__begin, __end);
     __width_ = __r.__value;
-    _LIBCPP_ASSERT(__width_ != 0, "A zero value isn't allowed and should be impossible, "
-                                  "due to validations in this function");
+    _LIBCPP_ASSERT_UNCATEGORIZED(__width_ != 0, "A zero value isn't allowed and should be impossible, "
+                                                "due to validations in this function");
     __begin = __r.__last;
     return true;
   }
@@ -676,7 +675,10 @@ private:
       __type_ = __type::__octal;
       break;
     case 'p':
-      __type_ = __type::__pointer;
+      __type_ = __type::__pointer_lower_case;
+      break;
+    case 'P':
+      __type_ = __type::__pointer_upper_case;
       break;
     case 's':
       __type_ = __type::__string;
@@ -841,7 +843,8 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_floating_point(__parser<_C
 _LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_pointer(__format_spec::__type __type) {
   switch (__type) {
   case __format_spec::__type::__default:
-  case __format_spec::__type::__pointer:
+  case __format_spec::__type::__pointer_lower_case:
+  case __format_spec::__type::__pointer_upper_case:
     break;
 
   default:

@@ -249,7 +249,7 @@ void MCObjectFileInfo::initMachOMCObjectFileInfo(const Triple &T) {
                            SectionKind::getMetadata(), "section_line_str");
   DwarfFrameSection =
       Ctx->getMachOSection("__DWARF", "__debug_frame", MachO::S_ATTR_DEBUG,
-                           SectionKind::getMetadata());
+                           SectionKind::getMetadata(), "section_frame");
   DwarfPubNamesSection =
       Ctx->getMachOSection("__DWARF", "__debug_pubnames", MachO::S_ATTR_DEBUG,
                            SectionKind::getMetadata());
@@ -542,6 +542,8 @@ void MCObjectFileInfo::initGOFFMCObjectFileInfo(const Triple &T) {
   PPA1Section =
       Ctx->getGOFFSection(".ppa1", SectionKind::getMetadata(), TextSection,
                           MCConstantExpr::create(GOFF::SK_PPA1, *Ctx));
+  ADASection =
+      Ctx->getGOFFSection(".ada", SectionKind::getData(), nullptr, nullptr);
 }
 
 void MCObjectFileInfo::initCOFFMCObjectFileInfo(const Triple &T) {

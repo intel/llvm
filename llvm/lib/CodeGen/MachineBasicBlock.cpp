@@ -12,6 +12,7 @@
 
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/LiveVariables.h"
@@ -567,6 +568,11 @@ void MachineBasicBlock::printName(raw_ostream &os, unsigned printNameFlags,
     if (getBBID().has_value()) {
       os << (hasAttributes ? ", " : " (");
       os << "bb_id " << *getBBID();
+      hasAttributes = true;
+    }
+    if (SPAdjustment != 0) {
+      os << (hasAttributes ? ", " : " (");
+      os << "sp-adjustment " << SPAdjustment;
       hasAttributes = true;
     }
   }

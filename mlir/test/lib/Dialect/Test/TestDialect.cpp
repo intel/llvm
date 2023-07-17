@@ -34,6 +34,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/Base64.h"
 
 #include <cstdint>
 #include <numeric>
@@ -1020,7 +1021,7 @@ ParseResult IsolatedRegionOp::parse(OpAsmParser &parser,
 }
 
 void IsolatedRegionOp::print(OpAsmPrinter &p) {
-  p << "test.isolated_region ";
+  p << ' ';
   p.printOperand(getOperand());
   p.shadowRegionArgs(getRegion(), getOperand());
   p << ' ';
@@ -1054,7 +1055,7 @@ ParseResult AffineScopeOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void AffineScopeOp::print(OpAsmPrinter &p) {
-  p << "test.affine_scope ";
+  p << " ";
   p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
 }
 
@@ -1103,8 +1104,7 @@ ParseResult ParseB64BytesOp::parse(OpAsmParser &parser,
 }
 
 void ParseB64BytesOp::print(OpAsmPrinter &p) {
-  // Don't print the base64 version to check that we decoded it correctly.
-  p << " \"" << getB64() << "\"";
+  p << " \"" << llvm::encodeBase64(getB64()) << "\"";
 }
 
 //===----------------------------------------------------------------------===//
@@ -1229,8 +1229,8 @@ void PrettyPrintedRegionOp::print(OpAsmPrinter &p) {
   // Assuming that region has a single non-terminator inner-op, if the inner-op
   // meets some criteria (which in this case is a simple one  based on the name
   // of inner-op), then we can print the entire region in a succinct way.
-  // Here we assume that the prototype of "test.special.op" can be trivially derived
-  // while parsing it back.
+  // Here we assume that the prototype of "test.special.op" can be trivially
+  // derived while parsing it back.
   if (innerOp.getName().getStringRef().equals("test.special.op")) {
     p << " start test.special.op end";
   } else {
@@ -1260,7 +1260,14 @@ ParseResult PolyForOp::parse(OpAsmParser &parser, OperationState &result) {
   return parser.parseRegion(*body, ivsInfo);
 }
 
-void PolyForOp::print(OpAsmPrinter &p) { p.printGenericOp(*this); }
+void PolyForOp::print(OpAsmPrinter &p) {
+  p << " ";
+  llvm::interleaveComma(getRegion().getArguments(), p, [&](auto arg) {
+    p.printRegionArgument(arg, /*argAttrs =*/{}, /*omitType=*/true);
+  });
+  p << " ";
+  p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
+}
 
 void PolyForOp::getAsmBlockArgumentNames(Region &region,
                                          OpAsmSetValueNameFn setNameFn) {
@@ -1781,7 +1788,9 @@ LogicalResult TestVerifiersOp::verify() {
   if (definingOp && failed(mlir::verify(definingOp)))
     return emitOpError("operand hasn't been verified");
 
-  emitRemark("success run of verifier");
+  // Avoid using `emitRemark(msg)` since that will trigger an infinite verifier
+  // loop.
+  mlir::emitRemark(getLoc(), "success run of verifier");
 
   return success();
 }
@@ -1795,7 +1804,9 @@ LogicalResult TestVerifiersOp::verifyRegions() {
       if (failed(mlir::verify(&op)))
         return emitOpError("nested op hasn't been verified");
 
-  emitRemark("success run of region verifier");
+  // Avoid using `emitRemark(msg)` since that will trigger an infinite verifier
+  // loop.
+  mlir::emitRemark(getLoc(), "success run of region verifier");
 
   return success();
 }
@@ -1920,6 +1931,18 @@ static ParseResult customParseProperties(OpAsmParser &parser,
     return failure();
   prop.label = std::make_shared<std::string>(std::move(label));
   return success();
+}
+
+static bool parseUsingPropertyInCustom(OpAsmParser &parser, int64_t value[3]) {
+  return parser.parseLSquare() || parser.parseInteger(value[0]) ||
+         parser.parseComma() || parser.parseInteger(value[1]) ||
+         parser.parseComma() || parser.parseInteger(value[2]) ||
+         parser.parseRSquare();
+}
+
+static void printUsingPropertyInCustom(OpAsmPrinter &printer, Operation *op,
+                                       ArrayRef<int64_t> value) {
+  printer << '[' << value << ']';
 }
 
 #include "TestOpEnums.cpp.inc"

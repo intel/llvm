@@ -338,7 +338,7 @@ bool lldb_private::formatters::LibCxxMapIteratorSyntheticFrontEnd::Update() {
         //        +-----------------------------+
         //
         CompilerType tree_node_type = ast_ctx->CreateStructForIdentifier(
-            ConstString(),
+            llvm::StringRef(),
             {{"ptr0",
               ast_ctx->GetBasicType(lldb::eBasicTypeVoid).GetPointerType()},
              {"ptr1",
@@ -503,7 +503,7 @@ bool lldb_private::formatters::LibCxxUnorderedMapIteratorSyntheticFrontEnd::
     //         +-----------------------------+
     //
     CompilerType tree_node_type = ast_ctx->CreateStructForIdentifier(
-        ConstString(),
+        llvm::StringRef(),
         {{"__next_",
           ast_ctx->GetBasicType(lldb::eBasicTypeVoid).GetPointerType()},
          {"__hash_", ast_ctx->GetBasicType(lldb::eBasicTypeUnsignedLongLong)},
@@ -607,11 +607,13 @@ lldb_private::formatters::LibcxxSharedPtrSyntheticFrontEnd::GetChildAtIndex(
   if (idx == 1) {
     if (auto ptr_sp = valobj_sp->GetChildMemberWithName("__ptr_")) {
       Status status;
-      auto value_sp = ptr_sp->Dereference(status);
+      auto value_type_sp =
+            valobj_sp->GetCompilerType()
+              .GetTypeTemplateArgument(0).GetPointerType();
+      ValueObjectSP cast_ptr_sp = ptr_sp->Cast(value_type_sp);
+      ValueObjectSP value_sp = cast_ptr_sp->Dereference(status);
       if (status.Success()) {
-        auto value_type_sp =
-            valobj_sp->GetCompilerType().GetTypeTemplateArgument(0);
-        return value_sp->Cast(value_type_sp);
+        return value_sp;
       }
     }
   }

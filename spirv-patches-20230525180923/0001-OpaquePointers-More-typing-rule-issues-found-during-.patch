@@ -1,0 +1,314 @@
+From 4879ebe131cc5f7cb9b9ebc6d1b30f8ed67522c6 Mon Sep 17 00:00:00 2001
+From: Joshua Cranmer <joshua.cranmer@intel.com>
+Date: Thu, 18 May 2023 19:10:26 -0400
+Subject: [PATCH 1/5] [OpaquePointers] More typing rule issues found during
+ testing. (#2009)
+
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/4879ebe
+---
+ lib/SPIRV/SPIRVTypeScavenger.cpp              | 58 ++++++++++++++++++-
+ lib/SPIRV/SPIRVWriter.cpp                     | 37 ++++++------
+ .../vector_elem.ll                            |  2 +-
+ .../intel-gather-scatter.ll                   |  8 +--
+ test/type-scavenger/varargs.ll                | 18 +++---
+ 5 files changed, 87 insertions(+), 36 deletions(-)
+
+diff --git a/lib/SPIRV/SPIRVTypeScavenger.cpp b/lib/SPIRV/SPIRVTypeScavenger.cpp
+index 195acf476686..a7fe112a613b 100644
+--- a/lib/SPIRV/SPIRVTypeScavenger.cpp
++++ b/lib/SPIRV/SPIRVTypeScavenger.cpp
+@@ -440,6 +440,17 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
+          "Call is not an intrinsic function call");
+   LLVMContext &Ctx = TargetFn->getContext();
+ 
++  // If the type is a pointer type, replace it with a typedptr(typevar) type
++  // instead, using AssociatedTypeVariables.
++  auto GetTypeOrTypeVar = [&](Type *BaseTy) {
++    if (!BaseTy->isPointerTy())
++      return BaseTy;
++    Type *&AssociatedTy = AssociatedTypeVariables[&CB];
++    if (!AssociatedTy)
++      AssociatedTy = allocateTypeVariable(BaseTy);
++    return AssociatedTy;
++  };
++
+   StringRef DemangledName;
+   if (oclIsBuiltin(TargetFn->getName(), DemangledName) ||
+       isDecoratedSPIRVFunc(TargetFn, DemangledName)) {
+@@ -536,13 +547,31 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
+       // llvm.instrprof.* intrinsics are not supported
+       TypeRules.push_back(TypeRule::pointsTo(CB, 0, Type::getInt8Ty(Ctx)));
+       break;
+-    // TODO: handle masked gather/scatter intrinsics. This requires support
+-    // for vector-of-pointers in the type scavenger.
++    case Intrinsic::masked_gather: {
++      Type *ScalarTy = GetTypeOrTypeVar(CB.getType()->getScalarType());
++      TypeRules.push_back(TypeRule::pointsTo(CB, 0, ScalarTy));
++      if (CB.getType()->getScalarType()->isPointerTy())
++        TypeRules.push_back(TypeRule::propagates(CB, 3));
++      break;
++    }
++    case Intrinsic::masked_scatter: {
++      Type *ScalarTy =
++          GetTypeOrTypeVar(CB.getOperand(0)->getType()->getScalarType());
++      TypeRules.push_back(TypeRule::pointsTo(CB, 1, ScalarTy));
++      break;
++    }
+     default:
+       return false;
+     }
+   } else if (TargetFn->getName().startswith("_Z18__spirv_ocl_printf")) {
+-    TypeRules.push_back(TypeRule::pointsTo(CB, 0, Type::getInt8Ty(Ctx)));
++    Type *Int8Ty = Type::getInt8Ty(Ctx);
++    // The first argument is a string pointer. Subsequent arguments may include
++    // pointer-valued arguments, corresponding to %s or %p parameters.
++    // Therefore, all parameters need to be i8*.
++    for (Use &U : CB.args()) {
++      if (U->getType()->isPointerTy())
++        TypeRules.push_back(TypeRule::pointsTo(U, Int8Ty));
++    }
+   } else if (TargetFn->getName() == "__spirv_GetKernelWorkGroupSize__") {
+     TypeRules.push_back(TypeRule::pointsTo(CB, 1, Type::getInt8Ty(Ctx)));
+   } else if (TargetFn->getName() ==
+@@ -558,6 +587,15 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
+     TypeRules.push_back(TypeRule::pointsTo(CB, 4, DevEvent));
+     TypeRules.push_back(TypeRule::pointsTo(CB, 5, DevEvent));
+     TypeRules.push_back(TypeRule::pointsTo(CB, 7, Type::getInt8Ty(Ctx)));
++  } else if (TargetFn->getName().starts_with(
++                 "_Z33__regcall3____builtin_invoke_simd")) {
++    // First argument is a function to call, subsequent arguments are parameters
++    // to said function.
++    auto *FnTy = getFunctionType(cast<Function>(CB.getArgOperand(0)));
++    TypeRules.push_back(TypeRule::pointsTo(CB, 0, FnTy));
++    typeFunctionParams(CB, FnTy, 1, true, TypeRules);
++    // Also apply type rules to the parameter types of the underlying function.
++    return false;
+   } else
+     return false;
+ 
+@@ -899,6 +937,20 @@ void SPIRVTypeScavenger::getTypeRules(Instruction &I,
+         TypeRules.push_back(TypeRule::pointsTo(CB->getCalledOperandUse(), FT));
+       typeFunctionParams(*CB, FT, 0, true, TypeRules);
+     }
++  } else if (isa<ExtractElementInst>(&I)) {
++    if (!hasPointerType(I.getType()))
++      return;
++    TypeRules.push_back(TypeRule::propagatesIndirect(I, 0));
++  } else if (isa<InsertElementInst>(&I)) {
++    if (!hasPointerType(I.getType()))
++      return;
++    TypeRules.push_back(TypeRule::propagatesIndirect(I, 0));
++    TypeRules.push_back(TypeRule::propagatesIndirect(I, 1));
++  } else if (isa<ShuffleVectorInst>(&I)) {
++    if (!hasPointerType(I.getType()))
++      return;
++    TypeRules.push_back(TypeRule::propagatesIndirect(I, 0));
++    TypeRules.push_back(TypeRule::propagatesIndirect(I, 1));
+   }
+ 
+   // TODO: Handle insertvalue, extractvalue that work with pointers (requires
+diff --git a/lib/SPIRV/SPIRVWriter.cpp b/lib/SPIRV/SPIRVWriter.cpp
+index 809da4e80b6e..057b90291e74 100644
+--- a/lib/SPIRV/SPIRVWriter.cpp
++++ b/lib/SPIRV/SPIRVWriter.cpp
+@@ -1433,7 +1433,7 @@ SPIRVInstruction *LLVMToSPIRVBase::transCmpInst(CmpInst *Cmp,
+ 
+ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
+                                             SPIRVBasicBlock *BB) {
+-  if (isa<BitCastInst>(U) && U->getType()->isPointerTy()) {
++  if (isa<BitCastInst>(U) && U->getType()->isPtrOrPtrVectorTy()) {
+     if (isa<ConstantPointerNull>(U->getOperand(0))) {
+       SPIRVType *ExpectedTy = transScavengedType(U);
+       return BM->addNullConstant(bcast<SPIRVTypePointer>(ExpectedTy));
+@@ -1799,7 +1799,7 @@ SPIRVValue *LLVMToSPIRVBase::transAtomicLoad(LoadInst *LD,
+   std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
+ 
+   return mapValue(LD, BM->addInstTemplate(OpAtomicLoad, BM->getIds(SPIRVOps),
+-                                          BB, transType(LD->getType())));
++                                          BB, transScavengedType(LD)));
+ }
+ 
+ // Aliasing list MD contains several scope MD nodes whithin it. Each scope MD
+@@ -1878,9 +1878,9 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
+     // Though variables with common linkage type are initialized by 0,
+     // they can be represented in SPIR-V as uninitialized variables with
+     // 'Export' linkage type, just as tentative definitions look in C
+-    llvm::Value *Init = GV->hasInitializer() && !GV->hasCommonLinkage()
+-                            ? GV->getInitializer()
+-                            : nullptr;
++    llvm::Constant *Init = GV->hasInitializer() && !GV->hasCommonLinkage()
++                               ? GV->getInitializer()
++                               : nullptr;
+     SPIRVValue *BVarInit = nullptr;
+     StructType *ST = Init ? dyn_cast<StructType>(Init->getType()) : nullptr;
+     if (ST && ST->hasName() && isSPIRVConstantName(ST->getName())) {
+@@ -1927,10 +1927,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
+           }
+         }
+       }
+-      // As global variables define a pointer to their "content" type, we should
+-      // translate here only pointer without declaration even if it is a
+-      // function pointer.
+-      BVarInit = transValue(Init, nullptr, true, FuncTransMode::Pointer);
++      SPIRVType *TransTy = transType(Ty);
++      BVarInit = transConstantUse(Init, TransTy->getPointerElementType());
+     }
+ 
+     SPIRVStorageClassKind StorageClass;
+@@ -2235,7 +2233,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
+ 
+   if (auto Ext = dyn_cast<ExtractValueInst>(V)) {
+     return mapValue(V, BM->addCompositeExtractInst(
+-                           transType(Ext->getType()),
++                           transScavengedType(Ext),
+                            transValue(Ext->getAggregateOperand(), BB),
+                            Ext->getIndices(), BB));
+   }
+@@ -2303,7 +2301,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
+     auto Index = Ext->getIndexOperand();
+     if (auto Const = dyn_cast<ConstantInt>(Index))
+       return mapValue(V, BM->addCompositeExtractInst(
+-                             transType(Ext->getType()),
++                             transScavengedType(Ext),
+                              transValue(Ext->getVectorOperand(), BB),
+                              std::vector<SPIRVWord>(1, Const->getZExtValue()),
+                              BB));
+@@ -2334,7 +2332,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
+     for (auto &I : SF->getShuffleMask())
+       Comp.push_back(I);
+     return mapValue(V, BM->addVectorShuffleInst(
+-                           transType(SF->getType()),
++                           transScavengedType(SF),
+                            transValue(SF->getOperand(0), BB),
+                            transValue(SF->getOperand(1), BB), Comp, BB));
+   }
+@@ -2367,7 +2365,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
+     Operands[3] = ARMW->getValOperand();
+     std::vector<SPIRVValue *> OpVals = transValue(Operands, BB);
+     std::vector<SPIRVId> Ops = BM->getIds(OpVals);
+-    SPIRVType *Ty = transType(ARMW->getType());
++    SPIRVType *Ty = transScavengedType(ARMW);
+ 
+     spv::Op OC;
+     if (Op == AtomicRMWInst::FSub) {
+@@ -4015,7 +4013,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
+   case Intrinsic::dbg_value:
+     return DbgTran->createDebugValuePlaceholder(cast<DbgValueInst>(II), BB);
+   case Intrinsic::annotation: {
+-    SPIRVType *Ty = transType(II->getType());
++    SPIRVType *Ty = transScavengedType(II);
+ 
+     GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1));
+     if (!GEP)
+@@ -4082,8 +4080,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
+ 
+     // Translate FPGARegIntel annotations to OpFPGARegINTEL.
+     if (AnnotationString == kOCLBuiltinName::FPGARegIntel) {
+-      // TODO: Check for opaque pointer requirements.
+-      auto *Ty = transType(II->getType());
++      auto *Ty = transScavengedType(II);
+       auto *BI = dyn_cast<BitCastInst>(II->getOperand(0));
+       if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_reg))
+         return BM->addFPGARegINTELInst(Ty, transValue(BI, BB), BB);
+@@ -4228,7 +4225,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
+           "-spirv-allow-unknown-intrinsics option.");
+       return nullptr;
+     }
+-    SPIRVType *Ty = transType(II->getType());
++    SPIRVType *Ty = transScavengedType(II);
+     auto *PtrVector = transValue(II->getArgOperand(0), BB);
+     uint32_t Alignment =
+         cast<ConstantInt>(II->getArgOperand(1))->getZExtValue();
+@@ -5808,7 +5805,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
+   }
+   default: {
+     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
+-      return BM->addUnaryInst(OC, transType(CI->getType()),
++      return BM->addUnaryInst(OC, transScavengedType(CI),
+                               transValue(CI->getArgOperand(0), BB), BB);
+     } else if (isCmpOpCode(OC) || isUnaryPredicateOpCode(OC)) {
+       auto ResultTy = CI->getType();
+@@ -5838,12 +5835,12 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
+       return BM->addSelectInst(Res, One, Zero, BB);
+     } else if (isBinaryOpCode(OC)) {
+       assert(CI && CI->arg_size() == 2 && "Invalid call inst");
+-      return BM->addBinaryInst(OC, transType(CI->getType()),
++      return BM->addBinaryInst(OC, transScavengedType(CI),
+                                transValue(CI->getArgOperand(0), BB),
+                                transValue(CI->getArgOperand(1), BB), BB);
+     } else if (CI->arg_size() == 1 && !CI->getType()->isVoidTy() &&
+                !hasExecScope(OC) && !isAtomicOpCode(OC)) {
+-      return BM->addUnaryInst(OC, transType(CI->getType()),
++      return BM->addUnaryInst(OC, transScavengedType(CI),
+                               transValue(CI->getArgOperand(0), BB), BB);
+     } else {
+       auto Args = getArguments(CI);
+diff --git a/test/extensions/INTEL/SPV_INTEL_function_pointers/vector_elem.ll b/test/extensions/INTEL/SPV_INTEL_function_pointers/vector_elem.ll
+index 302b968a35cb..421a3466676c 100644
+--- a/test/extensions/INTEL/SPV_INTEL_function_pointers/vector_elem.ll
++++ b/test/extensions/INTEL/SPV_INTEL_function_pointers/vector_elem.ll
+@@ -1,4 +1,4 @@
+-; RUN: llvm-as -opaque-pointers=0 < %s | llvm-spirv -opaque-pointers=0 -spirv-text --spirv-ext=+SPV_INTEL_function_pointers,+SPV_INTEL_masked_gather_scatter | FileCheck %s --check-prefix=CHECK-SPIRV
++; RUN: llvm-as < %s | llvm-spirv -spirv-text --spirv-ext=+SPV_INTEL_function_pointers,+SPV_INTEL_masked_gather_scatter | FileCheck %s --check-prefix=CHECK-SPIRV
+ 
+ ; CHECK-SPIRV-DAG: 6 Name [[F1:[0-9+]]] "_Z2f1u2CMvb32_j"
+ ; CHECK-SPIRV-DAG: 6 Name [[F2:[0-9+]]] "_Z2f2u2CMvb32_j"
+diff --git a/test/extensions/INTEL/SPV_INTEL_masked_gather_scatter/intel-gather-scatter.ll b/test/extensions/INTEL/SPV_INTEL_masked_gather_scatter/intel-gather-scatter.ll
+index be818a80b4aa..b7383e354cd3 100644
+--- a/test/extensions/INTEL/SPV_INTEL_masked_gather_scatter/intel-gather-scatter.ll
++++ b/test/extensions/INTEL/SPV_INTEL_masked_gather_scatter/intel-gather-scatter.ll
+@@ -1,16 +1,16 @@
+-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+-; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_masked_gather_scatter -o %t.spv
++; RUN: llvm-as %s -o %t.bc
++; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_masked_gather_scatter -o %t.spv
+ ; RUN: llvm-spirv %t.spv --to-text -o %t.spt
+ ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+ 
+ ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+ ; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+ 
+-; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_masked_gather_scatter -o %t.spv -spirv-allow-unknown-intrinsics
++; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_masked_gather_scatter -o %t.spv -spirv-allow-unknown-intrinsics
+ ; RUN: llvm-spirv %t.spv --to-text -o %t.spt
+ ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+ 
+-; RUN: not llvm-spirv %t.bc -opaque-pointers=0 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
++; RUN: not llvm-spirv %t.bc 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+ ; CHECK-ERROR: RequiresExtension: Feature requires the following SPIR-V extension:
+ ; CHECK-ERROR-NEXT: SPV_INTEL_masked_gather_scatter
+ ; CHECK-ERROR-NEXT: NOTE: LLVM module contains vector of pointers, translation of which requires this extension
+diff --git a/test/type-scavenger/varargs.ll b/test/type-scavenger/varargs.ll
+index 7d290acf9651..fe6db1f665db 100644
+--- a/test/type-scavenger/varargs.ll
++++ b/test/type-scavenger/varargs.ll
+@@ -8,14 +8,16 @@ target triple = "spir-unknown-unknown"
+ @.str = internal unnamed_addr addrspace(2) constant [11 x i8] c"Value: %p\0A\00", align 1
+ 
+ 
+-; CHECK-DAG: 4 TypeInt [[INT:[0-9]+]] 32 0
+-; CHECK-DAG: 4 TypeInt [[CHAR:[0-9]+]] 8 0
+-; CHECK-DAG: 4 TypePointer [[INTPTR:[0-9]+]] 7 [[INT]]
+-; CHECK-DAG: 4 TypePointer [[CHARPTR:[0-9]+]] 0 [[CHAR]]
+-; CHECK: 5 Variable {{[0-9]+}} [[STR:[0-9]+]] 0
+-; CHECK: 4 Variable [[INTPTR]] [[IPTR:[0-9]+]] 7
+-; CHECK: 4 Bitcast [[CHARPTR]] [[I8STR:[0-9]+]] [[STR]]
+-; CHECK: 7 ExtInst [[INT]] {{[0-9]+}} {{[0-9]+}} printf [[I8STR]] [[IPTR]]
++; CHECK-DAG: TypeInt [[INT:[0-9]+]] 32 0
++; CHECK-DAG: TypeInt [[CHAR:[0-9]+]] 8 0
++; CHECK-DAG: TypePointer [[INTPTR:[0-9]+]] 7 [[INT]]
++; CHECK-DAG: TypePointer [[CHARPTR:[0-9]+]] 0 [[CHAR]]
++; CHECK-DAG: TypePointer [[CHARPTR2:[0-9]+]] 7 [[CHAR]]
++; CHECK: Variable {{[0-9]+}} [[STR:[0-9]+]] 0
++; CHECK: Variable [[INTPTR]] [[IPTR:[0-9]+]] 7
++; CHECK: Bitcast [[CHARPTR]] [[I8STR:[0-9]+]] [[STR]]
++; CHECK: Bitcast [[CHARPTR2]] [[VAR8:[0-9]+]] [[IPTR]]
++; CHECK: ExtInst [[INT]] {{[0-9]+}} {{[0-9]+}} printf [[I8STR]] [[VAR8]]
+ 
+ ; Function Attrs: nounwind
+ define spir_kernel void @foo() {
+-- 
+2.31.1
+

@@ -114,6 +114,9 @@ void DAGTypeLegalizer::SoftenFloatResult(SDNode *N, unsigned ResNo) {
     case ISD::FPOWI:
     case ISD::FLDEXP:
     case ISD::STRICT_FLDEXP: R = SoftenFloatRes_ExpOp(N); break;
+    case ISD::FFREXP:
+      R = SoftenFloatRes_FFREXP(N);
+      break;
     case ISD::STRICT_FREM:
     case ISD::FREM:        R = SoftenFloatRes_FREM(N); break;
     case ISD::STRICT_FRINT:
@@ -648,6 +651,45 @@ SDValue DAGTypeLegalizer::SoftenFloatRes_ExpOp(SDNode *N) {
   if (IsStrict)
     ReplaceValueWith(SDValue(N, 1), Tmp.second);
   return Tmp.first;
+}
+
+SDValue DAGTypeLegalizer::SoftenFloatRes_FFREXP(SDNode *N) {
+  assert(!N->isStrictFPOpcode() && "strictfp not implemented for frexp");
+  EVT VT0 = N->getValueType(0);
+  EVT VT1 = N->getValueType(1);
+  RTLIB::Libcall LC = RTLIB::getFREXP(VT0);
+
+  if (DAG.getLibInfo().getIntSize() != VT1.getSizeInBits()) {
+    // If the exponent does not match with sizeof(int) a libcall would use the
+    // wrong type for the argument.
+    // TODO: Should be able to handle mismatches.
+    DAG.getContext()->emitError("ffrexp exponent does not match sizeof(int)");
+    return DAG.getUNDEF(N->getValueType(0));
+  }
+
+  EVT NVT0 = TLI.getTypeToTransformTo(*DAG.getContext(), VT0);
+  SDValue StackSlot = DAG.CreateStackTemporary(VT1);
+
+  SDLoc DL(N);
+
+  TargetLowering::MakeLibCallOptions CallOptions;
+  SDValue Ops[2] = {GetSoftenedFloat(N->getOperand(0)), StackSlot};
+  EVT OpsVT[2] = {VT0, StackSlot.getValueType()};
+
+  // TODO: setTypeListBeforeSoften can't properly express multiple return types,
+  // but we only really need to handle the 0th one for softening anyway.
+  CallOptions.setTypeListBeforeSoften({OpsVT}, VT0, true);
+
+  auto [ReturnVal, Chain] = TLI.makeLibCall(DAG, LC, NVT0, Ops, CallOptions, DL,
+                                            /*Chain=*/SDValue());
+  int FrameIdx = cast<FrameIndexSDNode>(StackSlot)->getIndex();
+  auto PtrInfo =
+      MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FrameIdx);
+
+  SDValue LoadExp = DAG.getLoad(VT1, DL, Chain, StackSlot, PtrInfo);
+
+  ReplaceValueWith(SDValue(N, 1), LoadExp);
+  return ReturnVal;
 }
 
 SDValue DAGTypeLegalizer::SoftenFloatRes_FREM(SDNode *N) {
@@ -2327,6 +2369,7 @@ void DAGTypeLegalizer::PromoteFloatResult(SDNode *N, unsigned ResNo) {
 
     case ISD::FPOWI:
     case ISD::FLDEXP:     R = PromoteFloatRes_ExpOp(N); break;
+    case ISD::FFREXP:     R = PromoteFloatRes_FFREXP(N); break;
 
     case ISD::FP_ROUND:   R = PromoteFloatRes_FP_ROUND(N); break;
     case ISD::LOAD:       R = PromoteFloatRes_LOAD(N); break;
@@ -2504,6 +2547,17 @@ SDValue DAGTypeLegalizer::PromoteFloatRes_ExpOp(SDNode *N) {
   SDValue Op1 = N->getOperand(1);
 
   return DAG.getNode(N->getOpcode(), SDLoc(N), NVT, Op0, Op1);
+}
+
+SDValue DAGTypeLegalizer::PromoteFloatRes_FFREXP(SDNode *N) {
+  EVT VT = N->getValueType(0);
+  EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), VT);
+  SDValue Op = GetPromotedFloat(N->getOperand(0));
+  SDValue Res =
+      DAG.getNode(N->getOpcode(), SDLoc(N), {NVT, N->getValueType(1)}, Op);
+
+  ReplaceValueWith(SDValue(N, 1), Res.getValue(1));
+  return Res;
 }
 
 // Explicit operation to reduce precision.  Reduce the value to half precision

@@ -185,14 +185,15 @@ public:
         F(HostPtr);
       });
     }
-
-    if (canReuseHostPtr(HostPtr, RequiredAlign)) {
-      MUserPtr = HostPtr;
-    } else {
-      setAlign(RequiredAlign);
-      MShadowCopy = allocateHostMem();
-      MUserPtr = MShadowCopy;
-      std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+    if(HostPtr){
+      if (canReuseHostPtr(HostPtr, RequiredAlign)) {
+        MUserPtr = HostPtr;
+      } else {
+        setAlign(RequiredAlign);
+        MShadowCopy = allocateHostMem();
+        MUserPtr = MShadowCopy;
+        std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+      }
     }
   }
 

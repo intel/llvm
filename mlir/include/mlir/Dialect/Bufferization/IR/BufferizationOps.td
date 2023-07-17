@@ -76,6 +76,9 @@ def Bufferization_AllocTensorOp : Bufferization_Op<"alloc_tensor",
     %c = bufferization.alloc_tensor(%d1, %d2) size_hint = %noe
       : tensor<?x?xf32, #SparseMatrix>
     ```
+
+    Note: An `alloc_tensor` with a `copy` should also be expressed as an
+    `alloc_tensor` without `copy`, followed by a `copy_tensor`.
   }];
 
   let arguments = (ins Variadic<Index>:$dynamic_sizes,
@@ -200,6 +203,46 @@ def Bufferization_CloneOp : Bufferization_Op<"clone", [
 
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// CopyTensorOp
+//===----------------------------------------------------------------------===//
+
+def Bufferization_CopyTensorOp : Bufferization_Op<"copy_tensor",
+    [BufferizableOpInterface, SameOperandsAndResultType,
+     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>]> {
+  let summary = "copy a tensor";
+
+  let description = [{
+    Copy the contents of the source tensor into the destination tensor. This
+    operation is guaranteed to bufferize to a memory copy.
+  }];
+
+  let arguments = (ins AnyTensor:$source,
+                       AnyTensor:$dest);
+
+  let results = (outs AnyTensor:$result);
+
+  let extraClassDeclaration = [{
+    LogicalResult bufferize(RewriterBase &rewriter,
+                            const BufferizationOptions &options);
+
+    bool bufferizesToMemoryRead(OpOperand &opOperand,
+                                const AnalysisState &state);
+
+    bool bufferizesToMemoryWrite(OpOperand &opOperand,
+                                 const AnalysisState &state);
+
+    AliasingOpResultList getAliasingOpResults(
+        OpOperand &opOperand, const AnalysisState &state);
+
+    RankedTensorType getType() {
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
+    }
+  }];
+
+  let assemblyFormat = "$source `,` $dest attr-dict `:` type($source)";
 }
 
 //===----------------------------------------------------------------------===//
@@ -383,11 +426,12 @@ def Bufferization_ToMemrefOp : Bufferization_Op<"to_memref", [
     `unrealized_conversion_cast` and is used to make sure that the IR stays
     valid at any point during the bufferization.
 
-    IR that contains `to_memref` ops cannot be bufferized with One-Shot
-    Bufferize.
+    The `read_only` attribute can optionally be set, indicating to the
+    bufferization that the buffer returned by this op (or an alias created from
+    the returned buffer) will not be written to.
   }];
 
-  let arguments = (ins AnyTensor:$tensor);
+  let arguments = (ins AnyTensor:$tensor, UnitAttr:$read_only);
   let results = (outs AnyRankedOrUnrankedMemRef:$memref);
 
   let extraClassDeclaration = [{
@@ -408,9 +452,8 @@ def Bufferization_ToMemrefOp : Bufferization_Op<"to_memref", [
     }
 
     bool bufferizesToMemoryWrite(OpOperand &opOperand,
-                                 const AnalysisState &state) const {
-      // It is unknown whether the resulting MemRef will be written or not.
-      return true;
+                                 const AnalysisState &state) {
+      return !getReadOnly();
     }
 
     AliasingOpResultList getAliasingOpResults(
@@ -422,7 +465,9 @@ def Bufferization_ToMemrefOp : Bufferization_Op<"to_memref", [
                             const BufferizationOptions &options);
   }];
 
-  let assemblyFormat = "$tensor attr-dict `:` type($memref)";
+  let assemblyFormat = [{
+    $tensor (`read_only` $read_only^)? attr-dict `:` type($memref)
+  }];
 
   let hasFolder = 1;
   let hasCanonicalizer = 1;

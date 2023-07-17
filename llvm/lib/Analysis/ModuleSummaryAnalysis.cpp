@@ -198,6 +198,7 @@ static void addIntrinsicToSummary(
     break;
   }
 
+  case Intrinsic::type_checked_load_relative:
   case Intrinsic::type_checked_load: {
     auto *TypeMDVal = cast<MetadataAsValue>(CI->getArgOperand(2));
     auto *TypeId = dyn_cast<MDString>(TypeMDVal->getMetadata());
@@ -785,10 +786,14 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
     std::function<const StackSafetyInfo *(const Function &F)> GetSSICallback) {
   assert(PSI);
   bool EnableSplitLTOUnit = false;
+  bool UnifiedLTO = false;
   if (auto *MD = mdconst::extract_or_null<ConstantInt>(
           M.getModuleFlag("EnableSplitLTOUnit")))
     EnableSplitLTOUnit = MD->getZExtValue();
-  ModuleSummaryIndex Index(/*HaveGVs=*/true, EnableSplitLTOUnit);
+  if (auto *MD =
+          mdconst::extract_or_null<ConstantInt>(M.getModuleFlag("UnifiedLTO")))
+    UnifiedLTO = MD->getZExtValue();
+  ModuleSummaryIndex Index(/*HaveGVs=*/true, EnableSplitLTOUnit, UnifiedLTO);
 
   // Identify the local values in the llvm.used and llvm.compiler.used sets,
   // which should not be exported as they would then require renaming and

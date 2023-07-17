@@ -334,8 +334,8 @@ const SCEV *IVUsers::getReplacementExpr(const IVStrideUse &IU) const {
 
 /// getExpr - Return the expression for the use.
 const SCEV *IVUsers::getExpr(const IVStrideUse &IU) const {
-  return normalizeForPostIncUse(getReplacementExpr(IU), IU.getPostIncLoops(),
-                                *SE);
+  const SCEV *Replacement = getReplacementExpr(IU);
+  return normalizeForPostIncUse(Replacement, IU.getPostIncLoops(), *SE);
 }
 
 static const SCEVAddRecExpr *findAddRecForLoop(const SCEV *S, const Loop *L) {

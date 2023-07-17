@@ -93,7 +93,7 @@ unsigned FloatType::getWidth() {
     return 8;
   if (llvm::isa<Float16Type, BFloat16Type>(*this))
     return 16;
-  if (llvm::isa<Float32Type>(*this))
+  if (llvm::isa<Float32Type, FloatTF32Type>(*this))
     return 32;
   if (llvm::isa<Float64Type>(*this))
     return 64;
@@ -120,6 +120,8 @@ const llvm::fltSemantics &FloatType::getFloatSemantics() {
     return APFloat::BFloat();
   if (llvm::isa<Float16Type>(*this))
     return APFloat::IEEEhalf();
+  if (llvm::isa<FloatTF32Type>(*this))
+    return APFloat::FloatTF32();
   if (llvm::isa<Float32Type>(*this))
     return APFloat::IEEEsingle();
   if (llvm::isa<Float64Type>(*this))
@@ -227,7 +229,7 @@ LogicalResult OpaqueType::verify(function_ref<InFlightDiagnostic()> emitError,
 
 LogicalResult VectorType::verify(function_ref<InFlightDiagnostic()> emitError,
                                  ArrayRef<int64_t> shape, Type elementType,
-                                 unsigned numScalableDims) {
+                                 ArrayRef<bool> scalableDims) {
   if (!isValidElementType(elementType))
     return emitError()
            << "vector elements must be int/index/float type but got "
@@ -238,6 +240,10 @@ LogicalResult VectorType::verify(function_ref<InFlightDiagnostic()> emitError,
            << "vector types must have positive constant sizes but got "
            << shape;
 
+  if (scalableDims.size() != shape.size())
+    return emitError() << "number of dims must match, got "
+                       << scalableDims.size() << " and " << shape.size();
+
   return success();
 }
 
@@ -246,17 +252,17 @@ VectorType VectorType::scaleElementBitwidth(unsigned scale) {
     return VectorType();
   if (auto et = llvm::dyn_cast<IntegerType>(getElementType()))
     if (auto scaledEt = et.scaleElementBitwidth(scale))
-      return VectorType::get(getShape(), scaledEt, getNumScalableDims());
+      return VectorType::get(getShape(), scaledEt, getScalableDims());
   if (auto et = llvm::dyn_cast<FloatType>(getElementType()))
     if (auto scaledEt = et.scaleElementBitwidth(scale))
-      return VectorType::get(getShape(), scaledEt, getNumScalableDims());
+      return VectorType::get(getShape(), scaledEt, getScalableDims());
   return VectorType();
 }
 
 VectorType VectorType::cloneWith(std::optional<ArrayRef<int64_t>> shape,
                                  Type elementType) const {
   return VectorType::get(shape.value_or(getShape()), elementType,
-                         getNumScalableDims());
+                         getScalableDims());
 }
 
 //===----------------------------------------------------------------------===//

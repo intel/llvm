@@ -182,14 +182,13 @@ private:
   bool doPeepholeMaskedRVV(SDNode *Node);
   bool doPeepholeMergeVVMFold();
   bool performVMergeToVMv(SDNode *N);
-  bool performCombineVMergeAndVOps(SDNode *N, bool IsTA);
+  bool performCombineVMergeAndVOps(SDNode *N);
 };
 
 namespace RISCV {
 struct VLSEGPseudo {
   uint16_t NF : 4;
   uint16_t Masked : 1;
-  uint16_t IsTU : 1;
   uint16_t Strided : 1;
   uint16_t FF : 1;
   uint16_t Log2SEW : 3;
@@ -200,7 +199,6 @@ struct VLSEGPseudo {
 struct VLXSEGPseudo {
   uint16_t NF : 4;
   uint16_t Masked : 1;
-  uint16_t IsTU : 1;
   uint16_t Ordered : 1;
   uint16_t Log2SEW : 3;
   uint16_t LMUL : 3;
@@ -229,7 +227,6 @@ struct VSXSEGPseudo {
 
 struct VLEPseudo {
   uint16_t Masked : 1;
-  uint16_t IsTU : 1;
   uint16_t Strided : 1;
   uint16_t FF : 1;
   uint16_t Log2SEW : 3;
@@ -247,7 +244,6 @@ struct VSEPseudo {
 
 struct VLX_VSXPseudo {
   uint16_t Masked : 1;
-  uint16_t IsTU : 1;
   uint16_t Ordered : 1;
   uint16_t Log2SEW : 3;
   uint16_t LMUL : 3;
@@ -258,7 +254,6 @@ struct VLX_VSXPseudo {
 struct RISCVMaskedPseudoInfo {
   uint16_t MaskedPseudo;
   uint16_t UnmaskedPseudo;
-  uint16_t UnmaskedTUPseudo;
   uint8_t MaskOpIdx;
 };
 

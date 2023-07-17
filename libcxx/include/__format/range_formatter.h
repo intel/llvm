@@ -15,13 +15,11 @@
 #endif
 
 #include <__algorithm/ranges_copy.h>
-#include <__availability>
 #include <__chrono/statically_widen.h>
 #include <__concepts/same_as.h>
 #include <__config>
 #include <__format/buffer.h>
 #include <__format/concepts.h>
-#include <__format/format_args.h>
 #include <__format/format_context.h>
 #include <__format/format_error.h>
 #include <__format/formatter.h>
@@ -263,8 +261,9 @@ private:
   __parse_empty_range_underlying_spec(_ParseContext& __ctx, typename _ParseContext::iterator __begin) {
     __ctx.advance_to(__begin);
     [[maybe_unused]] typename _ParseContext::iterator __result = __underlying_.parse(__ctx);
-    _LIBCPP_ASSERT(__result == __begin,
-                   "the underlying's parse function should not advance the input beyond the end of the input");
+    _LIBCPP_ASSERT_UNCATEGORIZED(
+        __result == __begin,
+        "the underlying's parse function should not advance the input beyond the end of the input");
     return __begin;
   }
 

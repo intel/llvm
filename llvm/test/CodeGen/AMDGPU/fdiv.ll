@@ -145,7 +145,27 @@ entry:
   ret void
 }
 
-; FUNC-LABEL: {{^}}fdiv_f32_arcp_math:
+; FUNC-LABEL: {{^}}fdiv_f32_arcp_daz:
+; GCN: v_div_scale_f32
+; GCN-DAG: v_rcp_f32
+; GCN-DAG: v_div_scale_f32
+; GCN: {{s_setreg_imm32_b32|s_denorm_mode}}
+; GCN: v_fma{{c?}}_f32
+; GCN: v_fma{{c?}}_f32
+; GCN: v_fma{{c?}}_f32
+; GCN: v_fma{{c?}}_f32
+; GCN: {{s_setreg_imm32_b32|s_denorm_mode}}
+; GCN: v_div_fmas_f32
+; GCN: v_div_fixup_f32
+; GCN-NOT: v_mul_f32
+define amdgpu_kernel void @fdiv_f32_arcp_daz(ptr addrspace(1) %out, float %a, float %b) #0 {
+entry:
+  %fdiv = fdiv arcp float %a, %b
+  store float %fdiv, ptr addrspace(1) %out
+  ret void
+}
+
+; FUNC-LABEL: {{^}}fdiv_f32_arcp_ninf:
 ; R600-DAG: RECIP_IEEE * T{{[0-9]+\.[XYZW]}}, KC0[2].W
 ; R600-DAG: MUL_IEEE {{\** *}}T{{[0-9]+\.[XYZW]}}, PS, KC0[2].Z,
 
@@ -153,7 +173,7 @@ entry:
 ; GCN: v_mul_f32_e32 [[RESULT:v[0-9]+]], s{{[0-9]+}}, [[RCP]]
 ; GCN-NOT: [[RESULT]]
 ; GCN: buffer_store_{{dword|b32}} [[RESULT]]
-define amdgpu_kernel void @fdiv_f32_arcp_math(ptr addrspace(1) %out, float %a, float %b) #0 {
+define amdgpu_kernel void @fdiv_f32_arcp_ninf(ptr addrspace(1) %out, float %a, float %b) #0 {
 entry:
   %fdiv = fdiv arcp ninf float %a, %b
   store float %fdiv, ptr addrspace(1) %out
@@ -350,8 +370,20 @@ entry:
   ret void
 }
 
+; FUNC-LABEL: {{^}}v_fdiv_f32_dynamic_denorm:
+; PREGFX10: s_setreg_imm32_b32 hwreg(HW_REG_MODE, 4, 2), 3
+; GFX10: s_denorm_mode 15
+
+; PREGFX10: s_setreg_imm32_b32 hwreg(HW_REG_MODE, 4, 2), 0
+; GFX10: s_denorm_mode 12
+define float @v_fdiv_f32_dynamic_denorm(float %a, float %b) #3 {
+  %fdiv = fdiv float %a, %b
+  ret float %fdiv
+}
+
 attributes #0 = { nounwind "enable-unsafe-fp-math"="false" "denormal-fp-math-f32"="preserve-sign,preserve-sign" "target-features"="-flat-for-global" }
 attributes #1 = { nounwind "enable-unsafe-fp-math"="true" "denormal-fp-math-f32"="preserve-sign,preserve-sign" "target-features"="-flat-for-global" }
 attributes #2 = { nounwind "enable-unsafe-fp-math"="false" "denormal-fp-math-f32"="ieee,ieee" "target-features"="-flat-for-global" }
+attributes #3 = { nounwind "denormal-fp-math-f32"="dynamic,dynamic" "target-features"="-flat-for-global" }
 
 !0 = !{float 2.500000e+00}

@@ -62,6 +62,36 @@ LogicalResult acc::DataBoundsOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// PrivateOp
+//===----------------------------------------------------------------------===//
+LogicalResult acc::PrivateOp::verify() {
+  if (getDataClause() != acc::DataClause::acc_private)
+    return emitError(
+        "data clause associated with private operation must match its intent");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// FirstprivateOp
+//===----------------------------------------------------------------------===//
+LogicalResult acc::FirstprivateOp::verify() {
+  if (getDataClause() != acc::DataClause::acc_firstprivate)
+    return emitError("data clause associated with firstprivate operation must "
+                     "match its intent");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// ReductionOp
+//===----------------------------------------------------------------------===//
+LogicalResult acc::ReductionOp::verify() {
+  if (getDataClause() != acc::DataClause::acc_reduction)
+    return emitError("data clause associated with reduction operation must "
+                     "match its intent");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // DevicePtrOp
 //===----------------------------------------------------------------------===//
 LogicalResult acc::DevicePtrOp::verify() {
@@ -416,7 +446,7 @@ LogicalResult acc::FirstprivateRecipeOp::verifyRegions() {
 LogicalResult acc::ReductionRecipeOp::verifyRegions() {
   if (failed(verifyInitLikeSingleArgRegion(*this, getInitRegion(), "reduction",
                                            "init", getType(),
-                                           /*verifyYield=*/true)))
+                                           /*verifyYield=*/false)))
     return failure();
 
   if (getCombinerRegion().empty())
@@ -543,7 +573,7 @@ unsigned ParallelOp::getNumDataOperands() {
 
 Value ParallelOp::getDataOperand(unsigned i) {
   unsigned numOptional = getAsync() ? 1 : 0;
-  numOptional += getNumGangs() ? 1 : 0;
+  numOptional += getNumGangs().size();
   numOptional += getNumWorkers() ? 1 : 0;
   numOptional += getVectorLength() ? 1 : 0;
   numOptional += getIfCond() ? 1 : 0;
@@ -560,6 +590,8 @@ LogicalResult acc::ParallelOp::verify() {
           *this, getReductionRecipes(), getReductionOperands(), "reduction",
           "reductions", false)))
     return failure();
+  if (getNumGangs().size() > 3)
+    return emitOpError() << "num_gangs expects a maximum of 3 values";
   return checkDataOperands<acc::ParallelOp>(*this, getDataClauseOperands());
 }
 
@@ -601,12 +633,18 @@ unsigned KernelsOp::getNumDataOperands() {
 
 Value KernelsOp::getDataOperand(unsigned i) {
   unsigned numOptional = getAsync() ? 1 : 0;
+  numOptional += getWaitOperands().size();
+  numOptional += getNumGangs().size();
+  numOptional += getNumWorkers() ? 1 : 0;
+  numOptional += getVectorLength() ? 1 : 0;
   numOptional += getIfCond() ? 1 : 0;
   numOptional += getSelfCond() ? 1 : 0;
-  return getOperand(getWaitOperands().size() + numOptional + i);
+  return getOperand(numOptional + i);
 }
 
 LogicalResult acc::KernelsOp::verify() {
+  if (getNumGangs().size() > 3)
+    return emitOpError() << "num_gangs expects a maximum of 3 values";
   return checkDataOperands<acc::KernelsOp>(*this, getDataClauseOperands());
 }
 
@@ -615,11 +653,11 @@ LogicalResult acc::KernelsOp::verify() {
 //===----------------------------------------------------------------------===//
 
 LogicalResult acc::HostDataOp::verify() {
-  if (getDataOperands().empty())
+  if (getDataClauseOperands().empty())
     return emitError("at least one operand must appear on the host_data "
                      "operation");
 
-  for (mlir::Value operand : getDataOperands())
+  for (mlir::Value operand : getDataClauseOperands())
     if (!mlir::isa<acc::UseDeviceOp>(operand.getDefiningOp()))
       return emitError("expect data entry operation as defining op");
   return success();
@@ -829,6 +867,8 @@ unsigned DataOp::getNumDataOperands() { return getDataClauseOperands().size(); }
 
 Value DataOp::getDataOperand(unsigned i) {
   unsigned numOptional = getIfCond() ? 1 : 0;
+  numOptional += getAsync() ? 1 : 0;
+  numOptional += getWaitOperands().size();
   return getOperand(numOptional + i);
 }
 

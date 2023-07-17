@@ -69,10 +69,6 @@ public:
   virtual bool applyValidRelocs(MutableArrayRef<char> Data, uint64_t BaseOffset,
                                 bool IsLittleEndian) = 0;
 
-  /// Returns all valid functions address ranges(i.e., those ranges
-  /// which points to sections with code).
-  virtual RangesTy &getValidAddressRanges() = 0;
-
   /// Erases all data.
   virtual void clear() = 0;
 };
@@ -359,9 +355,11 @@ public:
 
   /// Add kind of accelerator tables to be generated.
   void addAccelTableKind(AccelTableKind Kind) {
-    assert(std::find(Options.AccelTables.begin(), Options.AccelTables.end(),
-                     Kind) == Options.AccelTables.end());
+    assert(!llvm::is_contained(Options.AccelTables, Kind));
     Options.AccelTables.emplace_back(Kind);
+
+    if (Kind == AccelTableKind::Apple)
+      Options.CanStripTemplateName = true;
   }
 
   /// Set prepend path for clang modules.
@@ -544,10 +542,9 @@ private:
   /// keep. Store that information in \p CU's DIEInfo.
   ///
   /// The return value indicates whether the DIE is incomplete.
-  void lookForDIEsToKeep(AddressesMap &RelocMgr, RangesTy &Ranges,
-                         const UnitListTy &Units, const DWARFDie &DIE,
-                         const DWARFFile &File, CompileUnit &CU,
-                         unsigned Flags);
+  void lookForDIEsToKeep(AddressesMap &RelocMgr, const UnitListTy &Units,
+                         const DWARFDie &DIE, const DWARFFile &File,
+                         CompileUnit &CU, unsigned Flags);
 
   /// Check whether specified \p CUDie is a Clang module reference.
   /// if \p Quiet is false then display error messages.
@@ -583,25 +580,26 @@ private:
                         OffsetsStringPool &DebugLineStrPool,
                         unsigned Indent = 0);
 
-  unsigned shouldKeepDIE(AddressesMap &RelocMgr, RangesTy &Ranges,
-                         const DWARFDie &DIE, const DWARFFile &File,
-                         CompileUnit &Unit, CompileUnit::DIEInfo &MyInfo,
-                         unsigned Flags);
+  unsigned shouldKeepDIE(AddressesMap &RelocMgr, const DWARFDie &DIE,
+                         const DWARFFile &File, CompileUnit &Unit,
+                         CompileUnit::DIEInfo &MyInfo, unsigned Flags);
 
   /// This function checks whether variable has DWARF expression containing
   /// operation referencing live address(f.e. DW_OP_addr, DW_OP_addrx...).
-  /// \returns relocation adjustment value if live address is referenced.
-  std::optional<int64_t> getVariableRelocAdjustment(AddressesMap &RelocMgr,
-                                                    const DWARFDie &DIE);
+  /// \returns first is true if the expression has an operation referencing an
+  /// address.
+  ///          second is the relocation adjustment value if the live address is
+  ///          referenced.
+  std::pair<bool, std::optional<int64_t>>
+  getVariableRelocAdjustment(AddressesMap &RelocMgr, const DWARFDie &DIE);
 
   /// Check if a variable describing DIE should be kept.
   /// \returns updated TraversalFlags.
   unsigned shouldKeepVariableDIE(AddressesMap &RelocMgr, const DWARFDie &DIE,
                                  CompileUnit::DIEInfo &MyInfo, unsigned Flags);
 
-  unsigned shouldKeepSubprogramDIE(AddressesMap &RelocMgr, RangesTy &Ranges,
-                                   const DWARFDie &DIE, const DWARFFile &File,
-                                   CompileUnit &Unit,
+  unsigned shouldKeepSubprogramDIE(AddressesMap &RelocMgr, const DWARFDie &DIE,
+                                   const DWARFFile &File, CompileUnit &Unit,
                                    CompileUnit::DIEInfo &MyInfo,
                                    unsigned Flags);
 
@@ -798,8 +796,7 @@ private:
   void emitAcceleratorEntriesForUnit(CompileUnit &Unit);
 
   /// Patch the frame info for an object file and emit it.
-  void patchFrameInfoForObject(const DWARFFile &, RangesTy &Ranges,
-                               DWARFContext &, unsigned AddressSize);
+  void patchFrameInfoForObject(LinkContext &Context);
 
   /// FoldingSet that uniques the abbreviations.
   FoldingSet<DIEAbbrev> AbbreviationsSet;
@@ -883,6 +880,7 @@ private:
 
     /// The accelerator table kinds
     SmallVector<AccelTableKind, 1> AccelTables;
+    bool CanStripTemplateName = false;
 
     /// Prepend path for the clang modules.
     std::string PrependPath;

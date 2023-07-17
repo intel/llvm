@@ -17,6 +17,9 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "dataflow"
 
 namespace clang {
 namespace dataflow {
@@ -70,13 +73,12 @@ public:
 /// that all of the members of a given union have the same storage location.
 class AggregateStorageLocation final : public StorageLocation {
 public:
-  explicit AggregateStorageLocation(QualType Type)
-      : AggregateStorageLocation(
-            Type, llvm::DenseMap<const ValueDecl *, StorageLocation *>()) {}
+  using FieldToLoc = llvm::DenseMap<const ValueDecl *, StorageLocation *>;
 
-  AggregateStorageLocation(
-      QualType Type,
-      llvm::DenseMap<const ValueDecl *, StorageLocation *> Children)
+  explicit AggregateStorageLocation(QualType Type)
+      : AggregateStorageLocation(Type, FieldToLoc()) {}
+
+  AggregateStorageLocation(QualType Type, FieldToLoc Children)
       : StorageLocation(Kind::Aggregate, Type), Children(std::move(Children)) {}
 
   static bool classof(const StorageLocation *Loc) {
@@ -86,15 +88,32 @@ public:
   /// Returns the child storage location for `D`.
   StorageLocation &getChild(const ValueDecl &D) const {
     auto It = Children.find(&D);
+    LLVM_DEBUG({
+      if (It == Children.end()) {
+        llvm::dbgs() << "Couldn't find child " << D.getNameAsString()
+                     << " on StorageLocation " << this << " of type "
+                     << getType() << "\n";
+        llvm::dbgs() << "Existing children:\n";
+        for ([[maybe_unused]] auto [Field, Loc] : Children) {
+          llvm::dbgs() << Field->getNameAsString() << "\n";
+        }
+      }
+    });
     assert(It != Children.end());
     return *It->second;
   }
 
+  llvm::iterator_range<FieldToLoc::const_iterator> children() const {
+    return {Children.begin(), Children.end()};
+  }
+
 private:
-  llvm::DenseMap<const ValueDecl *, StorageLocation *> Children;
+  FieldToLoc Children;
 };
 
 } // namespace dataflow
 } // namespace clang
+
+#undef DEBUG_TYPE
 
 #endif // LLVM_CLANG_ANALYSIS_FLOWSENSITIVE_STORAGELOCATION_H

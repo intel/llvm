@@ -362,6 +362,7 @@ StringRef MCSymbolRefExpr::getVariantKindName(VariantKind Kind) {
   case VK_WASM_TLSREL: return "TLSREL";
   case VK_WASM_TBREL: return "TBREL";
   case VK_WASM_GOT_TLS: return "GOT@TLS";
+  case VK_WASM_FUNCINDEX: return "FUNCINDEX";
   case VK_AMDGPU_GOTPCREL32_LO: return "gotpcrel32@lo";
   case VK_AMDGPU_GOTPCREL32_HI: return "gotpcrel32@hi";
   case VK_AMDGPU_REL32_LO: return "rel32@lo";
@@ -505,6 +506,7 @@ MCSymbolRefExpr::getVariantKindForName(StringRef Name) {
     .Case("mbrel", VK_WASM_MBREL)
     .Case("tlsrel", VK_WASM_TLSREL)
     .Case("got@tls", VK_WASM_GOT_TLS)
+    .Case("funcindex", VK_WASM_FUNCINDEX)
     .Case("gotpcrel32@lo", VK_AMDGPU_GOTPCREL32_LO)
     .Case("gotpcrel32@hi", VK_AMDGPU_GOTPCREL32_HI)
     .Case("rel32@lo", VK_AMDGPU_REL32_LO)
@@ -659,10 +661,38 @@ static void AttemptToFoldSymbolOffsetDifference(
 
     // Try to find a constant displacement from FA to FB, add the displacement
     // between the offset in FA of SA and the offset in FB of SB.
+    bool Reverse = false;
+    if (FA == FB) {
+      Reverse = SA.getOffset() < SB.getOffset();
+    } else if (!isa<MCDummyFragment>(FA)) {
+      Reverse = std::find_if(std::next(FA->getIterator()), SecA.end(),
+                             [&](auto &I) { return &I == FB; }) != SecA.end();
+    }
+
+    uint64_t SAOffset = SA.getOffset(), SBOffset = SB.getOffset();
     int64_t Displacement = SA.getOffset() - SB.getOffset();
-    bool Found = false;
+    if (Reverse) {
+      std::swap(FA, FB);
+      std::swap(SAOffset, SBOffset);
+      Displacement *= -1;
+    }
+
+    [[maybe_unused]] bool Found = false;
+    // Track whether B is before a relaxable instruction and whether A is after
+    // a relaxable instruction. If SA and SB are separated by a linker-relaxable
+    // instruction, the difference cannot be resolved as it may be changed by
+    // the linker.
+    bool BBeforeRelax = false, AAfterRelax = false;
     for (auto FI = FB->getIterator(), FE = SecA.end(); FI != FE; ++FI) {
       auto DF = dyn_cast<MCDataFragment>(FI);
+      if (DF && DF->isLinkerRelaxable()) {
+        if (&*FI != FB || SBOffset != DF->getContents().size())
+          BBeforeRelax = true;
+        if (&*FI != FA || SAOffset == DF->getContents().size())
+          AAfterRelax = true;
+        if (BBeforeRelax && AAfterRelax)
+          return;
+      }
       if (&*FI == FA) {
         Found = true;
         break;
@@ -678,13 +708,12 @@ static void AttemptToFoldSymbolOffsetDifference(
         return;
       }
     }
-    // If FA is found or if FA is a dummy fragment not in the fragment list,
-    // (which means SA is a pending label (see flushPendingLabels)), we can
-    // resolve the difference.
-    if (Found || isa<MCDummyFragment>(FA)) {
-      Addend += Displacement;
-      FinalizeFolding();
-    }
+    // If the previous loop does not find FA, FA must be a dummy fragment not in
+    // the fragment list (which means SA is a pending label (see
+    // flushPendingLabels)). In either case, we can resolve the difference.
+    assert(Found || isa<MCDummyFragment>(FA));
+    Addend += Reverse ? -Displacement : Displacement;
+    FinalizeFolding();
   }
 }
 
