@@ -14,6 +14,7 @@
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_REACHINGDEFINITIONANALYSIS_H
 
 #include "mlir/Analysis/DataFlow/DenseAnalysis.h"
+#include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "mlir/Dialect/Polygeist/Utils/AliasUtils.h"
 #include <set>
 #include <variant>
@@ -105,10 +106,12 @@ public:
   ChangeResult removePotentialModifiers(Value val);
 
   /// Get the definitions that have modified \p val.
-  std::optional<ModifiersTy> getModifiers(Value val) const;
+  std::optional<ModifiersTy> getModifiers(Value val,
+                                          DataFlowSolver &solver) const;
 
   /// Get the definition that have possibly modified \p val.
-  std::optional<ModifiersTy> getPotentialModifiers(Value val) const;
+  std::optional<ModifiersTy>
+  getPotentialModifiers(Value val, DataFlowSolver &solver) const;
 
   /// Return the unique definition for the operand at index \p opIndex in
   /// operation \p op, or std::nullopt if it does not have a unique definition.
@@ -127,6 +130,15 @@ private:
   DenseMap<Value, ModifiersTy> valueToPotentialModifiers;
 };
 
+/// A dense dataflow analysis used to determine the reaching definitions (def)
+/// and potentially reaching definition (pdef) of a value loaded from memory. A
+/// reaching definition is one that definitely modifies the value loaded from
+/// memory. A potentially reaching definition is one that might modify the value
+/// loaded from memory in a particular control flow path from a function entry
+/// point to the load operation.
+/// This analysis uses alias analysis to determine the def(s)/pdef(s) of a value
+/// loaded from memory that might occur if the pointer/memref dereferenced by
+/// the load operation is possibly aliased to another pointer/memref.
 class ReachingDefinitionAnalysis
     : public dataflow::DenseDataFlowAnalysis<ReachingDefinition> {
 public:
@@ -152,7 +164,78 @@ public:
 
 private:
   DenseMap<FunctionOpInterface, std::unique_ptr<AliasOracle>> aliasOracles;
-  mlir::AliasAnalysis &aliasAnalysis;
+  AliasAnalysis &aliasAnalysis;
+};
+
+/// A class representing the value a formal argument of a function has in the
+/// caller of the function.
+class UnderlyingValue {
+  friend raw_ostream &operator<<(raw_ostream &, const UnderlyingValue &);
+
+public:
+  /// Create an underlying value state with a known underlying value.
+  explicit UnderlyingValue(std::optional<Value> val = std::nullopt)
+      : val(val) {}
+
+  /// Whether the state is uninitialized.
+  bool isUninitialized() const { return !val.has_value(); }
+
+  /// Returns the underlying value.
+  Value get() const {
+    assert(!isUninitialized() && "Expecting the state to be initialized");
+    return *val;
+  }
+
+  /// Join two underlying values. If there are conflicting underlying values,
+  /// go to the pessimistic value.
+  static UnderlyingValue join(const UnderlyingValue &lhs,
+                              const UnderlyingValue &rhs) {
+    if (lhs.isUninitialized())
+      return rhs;
+    if (rhs.isUninitialized())
+      return lhs;
+    return lhs.val == rhs.val ? lhs : UnderlyingValue(Value{});
+  }
+
+  /// Compare underlying values.
+  bool operator==(const UnderlyingValue &rhs) const { return val == rhs.val; }
+
+  void print(raw_ostream &os) const { os << val; }
+
+private:
+  std::optional<Value> val;
+};
+
+struct UnderlyingValueLattice : public dataflow::Lattice<UnderlyingValue> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(UnderlyingValueLattice)
+  using Lattice::Lattice;
+};
+
+/// An analysis that uses forwarding of values along control-flow and callgraph
+/// edges to determine single underlying values for block arguments.
+class UnderlyingValueAnalysis
+    : public dataflow::SparseDataFlowAnalysis<UnderlyingValueLattice> {
+public:
+  using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
+
+  /// Recursively retrieve the underlying value for \p value given the access
+  /// function \p getUnderlyingValFn.
+  static Value getMostUnderlyingValue(
+      Value value,
+      function_ref<const UnderlyingValueLattice *(Value)> getUnderlyingValFn);
+
+  /// The underlying value of the results of an operation are unknown.
+  void visitOperation(Operation *op,
+                      ArrayRef<const UnderlyingValueLattice *> operands,
+                      ArrayRef<UnderlyingValueLattice *> results) override {
+    setAllToEntryStates(results);
+  }
+
+  /// At an entry point, the underlying value of a value is itself.
+  void setToEntryState(UnderlyingValueLattice *lattice) override {
+    propagateIfChanged(lattice,
+                       lattice->join(UnderlyingValue{lattice->getPoint()}));
+  }
 };
 
 } // namespace polygeist

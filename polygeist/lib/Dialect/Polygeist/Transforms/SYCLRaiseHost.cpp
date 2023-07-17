@@ -29,6 +29,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
 
+#include <llvm/ADT/STLExtras.h>
 #include <type_traits>
 
 namespace mlir {
@@ -87,6 +88,10 @@ private:
   std::unique_ptr<char[]> buf;
   std::size_t size;
 };
+
+static Type getEmptyBodyType(MLIRContext *ctx) {
+  return LLVM::LLVMVoidType::get(ctx);
+}
 
 /// Returns whether function \p demangled is a member of type \p targetType in
 /// namespace \p targetNamespace.
@@ -579,7 +584,7 @@ public:
         // for the analyses. However, leaving the body types empty leads to
         // problems when parsing an MLIR file containing such an accessor type
         // with empty body type list. Therefore, simply put !llvm.void for now.
-        LLVM::LLVMVoidType::get(constructor->getContext()));
+        getEmptyBodyType(constructor->getContext()));
   }
 
 private:
@@ -786,11 +791,411 @@ private:
   llvm::Regex regex;
 };
 
+class NDRangeTypeTag {
+public:
+  using SYCLType = mlir::sycl::NdRangeType;
+
+  NDRangeTypeTag() : regex{"class.sycl::_V1::nd_range(\\.[0-9]+])?"} {}
+
+  const llvm::Regex &getTypeName() const { return regex; }
+
+  /// Translate an LLVM type to a SYCL type. Do not care about the body.
+  static sycl::NdRangeType translateLLVMType(Type type) {
+    auto st = cast<LLVM::LLVMStructType>(type);
+    auto rt = cast<LLVM::LLVMStructType>(st.getBody()[0]);
+    auto at = cast<LLVM::LLVMStructType>(rt.getBody()[0]);
+    unsigned dimensions =
+        cast<LLVM::LLVMArrayType>(at.getBody()[0]).getNumElements();
+    return sycl::NdRangeType::get(type.getContext(), dimensions,
+                                  getEmptyBodyType(type.getContext()));
+  }
+
+private:
+  llvm::Regex regex;
+};
+
 struct RaiseRangeConstructor
     : public RaiseArrayConstructorBasePattern<RangeTypeTag> {
   using RaiseArrayConstructorBasePattern<
       RangeTypeTag>::RaiseArrayConstructorBasePattern;
 };
+
+class RaiseNDRangeConstructor
+    : public OpInterfaceHostRaisePattern<FunctionOpInterface> {
+public:
+  using OpInterfaceHostRaisePattern<
+      FunctionOpInterface>::OpInterfaceHostRaisePattern;
+
+  LogicalResult matchAndRewrite(FunctionOpInterface op,
+                                PatternRewriter &rewriter) const final {
+    // Gather every alloca
+    SmallVector<LLVM::AllocaOp> allocas;
+    op.walk([&](LLVM::AllocaOp alloca) { allocas.push_back(alloca); });
+
+    // Try to raise constructors from allocas
+    bool changed = false;
+    for (LLVM::AllocaOp alloca : allocas) {
+      if (succeeded(raiseAlloca(op, alloca, rewriter)))
+        changed = true;
+    }
+
+    return success(changed);
+  }
+
+private:
+  /// Struct representing the initialzers of an nd_range
+  class Initializers {
+  public:
+    /// Create a new instance from alloca \p alloc. The nd_range to initialize
+    /// has \p dimensions dimensions.
+    static FailureOr<Initializers>
+    get(LLVM::AllocaOp alloc, const NDRangeTypeTag &tag, unsigned dimensions);
+
+    Initializers() = delete;
+
+    /// Return an ArrayRef containing the operations used to initialize the
+    /// nd_range or an error if it is bad formed.
+    FailureOr<ArrayRef<Operation *>> getGlobalSizeInitializers() const {
+      return shrunk(globalSizeInitializers);
+    }
+    FailureOr<ArrayRef<Operation *>> getLocalSizeInitializers() const {
+      return shrunk(localSizeInitializers);
+    }
+    FailureOr<ArrayRef<Operation *>> getOffsetInitializers() const {
+      return shrunk(offsetInitializers);
+    }
+
+  private:
+    static FailureOr<ArrayRef<Operation *>> shrunk(ArrayRef<Operation *> ops) {
+      // Find first null operation
+      auto end = llvm::find(ops, nullptr);
+      // Check no operation right of end is set
+      if (std::any_of(end, ops.end(), llvm::identity<Operation *>()))
+        return failure();
+      return ArrayRef<Operation *>(ops.begin(), end);
+    }
+
+    FailureOr<std::pair<std::size_t, std::size_t>>
+    getIndices(LLVM::GEPOp gep, const NDRangeTypeTag &tag) const;
+
+    explicit Initializers(unsigned dimensions) : dimensions(dimensions) {
+      assert(0 < dimensions && dimensions <= 3 &&
+             "Invalid number of dimensions");
+      globalSizeInitializers.fill(nullptr);
+      localSizeInitializers.fill(nullptr);
+      offsetInitializers.fill(nullptr);
+    }
+
+    LogicalResult handle(LLVM::StoreOp store, LLVM::AllocaOp alloc,
+                         const NDRangeTypeTag &tag);
+    LogicalResult handle(LLVM::MemcpyOp memcpy, LLVM::AllocaOp alloc,
+                         const NDRangeTypeTag &tag);
+    LogicalResult handle(LLVM::GEPOp gep, LLVM::AllocaOp alloc,
+                         const NDRangeTypeTag &tag);
+
+    /// Returns whether this is a valid sequence of initializers
+    LogicalResult checkValidity() const;
+
+    /// Safely stores an operation. Will return failure if the setting cannot be
+    /// done safely.
+    LogicalResult set(std::size_t i, std::size_t j, Operation *op) {
+      if (i > 2 || j >= dimensions)
+        return failure();
+      auto &initializers = [&]() -> std::array<Operation *, 3> & {
+        switch (i) {
+        case 0:
+          return globalSizeInitializers;
+        case 1:
+          return localSizeInitializers;
+        case 2:
+          return offsetInitializers;
+        default:
+          llvm_unreachable("Invalid index");
+        }
+      }();
+      Operation *&ref = initializers[j];
+      if (ref)
+        return failure();
+      ref = op;
+      return success();
+    }
+
+    unsigned dimensions;
+    std::array<Operation *, 3> globalSizeInitializers;
+    std::array<Operation *, 3> localSizeInitializers;
+    std::array<Operation *, 3> offsetInitializers;
+  };
+
+  LogicalResult raiseAlloca(FunctionOpInterface func, LLVM::AllocaOp alloc,
+                            PatternRewriter &rewriter) const {
+    assert(alloc.getElemType().has_value() &&
+           "Expecting element type attribute for opaque alloca");
+
+    // Check whether the type allocated matches the expected type.
+    Type elemType = *alloc.getElemType();
+    if (!isClassType(elemType, tag.getTypeName()))
+      return failure();
+
+    // Get the constructed type early to check number of dimensions
+    OpBuilder::InsertionGuard IG(rewriter);
+    sycl::NdRangeType constructedType = tag.translateLLVMType(elemType);
+    FailureOr<std::array<Value, 3>> args =
+        getArgs(func, alloc, constructedType.getDimension(), rewriter);
+    if (failed(args))
+      return failure();
+
+    // Drop default offset initializer
+    ArrayRef<Value> argsRef(*args);
+    if (!argsRef[1])
+      argsRef = argsRef.drop_back(2);
+    else if (!argsRef.back())
+      argsRef = argsRef.drop_back();
+
+    rewriter.updateRootInPlace(func, [&] {
+      rewriter.create<sycl::SYCLHostConstructorOp>(
+          UnknownLoc::get(alloc.getContext()), alloc, argsRef,
+          TypeAttr::get(constructedType));
+    });
+
+    return success();
+  }
+
+  /// Returns the arguments to be passed to the sycl.host.constructor operation.
+  ///
+  /// Also sets rewriter to the correct insertion point.
+  FailureOr<std::array<Value, 3>> getArgs(FunctionOpInterface func,
+                                          LLVM::AllocaOp alloc,
+                                          unsigned dimensions,
+                                          PatternRewriter &rewriter) const;
+
+  NDRangeTypeTag tag;
+};
+
+LogicalResult RaiseNDRangeConstructor::Initializers::handle(
+    LLVM::StoreOp store, LLVM::AllocaOp alloc, const NDRangeTypeTag &) {
+  if (store.getAddr().getDefiningOp() == alloc)
+    return set(0, 0, store);
+  return success();
+}
+
+LogicalResult RaiseNDRangeConstructor::Initializers::handle(
+    LLVM::MemcpyOp memcpy, LLVM::AllocaOp alloc, const NDRangeTypeTag &) {
+  if (memcpy.getDst().getDefiningOp() == alloc)
+    return set(0, 0, memcpy);
+  return success();
+}
+
+FailureOr<std::pair<std::size_t, std::size_t>>
+RaiseNDRangeConstructor::Initializers::getIndices(
+    LLVM::GEPOp gep, const NDRangeTypeTag &tag) const {
+  if (!gep.getDynamicIndices().empty())
+    // Do not allow dynamic indices
+    return failure();
+
+  Type type = *gep.getElemType();
+  if (isClassType(type, tag.getTypeName())) {
+    // nd_range case
+    ArrayRef<int32_t> indices = gep.getRawConstantIndices();
+    std::size_t numIndices = indices.size();
+    switch (numIndices) {
+    case 2:
+      return std::pair<std::size_t, std::size_t>(indices[1], 0);
+    case 5:
+      return std::pair<std::size_t, std::size_t>(indices[1], indices[4]);
+    default:
+      return failure();
+    }
+  }
+  // i8 case
+  if (!type.isInteger(8))
+    return failure();
+  ArrayRef<int32_t> indices = gep.getRawConstantIndices();
+  assert(indices.size() == 1 && "Expecting a single index");
+
+  auto ndType = cast<LLVM::LLVMStructType>(
+      *gep.getBase().getDefiningOp<LLVM::AllocaOp>().getElemType());
+  assert(isClassType(ndType, tag.getTypeName()) && "Using wrong alloca");
+  auto rt = cast<LLVM::LLVMStructType>(ndType.getBody()[0]);
+  auto at = cast<LLVM::LLVMStructType>(rt.getBody()[0]);
+  Type indexType = cast<LLVM::LLVMArrayType>(at.getBody()[0]).getElementType();
+  unsigned indexWidth = indexType.getIntOrFloatBitWidth() / 8;
+
+  std::size_t offset = indices.front();
+  assert(offset % indexWidth == 0 && "Unaligned GEP");
+  offset /= indexWidth;
+  assert(offset < dimensions * 3 && "Out of bounds GEP");
+  return std::pair<std::size_t, std::size_t>(offset / dimensions,
+                                             offset % dimensions);
+} // namespace
+
+LogicalResult RaiseNDRangeConstructor::Initializers::handle(
+    LLVM::GEPOp gep, LLVM::AllocaOp alloc, const NDRangeTypeTag &tag) {
+  assert(gep.getElemType().has_value() &&
+         "Expecting element type attribute for opaque alloca");
+
+  auto memcpyUsers = llvm::make_filter_range(
+      getUsersOfType<LLVM::MemcpyOp>(gep),
+      [=](auto op) { return op.getDst().getDefiningOp() == gep; });
+  auto storeUsers =
+      llvm::make_filter_range(getUsersOfType<LLVM::StoreOp>(gep), [=](auto op) {
+        return op.getAddr().getDefiningOp() == gep;
+      });
+  constexpr auto isSingleton = [](auto range) {
+    return std::next(range.begin()) == range.end();
+  };
+  Operation *op;
+  if (memcpyUsers.empty()) {
+    if (storeUsers.empty())
+      return success();
+    if (!isSingleton(storeUsers))
+      return failure();
+    // Handle store
+    op = *storeUsers.begin();
+  } else if (storeUsers.empty()) {
+    if (!isSingleton(memcpyUsers))
+      return failure();
+    // Handle memcpy
+    op = *memcpyUsers.begin();
+  } else {
+    return failure();
+  }
+  assert(op && "Operation not set");
+  auto failureOrIndices = getIndices(gep, tag);
+  if (failed(failureOrIndices))
+    return failure();
+  const auto &[componentIndex, dimensionIndex] = *failureOrIndices;
+  return set(componentIndex, dimensionIndex, op);
+}
+
+FailureOr<std::array<Value, 3>>
+RaiseNDRangeConstructor::getArgs(FunctionOpInterface func, LLVM::AllocaOp alloc,
+                                 unsigned dimensions,
+                                 PatternRewriter &rewriter) const {
+  FailureOr<Initializers> initializers =
+      Initializers::get(alloc, tag, dimensions);
+  if (failed(initializers))
+    return failure();
+
+  // If the id/range is not explicit, we need to reconstruct it
+  std::array<Value, 3> args;
+  std::array<ArrayRef<Operation *>, 3> ops{
+      *initializers->getGlobalSizeInitializers(),
+      *initializers->getLocalSizeInitializers(),
+      *initializers->getOffsetInitializers()};
+  llvm::transform(llvm::enumerate(ops), args.begin(), [&](auto iter) -> Value {
+    ArrayRef<Operation *> ops = iter.value();
+    // No offset or copy/move constructor cases
+    if (ops.empty())
+      return nullptr;
+    rewriter.setInsertionPointAfter(ops.back());
+    // llvm.intr.memcpy
+    if (auto memcpy = dyn_cast<LLVM::MemcpyOp>(ops[0])) {
+      assert(ops.size() == 1 && "Expecting a single argument when copying");
+      rewriter.eraseOp(memcpy);
+      return memcpy.getSrc();
+    }
+    // gep+store
+    assert(ops.size() == dimensions && "Expecting a value per dimension");
+    OpBuilder::InsertionGuard IG(rewriter);
+    rewriter.setInsertionPoint(alloc);
+    Type resultType = rewriter.getType<LLVM::LLVMPointerType>();
+    Type elementType = cast<LLVM::LLVMStructType>(*alloc.getElemType())
+                           .getBody()[iter.index()];
+    Location loc = ops[0]->getLoc();
+    SmallVector<Value> args;
+    llvm::transform(ops, std::back_inserter(args), [](Operation *op) {
+      return cast<LLVM::StoreOp>(op).getValue();
+    });
+    // Build SYCL type. We do not care about the body.
+    auto type = [&]() -> Type {
+      Type body = getEmptyBodyType(func->getContext());
+      switch (iter.index()) {
+      case 0:
+      case 1:
+        // Global or local size
+        return rewriter.getType<sycl::RangeType>(dimensions, body);
+      case 2:
+        // Offset
+        return rewriter.getType<sycl::IDType>(dimensions, body);
+      default:
+        llvm_unreachable("Invalid index");
+      }
+    }();
+    Value result;
+    rewriter.updateRootInPlace(func, [&] {
+      // Erase all stores
+      for (Operation *op : ops)
+        rewriter.eraseOp(op);
+      // Create new alloca
+      Value arraySize =
+          rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), 1);
+      result = rewriter.create<LLVM::AllocaOp>(loc, resultType, elementType,
+                                               arraySize);
+      // Construct it
+      rewriter.create<sycl::SYCLHostConstructorOp>(loc, result, args,
+                                                   TypeAttr::get(type));
+    });
+    return result;
+  });
+
+  return args;
+}
+
+FailureOr<RaiseNDRangeConstructor::Initializers>
+RaiseNDRangeConstructor::Initializers::get(LLVM::AllocaOp alloc,
+                                           const NDRangeTypeTag &tag,
+                                           unsigned dimensions) {
+  Initializers initializers(dimensions);
+  for (OpOperand user : alloc->getUsers()) {
+    LogicalResult result =
+        TypeSwitch<Operation *, LogicalResult>(user.getOwner())
+            .Case<LLVM::StoreOp, LLVM::MemcpyOp, LLVM::GEPOp>(
+                [&](auto op) { return initializers.handle(op, alloc, tag); })
+            .Default([](auto) { return success(); });
+    if (failed(result))
+      return result;
+  }
+  if (failed(initializers.checkValidity()))
+    return failure();
+  return initializers;
+}
+
+LogicalResult RaiseNDRangeConstructor::Initializers::checkValidity() const {
+  FailureOr<ArrayRef<Operation *>> failureOrGlobalSizeInit =
+      getGlobalSizeInitializers();
+  FailureOr<ArrayRef<Operation *>> failureOrLocalSizeInit =
+      getLocalSizeInitializers();
+  FailureOr<ArrayRef<Operation *>> failureOrOffsetInit =
+      getOffsetInitializers();
+  if (failed(failureOrGlobalSizeInit) || failed(failureOrLocalSizeInit) ||
+      failed(failureOrOffsetInit))
+    return failure();
+
+  ArrayRef<Operation *> globalSizeInit = *failureOrGlobalSizeInit;
+  ArrayRef<Operation *> localSizeInit = *failureOrLocalSizeInit;
+  ArrayRef<Operation *> offsetInit = *failureOrOffsetInit;
+
+  if (globalSizeInit.size() == 1 && isa<LLVM::MemcpyOp>(globalSizeInit[0]) &&
+      localSizeInit.empty() && offsetInit.empty())
+    return success();
+
+  // Check global and local size initialization
+  const auto checkInit = [=](ArrayRef<Operation *> ops) {
+    if (ops.empty())
+      return failure();
+    if (ops.size() == dimensions)
+      // When initializing each component, we must be using store operations
+      return success(dimensions == 1 || llvm::all_of(ops, [](Operation *op) {
+                       return isa<LLVM::StoreOp>(op);
+                     }));
+    // Should be a memcpy
+    return success(ops.size() == 1 && isa<LLVM::MemcpyOp>(ops[0]));
+  };
+
+  return success(succeeded(checkInit(globalSizeInit)) &&
+                 succeeded(checkInit(localSizeInit)) &&
+                 (offsetInit.empty() || succeeded(checkInit(offsetInit))));
+}
 
 /// Raise constructs assigning a kernel name to a handler to
 /// `sycl.host.handler.set_kernel`.
@@ -1033,7 +1438,8 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   // them.
   rewritePatterns.add<RaiseIDConstructor, RaiseRangeConstructor>(context,
                                                                  /*benefit=*/3);
-  // TODO: Add RaiseNDRangeConstructor with benefit=2
+  rewritePatterns.add<RaiseNDRangeConstructor>(context,
+                                               /*benefit=*/2);
   rewritePatterns.add<RaiseSetNDRange>(context, /*benefit=*/1);
 
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));

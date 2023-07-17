@@ -1066,6 +1066,7 @@ void LoopInternalization::runOnGPUModule(gpu::GPUModuleOp gpuModule) {
   solver.load<dataflow::DeadCodeAnalysis>();
   solver.load<dataflow::SparseConstantPropagation>();
   solver.load<dataflow::IntegerRangeAnalysis>();
+  solver.load<UnderlyingValueAnalysis>();
   solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
   solver.load<UniformityAnalysis>(aliasAnalysis);
   if (failed(solver.initializeAndRun(gpuModule))) {

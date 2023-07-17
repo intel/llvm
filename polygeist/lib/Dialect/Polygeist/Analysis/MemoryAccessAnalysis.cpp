@@ -1182,12 +1182,11 @@ MemoryAccessPattern MemoryAccess::classify(const MemoryAccessMatrix &matrix,
 //===----------------------------------------------------------------------===//
 
 MemoryAccessAnalysis::MemoryAccessAnalysis(Operation *op, AnalysisManager &am)
-    : operation(op), am(am) {
-  build();
-}
+    : operation(op), am(am) {}
 
 bool MemoryAccessAnalysis::isInvalidated(
     const AnalysisManager::PreservedAnalyses &pa) {
+  assert(isInitialized && "Analysis not yet initialized");
   return !pa.isPreserved<AliasAnalysis>() ||
          !pa.isPreserved<dataflow::DeadCodeAnalysis>() ||
          !pa.isPreserved<dataflow::SparseConstantPropagation>() ||
@@ -1197,35 +1196,39 @@ bool MemoryAccessAnalysis::isInvalidated(
 
 std::optional<MemoryAccess>
 MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
+  assert(isInitialized && "Analysis not yet initialized");
   auto it = accessMap.find(access.opInst);
   if (it == accessMap.end())
     return std::nullopt;
   return it->second;
 }
 
-void MemoryAccessAnalysis::build() {
+MemoryAccessAnalysis &MemoryAccessAnalysis::initialize(bool relaxedAliasing) {
   AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
   // Run the dataflow analysis we depend on.
   DataFlowSolver solver;
-  solver.load<dataflow::DeadCodeAnalysis>();
-  solver.load<dataflow::SparseConstantPropagation>();
-  solver.load<dataflow::IntegerRangeAnalysis>();
+  solver.load<DeadCodeAnalysis>();
+  solver.load<SparseConstantPropagation>();
+  solver.load<IntegerRangeAnalysis>();
+  solver.load<UnderlyingValueAnalysis>();
   solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
 
-  Operation *op = getOperation();
-  if (failed(solver.initializeAndRun(op))) {
-    op->emitError("Failed to run required dataflow analysis");
-    return;
+  if (failed(solver.initializeAndRun(operation))) {
+    operation->emitError("Failed to run required dataflow analysis");
+    return *this;
   }
 
   // Try to construct the memory access matrix and offset vector for affine
   // memory operation of interest.
-  op->walk<WalkOrder::PreOrder>([&](Operation *op) {
+  operation->walk<WalkOrder::PreOrder>([&](Operation *op) {
     TypeSwitch<Operation *>(op).Case<AffineStoreOp, AffineLoadOp>(
         [&](auto memoryOp) { build(memoryOp, solver); });
   });
+
+  isInitialized = true;
+  return *this;
 }
 
 template <typename T>

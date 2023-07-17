@@ -372,3 +372,189 @@ llvm.func @raise_set_globalsize_offset(%handler: !llvm.ptr) {
   "llvm.intr.var.annotation"(%offset, %offsetStr, %offsetStr, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
   llvm.return
 }
+
+// -----
+
+// COM: Check we can raise nd_range copy constructor
+
+// CHECK-LABEL:   llvm.func @raise_nd_range_copy(
+// CHECK-SAME:                                   %[[VAL_0:.*]]: !llvm.ptr) {
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_2]], %[[VAL_0]]) {type = !sycl_nd_range_1_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+
+llvm.func @raise_nd_range_copy(%other: !llvm.ptr) {
+  %c1 = llvm.mlir.constant (1 : i32) : i32
+  %false = llvm.mlir.constant (1 : i1) : i1
+  %len = llvm.mlir.constant (24 : i64) : i64
+  %nd = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)>)> : (i32) -> !llvm.ptr
+  "llvm.intr.memcpy"(%nd, %other, %len, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  llvm.return
+}
+
+// -----
+
+// COM: Check we can raise nd_range constructor using memcpy
+
+// CHECK-LABEL:   llvm.func @raise_nd_range_memcpy(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                                     %[[VAL_1:.*]]: !llvm.ptr) {
+// CHECK-DAG:       %[[VAL_2:.*]] = llvm.mlir.constant(0 : i8) : i8
+// CHECK-DAG:       %[[VAL_3:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-DAG:       %[[VAL_4:.*]] = llvm.mlir.constant(true) : i1
+// CHECK-DAG:       %[[VAL_5:.*]] = llvm.mlir.constant(24 : i64) : i64
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_6]], %[[VAL_0]], %[[VAL_1]]) {type = !sycl_nd_range_3_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_6]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>)>
+// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_7]], %[[VAL_2]], %[[VAL_5]], %[[VAL_4]]) : (!llvm.ptr, i8, i64, i1) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+
+llvm.func @raise_nd_range_memcpy(%globalSize: !llvm.ptr, %localSize: !llvm.ptr) {
+  %c0 = llvm.mlir.constant (0 : i8) : i8
+  %c1 = llvm.mlir.constant (1 : i32) : i32
+  %false = llvm.mlir.constant (1 : i1) : i1
+  %len = llvm.mlir.constant (24 : i64) : i64
+  %nd = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>)> : (i32) -> !llvm.ptr
+  "llvm.intr.memcpy"(%nd, %globalSize, %len, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  %ls_ref = llvm.getelementptr inbounds %nd[0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>)>
+  "llvm.intr.memcpy"(%ls_ref, %localSize, %len, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  %off_ref = llvm.getelementptr inbounds %nd[0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>)>
+  "llvm.intr.memset"(%off_ref, %c0, %len, %false) : (!llvm.ptr, i8, i64, i1) -> ()
+  llvm.return
+}
+
+// -----
+
+// COM: Check we can raise nd_range constructor using memcpy and passing an offset
+
+// CHECK-LABEL:   llvm.func @raise_nd_range_memcpy_offset(
+// CHECK-SAME:                                            %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: !llvm.ptr) {
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_4]], %[[VAL_0]], %[[VAL_1]], %[[VAL_2]]) {type = !sycl_nd_range_3_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+
+llvm.func @raise_nd_range_memcpy_offset(%globalSize: !llvm.ptr, %localSize: !llvm.ptr, %offset: !llvm.ptr) {
+  %c1 = llvm.mlir.constant (1 : i32) : i32
+  %false = llvm.mlir.constant (1 : i1) : i1
+  %len = llvm.mlir.constant (24 : i64) : i64
+  %nd = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>)> : (i32) -> !llvm.ptr
+  "llvm.intr.memcpy"(%nd, %globalSize, %len, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  %ls_ref = llvm.getelementptr inbounds %nd[0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>)>
+  "llvm.intr.memcpy"(%ls_ref, %localSize, %len, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  %off_ref = llvm.getelementptr inbounds %nd[0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<3 x i64>)>)>)>
+  "llvm.intr.memcpy"(%off_ref, %offset, %len, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  llvm.return
+}
+
+// -----
+
+// COM: Check we can raise nd_range constructor using stores
+
+// CHECK-LABEL:   llvm.func @raise_nd_range_store(
+// CHECK-SAME:                                    %[[VAL_0:.*]]: i64, %[[VAL_1:.*]]: i64, %[[VAL_2:.*]]: i64, %[[VAL_3:.*]]: i64) {
+// CHECK-DAG:       %[[VAL_4:.*]] = llvm.mlir.constant(0 : i8) : i8
+// CHECK-DAG:       %[[VAL_5:.*]] = llvm.mlir.constant(true) : i1
+// CHECK-DAG:       %[[VAL_6:.*]] = llvm.mlir.constant(24 : i64) : i64
+// CHECK-DAG:       %[[VAL_7:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.alloca %[[VAL_7]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_9]], %[[VAL_0]], %[[VAL_1]]) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.alloca %[[VAL_7]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_10]], %[[VAL_2]], %[[VAL_3]]) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
+// CHECK-NEXT:      %[[VAL_11:.*]] = llvm.alloca %[[VAL_7]] x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_11]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_nd_range_2_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      %[[VAL_12:.*]] = llvm.getelementptr inbounds %[[VAL_11]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)>
+// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_12]], %[[VAL_4]], %[[VAL_6]], %[[VAL_5]]) : (!llvm.ptr, i8, i64, i1) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+
+llvm.func @raise_nd_range_store(%g0: i64, %g1: i64, %l0: i64, %l1: i64) {
+  %c0 = llvm.mlir.constant (0 : i8) : i8
+  %false = llvm.mlir.constant (1 : i1) : i1
+  %len = llvm.mlir.constant (24 : i64) : i64
+  %c1 = llvm.mlir.constant (1 : i32) : i32
+  %nd = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)> : (i32) -> !llvm.ptr
+  llvm.store %g0, %nd : i64, !llvm.ptr
+  %g1_ref = llvm.getelementptr inbounds %nd[0, 0, 0, 0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)>
+  llvm.store %g1, %g1_ref : i64, !llvm.ptr
+  %l0_ref = llvm.getelementptr inbounds %nd[0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)>
+  llvm.store %l0, %l0_ref : i64, !llvm.ptr
+  %l1_ref = llvm.getelementptr inbounds %nd[0, 1, 0, 0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)>
+  llvm.store %l1, %l1_ref : i64, !llvm.ptr
+  %off_ref = llvm.getelementptr inbounds %nd[0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)>
+  "llvm.intr.memset"(%off_ref, %c0, %len, %false) : (!llvm.ptr, i8, i64, i1) -> ()
+  llvm.return
+}
+
+// -----
+
+// COM: Check we can raise nd_range constructor using stores and passing an offset
+
+// CHECK-LABEL:   llvm.func @raise_nd_range_store_offset(
+// CHECK-SAME:                                           %[[VAL_0:.*]]: i64, %[[VAL_1:.*]]: i64, %[[VAL_2:.*]]: i64, %[[VAL_3:.*]]: i64, %[[VAL_4:.*]]: i64, %[[VAL_5:.*]]: i64) {
+// CHECK-DAG:       %[[VAL_6:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.alloca %[[VAL_6]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_8]], %[[VAL_0]], %[[VAL_1]]) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.alloca %[[VAL_6]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_9]], %[[VAL_2]], %[[VAL_3]]) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.alloca %[[VAL_6]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_10]], %[[VAL_4]], %[[VAL_5]]) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+// CHECK-NEXT:      %[[VAL_11:.*]] = llvm.alloca %[[VAL_6]] x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_11]], %[[VAL_8]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_nd_range_2_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+
+llvm.func @raise_nd_range_store_offset(%g0: i64, %g1: i64, %l0: i64, %l1: i64, %off0: i64, %off1: i64) {
+  %c1 = llvm.mlir.constant (1 : i32) : i32
+  %nd = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)> : (i32) -> !llvm.ptr
+  llvm.store %g0, %nd : i64, !llvm.ptr
+  %g1_ref = llvm.getelementptr inbounds %nd[0, 0, 0, 0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)>
+  llvm.store %g1, %g1_ref : i64, !llvm.ptr
+  %l0_ref = llvm.getelementptr inbounds %nd[0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)>
+  llvm.store %l0, %l0_ref : i64, !llvm.ptr
+  %l1_ref = llvm.getelementptr inbounds %nd[0, 1, 0, 0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)>
+  llvm.store %l1, %l1_ref : i64, !llvm.ptr
+  %off0_ref = llvm.getelementptr inbounds %nd[0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)>
+  llvm.store %off0, %off0_ref : i64, !llvm.ptr
+  %off1_ref = llvm.getelementptr inbounds %nd[0, 2, 0, 0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)>
+  llvm.store %off1, %off1_ref : i64, !llvm.ptr
+  llvm.return
+}
+
+// -----
+
+// COM: Check we can raise nd_range constructor using stores and GEPs with i8 element type
+
+// CHECK-LABEL:   llvm.func @raise_nd_range_i8_gep(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: i64, %[[VAL_1:.*]]: i64, %[[VAL_2:.*]]: i64, %[[VAL_3:.*]]: i64, %[[VAL_4:.*]]: i64, %[[VAL_5:.*]]: i64) {
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.alloca %[[VAL_6]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_7]], %[[VAL_0]], %[[VAL_1]]) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.alloca %[[VAL_6]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_8]], %[[VAL_2]], %[[VAL_3]]) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.alloca %[[VAL_6]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_9]], %[[VAL_4]], %[[VAL_5]]) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.alloca %[[VAL_6]] x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_10]], %[[VAL_7]], %[[VAL_8]], %[[VAL_9]]) {type = !sycl_nd_range_2_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+llvm.func @raise_nd_range_i8_gep(%g0: i64, %g1: i64, %l0: i64, %l1: i64, %off0: i64, %off1: i64) {
+  %c1 = llvm.mlir.constant (1 : i32) : i32
+  %nd = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>, struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<2 x i64>)>)>)> : (i32) -> !llvm.ptr
+  llvm.store %g0, %nd : i64, !llvm.ptr
+  %g1_ref = llvm.getelementptr inbounds %nd[8] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %g1, %g1_ref : i64, !llvm.ptr
+  %l0_ref = llvm.getelementptr inbounds %nd[16] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %l0, %l0_ref : i64, !llvm.ptr
+  %l1_ref = llvm.getelementptr inbounds %nd[24] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %l1, %l1_ref : i64, !llvm.ptr
+  %off0_ref = llvm.getelementptr inbounds %nd[32] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %off0, %off0_ref : i64, !llvm.ptr
+  %off1_ref = llvm.getelementptr inbounds %nd[40] : (!llvm.ptr) -> !llvm.ptr, i8
+  llvm.store %off1, %off1_ref : i64, !llvm.ptr
+  llvm.return
+}

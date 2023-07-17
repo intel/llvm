@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
@@ -116,7 +117,8 @@ UniformityAnalysis::UniformityAnalysis(DataFlowSolver &solver,
   // about the uniformity of values loaded from memory.
   internalSolver.load<DeadCodeAnalysis>();
   internalSolver.load<SparseConstantPropagation>();
-  internalSolver.load<polygeist::ReachingDefinitionAnalysis>(aliasAnalysis);
+  internalSolver.load<UnderlyingValueAnalysis>();
+  internalSolver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
 }
 
 LogicalResult UniformityAnalysis::initialize(Operation *top) {
@@ -287,7 +289,8 @@ void UniformityAnalysis::analyzeMemoryEffects(
 
     // Merge mods and pMods together.
     std::optional<ModifiersTy> mods =
-        merge(rdef->getModifiers(val), rdef->getPotentialModifiers(val));
+        merge(rdef->getModifiers(val, internalSolver),
+              rdef->getPotentialModifiers(val, internalSolver));
     if (!mods)
       continue;
 
@@ -411,7 +414,7 @@ SmallVector<IfCondition> UniformityAnalysis::collectBranchConditions(
         getParentsOfType<RegionBranchOpInterface>(
             *mod.getOperation()->getBlock());
     for (RegionBranchOpInterface branchOp : enclosingBranches) {
-      if (isa<affine::AffineForOp>(branchOp))
+      if (isa<affine::AffineForOp, scf::ForOp>(branchOp))
         continue;
 
       std::optional<IfCondition> condition =
