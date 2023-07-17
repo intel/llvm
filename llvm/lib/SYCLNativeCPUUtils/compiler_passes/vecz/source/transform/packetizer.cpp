@@ -1258,10 +1258,20 @@ Value *Packetizer::Impl::packetizeSubgroupBroadcast(Instruction *I) {
 
   IRBuilder<> B(buildAfter(CI, F));
 
-  auto *const idx = CI->getArgOperand(1);
+  auto *const src = CI->getArgOperand(0);
 
-  auto op = packetize(CI->getArgOperand(0));
+  auto op = packetize(src);
   PACK_FAIL_IF(!op);
+
+  // If the source operand happened to be a broadcast value already, we can use
+  // it directly.
+  if (op.info->numInstances == 0) {
+    IC.deleteInstructionLater(CI);
+    CI->replaceAllUsesWith(src);
+    return src;
+  }
+
+  auto *const idx = CI->getArgOperand(1);
   Value *val = nullptr;
   // Optimize the constant fixed-vector case, where we can choose the exact
   // subpacket to extract from directly.
