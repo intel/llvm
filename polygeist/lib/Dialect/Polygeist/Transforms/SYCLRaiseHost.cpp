@@ -1496,11 +1496,11 @@ public:
 
     // There should be exactly one store to the marked pointer.
     Value annotatedPtr = op.getVal();
-    auto store = getUniqueStore(annotatedPtr);
+    auto [store, lambdaObj] =
+        getUniqueAssignment(annotatedPtr, /*allowMemcpy=*/false);
     if (!store)
       return failure();
 
-    Value lambdaObj = store.getValue();
     auto alloca = dyn_cast_or_null<LLVM::AllocaOp>(lambdaObj.getDefiningOp());
     if (!alloca || !alloca.getElemType().has_value())
       return failure();
@@ -1512,18 +1512,19 @@ public:
 
     auto captureTypes = lambdaClassTy.getBody();
 
-    // Look for stores that represent the capturing of kernel args.
+    // Look for unique assignments that represent the capturing of kernel args.
     // Assuming the no-op `getelementptr %lambdaObj[0, 0]` was folded, the
     // first capture is actually a store to the pointer.
-    if (auto capture = getUniqueStore(lambdaObj)) {
-      Value captured = tryToBroaden(capture.getValue(), captureTypes[0]);
-      rewriter.setInsertionPointAfter(capture);
-      rewriter.create<sycl::SYCLHostSetCaptured>(capture->getLoc(), lambdaObj,
+    if (auto [captureOp, capturedVal] = getUniqueAssignment(lambdaObj);
+        captureOp) {
+      capturedVal = tryToBroaden(capturedVal, captureTypes[0]);
+      rewriter.setInsertionPointAfter(captureOp);
+      rewriter.create<sycl::SYCLHostSetCaptured>(captureOp->getLoc(), lambdaObj,
                                                  rewriter.getI64IntegerAttr(0),
-                                                 captured);
+                                                 capturedVal);
     }
 
-    // All other captures are the single stores to GEPs with two constant
+    // All other captures are the unique assignments to GEPs with two constant
     // indices `[0, <capture #>]` to the lambda object.
     for (auto *user : lambdaObj.getUsers()) {
       auto gep = dyn_cast<LLVM::GEPOp>(user);
@@ -1537,16 +1538,15 @@ public:
         continue;
       unsigned captureIdx = indices[1];
 
-      auto capture = getUniqueStore(gep);
-      if (!capture)
+      auto [captureOp, capturedVal] = getUniqueAssignment(gep);
+      if (!captureOp)
         continue;
 
-      Value captured =
-          tryToBroaden(capture.getValue(), captureTypes[captureIdx]);
-      rewriter.setInsertionPointAfter(capture);
+      capturedVal = tryToBroaden(capturedVal, captureTypes[captureIdx]);
+      rewriter.setInsertionPointAfter(captureOp);
       rewriter.create<sycl::SYCLHostSetCaptured>(
-          capture->getLoc(), lambdaObj, rewriter.getI64IntegerAttr(captureIdx),
-          captured);
+          captureOp->getLoc(), lambdaObj,
+          rewriter.getI64IntegerAttr(captureIdx), capturedVal);
     }
 
     // Finally erase the annotation op.
@@ -1555,19 +1555,31 @@ public:
   }
 
 private:
-  /// If there is exactly one store to \p ptr, return it; otherwise
-  /// return `nullptr`.
-  static LLVM::StoreOp getUniqueStore(Value ptr) {
-    LLVM::StoreOp store;
+  /// If there is exactly one store or memcpy to \p ptr, return it and the
+  /// stored value/copied-from pointer; otherwise return `nullptr` and an emtpy
+  /// value.
+  static std::tuple<Operation *, Value>
+  getUniqueAssignment(Value ptr, bool allowMemcpy = true) {
+    Operation *op = nullptr;
+    Value value;
     for (auto *user : ptr.getUsers())
-      if (auto st = dyn_cast<LLVM::StoreOp>(user); st && st.getAddr() == ptr) {
-        if (store)
-          return nullptr;
+      if (auto v = TypeSwitch<Operation *, Value>(user)
+                       .Case<LLVM::StoreOp>([&](auto st) {
+                         return st.getAddr() == ptr ? st.getValue() : Value();
+                       })
+                       .Case<LLVM::MemcpyOp>([&](auto mc) {
+                         return mc.getDst() == ptr ? mc.getSrc() : Value();
+                       })
+                       .Default(Value())) {
+        if (op)
+          // Definition is not unique.
+          return {nullptr, Value()};
 
-        store = st;
+        op = user;
+        value = v;
       }
 
-    return store;
+    return {op, value};
   }
 
   // Use the \p expected type as domain knowledge to try to broaden a \p stored
