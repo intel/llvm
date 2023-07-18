@@ -138,6 +138,39 @@ struct all_devices_have<aspect::emulated>
 template <>
 struct all_devices_have<aspect::ext_intel_legacy_image>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_41__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_bindless_images>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_42__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_bindless_images_shared_usm>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_43__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_bindless_images_1d_usm>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_44__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_bindless_images_2d_usm>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_45__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_interop_memory_import>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_46__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_interop_memory_export>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_47__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_interop_semaphore_import>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_48__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_interop_semaphore_export>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_49__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_mipmap>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_50__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_mipmap_anisotropy>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_51__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_mipmap_level_reference>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_52__> {};
 
 #ifdef __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 // Special case where any_device_has is trivially true.
@@ -270,6 +303,39 @@ struct any_device_has<aspect::emulated>
 template <>
 struct any_device_has<aspect::ext_intel_legacy_image>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_41__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_bindless_images>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_42__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_bindless_images_shared_usm>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_43__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_bindless_images_1d_usm>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_44__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_bindless_images_2d_usm>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_45__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_interop_memory_import>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_46__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_interop_memory_export>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_47__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_interop_semaphore_import>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_48__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_interop_semaphore_export>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_49__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_mipmap>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_50__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_mipmap_anisotropy>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_51__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_mipmap_level_reference>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_52__> {};
 #endif // __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 
 template <aspect Aspect>

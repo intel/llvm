@@ -149,6 +149,12 @@ public:
       return createCGCopy<sycl::detail::CGCopyFromDeviceGlobal>();
     case sycl::detail::CG::ReadWriteHostPipe:
       return createCGCopy<sycl::detail::CGReadWriteHostPipe>();
+    case sycl::detail::CG::CopyImage:
+      return createCGCopy<sycl::detail::CGCopyImage>();
+    case sycl::detail::CG::SemaphoreSignal:
+      return createCGCopy<sycl::detail::CGSemaphoreSignal>();
+    case sycl::detail::CG::SemaphoreWait:
+      return createCGCopy<sycl::detail::CGSemaphoreWait>();
     case sycl::detail::CG::ExecCommandBuffer:
       assert(false &&
              "Error: Command graph submission should not be a node in a graph");
