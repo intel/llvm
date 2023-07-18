@@ -218,3 +218,18 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   }
   return Result;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
+                                                   void *HostPtr, size_t Size) {
+  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+  UR_ASSERT(Size > 0, UR_RESULT_ERROR_INVALID_VALUE);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
+                                                    void *HostPtr) {
+  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+  return UR_RESULT_SUCCESS;
+}

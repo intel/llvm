@@ -123,10 +123,3 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
 bool ShouldUseUSMAllocator();
 
 extern const bool UseUSMAllocator;
-
-// USM Import/Release functions
-
-ur_result_t urUSMImport(void *HostPtr, size_t Size,
-                        ur_context_handle_t Context);
-
-ur_result_t urUSMRelease(void *HostPtr, ur_context_handle_t Context);
