@@ -502,6 +502,21 @@ etors:
 - name: COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP
   desc: Enumerator for $xCommandBufferAppendMembufferReadRectExp
   value: '171'
+- name: LOADER_CONFIG_CREATE
+  desc: Enumerator for $xLoaderConfigCreate
+  value: '172'
+- name: LOADER_CONFIG_RELEASE
+  desc: Enumerator for $xLoaderConfigRelease
+  value: '173'
+- name: LOADER_CONFIG_RETAIN
+  desc: Enumerator for $xLoaderConfigRetain
+  value: '174'
+- name: LOADER_CONFIG_GET_INFO
+  desc: Enumerator for $xLoaderConfigGetInfo
+  value: '175'
+- name: LOADER_CONFIG_ENABLE_LAYER
+  desc: Enumerator for $xLoaderConfigEnableLayer
+  value: '176'
 ---
 type: enum
 desc: Defines structure types

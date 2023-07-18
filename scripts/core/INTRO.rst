@@ -234,6 +234,25 @@ Currently, UR looks for these adapter libraries:
 
 For more information about the usage of mentioned environment variables see `Environment Variables`_ section.
 
+Layers
+---------------------
+UR comes with a mechanism that allows various API intercept layers to be enabled, either through the API or with an environment variable (see `Environment Variables`_).
+Layers currently included with the runtime are as follows:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Layer Name
+     - Description
+   * - UR_LAYER_PARAMETER_VALIDATION
+     - Enables non-adapter-specific parameter validation (e.g. checking for null values).
+   * - UR_LAYER_LEAK_CHECKING
+     - Performs some leak checking for API calls involving object creation/destruction.
+   * - UR_LAYER_FULL_VALIDATION
+     - Enables UR_LAYER_PARAMETER_VALIDATION and UR_LAYER_LEAK_CHECKING.
+   * - UR_LAYER_TRACING
+     - Enables the XPTI tracing layer, see Tracing_ for more detail.
+
 Environment Variables
 ---------------------
 
@@ -277,30 +296,13 @@ Specific environment variables can be set to control the behavior of unified run
 
     This environment variable is ignored when :envvar:`UR_ADAPTERS_FORCE_LOAD` environment variable is used.
 
-.. envvar:: UR_ENABLE_VALIDATION_LAYER
+.. envvar:: UR_ENABLE_LAYERS
 
-   Holds the value ``0`` or ``1``. By setting it to ``1`` you enable validation layer.
+    Holds a comma-separated list of layers to enable in addition to any specified via ``urInit``.
 
-   .. note::
+    .. note::
 
-    This environment variable should be used for development and debugging only.
-
-.. envvar:: UR_ENABLE_PARAMETER_VALIDATION
-
-   Holds the value ``0`` or ``1``. By setting it to ``1`` you enable parameter validation for Unified Runtime API calls.
-
-   .. note::
-
-    This environment variable should be used together with :envvar:`UR_ENABLE_VALIDATION_LAYER`.
-
-.. envvar:: UR_ENABLE_LEAK_CHECKING
-
-   Holds the value ``0`` or ``1``. By setting it to ``1`` you enable leak checking for Unified Runtime API calls involving
-   object creation/destruction. Leak checking depends on the logging mechanism.
-
-   .. note::
-
-    This environment variable should be used together with :envvar:`UR_ENABLE_VALIDATION_LAYER` and :envvar:`UR_LOG_VALIDATION`.
+    See the Layers_ section for details of the layers currently included in the runtime.
 
 Service identifiers
 ---------------------

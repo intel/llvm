@@ -178,6 +178,9 @@ class ${N}_DDI:
         self.__dll.${x}Init(0, 0)
 
         %for tbl in tables:
+        %if 'Loader' in tbl['name']:
+<%          continue %>
+        %endif
         # call driver to get function pointers
         ${tbl['name']} = ${tbl['type']}()
         r = ${x}_result_v(self.__dll.${tbl['export']['name']}(version, byref(${tbl['name']})))

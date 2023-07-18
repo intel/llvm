@@ -196,6 +196,11 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP = 169,                ///< Enumerator for ::urCommandBufferAppendMembufferReadExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP = 170,          ///< Enumerator for ::urCommandBufferAppendMembufferWriteRectExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP = 171,           ///< Enumerator for ::urCommandBufferAppendMembufferReadRectExp
+    UR_FUNCTION_LOADER_CONFIG_CREATE = 172,                                    ///< Enumerator for ::urLoaderConfigCreate
+    UR_FUNCTION_LOADER_CONFIG_RELEASE = 173,                                   ///< Enumerator for ::urLoaderConfigRelease
+    UR_FUNCTION_LOADER_CONFIG_RETAIN = 174,                                    ///< Enumerator for ::urLoaderConfigRetain
+    UR_FUNCTION_LOADER_CONFIG_GET_INFO = 175,                                  ///< Enumerator for ::urLoaderConfigGetInfo
+    UR_FUNCTION_LOADER_CONFIG_ENABLE_LAYER = 176,                              ///< Enumerator for ::urLoaderConfigEnableLayer
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -317,6 +322,10 @@ typedef enum ur_structure_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief compiler-independent type
 typedef uint8_t ur_bool_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of a loader config object
+typedef struct ur_loader_config_handle_t_ *ur_loader_config_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a platform instance
@@ -450,6 +459,7 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 66,                           ///< Objection allocation failure
     UR_RESULT_ERROR_ADAPTER_SPECIFIC = 67,                                    ///< An adapter specific warning/error has been reported and can be
                                                                               ///< retrieved via the urPlatformGetLastError entry point.
+    UR_RESULT_ERROR_LAYER_NOT_PRESENT = 68,                                   ///< A requested layer was not found by the loader.
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,                      ///< Invalid Command-Buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001,           ///< Sync point is not valid for the command-buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002, ///< Sync point wait list is invalid
@@ -519,6 +529,137 @@ typedef enum ur_device_init_flag_t {
 #define UR_DEVICE_INIT_FLAGS_MASK 0xffffffe0
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a loader config object.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phLoaderConfig`
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigCreate(
+    ur_loader_config_handle_t *phLoaderConfig ///< [out] Pointer to handle of loader config object created.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get a reference to the loader config object.
+///
+/// @details
+///     - Get a reference to the loader config handle. Increment its reference
+///       count
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigRetain(
+    ur_loader_config_handle_t hLoaderConfig ///< [in] loader config handle to retain
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Release config handle.
+///
+/// @details
+///     - Decrement reference count and destroy the config handle if reference
+///       count becomes zero.
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigRelease(
+    ur_loader_config_handle_t hLoaderConfig ///< [in] config handle to release
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Supported loader info
+typedef enum ur_loader_config_info_t {
+    UR_LOADER_CONFIG_INFO_AVAILABLE_LAYERS = 0, ///< [char[]] Null-terminated, semi-colon separated list of available
+                                                ///< layers.
+    UR_LOADER_CONFIG_INFO_REFERENCE_COUNT = 1,  ///< [uint32_t] Reference count of the loader config object.
+    /// @cond
+    UR_LOADER_CONFIG_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_loader_config_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves various information about the loader.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOADER_CONFIG_INFO_REFERENCE_COUNT < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the loader.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigGetInfo(
+    ur_loader_config_handle_t hLoaderConfig, ///< [in] handle of the loader config object
+    ur_loader_config_info_t propName,        ///< [in] type of the info to retrieve
+    size_t propSize,                         ///< [in] the number of bytes pointed to by pPropValue.
+    void *pPropValue,                        ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                             ///< the info.
+                                             ///< If propSize is not equal to or greater than the real number of bytes
+                                             ///< needed to return the info
+                                             ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                             ///< pPropValue is not used.
+    size_t *pPropSizeRet                     ///< [out][optional] pointer to the actual size in bytes of the queried propName.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enable a layer for the specified loader config.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pLayerName`
+///     - ::UR_RESULT_ERROR_LAYER_NOT_PRESENT
+///         + If layer specified with `pLayerName` can't be found by the loader.
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigEnableLayer(
+    ur_loader_config_handle_t hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
+    const char *pLayerName                   ///< [in] Null terminated string containing the name of the layer to
+                                             ///< enable.
+);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Initialize the 'oneAPI' adapter(s)
 ///
 /// @details
@@ -545,8 +686,9 @@ typedef enum ur_device_init_flag_t {
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urInit(
-    ur_device_init_flags_t device_flags ///< [in] device initialization flags.
-                                        ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_device_init_flags_t device_flags,    ///< [in] device initialization flags.
+                                            ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_loader_config_handle_t hLoaderConfig ///< [in][optional] Handle of loader config handle.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7902,6 +8044,51 @@ urUsmP2PPeerAccessGetInfoExp(
 #pragma region callbacks
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigCreate
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_create_params_t {
+    ur_loader_config_handle_t **pphLoaderConfig;
+} ur_loader_config_create_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigRetain
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_retain_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+} ur_loader_config_retain_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigRelease
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_release_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+} ur_loader_config_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_get_info_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+    ur_loader_config_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_loader_config_get_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigEnableLayer
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_enable_layer_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+    const char **ppLayerName;
+} ur_loader_config_enable_layer_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGet
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -9656,6 +9843,7 @@ typedef struct ur_usm_p2p_peer_access_get_info_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_init_params_t {
     ur_device_init_flags_t *pdevice_flags;
+    ur_loader_config_handle_t *phLoaderConfig;
 } ur_init_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////

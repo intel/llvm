@@ -96,6 +96,8 @@ env['UR_LOG_COLLECTOR'] = log_collector
 
 env['XPTI_TRACE_ENABLE'] = "1"
 
+env['UR_ENABLE_LAYERS'] = "UR_LAYER_TRACING"
+
 xptifw_lib = get_dynamic_library_name("xptifw")
 xptifw = find_library(args.libpath, xptifw_lib, args.recursive)
 if xptifw is None:

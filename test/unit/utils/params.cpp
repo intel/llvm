@@ -20,8 +20,11 @@ template <typename T> class ParamsTest : public testing::Test {
 struct UrInitParams {
     ur_init_params_t params;
     ur_device_init_flags_t flags;
-    UrInitParams(ur_device_init_flags_t _flags) : flags(_flags) {
+    ur_loader_config_handle_t config;
+    UrInitParams(ur_device_init_flags_t _flags)
+        : flags(_flags), config(nullptr) {
         params.pdevice_flags = &flags;
+        params.phLoaderConfig = &config;
     }
 
     ur_init_params_t *get_struct() { return &params; }
@@ -29,7 +32,9 @@ struct UrInitParams {
 
 struct UrInitParamsNoFlags : UrInitParams {
     UrInitParamsNoFlags() : UrInitParams(0) {}
-    const char *get_expected() { return ".device_flags = 0"; };
+    const char *get_expected() {
+        return ".device_flags = 0, .hLoaderConfig = nullptr";
+    };
 };
 
 struct UrInitParamsInvalidFlags : UrInitParams {
@@ -39,7 +44,8 @@ struct UrInitParamsInvalidFlags : UrInitParams {
     const char *get_expected() {
         return ".device_flags = UR_DEVICE_INIT_FLAG_GPU \\| "
                "UR_DEVICE_INIT_FLAG_MCA \\| unknown bit flags "
-               "11000010000000000000000000000000";
+               "11000010000000000000000000000000, "
+               ".hLoaderConfig = nullptr";
     };
 };
 

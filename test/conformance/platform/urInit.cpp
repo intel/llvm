@@ -20,8 +20,12 @@ INSTANTIATE_TEST_SUITE_P(
     });
 
 TEST_P(urInitTestWithParam, Success) {
+    ur_loader_config_handle_t config = nullptr;
+    urLoaderConfigCreate(&config);
+    urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION");
+
     ur_device_init_flags_t device_flags = GetParam();
-    ASSERT_SUCCESS(urInit(device_flags));
+    ASSERT_SUCCESS(urInit(device_flags, config));
 
     ur_tear_down_params_t tear_down_params{nullptr};
     ASSERT_SUCCESS(urTearDown(&tear_down_params));
@@ -30,5 +34,6 @@ TEST_P(urInitTestWithParam, Success) {
 TEST(urInitTest, ErrorInvalidEnumerationDeviceFlags) {
     const ur_device_init_flags_t device_flags =
         UR_DEVICE_INIT_FLAG_FORCE_UINT32;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION, urInit(device_flags));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
+                     urInit(device_flags, nullptr));
 }
