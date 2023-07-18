@@ -12,20 +12,24 @@
 struct urTest : ::testing::Test {
 
     void SetUp() override {
-        ur_loader_config_handle_t config;
-        ASSERT_EQ(urLoaderConfigCreate(&config), UR_RESULT_SUCCESS);
-        ASSERT_EQ(urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION"),
+        ASSERT_EQ(urLoaderConfigCreate(&loader_config), UR_RESULT_SUCCESS);
+        ASSERT_EQ(urLoaderConfigEnableLayer(loader_config,
+                                            "UR_LAYER_FULL_VALIDATION"),
                   UR_RESULT_SUCCESS);
-
         ur_device_init_flags_t device_flags = 0;
-        ASSERT_EQ(urInit(device_flags, config), UR_RESULT_SUCCESS);
-        ASSERT_EQ(urLoaderConfigRelease(config), UR_RESULT_SUCCESS);
+        ASSERT_EQ(urInit(device_flags, loader_config), UR_RESULT_SUCCESS);
+        ASSERT_EQ(urLoaderConfigRelease(loader_config), UR_RESULT_SUCCESS);
     }
 
     void TearDown() override {
+        if (loader_config) {
+            ASSERT_EQ(urLoaderConfigRelease(loader_config), UR_RESULT_SUCCESS);
+        }
         ur_tear_down_params_t tear_down_params{};
         ASSERT_EQ(urTearDown(&tear_down_params), UR_RESULT_SUCCESS);
     }
+
+    ur_loader_config_handle_t loader_config = nullptr;
 };
 
 struct valPlatformsTest : urTest {
