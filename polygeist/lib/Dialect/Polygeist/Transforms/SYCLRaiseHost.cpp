@@ -1572,9 +1572,8 @@ private:
 
   // Use the \p expected type as domain knowledge to try to broaden a \p stored
   // value to an entity of interest (e.g. an accessor).
-  static Value tryToBroaden(Value stored, Type expected) {
-    static AccessorTypeTag tag;
-    if (isClassType(expected, tag.getTypeName())) {
+  Value tryToBroaden(Value stored, Type expected) const {
+    if (isClassType(expected, accessorTypeTag.getTypeName())) {
       // The getelementpointer[0, <capture #>] we have matched earlier is is not
       // addressing the entire accessor, but rather the first member in the
       // accessor class (think: getelementpointer[0, <capture #>, 0...]).
@@ -1587,6 +1586,8 @@ private:
     // No special handling, just return the argument as-is.
     return stored;
   }
+
+  AccessorTypeTag accessorTypeTag;
 };
 } // namespace
 
