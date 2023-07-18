@@ -7,9 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/config.hpp>
+
 #include <gtest/gtest.h>
-#include <regex>
+
 #include <fstream>
+#include <regex>
 
 TEST(ConfigTests, CheckConfigProcessing) {
 #ifdef _WIN32
