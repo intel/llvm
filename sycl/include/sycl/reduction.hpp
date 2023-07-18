@@ -11,14 +11,15 @@
 #include <sycl/accessor.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/atomic_ref.hpp>
+#include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/tuple.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/known_identity.hpp>
 #include <sycl/properties/reduction_properties.hpp>
-#include <sycl/reduction_forward.hpp>
 #include <sycl/usm.hpp>
 
 #include <optional>
@@ -959,11 +960,9 @@ public:
       for (int i = 0; i < num_elements; ++i) {
         (*RWReduVal)[i] = decltype(MIdentityContainer)::getIdentity();
       }
-      CGH.addReduction(RWReduVal);
       auto Buf = std::make_shared<buffer<T, 1>>(RWReduVal.get()->data(),
                                                 range<1>(num_elements));
       Buf->set_final_data();
-      CGH.addReduction(Buf);
       accessor Mem{*Buf, CGH};
       Func(Mem);
 
@@ -974,6 +973,10 @@ public:
         // so use the old-style API.
         auto Mem =
             Buf->template get_access<access::mode::read_write>(CopyHandler);
+        // Since this CG is dependent on the one associated with CGH,
+        // registering the auxiliary resources here is enough.
+        CopyHandler.addReduction(RWReduVal);
+        CopyHandler.addReduction(Buf);
         if constexpr (is_usm) {
           // Can't capture whole reduction, copy into distinct variables.
           bool IsUpdateOfUserVar = !initializeToIdentity();
@@ -1109,15 +1112,13 @@ public:
       : algo(BOp, InitializeToIdentity, Var) {
     if constexpr (!is_usm)
       if (Var.size() != 1)
-        throw sycl::runtime_error(errc::invalid,
-                                  "Reduction variable must be a scalar.",
-                                  PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Reduction variable must be a scalar.");
     if constexpr (!is_known_identity)
       if (InitializeToIdentity)
-        throw sycl::runtime_error(errc::invalid,
-                                  "initialize_to_identity property cannot be "
-                                  "used with identityless reductions.",
-                                  PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "initialize_to_identity property cannot be "
+                              "used with identityless reductions.");
   }
 
   /// Constructs reduction_impl with an explicit identity value. This is only
@@ -1129,9 +1130,8 @@ public:
       : algo(Identity, BOp, InitializeToIdentity, Var) {
     if constexpr (!is_usm)
       if (Var.size() != 1)
-        throw sycl::runtime_error(errc::invalid,
-                                  "Reduction variable must be a scalar.",
-                                  PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Reduction variable must be a scalar.");
   }
 };
 
@@ -1358,7 +1358,7 @@ struct NDRangeReduction<
 };
 
 /// Computes the greatest power-of-two less than or equal to N.
-static inline size_t GreatestPowerOfTwo(size_t N) {
+inline size_t GreatestPowerOfTwo(size_t N) {
   if (N == 0)
     return 0;
 
@@ -1680,11 +1680,11 @@ struct NDRangeReduction<
     // for the device.
     size_t MaxWGSize = reduGetMaxWGSize(Queue, OneElemSize);
     if (NDRange.get_local_range().size() > MaxWGSize)
-      throw sycl::runtime_error("The implementation handling parallel_for with"
-                                " reduction requires work group size not bigger"
-                                " than " +
-                                    std::to_string(MaxWGSize),
-                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with"
+                            " reduction requires work group size not bigger"
+                            " than " +
+                                std::to_string(MaxWGSize));
 
     size_t NElements = Reduction::num_elements;
     size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1725,13 +1725,13 @@ struct NDRangeReduction<
     // TODO: Create a special slow/sequential version of the kernel that would
     // handle the reduction instead of reporting an assert below.
     if (MaxWGSize <= 1)
-      throw sycl::runtime_error("The implementation handling parallel_for with "
-                                "reduction requires the maximal work group "
-                                "size to be greater than 1 to converge. "
-                                "The maximal work group size depends on the "
-                                "device and the size of the objects passed to "
-                                "the reduction.",
-                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with "
+                            "reduction requires the maximal work group "
+                            "size to be greater than 1 to converge. "
+                            "The maximal work group size depends on the "
+                            "device and the size of the objects passed to "
+                            "the reduction.");
     size_t NWorkItems = NDRange.get_group_range().size();
     while (NWorkItems > 1) {
       reduction::withAuxHandler(CGH, [&](handler &AuxHandler) {
@@ -1808,11 +1808,11 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
     // compiled for the device.
     size_t MaxWGSize = reduGetMaxWGSize(Queue, OneElemSize);
     if (NDRange.get_local_range().size() > MaxWGSize)
-      throw sycl::runtime_error("The implementation handling parallel_for with"
-                                " reduction requires work group size not bigger"
-                                " than " +
-                                    std::to_string(MaxWGSize),
-                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with"
+                            " reduction requires work group size not bigger"
+                            " than " +
+                                std::to_string(MaxWGSize));
 
     size_t NWorkGroups = NDRange.get_group_range().size();
 
@@ -1904,13 +1904,13 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
     // TODO: Create a special slow/sequential version of the kernel that would
     // handle the reduction instead of reporting an assert below.
     if (MaxWGSize <= 1)
-      throw sycl::runtime_error("The implementation handling parallel_for with "
-                                "reduction requires the maximal work group "
-                                "size to be greater than 1 to converge. "
-                                "The maximal work group size depends on the "
-                                "device and the size of the objects passed to "
-                                "the reduction.",
-                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with "
+                            "reduction requires the maximal work group "
+                            "size to be greater than 1 to converge. "
+                            "The maximal work group size depends on the "
+                            "device and the size of the objects passed to "
+                            "the reduction.");
     size_t NWorkItems = NDRange.get_group_range().size();
     while (NWorkItems > 1) {
       size_t NWorkGroups;
@@ -2586,11 +2586,11 @@ template <> struct NDRangeReduction<reduction::strategy::multi> {
     // for the device.
     size_t MaxWGSize = reduGetMaxWGSize(Queue, LocalMemPerWorkItem);
     if (NDRange.get_local_range().size() > MaxWGSize)
-      throw sycl::runtime_error("The implementation handling parallel_for with"
-                                " reduction requires work group size not bigger"
-                                " than " +
-                                    std::to_string(MaxWGSize),
-                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with"
+                            " reduction requires work group size not bigger"
+                            " than " +
+                                std::to_string(MaxWGSize));
 
     reduCGFuncMulti<KernelName>(CGH, KernelFunc, NDRange, Properties, ReduTuple,
                                 ReduIndices);

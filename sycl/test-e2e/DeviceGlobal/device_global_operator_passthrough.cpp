@@ -1,50 +1,16 @@
-// TODO: device_global without the device_image_scope property is not currently
-//       initialized on device. Enable the following test cases when it is
-//       supported.
-// RUNx: %{build} -o %t.out
-// RUNx: %{run} %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
-// RUN: %{build} -fsycl-device-code-split=per_source -DUSE_DEVICE_IMAGE_SCOPE -o %t_dev_img_scope.out
-// RUN: %{run} %t_dev_img_scope.out
+// The HIP and OpenCL GPU backends do not currently support device_global
+// backend calls.
+// UNSUPPORTED: hip || (opencl && gpu)
 //
-// CPU and accelerators are not currently guaranteed to support the required
-// extensions they are disabled until they are.
-// UNSUPPORTED: cpu, accelerator
+// Temporarily disabled for OpenCL CPU while we wait for CPU driver bump. Same
+// applies to the FPGA emulator.
+// UNSUPPORTED: opencl
 //
 // Tests the passthrough of operators on device_global.
-// NOTE: USE_DEVICE_IMAGE_SCOPE needs both kernels to be in the same image so
-//       we set -fsycl-device-code-split=per_source.
 
-#include <sycl/sycl.hpp>
+#include "device_global_operator_passthrough.hpp"
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental;
-
-#ifdef USE_DEVICE_IMAGE_SCOPE
-device_global<int, decltype(properties{device_image_scope})> DeviceGlobalVar;
-#else
-device_global<int> DeviceGlobalVar;
-#endif
-
-int main() {
-  queue Q;
-
-  Q.single_task([]() {
-     DeviceGlobalVar = 2;
-     DeviceGlobalVar += 3;
-     DeviceGlobalVar = DeviceGlobalVar * DeviceGlobalVar;
-     DeviceGlobalVar = DeviceGlobalVar - 3;
-     DeviceGlobalVar = 25 - DeviceGlobalVar;
-   }).wait();
-
-  int Out = 0;
-  {
-    buffer<int, 1> OutBuf{&Out, 1};
-    Q.submit([&](handler &CGH) {
-      auto OutAcc = OutBuf.get_access<access::mode::write>(CGH);
-      CGH.single_task([=]() { OutAcc[0] = DeviceGlobalVar; });
-    });
-  }
-  assert(Out == 3 && "Read value does not match.");
-  return 0;
-}
+int main() { return test(); }

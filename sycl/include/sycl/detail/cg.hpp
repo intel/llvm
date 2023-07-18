@@ -20,7 +20,6 @@
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/interop_handle.hpp>
-#include <sycl/interop_handler.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/range.hpp>
@@ -62,11 +61,9 @@ public:
     BarrierWaitlist = 6,
     Fill = 7,
     UpdateHost = 8,
-    RunOnHostIntel = 9,
     CopyUSM = 10,
     FillUSM = 11,
     PrefetchUSM = 12,
-    CodeplayInteropTask = 13,
     CodeplayHostTask = 14,
     AdviseUSM = 15,
     Copy2DUSM = 16,
@@ -140,6 +137,12 @@ public:
   }
   std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
 
+  virtual std::vector<std::shared_ptr<const void>>
+  getAuxiliaryResources() const {
+    return {};
+  }
+  virtual void clearAuxiliaryResources(){};
+
   virtual ~CG() = default;
 
 private:
@@ -186,8 +189,7 @@ public:
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
-    assert((getType() == RunOnHostIntel || getType() == Kernel) &&
-           "Wrong type of exec kernel CG.");
+    assert(getType() == Kernel && "Wrong type of exec kernel CG.");
   }
 
   CGExecKernel(const CGExecKernel &CGExec) = default;
@@ -198,9 +200,11 @@ public:
     return MStreams;
   }
 
-  std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const {
+  std::vector<std::shared_ptr<const void>>
+  getAuxiliaryResources() const override {
     return MAuxiliaryResources;
   }
+  void clearAuxiliaryResources() override { MAuxiliaryResources.clear(); }
 
   std::shared_ptr<detail::kernel_bundle_impl> getKernelBundle() {
     return MKernelBundle;
@@ -208,22 +212,28 @@ public:
 
   void clearStreams() { MStreams.clear(); }
   bool hasStreams() { return !MStreams.empty(); }
-
-  void clearAuxiliaryResources() { MAuxiliaryResources.clear(); }
-  bool hasAuxiliaryResources() { return !MAuxiliaryResources.empty(); }
 };
 
 /// "Copy memory" command group class.
 class CGCopy : public CG {
   void *MSrc;
   void *MDst;
+  std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
 
 public:
   CGCopy(CGTYPE CopyType, void *Src, void *Dst, CG::StorageInitHelper CGData,
+         std::vector<std::shared_ptr<const void>> AuxiliaryResources,
          detail::code_location loc = {})
-      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst) {}
+      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
+        MAuxiliaryResources{AuxiliaryResources} {}
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
+
+  std::vector<std::shared_ptr<const void>>
+  getAuxiliaryResources() const override {
+    return MAuxiliaryResources;
+  }
+  void clearAuxiliaryResources() override { MAuxiliaryResources.clear(); }
 };
 
 /// "Fill memory" command group class.
@@ -314,17 +324,6 @@ public:
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
   pi_mem_advice getAdvice() { return MAdvice; }
-};
-
-class CGInteropTask : public CG {
-public:
-  std::unique_ptr<InteropTask> MInteropTask;
-
-  CGInteropTask(std::unique_ptr<InteropTask> InteropTask,
-                CG::StorageInitHelper CGData, CGTYPE Type,
-                detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MInteropTask(std::move(InteropTask)) {}
 };
 
 class CGHostTask : public CG {
@@ -496,6 +495,17 @@ public:
   bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
+};
+
+/// "Execute command-buffer" command group class.
+class CGExecCommandBuffer : public CG {
+public:
+  sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+
+  CGExecCommandBuffer(sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+                      CG::StorageInitHelper CGData)
+      : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
+        MCommandBuffer(CommandBuffer) {}
 };
 
 } // namespace detail
