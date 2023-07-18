@@ -243,7 +243,6 @@ llvm.func @raise_id_default() {
 // CHECK-NEXT:      llvm.return
 // CHECK-NEXT:    }
 llvm.func @raise_id_store_default() {
-  %false = llvm.mlir.constant(0 : i1) : i1
   %c0 = llvm.mlir.constant(0 : i64) : i64
   %c1 = llvm.mlir.constant(1 : i32) : i32
   %id1 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
