@@ -67,6 +67,7 @@
 #include <sycl/ext/oneapi/annotated_arg/annotated_arg.hpp>
 #include <sycl/ext/oneapi/annotated_arg/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/annotated_arg/properties.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
@@ -86,4 +87,3 @@
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
-#include <sycl/ext/oneapi/bindless_images.hpp>

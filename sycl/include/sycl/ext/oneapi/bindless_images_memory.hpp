@@ -87,8 +87,8 @@ public:
   __SYCL_EXPORT unsigned int get_num_channels() const;
   __SYCL_EXPORT image_type get_type() const;
 
-  __SYCL_EXPORT raw_handle_type
-  __SYCL_EXPORT get_mip_level_mem_handle(const unsigned int level) const;
+  __SYCL_EXPORT raw_handle_type __SYCL_EXPORT
+  get_mip_level_mem_handle(const unsigned int level) const;
 
 protected:
   std::shared_ptr<detail::image_mem_impl> impl;

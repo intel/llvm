@@ -206,8 +206,9 @@ __SYCL_EXPORT image_mem_handle alloc_image_mem(const image_descriptor &desc,
   return alloc_image_mem(desc, syclQueue.get_device(), syclQueue.get_context());
 }
 
-__SYCL_EXPORT image_mem_handle alloc_mipmap_mem(
-    const image_descriptor &desc, const sycl::device &syclDevice, const sycl::context &syclContext) {
+__SYCL_EXPORT image_mem_handle
+alloc_mipmap_mem(const image_descriptor &desc, const sycl::device &syclDevice,
+                 const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();

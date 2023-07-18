@@ -2990,7 +2990,7 @@ public:
 
   /// Copies data from one memory region to another, where \p Src and \p Dest
   /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
-  /// \p DestOffset , and \p Extent are used to determine the sub-region. 
+  /// \p DestOffset , and \p Extent are used to determine the sub-region.
   /// Pixel size is determined by \p DestImgDesc
   /// An exception is thrown if either \p Src is nullptr or \p Dest is
   /// incomplete.
@@ -3014,7 +3014,7 @@ public:
       void *Src, sycl::range<3> SrcOffset, void *Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
-      size_t DeviceRowPitch, sycl::range<3> HostExtent, 
+      size_t DeviceRowPitch, sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
