@@ -26,14 +26,80 @@ namespace polygeist {
 //===----------------------------------------------------------------------===//
 
 raw_ostream &operator<<(raw_ostream &os, const AccessorInformation &info) {
-  // TODO
+
+  os.indent(4) << "Needs range: " << ((info.needsRange()) ? "Yes" : "No")
+               << "\n";
+  os.indent(4) << "Range: ";
+  if (info.hasConstantRange()) {
+    os << "range{";
+    llvm::interleaveComma(info.getConstantRange(), os);
+    os << "}\n";
+  } else {
+    os << "<unknown>\n";
+  }
+
+  os.indent(4) << "Needs offset: " << ((info.needsOffset()) ? "Yes" : "No")
+               << "\n";
+  os.indent(4) << "Offset: ";
+  if (info.hasConstantOffset()) {
+    os << "id{";
+    llvm::interleaveComma(info.getConstantOffset(), os);
+    os << "}\n";
+  } else {
+    os << "<unknown>\n";
+  }
+
+  os.indent(4) << "Buffer: ";
+  if (info.hasKnownBuffer())
+    os << info.buffer;
+  else
+    os << "<unknown>";
+  os << "\n";
+
+  os.indent(4) << "Buffer information: ";
+  if (info.hasBufferInformation())
+    os << info.getBufferInfo();
+  else
+    os << "<unknown>";
+  os << "\n";
+
   return os;
 }
 
 const AccessorInformation
 AccessorInformation::join(const AccessorInformation &other,
                           AliasAnalysis &aliasAnalysis) const {
-  // TODO
+  Value jointBuf = nullptr;
+  if (hasKnownBuffer() && other.hasKnownBuffer() &&
+      (getBuffer() == other.getBuffer() ||
+       aliasAnalysis.alias(getBuffer(), other.getBuffer()) ==
+           AliasResult::MustAlias))
+    jointBuf = getBuffer();
+
+  std::optional<BufferInformation> jointBufInfo = std::nullopt;
+  if (hasBufferInformation() && other.hasBufferInformation())
+    jointBufInfo = getBufferInfo().join(other.getBufferInfo(), aliasAnalysis);
+
+  // The range can only omitted if this and the incoming agree info agree it is
+  // not needed, otherwise the conservative default is to assume the range is
+  // needed.
+  bool jointNeedsRange =
+      (needsRange() == other.needsRange()) ? needsRange() : true;
+  SmallVector<size_t, 3> jointRange = (constantRange == other.constantRange)
+                                          ? constantRange
+                                          : SmallVector<size_t, 3>{};
+
+  // The offset can only omitted if this and the incoming agree info agree it is
+  // not needed, otherwise the conservative default is to assume the offset is
+  // needed.
+  bool jointNeedsOffset =
+      (needsOffset() == other.needsOffset()) ? needsOffset() : true;
+  SmallVector<size_t, 3> jointOffset = (constantOffset == other.constantOffset)
+                                           ? constantOffset
+                                           : SmallVector<size_t, 3>{};
+
+  return AccessorInformation(jointBuf, jointBufInfo, jointNeedsRange,
+                             jointRange, jointNeedsOffset, jointOffset);
 }
 
 //===----------------------------------------------------------------------===//
@@ -41,7 +107,8 @@ AccessorInformation::join(const AccessorInformation &other,
 //===----------------------------------------------------------------------===//
 
 SYCLAccessorAnalysis::SYCLAccessorAnalysis(Operation *op, AnalysisManager &mgr)
-    : operation(op), am(mgr), idRangeAnalysis(op, mgr) {}
+    : operation(op), am(mgr), aliasAnalysis(nullptr), idRangeAnalysis(op, mgr),
+      bufferAnalysis(op, mgr) {}
 
 SYCLAccessorAnalysis &
 SYCLAccessorAnalysis::initialize(bool useRelaxedAliasing) {
@@ -62,6 +129,7 @@ SYCLAccessorAnalysis::initialize(bool useRelaxedAliasing) {
   }
 
   idRangeAnalysis.initialize(useRelaxedAliasing);
+  bufferAnalysis.initialize(useRelaxedAliasing);
 
   initialized = true;
 
@@ -75,6 +143,7 @@ SYCLAccessorAnalysis::getAccessorInformationFromConstruction(Operation *op,
          "Analysis only available after successful initialization");
   assert(isa<LLVM::LLVMPointerType>(operand.getType()) &&
          "Expecting an LLVM pointer");
+  assert(aliasAnalysis != nullptr && "Alias analysis not initialized");
 
   const polygeist::ReachingDefinition *reachingDef =
       solver->lookupState<polygeist::ReachingDefinition>(op);
@@ -142,66 +211,68 @@ SYCLAccessorAnalysis::getInformation(const Definition &def) {
 
   auto constructor = cast<sycl::SYCLHostConstructorOp>(def.getOperation());
 
-  // The default is true because we conservatively need to assume that the
-  // accessor uses those two fields, unless we can infer otherwise.
-  bool needsRange = true;
-  bool needsOffset = true;
+  Value buffer = nullptr;
+  std::optional<BufferInformation> bufferInfo = std::nullopt;
+  if (constructor->getNumOperands() > 2) {
+    buffer = constructor->getOperand(1);
+    bufferInfo = bufferAnalysis.getBufferInformationFromConstruction(
+        constructor, constructor->getOperand(1));
+  }
+
+  auto accessorTy = cast<sycl::AccessorType>(constructor.getType().getValue());
+  // Whether the range and offset parameter are required by the accessor
+  // constructed is encoded in the list of body types.
+  bool needsRange = llvm::any_of(accessorTy.getBody(), [](const Type &ty) {
+    return isa<sycl::RangeType>(ty);
+  });
+  bool needsOffset = llvm::any_of(accessorTy.getBody(), [](const Type &ty) {
+    return isa<sycl::IDType>(ty);
+  });
   SmallVector<size_t, 3> constRange;
   SmallVector<size_t, 3> constOffset;
-  Value buffer = (constructor->getNumOperands() > 2)
-                     ? constructor->getOperand(1)
-                     : nullptr;
+  if (needsRange) {
+    // In the C++ API, the range can either be the second or third parameter to
+    // the constructor.
+    std::optional<IDRangeInformation> optRangeInfo =
+        getOperandInfo<sycl::RangeType>(constructor, 2, 3);
+    if (optRangeInfo.has_value() && optRangeInfo->isConstant())
+      constRange = optRangeInfo->getConstantValues();
+  }
+  if (needsOffset) {
+    // In the C++ API, the range can either be the third or fourth parameter to
+    // the constructor.
+    std::optional<IDRangeInformation> optIDInfo =
+        getOperandInfo<sycl::IDType>(constructor, 3, 4);
+    if (optIDInfo.has_value() && optIDInfo->isConstant())
+      constOffset = optIDInfo->getConstantValues();
+  }
 
-  // Deduct two for the this pointer and the DPC++-specific code location
-  // argument.
-  switch (constructor->getNumOperands() - 2) {
-  case 0:
-  case 2:
-    needsRange = false;
-    needsOffset = false;
-    break;
-  case 3: {
-    needsOffset = false;
-    // The second parameter can either be a handler, a tag or a range.
-    Value secondArg = constructor->getOperand(2);
-    needsRange = !(isHandler(secondArg) || isAccessTag(secondArg));
-    if (needsRange) {
-      auto rangeInfo =
-          idRangeAnalysis
-              .getIDRangeInformationFromConstruction<sycl::RangeType>(
-                  constructor, secondArg);
-      if (rangeInfo && rangeInfo->isConstant())
-        constRange = rangeInfo->getConstantValues();
-    }
-    break;
-  }
-  case 4: {
-    // The second parameter can either be a handler or a range.
-    Value secondArg = constructor->getOperand(2);
-    // The third parameter can either be a tag, a range or an id.
-    Value thirdArg = constructor.getOperand(3);
-    if (isHandler(secondArg)) {
-      needsOffset = false;
-      if (isAccessTag(thirdArg)) {
-        needsRange = false;
-        break;
-      }
-      auto rangeInfo =
-          idRangeAnalysis
-              .getIDRangeInformationFromConstruction<sycl::RangeType>(
-                  constructor, thirdArg);
-      if (rangeInfo && rangeInfo->isConstant())
-        constRange = rangeInfo->getConstantValues();
-      break;
-    }
-  }
-  }
-  // TODO
+  return AccessorInformation(buffer, bufferInfo, needsRange, constRange,
+                             needsOffset, constOffset);
 }
 
-bool SYCLAccessorAnalysis::isHandler(Value value) const { return false; }
+template <typename OperandType>
+std::optional<IDRangeInformation>
+SYCLAccessorAnalysis::getOperandInfo(sycl::SYCLHostConstructorOp constructor,
+                                     size_t possibleIndex1,
+                                     size_t possibleIndex2) {
+  std::optional<IDRangeInformation> firstInfo;
+  if (possibleIndex1 < constructor->getNumOperands())
+    firstInfo =
+        idRangeAnalysis.getIDRangeInformationFromConstruction<OperandType>(
+            constructor, constructor->getOperand(possibleIndex1));
 
-bool SYCLAccessorAnalysis::isAccessTag(Value value) const { return false; }
+  std::optional<IDRangeInformation> secondInfo;
+  if (possibleIndex2 < constructor->getNumOperands())
+    secondInfo =
+        idRangeAnalysis.getIDRangeInformationFromConstruction<OperandType>(
+            constructor, constructor->getOperand(possibleIndex2));
+
+  assert(!(firstInfo.has_value() && secondInfo.has_value()) &&
+         "Only one argument of this type expected");
+
+  return (firstInfo.has_value()) ? firstInfo : secondInfo;
+}
 
 } // namespace polygeist
 } // namespace mlir

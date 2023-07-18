@@ -19,6 +19,7 @@
 #include "mlir/Dialect/Polygeist/Analysis/SYCLBufferAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/SYCLIDAndRangeAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Pass/AnalysisManager.h"
 
 namespace mlir {
@@ -108,9 +109,10 @@ private:
 
   AccessorInformation getInformation(const Definition &def);
 
-  bool isHandler(Value value) const;
-
-  bool isAccessTag(Value value) const;
+  template <typename OperandType>
+  std::optional<IDRangeInformation>
+  getOperandInfo(sycl::SYCLHostConstructorOp constructor, size_t possibleIndex1,
+                 size_t possibleIndex2);
 
   Operation *operation;
 
@@ -123,6 +125,8 @@ private:
   AliasAnalysis *aliasAnalysis;
 
   SYCLIDAndRangeAnalysis idRangeAnalysis;
+
+  SYCLBufferAnalysis bufferAnalysis;
 };
 } // namespace polygeist
 } // namespace mlir
