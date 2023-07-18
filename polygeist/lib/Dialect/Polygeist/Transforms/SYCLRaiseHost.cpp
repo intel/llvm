@@ -251,9 +251,7 @@ getNumAndTypeOfComponents(LLVM::LLVMStructType structTy) {
       detailType.getBody().empty())
     return std::nullopt;
 
-  auto arrayType = dyn_cast<LLVM::LLVMArrayType>(detailType.getBody().front());
-
-  return arrayType;
+  return dyn_cast<LLVM::LLVMArrayType>(detailType.getBody().front());
 }
 
 namespace {
