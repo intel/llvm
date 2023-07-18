@@ -1820,6 +1820,118 @@ get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
   return ext::oneapi::experimental::info::graph_support_level::unsupported;
 }
 
+template <>
+inline bool get_device_info_host<info::device::ext_oneapi_bindless_images>() {
+  throw runtime_error("Bindless images are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool
+get_device_info_host<info::device::ext_oneapi_bindless_images_shared_usm>() {
+  throw runtime_error("Bindless images are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool
+get_device_info_host<info::device::ext_oneapi_bindless_images_1d_usm>() {
+  throw runtime_error("Bindless images are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool
+get_device_info_host<info::device::ext_oneapi_bindless_images_2d_usm>() {
+  throw runtime_error("Bindless images are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::image_pitch_align>() {
+  throw runtime_error("Obtaining image pitch alignemnt is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline size_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_width>() {
+  throw runtime_error("Obtaining max image linear width is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline size_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_height>() {
+  throw runtime_error("Obtaining max image linear height is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline size_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_pitch>() {
+  throw runtime_error("Obtaining max image linear pitch is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool get_device_info_host<info::device::ext_oneapi_mipmap>() {
+  throw runtime_error("Bindless image mipmaps are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool get_device_info_host<info::device::ext_oneapi_mipmap_anisotropy>() {
+  throw runtime_error("Bindless image mipmaps are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline float get_device_info_host<
+    ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
+  throw runtime_error("Bindless image mipaps are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool
+get_device_info_host<info::device::ext_oneapi_mipmap_level_reference>() {
+  throw runtime_error("Bindless image mipmaps are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool
+get_device_info_host<info::device::ext_oneapi_interop_memory_import>() {
+  throw runtime_error("Bindless images interop is not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool
+get_device_info_host<info::device::ext_oneapi_interop_memory_export>() {
+  throw runtime_error("Bindless images interop is not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool
+get_device_info_host<info::device::ext_oneapi_interop_semaphore_import>() {
+  throw runtime_error("Bindless images interop is not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool
+get_device_info_host<info::device::ext_oneapi_interop_semaphore_export>() {
+  throw runtime_error("Bindless images interop is not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

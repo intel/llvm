@@ -153,6 +153,7 @@ set(SYCL_SOURCES
     "backend.cpp"
     "detail/accessor_impl.cpp"
     "detail/allowlist.cpp"
+    "detail/bindless_images.cpp"
     "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"
     "detail/builtins_geometric.cpp"
