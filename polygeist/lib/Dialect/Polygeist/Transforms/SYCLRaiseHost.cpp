@@ -1558,16 +1558,16 @@ private:
   /// If there is exactly one store to \p ptr, return it; otherwise
   /// return `nullptr`.
   static LLVM::StoreOp getUniqueStore(Value ptr) {
-    std::optional<LLVM::StoreOp> store;
+    LLVM::StoreOp store;
     for (auto *user : ptr.getUsers())
       if (auto st = dyn_cast<LLVM::StoreOp>(user); st && st.getAddr() == ptr) {
-        if (store.has_value())
+        if (store)
           return nullptr;
 
         store = st;
       }
 
-    return store.value_or(nullptr);
+    return store;
   }
 
   // Use the \p expected type as domain knowledge to try to broaden a \p stored
@@ -1580,10 +1580,8 @@ private:
       // accessor class (think: getelementpointer[0, <capture #>, 0...]).
       // Instead of the value loaded from that address, we return the address
       // itself, which points to the accessor.
-      if (auto load = dyn_cast_or_null<LLVM::LoadOp>(stored.getDefiningOp()))
-        return load.getAddr();
-
-      llvm_unreachable("Unexpected IR for capturing an accessor");
+      auto load = cast<LLVM::LoadOp>(stored.getDefiningOp());
+      return load.getAddr();
     }
 
     // No special handling, just return the argument as-is.
