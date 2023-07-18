@@ -54,29 +54,27 @@ func.func @set_kernel(%handler: !llvm.ptr) {
 
 // CHECK-LABEL:   func.func @set_nd_range(
 // CHECK-SAME:                            %[[VAL_0:.*]]: !llvm.ptr,
-// CHECK-SAME:                            %[[VAL_1:.*]]: memref<?x!sycl_nd_range_1_>) {
-// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> %[[VAL_1]] : !llvm.ptr, memref<?x!sycl_nd_range_1_>
-func.func @set_nd_range(%handler: !llvm.ptr, %nd_range: memref<?x!sycl_nd_range_1_>) {
-  sycl.host.handler.set_nd_range %handler -> %nd_range : !llvm.ptr, memref<?x!sycl_nd_range_1_>
+// CHECK-SAME:                            %[[VAL_1:.*]]: !llvm.ptr) {
+// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> nd_range %[[VAL_1]] : !llvm.ptr, !llvm.ptr
+func.func @set_nd_range(%handler: !llvm.ptr, %nd_range: !llvm.ptr) {
+  sycl.host.handler.set_nd_range %handler -> nd_range %nd_range : !llvm.ptr, !llvm.ptr
   func.return
 }
 
 // CHECK-LABEL:   func.func @set_nd_range_range(
 // CHECK-SAME:                                  %[[VAL_0:.*]]: !llvm.ptr,
-// CHECK-SAME:                                  %[[VAL_1:.*]]: memref<?x!sycl_range_1_>) {
-// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> %[[VAL_1]] : !llvm.ptr, memref<?x!sycl_range_1_>
-func.func @set_nd_range_range(%handler: !llvm.ptr, %range: memref<?x!sycl_range_1_>) {
-  sycl.host.handler.set_nd_range %handler -> %range : !llvm.ptr, memref<?x!sycl_range_1_>
+// CHECK-SAME:                                  %[[VAL_1:.*]]: !llvm.ptr) {
+// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> range %[[VAL_1]] : !llvm.ptr, !llvm.ptr
+func.func @set_nd_range_range(%handler: !llvm.ptr, %range: !llvm.ptr) {
+  sycl.host.handler.set_nd_range %handler -> range %range : !llvm.ptr, !llvm.ptr
   func.return
 }
 
 // CHECK-LABEL:   func.func @set_nd_range_range_with_offset(
-// CHECK-SAME:                                              %[[VAL_0:.*]]: !llvm.ptr,
-// CHECK-SAME:                                              %[[VAL_1:.*]]: memref<?x!sycl_range_1_>,
-// CHECK-SAME:                                              %[[VAL_2:.*]]: memref<?x!sycl_id_1_>) {
-// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> %[[VAL_1]], %[[VAL_2]] : !llvm.ptr, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>
-func.func @set_nd_range_range_with_offset(%handler: !llvm.ptr, %range: memref<?x!sycl_range_1_>, %offset: memref<?x!sycl_id_1_>) {
-  sycl.host.handler.set_nd_range %handler -> %range, %offset : !llvm.ptr, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>
+// CHECK-SAME:                                              %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: !llvm.ptr) {
+// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> range %[[VAL_1]], offset %[[VAL_2]] : !llvm.ptr, !llvm.ptr, !llvm.ptr
+func.func @set_nd_range_range_with_offset(%handler: !llvm.ptr, %range: !llvm.ptr, %offset: !llvm.ptr) {
+  sycl.host.handler.set_nd_range %handler -> range %range, offset %offset : !llvm.ptr, !llvm.ptr, !llvm.ptr
   func.return
 }
 
@@ -106,50 +104,47 @@ func.func @launch_kernel_single_task(%arg0 : i32, %arg1 : i32) {
 }
 
 // CHECK-LABEL:   func.func @launch_kernel_nd_range(
-// CHECK-SAME:                                      %[[VAL_0:.*]]: memref<?x!sycl_nd_range_1_>,
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !llvm.ptr,
 // CHECK-SAME:                                      %[[VAL_1:.*]]: i32,
 // CHECK-SAME:                                      %[[VAL_2:.*]]: i32) {
-// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]] : (memref<?x!sycl_nd_range_1_>) -> ()
-// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]](%[[VAL_1]]) : (memref<?x!sycl_nd_range_1_>, i32) -> ()
-// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]](%[[VAL_1]], %[[VAL_2]]) : (memref<?x!sycl_nd_range_1_>, i32, i32) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}nd_range %[[VAL_0]]] : (!llvm.ptr) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}nd_range %[[VAL_0]]](%[[VAL_1]]) : (!llvm.ptr, i32) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}nd_range %[[VAL_0]]](%[[VAL_1]], %[[VAL_2]]) : (!llvm.ptr, i32, i32) -> ()
 // CHECK:           return
 // CHECK:         }
-func.func @launch_kernel_nd_range(%nd_range: memref<?x!sycl_nd_range_1_>, %arg0 : i32, %arg1 : i32) {
-  sycl.host.launch_kernel @kernels::@k0[%nd_range] : (memref<?x!sycl_nd_range_1_>) -> ()
-  sycl.host.launch_kernel @kernels::@k0[%nd_range](%arg0) : (memref<?x!sycl_nd_range_1_>, i32) -> ()
-  sycl.host.launch_kernel @kernels::@k0[%nd_range](%arg0, %arg1) : (memref<?x!sycl_nd_range_1_>, i32, i32) -> ()
+func.func @launch_kernel_nd_range(%nd_range: !llvm.ptr, %arg0 : i32, %arg1 : i32) {
+  sycl.host.launch_kernel @kernels::@k0[nd_range %nd_range] : (!llvm.ptr) -> ()
+  sycl.host.launch_kernel @kernels::@k0[nd_range %nd_range](%arg0) : (!llvm.ptr, i32) -> ()
+  sycl.host.launch_kernel @kernels::@k0[nd_range %nd_range](%arg0, %arg1) : (!llvm.ptr, i32, i32) -> ()
   func.return
 }
 
 // CHECK-LABEL:   func.func @launch_kernel_range(
-// CHECK-SAME:                                   %[[VAL_0:.*]]: memref<?x!sycl_range_1_>,
+// CHECK-SAME:                                   %[[VAL_0:.*]]: !llvm.ptr,
 // CHECK-SAME:                                   %[[VAL_1:.*]]: i32,
 // CHECK-SAME:                                   %[[VAL_2:.*]]: i32) {
-// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]] : (memref<?x!sycl_range_1_>) -> ()
-// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]](%[[VAL_1]]) : (memref<?x!sycl_range_1_>, i32) -> ()
-// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]]](%[[VAL_1]], %[[VAL_2]]) : (memref<?x!sycl_range_1_>, i32, i32) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}range %[[VAL_0]]] : (!llvm.ptr) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}range %[[VAL_0]]](%[[VAL_1]]) : (!llvm.ptr, i32) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}range %[[VAL_0]]](%[[VAL_1]], %[[VAL_2]]) : (!llvm.ptr, i32, i32) -> ()
 // CHECK:           return
 // CHECK:         }
-func.func @launch_kernel_range(%range: memref<?x!sycl_range_1_>, %arg0 : i32, %arg1 : i32) {
-  sycl.host.launch_kernel @kernels::@k0[%range] : (memref<?x!sycl_range_1_>) -> ()
-  sycl.host.launch_kernel @kernels::@k0[%range](%arg0) : (memref<?x!sycl_range_1_>, i32) -> ()
-  sycl.host.launch_kernel @kernels::@k0[%range](%arg0, %arg1) : (memref<?x!sycl_range_1_>, i32, i32) -> ()
+func.func @launch_kernel_range(%range: !llvm.ptr, %arg0 : i32, %arg1 : i32) {
+  sycl.host.launch_kernel @kernels::@k0[range %range] : (!llvm.ptr) -> ()
+  sycl.host.launch_kernel @kernels::@k0[range %range](%arg0) : (!llvm.ptr, i32) -> ()
+  sycl.host.launch_kernel @kernels::@k0[range %range](%arg0, %arg1) : (!llvm.ptr, i32, i32) -> ()
   func.return
 }
 
 // CHECK-LABEL:   func.func @launch_kernel_range_with_offset(
-// CHECK-SAME:                                               %[[VAL_0:.*]]: memref<?x!sycl_range_1_>,
-// CHECK-SAME:                                               %[[VAL_1:.*]]: memref<?x!sycl_id_1_>,
-// CHECK-SAME:                                               %[[VAL_2:.*]]: i32,
-// CHECK-SAME:                                               %[[VAL_3:.*]]: i32) {
-// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]], %[[VAL_1]]] : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
-// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]], %[[VAL_1]]](%[[VAL_2]]) : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>, i32) -> ()
-// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}%[[VAL_0]], %[[VAL_1]]](%[[VAL_2]], %[[VAL_3]]) : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>, i32, i32) -> ()
+// CHECK-SAME:                                               %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: i32, %[[VAL_3:.*]]: i32) {
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}range %[[VAL_0]], offset %[[VAL_1]]] : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}range %[[VAL_0]], offset %[[VAL_1]]](%[[VAL_2]]) : (!llvm.ptr, !llvm.ptr, i32) -> ()
+// CHECK:           sycl.host.launch_kernel @kernels::@k0{{\[}}range %[[VAL_0]], offset %[[VAL_1]]](%[[VAL_2]], %[[VAL_3]]) : (!llvm.ptr, !llvm.ptr, i32, i32) -> ()
 // CHECK:           return
 // CHECK:         }
-func.func @launch_kernel_range_with_offset(%range: memref<?x!sycl_range_1_>, %offset: memref<?x!sycl_id_1_>, %arg0 : i32, %arg1 : i32) {
-  sycl.host.launch_kernel @kernels::@k0[%range, %offset] : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
-  sycl.host.launch_kernel @kernels::@k0[%range, %offset](%arg0) : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>, i32) -> ()
-  sycl.host.launch_kernel @kernels::@k0[%range, %offset](%arg0, %arg1) : (memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>, i32, i32) -> ()
+func.func @launch_kernel_range_with_offset(%range: !llvm.ptr, %offset: !llvm.ptr, %arg0 : i32, %arg1 : i32) {
+  sycl.host.launch_kernel @kernels::@k0[range %range, offset %offset] : (!llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.launch_kernel @kernels::@k0[range %range, offset %offset](%arg0) : (!llvm.ptr, !llvm.ptr, i32) -> ()
+  sycl.host.launch_kernel @kernels::@k0[range %range, offset %offset](%arg0, %arg1) : (!llvm.ptr, !llvm.ptr, i32, i32) -> ()
   func.return
 }

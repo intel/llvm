@@ -297,14 +297,12 @@ llvm.mlir.global private unnamed_addr constant @range_str("range\00")
 
 // CHECK-LABEL:   llvm.func @raise_set_globalsize(
 // CHECK-SAME:                                    %[[VAL_0:.*]]: !llvm.ptr) {
-// CHECK-DAG:       %[[VAL_1:.*]] = arith.constant 512 : index
-// CHECK-DAG:       %[[VAL_2:.*]] = llvm.mlir.constant(512 : i64) : i64
-// CHECK-DAG:       %[[VAL_3:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-DAG:       %[[VAL_1:.*]] = llvm.mlir.constant(512 : i64) : i64
+// CHECK-DAG:       %[[VAL_2:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:      sycl.host.handler.set_kernel %[[VAL_0]] -> @device_functions::@foo : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
-// CHECK-NEXT:      %[[VAL_5:.*]] = sycl.range.constructor(%[[VAL_1]]) : (index) -> memref<1x!sycl_range_1_>
-// CHECK-NEXT:      sycl.host.constructor(%[[VAL_4]], %[[VAL_2]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
-// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> %[[VAL_5]] : !llvm.ptr, memref<1x!sycl_range_1_>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_3]], %[[VAL_1]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> range %[[VAL_3]] : !llvm.ptr, !llvm.ptr
 // CHECK-NEXT:      llvm.return
 // CHECK-NEXT:    }
 llvm.func @raise_set_globalsize(%handler: !llvm.ptr) {
@@ -340,19 +338,15 @@ llvm.mlir.global private unnamed_addr constant @offset_str("offset\00")
 
 // CHECK-LABEL:   llvm.func @raise_set_globalsize_offset(
 // CHECK-SAME:                                           %[[VAL_0:.*]]: !llvm.ptr) {
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 512 : index
-// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 100 : index
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(512 : i64) : i64
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mlir.constant(100 : i64) : i64
-// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-DAG:       %[[VAL_1:.*]] = llvm.mlir.constant(512 : i64) : i64
+// CHECK-DAG:       %[[VAL_2:.*]] = llvm.mlir.constant(100 : i64) : i64
+// CHECK-DAG:       %[[VAL_3:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-NEXT:      sycl.host.handler.set_kernel %[[VAL_0]] -> @device_functions::@foo : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.alloca %[[VAL_5]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
-// CHECK-NEXT:      %[[VAL_7:.*]] = sycl.range.constructor(%[[VAL_1]]) : (index) -> memref<1x!sycl_range_1_>
-// CHECK-NEXT:      sycl.host.constructor(%[[VAL_6]], %[[VAL_3]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
-// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.alloca %[[VAL_5]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
-// CHECK-NEXT:      %[[VAL_9:.*]] = sycl.id.constructor(%[[VAL_2]]) : (index) -> memref<1x!sycl_id_1_>
-// CHECK-NEXT:      sycl.host.constructor(%[[VAL_8]], %[[VAL_4]]) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
-// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> %[[VAL_7]], %[[VAL_9]] : !llvm.ptr, memref<1x!sycl_range_1_>, memref<1x!sycl_id_1_>
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_4]], %[[VAL_1]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_5]], %[[VAL_2]]) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> range %[[VAL_4]], offset %[[VAL_5]] : !llvm.ptr, !llvm.ptr, !llvm.ptr
 // CHECK-NEXT:      llvm.return
 // CHECK-NEXT:    }
 llvm.func @raise_set_globalsize_offset(%handler: !llvm.ptr) {
