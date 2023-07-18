@@ -1477,6 +1477,119 @@ private:
     Value value;
   };
 };
+
+class RaiseSetCaptured : public OpHostRaisePattern<LLVM::VarAnnotation> {
+public:
+  using OpHostRaisePattern<LLVM::VarAnnotation>::OpHostRaisePattern;
+
+  LogicalResult matchAndRewrite(LLVM::VarAnnotation op,
+                                PatternRewriter &rewriter) const final {
+    // The annotation must be inside a handler function.
+    auto enclosingFunc = op->getParentOfType<LLVM::LLVMFuncOp>();
+    if (!enclosingFunc || !getHandler(enclosingFunc))
+      return failure();
+
+    // It must be a "kernel" annotation.
+    FailureOr<StringRef> failureOrAnnotationStr = getAnnotation(op);
+    if (failed(failureOrAnnotationStr) || *failureOrAnnotationStr != "kernel")
+      return failure();
+
+    // There should be exactly one store to the marked pointer.
+    Value annotatedPtr = op.getVal();
+    auto store = getUniqueStore(annotatedPtr);
+    if (!store)
+      return failure();
+
+    Value lambdaObj = store.getValue();
+    auto alloca = dyn_cast_or_null<LLVM::AllocaOp>(lambdaObj.getDefiningOp());
+    if (!alloca || !alloca.getElemType().has_value())
+      return failure();
+
+    auto lambdaClassTy =
+        dyn_cast<LLVM::LLVMStructType>(alloca.getElemType().value());
+    if (!lambdaClassTy)
+      return failure();
+
+    auto captureTypes = lambdaClassTy.getBody();
+
+    // Look for stores that represent the capturing of kernel args.
+    // Assuming the no-op `getelementptr %lambdaObj[0, 0]` was folded, the
+    // first capture is actually a store to the pointer.
+    if (auto capture = getUniqueStore(lambdaObj)) {
+      Value captured = tryToBroaden(capture.getValue(), captureTypes[0]);
+      rewriter.setInsertionPointAfter(capture);
+      rewriter.create<sycl::SYCLHostSetCaptured>(capture->getLoc(), lambdaObj,
+                                                 rewriter.getI64IntegerAttr(0),
+                                                 captured);
+    }
+
+    // All other captures are the single stores to GEPs with two constant
+    // indices `[0, <capture #>]` to the lambda object.
+    for (auto *user : lambdaObj.getUsers()) {
+      auto gep = dyn_cast<LLVM::GEPOp>(user);
+      if (!gep || !gep.getElemType().has_value() ||
+          gep.getElemType().value() != lambdaClassTy ||
+          !gep.getDynamicIndices().empty())
+        continue;
+
+      auto indices = gep.getRawConstantIndices();
+      if (indices.size() != 2 || indices[0] != 0)
+        continue;
+      unsigned captureIdx = indices[1];
+
+      auto capture = getUniqueStore(gep);
+      if (!capture)
+        continue;
+
+      Value captured =
+          tryToBroaden(capture.getValue(), captureTypes[captureIdx]);
+      rewriter.setInsertionPointAfter(capture);
+      rewriter.create<sycl::SYCLHostSetCaptured>(
+          capture->getLoc(), lambdaObj, rewriter.getI64IntegerAttr(captureIdx),
+          captured);
+    }
+
+    // Finally erase the annotation op.
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  /// If there is exactly one store to \p ptr, return it; otherwise
+  /// return `nullptr`.
+  static LLVM::StoreOp getUniqueStore(Value ptr) {
+    std::optional<LLVM::StoreOp> store;
+    for (auto *user : ptr.getUsers())
+      if (auto st = dyn_cast<LLVM::StoreOp>(user); st && st.getAddr() == ptr) {
+        if (store.has_value())
+          return nullptr;
+
+        store = st;
+      }
+
+    return store.value_or(nullptr);
+  }
+
+  // Use the \p expected type as domain knowledge to try to broaden a \p stored
+  // value to an entity of interest (e.g. an accessor).
+  static Value tryToBroaden(Value stored, Type expected) {
+    static AccessorTypeTag tag;
+    if (isClassType(expected, tag.getTypeName())) {
+      // The getelementpointer[0, <capture #>] we have matched earlier is is not
+      // addressing the entire accessor, but rather the first member in the
+      // accessor class (think: getelementpointer[0, <capture #>, 0...]).
+      // Instead of the value loaded from that address, we return the address
+      // itself, which points to the accessor.
+      if (auto load = dyn_cast_or_null<LLVM::LoadOp>(stored.getDefiningOp()))
+        return load.getAddr();
+
+      llvm_unreachable("Unexpected IR for capturing an accessor");
+    }
+
+    // No special handling, just return the argument as-is.
+    return stored;
+  }
+};
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -1506,7 +1619,8 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
                                                                  /*benefit=*/3);
   rewritePatterns.add<RaiseNDRangeConstructor>(context,
                                                /*benefit=*/2);
-  rewritePatterns.add<RaiseSetNDRange>(context, /*benefit=*/1);
+  rewritePatterns.add<RaiseSetNDRange, RaiseSetCaptured>(context,
+                                                         /*benefit=*/1);
 
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
