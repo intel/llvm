@@ -17,8 +17,10 @@ namespace ur_validation_layer {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urInit
 __urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags ///< [in] device initialization flags.
+    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_loader_config_handle_t
+        hLoaderConfig ///< [in][optional] Handle of loader config handle.
 ) {
     auto pfnInit = context.urDdiTable.Global.pfnInit;
 
@@ -32,7 +34,7 @@ __urdlllocal ur_result_t UR_APICALL urInit(
         }
     }
 
-    ur_result_t result = pfnInit(device_flags);
+    ur_result_t result = pfnInit(device_flags, hLoaderConfig);
 
     return result;
 }
@@ -8143,8 +8145,25 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     return result;
 }
 
-ur_result_t context_t::init(ur_dditable_t *dditable) {
+ur_result_t context_t::init(ur_dditable_t *dditable,
+                            const std::set<std::string> &enabledLayerNames) {
     ur_result_t result = UR_RESULT_SUCCESS;
+
+    if (enabledLayerNames.count(nameFullValidation)) {
+        enableParameterValidation = true;
+        enableLeakChecking = true;
+    } else {
+        if (enabledLayerNames.count(nameParameterValidation)) {
+            enableParameterValidation = true;
+        }
+        if (enabledLayerNames.count(nameLeakChecking)) {
+            enableLeakChecking = true;
+        }
+    }
+
+    if (!enableParameterValidation && !enableLeakChecking) {
+        return result;
+    }
 
     if (UR_RESULT_SUCCESS == result) {
         result = ur_validation_layer::urGetGlobalProcAddrTable(

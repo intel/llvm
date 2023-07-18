@@ -14,7 +14,7 @@ struct urTest : ::testing::Test {
 
     void SetUp() override {
         ur_device_init_flags_t device_flags = 0;
-        ASSERT_SUCCESS(urInit(device_flags));
+        ASSERT_SUCCESS(urInit(device_flags, nullptr));
     }
 
     void TearDown() override {

@@ -43,8 +43,23 @@ std::ostream &operator<<(std::ostream &out,
 uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
     : platform_options{parsePlatformOptions(argc, argv)} {
     instance = this;
+
+    ur_loader_config_handle_t config;
+    if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
+        if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION")) {
+            urLoaderConfigRelease(config);
+            error = "Failed to enable validation layer";
+            return;
+        }
+    } else {
+        error = "Failed to create loader config handle";
+        return;
+    }
+
     ur_device_init_flags_t device_flags = 0;
-    switch (urInit(device_flags)) {
+    auto initResult = urInit(device_flags, config);
+    auto configReleaseResult = urLoaderConfigRelease(config);
+    switch (initResult) {
     case UR_RESULT_SUCCESS:
         break;
     case UR_RESULT_ERROR_UNINITIALIZED:
@@ -52,6 +67,11 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
         return;
     default:
         error = "urInit() failed";
+        return;
+    }
+
+    if (configReleaseResult) {
+        error = "Failed to destroy loader config handle";
         return;
     }
 

@@ -60,6 +60,11 @@ name: $x_bool_t
 value: uint8_t
 --- #--------------------------------------------------------------------------
 type: handle
+desc: "Handle of a loader config object"
+class: $xLoaderConfig
+name: "$x_loader_config_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
 desc: "Handle of a platform instance"
 class: $xPlatform
 name: "$x_platform_handle_t"
@@ -261,6 +266,8 @@ etors:
     - name: ERROR_ADAPTER_SPECIFIC
       desc: "An adapter specific warning/error has been reported and can be retrieved
              via the urPlatformGetLastError entry point."
+    - name: ERROR_LAYER_NOT_PRESENT
+      desc: "A requested layer was not found by the loader."
     - name: ERROR_UNKNOWN
       value: "0x7ffffffe"
       desc: "Unknown or internal error"

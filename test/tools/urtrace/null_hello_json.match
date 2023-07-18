@@ -1,6 +1,6 @@
 {
  "traceEvents": [
-{            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urInit",            "args": "(.device_flags = 0)"        },
+{            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urInit",            "args": "(.device_flags = 0, .hLoaderConfig = nullptr)"        },
 Platform initialized.
 {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urPlatformGet",            "args": "(.NumEntries = 1, .phPlatforms = {}, .pNumPlatforms = {{.*}} (1))"        },
 {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urPlatformGet",            "args": "(.NumEntries = 1, .phPlatforms = {{{.*}}}, .pNumPlatforms = nullptr)"        },

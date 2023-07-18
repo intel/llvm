@@ -12,25 +12,58 @@
 #include "ur_lib.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_loader.hpp"
-#include "ur_proxy_layer.hpp"
-#include "validation/ur_validation_layer.hpp"
 
-#if UR_ENABLE_TRACING
-#include "tracing/ur_tracing_layer.hpp"
-#endif
+#include <cstring>
 
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////
 context_t *context;
 
 ///////////////////////////////////////////////////////////////////////////////
-context_t::context_t() {}
+context_t::context_t() {
+    for (auto l : layers) {
+        if (l->isAvailable()) {
+            for (auto &layerName : l->getNames()) {
+                availableLayers += layerName + ";";
+            }
+        }
+    }
+    // Remove the trailing ";"
+    availableLayers.pop_back();
+    parseEnvEnabledLayers();
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::~context_t() {}
 
+bool context_t::layerExists(const std::string &layerName) const {
+    return availableLayers.find(layerName) != std::string::npos;
+}
+
+void context_t::parseEnvEnabledLayers() {
+    auto maybeEnableEnvVarMap = getenv_to_map("UR_ENABLE_LAYERS", false);
+    if (!maybeEnableEnvVarMap.has_value()) {
+        return;
+    }
+    auto enableEnvVarMap = maybeEnableEnvVarMap.value();
+
+    for (auto &key : enableEnvVarMap) {
+        enabledLayerNames.insert(key.first);
+    }
+}
+
+void context_t::initLayers() const {
+    for (auto &l : layers) {
+        if (l->isAvailable()) {
+            l->init(&context->urDdiTable, enabledLayerNames);
+        }
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////
-__urdlllocal ur_result_t context_t::Init(ur_device_init_flags_t device_flags) {
+__urdlllocal ur_result_t
+context_t::Init(ur_device_init_flags_t device_flags,
+                ur_loader_config_handle_t hLoaderConfig) {
     ur_result_t result;
     const char *logger_name = "loader";
     logger::init(logger_name);
@@ -42,20 +75,103 @@ __urdlllocal ur_result_t context_t::Init(ur_device_init_flags_t device_flags) {
         result = urInit();
     }
 
-    proxy_layer_context_t *layers[] = {
-        &ur_validation_layer::context,
-#if UR_ENABLE_TRACING
-        &ur_tracing_layer::context
-#endif
-    };
+    if (hLoaderConfig) {
+        enabledLayerNames.merge(hLoaderConfig->getEnabledLayerNames());
+    }
 
-    for (proxy_layer_context_t *l : layers) {
-        if (l->isEnabled()) {
-            l->init(&context->urDdiTable);
-        }
+    if (!enabledLayerNames.empty()) {
+        initLayers();
     }
 
     return result;
 }
 
+ur_result_t urLoaderConfigCreate(ur_loader_config_handle_t *phLoaderConfig) {
+    if (!phLoaderConfig) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+    *phLoaderConfig = new ur_loader_config_handle_t_;
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urLoaderConfigRetain(ur_loader_config_handle_t hLoaderConfig) {
+    if (!hLoaderConfig) {
+        return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+    }
+    hLoaderConfig->incrementReferenceCount();
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urLoaderConfigRelease(ur_loader_config_handle_t hLoaderConfig) {
+    if (!hLoaderConfig) {
+        return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+    }
+    if (hLoaderConfig->decrementReferenceCount() == 0) {
+        delete hLoaderConfig;
+    }
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urLoaderConfigGetInfo(ur_loader_config_handle_t hLoaderConfig,
+                                  ur_loader_config_info_t propName,
+                                  size_t propSize, void *pPropValue,
+                                  size_t *pPropSizeRet) {
+    if (!hLoaderConfig) {
+        return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+    }
+
+    if (!pPropValue && !pPropSizeRet) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    switch (propName) {
+    case UR_LOADER_CONFIG_INFO_AVAILABLE_LAYERS: {
+        if (pPropSizeRet) {
+            *pPropSizeRet = context->availableLayers.size() + 1;
+        }
+        if (pPropValue) {
+            char *outString = static_cast<char *>(pPropValue);
+            if (propSize != context->availableLayers.size() + 1) {
+                return UR_RESULT_ERROR_INVALID_SIZE;
+            }
+            std::memcpy(outString, context->availableLayers.data(),
+                        propSize - 1);
+            outString[propSize - 1] = '\0';
+        }
+        break;
+    }
+    case UR_LOADER_CONFIG_INFO_REFERENCE_COUNT: {
+        auto refCount = hLoaderConfig->getReferenceCount();
+        auto truePropSize = sizeof(refCount);
+        if (pPropSizeRet) {
+            *pPropSizeRet = truePropSize;
+        }
+        if (pPropValue) {
+            if (propSize != truePropSize) {
+                return UR_RESULT_ERROR_INVALID_SIZE;
+            }
+            std::memcpy(pPropValue, &refCount, truePropSize);
+        }
+        break;
+    }
+    default:
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urLoaderConfigEnableLayer(ur_loader_config_handle_t hLoaderConfig,
+                                      const char *pLayerName) {
+    if (!hLoaderConfig) {
+        return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+    }
+    if (!pLayerName) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+    if (!context->layerExists(std::string(pLayerName))) {
+        return UR_RESULT_ERROR_LAYER_NOT_PRESENT;
+    }
+    hLoaderConfig->enabledLayers.insert(pLayerName);
+    return UR_RESULT_SUCCESS;
+}
 } // namespace ur_lib

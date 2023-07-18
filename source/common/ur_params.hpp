@@ -1069,6 +1069,26 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP";
         break;
+
+    case UR_FUNCTION_LOADER_CONFIG_CREATE:
+        os << "UR_FUNCTION_LOADER_CONFIG_CREATE";
+        break;
+
+    case UR_FUNCTION_LOADER_CONFIG_RELEASE:
+        os << "UR_FUNCTION_LOADER_CONFIG_RELEASE";
+        break;
+
+    case UR_FUNCTION_LOADER_CONFIG_RETAIN:
+        os << "UR_FUNCTION_LOADER_CONFIG_RETAIN";
+        break;
+
+    case UR_FUNCTION_LOADER_CONFIG_GET_INFO:
+        os << "UR_FUNCTION_LOADER_CONFIG_GET_INFO";
+        break;
+
+    case UR_FUNCTION_LOADER_CONFIG_ENABLE_LAYER:
+        os << "UR_FUNCTION_LOADER_CONFIG_ENABLE_LAYER";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1764,6 +1784,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
 
     case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
         os << "UR_RESULT_ERROR_ADAPTER_SPECIFIC";
+        break;
+
+    case UR_RESULT_ERROR_LAYER_NOT_PRESENT:
+        os << "UR_RESULT_ERROR_LAYER_NOT_PRESENT";
         break;
 
     case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
@@ -9708,6 +9732,11 @@ inline std::ostream &operator<<(std::ostream &os,
 
     ur_params::serializeFlag<ur_device_init_flag_t>(os,
                                                     *(params->pdevice_flags));
+
+    os << ", ";
+    os << ".hLoaderConfig = ";
+
+    ur_params::serializePtr(os, *(params->phLoaderConfig));
 
     return os;
 }

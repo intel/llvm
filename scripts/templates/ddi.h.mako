@@ -31,6 +31,9 @@ extern "C" {
 #endif
 
 %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'Loader' in tbl['export']['name']:
+    <% continue %>
+%endif
 %for obj in tbl['functions']:
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for ${th.make_func_name(n, tags, obj)} 
@@ -94,6 +97,9 @@ typedef ${x}_result_t (${X}_APICALL *${tbl['pfn']})(
 typedef struct ${n}_dditable_t
 {
 %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'loader' in tbl['type']:
+    <% continue %>
+%endif
     ${th.append_ws(tbl['type'], 35)} ${tbl['name']};
 %endfor
 } ${n}_dditable_t;
