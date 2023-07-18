@@ -73,6 +73,9 @@ public:
   const AccessorInformation join(const AccessorInformation &other,
                                  AliasAnalysis &aliasAnalysis) const;
 
+  AliasResult alias(const AccessorInformation &other,
+                       AliasAnalysis &aliasAnalysis) const;
+
 private:
   Value buffer;
 

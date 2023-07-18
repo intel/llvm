@@ -102,6 +102,125 @@ AccessorInformation::join(const AccessorInformation &other,
                              jointRange, jointNeedsOffset, jointOffset);
 }
 
+AliasResult AccessorInformation::alias(const AccessorInformation &other,
+                                       AliasAnalysis &aliasAnalysis) const {
+  // If we can't analyze the underlying buffer, can't determine aliasing, so
+  // must assume they may alias.
+  if (!hasKnownBuffer() || !other.hasKnownBuffer())
+    return AliasResult::MayAlias;
+
+  auto isSameValue = [&](Value one, Value two) -> bool {
+    return one == two ||
+           aliasAnalysis.alias(one, two) == AliasResult::MustAlias;
+  };
+
+  if (isSameValue(getBuffer(), other.getBuffer())) {
+    // Both accessors defined on the same buffer.
+    if (!hasBufferInformation() || (needsRange() && !hasConstantRange()) ||
+        (needsOffset() && !hasConstantOffset()) ||
+        !other.hasBufferInformation() ||
+        (other.needsRange() && !other.hasConstantRange()) ||
+        (other.needsOffset() && !other.hasConstantOffset()))
+      // Without definitive information about the underlying buffer and the
+      // range & offset of the two accessors, they might be set up in way
+      // where they completely or partially overlap, so may alias.
+      return AliasResult::MayAlias;
+
+    // Try to refine to must alias
+    if (!needsRange() && !other.needsRange())
+      // If neither uses a range (and therefore also no offset), they must
+      // alias.
+      return AliasResult::MustAlias;
+
+    if (!needsRange()) {
+      // This accessor covers the entire range of the buffer.
+      if (other.hasConstantRange() && getBufferInfo().hasConstantSize() &&
+          SmallVector<size_t, 3>(other.getConstantRange()) ==
+              SmallVector<size_t, 3>(getBufferInfo().getConstantSize()) &&
+          !other.needsOffset())
+        // The other accessor also covers the entire buffer, so they must alias
+        return AliasResult::MustAlias;
+
+      // The other accessor only covers part of the buffer, so they alias for
+      // some elements.
+      return AliasResult::MayAlias;
+    }
+
+    if (!other.needsRange()) {
+      // The other accessor covers the entire range of the buffer.
+      if (hasConstantRange() && getBufferInfo().hasConstantSize() &&
+          SmallVector<size_t, 3>(getConstantRange()) ==
+              SmallVector<size_t, 3>(getBufferInfo().getConstantSize()) &&
+          !needsOffset())
+        // This accessor also covers the entire buffer, so they must alias
+        return AliasResult::MustAlias;
+
+      // This accessor only covers part of the buffer, so they alias for
+      // some elements.
+      return AliasResult::MayAlias;
+    }
+
+    // If control flow reaches this point, this and the other accessor both
+    // require a range.
+    if (!hasConstantRange() || !other.hasConstantRange() ||
+        (needsOffset() && !hasConstantOffset()) ||
+        (other.needsOffset() && !other.hasConstantOffset()))
+      // Not enough information to determine full or partial overlap, assume
+      // they may alias.
+      return AliasResult::MayAlias;
+
+    auto thisRange = getConstantRange();
+    auto otherRange = other.getConstantRange();
+    auto thisOffset =
+        (needsOffset()) ? constantOffset : SmallVector<size_t, 3>{};
+    auto otherOffset =
+        (other.needsOffset()) ? other.constantOffset : SmallVector<size_t, 3>{};
+
+    if (thisRange == otherRange && thisOffset == otherOffset)
+      // If both cover the same part of the buffer, they must alias.
+      return AliasResult::MustAlias;
+
+    if (thisRange.size() != otherRange.size() ||
+        thisOffset.size() != otherOffset.size())
+      // Insufficient information to further refine, assume they may alias.
+      return AliasResult::MayAlias;
+
+    auto noOverlap = [](ArrayRef<size_t> offset, ArrayRef<size_t> range,
+                        ArrayRef<size_t> otherOffset) -> bool {
+      return llvm::all_of(llvm::zip_equal(offset, range, otherOffset),
+                          [](const std::tuple<size_t, size_t, size_t> &t) {
+                            return (std::get<2>(t) >
+                                    std::get<0>(t) + std::get<1>(t));
+                          });
+    };
+
+    if (noOverlap(thisOffset, thisRange, otherOffset) ||
+        noOverlap(otherOffset, otherRange, thisOffset))
+      // If the areas covered by the accessors do not overlap, they do not
+      // overlap.
+      return AliasResult::NoAlias;
+
+    // Could not refine further, assume they overlap partially, so may alias.
+    return AliasResult::MayAlias;
+  }
+
+  if (aliasAnalysis.alias(getBuffer(), other.getBuffer()) !=
+      AliasResult::NoAlias)
+    return AliasResult::MayAlias;
+
+  // The two accessors are defined over two different buffers.
+  if (hasBufferInformation() &&
+      getBufferInfo().isSubBuffer() == SubBufferLattice::NO &&
+      other.hasBufferInformation() &&
+      other.getBufferInfo().isSubBuffer() == SubBufferLattice::NO)
+    // If we definitely know that neither of the two buffers is a sub-buffer,
+    // they won't alias.
+    return AliasResult::NoAlias;
+
+  // Otherwise, they might still alias.
+  return AliasResult::MayAlias;
+}
+
 //===----------------------------------------------------------------------===//
 // SYCLAccessorAnalysis
 //===----------------------------------------------------------------------===//
