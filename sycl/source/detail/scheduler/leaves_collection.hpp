@@ -222,7 +222,7 @@ public:
     }
 
     IteratorT &operator=(const IteratorT<IsConst> &Rhs) {
-      if (this == &Other)
+      if (this == &Rhs)
         return *this;
 
       MHost = Rhs.MHost;
