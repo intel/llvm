@@ -22530,8 +22530,9 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
 
   // Create an intrinsic only if it exists in the map, or if there
   // a TU fp-accuracy requested.
-  if (hasFuncNameRequestedFPAccuracy(Name, getLangOpts()) ||
-      !getLangOpts().FPAccuracyVal.empty()) {
+  const LangOptions &LangOpts = getLangOpts();
+  if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
+      !LangOpts.FPAccuracyVal.empty()) {
     Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
     return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
                                      FPAccuracyIntrinsicID);
