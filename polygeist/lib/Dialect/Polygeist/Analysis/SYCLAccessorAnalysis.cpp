@@ -375,20 +375,31 @@ std::optional<IDRangeInformation>
 SYCLAccessorAnalysis::getOperandInfo(sycl::SYCLHostConstructorOp constructor,
                                      size_t possibleIndex1,
                                      size_t possibleIndex2) {
-  std::optional<IDRangeInformation> firstInfo;
-  if (possibleIndex1 < constructor->getNumOperands())
-    firstInfo =
-        idRangeAnalysis.getIDRangeInformationFromConstruction<OperandType>(
-            constructor, constructor->getOperand(possibleIndex1));
 
-  std::optional<IDRangeInformation> secondInfo;
-  if (possibleIndex2 < constructor->getNumOperands())
-    secondInfo =
-        idRangeAnalysis.getIDRangeInformationFromConstruction<OperandType>(
-            constructor, constructor->getOperand(possibleIndex2));
+  auto getInfo = [&](size_t index) -> std::optional<IDRangeInformation> {
+    if (index < constructor->getNumOperands()) {
+      auto *defOp = constructor->getOperand(index).getDefiningOp();
+      if (defOp && defOp->hasTrait<OpTrait::ConstantLike>()) {
+        // For one-dimensional id/range, the frontend might generate a scalar
+        // value instead. This tries to detect the use of a constant scalar as
+        // range or offset.
+        SmallVector<OpFoldResult> folded;
+        if (succeeded(defOp->fold({}, folded)) && folded.size() == 1 &&
+            folded.front().is<Attribute>() &&
+            isa<IntegerAttr>(folded.front().get<Attribute>()))
+          return IDRangeInformation{ArrayRef<size_t>{static_cast<size_t>(
+              cast<IntegerAttr>(folded.front().get<Attribute>()).getInt())}};
+      }
+      if (isa<LLVM::LLVMPointerType>(constructor->getOperand(index).getType()))
+        return idRangeAnalysis
+            .getIDRangeInformationFromConstruction<OperandType>(
+                constructor, constructor->getOperand(index));
+    }
+    return std::nullopt;
+  };
+  std::optional<IDRangeInformation> firstInfo = getInfo(possibleIndex1);
 
-  assert(!(firstInfo.has_value() && secondInfo.has_value()) &&
-         "Only one argument of this type expected");
+  std::optional<IDRangeInformation> secondInfo = getInfo(possibleIndex2);
 
   return (firstInfo.has_value()) ? firstInfo : secondInfo;
 }
