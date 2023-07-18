@@ -619,8 +619,9 @@ struct get_device_info_impl<
               ext::oneapi::experimental::info::device::architecture>::value,
           sizeof(DeviceIp), &DeviceIp, nullptr);
       return ReturnHelper(MapDeviceIpToArch, DeviceIp);
-    } else if (Dev->is_gpu() && backend::ext_oneapi_cuda == CurrentBackend) {
-      std::map<std::string, oneapi_exp_arch> MapSMToArch = {
+    } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
+                                 backend::ext_oneapi_hip == CurrentBackend)) {
+      std::map<std::string, oneapi_exp_arch> MapVersionToArch = {
           {"5.0", oneapi_exp_arch::nvidia_gpu_sm_50},
           {"5.2", oneapi_exp_arch::nvidia_gpu_sm_52},
           {"5.3", oneapi_exp_arch::nvidia_gpu_sm_53},
@@ -635,26 +636,45 @@ struct get_device_info_impl<
           {"8.7", oneapi_exp_arch::nvidia_gpu_sm_87},
           {"8.9", oneapi_exp_arch::nvidia_gpu_sm_89},
           {"9.0", oneapi_exp_arch::nvidia_gpu_sm_90},
-      };
+          {"gfx701", oneapi_exp_arch::amd_gpu_gfx701},
+          {"gfx702", oneapi_exp_arch::amd_gpu_gfx702},
+          {"gfx801", oneapi_exp_arch::amd_gpu_gfx801},
+          {"gfx802", oneapi_exp_arch::amd_gpu_gfx802},
+          {"gfx803", oneapi_exp_arch::amd_gpu_gfx803},
+          {"gfx805", oneapi_exp_arch::amd_gpu_gfx805},
+          {"gfx810", oneapi_exp_arch::amd_gpu_gfx810},
+          {"gfx900", oneapi_exp_arch::amd_gpu_gfx900},
+          {"gfx902", oneapi_exp_arch::amd_gpu_gfx902},
+          {"gfx904", oneapi_exp_arch::amd_gpu_gfx904},
+          {"gfx906", oneapi_exp_arch::amd_gpu_gfx906},
+          {"gfx908", oneapi_exp_arch::amd_gpu_gfx908},
+          {"gfx90a", oneapi_exp_arch::amd_gpu_gfx90a},
+          {"gfx90a", oneapi_exp_arch::amd_gpu_gfx1010},
+          {"gfx1010", oneapi_exp_arch::amd_gpu_gfx1010},
+          {"gfx1011", oneapi_exp_arch::amd_gpu_gfx1011},
+          {"gfx1012", oneapi_exp_arch::amd_gpu_gfx1012},
+          {"gfx1013", oneapi_exp_arch::amd_gpu_gfx1013},
+          {"gfx1030", oneapi_exp_arch::amd_gpu_gfx1030},
+          {"gfx1031", oneapi_exp_arch::amd_gpu_gfx1031},
+          {"gfx1032", oneapi_exp_arch::amd_gpu_gfx1032},
+          {"gfx1034", oneapi_exp_arch::amd_gpu_gfx1034}};
       size_t resultSize = 0;
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-          Dev->getHandleRef(), PiInfoCode<info::device::backend_version>::value,
-          /*param_value_size=*/0,
-          /*param_value_size=*/nullptr, &resultSize);
+          Dev->getHandleRef(), PiInfoCode<info::device::version>::value, 0,
+          nullptr, &resultSize);
 
-      std::unique_ptr<char[]> DeviceSM(new char[resultSize]);
+      std::unique_ptr<char[]> DeviceArch(new char[resultSize]);
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-          Dev->getHandleRef(), PiInfoCode<info::device::backend_version>::value,
-          resultSize, DeviceSM.get(), nullptr);
+          Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
+          resultSize, DeviceArch.get(), nullptr);
 
-      return ReturnHelper(MapSMToArch, std::string(DeviceSM.get()));
+      return ReturnHelper(MapVersionToArch, std::string(DeviceArch.get()));
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
       // TODO: add support of different CPU architectures to
       // sycl_ext_oneapi_device_architecture
       return sycl::ext::oneapi::experimental::architecture::x86_64;
     }
     // else is not needed
-    // TODO: add support of other arhitectures by extending with else if
 
     // Generating a user-friendly error message
     std::string DeviceStr;
