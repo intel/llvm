@@ -54,6 +54,7 @@ public:
 
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
+  operator=(const GlobalHandler &) = delete;
 
   void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
