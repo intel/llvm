@@ -22415,7 +22415,7 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
 }
 
 static bool hasFuncNameRequestedFPAccuracy(StringRef Name,
-                                           const LangOptions LangOpts) {
+                                           const LangOptions &LangOpts) {
   auto FuncMapIt = LangOpts.FPAccuracyFuncMap.find(Name.str());
   return (FuncMapIt != LangOpts.FPAccuracyFuncMap.end());
 }
