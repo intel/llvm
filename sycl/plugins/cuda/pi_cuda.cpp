@@ -158,6 +158,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMHostAlloc, pi2ur::piextUSMHostAlloc)
   _PI_CL(piextUSMDeviceAlloc, pi2ur::piextUSMDeviceAlloc)
   _PI_CL(piextUSMSharedAlloc, pi2ur::piextUSMSharedAlloc)
+  _PI_CL(piextUSMPitchedAlloc, pi2ur::piextUSMPitchedAlloc)
   _PI_CL(piextUSMFree, pi2ur::piextUSMFree)
   _PI_CL(piextUSMEnqueueMemset, pi2ur::piextUSMEnqueueMemset)
   _PI_CL(piextUSMEnqueueMemcpy, pi2ur::piextUSMEnqueueMemcpy)
@@ -196,10 +197,38 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferMemBufferCopyRect,
          pi2ur::piextCommandBufferMemBufferCopyRect)
   _PI_CL(piextEnqueueCommandBuffer, pi2ur::piextEnqueueCommandBuffer)
+
   // Peer to Peer
   _PI_CL(piextEnablePeerAccess, pi2ur::piextEnablePeerAccess)
   _PI_CL(piextDisablePeerAccess, pi2ur::piextDisablePeerAccess)
   _PI_CL(piextPeerAccessGetInfo, pi2ur::piextPeerAccessGetInfo)
+
+  // Bindless Images
+  _PI_CL(piextMemUnsampledImageHandleDestroy,
+         pi2ur::piextMemUnsampledImageHandleDestroy)
+  _PI_CL(piextMemSampledImageHandleDestroy,
+         pi2ur::piextMemSampledImageHandleDestroy)
+  _PI_CL(piextMemImageAllocate, pi2ur::piextMemImageAllocate)
+  _PI_CL(piextMemImageFree, pi2ur::piextMemImageFree)
+  _PI_CL(piextMemUnsampledImageCreate, pi2ur::piextMemUnsampledImageCreate)
+  _PI_CL(piextMemSampledImageCreate, pi2ur::piextMemSampledImageCreate)
+  _PI_CL(piextBindlessImageSamplerCreate,
+         pi2ur::piextBindlessImageSamplerCreate)
+  _PI_CL(piextMemImageCopy, pi2ur::piextMemImageCopy)
+  _PI_CL(piextMemImageGetInfo, pi2ur::piextMemImageGetInfo)
+
+  _PI_CL(piextMemMipmapGetLevel, pi2ur::piextMemMipmapGetLevel)
+  _PI_CL(piextMemMipmapFree, pi2ur::piextMemMipmapFree)
+
+  _PI_CL(piextMemImportOpaqueFD, pi2ur::piextMemImportOpaqueFD)
+  _PI_CL(piextMemReleaseInterop, pi2ur::piextMemReleaseInterop)
+  _PI_CL(piextMemMapExternalArray, pi2ur::piextMemMapExternalArray)
+  _PI_CL(piextImportExternalSemaphoreOpaqueFD,
+         pi2ur::piextImportExternalSemaphoreOpaqueFD)
+  _PI_CL(piextDestroyExternalSemaphore, pi2ur::piextDestroyExternalSemaphore)
+  _PI_CL(piextWaitExternalSemaphore, pi2ur::piextWaitExternalSemaphore)
+  _PI_CL(piextSignalExternalSemaphore, pi2ur::piextSignalExternalSemaphore)
+
 #undef _PI_CL
 
   return PI_SUCCESS;

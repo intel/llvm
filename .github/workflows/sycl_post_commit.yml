@@ -14,7 +14,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
-      lts_config: "l0_gen9;win_l0_gen12"
+      lts_config: "l0_gen12;win_l0_gen12"
   linux_self_prod:
     name: Linux (Self build + shared libraries + no-assertions)
     if: github.repository == 'intel/llvm'

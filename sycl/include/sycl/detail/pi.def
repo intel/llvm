@@ -174,4 +174,28 @@ _PI_API(piextCommandBufferMemBufferRead)
 _PI_API(piextCommandBufferMemBufferReadRect)
 _PI_API(piextEnqueueCommandBuffer)
 
+_PI_API(piextUSMPitchedAlloc)
+
+// Bindless Images
+_PI_API(piextMemUnsampledImageHandleDestroy)
+_PI_API(piextMemSampledImageHandleDestroy)
+_PI_API(piextBindlessImageSamplerCreate)
+_PI_API(piextMemImageAllocate)
+_PI_API(piextMemImageFree)
+_PI_API(piextMemUnsampledImageCreate)
+_PI_API(piextMemSampledImageCreate)
+_PI_API(piextMemImageCopy)
+_PI_API(piextMemImageGetInfo)
+_PI_API(piextMemMipmapGetLevel)
+_PI_API(piextMemMipmapFree)
+
+// Interop
+_PI_API(piextMemImportOpaqueFD)
+_PI_API(piextMemReleaseInterop)
+_PI_API(piextMemMapExternalArray)
+_PI_API(piextImportExternalSemaphoreOpaqueFD)
+_PI_API(piextDestroyExternalSemaphore)
+_PI_API(piextWaitExternalSemaphore)
+_PI_API(piextSignalExternalSemaphore)
+
 #undef _PI_API
