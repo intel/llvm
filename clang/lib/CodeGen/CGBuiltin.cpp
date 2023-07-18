@@ -22245,7 +22245,6 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
 }
 
 RValue CodeGenFunction::EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E) {
-  // Arguments
   const Expr *PtrArg = E->getArg(0);
   Value *PtrVal = EmitScalarExpr(PtrArg);
   auto &Ctx = CGM.getContext();
@@ -22278,7 +22277,7 @@ RValue CodeGenFunction::EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E) {
   }
 
   llvm::Value *Ann =
-      EmitSYCLAnnotationCall(F, PtrVal, E->getExprLoc(), &Properties);
+      EmitSYCLAnnotationCall(F, PtrVal, E->getExprLoc(), Properties);
   return RValue::get(Ann);
 }
 

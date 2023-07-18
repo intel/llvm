@@ -4584,7 +4584,7 @@ public:
   llvm::Value *EmitSYCLAnnotationCall(
       llvm::Function *AnnotationFn, llvm::Value *AnnotatedVal,
       SourceLocation Location,
-      llvm::SmallVectorImpl<std::pair<std::string, std::string>> *Pair);
+      llvm::SmallVectorImpl<std::pair<std::string, std::string>> &Pair);
 
   /// Emit sycl field annotations for given field & value. Returns the
   /// annotation result.
