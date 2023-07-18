@@ -121,7 +121,6 @@ entry:
   ret void
 }
 ```
-<<<<<<< HEAD
 This pass will also set the correct calling convention for the target, and handle calling convention-related function attributes, allowing to call the kernel from the runtime.
 
 The `subhandler` for the Native CPU kernel looks like: 
@@ -141,7 +140,6 @@ entry:
   ret void
 }
 ```
-<<<<<<< HEAD
 As you can see, the `subhandler` steals the kernel's function name, and receives two pointer arguments: the first one points to the kernel arguments from the SYCL runtime, and the second one to the `__nativecpu_state` struct.
 
 ## Kernel registration
