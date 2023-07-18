@@ -110,7 +110,7 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   // subhandler steals its name, we add a suffix to the subhandler later
   // on when lowering the device module
   std::string OldName = F->getName().str();
-  std::string NewName = OldName + "_NativeCPUKernel";
+  std::string NewName = OldName + ".NativeCPUKernel";
   const auto SubHandlerName = OldName;
   F->setName(NewName);
   FunctionType *FTy = FunctionType::get(

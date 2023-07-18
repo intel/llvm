@@ -119,7 +119,7 @@ inline bool isSYCLExternalFunction(const Function *F) {
 
 inline std::string addSYCLNativeCPUSuffix(StringRef S) {
   std::string OldName = S.str();
-  std::string NewName = OldName + "__SYCLNCPU";
+  std::string NewName = OldName + ".SYCLNCPU";
   return NewName;
 }
 constexpr char SYCLNATIVECPURENAMEMD[] = "sycl-native-cpu-rename";

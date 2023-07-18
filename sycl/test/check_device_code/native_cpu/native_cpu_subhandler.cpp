@@ -40,7 +40,7 @@ void test() {
   //CHECK-NEXT:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
   //CHECK-NEXT:  %{{.*}} = load ptr, ptr %{{.*}}
   //CHECK-NEXT:  %[[ARG3:.*]] = load i32, ptr %{{.*}}
-  //CHECK-NEXT:  call void @_ZTS6init_aIiE_NativeCPUKernel(ptr %[[ARG1]], ptr %[[ARG2]], i32 %[[ARG3]], ptr %[[STATE]])
+  //CHECK-NEXT:  call void @_ZTS6init_aIiE.NativeCPUKernel(ptr %[[ARG1]], ptr %[[ARG2]], i32 %[[ARG3]], ptr %[[STATE]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
   gen_test<float>(q);
@@ -52,7 +52,7 @@ void test() {
   //CHECK-NEXT:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
   //CHECK-NEXT:  %{{.*}} = load ptr, ptr %{{.*}}
   //CHECK-NEXT:  %[[ARGF3:.*]] = load float, ptr %{{.*}}
-  //CHECK-NEXT:  call void @_ZTS6init_aIfE_NativeCPUKernel(ptr %[[ARGF1]], ptr %[[ARGF2]], float %[[ARGF3]], ptr %[[STATE1]])
+  //CHECK-NEXT:  call void @_ZTS6init_aIfE.NativeCPUKernel(ptr %[[ARGF1]], ptr %[[ARGF2]], float %[[ARGF3]], ptr %[[STATE1]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 
@@ -64,13 +64,13 @@ void test() {
     });
   });
   //CHECK:define weak void @_ZTS5Test1(ptr %{{.*}}, ptr %[[STATE2:.*]]) #{{.*}} {
-  //CHECK:       call void @_ZTS5Test1_NativeCPUKernel(ptr %[[STATE2]])
+  //CHECK:       call void @_ZTS5Test1.NativeCPUKernel(ptr %[[STATE2]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 
   launch<class TestKernel>([]() {});
   //CHECK:define weak void @_ZTSZ4testvE10TestKernel(ptr %{{.*}}, ptr %[[STATE3:.*]]) #{{.*}} {
-  //CHECK:       call void @_ZTSZ4testvE10TestKernel_NativeCPUKernel(ptr %[[STATE3]])
+  //CHECK:       call void @_ZTSZ4testvE10TestKernel.NativeCPUKernel(ptr %[[STATE3]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 }

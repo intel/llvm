@@ -53,6 +53,6 @@ int main() {
 // Check that the string for the end entry is added
 // CHECK: @__ncpu_end_str = internal unnamed_addr constant [16 x i8] c"__nativecpu_end\00"
 // Check that the array of declarations for Native CPU is added to the module, and it contains the entry for the kernel and it's terminated by the end entry
-// CHECK: @__sycl_native_cpu_decls = internal constant [{{[0-9]*}} x %__nativecpu_entry] [{{.*}} %__nativecpu_entry { ptr [[KERNELNAME]], ptr @_ZTS10SimpleVadd__SYCLNCPU }, %__nativecpu_entry { ptr @__ncpu_end_str, ptr null }]
+// CHECK: @__sycl_native_cpu_decls = internal constant [{{[0-9]*}} x %__nativecpu_entry] [{{.*}} %__nativecpu_entry { ptr [[KERNELNAME]], ptr @_ZTS10SimpleVadd.SYCLNCPU }, %__nativecpu_entry { ptr @__ncpu_end_str, ptr null }]
 // Check that the declaration for the kernel is added for the wrapper module
-// CHECK-DAG: declare void @_ZTS10SimpleVadd__SYCLNCPU(ptr, ptr)
+// CHECK-DAG: declare void @_ZTS10SimpleVadd.SYCLNCPU(ptr, ptr)
