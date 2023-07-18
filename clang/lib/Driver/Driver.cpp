@@ -1160,14 +1160,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   checkSingleArgValidity(DeviceCodeSplit,
                          {"per_kernel", "per_source", "auto", "off"});
 
-  bool IsSYCLNativeCPU = isSYCLNativeCPU(C.getInputArgs());
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
   if (SYCLForceTarget) {
     StringRef Val(SYCLForceTarget->getValue());
     llvm::Triple TT(MakeSYCLDeviceTriple(Val));
-    // Todo: re-enable the check once native_cpu can coexist.
-    if (!IsSYCLNativeCPU && !isValidSYCLTriple(TT))
+    if (!isValidSYCLTriple(TT))
       Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
   }
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
@@ -5485,7 +5483,8 @@ class OffloadingActionBuilder final {
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
         const bool isSYCLNativeCPU =
-            TC->getAuxTriple() && TT == *TC->getAuxTriple();
+            TC->getAuxTriple() &&
+            driver::isSYCLNativeCPU(TT, *TC->getAuxTriple());
         for (const auto &Input : LI) {
           if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
               types::isFPGA(Input->getType())) {

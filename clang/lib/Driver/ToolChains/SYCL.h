@@ -223,6 +223,14 @@ template <typename ArgListT> bool isSYCLNativeCPU(const ArgListT &Args) {
   }
   return false;
 }
+
+inline bool isSYCLNativeCPU(const llvm::Triple HostT, const llvm::Triple DevT) {
+  return HostT == DevT;
+}
+
+inline bool isSYCLNativeCPU(const ToolChain &TC1, const ToolChain &TC2) {
+  return isSYCLNativeCPU(TC1.getTriple(), TC2.getTriple());
+}
 } // end namespace driver
 } // end namespace clang
 
