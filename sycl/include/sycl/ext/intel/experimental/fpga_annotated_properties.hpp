@@ -10,8 +10,6 @@
 #pragma once
 
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -104,13 +102,7 @@ inline constexpr read_write_mode_key::value_t<read_write_mode_enum::read_write>
 
 } // namespace experimental
 } // namespace intel
-} // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
 
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
 namespace oneapi {
 namespace experimental {
 template <typename T, typename PropertyListT> class annotated_arg;
