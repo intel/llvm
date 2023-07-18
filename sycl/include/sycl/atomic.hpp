@@ -79,8 +79,7 @@ namespace detail {
 // Translate sycl::memory_order or __spv::MemorySemanticsMask::Flag
 // into std::memory_order
 // Only relaxed memory semantics are supported currently
-static inline std::memory_order
-getStdMemoryOrder(__spv::MemorySemanticsMask::Flag) {
+inline std::memory_order getStdMemoryOrder(__spv::MemorySemanticsMask::Flag) {
   return std::memory_order_relaxed;
 }
 } // namespace detail

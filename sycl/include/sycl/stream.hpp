@@ -66,21 +66,19 @@ using EnableIfFP = typename std::enable_if_t<std::is_same_v<F, float> ||
                                              T>;
 
 using GlobalBufAccessorT = accessor<char, 1, sycl::access::mode::read_write,
-                                    sycl::access::target::global_buffer,
-                                    sycl::access::placeholder::false_t>;
+                                    sycl::access::target::device>;
 
 constexpr static access::address_space GlobalBufAS =
-    TargetToAS<sycl::access::target::global_buffer>::AS;
+    TargetToAS<sycl::access::target::device>::AS;
 using GlobalBufPtrType =
     typename detail::DecoratedType<char, GlobalBufAS>::type *;
 constexpr static int GlobalBufDim = 1;
 
 using GlobalOffsetAccessorT = accessor<unsigned, 1, sycl::access::mode::atomic,
-                                       sycl::access::target::global_buffer,
-                                       sycl::access::placeholder::false_t>;
+                                       sycl::access::target::device>;
 
 constexpr static access::address_space GlobalOffsetAS =
-    TargetToAS<sycl::access::target::global_buffer>::AS;
+    TargetToAS<sycl::access::target::device>::AS;
 using GlobalOffsetPtrType =
     typename detail::DecoratedType<unsigned, GlobalBufAS>::type *;
 constexpr static int GlobalOffsetDim = 1;
@@ -226,7 +224,7 @@ inline unsigned append(char *Dst, const char *Src) {
   return Len;
 }
 
-static inline unsigned F2I32(float Val) {
+inline unsigned F2I32(float Val) {
   union {
     float FVal;
     unsigned I32Val;
@@ -235,7 +233,7 @@ static inline unsigned F2I32(float Val) {
   return Internal.I32Val;
 }
 
-static inline unsigned long long D2I64(double Val) {
+inline unsigned long long D2I64(double Val) {
   union {
     double DVal;
     unsigned long long I64Val;
