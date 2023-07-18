@@ -48,7 +48,8 @@
 #endif
 
 // Helper macro to identify if fallback assert is needed
-#if defined(SYCL_FALLBACK_ASSERT) && !defined(NDEBUG)
+// FIXME remove __NVPTX__ condition once devicelib supports CUDA
+#if defined(SYCL_FALLBACK_ASSERT)
 #define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
 #else
 #define __SYCL_USE_FALLBACK_ASSERT 0
@@ -70,7 +71,7 @@ namespace detail {
 class queue_impl;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-inline event submitAssertCapture(queue &, event &, queue *,
+static event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
 } // namespace detail
@@ -2256,9 +2257,7 @@ private:
         ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
   }
 
-#ifndef NDEBUG
   buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
-#endif // NDEBUG
 
   event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
@@ -2284,9 +2283,8 @@ namespace detail {
  * which it gets compiled and exported without any integration header and, thus,
  * with no proper KernelInfo instance.
  */
-inline event submitAssertCapture(queue &Self, event &Event,
-                                 queue *SecondaryQueue,
-                                 const detail::code_location &CodeLoc) {
+event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
+                          const detail::code_location &CodeLoc) {
   using AHBufT = buffer<detail::AssertHappened, 1>;
 
   AHBufT &Buffer = Self.getAssertHappenedBuffer();
