@@ -184,9 +184,6 @@ program_impl::program_impl(ContextImplPtr Context,
       OptionsVector.data(), nullptr);
   std::string Options(OptionsVector.begin(), OptionsVector.end());
   switch (BinaryType) {
-  case PI_PROGRAM_BINARY_TYPE_NONE:
-    assert(false);
-    break;
   case PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
     MState = program_state::compiled;
     MCompileOptions = Options;
