@@ -445,7 +445,8 @@ int main() {
 
   // GPU driver had an error in handling of SLM aligned block_loads/stores,
   // which has been fixed only in "1.3.26816".
-  if (!esimd_test::minLinuxDriver(q, "1.3.26816")) {
+  if (!esimd_test::minLinuxDriver(q, "1.3.26816") ||
+      !esimd_test::minWindowsDriver(q, "1.3.26816")) {
     std::cout << "Skipped. The test requires GPU driver 1.3.26816 or newer.\n";
     return 0;
   }
