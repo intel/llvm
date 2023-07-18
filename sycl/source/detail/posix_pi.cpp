@@ -8,6 +8,7 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/pi.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #include <dlfcn.h>
 #include <string>
