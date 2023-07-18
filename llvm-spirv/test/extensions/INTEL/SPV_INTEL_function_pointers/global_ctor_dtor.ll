@@ -1,6 +1,6 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_function_pointers -spirv-text -o - | FileCheck %s
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -spirv-text -o - | FileCheck %s
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -23,9 +23,11 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK: TypePointer [[TP:[0-9]+]]
 ; CHECK: ConstantFunctionPointerINTEL [[TP]] [[FPCtor:[0-9]+]] [[NameCtor]]
-; CHECK: ConstantComposite {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[FPCtor]]
+; CHECK: SpecConstantOp {{[0-9]+}} [[FPCtorI8:[0-9]+]] 124 [[FPCtor]]
+; CHECK: ConstantComposite {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[FPCtorI8]]
 ; CHECK: ConstantFunctionPointerINTEL [[TP]] [[FPDtor:[0-9]+]] [[NameDtor]]
-; CHECK: ConstantComposite {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[FPDtor]]
+; CHECK: SpecConstantOp {{[0-9]+}} [[FPDtorI8:[0-9]+]] 124 [[FPDtor]]
+; CHECK: ConstantComposite {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[FPDtorI8]]
 
 ; CHECK: 5 Function [[TF]] [[NameCtor]] 0
 ; CHECK-EMPTY:
