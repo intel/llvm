@@ -10,8 +10,8 @@
 static bool PrintPiTrace = true;
 
 struct nativecpu_entry {
-  char *kernelname;
-  unsigned char *kernel_ptr;
+  const char *kernelname;
+  const unsigned char *kernel_ptr;
 };
 
 struct _pi_object {
@@ -58,7 +58,13 @@ struct _pi_context : _pi_object {
 
 struct _pi_program : _pi_object {
   _pi_context *_ctx;
-  std::map<std::string, unsigned char *> _kernels;
+  struct _compare {
+    bool operator()(char const *a, char const *b) const {
+      return std::strcmp(a, b) < 0;
+    }
+  };
+
+  std::map<const char *, const unsigned char *, _compare> _kernels;
 };
 
 using nativecpu_kernel_t = void(const sycl::detail::NativeCPUArgDesc *,
@@ -794,7 +800,7 @@ pi_result piKernelCreate(pi_program program, const char *name,
                          pi_kernel *kernel) {
   // Todo: error checking
   auto ker = new _pi_kernel();
-  auto kernelEntry = program->_kernels.find(std::string(name));
+  auto kernelEntry = program->_kernels.find(name);
   if (kernelEntry == program->_kernels.end())
     return PI_ERROR_INVALID_KERNEL_NAME;
   auto f = reinterpret_cast<nativecpu_ptr_t>(kernelEntry->second);
