@@ -3,18 +3,9 @@
 /// when no GPU Relocatable Device Code mode is used.
 ///
 
-#include <sycl/sycl.hpp>
-
-int main() {
-  sycl::queue q;
-  auto ptr = sycl::malloc_shared<int>(1, q);
-  q.single_task([=]() {
-	  ptr[0] = 1;
-  });
-  return 0;
-}
-
 // UNSUPPORTED: system-windows
+
+/// FIXME remove once opaque pointers are supported for all sycl targets (i.e., SPIR-V)
 
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fno-gpu-rdc %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=CHECK_NORDC_OPAQUE_PTR
