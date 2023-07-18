@@ -9,6 +9,10 @@ __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_gro
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device, architecture,
                          ext::oneapi::experimental::architecture,
                          PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION)
+__SYCL_PARAM_TRAITS_SPEC(
+    ext::oneapi::experimental, device, graph_support,
+    ext::oneapi::experimental::info::graph_support_level,
+    0 /* No PI device code needed */)
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF

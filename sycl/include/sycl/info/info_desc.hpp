@@ -185,9 +185,14 @@ template <typename T, T param> struct compatibility_param_traits {};
   } /*namespace info */                                                        \
   } /*namespace Namespace */
 
-namespace ext::oneapi::experimental::info::device {
+namespace ext::oneapi::experimental::info {
+
+enum class graph_support_level { unsupported = 0, native, emulated };
+
+namespace device {
 template <int Dimensions> struct max_work_groups;
-} // namespace ext::oneapi::experimental::info::device
+} // namespace device
+} // namespace ext::oneapi::experimental::info
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
