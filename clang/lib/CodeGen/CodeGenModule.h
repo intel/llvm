@@ -1385,7 +1385,7 @@ public:
 
   /// Emit additional args of the annotation.
   llvm::Constant *EmitSYCLAnnotationArgs(
-      SmallVectorImpl<std::pair<std::string, std::string>> &Pair);
+      SmallVectorImpl<std::pair<std::string, std::string>> &Pairs);
 
   /// Add attributes from add_ir_attributes_global_variable on TND to GV.
   void AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,

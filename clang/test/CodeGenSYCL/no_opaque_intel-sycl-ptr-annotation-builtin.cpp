@@ -1,5 +1,7 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -std=c++11 -disable-llvm-passes -S -no-opaque-pointers -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
+#include "Inputs/sycl.hpp"
+class kernel;
 // CHECK: [[STRUCT:%.*]] = type { i32, float }
 struct State {
   int x;
@@ -16,22 +18,6 @@ struct State {
 // CHECK-DAG: [[ARG2:@.args[\.]*[0-9]*]] = {{.*}}[[ANN2]]{{.*}}[[ANN4]]
 // CHECK-DAG: [[ARG3:@.args[\.]*[0-9]*]] = {{.*}}[[ANN5]]{{.*}}[[ANN3]]
 // CHECK-DAG: [[ARG4:@.args[\.]*[0-9]*]] = {{.*}}[[ANN6]]{{.*}}[[ANN3]]
-
-// This check makes sure the generated LoadInst consumes the annotated ptr directly
-// CHECK: define {{.*}}spir_func noundef i32 @{{.*}}(i32 addrspace(4)* noundef %g)
-int annotation_with_load(int* g) {
-  // CHECK: [[PTR13:%[0-9]+]] = call i32 addrspace(4)* @llvm.ptr.annotation{{.*}}[[ARG3]]{{.*}}
-  // CHECK: load i32, i32 addrspace(4)* [[PTR13]]
-  return *__builtin_intel_sycl_ptr_annotation(g, "testG", 0);
-}
-
-// This check makes sure the generated StoreInst consumes the annotated ptr directly
-// CHECK: define {{.*}}spir_func void @{{.*}}(i32 addrspace(4)* noundef %h)
-void annotation_with_store(int* h) {
-  // CHECK: [[PTR14:%[0-9]+]] = call i32 addrspace(4)* @llvm.ptr.annotation{{.*}}[[ARG4]]{{.*}}
-  // CHECK: store i32 1, i32 addrspace(4)* [[PTR14]]
-  *__builtin_intel_sycl_ptr_annotation(h, "testH", 0) = 1;
-}
 
 // CHECK: define {{.*}}spir_func void @{{.*}}(float addrspace(4)* noundef %A, i32 addrspace(4)* noundef %B, [[STRUCT]] addrspace(4)* noundef %C, [[STRUCT]] addrspace(4)*{{.*}}%D)
 void foo(float *A, int *B, State *C, State &D) {
@@ -81,21 +67,37 @@ void foo(float *A, int *B, State *C, State &D) {
   z = __builtin_intel_sycl_ptr_annotation(&D, "testB", 127);
 }
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
-  kernelFunc();
+// This check makes sure the generated LoadInst consumes the annotated ptr directly
+// CHECK: define {{.*}}spir_func noundef i32 @{{.*}}(i32 addrspace(4)* noundef %g)
+int annotation_with_load(int* g) {
+  // CHECK: [[PTR13:%[0-9]+]] = call i32 addrspace(4)* @llvm.ptr.annotation{{.*}}[[ARG3]]{{.*}}
+  // CHECK: load i32, i32 addrspace(4)* [[PTR13]]
+  return *__builtin_intel_sycl_ptr_annotation(g, "testG", 0);
+}
 
-  int *a;
-  annotation_with_load(a);
-  annotation_with_store(a);
+// This check makes sure the generated StoreInst consumes the annotated ptr directly
+// CHECK: define {{.*}}spir_func void @{{.*}}(i32 addrspace(4)* noundef %h)
+void annotation_with_store(int* h) {
+  // CHECK: [[PTR14:%[0-9]+]] = call i32 addrspace(4)* @llvm.ptr.annotation{{.*}}[[ARG4]]{{.*}}
+  // CHECK: store i32 1, i32 addrspace(4)* [[PTR14]]
+  *__builtin_intel_sycl_ptr_annotation(h, "testH", 0) = 1;
 }
 
 int main() {
-  kernel_single_task<class fake_kernel>([]() {
-    float *A;
-    int *B;
-    State *C;
-    State D;
-    foo(A, B, C, D); });
+  sycl::queue q;
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class kernel>([=](){
+        float *A;
+        int *B;
+        State *C;
+        State D;
+        foo(A, B, C, D);
+
+        int *a;
+        annotation_with_load(a);
+        annotation_with_store(a);
+    });
+  });
   return 0;
 }
+

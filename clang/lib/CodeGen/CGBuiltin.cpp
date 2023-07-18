@@ -22258,8 +22258,8 @@ RValue CodeGenFunction::EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E) {
 
   SmallVector<std::pair<std::string, std::string>, 4> Properties;
 
-  for (unsigned i = 1, e = E->getNumArgs(); i <= e / 2; i++) {
-    auto Arg = E->getArg(i)->IgnoreParenCasts();
+  for (unsigned I = 1, N = E->getNumArgs(); I <= N / 2; I++) {
+    auto Arg = E->getArg(I)->IgnoreParenCasts();
     const StringLiteral *Str = dyn_cast<const StringLiteral>(Arg);
     Expr::EvalResult Result;
     if (!Str && Arg->EvaluateAsRValue(Result, Ctx) && Result.Val.isLValue()) {
@@ -22268,7 +22268,7 @@ RValue CodeGenFunction::EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E) {
     }
     assert(Str && "Constant parameter string is invalid?");
 
-    auto IntVal = E->getArg(i + e / 2)->getIntegerConstantExpr(Ctx);
+    auto IntVal = E->getArg(I + N / 2)->getIntegerConstantExpr(Ctx);
     assert(IntVal.has_value() &&
            "Constant integer arg isn't actually constant?");
 
