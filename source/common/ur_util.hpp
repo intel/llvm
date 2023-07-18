@@ -92,7 +92,7 @@ inline std::optional<std::string> ur_getenv(const char *name) {
 #if defined(_WIN32)
     constexpr int buffer_size = 1024;
     char buffer[buffer_size];
-    auto rc = GetEnvironmentVariable(name, buffer, buffer_size);
+    auto rc = GetEnvironmentVariableA(name, buffer, buffer_size);
     if (0 != rc && rc < buffer_size) {
         return std::string(buffer);
     } else if (rc >= buffer_size) {
