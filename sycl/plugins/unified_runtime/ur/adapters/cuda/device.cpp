@@ -205,10 +205,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Atomic64);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    uint64_t Capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
@@ -314,7 +315,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           "runtime.");
     }
 
-    return ReturnValue(uint32_t{Enabled});
+    return ReturnValue(Enabled);
   }
   case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     // This call doesn't match to CUDA as it doesn't have images, but instead
@@ -472,7 +473,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
-    uint64_t Config =
+    ur_device_fp_capability_flags_t Config =
         UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
         UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
         UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
@@ -484,12 +485,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
-    uint64_t Config = UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+    ur_device_fp_capability_flags_t Config =
+        UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
+        UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
+        UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     return ReturnValue(Config);
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
@@ -599,13 +601,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                         UR_QUEUE_FLAG_PROFILING_ENABLE));
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     // The mandated minimum capability:
-    uint64_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
-                          UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
+                                  UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
     // The mandated minimum capability:
-    uint64_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
+    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
@@ -1015,7 +1017,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                hDevice->get()) == CUDA_SUCCESS);
     }
 
-    uint64_t MemoryBandwidth = uint64_t(MemoryClockKHz) * MemoryBusWidth * 250;
+    uint32_t MemoryBandwidth = MemoryClockKHz * MemoryBusWidth * 250;
 
     return ReturnValue(MemoryBandwidth);
   }
@@ -1075,13 +1077,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(false);
     // TODO: Investigate if this information is available on CUDA.
+  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
   case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case UR_DEVICE_INFO_GPU_EU_SLICES:
   case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:
     break;
