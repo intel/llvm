@@ -920,8 +920,9 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
   if (std::is_same<Param,
                    sycl::_V1::ext::intel::info::device::free_memory>::value) {
     if (!Dev->has(aspect::ext_intel_free_memory))
-      throw invalid_object_error("Invalid ascpect for this device",
-                                 PI_ERROR_INVALID_DEVICE);
+      throw invalid_object_error(
+          "The device does not have the ext_intel_free_memory aspect",
+          PI_ERROR_INVALID_DEVICE);
   }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }
