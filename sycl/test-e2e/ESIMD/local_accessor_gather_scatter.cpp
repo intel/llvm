@@ -8,6 +8,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
+// https://github.com/intel/llvm/issues/10369
+// UNSUPPORTED: gpu
+//
 // TODO: Enable the test when GPU driver is ready/fixed.
 // XFAIL: opencl || windows || gpu-intel-pvc
 // TODO: add support for local_accessors to esimd_emulator.
