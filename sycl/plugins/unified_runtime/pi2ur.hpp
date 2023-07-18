@@ -198,35 +198,6 @@ public:
     return PI_SUCCESS;
   }
 
-  // Convert the bitset using a conversion map
-  template <typename TypeUR, typename TypePI>
-  pi_result convertBitSet(std::function<TypePI(TypeUR)> Func) {
-    // There is no value to convert.
-    if (!param_value)
-      return PI_SUCCESS;
-
-    auto pValuePI = static_cast<TypePI *>(param_value);
-    auto pValueUR = static_cast<TypeUR *>(param_value);
-
-    // Cannot handle biteset large than size_t
-    PI_ASSERT(sizeof(TypeUR) <= sizeof(size_t), PI_ERROR_UNKNOWN);
-    size_t In = *pValueUR;
-    TypePI Out = 0;
-
-    size_t Val;
-    while ((Val = In & -In)) { // Val is the rightmost set bit in In
-      In &= In - 1;            // Reset the rightmost set bit
-
-      // Convert the Val alone and merge it into Out
-      *pValueUR = TypeUR(Val);
-      if (auto Res = convert(Func))
-        return Res;
-      Out |= *pValuePI;
-    }
-    *pValuePI = TypePI(Out);
-    return PI_SUCCESS;
-  }
-
   // Convert the array using a conversion map
   template <typename TypeUR, typename TypePI>
   pi_result convertArray(std::function<TypePI(TypeUR)> Func) {
@@ -258,6 +229,35 @@ public:
     }
 
     delete[] ValueUR;
+    return PI_SUCCESS;
+  }
+
+  // Convert the bitset using a conversion map
+  template <typename TypeUR, typename TypePI>
+  pi_result convertBitSet(std::function<TypePI(TypeUR)> Func) {
+    // There is no value to convert.
+    if (!param_value)
+      return PI_SUCCESS;
+
+    auto pValuePI = static_cast<TypePI *>(param_value);
+    auto pValueUR = static_cast<TypeUR *>(param_value);
+
+    // Cannot handle biteset large than size_t
+    PI_ASSERT(sizeof(TypeUR) <= sizeof(size_t), PI_ERROR_UNKNOWN);
+    size_t In = *pValueUR;
+    TypePI Out = 0;
+
+    size_t Val;
+    while ((Val = In & -In)) { // Val is the rightmost set bit in In
+      In &= In - 1;            // Reset the rightmost set bit
+
+      // Convert the Val alone and merge it into Out
+      *pValueUR = TypeUR(Val);
+      if (auto Res = convert(Func))
+        return Res;
+      Out |= *pValuePI;
+    }
+    *pValuePI = TypePI(Out);
     return PI_SUCCESS;
   }
 };
