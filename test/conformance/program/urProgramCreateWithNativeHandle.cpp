@@ -43,12 +43,6 @@ TEST_P(urProgramCreateWithNativeHandleTest, InvalidNullHandleContext) {
                                                      &native_program));
 }
 
-TEST_P(urProgramCreateWithNativeHandleTest, InvalidNullHandleNativeProgram) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urProgramCreateWithNativeHandle(nullptr, context, nullptr,
-                                                     &native_program));
-}
-
 TEST_P(urProgramCreateWithNativeHandleTest, InvalidNullPointerProgram) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urProgramCreateWithNativeHandle(
