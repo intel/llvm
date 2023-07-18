@@ -440,11 +440,12 @@ template <class T, unsigned STRIDE> bool test_vl1(queue q) {
 
 int main() {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  auto dev = q.get_device();
   esimd_test::printTestLabel(q);
 
   // GPU driver had an error in handling of SLM aligned block_loads/stores,
   // which has been fixed only in "1.3.26816".
-  if (!esimd_test::minLinuxDriver(q, "1.3.26816") {
+  if (!esimd_test::minLinuxDriver(q, "1.3.26816")) {
     std::cout << "Skipped. The test requires GPU driver 1.3.26816 or newer.\n";
     return 0;
   }
