@@ -209,7 +209,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   if (IndirectAccessTrackingEnabled)
     Queue->KernelsToBeSubmitted.push_back(Kernel);
 
-  if (Queue->Device->ImmCommandListUsed && IndirectAccessTrackingEnabled) {
+  if (Queue->UsingImmCmdLists && IndirectAccessTrackingEnabled) {
     // If using immediate commandlists then gathering of indirect
     // references and appending to the queue (which means submission)
     // must be done together.

@@ -21,7 +21,7 @@ enum class architecture {
   intel_gpu_tgllp,
   intel_gpu_rkl,
   intel_gpu_adl_s,
-  intel_gpu_rpl_s,
+  intel_gpu_rpl_s = intel_gpu_adl_s,
   intel_gpu_adl_p,
   intel_gpu_adl_n,
   intel_gpu_dg1,

@@ -1079,13 +1079,12 @@ std::optional<int64_t> DwarfLinkerForBinary::AddressManager<
   case dwarf::DW_FORM_addrx3:
   case dwarf::DW_FORM_addrx4: {
     std::optional<DWARFFormValue> AddrValue = DIE.find(dwarf::DW_AT_low_pc);
-    if (std::optional<uint64_t> AddrOffsetSectionBase =
-            DIE.getDwarfUnit()->getAddrOffsetSectionBase()) {
-      uint64_t StartOffset = *AddrOffsetSectionBase + AddrValue->getRawUValue();
-      uint64_t EndOffset =
-          StartOffset + DIE.getDwarfUnit()->getAddressByteSize();
-      return hasValidRelocationAt(ValidDebugAddrRelocs, StartOffset, EndOffset);
-    }
+    if (std::optional<uint64_t> AddressOffset =
+            DIE.getDwarfUnit()->getIndexedAddressOffset(
+                AddrValue->getRawUValue()))
+      return hasValidRelocationAt(ValidDebugAddrRelocs, *AddressOffset,
+                                  *AddressOffset +
+                                      DIE.getDwarfUnit()->getAddressByteSize());
 
     Linker.reportWarning("no base offset for address table", SrcFileName);
     return std::nullopt;

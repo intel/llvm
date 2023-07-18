@@ -971,10 +971,6 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
 
   ImmCommandListUsed = this->useImmediateCommandLists();
 
-  if (ImmCommandListUsed == ImmCmdlistMode::NotUsed) {
-    ZeEventsScope = DeviceEventsSetting;
-  }
-
   uint32_t numQueueGroups = 0;
   ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
              (ZeDevice, &numQueueGroups, nullptr));

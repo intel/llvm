@@ -34,6 +34,11 @@ public:
   void releaseMem(ContextImplPtr, void *) {}
   void releaseHostMem(void *) {}
   size_t getSizeInBytes() const noexcept override { return 10; }
+  bool isInterop() const override { return false; }
+  bool hasUserDataPtr() const override { return false; }
+  bool isHostPointerReadOnly() const override { return false; }
+  bool usesPinnedHostMemory() const override { return false; }
+
   detail::ContextImplPtr getInteropContext() const override { return nullptr; }
 };
 
