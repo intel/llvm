@@ -693,8 +693,7 @@ pi_result piProgramCreateWithBinary(pi_context context, pi_uint32,
   auto nativecpu_entries = (const nativecpu_entry *)(*binaries);
   auto nativecpu_it = nativecpu_entries;
   auto p = new _pi_program();
-  // Todo: maybe we can check for nullptr here instead of comparing strings
-  while (strcmp(nativecpu_it->kernelname, "__nativecpu_end") != 0) {
+  while (nativecpu_it->kernel_ptr != nullptr) {
     p->_kernels.insert(
         std::make_pair(nativecpu_it->kernelname, nativecpu_it->kernel_ptr));
     nativecpu_it++;

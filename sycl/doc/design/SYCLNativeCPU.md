@@ -147,10 +147,10 @@ As you can see, the `subhandler` steals the kernel's function name, and receives
 In order to register the Native CPU kernels to the SYCL runtime, we applied a small change to the `clang-offload-wrapper` tool: normally, the `clang-offload-wrapper` bundles the offload binary in an LLVM-IR module. Instead of bundling the device code, for the Native CPU target we insert an array of function pointers to the `subhandler`s, and the `pi_device_binary_struct::BinaryStart` and `pi_device_binary_struct::BinaryEnd` fields, which normally point to the begin and end addresses of the offload binary, now point to the begin and end of the array.
 
 ```
- ---------------------------------------------------
- | "_Z6Sample"   | other entries  |  "__endstring" |
- | &_Z6Sample    |                |  nullptr       |
- ---------------------------------------------------
+ -------------------------------------------------------
+ | "_Z6Sample"   | other entries  |  "__nativecpu_end" |
+ | &_Z6Sample    |                |  nullptr           |
+ -------------------------------------------------------
         ^                                   ^    
         |                                   |
     BinaryStart                         BinaryEnd  
