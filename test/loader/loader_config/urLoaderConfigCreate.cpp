@@ -5,12 +5,18 @@
 
 #include "fixtures.hpp"
 
-struct LoaderConfigCreateTest : ::testing::Test {};
+struct LoaderConfigCreateTest : ::testing::Test {
+    void TearDown() override {
+        if (loaderConfig) {
+            ASSERT_SUCCESS(urLoaderConfigRelease(loaderConfig));
+        }
+    }
+
+    ur_loader_config_handle_t loaderConfig = nullptr;
+};
 
 TEST_F(LoaderConfigCreateTest, Success) {
-    ur_loader_config_handle_t loaderConfig = nullptr;
     ASSERT_SUCCESS(urLoaderConfigCreate(&loaderConfig));
-    ASSERT_SUCCESS(urLoaderConfigRelease(loaderConfig));
 }
 
 TEST_F(LoaderConfigCreateTest, InvalidNullPointerLoaderConfig) {
