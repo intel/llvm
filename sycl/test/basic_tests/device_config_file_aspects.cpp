@@ -24,15 +24,14 @@ int main() {
 
 #undef __SYCL_ASPECT
 
-    auto testDeprecatedAspects =
-        DeviceConfigFile::TargetTable.find("__TestDeprecatedAspectList");
-    assert(testDeprecatedAspects != DeviceConfigFile::TargetTable.end());
-    auto deprecatedAspectsList = testDeprecatedAspects->second.aspects;
+  auto testDeprecatedAspects =
+      DeviceConfigFile::TargetTable.find("__TestDeprecatedAspectList");
+  assert(testDeprecatedAspects != DeviceConfigFile::TargetTable.end());
+  auto deprecatedAspectsList = testDeprecatedAspects->second.aspects;
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ASPECT_VAL, MSG)                      \
-    llvm::StringRef s##ASPECT(#ASPECT);                                        \
-    assert(std::find(deprecatedAspectsList.begin(),                            \
-                     deprecatedAspectsList.end(),                              \
-                     s##ASPECT) != deprecatedAspectsList.end());
+  llvm::StringRef s##ASPECT(#ASPECT);                                          \
+  assert(std::find(deprecatedAspectsList.begin(), deprecatedAspectsList.end(), \
+                   s##ASPECT) != deprecatedAspectsList.end());
 
 #include <sycl/info/aspects_deprecated.def>
 
