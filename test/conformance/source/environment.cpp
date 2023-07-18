@@ -45,11 +45,21 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
     instance = this;
 
     ur_loader_config_handle_t config;
-    urLoaderConfigCreate(&config);
-    urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION");
+    if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
+        if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION")) {
+            urLoaderConfigRelease(config);
+            error = "Failed to enable validation layer";
+            return;
+        }
+    } else {
+        error = "Failed to create loader config handle";
+        return;
+    }
 
     ur_device_init_flags_t device_flags = 0;
-    switch (urInit(device_flags, config)) {
+    auto initResult = urInit(device_flags, config);
+    auto configReleaseResult = urLoaderConfigRelease(config);
+    switch (initResult) {
     case UR_RESULT_SUCCESS:
         break;
     case UR_RESULT_ERROR_UNINITIALIZED:
@@ -59,7 +69,11 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
         error = "urInit() failed";
         return;
     }
-    urLoaderConfigRelease(config);
+
+    if (configReleaseResult) {
+        error = "Failed to destroy loader config handle";
+        return;
+    }
 
     uint32_t count = 0;
     if (urPlatformGet(0, nullptr, &count)) {
