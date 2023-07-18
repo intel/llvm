@@ -42,7 +42,7 @@ endif()
 # Set includes used in added library (rocmdrv)
 set(HIP_HEADERS "${UR_HIP_INCLUDE_DIR};${UR_HIP_HSA_INCLUDE_DIR}")
 
-add_library(${TARGET_NAME}
+add_ur_adapter(${TARGET_NAME}
     SHARED
     ${HIP_DIR}/ur_interface_loader.cpp
     ${HIP_DIR}/common.hpp
@@ -75,7 +75,7 @@ add_library(${TARGET_NAME}
     ${HIP_DIR}/../../usm_allocator_config.hpp
 )
 
-if (NOT MSVC)
+if(NOT MSVC)
     target_compile_options(${TARGET_NAME} PRIVATE
         -Wno-deprecated-declarations
     )

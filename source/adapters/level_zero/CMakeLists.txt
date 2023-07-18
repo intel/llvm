@@ -71,7 +71,7 @@ target_include_directories(LevelZeroLoader-Headers
     INTERFACE "${LEVEL_ZERO_INCLUDE_DIR}"
 )
 
-add_library(${TARGET_NAME}
+add_ur_adapter(${TARGET_NAME}
     SHARED
     ${L0_DIR}/ur_interface_loader.cpp
     ${L0_DIR}/common.hpp
@@ -120,9 +120,3 @@ target_include_directories(${TARGET_NAME} PRIVATE
     ${L0_DIR}/../../../
     LevelZeroLoader-Headers
 )
-
-if(UNIX)
-    set(GCC_COVERAGE_COMPILE_FLAGS "-fvisibility=hidden -fvisibility-inlines-hidden -fno-strict-aliasing")
-    set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
-endif()
-
