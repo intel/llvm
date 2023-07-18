@@ -750,7 +750,7 @@ public:
 
   const llvm::Regex &getTypeName() const { return regex; }
 
-  constexpr static bool hasDefaultConstructor() { return false; }
+  constexpr static bool hasDefaultConstructor() { return true; }
 
 private:
   llvm::Regex regex;
@@ -809,7 +809,7 @@ public:
 
   const llvm::Regex &getTypeName() const { return regex; }
 
-  constexpr static bool hasDefaultConstructor() { return true; }
+  constexpr static bool hasDefaultConstructor() { return false; }
 
 private:
   llvm::Regex regex;
