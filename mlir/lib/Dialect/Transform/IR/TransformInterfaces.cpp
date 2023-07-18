@@ -7,10 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
+
+#include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformTypes.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/STLExtras.h"
@@ -843,21 +846,8 @@ transform::TransformState::applyTransform(TransformOpInterface transform) {
   }
 
   // Find which operands are consumed.
-  DenseSet<unsigned> consumedOperands;
-  auto memEffectInterface =
-      cast<MemoryEffectOpInterface>(transform.getOperation());
-  SmallVector<MemoryEffects::EffectInstance, 2> effects;
-  for (OpOperand &target : transform->getOpOperands()) {
-    effects.clear();
-    memEffectInterface.getEffectsOnValue(target.get(), effects);
-    if (llvm::any_of(effects, [](const MemoryEffects::EffectInstance &effect) {
-          return isa<transform::TransformMappingResource>(
-                     effect.getResource()) &&
-                 isa<MemoryEffects::Free>(effect.getEffect());
-        })) {
-      consumedOperands.insert(target.getOperandNumber());
-    }
-  }
+  SmallVector<OpOperand *> consumedOperands =
+      transform.getConsumedHandleOpOperands();
 
   // Remember the results of the payload ops associated with the consumed
   // op handles or the ops defining the value handles so we can drop the
@@ -869,8 +859,8 @@ transform::TransformState::applyTransform(TransformOpInterface transform) {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
   DenseSet<Operation *> consumedPayloadOps;
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
-  for (unsigned index : consumedOperands) {
-    Value operand = transform->getOperand(index);
+  for (OpOperand *opOperand : consumedOperands) {
+    Value operand = opOperand->get();
     if (llvm::isa<TransformHandleTypeInterface>(operand.getType())) {
       for (Operation *payloadOp : getPayloadOps(operand)) {
         llvm::append_range(origOpFlatResults, payloadOp->getResults());
@@ -901,18 +891,47 @@ transform::TransformState::applyTransform(TransformOpInterface transform) {
     DiagnosedDefiniteFailure diag =
         emitDefiniteFailure(transform->getLoc())
         << "unexpectedly consumed a value that is not a handle as operand #"
-        << index;
+        << opOperand->getOperandNumber();
     diag.attachNote(operand.getLoc())
         << "value defined here with type " << operand.getType();
     return diag;
   }
 
+  // Prepare rewriter and listener.
+  transform::ErrorCheckingTrackingListener trackingListener(*this, transform);
+  transform::TransformRewriter rewriter(transform->getContext(),
+                                        &trackingListener);
+
   // Compute the result but do not short-circuit the silenceable failure case as
   // we still want the handles to propagate properly so the "suppress" mode can
   // proceed on a best effort basis.
   transform::TransformResults results(transform->getNumResults());
-  DiagnosedSilenceableFailure result(transform.apply(results, *this));
+  DiagnosedSilenceableFailure result(transform.apply(rewriter, results, *this));
   compactOpHandles();
+
+  // Error handling: fail if transform or listener failed.
+  DiagnosedSilenceableFailure trackingFailure =
+      trackingListener.checkAndResetError();
+  if (!transform->hasTrait<ReportTrackingListenerFailuresOpTrait>() ||
+      transform->hasAttr(
+          transform::TransformDialect::kSilenceTrackingFailuresAttrName)) {
+    // Only report failures for ReportTrackingListenerFailuresOpTrait ops. Also
+    // do not report failures if the above mentioned attribute is set.
+    if (trackingFailure.isSilenceableFailure())
+      (void)trackingFailure.silence();
+    trackingFailure = DiagnosedSilenceableFailure::success();
+  }
+  if (!trackingFailure.succeeded()) {
+    if (result.succeeded()) {
+      result = std::move(trackingFailure);
+    } else {
+      // Transform op errors have precedence, report those first.
+      if (result.isSilenceableFailure())
+        result.attachNote() << "tracking listener also failed: "
+                            << trackingFailure.getMessage();
+      (void)trackingFailure.silence();
+    }
+  }
   if (result.isDefiniteFailure())
     return result;
 
@@ -923,8 +942,8 @@ transform::TransformState::applyTransform(TransformOpInterface transform) {
 
   // Remove the mapping for the operand if it is consumed by the operation. This
   // allows us to catch use-after-free with assertions later on.
-  for (unsigned index : consumedOperands) {
-    Value operand = transform->getOperand(index);
+  for (OpOperand *opOperand : consumedOperands) {
+    Value operand = opOperand->get();
     if (llvm::isa<TransformHandleTypeInterface>(operand.getType())) {
       forgetMapping(operand, origOpFlatResults);
     } else if (llvm::isa<TransformValueHandleTypeInterface>(
@@ -1169,8 +1188,250 @@ bool transform::TransformResults::isSet(unsigned resultNumber) const {
 }
 
 //===----------------------------------------------------------------------===//
+// TrackingListener
+//===----------------------------------------------------------------------===//
+
+transform::TrackingListener::TrackingListener(TransformState &state,
+                                              TransformOpInterface op)
+    : TransformState::Extension(state), transformOp(op) {
+  if (op) {
+    for (OpOperand *opOperand : transformOp.getConsumedHandleOpOperands()) {
+      consumedHandles.insert(opOperand->get());
+    }
+  }
+}
+
+Operation *transform::TrackingListener::getCommonDefiningOp(ValueRange values) {
+  Operation *defOp = nullptr;
+  for (Value v : values) {
+    // Skip empty values.
+    if (!v)
+      continue;
+    if (!defOp) {
+      defOp = v.getDefiningOp();
+      continue;
+    }
+    if (defOp != v.getDefiningOp())
+      return nullptr;
+  }
+  return defOp;
+}
+
+FailureOr<Operation *>
+transform::TrackingListener::findReplacementOp(Operation *op,
+                                               ValueRange newValues) const {
+  assert(op->getNumResults() == newValues.size() &&
+         "invalid number of replacement values");
+  SmallVector<Value> values(newValues.begin(), newValues.end());
+
+  do {
+    // If the replacement values belong to different ops, drop the mapping.
+    Operation *defOp = getCommonDefiningOp(values);
+    if (!defOp)
+      return failure();
+
+    // If the defining op has the same type, we take it as a replacement.
+    if (op->getName() == defOp->getName())
+      return defOp;
+
+    // Replacing an op with a constant-like equivalent is a common
+    // canonicalization.
+    if (defOp->hasTrait<OpTrait::ConstantLike>())
+      return defOp;
+
+    values.clear();
+
+    // Skip through ops that implement FindPayloadReplacementOpInterface.
+    if (auto findReplacementOpInterface =
+            dyn_cast<FindPayloadReplacementOpInterface>(defOp)) {
+      values.assign(findReplacementOpInterface.getNextOperands());
+      continue;
+    }
+
+    // Skip through ops that implement CastOpInterface.
+    if (isa<CastOpInterface>(defOp)) {
+      values.assign(defOp->getOperands().begin(), defOp->getOperands().end());
+      continue;
+    }
+  } while (!values.empty());
+
+  return failure();
+}
+
+LogicalResult transform::TrackingListener::notifyMatchFailure(
+    Location loc, function_ref<void(Diagnostic &)> reasonCallback) {
+  LLVM_DEBUG({
+    Diagnostic diag(loc, DiagnosticSeverity::Remark);
+    reasonCallback(diag);
+    DBGS() << "Match Failure : " << diag.str() << "\n";
+  });
+  return failure();
+}
+
+void transform::TrackingListener::notifyOperationRemoved(Operation *op) {
+  // TODO: Walk can be removed when D144193 has landed.
+  op->walk([&](Operation *op) {
+    // Remove mappings for result values.
+    for (OpResult value : op->getResults())
+      (void)replacePayloadValue(value, nullptr);
+    // Remove mapping for op.
+    (void)replacePayloadOp(op, nullptr);
+  });
+}
+
+/// Return true if `a` happens before `b`, i.e., `a` or one of its ancestors
+/// properly dominates `b` and `b` is not inside `a`.
+static bool happensBefore(Operation *a, Operation *b) {
+  do {
+    if (a->isProperAncestor(b))
+      return false;
+    if (Operation *bAncestor = a->getBlock()->findAncestorOpInBlock(*b)) {
+      return a->isBeforeInBlock(bAncestor);
+    }
+  } while ((a = a->getParentOp()));
+  return false;
+}
+
+void transform::TrackingListener::notifyOperationReplaced(
+    Operation *op, ValueRange newValues) {
+  assert(op->getNumResults() == newValues.size() &&
+         "invalid number of replacement values");
+
+  // Replace value handles.
+  for (auto [oldValue, newValue] : llvm::zip(op->getResults(), newValues))
+    (void)replacePayloadValue(oldValue, newValue);
+
+  // Replace op handle.
+  SmallVector<Value> opHandles;
+  if (failed(getTransformState().getHandlesForPayloadOp(op, opHandles))) {
+    // Op is not tracked.
+    return;
+  }
+
+  // Helper function to check if the current transform op consumes any handle
+  // that is mapped to `op`.
+  //
+  // Note: If a handle was consumed, there shouldn't be any alive users, so it
+  // is not really necessary to check for consumed handles. However, in case
+  // there are indeed alive handles that were consumed (which is undefined
+  // behavior) and a replacement op could not be found, we want to fail with a
+  // nicer error message: "op uses a handle invalidated..." instead of "could
+  // not find replacement op". This nicer error is produced later.
+  auto handleWasConsumed = [&] {
+    return llvm::any_of(opHandles,
+                        [&](Value h) { return consumedHandles.contains(h); });
+  };
+
+  // Helper function to check if the handle is alive.
+  auto hasAliveUser = [&]() {
+    for (Value v : opHandles) {
+      for (Operation *user : v.getUsers())
+        if (user != transformOp && !happensBefore(user, transformOp))
+          return true;
+    }
+    return false;
+  };
+
+  if (!hasAliveUser() || handleWasConsumed()) {
+    // The op is tracked but the corresponding handles are dead or were
+    // consumed. Drop the op form the mapping.
+    (void)replacePayloadOp(op, nullptr);
+    return;
+  }
+
+  FailureOr<Operation *> replacement = findReplacementOp(op, newValues);
+  // If the op is tracked but no replacement op was found, send a
+  // notification.
+  if (failed(replacement)) {
+    notifyPayloadReplacementNotFound(op, newValues);
+    (void)replacePayloadOp(op, nullptr);
+    return;
+  }
+
+  (void)replacePayloadOp(op, *replacement);
+}
+
+transform::ErrorCheckingTrackingListener::~ErrorCheckingTrackingListener() {
+  // The state of the ErrorCheckingTrackingListener must be checked and reset
+  // if there was an error. This is to prevent errors from accidentally being
+  // missed.
+  assert(status.succeeded() && "listener state was not checked");
+}
+
+DiagnosedSilenceableFailure
+transform::ErrorCheckingTrackingListener::checkAndResetError() {
+  DiagnosedSilenceableFailure s = std::move(status);
+  status = DiagnosedSilenceableFailure::success();
+  errorCounter = 0;
+  return s;
+}
+
+bool transform::ErrorCheckingTrackingListener::failed() const {
+  return !status.succeeded();
+}
+
+void transform::ErrorCheckingTrackingListener::notifyPayloadReplacementNotFound(
+    Operation *op, ValueRange values) {
+  if (status.succeeded()) {
+    status = emitSilenceableFailure(
+        getTransformOp(), "tracking listener failed to find replacement op");
+  }
+
+  status.attachNote(op->getLoc()) << "[" << errorCounter << "] replaced op";
+  for (auto &&[index, value] : llvm::enumerate(values))
+    status.attachNote(value.getLoc())
+        << "[" << errorCounter << "] replacement value " << index;
+
+  ++errorCounter;
+}
+
+//===----------------------------------------------------------------------===//
+// TransformRewriter
+//===----------------------------------------------------------------------===//
+
+transform::TransformRewriter::TransformRewriter(
+    MLIRContext *ctx, ErrorCheckingTrackingListener *listener)
+    : RewriterBase(ctx), listener(listener) {
+  setListener(listener);
+}
+
+bool transform::TransformRewriter::hasTrackingFailures() const {
+  return listener->failed();
+}
+
+/// Silence all tracking failures that have been encountered so far.
+void transform::TransformRewriter::silenceTrackingFailure() {
+  if (hasTrackingFailures()) {
+    DiagnosedSilenceableFailure status = listener->checkAndResetError();
+    (void)status.silence();
+  }
+}
+
+//===----------------------------------------------------------------------===//
 // Utilities for TransformEachOpTrait.
 //===----------------------------------------------------------------------===//
+
+LogicalResult
+transform::detail::checkNestedConsumption(Location loc,
+                                          ArrayRef<Operation *> targets) {
+  for (auto &&[position, parent] : llvm::enumerate(targets)) {
+    for (Operation *child : targets.drop_front(position + 1)) {
+      if (parent->isAncestor(child)) {
+        InFlightDiagnostic diag =
+            emitError(loc)
+            << "transform operation consumes a handle pointing to an ancestor "
+               "payload operation before its descendant";
+        diag.attachNote()
+            << "the ancestor is likely erased or rewritten before the "
+               "descendant is accessed, leading to undefined behavior";
+        diag.attachNote(parent->getLoc()) << "ancestor payload op";
+        diag.attachNote(child->getLoc()) << "descendant payload op";
+        return diag;
+      }
+    }
+  }
+  return success();
+}
 
 LogicalResult
 transform::detail::checkApplyToOne(Operation *transformOp,
@@ -1382,7 +1643,24 @@ LogicalResult transform::detail::mapPossibleTopLevelTransformOpBlockArguments(
              << " were provided to the interpreter";
     }
 
-    targets.push_back(state.getTopLevel());
+    // Top-level transforms can be used for matching. If no concrete operation
+    // type is specified, the block argument is mapped to the top-level op.
+    // Otherwise, it is mapped to all ops of the specified type within the
+    // top-level op (including the top-level op itself). Once an op is added as
+    // a target, its descendants are not explored any further.
+    BlockArgument bbArg = region.front().getArgument(0);
+    if (auto bbArgType = dyn_cast<transform::OperationType>(bbArg.getType())) {
+      state.getTopLevel()->walk<WalkOrder::PreOrder>([&](Operation *op) {
+        if (op->getName().getStringRef() == bbArgType.getOperationName()) {
+          targets.push_back(op);
+          return WalkResult::skip();
+        }
+        return WalkResult::advance();
+      });
+    } else {
+      targets.push_back(state.getTopLevel());
+    }
+
     for (unsigned i = 0, e = state.getNumTopLevelMappings(); i < e; ++i)
       extraMappings.push_back(llvm::to_vector(state.getTopLevelMapping(i)));
   }
@@ -1592,6 +1870,27 @@ void transform::getConsumedBlockArguments(
 //===----------------------------------------------------------------------===//
 // Utilities for TransformOpInterface.
 //===----------------------------------------------------------------------===//
+
+SmallVector<OpOperand *> transform::detail::getConsumedHandleOpOperands(
+    TransformOpInterface transformOp) {
+  SmallVector<OpOperand *> consumedOperands;
+  consumedOperands.reserve(transformOp->getNumOperands());
+  auto memEffectInterface =
+      cast<MemoryEffectOpInterface>(transformOp.getOperation());
+  SmallVector<MemoryEffects::EffectInstance, 2> effects;
+  for (OpOperand &target : transformOp->getOpOperands()) {
+    effects.clear();
+    memEffectInterface.getEffectsOnValue(target.get(), effects);
+    if (llvm::any_of(effects, [](const MemoryEffects::EffectInstance &effect) {
+          return isa<transform::TransformMappingResource>(
+                     effect.getResource()) &&
+                 isa<MemoryEffects::Free>(effect.getEffect());
+        })) {
+      consumedOperands.push_back(&target);
+    }
+  }
+  return consumedOperands;
+}
 
 LogicalResult transform::detail::verifyTransformOpInterface(Operation *op) {
   auto iface = cast<MemoryEffectOpInterface>(op);

@@ -240,19 +240,6 @@ void program_impl::compile_with_kernel_name(std::string KernelName,
   MState = program_state::compiled;
 }
 
-void program_impl::compile_with_source(std::string KernelSource,
-                                       std::string CompileOptions) {
-  std::lock_guard<std::mutex> Lock(MMutex);
-  throw_if_state_is_not(program_state::none);
-  // TODO should it throw if it's host?
-  if (!is_host()) {
-    create_cl_program_with_source(KernelSource);
-    compile(CompileOptions);
-  }
-  MState = program_state::compiled;
-  MIsInterop = true;
-}
-
 void program_impl::build_with_kernel_name(std::string KernelName,
                                           std::string BuildOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
@@ -268,19 +255,6 @@ void program_impl::build_with_kernel_name(std::string KernelName,
     Plugin->call<PiApiKind::piProgramRetain>(MProgram);
   }
   MState = program_state::linked;
-}
-
-void program_impl::build_with_source(std::string KernelSource,
-                                     std::string BuildOptions) {
-  std::lock_guard<std::mutex> Lock(MMutex);
-  throw_if_state_is_not(program_state::none);
-  // TODO should it throw if it's host?
-  if (!is_host()) {
-    create_cl_program_with_source(KernelSource);
-    build(BuildOptions);
-  }
-  MState = program_state::linked;
-  MIsInterop = true;
 }
 
 void program_impl::link(std::string LinkOptions) {
@@ -378,26 +352,6 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
                                             sizeof(char *) * Pointers.size(),
                                             Pointers.data(), nullptr);
   return Result;
-}
-
-void program_impl::create_cl_program_with_source(const std::string &Source) {
-  assert(!MProgram && "This program already has an encapsulated cl_program");
-  const char *Src = Source.c_str();
-  size_t Size = Source.size();
-  const PluginPtr &Plugin = getPlugin();
-  sycl::detail::pi::PiResult Err =
-      Plugin->call_nocheck<PiApiKind::piclProgramCreateWithSource>(
-          MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
-
-  if (Err == PI_ERROR_INVALID_OPERATION) {
-    throw feature_not_supported(
-        "program::compile_with_source is not supported by the selected backend",
-        PI_ERROR_INVALID_OPERATION);
-  }
-
-  if (Err != PI_SUCCESS) {
-    Plugin->reportPiError(Err, "create_cl_program_with_source()");
-  }
 }
 
 void program_impl::compile(const std::string &Options) {
