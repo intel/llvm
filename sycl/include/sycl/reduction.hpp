@@ -11,6 +11,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/atomic_ref.hpp>
+#include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/tuple.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
@@ -19,7 +20,6 @@
 #include <sycl/kernel.hpp>
 #include <sycl/known_identity.hpp>
 #include <sycl/properties/reduction_properties.hpp>
-#include <sycl/reduction_forward.hpp>
 #include <sycl/usm.hpp>
 
 #include <optional>
@@ -1358,7 +1358,7 @@ struct NDRangeReduction<
 };
 
 /// Computes the greatest power-of-two less than or equal to N.
-static inline size_t GreatestPowerOfTwo(size_t N) {
+inline size_t GreatestPowerOfTwo(size_t N) {
   if (N == 0)
     return 0;
 
