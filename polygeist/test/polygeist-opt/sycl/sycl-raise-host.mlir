@@ -265,6 +265,34 @@ llvm.func @raise_id_store_default() {
   llvm.return
 }
 
+// COM: We should not find this pattern with dimensions == 1
+// CHECK-LABEL:   llvm.func @raise_id_copy(
+// CHECK-SAME:                             %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: !llvm.ptr) {
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_4]], %[[VAL_0]]) {type = !sycl_id_1_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_5]], %[[VAL_1]]) {type = !sycl_id_2_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_6]], %[[VAL_2]]) {type = !sycl_id_3_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+llvm.func @raise_id_copy(%other1:!llvm.ptr, %other2:!llvm.ptr, %other3:!llvm.ptr) {
+  %false = llvm.mlir.constant(0 : i1) : i1
+  %c0 = llvm.mlir.constant(0 : i64) : i64
+  %c1 = llvm.mlir.constant(1 : i32) : i32
+  %len1 = llvm.mlir.constant(8 : i64) : i64
+  %len2 = llvm.mlir.constant(16 : i64) : i64
+  %len3 = llvm.mlir.constant(24 : i64) : i64
+  %id1 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id2 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id3 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  "llvm.intr.memcpy"(%id1, %other1, %len1, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  "llvm.intr.memcpy"(%id2, %other2, %len2, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  "llvm.intr.memcpy"(%id3, %other3, %len3, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  llvm.return
+}
+
 // ----- 
 
 // CHECK-LABEL: !sycl_range_1_ = !sycl.range<[1], (i64)>
@@ -323,6 +351,34 @@ llvm.func @raise_range_3() -> !llvm.ptr {
 }
 
 llvm.func @_Z6numberv() -> (i64)
+
+// COM: We should not find this pattern with dimensions == 1
+// CHECK-LABEL:   llvm.func @raise_range_copy(
+// CHECK-SAME:                                %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: !llvm.ptr) {
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::range.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_4]], %[[VAL_0]]) {type = !sycl_range_1_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_5]], %[[VAL_1]]) {type = !sycl_range_2_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_6]], %[[VAL_2]]) {type = !sycl_range_3_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+llvm.func @raise_range_copy(%other1:!llvm.ptr, %other2:!llvm.ptr, %other3:!llvm.ptr) {
+  %false = llvm.mlir.constant(0 : i1) : i1
+  %c0 = llvm.mlir.constant(0 : i64) : i64
+  %c1 = llvm.mlir.constant(1 : i32) : i32
+  %len1 = llvm.mlir.constant(8 : i64) : i64
+  %len2 = llvm.mlir.constant(16 : i64) : i64
+  %len3 = llvm.mlir.constant(24 : i64) : i64
+  %range1 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %range2 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %range3 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  "llvm.intr.memcpy"(%range1, %other1, %len1, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  "llvm.intr.memcpy"(%range2, %other2, %len2, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  "llvm.intr.memcpy"(%range3, %other3, %len3, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+  llvm.return
+}
 
 // ----- 
 

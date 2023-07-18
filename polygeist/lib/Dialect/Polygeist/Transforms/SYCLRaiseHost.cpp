@@ -789,9 +789,52 @@ private:
   llvm::Regex regex;
 };
 
+template <typename TypeTag>
+class RaiseArrayCopyConstructorBasePattern
+    : public OpHostRaisePattern<LLVM::MemcpyOp> {
+public:
+  using OpHostRaisePattern<LLVM::MemcpyOp>::OpHostRaisePattern;
+
+  LogicalResult matchAndRewrite(LLVM::MemcpyOp op,
+                                PatternRewriter &rewriter) const final {
+    // Check the destination is an alloca of id type
+    auto alloc = op.getDst().getDefiningOp<LLVM::AllocaOp>();
+    if (!alloc || !alloc.getElemType().has_value())
+      return failure();
+
+    Type allocTy = *alloc.getElemType();
+    if (!isClassType(allocTy, tag.getTypeName()))
+      return failure();
+
+    std::optional<LLVM::LLVMArrayType> arrayTyOrNone =
+        getNumAndTypeOfComponents(cast<LLVM::LLVMStructType>(allocTy));
+    if (!arrayTyOrNone)
+      // Failed to identify the number of dimensions/components
+      return failure();
+
+    unsigned numComponents = arrayTyOrNone->getNumElements();
+    Type componentTy = arrayTyOrNone->getElementType();
+
+    Type constructedType = rewriter.getType<typename TypeTag::SYCLType>(
+        numComponents, componentTy);
+    rewriter.replaceOpWithNewOp<sycl::SYCLHostConstructorOp>(
+        op, alloc, /*args=*/op.getSrc(), TypeAttr::get(constructedType));
+    return success();
+  }
+
+private:
+  TypeTag tag;
+};
+
 struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
   using RaiseArrayConstructorBasePattern<
       IDTypeTag>::RaiseArrayConstructorBasePattern;
+};
+
+struct RaiseIDCopyConstructor
+    : public RaiseArrayCopyConstructorBasePattern<IDTypeTag> {
+  using RaiseArrayCopyConstructorBasePattern<
+      IDTypeTag>::RaiseArrayCopyConstructorBasePattern;
 };
 
 class RaiseIDDefaultConstructor : public OpHostRaisePattern<LLVM::MemsetOp> {
@@ -875,6 +918,12 @@ struct RaiseRangeConstructor
     : public RaiseArrayConstructorBasePattern<RangeTypeTag> {
   using RaiseArrayConstructorBasePattern<
       RangeTypeTag>::RaiseArrayConstructorBasePattern;
+};
+
+struct RaiseRangeCopyConstructor
+    : public RaiseArrayCopyConstructorBasePattern<RangeTypeTag> {
+  using RaiseArrayCopyConstructorBasePattern<
+      RangeTypeTag>::RaiseArrayCopyConstructorBasePattern;
 };
 
 class RaiseNDRangeConstructor
@@ -1450,9 +1499,10 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   // prioritized, as RaiseSetNDRange depends on those. Also, raising of id and
   // range constructors should be prioritized, as nd_range constructor uses
   // them.
-  rewritePatterns.add<RaiseIDDefaultConstructor, RaiseIDConstructor,
-                      RaiseRangeConstructor>(context,
-                                             /*benefit=*/3);
+  rewritePatterns.add<RaiseIDDefaultConstructor, RaiseIDCopyConstructor,
+                      RaiseRangeCopyConstructor, RaiseRangeCopyConstructor,
+                      RaiseIDConstructor, RaiseRangeConstructor>(context,
+                                                                 /*benefit=*/3);
   rewritePatterns.add<RaiseNDRangeConstructor>(context,
                                                /*benefit=*/2);
   rewritePatterns.add<RaiseSetNDRange>(context, /*benefit=*/1);

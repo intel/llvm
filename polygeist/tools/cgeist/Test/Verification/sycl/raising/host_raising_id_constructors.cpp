@@ -117,6 +117,30 @@ template void id<3>();
 // CHECK-NEXT:         }
 template void id<1>(const sycl::id<1> &);
 
+// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi2EEvRKN4sycl3_V12idIXT_EEE(
+// CHECK-SAME:                                                           %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 16 : i64, llvm.nonnull, llvm.noundef})
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id.0", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      llvm.intr.lifetime.start 16, %[[VAL_2]] : !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_2]], %[[VAL_0]]) {type = !sycl_id_2_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.call @_Z4keepIJRN4sycl3_V12idILi2EEEEEvDpOT_(%[[VAL_2]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.intr.lifetime.end 16, %[[VAL_2]] : !llvm.ptr
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+template void id<2>(const sycl::id<2> &);
+
+// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi3EEvRKN4sycl3_V12idIXT_EEE(
+// CHECK-SAME:                                                           %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 24 : i64, llvm.nonnull, llvm.noundef})
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      llvm.intr.lifetime.start 24, %[[VAL_2]] : !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_2]], %[[VAL_0]]) {type = !sycl_id_3_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.call @_Z4keepIJRN4sycl3_V12idILi3EEEEEvDpOT_(%[[VAL_2]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.intr.lifetime.end 24, %[[VAL_2]] : !llvm.ptr
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+template void id<3>(const sycl::id<3> &);
+
 // CHECK-LABEL:   llvm.func weak_odr @_Z2idILi1EEvON4sycl3_V12idIXT_EEE(
 // CHECK-SAME:                                                          %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 8 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:           %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
@@ -129,3 +153,27 @@ template void id<1>(const sycl::id<1> &);
 // CHECK-NEXT:           llvm.return
 // CHECK-NEXT:         }
 template void id<1>(sycl::id<1> &&);
+
+// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi2EEvON4sycl3_V12idIXT_EEE(
+// CHECK-SAME:                                                          %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 16 : i64, llvm.nonnull, llvm.noundef})
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id.0", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      llvm.intr.lifetime.start 16, %[[VAL_2]] : !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_2]], %[[VAL_0]]) {type = !sycl_id_2_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.call @_Z4keepIJRN4sycl3_V12idILi2EEEEEvDpOT_(%[[VAL_2]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.intr.lifetime.end 16, %[[VAL_2]] : !llvm.ptr
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+template void id<2>(sycl::id<2> &&);
+
+// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi3EEvON4sycl3_V12idIXT_EEE(
+// CHECK-SAME:                                                          %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 24 : i64, llvm.nonnull, llvm.noundef})
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      llvm.intr.lifetime.start 24, %[[VAL_2]] : !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_2]], %[[VAL_0]]) {type = !sycl_id_3_} : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.call @_Z4keepIJRN4sycl3_V12idILi3EEEEEvDpOT_(%[[VAL_2]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.intr.lifetime.end 24, %[[VAL_2]] : !llvm.ptr
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+template void id<3>(sycl::id<3> &&);
