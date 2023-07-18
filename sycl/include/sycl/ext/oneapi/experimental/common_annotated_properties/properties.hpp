@@ -1,4 +1,4 @@
-//==-- common_annotated_properties.hpp - SYCL properties associated with
+//==-- properties.hpp - SYCL properties associated with
 // annotated_arg/ptr --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
