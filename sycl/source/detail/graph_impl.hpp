@@ -161,6 +161,160 @@ public:
     return nullptr;
   }
 
+  /// Prints Node information to Stream
+  /// @param Stream where to print the Node information
+  void printDotCG(std::ostream &Stream) {
+    sycl::detail::CG::CGTYPE CGType = MCommandGroup->getType();
+
+    Stream << "\"" << MCommandGroup.get()
+           << "\" [style=filled, fillcolor=\"#FFD28A\", label=\"";
+
+    Stream << "ID = " << MCommandGroup.get() << "\\n";
+    Stream << "TYPE = ";
+
+    switch (CGType) {
+    case sycl::detail::CG::CGTYPE::None:
+      Stream << "None \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Kernel: {
+      Stream << "CGExecKernel \\n";
+      sycl::detail::CGExecKernel *kernel =
+          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
+      Stream << "NAME = " << kernel->MKernelName << "\\n";
+      break;
+    }
+    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
+    case sycl::detail::CG::CGTYPE::CopyPtrToAcc:
+    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
+      Stream << "CGCopy \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Fill:
+      Stream << "CGFill \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::UpdateHost:
+      Stream << "CGCUpdateHost \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::CopyUSM:
+      Stream << "CGCopyUSM \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::FillUSM:
+      Stream << "CGFillUSM \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::PrefetchUSM:
+      Stream << "CGPrefetchUSM \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::AdviseUSM:
+      Stream << "CGAdviseUSM \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::CodeplayInteropTask:
+      Stream << "CGInteropTask \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::CodeplayHostTask:
+      Stream << "CGHostTask \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Barrier:
+      Stream << "CGBarrier \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Copy2DUSM:
+      Stream << "CGCopy2DUSM \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Fill2DUSM:
+      Stream << "CGFill2DUSM \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Memset2DUSM:
+      Stream << "CGMemset2DUSM \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::ReadWriteHostPipe:
+      Stream << "CGReadWriteHostPipe \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::CopyToDeviceGlobal:
+      Stream << "CGCopyToDeviceGlobal \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::CopyFromDeviceGlobal:
+      Stream << "CGCopyFromDeviceGlobal \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::ExecCommandBuffer:
+      Stream << "CGExecCommandBuffer \\n";
+      break;
+    default:
+      Stream << "Other \\n";
+      break;
+    }
+    Stream << "\"];" << std::endl;
+  }
+
+  /// Recursive Depth first traversal of linked nodes
+  /// to print node information and connection to Stream
+  /// @param Stream where to print node information
+  /// @Visited vector of the already visited nodes
+  void printDotRecursive(std::fstream &Stream,
+                         std::vector<node_impl *> &Visited) {
+    // if Node has been already visited, we skip it
+    if (std::find(Visited.begin(), Visited.end(), this) != Visited.end())
+      return;
+
+    Visited.push_back(this);
+
+    printDotCG(Stream);
+    for (const auto &Dep : MPredecessors) {
+      auto NodeDep = Dep.lock();
+      Stream << "  \"" << MCommandGroup.get() << "\" -> \""
+             << NodeDep->MCommandGroup.get() << "\"" << std::endl;
+    }
+
+    for (std::shared_ptr<node_impl> Succ : MSuccessors) {
+      Succ->printDotRecursive(Stream, Visited);
+    }
+  }
+
+  /// Tests is the caller is similar to Node
+  /// @return True if the two nodes are similars
+  bool isSimilar(std::shared_ptr<node_impl> Node) {
+    if (MCGType != Node->MCGType)
+      return false;
+
+    if (MSuccessors.size() != Node->MSuccessors.size())
+      return false;
+
+    if (MPredecessors.size() != Node->MPredecessors.size())
+      return false;
+
+    if ((MCGType == sycl::detail::CG::CGTYPE::Kernel) &&
+        (MCGType == sycl::detail::CG::CGTYPE::Kernel)) {
+      sycl::detail::CGExecKernel *ExecKernelA =
+          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
+      sycl::detail::CGExecKernel *ExecKernelB =
+          static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+
+      if (ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) != 0)
+        return false;
+    }
+    return true;
+  }
+
+  /// Recursive traversal of successor nodes checking for
+  /// equivalent node successions in Node
+  /// @param Node pointer to the starting node for structure comparison
+  /// @return true is same structure found, false otherwise
+  bool checkNodeRecursive(std::shared_ptr<node_impl> Node) {
+    size_t FoundCnt = 0;
+    for (std::shared_ptr<node_impl> SuccA : MSuccessors) {
+      for (std::shared_ptr<node_impl> SuccB : Node->MSuccessors) {
+        if (isSimilar(Node)) {
+          if (SuccA->checkNodeRecursive(SuccB)) {
+            FoundCnt++;
+            break;
+          }
+        }
+      }
+    }
+    if (FoundCnt != MSuccessors.size()) {
+      return false;
+    }
+
+    return true;
+  }
+
 private:
   /// Creates a copy of the node's CG by casting to it's actual type, then using
   /// that to copy construct and create a new unique ptr from that copy.
@@ -309,6 +463,101 @@ public:
     MInorderQueueMap[QueueWeakPtr] = Node;
   }
 
+  /// Prints the contents of the graph to a text file in DOT format
+  /// @param GraphName is a string appended to the output file name
+  void printGraphAsDot(const std::string GraphName) const {
+    /// Vector of nodes visited during the graph printing
+    std::vector<node_impl *> VisitedNodes;
+    std::string FileName = "graph_" + GraphName + ".dot";
+
+    std::fstream Stream(FileName, std::ios::out);
+    Stream << "strict digraph {" << std::endl;
+
+    for (std::shared_ptr<node_impl> Node : MRoots)
+      Node->printDotRecursive(Stream, VisitedNodes);
+
+    Stream << "}" << std::endl;
+  }
+
+  /// Checks if the graph_impl of Graph has a similar structure to
+  /// the graph_impl of the caller.
+  /// Graphs are considered similar if they have same numbers of nodes
+  /// of the same type with similar predecessor and successor nodes (number and
+  /// type). Two nodes are considered similar if they have the same
+  /// command-group type. For command-groups of type "kernel", the "signature"
+  /// of the kernel is also compared (i.e. the name of the command-group).
+  /// @param Graph if reference to the graph to compare with.
+  /// @param DebugPrint if set to true throw exception with additional debug
+  /// information about the spotted graph differences.
+  /// @return true if the two graphs are similar, false otherwise
+  bool hasSimilarStructure(std::shared_ptr<detail::graph_impl> Graph,
+                           bool DebugPrint = false) const {
+    if (this == Graph.get())
+      return true;
+
+    if (MContext != Graph->MContext) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MContext are not the same.");
+      }
+      return false;
+    }
+
+    if (MDevice != Graph->MDevice) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MDevice are not the same.");
+      }
+      return false;
+    }
+
+    if (MEventsMap.size() != Graph->MEventsMap.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MEventsMap sizes are not the same.");
+      }
+      return false;
+    }
+
+    if (MInorderQueueMap.size() != Graph->MInorderQueueMap.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MInorderQueueMap sizes are not the same.");
+      }
+      return false;
+    }
+
+    if (MRoots.size() != Graph->MRoots.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MRoots sizes are not the same.");
+      }
+      return false;
+    }
+
+    size_t RootsFound = 0;
+    for (std::shared_ptr<node_impl> NodeA : MRoots) {
+      for (std::shared_ptr<node_impl> NodeB : Graph->MRoots) {
+        if (NodeA->isSimilar(NodeB)) {
+          if (NodeA->checkNodeRecursive(NodeB)) {
+            RootsFound++;
+            break;
+          }
+        }
+      }
+    }
+
+    if (RootsFound != MRoots.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "Root Nodes do NOT match.");
+      }
+      return false;
+    }
+
+    return true;
+  }
+
 private:
   /// Context associated with this graph.
   sycl::context MContext;
@@ -370,6 +619,33 @@ public:
   /// @return List of nodes in execution order.
   const std::list<std::shared_ptr<node_impl>> &getSchedule() const {
     return MSchedule;
+  }
+
+  /// Prints the contents of the graph to a text file in DOT format
+  /// @param GraphName is a string appended to the output file name
+  void printGraphAsDot(const std::string GraphName) {
+    if (MGraphImpl != nullptr)
+      MGraphImpl->printGraphAsDot(GraphName);
+  }
+
+  /// Checks if the graph_impl of Graph has a similar structure to
+  /// the graph_impl of the caller.
+  /// Graphs are considered similar if they have same numbers of nodes
+  /// of the same type with similar predecessor and successor nodes (number and
+  /// type). Two nodes are considered similar if they have the same
+  /// command-group type. For command-groups of type "kernel", the "signature"
+  /// of the kernel is also compared (i.e. the name of the command-group).
+  /// @param Graph if reference to the graph to compare with.
+  /// @param DebugPrint if set to true throw exception with additional debug
+  /// information about the spotted graph differences
+  /// @return true if the two graphs are similar, false otherwise
+  bool hasSimilarStructure(std::shared_ptr<detail::exec_graph_impl> Graph,
+                           bool DebugPrint = false) const {
+    if ((this->MGraphImpl != nullptr) && (Graph->MGraphImpl != nullptr)) {
+      return this->MGraphImpl->hasSimilarStructure(Graph->MGraphImpl,
+                                                   DebugPrint);
+    }
+    return false;
   }
 
 private:
