@@ -114,8 +114,9 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ", " << JITCompilationIsRequired << ")\n";
+              << getSyclObjImpl(Context).get() << ", "
+              << getSyclObjImpl(Device).get() << ", "
+              << JITCompilationIsRequired << ")\n";
 
   KernelSetId KSId = getKernelSetId(KernelName);
   return getDeviceImage(KSId, Context, Device, JITCompilationIsRequired);
@@ -282,8 +283,8 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context, const device &Device) {
   if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ")\n";
+              << getSyclObjImpl(Context).get() << ", "
+              << getSyclObjImpl(Device).get() << ")\n";
   const pi_device_binary_struct &RawImg = Img.getRawData();
 
   // perform minimal sanity checks on the device image and the descriptor
@@ -718,7 +719,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask);
+              getSyclObjImpl(Device).get()->getHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -1053,8 +1054,9 @@ ProgramManager::getDeviceImage(KernelSetId KSId, const context &Context,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KSId << "\", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ", " << JITCompilationIsRequired << ")\n";
+              << getSyclObjImpl(Context).get() << ", "
+              << getSyclObjImpl(Device).get() << ", "
+              << JITCompilationIsRequired << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -2332,7 +2334,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask);
+              getSyclObjImpl(Devs[0]).get()->getHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -2353,7 +2355,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice =
-      getRawSyclObjImpl(Devs[0])->getHandleRef();
+      getSyclObjImpl(Devs[0]).get()->getHandleRef();
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
                      std::make_pair(PiDevice, CompileOpts + LinkOpts));
@@ -2386,7 +2388,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // call to getOrBuild, so starting with "1"
   for (size_t Idx = 1; Idx < Devs.size(); ++Idx) {
     const sycl::detail::pi::PiDevice PiDeviceAdd =
-        getRawSyclObjImpl(Devs[Idx])->getHandleRef();
+        getSyclObjImpl(Devs[Idx]).get()->getHandleRef();
 
     // Change device in the cache key to reduce copying of spec const data.
     CacheKey.second.first = PiDeviceAdd;
