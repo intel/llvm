@@ -62,6 +62,29 @@ ur_result_t checkErrorUR(CUresult Result, const char *Function, int Line,
   throw mapErrorUR(Result);
 }
 
+ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
+                         const char *File) {
+  if (Result == UR_RESULT_SUCCESS) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+    std::stringstream SS;
+    SS << "\nUR ERROR:"
+       << "\n\tValue:           " << Result
+       << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
+       << ":" << Line << "\n"
+       << std::endl;
+    std::cerr << SS.str();
+  }
+
+  if (std::getenv("PI_CUDA_ABORT") != nullptr) {
+    std::abort();
+  }
+
+  throw Result;
+}
+
 std::string getCudaVersionString() {
   int driver_version = 0;
   cuDriverGetVersion(&driver_version);

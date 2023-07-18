@@ -871,6 +871,89 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(int32_t{1});
   }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
+    // On CUDA bindless images are supported.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
+    // On CUDA bindless images can be backed by shared (managed) USM.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
+    // On CUDA 1D bindless image USM is not supported.
+    // More specifically, linear filtering is not supported.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
+    // On CUDA 2D bindless image USM is supported.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP: {
+    int32_t tex_pitch_align = 0;
+    detail::ur::assertion(
+        cuDeviceGetAttribute(&tex_pitch_align,
+                             CU_DEVICE_ATTRIBUTE_TEXTURE_PITCH_ALIGNMENT,
+                             hDevice->get()) == CUDA_SUCCESS);
+    return ReturnValue(tex_pitch_align);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
+    int32_t tex_max_linear_width = 0;
+    detail::ur::assertion(
+        cuDeviceGetAttribute(&tex_max_linear_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_WIDTH,
+                             hDevice->get()) == CUDA_SUCCESS);
+    return ReturnValue(tex_max_linear_width);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
+    int32_t tex_max_linear_height = 0;
+    detail::ur::assertion(
+        cuDeviceGetAttribute(
+            &tex_max_linear_height,
+            CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_HEIGHT,
+            hDevice->get()) == CUDA_SUCCESS);
+    return ReturnValue(tex_max_linear_height);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP: {
+    int32_t tex_max_linear_pitch = 0;
+    detail::ur::assertion(
+        cuDeviceGetAttribute(&tex_max_linear_pitch,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_PITCH,
+                             hDevice->get()) == CUDA_SUCCESS);
+    return ReturnValue(tex_max_linear_pitch);
+  }
+  case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
+    // CUDA supports mipmaps.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP: {
+    // CUDA supports anisotropic filtering.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP: {
+    // CUDA has no query for this, but documentation states max value is 16.
+    return ReturnValue(16.f);
+  }
+  case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
+    // CUDA supports creation of images from individual mipmap levels.
+    return ReturnValue(true);
+  }
+
+  case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP: {
+    // CUDA supports importing external memory.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP: {
+    // CUDA does not support exporting it's own device memory.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP: {
+    // CUDA supports importing external semaphores.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP: {
+    // CUDA does not support exporting semaphores or events.
+    return ReturnValue(false);
+  }
   case UR_DEVICE_INFO_DEVICE_ID: {
     int Value = 0;
     detail::ur::assertion(
