@@ -242,9 +242,11 @@ SYCLIDAndRangeAnalysis::getInformation(const Definition &def) {
     Value other = args[0];
     if (isa<LLVM::LLVMPointerType>(other.getType())) {
       // Copy constructor
-      std::optional<IDRangeInformation> info =
-          getIDRangeInformationFromConstruction<IDRange>(constructor, other);
-      return info.value_or(IDRangeInformation(type.getDimension()));
+      if (std::optional<IDRangeInformation> info =
+              getIDRangeInformationFromConstruction<IDRange>(constructor,
+                                                             other))
+        return *info;
+      return IDRangeInformation(type.getDimension());
     }
   }
 
