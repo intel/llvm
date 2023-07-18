@@ -19,7 +19,7 @@
 
 namespace mlir {
 namespace polygeist {
-
+class Definition;
 /// Represents information about a `sycl::id` or `sycl::range` gathered from its
 /// construction.
 class IDRangeInformation {
@@ -71,6 +71,9 @@ public:
   getIDRangeInformationFromConstruction(Operation *op, Value operand);
 
 private:
+  template <typename IDRange>
+  IDRangeInformation getInformation(const Definition &def);
+
   Operation *operation;
 
   AnalysisManager &am;

@@ -92,6 +92,12 @@ IDRangeInformation::join(const IDRangeInformation &other) const {
 
 namespace {
 
+template <typename T>
+struct has_default_constructor : public std::is_same<T, mlir::sycl::IDType> {};
+
+template <typename T>
+constexpr bool has_default_constructor_v = has_default_constructor<T>::value;
+
 static std::optional<int> getConstantUInt(Value v) {
   Operation *op = v.getDefiningOp();
   if (!op)
@@ -121,28 +127,6 @@ template <typename Type> bool isConstructor(const Definition &def) {
     return false;
 
   return isa<Type>(constructor.getType().getValue());
-}
-
-template <typename IDRange>
-IDRangeInformation getInformation(const Definition &def) {
-  assert(def.isOperation() && "Expecting operation");
-
-  auto constructor = cast<sycl::SYCLHostConstructorOp>(def.getOperation());
-
-  auto type = cast<IDRange>(constructor.getType().getValue());
-
-  SmallVector<std::optional<int>> constValues;
-  llvm::transform(constructor.getArgs(), std::back_inserter(constValues),
-                  getConstantUInt);
-
-  if (llvm::all_of(constValues, [](auto &opt) { return opt.has_value(); })) {
-    SmallVector<size_t, 3> constInt;
-    llvm::transform(constValues, std::back_inserter(constInt),
-                    [](auto &opt) { return *opt; });
-    return IDRangeInformation(constInt);
-  }
-
-  return IDRangeInformation(type.getDimension());
 }
 
 } // namespace
@@ -230,6 +214,56 @@ SYCLIDAndRangeAnalysis::getIDRangeInformationFromConstruction(Operation *op,
   }
 
   return info;
+}
+
+template <typename IDRange>
+IDRangeInformation
+SYCLIDAndRangeAnalysis::getInformation(const Definition &def) {
+  assert(def.isOperation() && "Expecting operation");
+
+  auto constructor = cast<sycl::SYCLHostConstructorOp>(def.getOperation());
+
+  auto type = cast<IDRange>(constructor.getType().getValue());
+
+  OperandRange args = constructor.getArgs();
+
+  if constexpr (has_default_constructor_v<IDRange>) {
+    if (args.empty()) {
+      // Default constructor
+      std::array<size_t, 3> values{0, 0, 0};
+      return IDRangeInformation(
+          ArrayRef<size_t>(values.data(), type.getDimension()));
+    }
+  }
+
+  assert(!args.empty() && "Expecting at least one argument");
+
+  if (args.size() == 1) {
+    Value other = args[0];
+    if (isa<LLVM::LLVMPointerType>(other.getType())) {
+      // Copy constructor
+      std::optional<IDRangeInformation> info =
+          getIDRangeInformationFromConstruction<IDRange>(constructor, other);
+      return info.value_or(IDRangeInformation(type.getDimension()));
+    }
+  }
+
+  // (std::size_t+) constructor
+
+  assert(llvm::all_of(args.getTypes(),
+                      [](Type ty) { return isa<IntegerType>(ty); }));
+
+  SmallVector<std::optional<int>> constValues;
+  llvm::transform(args, std::back_inserter(constValues), getConstantUInt);
+
+  if (llvm::all_of(constValues, [](auto &opt) { return opt.has_value(); })) {
+    SmallVector<size_t, 3> constInt;
+    llvm::transform(constValues, std::back_inserter(constInt),
+                    [](auto &opt) { return *opt; });
+    return IDRangeInformation(constInt);
+  }
+
+  return IDRangeInformation(type.getDimension());
 }
 
 template std::optional<IDRangeInformation>

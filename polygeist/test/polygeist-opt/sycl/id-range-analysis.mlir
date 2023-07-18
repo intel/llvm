@@ -35,6 +35,62 @@ llvm.func @non_constant_id() -> !llvm.ptr {
 
 llvm.func @_Z6numberv() -> i64
 
+// CHECK-LABEL: test_tag: default_id_1:
+// CHECK:         operand #0
+// CHECK:         id:
+// CHECK:           constant<0>
+// CHECK-LABEL: test_tag: default_id_2:
+// CHECK:         operand #0
+// CHECK:         id:
+// CHECK:           constant<0, 0>
+// CHECK-LABEL: test_tag: default_id_3:
+// CHECK:         operand #0
+// CHECK:         id:
+// CHECK:           constant<0, 0, 0>
+llvm.func @default_constructed_id() {
+  %c1_i32 = arith.constant 1 : i32
+  %id1 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id2 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id3 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  sycl.host.constructor(%id1) {type = !sycl_id_1_} : (!llvm.ptr) -> ()
+  sycl.host.constructor(%id2) {type = !sycl_id_2_} : (!llvm.ptr) -> ()
+  sycl.host.constructor(%id3) {type = !sycl_id_3_} : (!llvm.ptr) -> ()
+  %0 = llvm.load %id1 {tag = "default_id_1"} : !llvm.ptr -> i32
+  %1 = llvm.load %id2 {tag = "default_id_2"} : !llvm.ptr -> i32
+  %2 = llvm.load %id3 {tag = "default_id_3"} : !llvm.ptr -> i32
+  llvm.return
+}
+
+// CHECK-LABEL: test_tag: copy_unknown_id:
+// CHECK:         operand #0
+// CHECK:         id:
+// CHECK:           fixed<1>
+// CHECK-LABEL: test_tag: copy_fixed_id:
+// CHECK:         operand #0
+// CHECK:         id:
+// CHECK:           fixed<2>
+// CHECK-LABEL: test_tag: copy_constant_id:
+// CHECK:         operand #0
+// CHECK:         id:
+// CHECK:           constant<512, 512, 512>
+llvm.func @copy_id(%other: !llvm.ptr, %x: i64, %y: i64) {
+  %c1_i32 = arith.constant 1 : i32
+  %c512 = arith.constant 512 : i64
+  %id1 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id2 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id2.1 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id3 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id3.1 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  sycl.host.constructor(%id1, %other) {type = !sycl_id_1_} : (!llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%id2.1, %x, %y) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+  sycl.host.constructor(%id3.1, %c512, %c512, %c512) {type = !sycl_id_3_} : (!llvm.ptr, i64, i64, i64) -> ()
+  sycl.host.constructor(%id2, %id2.1) {type = !sycl_id_2_} : (!llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%id3, %id3.1) {type = !sycl_id_3_} : (!llvm.ptr, !llvm.ptr) -> ()
+  %0 = llvm.load %id1 {tag = "copy_unknown_id"} : !llvm.ptr -> i32
+  %1 = llvm.load %id2 {tag = "copy_fixed_id"} : !llvm.ptr -> i32
+  %2 = llvm.load %id3 {tag = "copy_constant_id"} : !llvm.ptr -> i32
+  llvm.return
+}
 
 // CHECK-LABEL: test_tag: control_flow_constant:
 // CHECK:         operand #0
