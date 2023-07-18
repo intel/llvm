@@ -194,6 +194,9 @@ program_impl::program_impl(ContextImplPtr Context,
     MState = program_state::linked;
     MLinkOptions = "";
     MBuildOptions = Options;
+    break;
+  default:
+    break;
   }
 }
 
