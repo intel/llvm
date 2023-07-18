@@ -74,8 +74,12 @@ func.func @test4(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
 //      are joined correctly.
 // CHECK-LABEL: test_tag: test5_load1
 // CHECK: operand #0
-// CHECK-NEXT: - mods: test5_store1 test5_store3
-// CHECK-NEXT: - pMods: test5_store2 test5_store4
+// CHECK-NEXT: - mods:
+// CHECK-DAG:          test5_store1
+// CHECK-DAG:          test5_store3
+// CHECK-NEXT: - pMods:
+// CHECK-DAG:          test5_store2
+// CHECK-DAG:          test5_store4
 func.func @test5(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
   scf.if %cond {
     %c0 = arith.constant 0 : i32
@@ -178,7 +182,9 @@ func.func @test10(%val: i32) {
 // COM: Test effects of a deallocation in the presence of control flow.
 // CHECK-LABEL: test_tag: test11_load1
 // CHECK: operand #0
-// CHECK-NEXT: - mods: test11_store1 test11_store2
+// CHECK-NEXT: - mods:
+// CHECK-DAG:          test11_store1
+// CHECK-DAG:          test11_store2
 // CHECK-NEXT: - pMods: <none>
 // CHECK-LABEL: test_tag: test11_load2
 // CHECK: operand #0
@@ -225,7 +231,9 @@ func.func @test12(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
 // COM: Test control flow if without else.
 // CHECK-LABEL: test_tag: test13_load1:
 // CHECK-NEXT:  operand #0
-// CHECK-NEXT:  - mods: test13_store1 test13_store2
+// CHECK-NEXT:  - mods:
+// CHECK-DAG:          test13_store1
+// CHECK-DAG:          test13_store2
 // CHECK-NEXT:  - pMods: <none>
 func.func @test13(%cond: i1, %arg1: memref<i32>) {
   %val = arith.constant 0 : i32
