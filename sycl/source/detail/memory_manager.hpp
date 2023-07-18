@@ -186,6 +186,47 @@ public:
       size_t NumBytes, size_t Offset, void *DstMem,
       const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
       sycl::detail::pi::PiEvent *OutEvent);
+
+  // Command buffer extension methods
+  static void ext_oneapi_copyD2D_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+      SYCLMemObjI *SYCLMemObj, void *SrcMem, unsigned int DimSrc,
+      sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
+      sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
+      unsigned int DimDst, sycl::range<3> DstSize,
+      sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+      unsigned int DstElemSize,
+      std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
+  static void ext_oneapi_copyD2H_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+      SYCLMemObjI *SYCLMemObj, void *SrcMem, unsigned int DimSrc,
+      sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
+      sycl::id<3> SrcOffset, unsigned int SrcElemSize, char *DstMem,
+      unsigned int DimDst, sycl::range<3> DstSize, sycl::id<3> DstOffset,
+      unsigned int DstElemSize,
+      std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
+  static void ext_oneapi_copyH2D_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+      SYCLMemObjI *SYCLMemObj, char *SrcMem, unsigned int DimSrc,
+      sycl::range<3> SrcSize, sycl::id<3> SrcOffset, unsigned int SrcElemSize,
+      void *DstMem, unsigned int DimDst, sycl::range<3> DstSize,
+      sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+      unsigned int DstElemSize,
+      std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
+  static void ext_oneapi_copy_usm_cmd_buffer(
+      ContextImplPtr Context, const void *SrcMem,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer, size_t Len,
+      void *DstMem, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

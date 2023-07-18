@@ -15,6 +15,8 @@
 #include <sycl/id.hpp>
 #include <sycl/marray.hpp>
 
+#include <climits>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {

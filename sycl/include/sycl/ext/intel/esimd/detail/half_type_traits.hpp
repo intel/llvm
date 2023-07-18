@@ -40,14 +40,14 @@ template <> struct element_type_traits<sycl::half> {
 #ifdef __SYCL_DEVICE_ONLY__
   // On device, operations on half are translated to operations on _Float16,
   // which is natively supported by the device compiler
-  static inline constexpr bool use_native_cpp_ops = true;
+  static constexpr bool use_native_cpp_ops = true;
 #else
   // On host, we can't use native Cpp '+', '-' etc. over uint16_t to emulate the
   // operations on half type.
-  static inline constexpr bool use_native_cpp_ops = false;
+  static constexpr bool use_native_cpp_ops = false;
 #endif // __SYCL_DEVICE_ONLY__
 
-  static inline constexpr bool is_floating_point = true;
+  static constexpr bool is_floating_point = true;
 };
 
 // ------------------- Type conversion traits
