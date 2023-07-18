@@ -1165,6 +1165,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
   for (uint32_t I = 0; I < NumDevices; I++) {
     Device->SubDevices[I]->SubDeviceCreationProperty =
         Properties->pProperties[0];
+    if (Properties->pProperties[0].type ==
+        UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+      // In case the value is NEXT_PARTITIONABLE, we need to change it to the
+      // chosen domain. This will always be NUMA since that's the only domain
+      // supported by level zero.
+      Device->SubDevices[I]->SubDeviceCreationProperty.value.affinity_domain =
+          UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA;
+    }
+
     OutDevices[I] = Device->SubDevices[I];
     // reusing the same pi_device needs to increment the reference count
     urDeviceRetain(OutDevices[I]);

@@ -226,12 +226,46 @@ public:
     *pValuePI = TypePI(Out);
     return PI_SUCCESS;
   }
+
+  // Convert the array using a conversion map
+  template <typename TypeUR, typename TypePI>
+  pi_result convertArray(std::function<TypePI(TypeUR)> Func) {
+    // Cannot convert to a smaller element storage type
+    PI_ASSERT(sizeof(TypePI) >= sizeof(TypeUR), PI_ERROR_UNKNOWN);
+
+    const uint32_t NumberElements =
+        *param_value_size_ret / sizeof(ur_device_partition_t);
+
+    *param_value_size_ret *= sizeof(TypePI) / sizeof(TypeUR);
+
+    // There is no value to convert. Adjust to a possibly bigger PI storage.
+    if (!param_value)
+      return PI_SUCCESS;
+
+    PI_ASSERT(*param_value_size_ret % sizeof(TypePI) == 0, PI_ERROR_UNKNOWN);
+
+    // Make a copy of the input UR array as we may possibly overwrite
+    // following elements while converting previous ones (if extending).
+    auto ValueUR = new char[*param_value_size_ret];
+    auto pValueUR = reinterpret_cast<TypeUR *>(ValueUR);
+    auto pValuePI = static_cast<TypePI *>(param_value);
+    memcpy(pValueUR, param_value, *param_value_size_ret);
+
+    for (uint32_t I = 0; I < NumberElements; ++I) {
+      *pValuePI = Func(*pValueUR);
+      ++pValuePI;
+      ++pValueUR;
+    }
+
+    delete[] ValueUR;
+    return PI_SUCCESS;
+  }
 };
 
 // Handle mismatched PI and UR type return sizes for info queries
-inline pi_result fixupInfoValueTypes(size_t ParamValueSizeRetUR,
-                                     size_t *ParamValueSizeRetPI,
-                                     size_t ParamValueSize, void *ParamValue) {
+inline void fixupInfoValueTypes(size_t ParamValueSizeRetUR,
+                                size_t *ParamValueSizeRetPI,
+                                size_t ParamValueSize, void *ParamValue) {
   if (ParamValueSizeRetUR == 1 && ParamValueSize == 4) {
     // extend bool to pi_bool (uint32_t)
     if (ParamValue) {
@@ -243,8 +277,6 @@ inline pi_result fixupInfoValueTypes(size_t ParamValueSizeRetUR,
       *ParamValueSizeRetPI = sizeof(pi_bool);
     }
   }
-
-  return PI_SUCCESS;
 }
 
 // Translate UR platform info values to PI info values
@@ -468,30 +500,18 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
       }
     };
 
-    const uint32_t ur_number_elements =
-        *ParamValueSizeRet / sizeof(ur_device_partition_t);
+    Value.convertArray<ur_device_partition_t, pi_device_partition_property>(
+        ConvertFunc);
 
     if (ParamValue) {
-      auto param_value_copy =
-          std::make_unique<ur_device_partition_t[]>(ur_number_elements);
-      std::memcpy(param_value_copy.get(), ParamValue,
-                  ur_number_elements * sizeof(ur_device_partition_t));
-      pi_device_partition_property *pValuePI =
-          reinterpret_cast<pi_device_partition_property *>(ParamValue);
-      ur_device_partition_t *pValueUR =
-          reinterpret_cast<ur_device_partition_t *>(param_value_copy.get());
-
-      for (uint32_t i = 0; i < ur_number_elements; ++i) {
-        *pValuePI = ConvertFunc(*pValueUR);
-        ++pValuePI;
-        ++pValueUR;
-      }
-      *pValuePI = 0;
+      const uint32_t NumberElements =
+          *ParamValueSizeRet / sizeof(pi_device_partition_property);
+      reinterpret_cast<pi_device_partition_property *>(
+          ParamValue)[NumberElements] = 0;
     }
 
     if (ParamValueSizeRet && *ParamValueSizeRet != 0) {
-      *ParamValueSizeRet =
-          (ur_number_elements + 1) * sizeof(pi_device_partition_property);
+      *ParamValueSizeRet += sizeof(pi_device_partition_property);
     }
 
   } else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
@@ -1294,23 +1314,23 @@ inline pi_result piDevicePartition(
     return PI_ERROR_UNKNOWN;
   }
 
-  std::vector<ur_device_partition_property_t> ur_properties{};
-  for (uint32_t i = 1; *(Properties + i) != 0; ++i) {
-    ur_device_partition_property_t ur_property;
-    ur_property.type = UrType;
+  std::vector<ur_device_partition_property_t> UrProperties{};
+  while (*(++Properties)) {
+    ur_device_partition_property_t UrProperty;
+    UrProperty.type = UrType;
     switch (UrType) {
     case UR_DEVICE_PARTITION_EQUALLY: {
-      ur_property.value.equally = *(Properties + i);
+      UrProperty.value.equally = *Properties;
       break;
     }
     case UR_DEVICE_PARTITION_BY_COUNTS: {
-      ur_property.value.count = *(Properties + i);
+      UrProperty.value.count = *Properties;
       break;
     }
     case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN: {
       /* No need to convert affinity domain enums from pi to ur because they
        * are equivalent */
-      ur_property.value.affinity_domain = *(Properties + i);
+      UrProperty.value.affinity_domain = *Properties;
       break;
     }
     case UR_DEVICE_PARTITION_BY_CSLICE: {
@@ -1320,19 +1340,19 @@ inline pi_result piDevicePartition(
       die("Invalid properties for call to piDevicePartition");
     }
     }
-    ur_properties.push_back(ur_property);
+    UrProperties.push_back(UrProperty);
   }
 
-  const ur_device_partition_properties_t UrProperties{
+  const ur_device_partition_properties_t UrPropertiesStruct{
       UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
       nullptr,
-      ur_properties.data(),
-      ur_properties.size(),
+      UrProperties.data(),
+      UrProperties.size(),
   };
 
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrSubDevices = reinterpret_cast<ur_device_handle_t *>(SubDevices);
-  HANDLE_ERRORS(urDevicePartition(UrDevice, &UrProperties, NumEntries,
+  HANDLE_ERRORS(urDevicePartition(UrDevice, &UrPropertiesStruct, NumEntries,
                                   UrSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }
