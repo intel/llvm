@@ -729,11 +729,8 @@ ur_result_t commonMemSetLargePattern(CUstream Stream, uint32_t PatternSize,
     auto OffsetPtr = Ptr + (step * sizeof(uint8_t));
 
     // set all of the pattern chunks
-    Result = UR_CHECK_ERROR(cuMemsetD2D8Async(OffsetPtr, Pitch, Value,
-                                              sizeof(uint8_t), Height, Stream));
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
+    UR_CHECK_ERROR(cuMemsetD2D8Async(OffsetPtr, Pitch, Value, sizeof(uint8_t),
+                                     Height, Stream));
   }
   return UR_RESULT_SUCCESS;
 }
@@ -1249,8 +1246,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_stream_guard_ Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
     if (phEvent) {
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
@@ -1261,22 +1258,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     auto N = size / patternSize;
     switch (patternSize) {
     case 1:
-      Result = UR_CHECK_ERROR(cuMemsetD8Async(
+      UR_CHECK_ERROR(cuMemsetD8Async(
           (CUdeviceptr)ptr, *((const uint8_t *)pPattern) & 0xFF, N, CuStream));
       break;
     case 2:
-      Result = UR_CHECK_ERROR(cuMemsetD16Async(
-          (CUdeviceptr)ptr, *((const uint16_t *)pPattern) & 0xFFFF, N,
-          CuStream));
+      UR_CHECK_ERROR(cuMemsetD16Async((CUdeviceptr)ptr,
+                                      *((const uint16_t *)pPattern) & 0xFFFF, N,
+                                      CuStream));
       break;
     case 4:
-      Result = UR_CHECK_ERROR(cuMemsetD32Async(
+      UR_CHECK_ERROR(cuMemsetD32Async(
           (CUdeviceptr)ptr, *((const uint32_t *)pPattern) & 0xFFFFFFFF, N,
           CuStream));
       break;
     default:
-      Result = commonMemSetLargePattern(CuStream, patternSize, size, pPattern,
-                                        (CUdeviceptr)ptr);
+      commonMemSetLargePattern(CuStream, patternSize, size, pPattern,
+                               (CUdeviceptr)ptr);
       break;
     }
     if (phEvent) {
