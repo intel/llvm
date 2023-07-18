@@ -15,7 +15,7 @@ class KernelName;
 // CHECK:         %[[lambda:.*]] = llvm.alloca %{{.*}} x !llvm.struct<"{{.*}}", (struct<"[[accessor_class_name_1]]", ({{.*}})>, struct<"[[accessor_class_name_2]]", ({{.*}})>, i16, i64, struct<"class.sycl::_V1::vec{{.*}}", (vector<4xf32>)>, struct<"class.sycl::_V1::vec{{.*}}", ({{.*}})>)>
 // CHECK:         %[[cgf:.*]] = llvm.load %arg0 {{.*}} : !llvm.ptr -> !llvm.ptr
 
-// COM: check that we correctly identify captured the accessors.
+// COM: check that we correctly identified the accessors.
 // CHECK:         sycl.host.set_captured %[[lambda]][0] = %[[accessor_1]] : !llvm.ptr, !llvm.ptr
 // CHECK:         sycl.host.set_captured %[[lambda]][1] = %[[accessor_2]] : !llvm.ptr, !llvm.ptr
 

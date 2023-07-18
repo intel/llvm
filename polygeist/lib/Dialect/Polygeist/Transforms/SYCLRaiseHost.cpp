@@ -1524,7 +1524,7 @@ public:
                                                  capturedVal);
     }
 
-    // All other captures are the unique assignments to GEPs with two constant
+    // All other captures are unique assignments to GEPs with two constant
     // indices `[0, <capture #>]` to the lambda object.
     for (auto *user : lambdaObj.getUsers()) {
       auto gep = dyn_cast<LLVM::GEPOp>(user);
@@ -1572,7 +1572,7 @@ private:
                        })
                        .Default(Value())) {
         if (op)
-          // Definition is not unique.
+          // Assignment is not unique.
           return {nullptr, Value()};
 
         op = user;
