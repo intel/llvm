@@ -75,6 +75,12 @@ add_library(${TARGET_NAME}
     ${HIP_DIR}/../../usm_allocator_config.hpp
 )
 
+if (NOT MSVC)
+    target_compile_options(${TARGET_NAME} PRIVATE
+        -Wno-deprecated-declarations
+    )
+endif()
+
 set_target_properties(${TARGET_NAME} PROPERTIES
     VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
     SOVERSION "${PROJECT_VERSION_MAJOR}"
