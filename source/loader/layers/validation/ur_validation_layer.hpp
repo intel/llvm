@@ -20,8 +20,8 @@ namespace ur_validation_layer {
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal context_t : public proxy_layer_context_t {
   public:
-    bool enableParameterValidation;
-    bool enableLeakChecking;
+    bool enableParameterValidation = false;
+    bool enableLeakChecking = false;
     logger::Logger logger;
 
     ur_dditable_t urDdiTable = {};
