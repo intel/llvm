@@ -175,6 +175,38 @@ struct urMemBufferTest : urContextTest {
     ur_mem_handle_t buffer = nullptr;
 };
 
+struct urMemImageTest : urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+    }
+
+    void TearDown() override {
+        if (image) {
+            EXPECT_SUCCESS(urMemRelease(image));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+    }
+
+    ur_image_format_t image_format = {
+        /*.channelOrder =*/UR_IMAGE_CHANNEL_ORDER_ARGB,
+        /*.channelType =*/UR_IMAGE_CHANNEL_TYPE_UNORM_INT8,
+    };
+    ur_image_desc_t image_desc = {
+        /*.stype =*/UR_STRUCTURE_TYPE_IMAGE_DESC,
+        /*.pNext =*/nullptr,
+        /*.type =*/UR_MEM_TYPE_IMAGE2D,
+        /*.width =*/16,
+        /*.height =*/16,
+        /*.depth =*/1,
+        /*.arraySize =*/1,
+        /*.rowPitch =*/16 * sizeof(char[4]),
+        /*.slicePitch =*/16 * 16 * sizeof(char[4]),
+        /*.numMipLevel =*/0,
+        /*.numSamples =*/0,
+    };
+    ur_mem_handle_t image = nullptr;
+};
+
 } // namespace uur
 
 #define UUR_TEST_SUITE_P(FIXTURE, VALUES, PRINTER)                             \
