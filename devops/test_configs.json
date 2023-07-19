@@ -2,10 +2,10 @@
   "lts": [
     {
       "config": "lin_intel",
-      "name": "SYCL E2E on Intel CPU/GEN9 GPU",
+      "name": "SYCL E2E on Intel CPU/GEN12 GPU",
       "runs-on": [
         "Linux",
-        "gen9"
+        "gen12"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
       "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",
@@ -13,11 +13,11 @@
       "cmake_args": ""
     },
     {
-      "config": "l0_gen9",
-      "name": "L0 GEN9 LLVM Test Suite",
+      "config": "l0_gen12",
+      "name": "L0 GEN12 LLVM Test Suite",
       "runs-on": [
         "Linux",
-        "gen9"
+        "gen12"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
       "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",
@@ -35,11 +35,11 @@
       "cmake_args": ""
     },
     {
-      "config": "ocl_gen9",
-      "name": "OCL GEN9 LLVM Test Suite",
+      "config": "ocl_gen12",
+      "name": "OCL GEN12 LLVM Test Suite",
       "runs-on": [
         "Linux",
-        "gen9"
+        "gen12"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
       "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",

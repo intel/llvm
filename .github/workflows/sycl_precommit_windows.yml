@@ -29,6 +29,7 @@ jobs:
   lint:
     needs: [detect_changes]
     if: |
+      github.event.pull_request.head.repo.full_name == 'intel/llvm' ||
       !contains(needs.detect_changes.outputs.filters, 'ci')
     runs-on: [Linux, build]
     container:
@@ -62,6 +63,7 @@ jobs:
   test_matrix:
     needs: [detect_changes]
     if: |
+      github.event.pull_request.head.repo.full_name == 'intel/llvm' ||
       !contains(needs.detect_changes.outputs.filters, 'ci')
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
@@ -76,7 +78,8 @@ jobs:
       always()
       && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
       && github.repository == 'intel/llvm'
-      && !contains(needs.detect_changes.outputs.filters, 'ci')
+      && (github.event.pull_request.head.repo.full_name == 'intel/llvm'
+          || !contains(needs.detect_changes.outputs.filters, 'ci'))
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}

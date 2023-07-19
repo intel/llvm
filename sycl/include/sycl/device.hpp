@@ -19,7 +19,6 @@
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
-#include <sycl/stl.hpp>
 
 #include <memory>
 #include <utility>
