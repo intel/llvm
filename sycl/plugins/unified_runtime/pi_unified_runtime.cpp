@@ -368,6 +368,16 @@ __SYCL_EXPORT pi_result piextUSMFree(pi_context Context, void *Ptr) {
   return pi2ur::piextUSMFree(Context, Ptr);
 }
 
+__SYCL_EXPORT pi_result piextUSMImport(const void *HostPtr, size_t Size,
+                                       pi_context Context) {
+  return pi2ur::piextUSMImport(HostPtr, Size, Context);
+}
+
+__SYCL_EXPORT pi_result piextUSMRelease(const void *HostPtr,
+                                        pi_context Context) {
+  return pi2ur::piextUSMRelease(HostPtr, Context);
+}
+
 __SYCL_EXPORT pi_result piContextRetain(pi_context Context) {
   return pi2ur::piContextRetain(Context);
 }
@@ -1359,6 +1369,9 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piextUSMDeviceAlloc)
   _PI_API(piextUSMSharedAlloc)
   _PI_API(piextUSMFree)
+
+  _PI_API(piextUSMImport)
+  _PI_API(piextUSMRelease)
 
   _PI_API(piEnqueueKernelLaunch)
   _PI_API(piEnqueueMemImageWrite)

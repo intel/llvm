@@ -3280,6 +3280,29 @@ inline pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   return PI_SUCCESS;
 }
 
+inline pi_result piextUSMImport(const void *HostPtr, size_t Size,
+                                pi_context Context) {
+
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+
+  HANDLE_ERRORS(urUSMImportExp(UrContext, const_cast<void *>(HostPtr), Size));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextUSMRelease(const void *HostPtr, pi_context Context) {
+
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+
+  HANDLE_ERRORS(urUSMReleaseExp(UrContext, const_cast<void *>(HostPtr)));
+  return PI_SUCCESS;
+}
+
 inline pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
                                    size_t ParamValueSize, void *ParamValue,
                                    size_t *ParamValueSizeRet) {
