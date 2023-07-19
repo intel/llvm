@@ -196,7 +196,8 @@ program_impl::program_impl(ContextImplPtr Context,
     MBuildOptions = Options;
     break;
   default:
-    break;
+    assert(false);
+    return;
   }
 }
 
