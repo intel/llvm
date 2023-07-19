@@ -2836,13 +2836,25 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
 llvm::Value *CodeGenFunction::EmitSYCLAnnotationCall(
     llvm::Function *AnnotationFn, llvm::Value *AnnotatedVal,
     SourceLocation Location, const SYCLAddIRAnnotationsMemberAttr *Attr) {
+
+  llvm::SmallVector<std::pair<std::string, std::string>, 4>
+      AnnotationNameValPairs =
+          Attr->getFilteredAttributeNameValuePairs(getContext());
+  return EmitSYCLAnnotationCall(AnnotationFn, AnnotatedVal, Location,
+                                AnnotationNameValPairs);
+}
+
+llvm::Value *CodeGenFunction::EmitSYCLAnnotationCall(
+    llvm::Function *AnnotationFn, llvm::Value *AnnotatedVal,
+    SourceLocation Location,
+    SmallVectorImpl<std::pair<std::string, std::string>> &Pair) {
   SmallVector<llvm::Value *, 5> Args = {
       AnnotatedVal,
       Builder.CreateBitCast(CGM.EmitAnnotationString("sycl-properties"),
                             ConstGlobalsPtrTy),
       Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location),
                             ConstGlobalsPtrTy),
-      CGM.EmitAnnotationLineNo(Location), CGM.EmitSYCLAnnotationArgs(Attr)};
+      CGM.EmitAnnotationLineNo(Location), CGM.EmitSYCLAnnotationArgs(Pair)};
   return Builder.CreateCall(AnnotationFn, Args);
 }
 
