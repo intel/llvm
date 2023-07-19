@@ -18,7 +18,6 @@ struct urTest : ::testing::Test {
                   UR_RESULT_SUCCESS);
         ur_device_init_flags_t device_flags = 0;
         ASSERT_EQ(urInit(device_flags, loader_config), UR_RESULT_SUCCESS);
-        ASSERT_EQ(urLoaderConfigRelease(loader_config), UR_RESULT_SUCCESS);
     }
 
     void TearDown() override {
