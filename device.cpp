@@ -695,13 +695,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
-    return ReturnValue(static_cast<ur_device_partition_t>(0u));
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   }
+
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_PARTITION_TYPE: {
-    return ReturnValue(static_cast<ur_device_partition_t>(0u));
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   }
 
     // Intel USM extensions
