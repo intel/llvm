@@ -320,18 +320,23 @@ auto add_nodes(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
 /// defining one of GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY.
 ///
 /// @tparam CGFunc Type of the command group function.
+/// @tparam DepT Type of all the dependencies.
 /// @param Graph Modifiable graph to add commands to.
 /// @param Queue Queue to be used for record and replay.
 /// @param CGF The command group function representing the node
-/// @param PropList Optional list of properties which can be used to add edges
-/// for the Explicit API, ignored for Record and Replay.
+/// @param Deps Parameter pack of dependencies, if they are Nodes we pass them
+/// to explicit API add, otherwise they are ignored.
 /// @return If using the Explicit API this will be the node that was added, if
 /// Record and Replay this will be an event representing the submission.
-template <typename CGFunc>
+template <typename CGFunc, typename... DepT>
 auto add_node(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
-              queue Queue, CGFunc CGF, const property_list &PropList = {}) {
+              queue Queue, CGFunc CGF, DepT... Deps) {
 #if defined(GRAPH_E2E_EXPLICIT)
-  return Graph.add(CGF, PropList);
+  if constexpr ((std::is_same_v<exp_ext::node, DepT> && ...)) {
+    return Graph.add(CGF, {exp_ext::property::node::depends_on(Deps...)});
+  } else {
+    return Graph.add(CGF);
+  }
 #elif defined(GRAPH_E2E_RECORD_REPLAY)
   Graph.begin_recording(Queue);
   auto ev = Queue.submit(CGF);
