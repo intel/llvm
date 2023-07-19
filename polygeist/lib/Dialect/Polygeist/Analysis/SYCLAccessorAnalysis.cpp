@@ -115,6 +115,12 @@ AliasResult AccessorInformation::alias(const AccessorInformation &other,
   };
 
   if (isSameValue(getBuffer(), other.getBuffer())) {
+    // Try to refine to must alias
+    if (!needsRange() && !other.needsRange())
+      // If neither uses a range (and therefore also no offset), they must
+      // alias.
+      return AliasResult::MustAlias;
+
     // Both accessors defined on the same buffer.
     if (!hasBufferInformation() || (needsRange() && !hasConstantRange()) ||
         (needsOffset() && !hasConstantOffset()) ||
@@ -125,12 +131,6 @@ AliasResult AccessorInformation::alias(const AccessorInformation &other,
       // range & offset of the two accessors, they might be set up in way
       // where they completely or partially overlap, so may alias.
       return AliasResult::MayAlias;
-
-    // Try to refine to must alias
-    if (!needsRange() && !other.needsRange())
-      // If neither uses a range (and therefore also no offset), they must
-      // alias.
-      return AliasResult::MustAlias;
 
     if (!needsRange()) {
       // This accessor covers the entire range of the buffer.
@@ -189,7 +189,7 @@ AliasResult AccessorInformation::alias(const AccessorInformation &other,
                         ArrayRef<size_t> otherOffset) -> bool {
       return llvm::all_of(llvm::zip_equal(offset, range, otherOffset),
                           [](const std::tuple<size_t, size_t, size_t> &t) {
-                            return (std::get<2>(t) >
+                            return (std::get<2>(t) >=
                                     std::get<0>(t) + std::get<1>(t));
                           });
     };
@@ -210,9 +210,9 @@ AliasResult AccessorInformation::alias(const AccessorInformation &other,
 
   // The two accessors are defined over two different buffers.
   if (hasBufferInformation() &&
-      getBufferInfo().isSubBuffer() == SubBufferLattice::NO &&
+      getBufferInfo().getSubBuffer() == SubBufferLattice::NO &&
       other.hasBufferInformation() &&
-      other.getBufferInfo().isSubBuffer() == SubBufferLattice::NO)
+      other.getBufferInfo().getSubBuffer() == SubBufferLattice::NO)
     // If we definitely know that neither of the two buffers is a sub-buffer,
     // they won't alias.
     return AliasResult::NoAlias;
