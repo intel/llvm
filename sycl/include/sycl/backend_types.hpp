@@ -11,10 +11,6 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 
-#include <fstream>
-#include <istream>
-#include <string>
-
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 

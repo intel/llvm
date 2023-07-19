@@ -34,7 +34,6 @@
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/sampler.hpp>
-#include <sycl/stl.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 #ifdef __SYCL_NATIVE_CPU__
 #include <sycl/detail/native_cpu.hpp>

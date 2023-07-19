@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
-
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/property_list.hpp>
+
+#include <functional>
+#include <memory>
+#include <vector>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

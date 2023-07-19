@@ -168,7 +168,7 @@ public:
   template <class T> pi_result operator()(const T *t, size_t s) {
     return ur2piResult(UrReturnHelper::operator()(t, s));
   }
-  // Array return value where element type is differrent from T
+  // Array return value where element type is different from T
   template <class RetType, class T> pi_result operator()(const T *t, size_t s) {
     return ur2piResult(UrReturnHelper::operator()<RetType>(t, s));
   }
@@ -198,11 +198,15 @@ public:
     return PI_SUCCESS;
   }
 
-  // Convert the array (0-terminated) using a conversion map
+  // Convert the array using a conversion map
   template <typename TypeUR, typename TypePI>
   pi_result convertArray(std::function<TypePI(TypeUR)> Func) {
     // Cannot convert to a smaller element storage type
     PI_ASSERT(sizeof(TypePI) >= sizeof(TypeUR), PI_ERROR_UNKNOWN);
+
+    const uint32_t NumberElements =
+        *param_value_size_ret / sizeof(ur_device_partition_t);
+
     *param_value_size_ret *= sizeof(TypePI) / sizeof(TypeUR);
 
     // There is no value to convert. Adjust to a possibly bigger PI storage.
@@ -218,12 +222,7 @@ public:
     auto pValuePI = static_cast<TypePI *>(param_value);
     memcpy(pValueUR, param_value, *param_value_size_ret);
 
-    while (pValueUR) {
-      if (*pValueUR == 0) {
-        *pValuePI = 0;
-        break;
-      }
-
+    for (uint32_t I = 0; I < NumberElements; ++I) {
       *pValuePI = Func(*pValueUR);
       ++pValuePI;
       ++pValueUR;
@@ -262,6 +261,23 @@ public:
     return PI_SUCCESS;
   }
 };
+
+// Handle mismatched PI and UR type return sizes for info queries
+inline void fixupInfoValueTypes(size_t ParamValueSizeRetUR,
+                                size_t *ParamValueSizeRetPI,
+                                size_t ParamValueSize, void *ParamValue) {
+  if (ParamValueSizeRetUR == 1 && ParamValueSize == 4) {
+    // extend bool to pi_bool (uint32_t)
+    if (ParamValue) {
+      auto *ValIn = static_cast<bool *>(ParamValue);
+      auto *ValOut = static_cast<pi_bool *>(ParamValue);
+      *ValOut = static_cast<pi_bool>(*ValIn);
+    }
+    if (ParamValueSizeRetPI) {
+      *ParamValueSizeRetPI = sizeof(pi_bool);
+    }
+  }
+}
 
 // Translate UR platform info values to PI info values
 inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
@@ -311,14 +327,23 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
   return PI_SUCCESS;
 }
 
-// Translate UR device info values to PI info values
+/**
+ * Translate UR device info values to PI info values
+ * @param ParamName The name of the parameter
+ * @param ParamValueSize[in] The size of ParamValue passed to the PI plugin.
+ * @param ParamValue[in, out] Input: The ParamValue returned by the UR adapter.
+ * Output: The UR output converted to PI.
+ * @param ParamValueSizeRet[in, out] Input: The value of ParamValueSizeRet that
+ * UR returned. Output: The value of ParamValueSizeRet after conversion.
+ */
 inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
-                                      size_t ParamValueSizePI,
-                                      size_t *ParamValueSizeUR,
-                                      void *ParamValue) {
+                                      size_t ParamValueSize, void *ParamValue,
+                                      size_t *ParamValueSizeRet) {
 
-  ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
+  /* Helper function to perform conversions in-place */
+  ConvertHelper Value(ParamValueSize, ParamValue, ParamValueSizeRet);
 
+  pi_result error = PI_SUCCESS;
   if (ParamName == UR_DEVICE_INFO_TYPE) {
     auto ConvertFunc = [](ur_device_type_t UrValue) {
       switch (UrValue) {
@@ -382,23 +407,90 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
     return Value.convertBitSet<ur_device_affinity_domain_flag_t,
                                pi_device_affinity_domain>(ConvertFunc);
   } else if (ParamName == UR_DEVICE_INFO_PARTITION_TYPE) {
+
     auto ConvertFunc = [](ur_device_partition_t UrValue) {
-      if (UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN == UrValue)
+      switch (static_cast<uint32_t>(UrValue)) {
+      case UR_DEVICE_PARTITION_EQUALLY:
+        return PI_DEVICE_PARTITION_EQUALLY;
+      case UR_DEVICE_PARTITION_BY_COUNTS:
+        return PI_DEVICE_PARTITION_BY_COUNTS;
+      case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
-      else if (UR_DEVICE_PARTITION_BY_CSLICE == UrValue)
+      case UR_DEVICE_PARTITION_BY_CSLICE:
         return PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE;
-      else if ((ur_device_partition_t)
-                   UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE == UrValue)
-        return (pi_device_partition_property)
-            PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE;
-      die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
+      default:
+        die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
+      }
     };
-    return Value
-        .convertArray<ur_device_partition_t, pi_device_partition_property>(
-            ConvertFunc);
-  } else if (ParamName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
+
+    /*
+     * This property returns the argument specified in piCreateSubDevices.
+     * Each partition name is immediately followed by a value. The list is
+     * terminated with 0. In the case where the properties argument to
+     * piCreateSubDevices is [PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+     * PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE], the affinity domain used
+     * to perform the partition will be returned. */
+
+    PI_ASSERT(sizeof(pi_device_partition_property) ==
+                  sizeof(ur_device_partition_property_t),
+              PI_ERROR_UNKNOWN);
+
+    const uint32_t ur_number_elements =
+        *ParamValueSizeRet / sizeof(ur_device_partition_property_t);
+
+    if (ParamValue) {
+      auto param_value_copy =
+          std::make_unique<ur_device_partition_property_t[]>(
+              ur_number_elements);
+      std::memcpy(param_value_copy.get(), ParamValue,
+                  ur_number_elements * sizeof(ur_device_partition_property_t));
+      pi_device_partition_property *pValuePI =
+          reinterpret_cast<pi_device_partition_property *>(ParamValue);
+      ur_device_partition_property_t *pValueUR =
+          reinterpret_cast<ur_device_partition_property_t *>(
+              param_value_copy.get());
+      const ur_device_partition_t type = pValueUR->type;
+      *pValuePI = ConvertFunc(type);
+      ++pValuePI;
+
+      for (uint32_t i = 0; i < ur_number_elements; ++i) {
+        switch (pValueUR->type) {
+        case UR_DEVICE_PARTITION_EQUALLY: {
+          *pValuePI = pValueUR->value.equally;
+          break;
+        }
+        case UR_DEVICE_PARTITION_BY_COUNTS: {
+          *pValuePI = pValueUR->value.count;
+          break;
+        }
+        case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN: {
+          *pValuePI = pValueUR->value.affinity_domain;
+          break;
+        }
+        default:
+          die("UR_DEVICE_INFO_PARTITION_TYPE query returned unsupported type");
+        }
+        ++pValuePI;
+        ++pValueUR;
+      }
+      *pValuePI = 0;
+    }
+
+    if (ParamValueSizeRet && *ParamValueSizeRet != 0) {
+      /* Add 2 extra elements to the return value (one for the type at the
+       * beginning and another to terminate the array with a 0 */
+      *ParamValueSizeRet =
+          (ur_number_elements + 2) * sizeof(pi_device_partition_property);
+    }
+  }
+
+  else if (ParamName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
     auto ConvertFunc = [](ur_device_partition_t UrValue) {
-      switch (UrValue) {
+      switch (static_cast<uint32_t>(UrValue)) {
+      case UR_DEVICE_PARTITION_EQUALLY:
+        return PI_DEVICE_PARTITION_EQUALLY;
+      case UR_DEVICE_PARTITION_BY_COUNTS:
+        return PI_DEVICE_PARTITION_BY_COUNTS;
       case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
       case UR_DEVICE_PARTITION_BY_CSLICE:
@@ -407,9 +499,21 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
         die("UR_DEVICE_INFO_SUPPORTED_PARTITIONS: unhandled value");
       }
     };
-    return Value
-        .convertArray<ur_device_partition_t, pi_device_partition_property>(
-            ConvertFunc);
+
+    Value.convertArray<ur_device_partition_t, pi_device_partition_property>(
+        ConvertFunc);
+
+    if (ParamValue) {
+      const uint32_t NumberElements =
+          *ParamValueSizeRet / sizeof(pi_device_partition_property);
+      reinterpret_cast<pi_device_partition_property *>(
+          ParamValue)[NumberElements] = 0;
+    }
+
+    if (ParamValueSizeRet && *ParamValueSizeRet != 0) {
+      *ParamValueSizeRet += sizeof(pi_device_partition_property);
+    }
+
   } else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
     auto ConvertFunc = [](ur_device_local_mem_type_t UrValue) {
       switch (UrValue) {
@@ -465,16 +569,48 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
     };
     return Value.convertBitSet<ur_memory_scope_capability_flag_t,
                                pi_memory_scope_capabilities>(ConvertFunc);
+  } else if (*ParamValueSizeRet == 1 && ParamValueSize == 4) {
+    /* PI type: pi_bool
+     * UR type: ur_bool_t
+     * Need to convert from pi_bool (4 bytes) to ur_bool_t (1 byte)
+     */
+    fixupInfoValueTypes(*ParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
+                        ParamValue);
+  } else if (ParamName == UR_DEVICE_INFO_QUEUE_PROPERTIES ||
+             ParamName == UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES ||
+             ParamName == UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES ||
+             ParamName == UR_DEVICE_INFO_EXECUTION_CAPABILITIES ||
+             ParamName == UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN ||
+             ParamName == UR_DEVICE_INFO_USM_HOST_SUPPORT ||
+             ParamName == UR_DEVICE_INFO_USM_DEVICE_SUPPORT ||
+             ParamName == UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT ||
+             ParamName == UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT ||
+             ParamName == UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT) {
+    /* PI type: pi_bitfield
+     * UR type: ur_flags_t (uint32_t)
+     * No need to convert since types are compatible
+     */
+    *ParamValueSizeRet = sizeof(pi_bitfield);
+  } else if (ParamName == UR_DEVICE_INFO_SINGLE_FP_CONFIG ||
+             ParamName == UR_DEVICE_INFO_HALF_FP_CONFIG ||
+             ParamName == UR_DEVICE_INFO_DOUBLE_FP_CONFIG) {
+    /* CL type: pi_device_fp_config
+     * UR type: ur_device_fp_capability_flags_t
+     * No need to convert since types are compatible
+     */
+    *ParamValueSizeRet = sizeof(pi_device_fp_config);
   } else {
+
     // TODO: what else needs a UR-PI translation?
   }
 
-  if (ParamValueSizePI && ParamValueSizePI != *ParamValueSizeUR) {
+  if (ParamValueSize && ParamValueSizeRet &&
+      ParamValueSize != *ParamValueSizeRet) {
     fprintf(stderr, "UR DeviceInfoType=%d PI=%d but UR=%d\n", ParamName,
-            (int)ParamValueSizePI, (int)*ParamValueSizeUR);
+            (int)ParamValueSize, (int)*ParamValueSizeRet);
     die("ur2piDeviceInfoValue: size mismatch");
   }
-  return PI_SUCCESS;
+  return error;
 }
 
 inline pi_result ur2piSamplerInfoValue(ur_sampler_info_t ParamName,
@@ -548,25 +684,6 @@ inline pi_result ur2piUSMAllocInfoValue(ur_usm_alloc_info_t ParamName,
       }
     };
     return Value.convert<ur_usm_type_t, pi_usm_type>(ConvertFunc);
-  }
-
-  return PI_SUCCESS;
-}
-
-// Handle mismatched PI and UR type return sizes for info queries
-inline pi_result fixupInfoValueTypes(size_t ParamValueSizeRetUR,
-                                     size_t *ParamValueSizeRetPI,
-                                     size_t ParamValueSize, void *ParamValue) {
-  if (ParamValueSizeRetUR == 1 && ParamValueSize == 4) {
-    // extend bool to pi_bool (uint32_t)
-    if (ParamValue) {
-      auto *ValIn = static_cast<bool *>(ParamValue);
-      auto *ValOut = static_cast<pi_bool *>(ParamValue);
-      *ValOut = static_cast<pi_bool>(*ValIn);
-    }
-    if (ParamValueSizeRetPI) {
-      *ParamValueSizeRetPI = sizeof(pi_bool);
-    }
   }
 
   return PI_SUCCESS;
@@ -1050,18 +1167,18 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  size_t UrParamValueSizeRet;
-  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  size_t ParamValueSizeRetUR;
+  auto DeviceUR = reinterpret_cast<ur_device_handle_t>(Device);
 
-  HANDLE_ERRORS(urDeviceGetInfo(UrDevice, InfoType, ParamValueSize, ParamValue,
-                                &UrParamValueSizeRet));
+  HANDLE_ERRORS(urDeviceGetInfo(DeviceUR, InfoType, ParamValueSize, ParamValue,
+                                &ParamValueSizeRetUR));
+
+  ur2piDeviceInfoValue(InfoType, ParamValueSize, ParamValue,
+                       &ParamValueSizeRetUR);
 
   if (ParamValueSizeRet) {
-    *ParamValueSizeRet = UrParamValueSizeRet;
+    *ParamValueSizeRet = ParamValueSizeRetUR;
   }
-  ur2piDeviceInfoValue(InfoType, ParamValueSize, &ParamValueSize, ParamValue);
-  fixupInfoValueTypes(UrParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
-                      ParamValue);
 
   return PI_SUCCESS;
 }
@@ -1104,63 +1221,67 @@ inline pi_result piDevicePartition(
 
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  if (!Properties || !Properties[0])
+  if (!Properties || !Properties[0]) {
     return PI_ERROR_INVALID_VALUE;
+  }
 
-  ur_device_partition_t Property;
+  ur_device_partition_t UrType;
   switch (Properties[0]) {
   case PI_DEVICE_PARTITION_EQUALLY:
-    Property = UR_DEVICE_PARTITION_EQUALLY;
+    UrType = UR_DEVICE_PARTITION_EQUALLY;
     break;
   case PI_DEVICE_PARTITION_BY_COUNTS:
-    Property = UR_DEVICE_PARTITION_BY_COUNTS;
+    UrType = UR_DEVICE_PARTITION_BY_COUNTS;
     break;
   case PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
-    Property = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
+    UrType = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
     break;
   case PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE:
-    Property = UR_DEVICE_PARTITION_BY_CSLICE;
+    UrType = UR_DEVICE_PARTITION_BY_CSLICE;
     break;
   default:
     return PI_ERROR_UNKNOWN;
   }
 
-  // Some partitioning types require a value
-  auto Value = uint32_t(Properties[1]);
-  if (Property == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
-    switch (Properties[1]) {
-    case PI_DEVICE_AFFINITY_DOMAIN_NUMA:
-      Value = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA;
+  std::vector<ur_device_partition_property_t> UrProperties{};
+  while (*(++Properties)) {
+    ur_device_partition_property_t UrProperty;
+    UrProperty.type = UrType;
+    switch (UrType) {
+    case UR_DEVICE_PARTITION_EQUALLY: {
+      UrProperty.value.equally = *Properties;
       break;
-    case PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE:
-      Value = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE;
-      break;
-    default:
-      return PI_ERROR_UNKNOWN;
     }
+    case UR_DEVICE_PARTITION_BY_COUNTS: {
+      UrProperty.value.count = *Properties;
+      break;
+    }
+    case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN: {
+      /* No need to convert affinity domain enums from pi to ur because they
+       * are equivalent */
+      UrProperty.value.affinity_domain = *Properties;
+      break;
+    }
+    case UR_DEVICE_PARTITION_BY_CSLICE: {
+      break;
+    }
+    default: {
+      die("Invalid properties for call to piDevicePartition");
+    }
+    }
+    UrProperties.push_back(UrProperty);
   }
 
-  // Translate partitioning properties from PI-way
-  // (array of uintptr_t values) to UR-way
-  // (array of {uint32_t, uint32_t} pairs)
-  //
-  // TODO: correctly terminate the UR properties, see:
-  // https://github.com/oneapi-src/unified-runtime/issues/183
-  //
-  ur_device_partition_property_t UrProperty;
-  UrProperty.type = Property;
-  UrProperty.value.equally = Value;
-
-  ur_device_partition_properties_t UrProperties{
+  const ur_device_partition_properties_t UrPropertiesStruct{
       UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
       nullptr,
-      &UrProperty,
-      1,
+      UrProperties.data(),
+      UrProperties.size(),
   };
 
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrSubDevices = reinterpret_cast<ur_device_handle_t *>(SubDevices);
-  HANDLE_ERRORS(urDevicePartition(UrDevice, &UrProperties, NumEntries,
+  HANDLE_ERRORS(urDevicePartition(UrDevice, &UrPropertiesStruct, NumEntries,
                                   UrSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }

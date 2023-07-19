@@ -180,6 +180,10 @@ public:
                 "Property list is invalid.");
   static_assert(check_property_list<T, Props...>::value,
                 "The property list contains invalid property.");
+  // check the set if FPGA specificed properties are used
+  static_assert(detail::checkValidFPGAPropertySet<Props...>::value,
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
+                "can only be set with BufferLocation together.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;
