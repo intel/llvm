@@ -67,6 +67,186 @@ usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig() {
   return usm::parseDisjointPoolConfig(PoolConfigVal, PoolTrace);
 }
 
+enum class USMAllocationForceResidencyType {
+  // Do not force memory residency at allocation time.
+  None = 0,
+  // Force memory resident on the device of allocation at allocation time.
+  // For host allocation force residency on all devices in a context.
+  Device = 1,
+  // Force memory resident on all devices in the context with P2P
+  // access to the device of allocation.
+  // For host allocation force residency on all devices in a context.
+  P2PDevices = 2
+};
+
+// Input value is of the form 0xHSD, where:
+//   4-bits of D control device allocations
+//   4-bits of S control shared allocations
+//   4-bits of H control host allocations
+// Each 4-bit value is holding a USMAllocationForceResidencyType enum value.
+// The default is 0x2, i.e. force full residency for device allocations only.
+//
+static uint32_t USMAllocationForceResidency = [] {
+  const char *UrRet = std::getenv("UR_L0_USM_RESIDENT");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USM_RESIDENT");
+  const char *Str = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
+  try {
+    if (Str) {
+      // Auto-detect radix to allow more convinient hex base
+      return std::stoi(Str, nullptr, 0);
+    }
+  } catch (...) {
+  }
+  return 0x2;
+}();
+
+// Convert from an integer value to USMAllocationForceResidencyType enum value
+static USMAllocationForceResidencyType
+USMAllocationForceResidencyConvert(uint32_t Val) {
+  switch (Val) {
+  case 1:
+    return USMAllocationForceResidencyType::Device;
+  case 2:
+    return USMAllocationForceResidencyType::P2PDevices;
+  default:
+    return USMAllocationForceResidencyType::None;
+  };
+}
+
+static USMAllocationForceResidencyType USMHostAllocationForceResidency = [] {
+  return USMAllocationForceResidencyConvert(
+      (USMAllocationForceResidency & 0xf00) >> 8);
+}();
+static USMAllocationForceResidencyType USMSharedAllocationForceResidency = [] {
+  return USMAllocationForceResidencyConvert(
+      (USMAllocationForceResidency & 0x0f0) >> 4);
+}();
+static USMAllocationForceResidencyType USMDeviceAllocationForceResidency = [] {
+  return USMAllocationForceResidencyConvert(
+      (USMAllocationForceResidency & 0x00f));
+}();
+
+// Make USM allocation resident as requested
+static ur_result_t USMAllocationMakeResident(
+    USMAllocationForceResidencyType ForceResidency, ur_context_handle_t Context,
+    ur_device_handle_t Device, // nullptr for host allocation
+    void *Ptr, size_t Size) {
+
+  if (ForceResidency == USMAllocationForceResidencyType::None)
+    return UR_RESULT_SUCCESS;
+
+  std::list<ur_device_handle_t> Devices;
+  if (!Device) {
+    // Host allocation, make it resident on all devices in the context
+    Devices.insert(Devices.end(), Context->Devices.begin(),
+                   Context->Devices.end());
+  } else {
+    Devices.push_back(Device);
+    if (ForceResidency == USMAllocationForceResidencyType::P2PDevices) {
+      ze_bool_t P2P;
+      for (const auto &D : Context->Devices) {
+        if (D == Device)
+          continue;
+        // TODO: Cache P2P devices for a context
+        ZE2UR_CALL(zeDeviceCanAccessPeer,
+                   (D->ZeDevice, Device->ZeDevice, &P2P));
+        if (P2P)
+          Devices.push_back(D);
+      }
+    }
+  }
+  for (const auto &D : Devices) {
+    ZE2UR_CALL(zeContextMakeMemoryResident,
+               (Context->ZeContext, D->ZeDevice, Ptr, Size));
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
+                                      ur_context_handle_t Context,
+                                      ur_device_handle_t Device,
+                                      ur_usm_device_mem_flags_t *Flags,
+                                      size_t Size, uint32_t Alignment) {
+  std::ignore = Flags;
+  // TODO: translate PI properties to Level Zero flags
+  ZeStruct<ze_device_mem_alloc_desc_t> ZeDesc;
+  ZeDesc.flags = 0;
+  ZeDesc.ordinal = 0;
+
+  ZeStruct<ze_relaxed_allocation_limits_exp_desc_t> RelaxedDesc;
+  if (Size > Device->ZeDeviceProperties->maxMemAllocSize) {
+    // Tell Level-Zero to accept Size > maxMemAllocSize
+    RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
+    ZeDesc.pNext = &RelaxedDesc;
+  }
+
+  ZE2UR_CALL(zeMemAllocDevice, (Context->ZeContext, &ZeDesc, Size, Alignment,
+                                Device->ZeDevice, ResultPtr));
+
+  UR_ASSERT(Alignment == 0 ||
+                reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  USMAllocationMakeResident(USMDeviceAllocationForceResidency, Context, Device,
+                            *ResultPtr, Size);
+  return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t USMSharedAllocImpl(void **ResultPtr,
+                                      ur_context_handle_t Context,
+                                      ur_device_handle_t Device,
+                                      ur_usm_host_mem_flags_t *,
+                                      ur_usm_device_mem_flags_t *, size_t Size,
+                                      uint32_t Alignment) {
+
+  // TODO: translate PI properties to Level Zero flags
+  ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
+  ZeHostDesc.flags = 0;
+  ZeStruct<ze_device_mem_alloc_desc_t> ZeDevDesc;
+  ZeDevDesc.flags = 0;
+  ZeDevDesc.ordinal = 0;
+
+  ZeStruct<ze_relaxed_allocation_limits_exp_desc_t> RelaxedDesc;
+  if (Size > Device->ZeDeviceProperties->maxMemAllocSize) {
+    // Tell Level-Zero to accept Size > maxMemAllocSize
+    RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
+    ZeDevDesc.pNext = &RelaxedDesc;
+  }
+
+  ZE2UR_CALL(zeMemAllocShared, (Context->ZeContext, &ZeDevDesc, &ZeHostDesc,
+                                Size, Alignment, Device->ZeDevice, ResultPtr));
+
+  UR_ASSERT(Alignment == 0 ||
+                reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  USMAllocationMakeResident(USMSharedAllocationForceResidency, Context, Device,
+                            *ResultPtr, Size);
+
+  // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
+  return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t USMHostAllocImpl(void **ResultPtr,
+                                    ur_context_handle_t Context,
+                                    ur_usm_host_mem_flags_t *Flags, size_t Size,
+                                    uint32_t Alignment) {
+  std::ignore = Flags;
+  // TODO: translate PI properties to Level Zero flags
+  ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
+  ZeHostDesc.flags = 0;
+  ZE2UR_CALL(zeMemAllocHost,
+             (Context->ZeContext, &ZeHostDesc, Size, Alignment, ResultPtr));
+
+  UR_ASSERT(Alignment == 0 ||
+                reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  USMAllocationMakeResident(USMHostAllocationForceResidency, Context, nullptr,
+                            *ResultPtr, Size);
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     ur_context_handle_t Context, ///< [in] handle of the context object
     const ur_usm_desc_t
@@ -530,101 +710,6 @@ ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
   return USMHostAllocImpl(ResultPtr, Context, nullptr, Size, Alignment);
 }
 
-enum class USMAllocationForceResidencyType {
-  // Do not force memory residency at allocation time.
-  None = 0,
-  // Force memory resident on the device of allocation at allocation time.
-  // For host allocation force residency on all devices in a context.
-  Device = 1,
-  // Force memory resident on all devices in the context with P2P
-  // access to the device of allocation.
-  // For host allocation force residency on all devices in a context.
-  P2PDevices = 2
-};
-
-// Input value is of the form 0xHSD, where:
-//   4-bits of D control device allocations
-//   4-bits of S control shared allocations
-//   4-bits of H control host allocations
-// Each 4-bit value is holding a USMAllocationForceResidencyType enum value.
-// The default is 0x2, i.e. force full residency for device allocations only.
-//
-static uint32_t USMAllocationForceResidency = [] {
-  const char *UrRet = std::getenv("UR_L0_USM_RESIDENT");
-  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USM_RESIDENT");
-  const char *Str = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
-  try {
-    if (Str) {
-      // Auto-detect radix to allow more convinient hex base
-      return std::stoi(Str, nullptr, 0);
-    }
-  } catch (...) {
-  }
-  return 0x2;
-}();
-
-// Convert from an integer value to USMAllocationForceResidencyType enum value
-static USMAllocationForceResidencyType
-USMAllocationForceResidencyConvert(uint32_t Val) {
-  switch (Val) {
-  case 1:
-    return USMAllocationForceResidencyType::Device;
-  case 2:
-    return USMAllocationForceResidencyType::P2PDevices;
-  default:
-    return USMAllocationForceResidencyType::None;
-  };
-}
-
-static USMAllocationForceResidencyType USMHostAllocationForceResidency = [] {
-  return USMAllocationForceResidencyConvert(
-      (USMAllocationForceResidency & 0xf00) >> 8);
-}();
-static USMAllocationForceResidencyType USMSharedAllocationForceResidency = [] {
-  return USMAllocationForceResidencyConvert(
-      (USMAllocationForceResidency & 0x0f0) >> 4);
-}();
-static USMAllocationForceResidencyType USMDeviceAllocationForceResidency = [] {
-  return USMAllocationForceResidencyConvert(
-      (USMAllocationForceResidency & 0x00f));
-}();
-
-// Make USM allocation resident as requested
-static ur_result_t USMAllocationMakeResident(
-    USMAllocationForceResidencyType ForceResidency, ur_context_handle_t Context,
-    ur_device_handle_t Device, // nullptr for host allocation
-    void *Ptr, size_t Size) {
-
-  if (ForceResidency == USMAllocationForceResidencyType::None)
-    return UR_RESULT_SUCCESS;
-
-  std::list<ur_device_handle_t> Devices;
-  if (!Device) {
-    // Host allocation, make it resident on all devices in the context
-    Devices.insert(Devices.end(), Context->Devices.begin(),
-                   Context->Devices.end());
-  } else {
-    Devices.push_back(Device);
-    if (ForceResidency == USMAllocationForceResidencyType::P2PDevices) {
-      ze_bool_t P2P;
-      for (const auto &D : Context->Devices) {
-        if (D == Device)
-          continue;
-        // TODO: Cache P2P devices for a context
-        ZE2UR_CALL(zeDeviceCanAccessPeer,
-                   (D->ZeDevice, Device->ZeDevice, &P2P));
-        if (P2P)
-          Devices.push_back(D);
-      }
-    }
-  }
-  for (const auto &D : Devices) {
-    ZE2UR_CALL(zeContextMakeMemoryResident,
-               (Context->ZeContext, D->ZeDevice, Ptr, Size));
-  }
-  return UR_RESULT_SUCCESS;
-}
-
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc) {
 
@@ -751,88 +836,6 @@ ur_result_t urUSMPoolGetInfo(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t Device,
-                               ur_usm_device_mem_flags_t *Flags, size_t Size,
-                               uint32_t Alignment) {
-  std::ignore = Flags;
-  // TODO: translate PI properties to Level Zero flags
-  ZeStruct<ze_device_mem_alloc_desc_t> ZeDesc;
-  ZeDesc.flags = 0;
-  ZeDesc.ordinal = 0;
-
-  ZeStruct<ze_relaxed_allocation_limits_exp_desc_t> RelaxedDesc;
-  if (Size > Device->ZeDeviceProperties->maxMemAllocSize) {
-    // Tell Level-Zero to accept Size > maxMemAllocSize
-    RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
-    ZeDesc.pNext = &RelaxedDesc;
-  }
-
-  ZE2UR_CALL(zeMemAllocDevice, (Context->ZeContext, &ZeDesc, Size, Alignment,
-                                Device->ZeDevice, ResultPtr));
-
-  UR_ASSERT(Alignment == 0 ||
-                reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
-            UR_RESULT_ERROR_INVALID_VALUE);
-
-  USMAllocationMakeResident(USMDeviceAllocationForceResidency, Context, Device,
-                            *ResultPtr, Size);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t Device,
-                               ur_usm_host_mem_flags_t *,
-                               ur_usm_device_mem_flags_t *, size_t Size,
-                               uint32_t Alignment) {
-
-  // TODO: translate PI properties to Level Zero flags
-  ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
-  ZeHostDesc.flags = 0;
-  ZeStruct<ze_device_mem_alloc_desc_t> ZeDevDesc;
-  ZeDevDesc.flags = 0;
-  ZeDevDesc.ordinal = 0;
-
-  ZeStruct<ze_relaxed_allocation_limits_exp_desc_t> RelaxedDesc;
-  if (Size > Device->ZeDeviceProperties->maxMemAllocSize) {
-    // Tell Level-Zero to accept Size > maxMemAllocSize
-    RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
-    ZeDevDesc.pNext = &RelaxedDesc;
-  }
-
-  ZE2UR_CALL(zeMemAllocShared, (Context->ZeContext, &ZeDevDesc, &ZeHostDesc,
-                                Size, Alignment, Device->ZeDevice, ResultPtr));
-
-  UR_ASSERT(Alignment == 0 ||
-                reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
-            UR_RESULT_ERROR_INVALID_VALUE);
-
-  USMAllocationMakeResident(USMSharedAllocationForceResidency, Context, Device,
-                            *ResultPtr, Size);
-
-  // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                             ur_usm_host_mem_flags_t *Flags, size_t Size,
-                             uint32_t Alignment) {
-  std::ignore = Flags;
-  // TODO: translate PI properties to Level Zero flags
-  ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
-  ZeHostDesc.flags = 0;
-  ZE2UR_CALL(zeMemAllocHost,
-             (Context->ZeContext, &ZeHostDesc, Size, Alignment, ResultPtr));
-
-  UR_ASSERT(Alignment == 0 ||
-                reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
-            UR_RESULT_ERROR_INVALID_VALUE);
-
-  USMAllocationMakeResident(USMHostAllocationForceResidency, Context, nullptr,
-                            *ResultPtr, Size);
-  return UR_RESULT_SUCCESS;
-}
-
 // If indirect access tracking is not enabled then this functions just performs
 // zeMemFree. If indirect access tracking is enabled then reference counting is
 // performed.
@@ -864,7 +867,7 @@ ur_result_t ZeMemFreeHelper(ur_context_handle_t Context, void *Ptr) {
   return UR_RESULT_SUCCESS;
 }
 
-bool ShouldUseUSMAllocator() {
+static bool ShouldUseUSMAllocator() {
   // Enable allocator by default if it's not explicitly disabled
   const char *UrRet = std::getenv("UR_L0_DISABLE_USM_ALLOCATOR");
   const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR");
