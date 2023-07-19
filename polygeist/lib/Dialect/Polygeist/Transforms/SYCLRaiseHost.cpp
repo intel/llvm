@@ -673,7 +673,7 @@ public:
     }
 
     // Check we are not dealing with a default constructor
-    if constexpr (tag.hasDefaultConstructor()) {
+    if constexpr (TypeTag::hasDefaultConstructor()) {
       auto matcher = m_Zero();
       if (llvm::all_of(values, [&](Value value) {
             return matchPattern(value, matcher);
