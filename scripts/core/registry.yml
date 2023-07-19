@@ -436,9 +436,6 @@ etors:
 - name: BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
   desc: Enumerator for $xBindlessImagesSignalExternalSemaphoreExp
   value: '149'
-- name: PLATFORM_GET_LAST_ERROR
-  desc: Enumerator for $xPlatformGetLastError
-  value: '150'
 - name: ENQUEUE_USM_FILL_2D
   desc: Enumerator for $xEnqueueUSMFill2D
   value: '151'
@@ -517,6 +514,21 @@ etors:
 - name: LOADER_CONFIG_ENABLE_LAYER
   desc: Enumerator for $xLoaderConfigEnableLayer
   value: '176'
+- name: ADAPTER_RELEASE
+  desc: Enumerator for $xAdapterRelease
+  value: '177'
+- name: ADAPTER_GET
+  desc: Enumerator for $xAdapterGet
+  value: '178'
+- name: ADAPTER_RETAIN
+  desc: Enumerator for $xAdapterRetain
+  value: '179'
+- name: ADAPTER_GET_LAST_ERROR
+  desc: Enumerator for $xAdapterGetLastError
+  value: '180'
+- name: ADAPTER_GET_INFO
+  desc: Enumerator for $xAdapterGetInfo
+  value: '181'
 ---
 type: enum
 desc: Defines structure types

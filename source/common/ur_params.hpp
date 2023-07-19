@@ -32,6 +32,10 @@ inline void serializeFlag<ur_device_init_flag_t>(std::ostream &os,
 
 template <>
 inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_adapter_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
                             ur_platform_info_t value, size_t size);
 
 template <>
@@ -203,6 +207,9 @@ inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_rect_region_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_init_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_adapter_backend_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_platform_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value);
@@ -982,10 +989,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP";
         break;
 
-    case UR_FUNCTION_PLATFORM_GET_LAST_ERROR:
-        os << "UR_FUNCTION_PLATFORM_GET_LAST_ERROR";
-        break;
-
     case UR_FUNCTION_ENQUEUE_USM_FILL_2D:
         os << "UR_FUNCTION_ENQUEUE_USM_FILL_2D";
         break;
@@ -1088,6 +1091,26 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
 
     case UR_FUNCTION_LOADER_CONFIG_ENABLE_LAYER:
         os << "UR_FUNCTION_LOADER_CONFIG_ENABLE_LAYER";
+        break;
+
+    case UR_FUNCTION_ADAPTER_RELEASE:
+        os << "UR_FUNCTION_ADAPTER_RELEASE";
+        break;
+
+    case UR_FUNCTION_ADAPTER_GET:
+        os << "UR_FUNCTION_ADAPTER_GET";
+        break;
+
+    case UR_FUNCTION_ADAPTER_RETAIN:
+        os << "UR_FUNCTION_ADAPTER_RETAIN";
+        break;
+
+    case UR_FUNCTION_ADAPTER_GET_LAST_ERROR:
+        os << "UR_FUNCTION_ADAPTER_GET_LAST_ERROR";
+        break;
+
+    case UR_FUNCTION_ADAPTER_GET_INFO:
+        os << "UR_FUNCTION_ADAPTER_GET_INFO";
         break;
     default:
         os << "unknown enumerator";
@@ -1983,6 +2006,100 @@ inline void serializeFlag<ur_device_init_flag_t>(std::ostream &os,
     }
 }
 } // namespace ur_params
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_adapter_info_t value) {
+    switch (value) {
+
+    case UR_ADAPTER_INFO_BACKEND:
+        os << "UR_ADAPTER_INFO_BACKEND";
+        break;
+
+    case UR_ADAPTER_INFO_REFERENCE_COUNT:
+        os << "UR_ADAPTER_INFO_REFERENCE_COUNT";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+namespace ur_params {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_adapter_info_t value, size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_ADAPTER_INFO_BACKEND: {
+        const ur_adapter_backend_t *tptr = (const ur_adapter_backend_t *)ptr;
+        if (sizeof(ur_adapter_backend_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_adapter_backend_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_ADAPTER_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_adapter_backend_t value) {
+    switch (value) {
+
+    case UR_ADAPTER_BACKEND_UNKNOWN:
+        os << "UR_ADAPTER_BACKEND_UNKNOWN";
+        break;
+
+    case UR_ADAPTER_BACKEND_LEVEL_ZERO:
+        os << "UR_ADAPTER_BACKEND_LEVEL_ZERO";
+        break;
+
+    case UR_ADAPTER_BACKEND_OPENCL:
+        os << "UR_ADAPTER_BACKEND_OPENCL";
+        break;
+
+    case UR_ADAPTER_BACKEND_CUDA:
+        os << "UR_ADAPTER_BACKEND_CUDA";
+        break;
+
+    case UR_ADAPTER_BACKEND_HIP:
+        os << "UR_ADAPTER_BACKEND_HIP";
+        break;
+
+    case UR_ADAPTER_BACKEND_NATIVE_CPU:
+        os << "UR_ADAPTER_BACKEND_NATIVE_CPU";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_platform_info_t value) {
     switch (value) {
@@ -9751,6 +9868,105 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_adapter_get_params_t *params) {
+
+    os << ".NumEntries = ";
+
+    os << *(params->pNumEntries);
+
+    os << ", ";
+    os << ".phAdapters = {";
+    for (size_t i = 0;
+         *(params->pphAdapters) != NULL && i < *params->pNumEntries; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphAdapters))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pNumAdapters = ";
+
+    ur_params::serializePtr(os, *(params->ppNumAdapters));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_adapter_release_params_t *params) {
+
+    os << ".hAdapter = ";
+
+    ur_params::serializePtr(os, *(params->phAdapter));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_adapter_retain_params_t *params) {
+
+    os << ".hAdapter = ";
+
+    ur_params::serializePtr(os, *(params->phAdapter));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_adapter_get_last_error_params_t *params) {
+
+    os << ".hAdapter = ";
+
+    ur_params::serializePtr(os, *(params->phAdapter));
+
+    os << ", ";
+    os << ".ppMessage = ";
+
+    ur_params::serializePtr(os, *(params->pppMessage));
+
+    os << ", ";
+    os << ".pError = ";
+
+    ur_params::serializePtr(os, *(params->ppError));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_adapter_get_info_params_t *params) {
+
+    os << ".hAdapter = ";
+
+    ur_params::serializePtr(os, *(params->phAdapter));
+
+    os << ", ";
+    os << ".propName = ";
+
+    os << *(params->ppropName);
+
+    os << ", ";
+    os << ".propSize = ";
+
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
+
+    os << ", ";
+    os << ".pPropSizeRet = ";
+
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
+
+    return os;
+}
+
 inline std::ostream &operator<<(
     std::ostream &os,
     const struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t
@@ -13360,6 +13576,23 @@ operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_platform_get_params_t *params) {
 
+    os << ".phAdapters = {";
+    for (size_t i = 0;
+         *(params->pphAdapters) != NULL && i < *params->pNumAdapters; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphAdapters))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".NumAdapters = ";
+
+    os << *(params->pNumAdapters);
+
+    os << ", ";
     os << ".NumEntries = ";
 
     os << *(params->pNumEntries);
@@ -13448,27 +13681,6 @@ inline std::ostream &operator<<(
     os << ".phPlatform = ";
 
     ur_params::serializePtr(os, *(params->pphPlatform));
-
-    return os;
-}
-
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_platform_get_last_error_params_t *params) {
-
-    os << ".hPlatform = ";
-
-    ur_params::serializePtr(os, *(params->phPlatform));
-
-    os << ", ";
-    os << ".ppMessage = ";
-
-    ur_params::serializePtr(os, *(params->pppMessage));
-
-    os << ", ";
-    os << ".pError = ";
-
-    ur_params::serializePtr(os, *(params->ppError));
 
     return os;
 }
@@ -14933,6 +15145,21 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_TEAR_DOWN: {
         os << (const struct ur_tear_down_params_t *)params;
     } break;
+    case UR_FUNCTION_ADAPTER_GET: {
+        os << (const struct ur_adapter_get_params_t *)params;
+    } break;
+    case UR_FUNCTION_ADAPTER_RELEASE: {
+        os << (const struct ur_adapter_release_params_t *)params;
+    } break;
+    case UR_FUNCTION_ADAPTER_RETAIN: {
+        os << (const struct ur_adapter_retain_params_t *)params;
+    } break;
+    case UR_FUNCTION_ADAPTER_GET_LAST_ERROR: {
+        os << (const struct ur_adapter_get_last_error_params_t *)params;
+    } break;
+    case UR_FUNCTION_ADAPTER_GET_INFO: {
+        os << (const struct ur_adapter_get_info_params_t *)params;
+    } break;
     case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP: {
         os << (const struct
                ur_bindless_images_unsampled_image_handle_destroy_exp_params_t *)
@@ -15279,9 +15506,6 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE: {
         os << (const struct ur_platform_create_with_native_handle_params_t *)
                 params;
-    } break;
-    case UR_FUNCTION_PLATFORM_GET_LAST_ERROR: {
-        os << (const struct ur_platform_get_last_error_params_t *)params;
     } break;
     case UR_FUNCTION_PLATFORM_GET_API_VERSION: {
         os << (const struct ur_platform_get_api_version_params_t *)params;

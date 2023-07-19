@@ -65,6 +65,11 @@ class: $xLoaderConfig
 name: "$x_loader_config_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle
+desc: "Handle of an adapter instance"
+class: $xAdapter
+name: "$x_adapter_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
 desc: "Handle of a platform instance"
 class: $xPlatform
 name: "$x_platform_handle_t"

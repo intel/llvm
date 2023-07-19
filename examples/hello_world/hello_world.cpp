@@ -26,10 +26,27 @@ int main(int argc, char *argv[]) {
     }
     std::cout << "Platform initialized.\n";
 
+    uint32_t adapterCount = 0;
+    std::vector<ur_adapter_handle_t> adapters;
     uint32_t platformCount = 0;
     std::vector<ur_platform_handle_t> platforms;
 
-    status = urPlatformGet(1, nullptr, &platformCount);
+    status = urAdapterGet(0, nullptr, &adapterCount);
+    if (status != UR_RESULT_SUCCESS) {
+        std::cout << "urAdapterGet failed with return code: " << status
+                  << std::endl;
+        return 1;
+    }
+    adapters.resize(adapterCount);
+    status = urAdapterGet(adapterCount, adapters.data(), nullptr);
+    if (status != UR_RESULT_SUCCESS) {
+        std::cout << "urAdapterGet failed with return code: " << status
+                  << std::endl;
+        return 1;
+    }
+
+    status = urPlatformGet(adapters.data(), adapterCount, 1, nullptr,
+                           &platformCount);
     if (status != UR_RESULT_SUCCESS) {
         std::cout << "urPlatformGet failed with return code: " << status
                   << std::endl;
@@ -37,7 +54,8 @@ int main(int argc, char *argv[]) {
     }
 
     platforms.resize(platformCount);
-    status = urPlatformGet(platformCount, platforms.data(), nullptr);
+    status = urPlatformGet(adapters.data(), adapterCount, platformCount,
+                           platforms.data(), nullptr);
     if (status != UR_RESULT_SUCCESS) {
         std::cout << "urPlatformGet failed with return code: " << status
                   << std::endl;
@@ -98,6 +116,9 @@ int main(int argc, char *argv[]) {
     }
 
 out:
+    for (auto adapter : adapters) {
+        urAdapterRelease(adapter);
+    }
     urTearDown(nullptr);
     return status == UR_RESULT_SUCCESS ? 0 : 1;
 }
