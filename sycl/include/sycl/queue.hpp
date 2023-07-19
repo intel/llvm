@@ -9,9 +9,9 @@
 #pragma once
 
 #include <sycl/detail/assert_happened.hpp>
-#include <sycl/detail/common.hpp>
 #include <sycl/detail/service_kernel_names.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/exception_list.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/property_list.hpp>
 

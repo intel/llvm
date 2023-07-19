@@ -10,6 +10,7 @@
 
 // 4.9.2 Exception Class Interface
 
+#include <sycl/async_handler.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
@@ -51,8 +52,6 @@ private:
   void Clear() noexcept;
   std::vector<std::exception_ptr> MList;
 };
-
-using async_handler = std::function<void(sycl::exception_list)>;
 
 namespace detail {
 // Default implementation of async_handler used by queue and context when no

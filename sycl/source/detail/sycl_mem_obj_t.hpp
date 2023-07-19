@@ -17,7 +17,7 @@
 #include <sycl/properties/buffer_properties.hpp>
 #include <sycl/properties/image_properties.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/range.hpp>
 
 #include <cstring>
 #include <memory>

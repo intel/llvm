@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
 #include <sycl/detail/property_list_base.hpp>
 #include <sycl/properties/property_traits.hpp>
 

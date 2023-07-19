@@ -8,8 +8,9 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+
+#include <ostream>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

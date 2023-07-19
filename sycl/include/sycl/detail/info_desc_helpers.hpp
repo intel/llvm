@@ -9,7 +9,8 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/id.hpp>
 #include <sycl/info/info_desc.hpp>
 
 namespace sycl {

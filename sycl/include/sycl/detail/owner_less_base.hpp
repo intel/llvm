@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/impl_utils.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 
 namespace sycl {
