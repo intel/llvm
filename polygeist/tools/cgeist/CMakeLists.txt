@@ -56,6 +56,7 @@ target_link_libraries(cgeist PRIVATE
   MLIRIR
   MLIRAnalysis
   MLIRBuiltinToLLVMIRTranslation
+  MLIRFuncInlinerExtension
   MLIRSPIRVDialect
   MLIRSYCLDialect
   MLIROpenMPDialect

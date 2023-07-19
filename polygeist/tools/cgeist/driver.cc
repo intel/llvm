@@ -30,6 +30,7 @@
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
+#include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -274,6 +275,7 @@ static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
 // Register MLIR Dialects.
 static void registerDialects(MLIRContext &Ctx, const CgeistOptions &options) {
   mlir::DialectRegistry Registry;
+  mlir::func::registerInlinerExtension(Registry);
   mlir::registerOpenMPDialectTranslation(Registry);
   // TODO: Only register when translating to LLVM.
   mlir::registerBuiltinDialectTranslation(Registry);

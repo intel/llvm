@@ -664,9 +664,7 @@ protected:
     Value src = adaptor.getOperands()[0];
     Value len = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
                                                  getSize(op));
-    Value isVolatile =
-        builder.create<LLVM::ConstantOp>(loc, builder.getI1Type(), 0);
-    builder.create<LLVM::MemcpyOp>(loc, alloca, src, len, isVolatile);
+    builder.create<LLVM::MemcpyOp>(loc, alloca, src, len, /*isVolatile*/ false);
   }
 };
 
@@ -2231,9 +2229,8 @@ protected:
             ->getIndexTypeBitwidth();
     Value len = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
                                                  dimension * indexWidth / 8);
-    Value isVolatile =
-        builder.create<LLVM::ConstantOp>(loc, builder.getI1Type(), 0);
-    builder.create<LLVM::MemsetOp>(loc, alloca, zero, len, isVolatile);
+    builder.create<LLVM::MemsetOp>(loc, alloca, zero, len,
+                                   /*isVolatile*/ false);
   }
 };
 
@@ -2500,9 +2497,7 @@ protected:
   void memcpy(OpBuilder &builder, Location loc, Value dst, Value src,
               unsigned dimensions) const {
     Value len = getFieldsSize(builder, loc, dimensions);
-    Value isVolatile =
-        builder.create<LLVM::ConstantOp>(loc, builder.getI1Type(), 0);
-    builder.create<LLVM::MemcpyOp>(loc, dst, src, len, isVolatile);
+    builder.create<LLVM::MemcpyOp>(loc, dst, src, len, /*isVolatile*/ false);
   }
 
   /// Returns the size of this struct's fields498
@@ -2534,9 +2529,7 @@ protected:
                         unsigned dimensions) const final {
     Value zero = builder.create<LLVM::ConstantOp>(loc, builder.getI8Type(), 0);
     Value len = getFieldsSize(builder, loc, dimensions);
-    Value isVolatile =
-        builder.create<LLVM::ConstantOp>(loc, builder.getI1Type(), 0);
-    builder.create<LLVM::MemsetOp>(loc, dst, zero, len, isVolatile);
+    builder.create<LLVM::MemsetOp>(loc, dst, zero, len, /*isVolatile*/ false);
   }
 };
 

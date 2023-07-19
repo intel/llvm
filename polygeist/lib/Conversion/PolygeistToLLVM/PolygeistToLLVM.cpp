@@ -26,6 +26,7 @@
 #include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRV.h"
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 #include "mlir/Dialect/Async/IR/Async.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"

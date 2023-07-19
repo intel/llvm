@@ -1654,16 +1654,15 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
         Loc, Args[0],
         Builder.create<arith::TruncIOp>(Loc, Builder.getI8Type(), Args[1]),
         Args[2],
-        /*isVolatile*/ Builder.create<arith::ConstantIntOp>(Loc, false, 1));
+        /*isVolatile*/ false);
     V = Args[0];
     ElemTy = Builder.getI8Type();
   } break;
   case clang::Builtin::BImemcpy:
   case clang::Builtin::BI__builtin_memcpy: {
     VisitArgs();
-    Builder.create<LLVM::MemcpyOp>(
-        Loc, Args[0], Args[1], Args[2],
-        /*isVolatile*/ Builder.create<arith::ConstantIntOp>(Loc, false, 1));
+    Builder.create<LLVM::MemcpyOp>(Loc, Args[0], Args[1], Args[2],
+                                   /*isVolatile*/ false);
     V = Args[0];
     ElemTy = Builder.getI8Type();
   } break;

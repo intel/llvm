@@ -359,8 +359,8 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
               Builder.getI8Type(),
               cast<LLVM::LLVMPointerType>(Src.getType()).getAddressSpace()),
           Src);
-      Value VolatileCpy = Builder.create<arith::ConstantIntOp>(Loc, false, 1);
-      Builder.create<LLVM::MemcpyOp>(Loc, V, Src, TypeSize, VolatileCpy);
+      Builder.create<LLVM::MemcpyOp>(Loc, V, Src, TypeSize,
+                                     /*isVolatile*/ false);
     }
   }
 

@@ -1,5 +1,6 @@
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
+get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 
 if(MLIR_INCLUDE_TESTS)
   set(test_libs
@@ -10,6 +11,7 @@ endif()
 set(LIBS
   ${dialect_libs}
   ${conversion_libs}
+  ${extension_libs}
   ${test_libs}        
   MLIROptLib
   MLIRPolygeistDialect

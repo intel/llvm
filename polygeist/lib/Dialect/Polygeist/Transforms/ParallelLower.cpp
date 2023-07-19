@@ -474,16 +474,14 @@ void ParallelLower::runOnOperation() {
     if (call.getCallee().value() == "cudaMemcpy" ||
         call.getCallee().value() == "cudaMemcpyAsync") {
       OpBuilder bz(call);
-      auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),
                                 call.getOperand(1), call.getOperand(2),
-                                /*isVolatile*/ falsev);
+                                /*isVolatile*/ false);
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
     } else if (call.getCallee().value() == "cudaMemcpyToSymbol") {
       OpBuilder bz(call);
-      auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemcpyOp>(
           call.getLoc(),
           bz.create<LLVM::GEPOp>(call.getLoc(), call.getOperand(0).getType(),
@@ -491,19 +489,18 @@ void ParallelLower::runOnOperation() {
                                  call.getOperand(0),
                                  std::vector<Value>({call.getOperand(3)})),
           call.getOperand(1), call.getOperand(2),
-          /*isVolatile*/ falsev);
+          /*isVolatile*/ false);
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
     } else if (call.getCallee().value() == "cudaMemset") {
       OpBuilder bz(call);
-      auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemsetOp>(call.getLoc(), call.getOperand(0),
                                 bz.create<TruncIOp>(call.getLoc(),
                                                     bz.getI8Type(),
                                                     call.getOperand(1)),
                                 call.getOperand(2),
-                                /*isVolatile*/ falsev);
+                                /*isVolatile*/ false);
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
@@ -569,7 +566,6 @@ void ParallelLower::runOnOperation() {
       call.erase();
     } else if (call.getCallee() == "cudaMemcpyToSymbol") {
       OpBuilder bz(call);
-      auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemcpyOp>(
           call.getLoc(),
           bz.create<LLVM::GEPOp>(call.getLoc(), call.getOperand(0).getType(),
@@ -577,7 +573,7 @@ void ParallelLower::runOnOperation() {
                                  call.getOperand(0),
                                  std::vector<Value>({call.getOperand(3)})),
           call.getOperand(1), call.getOperand(2),
-          /*isVolatile*/ falsev);
+          /*isVolatile*/ false);
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();

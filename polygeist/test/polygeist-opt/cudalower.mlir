@@ -14,11 +14,10 @@ module attributes {llvm.data_layout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64
 
 // CHECK:   func.func @_Z1aPiS_(%arg0: memref<?xi32>, %arg1: memref<?xi32>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-DAG:     %c64_i64 = arith.constant 64 : i64
-// CHECK-DAG:     %false = arith.constant false
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = "polygeist.memref2pointer"(%arg0) : (memref<?xi32>) -> !llvm.ptr
 // CHECK-NEXT:     %1 = "polygeist.memref2pointer"(%arg1) : (memref<?xi32>) -> !llvm.ptr
-// CHECK-NEXT:     "llvm.intr.memcpy"(%0, %1, %c64_i64, %false) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+// CHECK-NEXT:     "llvm.intr.memcpy"(%0, %1, %c64_i64) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
 

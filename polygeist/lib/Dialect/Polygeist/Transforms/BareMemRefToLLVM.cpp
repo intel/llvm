@@ -374,7 +374,7 @@ struct ViewMemRefOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
         loc, sourceTy, sourceElementTy, adaptor.getSource(),
         adaptor.getByteShift());
     if (canBeLoweredToBarePtr(viewOp.getType())) {
-      rewriter.replaceOp(viewOp, {alignedPtr});
+      rewriter.replaceOp(viewOp, alignedPtr);
       return success();
     }
 

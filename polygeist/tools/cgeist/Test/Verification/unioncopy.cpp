@@ -60,7 +60,6 @@ void meta() {
 // CHECK-SAME:                           %[[VAL_0:.*]]: !llvm.ptr,
 // CHECK-SAME:                           %[[VAL_1:.*]]: !llvm.ptr) -> !llvm.ptr attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-DAG:       %[[VAL_2:.*]] = arith.constant 8 : i64
-// CHECK-DAG:       %[[VAL_3:.*]] = arith.constant false
-// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_0]], %[[VAL_1]], %[[VAL_2]], %[[VAL_3]]) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_0]], %[[VAL_1]], %[[VAL_2]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      return %[[VAL_0]] : !llvm.ptr
 // CHECK-NEXT:    }

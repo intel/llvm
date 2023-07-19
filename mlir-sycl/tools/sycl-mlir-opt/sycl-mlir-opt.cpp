@@ -12,6 +12,7 @@
 
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Conversion/SYCLPasses.h"
+#include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
 #include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 #include "mlir/IR/AsmState.h"
@@ -35,6 +36,7 @@ int main(int argc, char **argv) {
   DialectRegistry registry;
   registerAllDialects(registry);
   registry.insert<sycl::SYCLDialect>();
+  mlir::func::registerInlinerExtension(registry);
 
   // Register passes.
   registerAllPasses();

@@ -59,7 +59,6 @@ template void nd_range(sycl::range<1>, sycl::range<1>);
 // CHECK-DAG:       %[[VAL_4:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-DAG:       %[[VAL_5:.*]] = llvm.mlir.constant(0 : i8) : i8
 // CHECK-DAG:       %[[VAL_6:.*]] = llvm.mlir.constant(16 : i64) : i64
-// CHECK-DAG:       %[[VAL_7:.*]] = llvm.mlir.constant(false) : i1
 // CHECK-NEXT:      %[[VAL_8:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<[[RANGE2:.*]]> : (i32) -> !llvm.ptr
 // CHECK-NEXT:      sycl.host.constructor(%[[VAL_8]], %[[VAL_0]], %[[VAL_1]]) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
 // CHECK-NEXT:      %[[VAL_9:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<[[RANGE2]]> : (i32) -> !llvm.ptr
@@ -68,7 +67,7 @@ template void nd_range(sycl::range<1>, sycl::range<1>);
 // CHECK-NEXT:      llvm.intr.lifetime.start 48, %[[VAL_10]] : !llvm.ptr
 // CHECK-NEXT:      sycl.host.constructor(%[[VAL_10]], %[[VAL_8]], %[[VAL_9]]) {type = !sycl_nd_range_2_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK-NEXT:      %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_10]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<[[ND2]]>
-// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_11]], %[[VAL_5]], %[[VAL_6]], %[[VAL_7]]) : (!llvm.ptr, i8, i64, i1) -> ()
+// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_11]], %[[VAL_5]], %[[VAL_6]]) <{isVolatile = false}> : (!llvm.ptr, i8, i64) -> ()
 // CHECK-NEXT:      llvm.call @_Z4keepIJRN4sycl3_V18nd_rangeILi2EEEEEvDpOT_(%[[VAL_10]]) : (!llvm.ptr) -> ()
 // CHECK-NEXT:      llvm.intr.lifetime.end 48, %[[VAL_10]] : !llvm.ptr
 // CHECK-NEXT:      llvm.return
@@ -80,13 +79,12 @@ template void nd_range(sycl::range<2>, sycl::range<2>);
 // CHECK-SAME:                                                                     %[[VAL_1:.*]]: !llvm.ptr {{{.*}}})
 // CHECK-DAG:       %[[VAL_2:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-DAG:       %[[VAL_3:.*]] = llvm.mlir.constant(24 : i64) : i64
-// CHECK-DAG:       %[[VAL_4:.*]] = llvm.mlir.constant(false) : i1
 // CHECK-DAG:       %[[VAL_5:.*]] = llvm.mlir.constant(0 : i8) : i8
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<[[ND3:.*]]> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK-NEXT:      llvm.intr.lifetime.start 72, %[[VAL_6]] : !llvm.ptr
 // CHECK-NEXT:      sycl.host.constructor(%[[VAL_6]], %[[VAL_0]], %[[VAL_1]]) {type = !sycl_nd_range_3_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK-NEXT:      %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_6]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<[[ND3]]>
-// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_7]], %[[VAL_5]], %[[VAL_3]], %[[VAL_4]]) : (!llvm.ptr, i8, i64, i1) -> ()
+// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_7]], %[[VAL_5]], %[[VAL_3]]) <{isVolatile = false}> : (!llvm.ptr, i8, i64) -> ()
 // CHECK-NEXT:      llvm.call @_Z4keepIJRN4sycl3_V18nd_rangeILi3EEEEEvDpOT_(%[[VAL_6]]) : (!llvm.ptr) -> ()
 // CHECK-NEXT:      llvm.intr.lifetime.end 72, %[[VAL_6]] : !llvm.ptr
 // CHECK-NEXT:      llvm.return

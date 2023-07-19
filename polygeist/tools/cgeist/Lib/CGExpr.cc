@@ -946,8 +946,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
     auto I80 = Builder.create<arith::ConstantIntOp>(Loc, 0, 8);
     auto Sizev =
         Builder.create<arith::IndexCastOp>(Loc, Builder.getI64Type(), Size);
-    auto Falsev = Builder.create<arith::ConstantIntOp>(Loc, false, 1);
-    Builder.create<LLVM::MemsetOp>(Loc, Val, I80, Sizev, Falsev);
+    Builder.create<LLVM::MemsetOp>(Loc, Val, I80, Sizev, /*isVolatile*/ false);
   }
 
   CXXConstructorDecl *CtorDecl = Cons->getConstructor();
@@ -1689,9 +1688,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                 auto I80 = Builder.create<arith::ConstantIntOp>(Loc, 0, 8);
                 auto Sizev = Builder.create<arith::IndexCastOp>(
                     Loc, Builder.getI64Type(), AllocSize);
-                auto Falsev =
-                    Builder.create<arith::ConstantIntOp>(Loc, false, 1);
-                Builder.create<LLVM::MemsetOp>(Loc, Val, I80, Sizev, Falsev);
+                Builder.create<LLVM::MemsetOp>(Loc, Val, I80, Sizev,
+                                               /*isVolatile*/ false);
               }
               return ValueCategory(Alloc, /*isReference*/ false,
                                    MT.getElementType());

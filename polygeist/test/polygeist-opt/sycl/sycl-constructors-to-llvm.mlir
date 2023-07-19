@@ -15,20 +15,17 @@
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i32) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(0 : i8) : i8
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(8 : i64) : i64
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mlir.constant(false) : i1
-// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_1]], %[[VAL_2]], %[[VAL_3]], %[[VAL_4]]) : (!llvm.ptr, i8, i64, i1) -> ()
+// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_1]], %[[VAL_2]], %[[VAL_3]]) <{isVolatile = false}> : (!llvm.ptr, i8, i64) -> ()
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.alloca %[[VAL_5]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_7:.*]] = llvm.mlir.constant(0 : i8) : i8
 // CHECK-NEXT:      %[[VAL_8:.*]] = llvm.mlir.constant(16 : i64) : i64
-// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.mlir.constant(false) : i1
-// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_6]], %[[VAL_7]], %[[VAL_8]], %[[VAL_9]]) : (!llvm.ptr, i8, i64, i1) -> ()
+// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_6]], %[[VAL_7]], %[[VAL_8]]) <{isVolatile = false}> : (!llvm.ptr, i8, i64) -> ()
 // CHECK-NEXT:      %[[VAL_10:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_11:.*]] = llvm.alloca %[[VAL_10]] x !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i32) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_12:.*]] = llvm.mlir.constant(0 : i8) : i8
 // CHECK-NEXT:      %[[VAL_13:.*]] = llvm.mlir.constant(24 : i64) : i64
-// CHECK-NEXT:      %[[VAL_14:.*]] = llvm.mlir.constant(false) : i1
-// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_11]], %[[VAL_12]], %[[VAL_13]], %[[VAL_14]]) : (!llvm.ptr, i8, i64, i1) -> ()
+// CHECK-NEXT:      "llvm.intr.memset"(%[[VAL_11]], %[[VAL_12]], %[[VAL_13]]) <{isVolatile = false}> : (!llvm.ptr, i8, i64) -> ()
 // CHECK-NEXT:      %[[VAL_15:.*]] = llvm.mlir.undef : !llvm.struct<(ptr, ptr, ptr)>
 // CHECK-NEXT:      %[[VAL_16:.*]] = llvm.insertvalue %[[VAL_1]], %[[VAL_15]][0] : !llvm.struct<(ptr, ptr, ptr)>
 // CHECK-NEXT:      %[[VAL_17:.*]] = llvm.insertvalue %[[VAL_6]], %[[VAL_16]][1] : !llvm.struct<(ptr, ptr, ptr)>
@@ -221,18 +218,15 @@ func.func @id_item(%arg0: memref<?x!sycl_item_1_>,
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i32) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.constant(8 : i64) : i64
-// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.mlir.constant(false) : i1
-// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_4]], %[[VAL_0]], %[[VAL_5]], %[[VAL_6]]) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_4]], %[[VAL_0]], %[[VAL_5]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_7:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_8:.*]] = llvm.alloca %[[VAL_7]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i32) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_9:.*]] = llvm.mlir.constant(16 : i64) : i64
-// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.mlir.constant(false) : i1
-// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_8]], %[[VAL_1]], %[[VAL_9]], %[[VAL_10]]) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_8]], %[[VAL_1]], %[[VAL_9]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_11:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_12:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i32) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_13:.*]] = llvm.mlir.constant(24 : i64) : i64
-// CHECK-NEXT:      %[[VAL_14:.*]] = llvm.mlir.constant(false) : i1
-// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_12]], %[[VAL_2]], %[[VAL_13]], %[[VAL_14]]) : (!llvm.ptr, !llvm.ptr, i64, i1) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_12]], %[[VAL_2]], %[[VAL_13]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_15:.*]] = llvm.mlir.undef : !llvm.struct<(ptr, ptr, ptr)>
 // CHECK-NEXT:      %[[VAL_16:.*]] = llvm.insertvalue %[[VAL_4]], %[[VAL_15]][0] : !llvm.struct<(ptr, ptr, ptr)>
 // CHECK-NEXT:      %[[VAL_17:.*]] = llvm.insertvalue %[[VAL_8]], %[[VAL_16]][1] : !llvm.struct<(ptr, ptr, ptr)>

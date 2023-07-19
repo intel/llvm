@@ -20,6 +20,7 @@
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -69,6 +70,7 @@ void registerTestPasses() {
 
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
+  mlir::func::registerInlinerExtension(registry);
 
   registerTransformsPasses();
   registerConversionPasses();
