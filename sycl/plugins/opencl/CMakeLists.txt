@@ -37,6 +37,7 @@ add_sycl_plugin(opencl
     "../unified_runtime/ur/adapters/opencl/queue.cpp"
     "../unified_runtime/ur/adapters/opencl/command_buffer.hpp"
     "../unified_runtime/ur/adapters/opencl/command_buffer.cpp"
+    "../unified_runtime/ur/adapters/opencl/usm_p2p.cpp"
     # ---
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "pi_opencl.cpp"

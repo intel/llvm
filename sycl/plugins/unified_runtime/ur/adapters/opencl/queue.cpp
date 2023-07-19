@@ -73,13 +73,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   cl_command_queue_properties CLProperties =
       convertURQueuePropertiesToCL(pProperties);
 
-  // Check that unexpected bits are not set.
-  assert(!(CLProperties & ~(CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-                            CL_QUEUE_PROFILING_ENABLE | CL_QUEUE_ON_DEVICE |
-                            CL_QUEUE_ON_DEVICE_DEFAULT)));
-
   // Properties supported by OpenCL backend.
-  cl_command_queue_properties SupportByOpenCL =
+  const cl_command_queue_properties SupportByOpenCL =
       CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE |
       CL_QUEUE_ON_DEVICE | CL_QUEUE_ON_DEVICE_DEFAULT;
 

@@ -16,29 +16,9 @@
 
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 
-#include <pi_opencl.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/detail/pi.h>
-
-#include <algorithm>
-#include <cassert>
 #include <cstring>
-#include <limits>
-#include <map>
-#include <memory>
-#include <mutex>
-#include <sstream>
-#include <string>
-#include <string_view>
-#include <vector>
-
-// Want all the needed casts be explicit, do not define conversion operators.
-template <class To, class From> To cast(From value) {
-  // TODO: see if more sanity checks are possible.
-  static_assert(sizeof(From) == sizeof(To), "cast failed size check");
-  return (To)(value);
-}
+#include <pi_opencl.hpp>
+#include <sycl/detail/pi.h>
 
 extern "C" {
 
@@ -214,12 +194,14 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          pi2ur::piextCommandBufferMemBufferCopy)
   _PI_CL(piextCommandBufferMemBufferCopyRect,
          pi2ur::piextCommandBufferMemBufferCopyRect)
-  _PI_CL(piextCommandBufferMemBufferRead, piextCommandBufferMemBufferRead)
+  _PI_CL(piextCommandBufferMemBufferRead,
+         pi2ur::piextCommandBufferMemBufferRead)
   _PI_CL(piextCommandBufferMemBufferReadRect,
-         piextCommandBufferMemBufferReadRect)
-  _PI_CL(piextCommandBufferMemBufferWrite, piextCommandBufferMemBufferWrite)
+         pi2ur::piextCommandBufferMemBufferReadRect)
+  _PI_CL(piextCommandBufferMemBufferWrite,
+         pi2ur::piextCommandBufferMemBufferWrite)
   _PI_CL(piextCommandBufferMemBufferWriteRect,
-         piextCommandBufferMemBufferWriteRect)
+         pi2ur::piextCommandBufferMemBufferWriteRect)
   _PI_CL(piextEnqueueCommandBuffer, pi2ur::piextEnqueueCommandBuffer)
   // Kernel
   _PI_CL(piextKernelSetArgMemObj, pi2ur::piextKernelSetArgMemObj)
@@ -228,6 +210,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piTearDown, pi2ur::piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, pi2ur::piGetDeviceAndHostTimer)
   _PI_CL(piPluginGetBackendOption, pi2ur::piPluginGetBackendOption)
+  // Peer to Peer
+  _PI_CL(piextEnablePeerAccess, pi2ur::piextEnablePeerAccess)
+  _PI_CL(piextDisablePeerAccess, pi2ur::piextDisablePeerAccess)
+  _PI_CL(piextPeerAccessGetInfo, pi2ur::piextPeerAccessGetInfo)
 
 #undef _PI_CL
 
