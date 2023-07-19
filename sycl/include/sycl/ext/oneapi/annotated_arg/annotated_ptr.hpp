@@ -1,4 +1,3 @@
-//
 //==----------- annotated_ptr.hpp - SYCL annotated_ptr extension -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -30,33 +29,20 @@ namespace {
     return *this;                                                              \
   }
 
-// compare strings on compiletime
-template <const char *const &str1, const char *const &str2> struct compareStrs {
-  static constexpr auto impl() noexcept {
-    static_assert(str1 && str2 && "string cannot be nullptr");
-    constexpr const size_t len1 = std::char_traits<char>::length(str1);
-    constexpr const size_t len2 = std::char_traits<char>::length(str2);
-    if (len1 != len2)
-      return false;
-
-    for (int p = 0; p < len1; p++) {
-      if (str1[p] != str2[p])
-        return false;
-    }
-    return true;
-  }
-  static constexpr const bool equal = impl();
-};
+// compare strings on compile time
+constexpr bool compareStrs(const char *Str1, const char *Str2) {
+  return std::string_view(Str1) == Str2;
+}
 
 // filter properties with AllowedPropsTuple via name checking
-template <typename testProps, typename AllowedPropsTuple>
-struct PropertiesIsAllowed {};
+template <typename TestProps, typename AllowedPropsTuple>
+struct PropertiesAreAllowed {};
 
-template <typename testProps, typename... AllowedProps>
-struct PropertiesIsAllowed<testProps, std::tuple<const AllowedProps...>> {
+template <typename TestProps, typename... AllowedProps>
+struct PropertiesAreAllowed<TestProps, std::tuple<const AllowedProps...>> {
   static constexpr const bool allowed =
-      (compareStrs<detail::PropertyMetaInfo<testProps>::name,
-                   detail::PropertyMetaInfo<AllowedProps>::name>::equal ||
+      (compareStrs(detail::PropertyMetaInfo<TestProps>::name,
+                   detail::PropertyMetaInfo<AllowedProps>::name) ||
        ...);
 };
 
@@ -66,7 +52,7 @@ using tuple_cat_t = decltype(std::tuple_cat(std::declval<Ts>()...));
 template <typename AllowedPropTuple, typename... Props>
 struct PropertiesFilter {
   using tuple = tuple_cat_t<typename std::conditional<
-      PropertiesIsAllowed<Props, AllowedPropTuple>::allowed, std::tuple<Props>,
+      PropertiesAreAllowed<Props, AllowedPropTuple>::allowed, std::tuple<Props>,
       std::tuple<>>::type...>;
 };
 
@@ -147,7 +133,7 @@ class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
-  // Buffer_Location and Alignment is allowed for annotated_ref
+  // buffer_Location and alignment are allowed for annotated_ref
   using allowed_properties =
       std::tuple<decltype(buffer_location<0>), decltype(alignment<0>)>;
   using filtered_properties =
