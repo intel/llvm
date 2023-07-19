@@ -1,4 +1,4 @@
-// Tests adding nodes to a graph using explicit API, and submitting the graph
+// Tests adding nodes to a graph and submitting the graph
 // using buffers accessors for inputs and outputs.
 
 #include "../graph_common.hpp"

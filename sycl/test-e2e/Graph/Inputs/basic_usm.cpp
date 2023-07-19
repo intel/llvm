@@ -1,4 +1,4 @@
-// Tests basic adding of nodes using explicit API with USM pointers,
+// Tests basic adding of nodes with USM pointers,
 // and submission of the graph.
 
 #include "../graph_common.hpp"
