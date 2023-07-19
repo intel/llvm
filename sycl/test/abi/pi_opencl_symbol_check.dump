@@ -34,7 +34,6 @@ piQueueCreate
 piQueueGetInfo
 piSamplerCreate
 piTearDown
-piclProgramCreateWithSource
 piextCommandBufferCreate
 piextCommandBufferFinalize
 piextCommandBufferMemBufferCopy

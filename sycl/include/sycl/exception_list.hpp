@@ -13,9 +13,10 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/stl.hpp>
 
 #include <cstddef>
+#include <functional>
+#include <vector>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

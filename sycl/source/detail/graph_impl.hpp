@@ -13,6 +13,7 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/handler.hpp>
 
+#include <detail/accessor_impl.hpp>
 #include <detail/kernel_impl.hpp>
 
 #include <cstring>
@@ -42,9 +43,6 @@ public:
   /// Command group object which stores all args etc needed to enqueue the node
   std::unique_ptr<sycl::detail::CG> MCommandGroup;
 
-  /// True if an empty node, false otherwise.
-  bool MIsEmpty = false;
-
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
   /// @param Prev Predecessor to \p node being added as successor.
@@ -64,7 +62,7 @@ public:
   }
 
   /// Construct an empty node.
-  node_impl() : MIsEmpty(true) {}
+  node_impl() {}
 
   /// Construct a node representing a command-group.
   /// @param CGType Type of the command-group.
@@ -90,23 +88,14 @@ public:
       Schedule.push_front(NodeImpl);
   }
 
-  /// Checks if this node has an argument.
-  /// @param Arg Argument to lookup.
-  /// @return True if \p Arg is used in node, false otherwise.
-  bool hasArg(const sycl::detail::ArgDesc &Arg) {
-    // TODO: Handle types other than exec kernel
-    assert(MCGType == sycl::detail::CG::Kernel);
-    const auto &Args =
-        static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get())->MArgs;
-    for (auto &NodeArg : Args) {
-      if (Arg.MType == NodeArg.MType && Arg.MSize == NodeArg.MSize) {
-        // Args are actually void** so we need to dereference them to compare
-        // actual values
-        void *IncomingPtr = *static_cast<void **>(Arg.MPtr);
-        void *ArgPtr = *static_cast<void **>(NodeArg.MPtr);
-        if (IncomingPtr == ArgPtr) {
-          return true;
-        }
+  /// Checks if this node has a given requirement.
+  /// @param Requirement Requirement to lookup.
+  /// @return True if \p Requirement is present in node, false otherwise.
+  bool hasRequirement(sycl::detail::AccessorImplHost *IncomingReq) {
+    for (sycl::detail::AccessorImplHost *CurrentReq :
+         MCommandGroup->getRequirements()) {
+      if (IncomingReq->MSYCLMemObj == CurrentReq->MSYCLMemObj) {
+        return true;
       }
     }
     return false;
@@ -114,22 +103,14 @@ public:
 
   /// Query if this is an empty node.
   /// @return True if this is an empty node, false otherwise.
-  bool isEmpty() const { return MIsEmpty; }
+  bool isEmpty() const { return MCGType == sycl::detail::CG::None; }
 
   /// Get a deep copy of this node's command group
   /// @return A unique ptr to the new command group object.
   std::unique_ptr<sycl::detail::CG> getCGCopy() const {
     switch (MCGType) {
     case sycl::detail::CG::Kernel:
-    case sycl::detail::CG::RunOnHostIntel:
       return createCGCopy<sycl::detail::CGExecKernel>();
-    case sycl::detail::CG::CodeplayInteropTask:
-      assert(false);
-      break;
-    // TODO: Uncomment this once we implement support for interop task so we can
-    // test required changes to the CG class.
-
-    // return createCGCopy<sycl::detail::CGInteropTask>();
     case sycl::detail::CG::CopyAccToPtr:
     case sycl::detail::CG::CopyPtrToAcc:
     case sycl::detail::CG::CopyAccToAcc:
@@ -198,7 +179,7 @@ public:
   /// @param SyclDevice Device to create nodes with.
   graph_impl(const sycl::context &SyclContext, const sycl::device &SyclDevice)
       : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
-        MEventsMap() {}
+        MEventsMap(), MInorderQueueMap() {}
 
   /// Insert node into list of root nodes.
   /// @param Root Node to add to list of root nodes.
@@ -235,6 +216,12 @@ public:
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
   add(const std::vector<std::shared_ptr<node_impl>> &Dep = {});
+
+  /// Create an empty node in the graph.
+  /// @param Events List of events associated to this node.
+  /// @return Created node in the graph.
+  std::shared_ptr<node_impl>
+  add(const std::vector<sycl::detail::EventImplPtr> Events);
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
@@ -284,6 +271,7 @@ public:
   }
 
   /// Adds sub-graph nodes from an executable graph to this graph.
+  /// @param NodeList List of nodes from sub-graph in schedule order.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
   addSubgraphNodes(const std::list<std::shared_ptr<node_impl>> &NodeList);
@@ -292,8 +280,34 @@ public:
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
 
+  /// Query for the device tied to this graph.
+  /// @return Device associated with graph.
+  sycl::device getDevice() const { return MDevice; }
+
   /// List of root nodes.
   std::set<std::shared_ptr<node_impl>> MRoots;
+
+  /// Find the last node added to this graph from an in-order queue.
+  /// @param Queue In-order queue to find the last node added to the graph from.
+  /// @return Last node in this graph added from \p Queue recording, or empty
+  /// shared pointer if none.
+  std::shared_ptr<node_impl>
+  getLastInorderNode(std::shared_ptr<sycl::detail::queue_impl> Queue) {
+    std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
+    if (0 == MInorderQueueMap.count(QueueWeakPtr)) {
+      return {};
+    }
+    return MInorderQueueMap[QueueWeakPtr];
+  }
+
+  /// Track the last node added to this graph from an in-order queue.
+  /// @param Queue In-order queue to register \p Node for.
+  /// @param Node Last node that was added to this graph from \p Queue.
+  void setLastInorderNode(std::shared_ptr<sycl::detail::queue_impl> Queue,
+                          std::shared_ptr<node_impl> Node) {
+    std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
+    MInorderQueueMap[QueueWeakPtr] = Node;
+  }
 
 private:
   /// Context associated with this graph.
@@ -307,6 +321,12 @@ private:
   std::unordered_map<std::shared_ptr<sycl::detail::event_impl>,
                      std::shared_ptr<node_impl>>
       MEventsMap;
+  /// Map for every in-order queue thats recorded a node to the graph, what
+  /// the last node added was. We can use this to create new edges on the last
+  /// node if any more nodes are added to the graph from the queue.
+  std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
+           std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
+      MInorderQueueMap;
 };
 
 /// Class representing the implementation of command_graph<executable>.
@@ -317,7 +337,9 @@ public:
   /// @param GraphImpl Modifiable graph implementation to create with.
   exec_graph_impl(sycl::context Context,
                   const std::shared_ptr<graph_impl> &GraphImpl)
-      : MSchedule(), MGraphImpl(GraphImpl), MContext(Context) {}
+      : MSchedule(), MGraphImpl(GraphImpl), MPiCommandBuffers(),
+        MPiSyncPoints(), MContext(Context), MRequirements(),
+        MExecutionEvents() {}
 
   /// Destructor.
   ///
@@ -330,8 +352,15 @@ public:
   /// Called by handler::ext_oneapi_command_graph() to schedule graph for
   /// execution.
   /// @param Queue Command-queue to schedule execution on.
+  /// @param CGData Command-group data provided by the sycl::handler
   /// @return Event associated with the execution of the graph.
-  sycl::event enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue);
+  sycl::event enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+                      sycl::detail::CG::StorageInitHelper CGData);
+
+  /// Turns the internal graph representation into UR command-buffers for a
+  /// device.
+  /// @param Device Device to create backend command-buffers for.
+  void createCommandBuffers(sycl::device Device);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
@@ -344,16 +373,56 @@ public:
   }
 
 private:
+  /// Create a command-group for the node and add it to command-buffer by going
+  /// through the scheduler.
+  /// @param Ctx Context to use.
+  /// @param DeviceImpl Device associated with the enqueue.
+  /// @param CommandBuffer Command-buffer to add node to as a command.
+  /// @param Node The node being enqueued.
+  /// @return PI sync point created for this node in the command-buffer.
+  sycl::detail::pi::PiExtSyncPoint
+  enqueueNode(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
+              sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+              std::shared_ptr<node_impl> Node);
+
+  /// Enqueue a node directly to the command-buffer without going through the
+  /// scheduler.
+  /// @param Ctx Context to use.
+  /// @param DeviceImpl Device associated with the enqueue.
+  /// @param CommandBuffer Command-buffer to add node to as a command.
+  /// @param Node The node being enqueued.
+  /// @return PI sync point created for this node in the command-buffer.
+  sycl::detail::pi::PiExtSyncPoint
+  enqueueNodeDirect(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
+                    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+                    std::shared_ptr<node_impl> Node);
+
+  /// Iterates back through predecessors to find the real dependency.
+  /// @param[out] Deps Found dependencies.
+  /// @param[in] CurrentNode Node to find dependencies for.
+  void findRealDeps(std::vector<sycl::detail::pi::PiExtSyncPoint> &Deps,
+                    std::shared_ptr<node_impl> CurrentNode);
+
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
   /// graph.
   std::shared_ptr<graph_impl> MGraphImpl;
+  /// Map of devices to command buffers.
+  std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
+      MPiCommandBuffers;
+  /// Map of nodes in the exec graph to the sync point representing their
+  /// execution in the command graph.
+  std::unordered_map<std::shared_ptr<node_impl>,
+                     sycl::detail::pi::PiExtSyncPoint>
+      MPiSyncPoints;
   /// Context associated with this executable graph.
   sycl::context MContext;
   /// List of requirements for enqueueing this command graph, accumulated from
   /// all nodes enqueued to the graph.
   std::vector<sycl::detail::AccessorImplHost *> MRequirements;
+  /// List of all execution events returned from command buffer enqueue calls.
+  std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
 };
 
 } // namespace detail

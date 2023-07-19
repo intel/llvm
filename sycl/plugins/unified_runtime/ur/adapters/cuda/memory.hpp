@@ -23,7 +23,7 @@ struct ur_mem_handle_t_ {
 
   /// Reference counting of the handler
   std::atomic_uint32_t RefCount;
-  enum class Type { Buffer, Surface } MemType;
+  enum class Type { Buffer, Surface, Texture } MemType;
 
   // Original mem flags passed
   ur_mem_flags_t MemFlags;
@@ -129,6 +129,21 @@ struct ur_mem_handle_t_ {
 
       ur_mem_type_t getImageType() const noexcept { return ImageType; }
     } SurfaceMem;
+
+    struct ImageMem {
+      CUarray Array;
+      void *Handle;
+      ur_mem_type_t ImageType;
+      ur_sampler_handle_t Sampler;
+
+      CUarray get_array() const noexcept { return Array; }
+
+      void *get_handle() const noexcept { return Handle; }
+
+      ur_mem_type_t get_image_type() const noexcept { return ImageType; }
+
+      ur_sampler_handle_t get_sampler() const noexcept { return Sampler; }
+    } ImageMem;
   } Mem;
 
   /// Constructs the UR mem handler for a non-typed allocation ("buffer")
@@ -164,6 +179,30 @@ struct ur_mem_handle_t_ {
     Mem.SurfaceMem.Array = Array;
     Mem.SurfaceMem.SurfObj = Surf;
     Mem.SurfaceMem.ImageType = ImageType;
+    urContextRetain(Context);
+  }
+
+  /// Constructs the UR allocation for an unsampled image object
+  ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array,
+                   CUsurfObject Surf, ur_mem_type_t ImageType)
+      : Context{Context}, RefCount{1}, MemType{Type::Surface} {
+
+    Mem.ImageMem.Array = Array;
+    Mem.ImageMem.Handle = (void *)Surf;
+    Mem.ImageMem.ImageType = ImageType;
+    Mem.ImageMem.Sampler = nullptr;
+    urContextRetain(Context);
+  }
+
+  /// Constructs the UR allocation for a sampled image object
+  ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array, CUtexObject Tex,
+                   ur_sampler_handle_t Sampler, ur_mem_type_t ImageType)
+      : Context{Context}, RefCount{1}, MemType{Type::Texture} {
+
+    Mem.ImageMem.Array = Array;
+    Mem.ImageMem.Handle = (void *)Tex;
+    Mem.ImageMem.ImageType = ImageType;
+    Mem.ImageMem.Sampler = Sampler;
     urContextRetain(Context);
   }
 

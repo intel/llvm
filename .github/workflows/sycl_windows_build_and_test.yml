@@ -26,6 +26,10 @@ on:
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.gz
+      retention-days:
+        description: 'Artifacts retention period'
+        type: string
+        default: 3
 
 jobs:
   build:
@@ -122,6 +126,7 @@ jobs:
       with:
         name: sycl_windows_default
         path: ${{ inputs.artifact_archive_name }}
+        retention-days: ${{ inputs.retention-days }}
 
   e2e-tests:
     needs: build

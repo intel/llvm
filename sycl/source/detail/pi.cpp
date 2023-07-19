@@ -52,6 +52,9 @@ xpti_td *GPICallEvent = nullptr;
 xpti_td *GPIArgCallEvent = nullptr;
 xpti_td *GPIArgCallActiveEvent = nullptr;
 
+uint8_t PiCallStreamID = 0;
+uint8_t PiDebugCallStreamID = 0;
+
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <sycl::backend BE> void *getPluginOpaqueData(void *OpaqueDataParam) {
@@ -108,12 +111,13 @@ uint64_t emitFunctionBeginTrace(const char *FName) {
   /// xptiNotifySubscribers(stream_id, pi_func_begin, parent, event, instance,
   ///                       (void *)argument_data);
   /// \endcode
-  if (xptiTraceEnabled()) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
+  constexpr uint16_t NotificationTraceType =
+      (uint16_t)xpti::trace_point_type_t::function_begin;
+  if (xptiCheckTraceEnabled(PiCallStreamID, NotificationTraceType)) {
     CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_begin,
-        GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
+    xptiNotifySubscribers(PiCallStreamID, NotificationTraceType, GPICallEvent,
+                          nullptr, CorrelationID,
+                          static_cast<const void *>(FName));
   }
 #endif // XPTI_ENABLE_INSTRUMENTATION
   return CorrelationID;
@@ -121,15 +125,16 @@ uint64_t emitFunctionBeginTrace(const char *FName) {
 
 void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType =
+      (uint16_t)xpti::trace_point_type_t::function_end;
+  if (xptiCheckTraceEnabled(PiCallStreamID, NotificationTraceType)) {
     // CorrelationID is the unique ID that ties together a function_begin and
     // function_end pair of trace calls. The splitting of a scoped_notify into
     // two function calls incurs an additional overhead as the StreamID must
     // be looked up twice.
-    uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_end,
-        GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
+    xptiNotifySubscribers(PiCallStreamID, NotificationTraceType, GPICallEvent,
+                          nullptr, CorrelationID,
+                          static_cast<const void *>(FName));
   }
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
@@ -139,9 +144,9 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
                                         pi_plugin Plugin) {
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
-
+  constexpr uint16_t NotificationTraceType =
+      (uint16_t)xpti::trace_point_type_t::function_with_args_begin;
+  if (xptiCheckTraceEnabled(PiDebugCallStreamID, NotificationTraceType)) {
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, nullptr,
                                        &Plugin};
     {
@@ -158,9 +163,9 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
     }
 
     CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
-        GPIArgCallEvent, GPIArgCallActiveEvent, CorrelationID, &Payload);
+    xptiNotifySubscribers(PiDebugCallStreamID, NotificationTraceType,
+                          GPIArgCallEvent, GPIArgCallActiveEvent, CorrelationID,
+                          &Payload);
   }
 #endif
   return CorrelationID;
@@ -170,15 +175,15 @@ void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FuncName, unsigned char *ArgsData,
                                   pi_result Result, pi_plugin Plugin) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
-
+  constexpr uint16_t NotificationTraceType =
+      (uint16_t)xpti::trace_point_type_t::function_with_args_end;
+  if (xptiCheckTraceEnabled(PiDebugCallStreamID, NotificationTraceType)) {
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
                                        &Plugin};
 
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
-        GPIArgCallEvent, GPIArgCallActiveEvent, CorrelationID, &Payload);
+    xptiNotifySubscribers(PiDebugCallStreamID, NotificationTraceType,
+                          GPIArgCallEvent, GPIArgCallActiveEvent, CorrelationID,
+                          &Payload);
     GPIArgCallActiveEvent = nullptr;
   }
 #endif
@@ -524,6 +529,9 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   GPIArgCallEvent = xptiMakeEvent("PI Layer with arguments", &PIArgPayload,
                                   xpti::trace_algorithm_event, xpti_at::active,
                                   &PiArgInstanceNo);
+
+  PiCallStreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
+  PiDebugCallStreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
 #endif
 }
 

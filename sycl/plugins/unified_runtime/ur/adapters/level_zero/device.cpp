@@ -186,6 +186,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
+    // Return supported for the UR command-buffer experimental feature
+    SupportedExtensions += ("ur_exp_command_buffer ");
+
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_NAME:
@@ -970,10 +973,6 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
       };
 
   ImmCommandListUsed = this->useImmediateCommandLists();
-
-  if (ImmCommandListUsed == ImmCmdlistMode::NotUsed) {
-    ZeEventsScope = DeviceEventsSetting;
-  }
 
   uint32_t numQueueGroups = 0;
   ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,

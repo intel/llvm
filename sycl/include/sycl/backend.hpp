@@ -114,10 +114,8 @@ auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
   // No check for backend mismatch because buffer can be allocated on different
   // backends
   if (BackendName == backend::ext_oneapi_level_zero)
-    throw sycl::runtime_error(
-        errc::feature_not_supported,
-        "Buffer interop is not supported by level zero yet",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Buffer interop is not supported by level zero yet");
   return Obj.template getNative<BackendName>();
 }
 #endif
@@ -126,10 +124,9 @@ auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT> {
-  // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::backend_mismatch),
+                          "Backends mismatch");
   }
   return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
       Obj.getNative());
@@ -137,10 +134,9 @@ auto get_native(const SyclObjectT &Obj)
 
 template <backend BackendName>
 auto get_native(const queue &Obj) -> backend_return_t<BackendName, queue> {
-  // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::backend_mismatch),
+                          "Backends mismatch");
   }
   int32_t IsImmCmdList;
   pi_native_handle Handle = Obj.getNative(IsImmCmdList);
@@ -160,10 +156,9 @@ auto get_native(const queue &Obj) -> backend_return_t<BackendName, queue> {
 template <backend BackendName, bundle_state State>
 auto get_native(const kernel_bundle<State> &Obj)
     -> backend_return_t<BackendName, kernel_bundle<State>> {
-  // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::backend_mismatch),
+                          "Backends mismatch");
   }
   return Obj.template getNative<BackendName>();
 }
@@ -179,10 +174,9 @@ auto get_native(const buffer<DataT, Dimensions, AllocatorT> &Obj)
 template <>
 inline backend_return_t<backend::opencl, event>
 get_native<backend::opencl, event>(const event &Obj) {
-  // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != backend::opencl) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::backend_mismatch),
+                          "Backends mismatch");
   }
   backend_return_t<backend::opencl, event> ReturnValue;
   for (auto const &element : Obj.getNativeVector()) {
@@ -199,10 +193,9 @@ get_native<backend::opencl, event>(const event &Obj) {
 template <>
 inline backend_return_t<backend::ext_oneapi_cuda, device>
 get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
-  // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != backend::ext_oneapi_cuda) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::backend_mismatch),
+                          "Backends mismatch");
   }
   // CUDA uses a 32-bit int instead of an opaque pointer like other backends,
   // so we need a specialization with static_cast instead of reinterpret_cast.
@@ -211,7 +204,6 @@ get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
 }
 #endif
 
-// Native handle of an accessor should be accessed through interop_handler
 template <backend BackendName, typename DataT, int Dimensions,
           access::mode AccessMode, access::target AccessTarget,
           access::placeholder IsPlaceholder>

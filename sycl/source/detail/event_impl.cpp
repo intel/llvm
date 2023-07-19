@@ -41,7 +41,7 @@ void event_impl::ensureContextInitialized() {
     QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
     this->setContextImpl(detail::getSyclObjImpl(HostQueue->get_context()));
   } else {
-    const device &SyclDevice = default_selector().select_device();
+    const device SyclDevice;
     this->setContextImpl(detail::queue_impl::getDefaultOrNew(
         detail::getSyclObjImpl(SyclDevice)));
   }
@@ -173,7 +173,8 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                         uint64_t &IId) const {
   void *TraceEvent = nullptr;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
+  if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
   // Use a thread-safe counter to get a unique instance ID for the wait() on the
   // event
@@ -197,7 +198,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
 
   // Record the current instance ID for use by Epilog
   IId = InstanceID++;
-  xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
+  xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,
                         IId, static_cast<const void *>(Name.c_str()));
   TraceEvent = (void *)WaitEvent;
 #endif
@@ -208,12 +209,14 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
                                        const std::string &Name,
                                        int32_t StreamID, uint64_t IId) const {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiTraceEnabled() && TelemetryEvent))
+  constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
+  if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
+        TelemetryEvent))
     return;
   // Close the wait() scope
   xpti::trace_event_data_t *TraceEvent =
       (xpti::trace_event_data_t *)TelemetryEvent;
-  xptiNotifySubscribers(StreamID, xpti::trace_wait_end, nullptr, TraceEvent,
+  xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
                         IId, static_cast<const void *>(Name.c_str()));
 #endif
 }
@@ -222,6 +225,12 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
+
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait method cannot be used for an event associated "
+                          "with a command graph.");
+  }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;

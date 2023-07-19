@@ -23,6 +23,9 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::oneapi::experimental::detail {
+class graph_impl;
+}
 class context;
 namespace detail {
 class plugin;
@@ -256,6 +259,25 @@ public:
     return MContext;
   }
 
+  // Sets a sync point which is used when this event represents an enqueue to a
+  // Command Bufferr.
+  void setSyncPoint(sycl::detail::pi::PiExtSyncPoint SyncPoint) {
+    MSyncPoint = SyncPoint;
+  }
+
+  // Get the sync point associated with this event.
+  sycl::detail::pi::PiExtSyncPoint getSyncPoint() const { return MSyncPoint; }
+
+  void setCommandGraph(
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+    MGraph = Graph;
+  }
+
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  getCommandGraph() const {
+    return MGraph.lock();
+  }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -301,6 +323,15 @@ protected:
 
   std::mutex MMutex;
   std::condition_variable cv;
+
+  /// Store the command graph associated with this event, if any.
+  /// This event is also be stored in the graph so a weak_ptr is used.
+  std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
+
+  // If this event represents a submission to a
+  // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
+  // stored here.
+  sycl::detail::pi::PiExtSyncPoint MSyncPoint;
 
   friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

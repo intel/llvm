@@ -125,7 +125,7 @@ bool test(Ops ops, queue &q) {
                             ? 1
                             : 0;
 
-            if ((Gold != Res) && (abs(ResBits - GoldBits) > delta)) {
+            if ((Gold != Res) && (std::abs(ResBits - GoldBits) > delta)) {
               if (++err_cnt < 10) {
                 std::cout << "  failed at index " << (res_off + j) << ", op "
                           << esimd_test::Op2Str(op) << ": " << cast(Res)

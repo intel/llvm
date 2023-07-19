@@ -28,8 +28,8 @@ template <> struct element_type_traits<tfloat32> {
   using RawT = unsigned int;
   using EnclosingCppT = float;
 
-  static inline constexpr bool use_native_cpp_ops = false;
-  static inline constexpr bool is_floating_point = true;
+  static constexpr bool use_native_cpp_ops = false;
+  static constexpr bool is_floating_point = true;
 };
 
 // ------------------- Type conversion traits

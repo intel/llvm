@@ -46,8 +46,6 @@ target triple = "spir64-unknown-unknown"
 ; CHECK:      DW_TAG_lexical_block
 ; CHECK-NOT: {{DW_TAG|NULL}}
 ; CHECK:        DW_TAG_variable
-; CHECK-NOT: {{DW_TAG|NULL}}
-; CHECK:        DW_TAG_imported_module
 
 ;; Abstract "bar" function
 ; CHECK:    [[Offset_bar]]: DW_TAG_subprogram
@@ -74,8 +72,6 @@ target triple = "spir64-unknown-unknown"
 ; CHECK:        DW_TAG_lexical_block
 ; CHECK-NOT: {{DW_TAG|NULL}}
 ; CHECK:          DW_TAG_variable
-; CHECK-NOT: {{DW_TAG|NULL}}
-; CHECK:          DW_TAG_imported_module
 
 
 ; Function Attrs: alwaysinline nounwind

@@ -59,7 +59,7 @@ void test2(queue &Q) {
   });
 
   {
-    auto Acc = Buffer2.get_access<mode::read>();
+    auto Acc = Buffer2.get_host_access();
 
     for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
       std::cout << "Second buffer [" << Idx << "] = " << Acc[Idx] << std::endl;

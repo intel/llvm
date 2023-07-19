@@ -19,7 +19,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-static inline void atomic_fence(memory_order order, memory_scope scope) {
+inline void atomic_fence(memory_order order, memory_scope scope) {
 #ifdef __SYCL_DEVICE_ONLY__
   auto SPIRVOrder = detail::spirv::getMemorySemanticsMask(order);
   auto SPIRVScope = detail::spirv::getScope(scope);

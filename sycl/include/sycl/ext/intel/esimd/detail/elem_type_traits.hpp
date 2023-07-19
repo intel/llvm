@@ -135,11 +135,11 @@ template <class T, class SFINAE = void> struct element_type_traits {
   using EnclosingCppT = void;
   // Whether a value or clang vector value the raw element type can be used
   // directly as operand to std C++ operations.
-  static inline constexpr bool use_native_cpp_ops = true;
+  static constexpr bool use_native_cpp_ops = true;
   // W/A for MSVC compiler problems which thinks
   // std::is_floating_point_v<_Float16> is false; so require new element types
   // implementations to state "is floating point" trait explicitly
-  static inline constexpr bool is_floating_point = false;
+  static constexpr bool is_floating_point = false;
 };
 
 // Element type traits specialization for C++ standard element type.
@@ -147,8 +147,8 @@ template <class T>
 struct element_type_traits<T, std::enable_if_t<is_vectorizable_v<T>>> {
   using RawT = T;
   using EnclosingCppT = T;
-  static inline constexpr bool use_native_cpp_ops = true;
-  static inline constexpr bool is_floating_point = std::is_floating_point_v<T>;
+  static constexpr bool use_native_cpp_ops = true;
+  static constexpr bool is_floating_point = std::is_floating_point_v<T>;
 };
 
 // ------------------- Useful meta-functions and declarations
