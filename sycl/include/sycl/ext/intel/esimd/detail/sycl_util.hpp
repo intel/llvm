@@ -44,8 +44,8 @@ using accessor_mode_cap_val_t = bool;
 
 // Denotes an accessor's capability - whether it can read or write.
 struct accessor_mode_cap {
-  static inline constexpr accessor_mode_cap_val_t can_read = false;
-  static inline constexpr accessor_mode_cap_val_t can_write = true;
+  static constexpr accessor_mode_cap_val_t can_read = false;
+  static constexpr accessor_mode_cap_val_t can_write = true;
 };
 
 template <sycl::access::mode Mode, accessor_mode_cap_val_t Cap>
@@ -82,7 +82,7 @@ using EnableIfAccessor = std::enable_if_t<
 template <typename T, int Dimensions>
 __ESIMD_API uint32_t localAccessorToOffset(local_accessor<T, Dimensions> acc) {
   return static_cast<uint32_t>(
-      reinterpret_cast<std::uintptr_t>(acc.get_pointer()));
+      reinterpret_cast<std::uintptr_t>(acc.get_pointer().get()));
 }
 
 } // namespace ext::intel::esimd::detail

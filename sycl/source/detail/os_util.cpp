@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/os_util.hpp>
-#include <sycl/exception.hpp>
 
 #include <cassert>
+#include <limits>
 
 #if defined(__SYCL_RT_OS_LINUX)
 

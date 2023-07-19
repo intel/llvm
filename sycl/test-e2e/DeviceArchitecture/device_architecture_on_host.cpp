@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda, hip, esimd_emulator
+// UNSUPPORTED: cuda, hip, esimd_emulator, accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

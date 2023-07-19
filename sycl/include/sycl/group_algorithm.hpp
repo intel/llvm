@@ -61,8 +61,7 @@ template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 template <>
-inline size_t
-get_local_linear_range<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
+inline size_t get_local_linear_range<sycl::sub_group>(sycl::sub_group g) {
   return g.get_local_range()[0];
 }
 
@@ -84,8 +83,8 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-inline ext::oneapi::sub_group::linear_id_type
-get_local_linear_id<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
+inline sycl::sub_group::linear_id_type
+get_local_linear_id<sycl::sub_group>(sycl::sub_group g) {
   return g.get_local_id()[0];
 }
 
@@ -157,6 +156,13 @@ struct get_scalar_binary_op<F<sycl::vec<T, n>>> {
 template <template <typename> typename F> struct get_scalar_binary_op<F<void>> {
   using type = F<void>;
 };
+
+// ---- is_max_or_min
+template <typename T> struct is_max_or_min : std::false_type {};
+template <typename T>
+struct is_max_or_min<sycl::maximum<T>> : std::true_type {};
+template <typename T>
+struct is_max_or_min<sycl::minimum<T>> : std::true_type {};
 
 // ---- identity_for_ga_op
 //   the group algorithms support std::complex, limited to sycl::plus operation
@@ -678,8 +684,34 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
         sycl::detail::ExtractMask(sycl::detail::GetMask(g))[0]);
   }
 #endif
-  return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
+  // For the first work item in the group, we cannot return the result
+  // of calc when T is a signed char or short type and the
+  // BinaryOperation is maximum or minimum.  calc uses SPIRV group
+  // collective instructions, which only operate on 32 or 64 bit
+  // integers. So, when using calc with a short or char type, the
+  // argument is converted to a 32 bit integer, the 32 bit group
+  // operation is performed, and then converted back to the original
+  // short or char type. For an exclusive scan, the first work item
+  // returns the identity for the supplied operation. However, the
+  // identity of a 32 bit signed integer maximum or minimum when
+  // converted to a signed char or short does not correspond to the
+  // identity of a signed char or short maximum or minimum. For
+  // example, the identity of a signed 32 bit maximum is
+  // INT_MIN=-2**31, and when converted to a signed char, results in
+  // 0. However, the identity of a signed char maximum is
+  // SCHAR_MIN=-2**7. Therefore, we need the following check to
+  // circumvent this issue.
+  auto res = sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+  if constexpr ((std::is_same_v<signed char, T> ||
+                 std::is_same_v<signed short, T> ||
+                 (std::is_signed_v<char> && std::is_same_v<char, T>)) &&
+                detail::is_max_or_min<BinaryOperation>::value) {
+    auto local_id = sycl::detail::get_local_linear_id(g);
+    if (local_id == 0)
+      return sycl::known_identity_v<BinaryOperation, T>;
+  }
+  return res;
 #else
   (void)g;
   throw sycl::exception(make_error_code(errc::feature_not_supported),

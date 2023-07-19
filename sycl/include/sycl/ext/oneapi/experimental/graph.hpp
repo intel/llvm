@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
-
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/property_list.hpp>
+
+#include <functional>
+#include <memory>
+#include <vector>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -221,8 +222,6 @@ protected:
 
   int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
-
-  friend class modifiable_command_graph;
 };
 } // namespace detail
 
@@ -248,7 +247,10 @@ private:
 template <>
 class command_graph<graph_state::executable>
     : public detail::executable_command_graph {
-private:
+
+protected:
+  friend command_graph<graph_state::executable>
+  detail::modifiable_command_graph::finalize(const sycl::property_list &) const;
   using detail::executable_command_graph::executable_command_graph;
 };
 

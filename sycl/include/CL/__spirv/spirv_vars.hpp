@@ -190,7 +190,7 @@ namespace __spirv {
     }                                                                          \
   };                                                                           \
                                                                                \
-  template <int Dims, class DstT> static DstT init##POSTFIX() {                \
+  template <int Dims, class DstT> DstT init##POSTFIX() {                       \
     return InitSizesST##POSTFIX<Dims, DstT>::initSize();                       \
   }
 
