@@ -186,8 +186,6 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
     SOURCES
       "ur/ur.hpp"
       "ur/ur.cpp"
-      "ur/usm_allocator.cpp"
-      "ur/usm_allocator.hpp"
       "ur/adapters/hip/adapter.cpp"
       "ur/adapters/hip/adapter.hpp"
       "ur/adapters/hip/command_buffer.cpp"
