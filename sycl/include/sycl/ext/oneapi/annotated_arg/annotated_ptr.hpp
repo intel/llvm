@@ -121,6 +121,12 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 public:
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
+  static_assert(check_property_list<T *, Props...>::value,
+                "The property list contains invalid property.");
+  // check the set if FPGA specificed properties are used
+  static_assert(detail::checkValidFPGAPropertySet<Props...>::value,
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
+                "can only be set with BufferLocation together.");
 
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
