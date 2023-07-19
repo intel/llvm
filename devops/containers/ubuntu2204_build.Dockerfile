@@ -31,8 +31,6 @@ RUN groupadd -g 1001 sycl && useradd sycl -u 1001 -g 1001 -m -s /bin/bash
 RUN usermod -aG video sycl
 RUN usermod -aG irc sycl
 
-COPY actions/cached_checkout /actions/cached_checkout
-COPY actions/cleanup /actions/cleanup
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
 ENTRYPOINT ["/docker_entrypoint.sh"]

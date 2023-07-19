@@ -276,6 +276,13 @@ template <> struct IsCxPropertyList<ext::oneapi::accessor_property_list<>> {
   constexpr static bool value = false;
 };
 
+// Zero-dimensional accessors references at-most a single element, so the range
+// is either 0 if the associated buffer is empty or 1 otherwise.
+template <typename BufferT>
+sycl::range<1> GetZeroDimAccessRange(BufferT Buffer) {
+  return std::min(Buffer.size(), size_t{1});
+}
+
 __SYCL_EXPORT device getDeviceFromHandler(handler &CommandGroupHandlerRef);
 
 template <typename DataT, int Dimensions, access::mode AccessMode,
@@ -1511,11 +1518,14 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
+      : impl(id<AdjustedDim>(), detail::GetZeroDimAccessRange(BufferRef),
+             BufferRef.get_range()) {
     (void)PropertyList;
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0},
+            detail::convertToArrayOfN<3, 1>(
+                detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
@@ -1547,11 +1557,14 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
+      : impl(id<AdjustedDim>(), detail::GetZeroDimAccessRange(BufferRef),
+             BufferRef.get_range()) {
     (void)PropertyList;
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0},
+            detail::convertToArrayOfN<3, 1>(
+                detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
@@ -1578,13 +1591,16 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
+      : impl(id<AdjustedDim>(), detail::GetZeroDimAccessRange(BufferRef),
+             BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
   }
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0},
+            detail::convertToArrayOfN<3, 1>(
+                detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
@@ -1611,13 +1627,16 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
+      : impl(id<AdjustedDim>(), detail::GetZeroDimAccessRange(BufferRef),
+             BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
   }
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0},
+            detail::convertToArrayOfN<3, 1>(
+                detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
@@ -2415,10 +2434,7 @@ public:
 private:
   template <int Dims, typename = std::enable_if_t<(Dims > 0)>>
   range<Dims> getRange() const {
-    if constexpr (Dimensions == 0)
-      return range<1>{1};
-    else
-      return detail::convertToArrayOfN<Dims, 1>(getAccessRange());
+    return detail::convertToArrayOfN<AdjustedDim, 1>(getAccessRange());
   }
 
   template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>

@@ -1542,6 +1542,12 @@ private:
     setType(detail::CG::CodeplayHostTask);
   }
 
+  /// @brief Get the command graph if any associated with this handler. It can
+  /// come from either the associated queue or from being set explicitly through
+  /// the appropriate constructor.
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  getCommandGraph() const;
+
 public:
   handler(const handler &) = delete;
   handler(handler &&) = delete;

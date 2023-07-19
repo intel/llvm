@@ -52,7 +52,7 @@ jobs:
 
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
-    runs-on: ubuntu-22.04
+    runs-on: [Linux, build]
     needs: ubuntu2204_build_test
     steps:
     - uses: actions/checkout@v3
