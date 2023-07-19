@@ -22414,6 +22414,12 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   return RValue::get(Ann);
 }
 
+static bool hasFuncNameRequestedFPAccuracy(StringRef Name,
+                                           const LangOptions &LangOpts) {
+  auto FuncMapIt = LangOpts.FPAccuracyFuncMap.find(Name.str());
+  return (FuncMapIt != LangOpts.FPAccuracyFuncMap.end());
+}
+
 llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     llvm::FunctionType *IRFuncTy, const SmallVectorImpl<llvm::Value *> &IRArgs,
     llvm::Value *FnPtr, const FunctionDecl *FD) {
@@ -22522,9 +22528,16 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
   if (!FPAccuracyIntrinsicID)
     return nullptr;
 
-  Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
-  return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
-                                   FPAccuracyIntrinsicID);
+  // Create an intrinsic only if it exists in the map, or if there
+  // a TU fp-accuracy requested.
+  const LangOptions &LangOpts = getLangOpts();
+  if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
+      !LangOpts.FPAccuracyVal.empty()) {
+    Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
+                                     FPAccuracyIntrinsicID);
+  }
+  return nullptr;
 }
 
 Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
