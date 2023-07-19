@@ -12,8 +12,8 @@ jobs:
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       # Restore once plugins are enabled in the build.
-      # lts_config: "hip_amdgpu;ocl_gen9;ocl_x64;l0_gen9;esimd_emu;cuda_aws;win_l0_gen12"
-      lts_config: "ocl_gen9;ocl_x64;l0_gen9;win_l0_gen12"
+      # lts_config: "hip_amdgpu;ocl_gen12;ocl_x64;l0_gen12;esimd_emu;cuda_aws;win_l0_gen12"
+      lts_config: "ocl_gen12;ocl_x64;l0_gen12;win_l0_gen12"
 
   ubuntu2204_build_test:
     if: github.repository == 'intel/llvm'

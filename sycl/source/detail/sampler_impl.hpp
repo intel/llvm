@@ -13,6 +13,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/property_list.hpp>
 
+#include <mutex>
 #include <unordered_map>
 
 namespace sycl {
