@@ -195,7 +195,7 @@ int main(int argc, const char **argv) {
   std::string test(argv[1]);
   std::string partition_type(argv[2]);
 
-  device dev(cpu_selector_v);
+  device dev(default_selector_v);
 
   std::vector<int> host_mem(1024, 1);
   buffer<int, 1> buf(&host_mem[0], host_mem.size());
