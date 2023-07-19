@@ -12,8 +12,6 @@
 // Tests executable graph update by creating a double buffering scenario, where
 // a single graph is repeatedly executed then updated to swap between two sets
 // of buffers.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

@@ -8,8 +8,6 @@
 
 // Tests that a command-group function can capture variables by reference
 // and still work correctly as a graph node.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

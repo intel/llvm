@@ -12,8 +12,6 @@
 
 // Verifies that the implementation changes to implement the graph
 // extension don't regress reductions.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

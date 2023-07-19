@@ -8,8 +8,6 @@
 
 // This test creates a graph, finalizes it, then submits that as a subgraph of
 // another graph using Record & Replay, and executes that second graph.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

@@ -8,8 +8,6 @@
 
 // Tests the return values from queue graph functions which change the
 // internal queue state.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

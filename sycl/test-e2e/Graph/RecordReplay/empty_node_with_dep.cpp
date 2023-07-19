@@ -10,8 +10,6 @@
 // Empty nodes are used to enforce graph dependencies.
 // This test ensures that empty nodes can depend on other nodes
 // as well as other nodes can depend on empty nodes.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

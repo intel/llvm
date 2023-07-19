@@ -10,8 +10,6 @@
 // by recording a queue where empty handlers are submitted.
 // This test ensures that empty nodes are correctly added to the graph
 // and other nodes can depend on them, as this is the case for non-empty nodes.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

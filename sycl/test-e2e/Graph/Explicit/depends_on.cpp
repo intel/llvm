@@ -9,8 +9,6 @@
 // Tests that an event returned from adding a graph node using the queue
 // recording API can be passed to `handler::depends_on` inside a node
 // added using the explicit API. This should create a graph edge.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

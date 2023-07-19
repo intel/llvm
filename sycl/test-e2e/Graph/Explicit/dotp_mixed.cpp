@@ -7,8 +7,6 @@
 // CHECK-NOT: LEAK
 
 // Tests mixing buffers and USM in the same graph.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

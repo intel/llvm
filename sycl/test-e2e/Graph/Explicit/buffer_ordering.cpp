@@ -16,8 +16,6 @@
 // * The graph is submitted for execution twice separated by a queue
 //   submission using the same buffer, this should respect dependencies and
 //   create the correct ordering.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 int main() {

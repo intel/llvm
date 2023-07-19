@@ -44,16 +44,17 @@ int main() {
   auto NodeA = add_nodes(GraphA, Queue, Size, PtrA, PtrB, PtrC);
 
   // host task to induce a wait for dependencies
-  add_node(Graph, Queue,
-           [&](handler &CGH) {
-             CGH.host_task([=]() {
-               for (size_t i = 0; i < Size; i++) {
-                 PtrOut[i] = PtrC[i];
-               }
-               std::this_thread::sleep_for(std::chrono::milliseconds(500));
-             });
-           },
-           {exp_ext::property::node::depends_on(NodeA)});
+  add_node(
+      Graph, Queue,
+      [&](handler &CGH) {
+        CGH.host_task([=]() {
+          for (size_t i = 0; i < Size; i++) {
+            PtrOut[i] = PtrC[i];
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        });
+      },
+      NodeA);
 
   auto GraphExec = GraphA.finalize();
 
@@ -73,17 +74,18 @@ int main() {
 
   // host task to match the graph topology, but we don't need to sleep this
   // time because there is no following update.
-  add_node(Graph, Queue,
-           [&](handler &CGH) {
-             // This should be access::target::host_task but it has not been
-             // implemented yet.
-             CGH.host_task([=]() {
-               for (size_t i = 0; i < Size; i++) {
-                 PtrOut[i] = PtrC2[i];
-               }
-             });
-           },
-           {exp_ext::property::node::depends_on(NodeB)});
+  add_node(
+      Graph, Queue,
+      [&](handler &CGH) {
+        // This should be access::target::host_task but it has not been
+        // implemented yet.
+        CGH.host_task([=]() {
+          for (size_t i = 0; i < Size; i++) {
+            PtrOut[i] = PtrC2[i];
+          }
+        });
+      },
+      NodeB);
 
   event Event;
   for (unsigned n = 0; n < Iterations; n++) {

@@ -8,8 +8,6 @@
 
 // Tests adding buffer copy -- Host to Target (write path) --  nodes
 // using the explicit API and submitting the graph.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

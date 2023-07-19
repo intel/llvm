@@ -10,8 +10,6 @@
 // XFAIL: *
 
 // This test uses a host_task when explicitly adding a command_graph node.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

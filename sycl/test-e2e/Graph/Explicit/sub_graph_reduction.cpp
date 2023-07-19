@@ -11,8 +11,6 @@
 
 // Modified version of the dotp example which submits which contains a sycl
 // reduction as well as a sub-graph.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 
