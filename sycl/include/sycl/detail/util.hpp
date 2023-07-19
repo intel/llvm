@@ -11,10 +11,10 @@
 #ifndef __SYCL_DEVICE_ONLY
 
 #include <sycl/detail/defines.hpp>
-#include <sycl/stl.hpp>
 
 #include <cstring>
 #include <mutex>
+#include <vector>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

@@ -1,4 +1,4 @@
-// UNSUPPORTED: esimd_emulator
+// UNSUPPORTED: esimd_emulator, accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

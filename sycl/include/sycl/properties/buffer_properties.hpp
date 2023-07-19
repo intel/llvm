@@ -12,6 +12,8 @@
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/properties/property_traits.hpp>
 
+#include <mutex>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 

@@ -540,12 +540,18 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
   // TODO: Replace AttrList with a single attribute. The call can only have a
   // single FPAccuracy attribute.
   llvm::AttributeList AttrList;
+  // "sycl_used_aspects" metadata associated with the call.
+  llvm::Metadata *AspectMD = nullptr;
   // sincos() doesn't return a value, but it still has a type associated with
   // it that corresponds to the operand type.
   CGF.CGM.getFPAccuracyFuncAttributes(
-      Name, AttrList, ID,
+      Name, AttrList, AspectMD, ID,
       Name == "sincos" ? Args[0]->getType() : FPBuiltinF->getReturnType());
   CI->setAttributes(AttrList);
+
+  if (CGF.getLangOpts().SYCLIsDevice && AspectMD)
+    CI->setMetadata("sycl_used_aspects",
+                    llvm::MDNode::get(CGF.CGM.getLLVMContext(), AspectMD));
   return CI;
 }
 
@@ -22418,21 +22424,22 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     // Even if the current function doesn't have a clang builtin, create
     // an 'fpbuiltin-max-error' attribute for it; unless it's marked with
     // an NoBuiltin attribute.
-    if (!FD->hasAttr<NoBuiltinAttr>()) {
-      Name = FD->getName();
-      FPAccuracyIntrinsicID =
-          llvm::StringSwitch<unsigned>(Name)
-              .Case("fadd", llvm::Intrinsic::fpbuiltin_fadd)
-              .Case("fdiv", llvm::Intrinsic::fpbuiltin_fdiv)
-              .Case("fmul", llvm::Intrinsic::fpbuiltin_fmul)
-              .Case("fsub", llvm::Intrinsic::fpbuiltin_fsub)
-              .Case("frem", llvm::Intrinsic::fpbuiltin_frem)
-              .Case("sincos", llvm::Intrinsic::fpbuiltin_sincos)
-              .Case("exp10", llvm::Intrinsic::fpbuiltin_exp10)
-              .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt);
-    } else {
+    if (FD->hasAttr<NoBuiltinAttr>() ||
+        !FD->getNameInfo().getName().isIdentifier())
       return nullptr;
-    }
+
+    Name = FD->getName();
+    FPAccuracyIntrinsicID =
+        llvm::StringSwitch<unsigned>(Name)
+            .Case("fadd", llvm::Intrinsic::fpbuiltin_fadd)
+            .Case("fdiv", llvm::Intrinsic::fpbuiltin_fdiv)
+            .Case("fmul", llvm::Intrinsic::fpbuiltin_fmul)
+            .Case("fsub", llvm::Intrinsic::fpbuiltin_fsub)
+            .Case("frem", llvm::Intrinsic::fpbuiltin_frem)
+            .Case("sincos", llvm::Intrinsic::fpbuiltin_sincos)
+            .Case("exp10", llvm::Intrinsic::fpbuiltin_exp10)
+            .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt)
+            .Default(0);
   } else {
     // The function has a clang builtin. Create an attribute for it
     // only if it has an fpbuiltin intrinsic.
@@ -22512,6 +22519,9 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
       break;
     }
   }
+  if (!FPAccuracyIntrinsicID)
+    return nullptr;
+
   Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
   return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
                                    FPAccuracyIntrinsicID);

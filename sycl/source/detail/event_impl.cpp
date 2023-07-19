@@ -226,6 +226,12 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
 
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait method cannot be used for an event associated "
+                          "with a command graph.");
+  }
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;
