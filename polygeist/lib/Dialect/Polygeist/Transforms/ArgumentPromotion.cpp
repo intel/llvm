@@ -349,7 +349,8 @@ void Candidate::modifyCallee() {
     auto caller = call->getParentOfType<FunctionOpInterface>();
     if (isa<gpu::GPUFuncOp>(caller))
       continue;
-    polygeist::privatize(caller);
+    if (polygeist::isLinkonceODR(caller))
+      polygeist::privatize(caller);
   }
 }
 
