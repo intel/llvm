@@ -27,6 +27,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Support/LogicalResult.h"
 #include "mlir/Target/LLVMIR/LLVMTranslationInterface.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 
@@ -588,7 +589,7 @@ mlir::LLVM::detail::getTopologicallySortedBlocks(Region &region) {
   return blocks;
 }
 
-llvm::Value *mlir::LLVM::detail::createIntrinsicCall(
+llvm::CallInst *mlir::LLVM::detail::createIntrinsicCall(
     llvm::IRBuilderBase &builder, llvm::Intrinsic::ID intrinsic,
     ArrayRef<llvm::Value *> args, ArrayRef<llvm::Type *> tys) {
   llvm::Module *module = builder.GetInsertBlock()->getModule();
@@ -723,6 +724,14 @@ LogicalResult ModuleTranslation::convertGlobals() {
         op.getThreadLocal_() ? llvm::GlobalValue::GeneralDynamicTLSModel
                              : llvm::GlobalValue::NotThreadLocal,
         addrSpace);
+
+    if (std::optional<mlir::SymbolRefAttr> comdat = op.getComdat()) {
+      StringRef name = comdat->getLeafReference().getValue();
+      if (!llvmModule->getComdatSymbolTable().contains(name))
+        return emitError(op.getLoc(), "global references non-existant comdat");
+      llvm::Comdat *llvmComdat = llvmModule->getOrInsertComdat(name);
+      var->setComdat(llvmComdat);
+    }
 
     if (op.getUnnamedAddr().has_value())
       var->setUnnamedAddr(convertUnnamedAddrToLLVM(*op.getUnnamedAddr()));
@@ -1034,6 +1043,23 @@ LogicalResult ModuleTranslation::convertFunctions() {
       return failure();
   }
 
+  return success();
+}
+
+LogicalResult ModuleTranslation::convertComdats() {
+  for (ComdatOp comdat : getModuleBody(mlirModule).getOps<ComdatOp>()) {
+    for (ComdatSelectorOp selector : comdat.getOps<ComdatSelectorOp>()) {
+      StringRef name = selector.getName();
+      llvm::Module *module = getLLVMModule();
+      if (module->getComdatSymbolTable().contains(name)) {
+        return emitError(selector.getLoc())
+               << "comdat selection symbols must be unique even in different "
+                  "comdat regions";
+      }
+      llvm::Comdat *comdat = module->getOrInsertComdat(name);
+      comdat->setSelectionKind(convertComdatToLLVM(selector.getComdat()));
+    }
+  }
   return success();
 }
 
@@ -1372,6 +1398,8 @@ mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
   ModuleTranslation translator(module, std::move(llvmModule));
   if (failed(translator.convertFunctionSignatures()))
     return nullptr;
+  if (failed(translator.convertComdats()))
+    return nullptr;
   if (failed(translator.convertGlobals()))
     return nullptr;
   if (failed(translator.createAccessGroupMetadata()))
@@ -1387,7 +1415,7 @@ mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
   llvm::IRBuilder<> llvmBuilder(llvmContext);
   for (Operation &o : getModuleBody(module).getOperations()) {
     if (!isa<LLVM::LLVMFuncOp, LLVM::GlobalOp, LLVM::GlobalCtorsOp,
-             LLVM::GlobalDtorsOp, LLVM::MetadataOp>(&o) &&
+             LLVM::GlobalDtorsOp, LLVM::MetadataOp, LLVM::ComdatOp>(&o) &&
         !o.hasTrait<OpTrait::IsTerminator>() &&
         failed(translator.convertOperation(o, llvmBuilder))) {
       return nullptr;

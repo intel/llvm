@@ -8,7 +8,9 @@
 
 #pragma once
 #include <sycl/detail/export.hpp>
-#include <sycl/stl.hpp>
+
+#include <string>
+#include <vector>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
