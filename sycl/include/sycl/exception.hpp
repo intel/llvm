@@ -15,7 +15,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/pi.h>
-#include <sycl/stl.hpp>
 
 #include <exception>
 

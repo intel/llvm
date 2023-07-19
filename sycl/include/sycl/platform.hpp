@@ -17,10 +17,9 @@
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/stl.hpp>
 
-// 4.6.2 Platform class
 #include <utility>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // TODO: make code thread-safe

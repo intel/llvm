@@ -20,6 +20,7 @@
 #include <sycl/kernel.hpp>
 #include <sycl/known_identity.hpp>
 #include <sycl/properties/reduction_properties.hpp>
+#include <sycl/sycl_span.hpp>
 #include <sycl/usm.hpp>
 
 #include <optional>
