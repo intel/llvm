@@ -133,7 +133,7 @@ class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
-  // buffer_Location and alignment are allowed for annotated_ref
+  // buffer_location and alignment are allowed for annotated_ref
   using allowed_properties =
       std::tuple<decltype(buffer_location<0>), decltype(alignment<0>)>;
   using filtered_properties =
