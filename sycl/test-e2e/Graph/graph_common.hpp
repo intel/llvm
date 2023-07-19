@@ -254,6 +254,100 @@ add_kernels_usm(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   return ExitNode;
 }
 
+/// Adds a common series of nodes to a graph forming a diamond dependency
+/// structure using USM pointers for the inputs. Can be used for either Explicit
+/// or Record and Replay with the choice being dictated by defining one of
+/// GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY.
+///
+/// @param Graph Modifiable graph to add commands to.
+/// @param Queue Queue to be used for record and replay.
+/// @param Size Number of elements in the buffers.
+/// @param DataA Pointer to first USM allocation to use in kernels.
+/// @param DataB Pointer to second USM allocation to use in kernels.
+/// @param DataC Pointer to third USM allocation to use in kernels.
+///
+/// @return If using Explicit API this will be the last node added, if Record
+/// and Replay this will be an event corresponding to the last submission.
+template <typename T>
+auto add_nodes(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
+               queue Queue, const size_t Size, T *DataA, T *DataB, T *DataC) {
+#if defined(GRAPH_E2E_EXPLICIT)
+  return add_kernels_usm(Graph, Size, DataA, DataB, DataC);
+#elif defined(GRAPH_E2E_RECORD_REPLAY)
+  Graph.begin_recording(Queue);
+  auto ev = run_kernels_usm(Queue, Size, DataA, DataB, DataC);
+  Graph.end_recording(Queue);
+  return ev;
+#else
+#error                                                                         \
+    "Must define GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY to select an API"
+#endif
+}
+
+/// Adds a common series of nodes to a graph forming a diamond dependency
+/// structure using Buffers for the inputs. Can be used for either Explicit
+/// or Record and Replay with the choice being dictated by defining one of
+/// GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY.
+///
+/// @param Graph Modifiable graph to add commands to.
+/// @param Queue Queue to be used for record and replay.
+/// @param Size Number of elements in the buffers.
+/// @param BufferA First input/output to use in kernels.
+/// @param BufferB Second input/output to use in kernels.
+/// @param BufferC Third input/output to use in kernels.
+///
+/// @return If using Explicit API this will be the last node added, if Record
+/// and Replay API this will be an event corresponding to the last submission.
+template <typename T>
+auto add_nodes(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
+               queue Queue, const size_t Size, buffer<T> BufferA,
+               buffer<T> BufferB, buffer<T> BufferC) {
+#if defined(GRAPH_E2E_EXPLICIT)
+  return add_kernels(Graph, Size, BufferA, BufferB, BufferC);
+#elif defined(GRAPH_E2E_RECORD_REPLAY)
+  Graph.begin_recording(Queue);
+  auto ev = run_kernels(Queue, Size, BufferA, BufferB, BufferC);
+  Graph.end_recording(Queue);
+  return ev;
+#else
+#error                                                                         \
+    "Must define GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY to select an API"
+#endif
+}
+
+/// Adds a single node to the graph in an API agnostic way. Can be used for
+/// either Explicit or Record and Replay with the choice being dictated by
+/// defining one of GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY.
+///
+/// @tparam CGFunc Type of the command group function.
+/// @tparam DepT Type of all the dependencies.
+/// @param Graph Modifiable graph to add commands to.
+/// @param Queue Queue to be used for record and replay.
+/// @param CGF The command group function representing the node
+/// @param Deps Parameter pack of dependencies, if they are Nodes we pass them
+/// to explicit API add, otherwise they are ignored.
+/// @return If using the Explicit API this will be the node that was added, if
+/// Record and Replay this will be an event representing the submission.
+template <typename CGFunc, typename... DepT>
+auto add_node(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
+              queue Queue, CGFunc CGF, DepT... Deps) {
+#if defined(GRAPH_E2E_EXPLICIT)
+  if constexpr ((std::is_same_v<exp_ext::node, DepT> && ...)) {
+    return Graph.add(CGF, {exp_ext::property::node::depends_on(Deps...)});
+  } else {
+    return Graph.add(CGF);
+  }
+#elif defined(GRAPH_E2E_RECORD_REPLAY)
+  Graph.begin_recording(Queue);
+  auto ev = Queue.submit(CGF);
+  Graph.end_recording(Queue);
+  return ev;
+#else
+#error                                                                         \
+    "Must define GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY to select an API"
+#endif
+}
+
 // Values for dotp tests
 const float Alpha = 1.0f;
 const float Beta = 2.0f;
