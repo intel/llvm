@@ -17,7 +17,6 @@
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/stl.hpp>
 
 #include <memory>
 
