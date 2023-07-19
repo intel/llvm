@@ -1653,6 +1653,24 @@ block size.
 the finalize call either extending the basic command graph proposal
 or layered as a separate extension proposal.
 
+== Non-implemented features
+The following features are not yet or only partially implemented:
+
+. Extending lifetime of buffers used in a graph.
+. Buffer taking a copy of underlying host data when buffer is used in a graph.
+. Executable graph `update()`.
+. Using `handler::host_task` in a graph node.
+. Using `handler::fill` in a graph node implemented for USM only.
+. Using `handler::memset` in a graph node.
+. Using `handler::prefetch` in a graph node.
+. Using handler::memadvise in a graph node.
+. Using specialization constants in a graph node.
+. Using reductions in a graph node.
+. Using sycl streams in a graph node.
+. Thread safety of new methods.
+. Profiling an event returned from graph submission with `event::get_profiling_info()`.
+. Throwing exceptions for invalid usage is only partially implemented.
+
 == Revision History
 
 [cols="5,15,15,70"]
