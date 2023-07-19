@@ -1054,13 +1054,10 @@ ur_result_t urDeviceRelease(ur_device_handle_t Device) {
 }
 
 void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
-  // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
-  // host ptr import during buffer creation.
-  const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
-  if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
-    return;
-
-  // Check if USM hostptr import feature is available.
+  // Check if USM hostptr import feature is available. If yes, save the API
+  // pointers. The pointers will be used for both import/release of SYCL buffer
+  // host ptr and the SYCL experimental APIs, prepare_for_device_copy and
+  // release_from_device_copy.
   ze_driver_handle_t DriverHandle = Platform->ZeDriver;
   if (ZE_CALL_NOCHECK(
           zeDriverGetExtensionFunctionAddress,
@@ -1070,6 +1067,15 @@ void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
         zeDriverGetExtensionFunctionAddress,
         (DriverHandle, "zexDriverReleaseImportedPointer",
          reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
+    // Hostptr import/release is supported by this platform.
+    Supported = true;
+
+    // Check if env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
+    // host ptr import during buffer creation.
+    const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
+    if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
+      return;
+
     // Hostptr import/release is turned on because it has been requested
     // by the env var, and this platform supports the APIs.
     Enabled = true;
