@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -disable-llvm-passes -no-opaque-pointers -emit-llvm -internal-isystem %S/Inputs %s -o - | FileCheck %s
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 class kernel;
 // CHECK: [[STRUCT:%.*]] = type { i32, float }
 struct State {

@@ -1,11 +1,11 @@
-// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -verify -pedantic -fsyntax-only -x c++ %s
-// RUN: %clang_cc1 -verify -pedantic -fsyntax-only -x c++ %s
+// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -verify -pedantic -fsyntax-only -internal-isystem %S/Inputs %s
+// RUN: %clang_cc1 -verify -pedantic -fsyntax-only %s
 
-///argument to '__builtin_intel_sycl_ptr_annotation' must be a constant integer
 // This test makes sure that the compiler checks the semantics of
 // __builtin_intel_sycl_ptr_annotation built-in function arguments correctly.
 
 #ifdef __SYCL_DEVICE_ONLY__
+#include "sycl.hpp"
 static_assert(__has_builtin(__builtin_intel_sycl_ptr_annotation), "");
 struct State {
   int x;
@@ -52,16 +52,16 @@ void foo(float *A, int *B, State *C) {
   // expected-error@-1{{argument to '__builtin_intel_sycl_ptr_annotation' must be a constant integer}}
 }
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
-  kernelFunc();
-}
 int main() {
-  kernel_single_task<class fake_kernel>([]() {
-      float *A;
-      int *B;
-      State *C;
-      foo(A, B, C); });
+  sycl::queue q;
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class kernel>([=](){
+        float *A;
+        int *B;
+        State *C;
+        foo(A, B, C);
+    });
+  });
   return 0;
 }
 

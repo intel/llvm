@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -disable-llvm-passes -emit-llvm %s -internal-isystem %S/Inputs -o - | FileCheck %s
 
 // This test checks that using of __builtin_intel_sycl_ptr_annotation results in correct
 // generation of annotations in LLVM IR.
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 class kernel;
 // CHECK: [[STRUCT:%.*]] = type { i32, float }
 struct State {
