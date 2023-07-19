@@ -12,14 +12,9 @@
 constexpr unsigned VL = 8;
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
-extern "C" SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void vmult2(simd<float, VL> a) {
-  int i = __spirv_GlobalInvocationId_x();
-  a *= i;
-}
+extern "C" SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void foo() { barrier(); }
 
-// CHECK: define dso_local spir_func void @vmult2
-// CHECK:   call <3 x i32> @llvm.genx.local.id.v3i32()
-// CHECK:   call <3 x i32> @llvm.genx.local.size.v3i32()
-// CHECK:   call i32 @llvm.genx.group.id.x()
+// CHECK: define dso_local spir_func void @foo
+// CHECK: call void @llvm.genx.fence(i8 33)
+// CHECK: call void @llvm.genx.barrier()
 // CHECK:   ret void
-// CHECK: }

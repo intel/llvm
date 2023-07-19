@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/pi.h> // for pi_int32
 
-#include <cstdint>
+#include <array>
+#include <cassert>
+#include <memory>
 #include <string>
 
 // Default signature enables the passing of user code location information to
@@ -156,7 +156,7 @@ namespace detail {
 
 __SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
 
-static inline std::string codeToString(pi_int32 code) {
+inline std::string codeToString(pi_int32 code) {
   return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
                      ")");
 }

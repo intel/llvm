@@ -227,5 +227,18 @@ range(size_t, size_t)->range<2>;
 range(size_t, size_t, size_t)->range<3>;
 #endif
 
+namespace detail {
+// XPTI helpers for creating array from a range.
+inline std::array<size_t, 3> rangeToArray(const range<3> &r) {
+  return {r[0], r[1], r[2]};
+}
+inline std::array<size_t, 3> rangeToArray(const range<2> &r) {
+  return {r[0], r[1], 0};
+}
+inline std::array<size_t, 3> rangeToArray(const range<1> &r) {
+  return {r[0], 0, 0};
+}
+} // namespace detail
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

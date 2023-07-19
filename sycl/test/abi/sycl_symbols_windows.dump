@@ -221,6 +221,7 @@
 ??$get_property@Vcontext_bound@image@property@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVcontext_bound@image@property@12@XZ
 ??$get_property@Vdiscard_events@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVdiscard_events@0property@oneapi@ext@12@XZ
 ??$get_property@Venable_profiling@queue@property@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVenable_profiling@0property@12@XZ
+??$get_property@Vimmediate_command_list@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVimmediate_command_list@0property@intel@ext@12@XZ
 ??$get_property@Vin_order@queue@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVin_order@queue@property@23@XZ
 ??$get_property@Vin_order@queue@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVin_order@queue@property@12@XZ
 ??$get_property@Vin_order@queue@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVin_order@queue@property@23@XZ
@@ -237,6 +238,7 @@
 ??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVmem_channel@buffer@property@23@XZ
 ??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVmem_channel@buffer@property@12@XZ
 ??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVmem_channel@buffer@property@12@XZ
+??$get_property@Vno_immediate_command_list@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVno_immediate_command_list@0property@intel@ext@12@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVno_init@property@23@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVno_init@property@12@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVno_init@property@23@XZ
@@ -315,6 +317,7 @@
 ??$has_property@Vcontext_bound@image@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vdiscard_events@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Venable_profiling@queue@property@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
+??$has_property@Vimmediate_command_list@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vin_order@queue@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
@@ -331,6 +334,7 @@
 ??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
+??$has_property@Vno_immediate_command_list@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
@@ -1297,6 +1301,11 @@
 ?reset@filter_selector@oneapi@ext@_V1@sycl@@QEBAXXZ
 ?resize@AccessorImplHost@detail@_V1@sycl@@QEAAX_K@Z
 ?resize@buffer_impl@detail@_V1@sycl@@QEAAX_K@Z
+?sampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0AEBV?$optional@W4image_target@_V1@sycl@@@std@@PEBXIAEBUcode_location@123@@Z
+?sampledImageConstructorNotification@image_plain@detail@_V1@sycl@@IEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@AEBUimage_sampler@34@@Z
+?sampledImageConstructorNotification@image_impl@detail@_V1@sycl@@QEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@AEBUimage_sampler@34@@Z
+?sampledImageDestructorNotification@image_plain@detail@_V1@sycl@@IEAAXPEAX@Z
+?sampledImageDestructorNotification@image_impl@detail@_V1@sycl@@QEAAXPEAX@Z
 ?saveCodeLoc@handler@_V1@sycl@@AEAAXUcode_location@detail@23@@Z
 ?select_device@detail@_V1@sycl@@YA?AVdevice@23@AEBV?$function@$$A6AHAEBVdevice@_V1@sycl@@@Z@std@@@Z
 ?select_device@detail@_V1@sycl@@YA?AVdevice@23@AEBV?$function@$$A6AHAEBVdevice@_V1@sycl@@@Z@std@@AEBVcontext@23@@Z
@@ -4932,6 +4941,11 @@
 ?throwIfActionIsCreated@handler@_V1@sycl@@AEAAXXZ
 ?throw_asynchronous@queue@_V1@sycl@@QEAAXXZ
 ?unmap@MemoryManager@detail@_V1@sycl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@1V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
+?unsampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0AEBV?$optional@W4image_target@_V1@sycl@@@std@@W4mode@access@23@PEBXIAEBUcode_location@123@@Z
+?unsampledImageConstructorNotification@image_impl@detail@_V1@sycl@@QEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@@Z
+?unsampledImageConstructorNotification@image_plain@detail@_V1@sycl@@IEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@@Z
+?unsampledImageDestructorNotification@image_impl@detail@_V1@sycl@@QEAAXPEAX@Z
+?unsampledImageDestructorNotification@image_plain@detail@_V1@sycl@@IEAAXPEAX@Z
 ?unset_flag@stream@_V1@sycl@@AEBAXI@Z
 ?update@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$command_graph@$0A@@34567@@Z
 ?updateHostMemory@SYCLMemObjT@detail@_V1@sycl@@IEAAXQEAX@Z

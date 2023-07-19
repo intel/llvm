@@ -61,7 +61,6 @@ public:
     BarrierWaitlist = 6,
     Fill = 7,
     UpdateHost = 8,
-    RunOnHostIntel = 9,
     CopyUSM = 10,
     FillUSM = 11,
     PrefetchUSM = 12,
@@ -190,8 +189,7 @@ public:
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
-    assert((getType() == RunOnHostIntel || getType() == Kernel) &&
-           "Wrong type of exec kernel CG.");
+    assert(getType() == Kernel && "Wrong type of exec kernel CG.");
   }
 
   CGExecKernel(const CGExecKernel &CGExec) = default;

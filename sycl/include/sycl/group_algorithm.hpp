@@ -61,8 +61,7 @@ template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 template <>
-inline size_t
-get_local_linear_range<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
+inline size_t get_local_linear_range<sycl::sub_group>(sycl::sub_group g) {
   return g.get_local_range()[0];
 }
 
@@ -84,8 +83,8 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-inline ext::oneapi::sub_group::linear_id_type
-get_local_linear_id<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
+inline sycl::sub_group::linear_id_type
+get_local_linear_id<sycl::sub_group>(sycl::sub_group g) {
   return g.get_local_id()[0];
 }
 

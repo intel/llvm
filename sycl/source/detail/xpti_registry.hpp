@@ -37,6 +37,7 @@ inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern uint8_t GBufferStreamID;
+extern uint8_t GImageStreamID;
 extern uint8_t GMemAllocStreamID;
 extern xpti::trace_event_data_t *GMemAllocEvent;
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -56,6 +57,9 @@ constexpr const char *GVerStr = SYCL_VERSION_STR;
 inline constexpr const char *SYCL_BUFFER_STREAM_NAME =
     "sycl.experimental.buffer";
 
+// Stream name being used to notify about image objects.
+inline constexpr const char *SYCL_IMAGE_STREAM_NAME = "sycl.experimental.image";
+
 class XPTIRegistry {
 public:
   void initializeFrameworkOnce() {
@@ -65,6 +69,9 @@ public:
       // SYCL buffer events
       GBufferStreamID = xptiRegisterStream(SYCL_BUFFER_STREAM_NAME);
       this->initializeStream(SYCL_BUFFER_STREAM_NAME, 0, 1, "0.1");
+      // SYCL image events
+      GImageStreamID = xptiRegisterStream(SYCL_IMAGE_STREAM_NAME);
+      this->initializeStream(SYCL_IMAGE_STREAM_NAME, 0, 1, "0.1");
 
       // Memory allocation events
       GMemAllocStreamID = xptiRegisterStream(SYCL_MEM_ALLOC_STREAM_NAME);
@@ -111,6 +118,33 @@ public:
   static void bufferAccessorNotification(const void *, const void *, uint32_t,
                                          uint32_t,
                                          const detail::code_location &);
+
+  static void sampledImageConstructorNotification(const void *,
+                                                  const detail::code_location &,
+                                                  const void *, uint32_t,
+                                                  size_t[3], uint32_t, uint32_t,
+                                                  uint32_t, uint32_t);
+  static void sampledImageDestructorNotification(const void *);
+
+  static void unsampledImageConstructorNotification(
+      const void *, const detail::code_location &, const void *, uint32_t,
+      size_t[3], uint32_t);
+  static void unsampledImageDestructorNotification(const void *);
+
+  static void unsampledImageAccessorNotification(const void *, const void *,
+                                                 uint32_t, uint32_t,
+                                                 const void *, uint32_t,
+                                                 const detail::code_location &);
+  static void
+  unsampledImageHostAccessorNotification(const void *, const void *, uint32_t,
+                                         const void *, uint32_t,
+                                         const detail::code_location &);
+  static void sampledImageAccessorNotification(const void *, const void *,
+                                               uint32_t, const void *, uint32_t,
+                                               const detail::code_location &);
+  static void
+  sampledImageHostAccessorNotification(const void *, const void *, const void *,
+                                       uint32_t, const detail::code_location &);
 
 private:
   std::unordered_set<std::string> MActiveStreams;
@@ -206,21 +240,7 @@ public:
           MTraceType == (uint16_t)xpti::trace_point_type_t::diagnostics)
         return;
 
-      // The definition of the following trace point types have an error and
-      // cannot be fixed until the next ABI breakage window. Until then, we
-      // expclicity handle these cases. Once the types mem_alloc_end,
-      // mem_release_end and offload_alloc_destruct have been defined correctly,
-      // then all we need is (MTraceType = MTraceType | 1)
-      if (MTraceType == (uint16_t)xpti::trace_point_type_t::mem_alloc_begin) {
-        MTraceType = (uint16_t)xpti::trace_point_type_t::mem_alloc_end;
-      } else if (MTraceType ==
-                 (uint16_t)xpti::trace_point_type_t::mem_release_begin) {
-        MTraceType = (uint16_t)xpti::trace_point_type_t::mem_release_end;
-      } else if (MTraceType ==
-                 (uint16_t)xpti::trace_point_type_t::offload_alloc_construct) {
-        MTraceType = (uint16_t)xpti::trace_point_type_t::offload_alloc_destruct;
-      } else
-        MTraceType = MTraceType | 1;
+      MTraceType = MTraceType | 1;
 
       // Only notify for a trace type that has a begin/end
       xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
