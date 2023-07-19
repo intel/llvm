@@ -3,7 +3,6 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 #include <sycl/sycl.hpp>
 
-#include <cstdlib>
 #include <iostream>
 
 using namespace sycl;

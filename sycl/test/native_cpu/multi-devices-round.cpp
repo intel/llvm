@@ -27,7 +27,7 @@ int main() {
     });
   });
 
-  // Getting read only access to the buffer on the host.
+  // Getting read-only access to the buffer on the host.
   // Implicit barrier waiting for queue to complete the work.
   sycl::host_accessor HostAccessor{Buffer, sycl::read_only};
 
