@@ -510,6 +510,43 @@ mlir::LogicalResult hlfir::AnyOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// CountOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::CountOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  auto results = op->getResultTypes();
+  assert(results.size() == 1);
+  mlir::Value mask = getMask();
+  mlir::Value dim = getDim();
+
+  fir::SequenceType maskTy =
+      hlfir::getFortranElementOrSequenceType(mask.getType())
+          .cast<fir::SequenceType>();
+  llvm::ArrayRef<int64_t> maskShape = maskTy.getShape();
+
+  mlir::Type resultType = results[0];
+  if (auto resultExpr = mlir::dyn_cast_or_null<hlfir::ExprType>(resultType)) {
+    if (maskShape.size() > 1 && dim != nullptr) {
+      if (!resultExpr.isArray())
+        return emitOpError("result must be an array");
+
+      llvm::ArrayRef<int64_t> resultShape = resultExpr.getShape();
+      // Result has rank n-1
+      if (resultShape.size() != (maskShape.size() - 1))
+        return emitOpError("result rank must be one less than MASK");
+    } else {
+      return emitOpError("result must be of numerical scalar type");
+    }
+  } else if (!hlfir::isFortranScalarNumericalType(resultType)) {
+    return emitOpError("result must be of numerical scalar type");
+  }
+
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
 // ConcatOp
 //===----------------------------------------------------------------------===//
 
@@ -670,6 +707,53 @@ mlir::LogicalResult hlfir::SumOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// DotProductOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::DotProductOp::verify() {
+  mlir::Value lhs = getLhs();
+  mlir::Value rhs = getRhs();
+  fir::SequenceType lhsTy =
+      hlfir::getFortranElementOrSequenceType(lhs.getType())
+          .cast<fir::SequenceType>();
+  fir::SequenceType rhsTy =
+      hlfir::getFortranElementOrSequenceType(rhs.getType())
+          .cast<fir::SequenceType>();
+  llvm::ArrayRef<int64_t> lhsShape = lhsTy.getShape();
+  llvm::ArrayRef<int64_t> rhsShape = rhsTy.getShape();
+  std::size_t lhsRank = lhsShape.size();
+  std::size_t rhsRank = rhsShape.size();
+  mlir::Type lhsEleTy = lhsTy.getEleTy();
+  mlir::Type rhsEleTy = rhsTy.getEleTy();
+  mlir::Type resultTy = getResult().getType();
+
+  if ((lhsRank != 1) || (rhsRank != 1))
+    return emitOpError("both arrays must have rank 1");
+
+  int64_t lhsSize = lhsShape[0];
+  int64_t rhsSize = rhsShape[0];
+
+  if (lhsSize != rhsSize)
+    return emitOpError("both arrays must have the same size");
+
+  if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
+      mlir::isa<fir::LogicalType>(rhsEleTy))
+    return emitOpError("if one array is logical, so should the other be");
+
+  if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
+      mlir::isa<fir::LogicalType>(resultTy))
+    return emitOpError("the result type should be a logical only if the "
+                       "argument types are logical");
+
+  if (!hlfir::isFortranScalarNumericalType(resultTy) &&
+      !mlir::isa<fir::LogicalType>(resultTy))
+    return emitOpError(
+        "the result must be of scalar numerical or logical type");
+
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
 // MatmulOp
 //===----------------------------------------------------------------------===//
 
@@ -731,9 +815,11 @@ mlir::LogicalResult hlfir::MatmulOp::verify() {
   }
   if (resultShape.size() != expectedResultShape.size())
     return emitOpError("incorrect result shape");
-  if (resultShape[0] != expectedResultShape[0])
+  if (resultShape[0] != expectedResultShape[0] &&
+      expectedResultShape[0] != unknownExtent)
     return emitOpError("incorrect result shape");
-  if (resultShape.size() == 2 && resultShape[1] != expectedResultShape[1])
+  if (resultShape.size() == 2 && resultShape[1] != expectedResultShape[1] &&
+      expectedResultShape[1] != unknownExtent)
     return emitOpError("incorrect result shape");
 
   return mlir::success();
@@ -805,7 +891,10 @@ mlir::LogicalResult hlfir::TransposeOp::verify() {
   if (rank != 2 || resultRank != 2)
     return emitOpError("input and output arrays should have rank 2");
 
-  if (inShape[0] != resultShape[1] || inShape[1] != resultShape[0])
+  constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
+  if ((inShape[0] != resultShape[1]) && (inShape[0] != unknownExtent))
+    return emitOpError("output shape does not match input array");
+  if ((inShape[1] != resultShape[0]) && (inShape[1] != unknownExtent))
     return emitOpError("output shape does not match input array");
 
   if (eleTy != resultEleTy)

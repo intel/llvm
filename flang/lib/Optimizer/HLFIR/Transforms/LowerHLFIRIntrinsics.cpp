@@ -1,4 +1,4 @@
-//===- LowerHLFIRIntrinsics.cpp - Bufferize HLFIR  ------------------------===//
+//===- LowerHLFIRIntrinsics.cpp - Transformational intrinsics to FIR ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -37,7 +37,23 @@ namespace {
 /// runtime calls
 template <class OP>
 class HlfirIntrinsicConversion : public mlir::OpRewritePattern<OP> {
-  using mlir::OpRewritePattern<OP>::OpRewritePattern;
+public:
+  explicit HlfirIntrinsicConversion(mlir::MLIRContext *ctx)
+      : mlir::OpRewritePattern<OP>{ctx} {
+    // required for cases where intrinsics are chained together e.g.
+    // matmul(matmul(a, b), c)
+    // because converting the inner operation then invalidates the
+    // outer operation: causing the pattern to apply recursively.
+    //
+    // This is safe because we always progress with each iteration. Circular
+    // applications of operations are not expressible in MLIR because we use
+    // an SSA form and one must become first. E.g.
+    // %a = hlfir.matmul %b %d
+    // %b = hlfir.matmul %a %d
+    // cannot be written.
+    // MSVC needs the this->
+    this->setHasBoundedRewriteRecursion(true);
+  }
 
 protected:
   struct IntrinsicArgument {
@@ -246,6 +262,39 @@ using AnyOpConversion = HlfirReductionIntrinsicConversion<hlfir::AnyOp>;
 
 using AllOpConversion = HlfirReductionIntrinsicConversion<hlfir::AllOp>;
 
+struct CountOpConversion : public HlfirIntrinsicConversion<hlfir::CountOp> {
+  using HlfirIntrinsicConversion<hlfir::CountOp>::HlfirIntrinsicConversion;
+
+  mlir::LogicalResult
+  matchAndRewrite(hlfir::CountOp count,
+                  mlir::PatternRewriter &rewriter) const override {
+    fir::KindMapping kindMapping{rewriter.getContext()};
+    fir::FirOpBuilder builder{rewriter, kindMapping};
+    const mlir::Location &loc = count->getLoc();
+
+    mlir::Type i32 = builder.getI32Type();
+    mlir::Type logicalType = fir::LogicalType::get(
+        builder.getContext(), builder.getKindMap().defaultLogicalKind());
+
+    llvm::SmallVector<IntrinsicArgument, 3> inArgs;
+    inArgs.push_back({count.getMask(), logicalType});
+    inArgs.push_back({count.getDim(), i32});
+    inArgs.push_back({count.getKind(), i32});
+
+    auto *argLowering = fir::getIntrinsicArgumentLowering("count");
+    llvm::SmallVector<fir::ExtendedValue, 3> args =
+        lowerArguments(count, inArgs, rewriter, argLowering);
+
+    mlir::Type scalarResultType = hlfir::getFortranElementType(count.getType());
+
+    auto [resultExv, mustBeFreed] =
+        fir::genIntrinsicCall(builder, loc, "count", scalarResultType, args);
+
+    processReturnValue(count, resultExv, mustBeFreed, builder, rewriter);
+    return mlir::success();
+  }
+};
+
 struct MatmulOpConversion : public HlfirIntrinsicConversion<hlfir::MatmulOp> {
   using HlfirIntrinsicConversion<hlfir::MatmulOp>::HlfirIntrinsicConversion;
 
@@ -273,6 +322,38 @@ struct MatmulOpConversion : public HlfirIntrinsicConversion<hlfir::MatmulOp> {
         fir::genIntrinsicCall(builder, loc, "matmul", scalarResultType, args);
 
     processReturnValue(matmul, resultExv, mustBeFreed, builder, rewriter);
+    return mlir::success();
+  }
+};
+
+struct DotProductOpConversion
+    : public HlfirIntrinsicConversion<hlfir::DotProductOp> {
+  using HlfirIntrinsicConversion<hlfir::DotProductOp>::HlfirIntrinsicConversion;
+
+  mlir::LogicalResult
+  matchAndRewrite(hlfir::DotProductOp dotProduct,
+                  mlir::PatternRewriter &rewriter) const override {
+    fir::KindMapping kindMapping{rewriter.getContext()};
+    fir::FirOpBuilder builder{rewriter, kindMapping};
+    const mlir::Location &loc = dotProduct->getLoc();
+
+    mlir::Value lhs = dotProduct.getLhs();
+    mlir::Value rhs = dotProduct.getRhs();
+    llvm::SmallVector<IntrinsicArgument, 2> inArgs;
+    inArgs.push_back({lhs, lhs.getType()});
+    inArgs.push_back({rhs, rhs.getType()});
+
+    auto *argLowering = fir::getIntrinsicArgumentLowering("dot_product");
+    llvm::SmallVector<fir::ExtendedValue, 2> args =
+        lowerArguments(dotProduct, inArgs, rewriter, argLowering);
+
+    mlir::Type scalarResultType =
+        hlfir::getFortranElementType(dotProduct.getType());
+
+    auto [resultExv, mustBeFreed] = fir::genIntrinsicCall(
+        builder, loc, "dot_product", scalarResultType, args);
+
+    processReturnValue(dotProduct, resultExv, mustBeFreed, builder, rewriter);
     return mlir::success();
   }
 };
@@ -356,14 +437,15 @@ public:
     mlir::RewritePatternSet patterns(context);
     patterns.insert<MatmulOpConversion, MatmulTransposeOpConversion,
                     AllOpConversion, AnyOpConversion, SumOpConversion,
-                    ProductOpConversion, TransposeOpConversion>(context);
+                    ProductOpConversion, TransposeOpConversion,
+                    CountOpConversion, DotProductOpConversion>(context);
     mlir::ConversionTarget target(*context);
     target.addLegalDialect<mlir::BuiltinDialect, mlir::arith::ArithDialect,
                            mlir::func::FuncDialect, fir::FIROpsDialect,
                            hlfir::hlfirDialect>();
     target.addIllegalOp<hlfir::MatmulOp, hlfir::MatmulTransposeOp, hlfir::SumOp,
                         hlfir::ProductOp, hlfir::TransposeOp, hlfir::AnyOp,
-                        hlfir::AllOp>();
+                        hlfir::AllOp, hlfir::DotProductOp, hlfir::CountOp>();
     target.markUnknownOpDynamicallyLegal(
         [](mlir::Operation *) { return true; });
     if (mlir::failed(

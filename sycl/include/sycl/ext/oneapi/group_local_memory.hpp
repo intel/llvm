@@ -54,7 +54,7 @@ std::enable_if_t<
   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
       __sycl_allocateLocalMemory(sizeof(T), alignof(T));
   if (g.get_local_linear_id() == 0)
-    new (AllocatedMem) T(std::forward<Args>(args)...);
+    new (AllocatedMem) T{std::forward<Args>(args)...};
   sycl::detail::workGroupBarrier();
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else

@@ -11,6 +11,7 @@
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #include <sycl/detail/group_sort_impl.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/sycl_span.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

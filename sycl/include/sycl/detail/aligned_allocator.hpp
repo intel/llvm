@@ -11,11 +11,9 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 
-#include <cstdlib>
-#include <cstring>
+#include <limits>
 #include <memory>
-#include <type_traits>
-#include <vector>
+#include <new>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
