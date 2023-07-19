@@ -81,9 +81,9 @@ aligned_alloc_annotated(size_t alignment, size_t count,
                         const device &syclDevice, const context &syclContext,
                         alloc kind,
                         const propertyListA &propList = properties{}) {
-  return {(T *)aligned_alloc_annotated(alignment, count * sizeof(T), syclDevice,
+  return {static_cast<T *>(aligned_alloc_annotated(alignment, count * sizeof(T), syclDevice,
                                        syclContext, kind, propList)
-              .get()};
+              .get())};
 }
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -130,9 +130,9 @@ std::enable_if_t<CheckTAndPropLists<T, propertyListA, propertyListB>::value,
 malloc_annotated(size_t count, const device &syclDevice,
                  const context &syclContext, alloc kind,
                  const propertyListA &propList = properties{}) {
-  return {(T *)malloc_annotated(count * sizeof(T), syclDevice, syclContext,
+  return {static_cast<T *>(malloc_annotated(count * sizeof(T), syclDevice, syclContext,
                                 kind, propList)
-              .get()};
+              .get())};
 }
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -183,9 +183,9 @@ std::enable_if_t<CheckTAndPropLists<T, propertyListA, propertyListB>::value,
                  annotated_ptr<T, propertyListB>>
 malloc_annotated(size_t count, const device &syclDevice,
                  const context &syclContext, const propertyListA &propList) {
-  return {(T *)malloc_annotated(count * sizeof(T), syclDevice, syclContext,
+  return {static_cast<T *>(malloc_annotated(count * sizeof(T), syclDevice, syclContext,
                                 propList)
-              .get()};
+              .get())};
 }
 
 template <typename propertyListA,

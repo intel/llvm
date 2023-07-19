@@ -52,9 +52,9 @@ aligned_alloc_host_annotated(size_t alignment, size_t count,
 
                              const context &syclContext,
                              const propertyListA &propList = properties{}) {
-  return {(T *)aligned_alloc_host_annotated(alignment, count * sizeof(T),
+  return {static_cast<T *>(aligned_alloc_host_annotated(alignment, count * sizeof(T),
                                             syclContext, propList)
-              .get()};
+              .get())};
 }
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -106,8 +106,8 @@ std::enable_if_t<
     annotated_ptr<T, propertyListB>>
 malloc_host_annotated(size_t count, const context &syclContext,
                       const propertyListA &propList = properties{}) {
-  return {(T *)malloc_host_annotated(count * sizeof(T), syclContext, propList)
-              .get()};
+  return {static_cast<T *>(malloc_host_annotated(count * sizeof(T), syclContext, propList)
+              .get())};
 }
 
 template <typename propertyListA = detail::empty_properties_t,

@@ -53,9 +53,9 @@ aligned_alloc_shared_annotated(size_t alignment, size_t count,
                                const device &syclDevice,
                                const context &syclContext,
                                const propertyListA &propList = properties{}) {
-  return {(T *)aligned_alloc_shared_annotated(alignment, count * sizeof(T),
+  return {static_cast<T *>(aligned_alloc_shared_annotated(alignment, count * sizeof(T),
                                               syclDevice, syclContext, propList)
-              .get()};
+              .get())};
 }
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -112,9 +112,9 @@ std::enable_if_t<
 malloc_shared_annotated(size_t count, const device &syclDevice,
                         const context &syclContext,
                         const propertyListA &propList = properties{}) {
-  return {(T *)malloc_shared_annotated(count * sizeof(T), syclDevice,
+  return {static_cast<T *>(malloc_shared_annotated(count * sizeof(T), syclDevice,
                                        syclContext, propList)
-              .get()};
+              .get())};
 }
 
 template <typename propertyListA = detail::empty_properties_t,
