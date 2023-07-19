@@ -205,42 +205,6 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16_math_functions, bool,
                          PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS)
 
-// Bindless images support
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bindless_images, bool,
-                         PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(
-    device, ext_oneapi_bindless_images_shared_usm, bool,
-    PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(
-    device, ext_oneapi_bindless_images_1d_usm, bool,
-    PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(
-    device, ext_oneapi_bindless_images_2d_usm, bool,
-    PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT)
-
-// Bindless images interop
-__SYCL_PARAM_TRAITS_SPEC(
-    device, ext_oneapi_interop_memory_import, bool,
-    PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(
-    device, ext_oneapi_interop_memory_export, bool,
-    PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(
-    device, ext_oneapi_interop_semaphore_import, bool,
-    PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(
-    device, ext_oneapi_interop_semaphore_export, bool,
-    PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT)
-
-// Bindless images mipmaps
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_mipmap, bool,
-                         PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_mipmap_anisotropy, bool,
-                         PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(
-    device, ext_oneapi_mipmap_level_reference, bool,
-    PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT)
-
 //Deprecated oneapi/intel extension
 //TODO:Remove when possible
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_pci_address, std::string,
