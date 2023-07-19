@@ -27,7 +27,7 @@ namespace polygeist {
 
 raw_ostream &operator<<(raw_ostream &os, const BufferInformation &info) {
   os.indent(4) << "Sub-Buffer: ";
-  switch (info.isSubBuffer()) {
+  switch (info.getSubBuffer()) {
   case SubBufferLattice::YES:
     os << "Yes";
     break;
@@ -46,7 +46,7 @@ raw_ostream &operator<<(raw_ostream &os, const BufferInformation &info) {
   } else {
     os << "<unknown>\n";
   }
-  if (info.isSubBuffer() == SubBufferLattice::YES) {
+  if (info.getSubBuffer() == SubBufferLattice::YES) {
     os.indent(4) << "Base buffer: ";
     if (info.hasKnownBaseBuffer())
       os << info.getKnownBaseBuffer();
@@ -191,7 +191,7 @@ SYCLBufferAnalysis::getBufferInformationFromConstruction(Operation *op,
     } else {
       info = info.join(getInformation(def), *aliasAnalysis);
       if (!info.hasConstantSize() &&
-          info.isSubBuffer() == SubBufferLattice::MAYBE)
+          info.getSubBuffer() == SubBufferLattice::MAYBE)
         // Early return: As soon as joining of the different information has led
         // to an info with no fixed size and no definitive sub-buffer
         // information, we can end the processing.
@@ -203,7 +203,7 @@ SYCLBufferAnalysis::getBufferInformationFromConstruction(Operation *op,
     for (const Definition &def : *pMods) {
       info = info.join(getInformation(def), *aliasAnalysis);
       if (!info.hasConstantSize() &&
-          info.isSubBuffer() == SubBufferLattice::MAYBE)
+          info.getSubBuffer() == SubBufferLattice::MAYBE)
         // Early return: As soon as joining of the different information has led
         // to an info with no fixed size and no definitive sub-buffer
         // information, we can end the processing.

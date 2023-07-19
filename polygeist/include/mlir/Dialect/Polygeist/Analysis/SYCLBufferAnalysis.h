@@ -48,7 +48,7 @@ public:
 
   /// Returns information about whether this buffer is a sub-buffer of another
   /// buffer.
-  SubBufferLattice isSubBuffer() const { return subBuf; }
+  SubBufferLattice getSubBuffer() const { return subBuf; }
 
   /// Returns true if this sub-buffer is always constructed with the same base
   /// buffer.
