@@ -71,10 +71,20 @@ namespace detail {
 class queue_impl;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-static event submitAssertCapture(queue &, event &, queue *,
+inline event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
 } // namespace detail
+
+namespace ext {
+namespace oneapi {
+namespace experimental {
+// State of a queue with regards to graph recording,
+// returned by info::queue::state
+enum class queue_state { executing, recording };
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
@@ -282,6 +292,9 @@ public:
 
   /// \return SYCL device this queue was constructed with.
   device get_device() const;
+
+  /// \return State the queue is currently in.
+  ext::oneapi::experimental::queue_state ext_oneapi_get_state() const;
 
   /// \return true if this queue is a SYCL host queue.
   __SYCL2020_DEPRECATED(

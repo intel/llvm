@@ -1,0 +1,84 @@
+name: SYCL Pre Commit on Windows
+
+on:
+  pull_request_target:
+    branches:
+    - sycl
+    - sycl-devops-pr/**
+    - llvmspirv_pulldown
+    # Do not run builds if changes are only in the following locations
+    paths-ignore:
+    - '.github/ISSUE_TEMPLATE/**'
+    - '.github/CODEOWNERS'
+    - 'sycl/doc/**'
+    - 'sycl/gdb/**'
+    - 'clang/docs/**'
+    - '**.md'
+    - '**.rst'
+    # For CI-related files we explicitly skip all the jobs below even if there
+    # were other (non-ignored) files modified in this PR.
+    - 'devops/*/**'
+
+permissions:
+  contents: read
+
+jobs:
+  detect_changes:
+    uses: ./.github/workflows/sycl_detect_changes.yml
+
+  lint:
+    needs: [detect_changes]
+    if: |
+      !contains(needs.detect_changes.outputs.filters, 'ci')
+    runs-on: [Linux, build]
+    container:
+      image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
+      options: -u 1001:1001
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ github.base_ref }}
+        sparse-checkout: |
+          devops/actions/cached_checkout
+          devops/actions/clang-format
+          devops/actions/cleanup
+    - name: Register cleanup after job is finished
+      uses: ./devops/actions/cleanup
+    - name: 'PR commits + 2'
+      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 2 ))" >> "${GITHUB_ENV}"
+    - uses: ./devops/actions/cached_checkout
+      with:
+        path: src
+        fetch-depth: ${{ env.PR_FETCH_DEPTH }}
+        ref: ${{ github.event.pull_request.head.sha }}
+        merge_ref: ''
+        cache_path: "/__w/repo_cache/"
+    - name: Run clang-format
+      uses: ./devops/actions/clang-format
+      with:
+        path: src
+
+  # This job generates matrix of tests for SYCL End-to-End tests
+  test_matrix:
+    needs: [detect_changes]
+    if: |
+      !contains(needs.detect_changes.outputs.filters, 'ci')
+    name: Generate Test Matrix
+    uses: ./.github/workflows/sycl_gen_test_matrix.yml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+      lts_config: "win_l0_gen12"
+
+  windows_default:
+    name: Windows
+    needs: [lint, test_matrix, detect_changes]
+    if: |
+      always()
+      && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+      && github.repository == 'intel/llvm'
+      && !contains(needs.detect_changes.outputs.filters, 'ci')
+    uses: ./.github/workflows/sycl_windows_build_and_test.yml
+    with:
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
+      build_ref: ${{ github.event.pull_request.head.sha }}
+      check_filters: ${{ needs.detect_changes.outputs.filters }}

@@ -186,6 +186,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
+    // Return supported for the UR command-buffer experimental feature
+    SupportedExtensions += ("ur_exp_command_buffer ");
+
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_NAME:

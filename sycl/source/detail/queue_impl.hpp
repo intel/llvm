@@ -32,6 +32,8 @@
 #include <sycl/queue.hpp>
 #include <sycl/stl.hpp>
 
+#include "detail/graph_impl.hpp"
+
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
