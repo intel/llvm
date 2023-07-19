@@ -62,7 +62,7 @@ is something we are interested in expanding on.
 | Using `handler::host_task` in a graph node                         | Not implemented - Assert: "getCGCopy() const: Assertion `false' failed."       |
 | Using `handler::fill` in a graph node                              | Implemented for USM, not implemented for buffer accessors - Exception: "CG type not implemented for command buffers" |
 | Using `handler::memset` in a graph node                            | Not implemented - Exception: "CG type not implemented for command buffers"       |
-| Using `handler::prefech` in a graph node                           | Not implemented - Exception: "CG type not implemented for command buffers"       |
+| Using `handler::prefetch` in a graph node                          | Not implemented - Exception: "CG type not implemented for command buffers"       |
 | Using `handler::memadvise` in a graph node                         | Not implemented - Exception: "CG type not implemented for command buffers"       |
 | Using specialization constants in a graph node                     | Not implemented - Segmentation fault      |
 | Using reductions in a graph node                                   | Not implemented - Segmentation fault      |
