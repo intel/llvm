@@ -731,6 +731,9 @@ params:
       name: phNativeDevice
       desc: |
             [out] a pointer to the native handle of the device.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Native device creation properties"
@@ -768,6 +771,9 @@ params:
     - type: "$x_device_handle_t*"
       name: phDevice
       desc: "[out] pointer to the handle of the device object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Returns synchronized Host and Device global timestamps."

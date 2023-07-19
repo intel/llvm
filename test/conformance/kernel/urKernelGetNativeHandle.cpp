@@ -10,7 +10,9 @@ UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelGetNativeHandleTest);
 
 TEST_P(urKernelGetNativeHandleTest, Success) {
     ur_native_handle_t native_kernel_handle = nullptr;
-    ASSERT_SUCCESS(urKernelGetNativeHandle(kernel, &native_kernel_handle));
+    if (auto error = urKernelGetNativeHandle(kernel, &native_kernel_handle)) {
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
+    }
 }
 
 TEST_P(urKernelGetNativeHandleTest, InvalidNullHandleKernel) {

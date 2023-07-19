@@ -514,6 +514,9 @@ params:
       name: phNativeProgram
       desc: |
             [out] a pointer to the native handle of the program.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Native program creation properties"
@@ -551,3 +554,6 @@ params:
     - type: "$x_program_handle_t*"
       name: phProgram
       desc: "[out] pointer to the handle of the program object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
