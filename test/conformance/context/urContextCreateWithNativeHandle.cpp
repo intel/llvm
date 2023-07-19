@@ -10,7 +10,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextCreateWithNativeHandleTest);
 
 TEST_P(urContextCreateWithNativeHandleTest, Success) {
     ur_native_handle_t native_context = nullptr;
-    ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
+    if (urContextGetNativeHandle(context, &native_context)) {
+        GTEST_SKIP();
+    }
 
     // We cannot assume anything about a native_handle, not even if it's
     // `nullptr` since this could be a valid representation within a backend.

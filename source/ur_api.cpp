@@ -513,6 +513,8 @@ ur_result_t UR_APICALL urPlatformGetApiVersion(
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativePlatform`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform.
     ur_native_handle_t *
@@ -538,6 +540,8 @@ ur_result_t UR_APICALL urPlatformGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPlatform`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         hNativePlatform, ///< [in][nocheck] the native handle of the platform.
@@ -854,6 +858,8 @@ ur_result_t UR_APICALL urDeviceSelectBinary(
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ///< [in] handle of the device.
     ur_native_handle_t
@@ -881,6 +887,8 @@ ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t
         hNativeDevice, ///< [in][nocheck] the native handle of the device.
@@ -1094,6 +1102,8 @@ ur_result_t UR_APICALL urContextGetInfo(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeContext`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ///< [in] handle of the context.
     ur_native_handle_t *
@@ -1120,6 +1130,8 @@ ur_result_t UR_APICALL urContextGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
 ///         + `NULL == phContext`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
         hNativeContext,  ///< [in][nocheck] the native handle of the context.
@@ -1371,6 +1383,8 @@ ur_result_t UR_APICALL urMemBufferPartition(
 ///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeMem`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_native_handle_t
@@ -1397,6 +1411,8 @@ ur_result_t UR_APICALL urMemGetNativeHandle(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phMem`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ur_native_handle_t
         hNativeMem, ///< [in][nocheck] the native handle to the memory.
@@ -1429,6 +1445,8 @@ ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
 ///         + `NULL == phMem`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     ur_native_handle_t
         hNativeMem, ///< [in][nocheck] the native handle to the memory.
@@ -1698,6 +1716,8 @@ ur_result_t UR_APICALL urSamplerGetInfo(
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeSampler`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urSamplerGetNativeHandle(
     ur_sampler_handle_t hSampler, ///< [in] handle of the sampler.
     ur_native_handle_t *
@@ -1725,6 +1745,8 @@ ur_result_t UR_APICALL urSamplerGetNativeHandle(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phSampler`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
         hNativeSampler, ///< [in][nocheck] the native handle of the sampler.
@@ -2765,6 +2787,8 @@ ur_result_t UR_APICALL urProgramSetSpecializationConstants(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeProgram`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_program_handle_t hProgram, ///< [in] handle of the program.
     ur_native_handle_t *
@@ -2792,6 +2816,8 @@ ur_result_t UR_APICALL urProgramGetNativeHandle(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t
         hNativeProgram, ///< [in][nocheck] the native handle of the program.
@@ -3248,6 +3274,8 @@ ur_result_t UR_APICALL urKernelSetSpecializationConstants(
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeKernel`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
     ur_native_handle_t
@@ -3276,6 +3304,8 @@ ur_result_t UR_APICALL urKernelGetNativeHandle(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phKernel`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t
         hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
@@ -3452,6 +3482,8 @@ ur_result_t UR_APICALL urQueueRelease(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeQueue`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue.
     ur_queue_native_desc_t
@@ -3482,6 +3514,8 @@ ur_result_t UR_APICALL urQueueGetNativeHandle(
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phQueue`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t
         hNativeQueue, ///< [in][nocheck] the native handle of the queue.
@@ -3736,6 +3770,8 @@ ur_result_t UR_APICALL urEventRelease(
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeEvent`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_event_handle_t hEvent, ///< [in] handle of the event.
     ur_native_handle_t
@@ -3763,6 +3799,8 @@ ur_result_t UR_APICALL urEventGetNativeHandle(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t
         hNativeEvent, ///< [in][nocheck] the native handle of the event.

@@ -9,7 +9,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetNativeHandleTest);
 
 TEST_P(urQueueGetNativeHandleTest, Success) {
     ur_native_handle_t native_handle = nullptr;
-    ASSERT_SUCCESS(urQueueGetNativeHandle(queue, nullptr, &native_handle));
+    if (auto error = urQueueGetNativeHandle(queue, nullptr, &native_handle)) {
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
+    }
 }
 
 TEST_P(urQueueGetNativeHandleTest, InvalidNullHandleQueue) {

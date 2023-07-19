@@ -487,6 +487,9 @@ params:
       name: phNativeKernel
       desc: |
             [out] a pointer to the native handle of the kernel.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Properties for for $xKernelCreateWithNativeHandle."
@@ -529,3 +532,6 @@ params:
       name: phKernel
       desc: |
             [out] pointer to the handle of the kernel object created.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."

@@ -8,7 +8,9 @@
 struct urKernelCreateWithNativeHandleTest : uur::urKernelTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
-        ASSERT_SUCCESS(urKernelGetNativeHandle(kernel, &native_kernel_handle));
+        if (urKernelGetNativeHandle(kernel, &native_kernel_handle)) {
+            GTEST_SKIP();
+        }
     }
 
     void TearDown() override {

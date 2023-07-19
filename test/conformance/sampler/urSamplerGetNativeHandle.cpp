@@ -11,7 +11,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerGetNativeHandleTest);
 
 TEST_P(urSamplerGetNativeHandleTest, Success) {
     ur_native_handle_t native_sampler = nullptr;
-    ASSERT_SUCCESS(urSamplerGetNativeHandle(sampler, &native_sampler));
+    if (auto error = urSamplerGetNativeHandle(sampler, &native_sampler)) {
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
+    }
 }
 
 TEST_P(urSamplerGetNativeHandleTest, InvalidNullHandleSampler) {
