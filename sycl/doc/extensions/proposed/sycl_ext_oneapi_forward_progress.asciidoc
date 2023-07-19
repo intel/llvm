@@ -479,10 +479,11 @@ struct max_num_sub_groups;
 when the kernel is submitted to the specified queue.
 
 |`max_num_work_groups`
-|`sycl::queue`, `sycl::range`
+|`sycl::queue`, `sycl::range`, `size_t`
 |`size_t`
 |Returns the maximum number of work-groups, when the kernel is submitted to the
-specified queue with the specified work-group size.
+specified queue with the specified work-group size and the specified amount of
+work-group local memory (in bytes).
 
 |`max_sub_group_size`
 |`sycl::queue`, `sycl::range`
