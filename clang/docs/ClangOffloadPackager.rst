@@ -126,7 +126,7 @@ array of the :ref:`string entry<table-binary_string>` format.
     +----------+--------------+-------------------------------------------------------+
     |   Type   |   Identifier | Description                                           |
     +==========+==============+=======================================================+
-    | uint64_t | key offset   | Absolute byte offset of the key in th string table    |
+    | uint64_t |  key offset  | Absolute byte offset of the key in th string table    |
     +----------+--------------+-------------------------------------------------------+
     | uint64_t | value offset | Absolute byte offset of the value in the string table |
     +----------+--------------+-------------------------------------------------------+
