@@ -41,8 +41,8 @@ public:
                       bool hasRange, llvm::ArrayRef<size_t> constRange,
                       bool hasOffset, llvm::ArrayRef<size_t> constOffset)
       : buffer{buf}, bufferInfo{bufInfo}, needRange{hasRange},
-        constantRange{constRange}, needOffset{hasOffset}, constantOffset{
-                                                              constOffset} {}
+        constantRange{constRange}, needOffset{hasOffset},
+        constantOffset{constOffset} {}
 
   bool hasKnownBuffer() const { return buffer != nullptr; }
 
@@ -74,7 +74,7 @@ public:
                                  AliasAnalysis &aliasAnalysis) const;
 
   AliasResult alias(const AccessorInformation &other,
-                       AliasAnalysis &aliasAnalysis) const;
+                    AliasAnalysis &aliasAnalysis) const;
 
 private:
   Value buffer;
