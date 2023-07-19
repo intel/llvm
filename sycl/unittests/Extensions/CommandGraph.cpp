@@ -592,3 +592,105 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
   ASSERT_EQ(*ScheduleIt, PtrNode2);
   ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
 }
+
+TEST_F(CommandGraphTest, MakeEdgeErrors) {
+  // Set up some nodes in the graph
+  auto NodeA = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+  auto NodeB = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  // Test error on calling make_edge when a queue is recording to the graph
+  Graph.begin_recording(Queue);
+  ASSERT_THROW(
+      {
+        try {
+          Graph.make_edge(NodeA, NodeB);
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+
+  Graph.end_recording(Queue);
+
+  // Test error on Src and Dest being the same
+  ASSERT_THROW(
+      {
+        try {
+          Graph.make_edge(NodeA, NodeA);
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+
+  // Test Src or Dest not being found in the graph
+  experimental::command_graph<experimental::graph_state::modifiable> GraphOther{
+      Queue.get_context(), Queue.get_device()};
+  auto NodeOther = GraphOther.add(
+      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+
+  ASSERT_THROW(
+      {
+        try {
+          Graph.make_edge(NodeA, NodeOther);
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+  ASSERT_THROW(
+      {
+        try {
+          Graph.make_edge(NodeOther, NodeB);
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+
+  // Test that adding a cycle with cycle checks leaves the graph in the correct
+  // state.
+
+  auto CheckGraphStructure = [&]() {
+    auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+    auto NodeAImpl = sycl::detail::getSyclObjImpl(NodeA);
+    auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
+
+    ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
+    ASSERT_EQ(*(GraphImpl->MRoots.begin()), NodeAImpl);
+
+    ASSERT_EQ(NodeAImpl->MSuccessors.size(), 1lu);
+    ASSERT_EQ(NodeAImpl->MPredecessors.size(), 0lu);
+    ASSERT_EQ(NodeAImpl->MSuccessors.front(), NodeBImpl);
+
+    ASSERT_EQ(NodeBImpl->MSuccessors.size(), 0lu);
+    ASSERT_EQ(NodeBImpl->MPredecessors.size(), 1lu);
+    ASSERT_EQ(NodeBImpl->MPredecessors.front().lock(), NodeAImpl);
+  };
+  // Make a normal edge
+  ASSERT_NO_THROW(Graph.make_edge(NodeA, NodeB));
+
+  // Check the expected structure of the graph
+  CheckGraphStructure();
+
+  // Introduce a cycle, make sure it throws
+  ASSERT_THROW(
+      {
+        try {
+          Graph.make_edge(NodeB, NodeA);
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+
+  // Re-check graph structure to make sure the graph state has not been modified
+  CheckGraphStructure();
+}

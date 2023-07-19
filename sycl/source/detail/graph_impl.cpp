@@ -15,6 +15,8 @@
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
+#include <deque>
+
 // Developer switch to use emulation mode on all backends, even those that
 // report native support, this is useful for debugging.
 #define FORCE_EMULATION_MODE 0
@@ -70,6 +72,40 @@ bool checkForRequirement(sycl::detail::AccessorImplHost *Req,
     return true;
   }
   return SuccessorAddedDep;
+}
+
+/// Visits a node on the graph and it's successors recursively in a depth-first
+/// approach.
+/// @param[in] Node The current node being visited.
+/// @param[in,out] VisitedNodes A set of unique nodes which have already been
+/// visited.
+/// @param[in] NodeStack Stack of nodes which are currently being visited on the
+/// current path through the graph.
+/// @param[in] NodeFunc The function object to be run on each node. A return
+/// value of true indicates the search should be ended immediately and the
+/// function will return.
+/// @return True if the search should end immediately, false if not.
+bool visitNodeDepthFirst(
+    std::shared_ptr<node_impl> Node,
+    std::set<std::shared_ptr<node_impl>> &VisitedNodes,
+    std::deque<std::shared_ptr<node_impl>> &NodeStack,
+    std::function<bool(std::shared_ptr<node_impl> &,
+                       std::deque<std::shared_ptr<node_impl>> &)>
+        NodeFunc) {
+  auto EarlyReturn = NodeFunc(Node, NodeStack);
+  if (EarlyReturn) {
+    return true;
+  }
+  NodeStack.push_back(Node);
+  Node->MVisited = true;
+  VisitedNodes.emplace(Node);
+  for (auto &Successor : Node->MSuccessors) {
+    if (visitNodeDepthFirst(Successor, VisitedNodes, NodeStack, NodeFunc)) {
+      return true;
+    }
+  }
+  NodeStack.pop_back();
+  return false;
 }
 } // anonymous namespace
 
@@ -224,6 +260,105 @@ bool graph_impl::clearQueues() {
   MRecordingQueues.clear();
 
   return AnyQueuesCleared;
+}
+
+void graph_impl::searchDepthFirst(
+    std::function<bool(std::shared_ptr<node_impl> &,
+                       std::deque<std::shared_ptr<node_impl>> &)>
+        NodeFunc) {
+  // Track nodes visited during the search which can be used by NodeFunc in
+  // depth first search queries. Currently unusued but is an
+  // integral part of depth first searches.
+  std::set<std::shared_ptr<node_impl>> VisitedNodes;
+
+  for (auto &Root : MRoots) {
+    std::deque<std::shared_ptr<node_impl>> NodeStack;
+    if (visitNodeDepthFirst(Root, VisitedNodes, NodeStack, NodeFunc)) {
+      break;
+    }
+  }
+
+  // Reset the visited status of all nodes encountered in the search.
+  for (auto &Node : VisitedNodes) {
+    Node->MVisited = false;
+  }
+}
+
+bool graph_impl::checkForCycles() {
+  // Using a depth-first search and checking if we vist a node more than once in
+  // the current path to identify if there are cycles.
+  bool CycleFound = false;
+  auto CheckFunc = [&](std::shared_ptr<node_impl> &Node,
+                       std::deque<std::shared_ptr<node_impl>> &NodeStack) {
+    // If the current node has previously been found in the current path through
+    // the graph then we have a cycle and we end the search early.
+    if (std::find(NodeStack.begin(), NodeStack.end(), Node) !=
+        NodeStack.end()) {
+      CycleFound = true;
+      return true;
+    }
+    return false;
+  };
+  searchDepthFirst(CheckFunc);
+  return CycleFound;
+}
+
+void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
+                          std::shared_ptr<node_impl> Dest) {
+  if (MRecordingQueues.size()) {
+    throw sycl::exception(make_error_code(sycl::errc::invalid),
+                          "make_edge() cannot be called when a queue is "
+                          "currently recording commands to a graph.");
+  }
+  if (Src == Dest) {
+    throw sycl::exception(
+        make_error_code(sycl::errc::invalid),
+        "make_edge() cannot be called when Src and Dest are the same.");
+  }
+
+  bool SrcFound = false;
+  bool DestFound = false;
+  auto CheckForNodes = [&](std::shared_ptr<node_impl> &Node,
+                           std::deque<std::shared_ptr<node_impl>> &) {
+    if (Node == Src) {
+      SrcFound = true;
+    }
+    if (Node == Dest) {
+      DestFound = true;
+    }
+    return SrcFound && DestFound;
+  };
+
+  searchDepthFirst(CheckForNodes);
+
+  if (!SrcFound) {
+    throw sycl::exception(make_error_code(sycl::errc::invalid),
+                          "Src must be a node inside the graph.");
+  }
+  if (!DestFound) {
+    throw sycl::exception(make_error_code(sycl::errc::invalid),
+                          "Dest must be a node inside the graph.");
+  }
+
+  // We need to add the edges first before checking for cycles
+  Src->registerSuccessor(Dest, Src);
+
+  // We can skip cycle checks if either Dest has no successors (cycle not
+  // possible) or cycle checks have been disabled with the no_cycle_check
+  // property;
+  if (Dest->MSuccessors.empty() || !MSkipCycleChecks) {
+    bool CycleFound = checkForCycles();
+
+    if (CycleFound) {
+      // Remove the added successor and predecessor
+      Src->MSuccessors.pop_back();
+      Dest->MPredecessors.pop_back();
+
+      throw sycl::exception(make_error_code(sycl::errc::invalid),
+                            "Command graphs cannot contain cycles.");
+    }
+  }
+  removeRoot(Dest); // remove receiver from root node list
 }
 
 // Check if nodes are empty and if so loop back through predecessors until we
@@ -463,8 +598,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
 
 modifiable_command_graph::modifiable_command_graph(
     const sycl::context &SyclContext, const sycl::device &SyclDevice,
-    const sycl::property_list &)
-    : impl(std::make_shared<detail::graph_impl>(SyclContext, SyclDevice)) {}
+    const sycl::property_list &PropList)
+    : impl(std::make_shared<detail::graph_impl>(SyclContext, SyclDevice,
+                                                PropList)) {}
 
 node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
@@ -494,9 +630,7 @@ void modifiable_command_graph::make_edge(node &Src, node &Dest) {
   std::shared_ptr<detail::node_impl> ReceiverImpl =
       sycl::detail::getSyclObjImpl(Dest);
 
-  SenderImpl->registerSuccessor(ReceiverImpl,
-                                SenderImpl); // register successor
-  impl->removeRoot(ReceiverImpl); // remove receiver from root node list
+  impl->makeEdge(SenderImpl, ReceiverImpl);
 }
 
 command_graph<graph_state::executable>
