@@ -25,12 +25,6 @@
 namespace mlir {
 namespace polygeist {
 
-/// YES indicates that the buffer is definitely a sub-buffer
-/// NO indicates that the buffer is definitely not a sub-buffer.
-/// MAYBE indicates that there are multiple constructions with different
-/// sub-buffer property or insufficient information is available.
-enum class SYCLAcessorAliasResult { YES, NO, MAYBE };
-
 /// Represents information about a `sycl::accessor` gathered from its
 /// construction.
 class AccessorInformation {
@@ -44,35 +38,57 @@ public:
         constantRange{constRange}, needOffset{hasOffset},
         constantOffset{constOffset} {}
 
+  /// Returns true if the underlying buffer of this accessor is known.
   bool hasKnownBuffer() const { return buffer != nullptr; }
 
+  /// Returns the underlying buffer of this accessor.
   Value getBuffer() const { return buffer; }
 
+  /// Returns true if buffer information is available for the buffer underlying
+  /// this accessor.
   bool hasBufferInformation() const { return bufferInfo.has_value(); }
 
+  /// Returns the buffer information for the buffer underlying this accessor.
   const BufferInformation &getBufferInfo() const { return *bufferInfo; }
 
+  /// Returns false if the range can be omitted for this accessor, true
+  /// otherwise.
   bool needsRange() const { return needRange; }
 
+  /// Returns true if the range of this accessor is known to be constant.
   bool hasConstantRange() const { return !constantRange.empty(); }
 
-  const llvm::SmallVector<size_t, 3> &getConstantRange() const {
+  /// Returns the constant values for the range of this accessor.
+  ArrayRef<size_t> getConstantRange() const {
     assert(hasConstantRange() && "Range not constant");
     return constantRange;
   }
 
+  /// Returns false if the offset can be omitted for this accessor, true
+  /// otherwise.
   bool needsOffset() const { return needOffset; }
 
+  /// Return true if the offset of this accessor is known to be constant.
   bool hasConstantOffset() const { return !constantOffset.empty(); }
 
-  const llvm::SmallVector<size_t, 3> &getConstantOffset() const {
+  /// Returns the constant values for the offset of this accessor.
+  ArrayRef<size_t> getConstantOffset() const {
     assert(hasConstantOffset() && "Offset not constant");
     return constantOffset;
+  }
+
+  /// Returns true if the top of the lattice has been reached, i.e., it is not
+  /// possible to further refine the information known about this accessor.
+  bool isTop() const {
+    return !hasKnownBuffer() && !hasBufferInformation() && needsRange() &&
+           needsOffset() && !hasConstantRange() && !hasConstantOffset();
   }
 
   const AccessorInformation join(const AccessorInformation &other,
                                  AliasAnalysis &aliasAnalysis) const;
 
+  /// Returns an AliasResult indicating whether this accessor and the given
+  /// accessor must, may or do not alias.
   AliasResult alias(const AccessorInformation &other,
                     AliasAnalysis &aliasAnalysis) const;
 

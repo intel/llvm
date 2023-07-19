@@ -79,7 +79,7 @@ AccessorInformation::join(const AccessorInformation &other,
   if (hasBufferInformation() && other.hasBufferInformation())
     jointBufInfo = getBufferInfo().join(other.getBufferInfo(), aliasAnalysis);
 
-  // The range can only omitted if this and the incoming agree info agree it is
+  // The range can only be omitted if this and the incoming info agree it is
   // not needed, otherwise the conservative default is to assume the range is
   // needed.
   bool jointNeedsRange =
@@ -88,7 +88,7 @@ AccessorInformation::join(const AccessorInformation &other,
                                           ? constantRange
                                           : SmallVector<size_t, 3>{};
 
-  // The offset can only omitted if this and the incoming agree info agree it is
+  // The offset can only be omitted if this and the incoming info agree it is
   // not needed, otherwise the conservative default is to assume the offset is
   // needed.
   bool jointNeedsOffset =
@@ -290,10 +290,9 @@ SYCLAccessorAnalysis::getAccessorInformationFromConstruction(Operation *op,
       first = false;
     } else {
       info = info.join(getInformation(def), *aliasAnalysis);
-      if (false /* TODO */)
-        // Early return: As soon as joining of the different information has led
-        // to an info with no fixed size and no definitive sub-buffer
-        // information, we can end the processing.
+      if (info.isTop())
+        // Early return: As soon as joining of the different information has
+        // reached the top of the lattice, we can end the processing.
         return info;
     }
   }
@@ -301,10 +300,9 @@ SYCLAccessorAnalysis::getAccessorInformationFromConstruction(Operation *op,
   if (pMods) {
     for (const Definition &def : *pMods) {
       info = info.join(getInformation(def), *aliasAnalysis);
-      if (false /* TODO */)
-        // Early return: As soon as joining of the different information has led
-        // to an info with no fixed size and no definitive sub-buffer
-        // information, we can end the processing.
+      if (info.isTop())
+        // Early return: As soon as joining of the different information has
+        // reached the top of the lattice, we can end the processing.
         return info;
     }
   }
@@ -340,16 +338,14 @@ SYCLAccessorAnalysis::getInformation(const Definition &def) {
   auto accessorTy = cast<sycl::AccessorType>(constructor.getType().getValue());
   // Whether the range and offset parameter are required by the accessor
   // constructed is encoded in the list of body types.
-  bool needsRange = llvm::any_of(accessorTy.getBody(), [](const Type &ty) {
-    return isa<sycl::RangeType>(ty);
-  });
-  bool needsOffset = llvm::any_of(accessorTy.getBody(), [](const Type &ty) {
-    return isa<sycl::IDType>(ty);
-  });
+  bool needsRange = llvm::any_of(
+      accessorTy.getBody(), [](Type ty) { return isa<sycl::RangeType>(ty); });
+  bool needsOffset = llvm::any_of(
+      accessorTy.getBody(), [](Type ty) { return isa<sycl::IDType>(ty); });
   SmallVector<size_t, 3> constRange;
   SmallVector<size_t, 3> constOffset;
   if (needsRange) {
-    // In the C++ API, the range can either be the second or third parameter to
+    // In the SYCL API, the range can either be the second or third parameter to
     // the constructor.
     std::optional<IDRangeInformation> optRangeInfo =
         getOperandInfo<sycl::RangeType>(constructor, 2, 3);
@@ -357,8 +353,8 @@ SYCLAccessorAnalysis::getInformation(const Definition &def) {
       constRange = optRangeInfo->getConstantValues();
   }
   if (needsOffset) {
-    // In the C++ API, the range can either be the third or fourth parameter to
-    // the constructor.
+    // In the SYCL API, the offset can either be the third or fourth parameter
+    // to the constructor.
     std::optional<IDRangeInformation> optIDInfo =
         getOperandInfo<sycl::IDType>(constructor, 3, 4);
     if (optIDInfo.has_value() && optIDInfo->isConstant())
@@ -397,10 +393,10 @@ SYCLAccessorAnalysis::getOperandInfo(sycl::SYCLHostConstructorOp constructor,
     return std::nullopt;
   };
   std::optional<IDRangeInformation> firstInfo = getInfo(possibleIndex1);
+  if (firstInfo)
+    return firstInfo;
 
-  std::optional<IDRangeInformation> secondInfo = getInfo(possibleIndex2);
-
-  return (firstInfo.has_value()) ? firstInfo : secondInfo;
+  return getInfo(possibleIndex2);
 }
 
 } // namespace polygeist
