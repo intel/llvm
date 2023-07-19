@@ -159,6 +159,10 @@ _PI_API(piextEnablePeerAccess)
 _PI_API(piextDisablePeerAccess)
 _PI_API(piextPeerAccessGetInfo)
 
+// USM import/release APIs
+_PI_API(piextUSMImport)
+_PI_API(piextUSMRelease)
+
 // command-buffer Extension
 _PI_API(piextCommandBufferCreate)
 _PI_API(piextCommandBufferRetain)
