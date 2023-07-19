@@ -210,6 +210,61 @@ llvm.func @raise_id_3() -> !llvm.ptr {
 
 llvm.func @_Z6numberv() -> (i64)
 
+// COM: We should not find this pattern with dimensions == 1
+// CHECK-LABEL:   llvm.func @raise_id_default() {
+// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_1]]) {type = !sycl_id_1_} : (!llvm.ptr) -> ()
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_2]]) {type = !sycl_id_2_} : (!llvm.ptr) -> ()
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_3]]) {type = !sycl_id_3_} : (!llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+llvm.func @raise_id_default() {
+  %false = llvm.mlir.constant(0 : i1) : i1
+  %c0 = llvm.mlir.constant(0 : i8) : i8
+  %c1 = llvm.mlir.constant(1 : i32) : i32
+  %len1 = llvm.mlir.constant(8 : i64) : i64
+  %len2 = llvm.mlir.constant(16 : i64) : i64
+  %len3 = llvm.mlir.constant(24 : i64) : i64
+  %id1 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id2 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id3 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  "llvm.intr.memset"(%id1, %c0, %len1, %false) : (!llvm.ptr, i8, i64, i1) -> ()
+  "llvm.intr.memset"(%id2, %c0, %len2, %false) : (!llvm.ptr, i8, i64, i1) -> ()
+  "llvm.intr.memset"(%id3, %c0, %len3, %false) : (!llvm.ptr, i8, i64, i1) -> ()
+  llvm.return
+}
+
+// COM: We should not find this pattern with dimensions >= 2
+// CHECK-LABEL:   llvm.func @raise_id_store_default() {
+// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_1]]) {type = !sycl_id_1_} : (!llvm.ptr) -> ()
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_2]]) {type = !sycl_id_2_} : (!llvm.ptr) -> ()
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_3]]) {type = !sycl_id_3_} : (!llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+llvm.func @raise_id_store_default() {
+  %c0 = llvm.mlir.constant(0 : i64) : i64
+  %c1 = llvm.mlir.constant(1 : i32) : i32
+  %id1 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id2 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %id3 = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id.5", (struct<"class.sycl::_V1::detail::array.7", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  llvm.store %c0, %id1 : i64, !llvm.ptr
+  llvm.store %c0, %id2 : i64, !llvm.ptr
+  %id2.1 = llvm.getelementptr inbounds %id2[1] : (!llvm.ptr) -> !llvm.ptr, i64
+  llvm.store %c0, %id2.1 : i64, !llvm.ptr
+  llvm.store %c0, %id3 : i64, !llvm.ptr
+  %id3.1 = llvm.getelementptr inbounds %id3[1] : (!llvm.ptr) -> !llvm.ptr, i64
+  llvm.store %c0, %id3.1 : i64, !llvm.ptr
+  %id3.2 = llvm.getelementptr inbounds %id3[2] : (!llvm.ptr) -> !llvm.ptr, i64
+  llvm.store %c0, %id3.2 : i64, !llvm.ptr
+  llvm.return
+}
 
 // ----- 
 
