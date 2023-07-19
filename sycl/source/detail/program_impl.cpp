@@ -196,7 +196,7 @@ program_impl::program_impl(ContextImplPtr Context,
     MBuildOptions = Options;
     break;
   default:
-    std::cout << "BinaryType: " << BinaryType << " ";
+    std::cout << "BinaryType: " << BinaryType << std::endl;
     assert(false && "BinaryType is invalid.");
     return;
   }
