@@ -14,7 +14,12 @@ struct urTest : ::testing::Test {
 
     void SetUp() override {
         ur_device_init_flags_t device_flags = 0;
-        ASSERT_SUCCESS(urInit(device_flags, nullptr));
+        ur_loader_config_handle_t config;
+        ASSERT_SUCCESS(urLoaderConfigCreate(&config));
+        ASSERT_SUCCESS(
+            urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION"));
+        ASSERT_SUCCESS(urInit(device_flags, config));
+        ASSERT_SUCCESS(urLoaderConfigRelease(config));
     }
 
     void TearDown() override {
