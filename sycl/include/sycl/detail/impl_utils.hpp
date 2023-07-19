@@ -33,6 +33,15 @@ template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
   return SyclObject.impl;
 }
 
+// Returns the raw pointer to the impl object of given face object. The caller
+// must make sure the returned pointer is not captured in a field or otherwise
+// stored - i.e. must live only as on-stack value.
+template <class T>
+typename std::add_pointer_t<typename decltype(T::impl)::element_type>
+getRawSyclObjImpl(const T &SyclObject) {
+  return SyclObject.impl.get();
+}
+
 // Helper function for creation SYCL interface objects from implementations.
 // Note! This function relies on the fact that all SYCL interface classes
 // contain "impl" field that points to implementation object. "impl" field
