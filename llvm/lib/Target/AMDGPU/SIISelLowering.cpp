@@ -25,6 +25,7 @@
 #include "llvm/Analysis/UniformityAnalysis.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/Analysis.h"
+#include "llvm/CodeGen/ByteProvider.h"
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
@@ -39,6 +40,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/ModRef.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -472,6 +474,8 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
                        MVT::f64, Custom);
 
   setOperationAction(ISD::FFLOOR, MVT::f64, Legal);
+  setOperationAction({ISD::FLDEXP, ISD::STRICT_FLDEXP}, {MVT::f32, MVT::f64},
+                     Legal);
 
   setOperationAction({ISD::FSIN, ISD::FCOS, ISD::FDIV}, MVT::f32, Custom);
   setOperationAction(ISD::FDIV, MVT::f64, Custom);
@@ -528,7 +532,7 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
 
     // F16 - VOP2 Actions.
     setOperationAction({ISD::BR_CC, ISD::SELECT_CC}, MVT::f16, Expand);
-
+    setOperationAction({ISD::FLDEXP, ISD::STRICT_FLDEXP}, MVT::f16, Custom);
     setOperationAction(ISD::FDIV, MVT::f16, Custom);
 
     // F16 - VOP3 Actions.
@@ -2698,7 +2702,17 @@ bool SITargetLowering::CanLowerReturn(
 
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, Context);
-  return CCInfo.CheckReturn(Outs, CCAssignFnForReturn(CallConv, IsVarArg));
+  if (!CCInfo.CheckReturn(Outs, CCAssignFnForReturn(CallConv, IsVarArg)))
+    return false;
+
+  // We must use the stack if return would require unavailable registers.
+  unsigned MaxNumVGPRs = Subtarget->getMaxNumVGPRs(MF);
+  unsigned TotalNumVGPRs = AMDGPU::VGPR_32RegClass.getNumRegs();
+  for (unsigned i = MaxNumVGPRs; i < TotalNumVGPRs; ++i)
+    if (CCInfo.isAllocated(AMDGPU::VGPR_32RegClass.getRegister(i)))
+      return false;
+
+  return true;
 }
 
 SDValue
@@ -4547,6 +4561,30 @@ MachineBasicBlock *SITargetLowering::EmitInstrWithCustomInserter(
     MI.eraseFromParent();
     return BB;
   }
+  case AMDGPU::ENDPGM_TRAP: {
+    const DebugLoc &DL = MI.getDebugLoc();
+    if (BB->succ_empty() && std::next(MI.getIterator()) == BB->end()) {
+      MI.setDesc(TII->get(AMDGPU::S_ENDPGM));
+      MI.addOperand(MachineOperand::CreateImm(0));
+      return BB;
+    }
+
+    // We need a block split to make the real endpgm a terminator. We also don't
+    // want to break phis in successor blocks, so we can't just delete to the
+    // end of the block.
+
+    MachineBasicBlock *SplitBB = BB->splitAt(MI, false /*UpdateLiveIns*/);
+    MachineBasicBlock *TrapBB = MF->CreateMachineBasicBlock();
+    MF->push_back(TrapBB);
+    BuildMI(*TrapBB, TrapBB->end(), DL, TII->get(AMDGPU::S_ENDPGM))
+      .addImm(0);
+    BuildMI(*BB, &MI, DL, TII->get(AMDGPU::S_CBRANCH_EXECNZ))
+      .addMBB(TrapBB);
+
+    BB->addSuccessor(TrapBB);
+    MI.eraseFromParent();
+    return SplitBB;
+  }
   default:
     return AMDGPUTargetLowering::EmitInstrWithCustomInserter(MI, BB);
   }
@@ -4843,6 +4881,9 @@ SDValue SITargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::FMINNUM:
   case ISD::FMAXNUM:
     return lowerFMINNUM_FMAXNUM(Op, DAG);
+  case ISD::FLDEXP:
+  case ISD::STRICT_FLDEXP:
+    return lowerFLDEXP(Op, DAG);
   case ISD::FMA:
     return splitTernaryVectorOp(Op, DAG);
   case ISD::FP_TO_SINT:
@@ -5464,6 +5505,40 @@ SDValue SITargetLowering::lowerFMINNUM_FMAXNUM(SDValue Op,
   return Op;
 }
 
+SDValue SITargetLowering::lowerFLDEXP(SDValue Op, SelectionDAG &DAG) const {
+  bool IsStrict = Op.getOpcode() == ISD::STRICT_FLDEXP;
+  EVT VT = Op.getValueType();
+  assert(VT == MVT::f16);
+
+  SDValue Exp = Op.getOperand(IsStrict ? 2 : 1);
+  EVT ExpVT = Exp.getValueType();
+  if (ExpVT == MVT::i16)
+    return Op;
+
+  SDLoc DL(Op);
+
+  // Correct the exponent type for f16 to i16.
+  // Clamp the range of the exponent to the instruction's range.
+
+  // TODO: This should be a generic narrowing legalization, and can easily be
+  // for GlobalISel.
+
+  SDValue MinExp = DAG.getConstant(minIntN(16), DL, ExpVT);
+  SDValue ClampMin = DAG.getNode(ISD::SMAX, DL, ExpVT, Exp, MinExp);
+
+  SDValue MaxExp = DAG.getConstant(maxIntN(16), DL, ExpVT);
+  SDValue Clamp = DAG.getNode(ISD::SMIN, DL, ExpVT, ClampMin, MaxExp);
+
+  SDValue TruncExp = DAG.getNode(ISD::TRUNCATE, DL, MVT::i16, Clamp);
+
+  if (IsStrict) {
+    return DAG.getNode(ISD::STRICT_FLDEXP, DL, {VT, MVT::Other},
+                       {Op.getOperand(0), Op.getOperand(1), TruncExp});
+  }
+
+  return DAG.getNode(ISD::FLDEXP, DL, VT, Op.getOperand(0), TruncExp);
+}
+
 SDValue SITargetLowering::lowerXMULO(SDValue Op, SelectionDAG &DAG) const {
   EVT VT = Op.getValueType();
   SDLoc SL(Op);
@@ -5533,7 +5608,7 @@ SDValue SITargetLowering::lowerTrapEndpgm(
     SDValue Op, SelectionDAG &DAG) const {
   SDLoc SL(Op);
   SDValue Chain = Op.getOperand(0);
-  return DAG.getNode(AMDGPUISD::ENDPGM, SL, MVT::Other, Chain);
+  return DAG.getNode(AMDGPUISD::ENDPGM_TRAP, SL, MVT::Other, Chain);
 }
 
 SDValue SITargetLowering::loadImplicitKernelArgument(SelectionDAG &DAG, MVT VT,
@@ -7151,8 +7226,7 @@ SDValue SITargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     return emitRemovedIntrinsicError(DAG, DL, VT);
   }
   case Intrinsic::amdgcn_ldexp:
-    return DAG.getNode(AMDGPUISD::LDEXP, DL, VT,
-                       Op.getOperand(1), Op.getOperand(2));
+    return DAG.getNode(ISD::FLDEXP, DL, VT, Op.getOperand(1), Op.getOperand(2));
 
   case Intrinsic::amdgcn_fract:
     return DAG.getNode(AMDGPUISD::FRACT, DL, VT, Op.getOperand(1));
@@ -9852,7 +9926,7 @@ static uint32_t getConstantPermuteMask(uint32_t C) {
 // value 0-3 selects corresponding source byte;
 // value 0xc selects zero;
 // value 0xff selects 0xff.
-static uint32_t getPermuteMask(SelectionDAG &DAG, SDValue V) {
+static uint32_t getPermuteMask(SDValue V) {
   assert(V.getValueSizeInBits() == 32);
 
   if (V.getNumOperands() != 2)
@@ -9868,15 +9942,13 @@ static uint32_t getPermuteMask(SelectionDAG &DAG, SDValue V) {
   default:
     break;
   case ISD::AND:
-    if (uint32_t ConstMask = getConstantPermuteMask(C)) {
+    if (uint32_t ConstMask = getConstantPermuteMask(C))
       return (0x03020100 & ConstMask) | (0x0c0c0c0c & ~ConstMask);
-    }
     break;
 
   case ISD::OR:
-    if (uint32_t ConstMask = getConstantPermuteMask(C)) {
+    if (uint32_t ConstMask = getConstantPermuteMask(C))
       return (0x03020100 & ~ConstMask) | ConstMask;
-    }
     break;
 
   case ISD::SHL:
@@ -10035,8 +10107,8 @@ SDValue SITargetLowering::performAndCombine(SDNode *N,
   const SIInstrInfo *TII = getSubtarget()->getInstrInfo();
   if (VT == MVT::i32 && LHS.hasOneUse() && RHS.hasOneUse() &&
       N->isDivergent() && TII->pseudoToMCOpcode(AMDGPU::V_PERM_B32_e64) != -1) {
-    uint32_t LHSMask = getPermuteMask(DAG, LHS);
-    uint32_t RHSMask = getPermuteMask(DAG, RHS);
+    uint32_t LHSMask = getPermuteMask(LHS);
+    uint32_t RHSMask = getPermuteMask(RHS);
     if (LHSMask != ~0u && RHSMask != ~0u) {
       // Canonicalize the expression in an attempt to have fewer unique masks
       // and therefore fewer registers used to hold the masks.
@@ -10080,6 +10152,322 @@ SDValue SITargetLowering::performAndCombine(SDNode *N,
   }
 
   return SDValue();
+}
+
+// A key component of v_perm is a mapping between byte position of the src
+// operands, and the byte position of the dest. To provide such, we need: 1. the
+// node that provides x byte of the dest of the OR, and 2. the byte of the node
+// used to provide that x byte. calculateByteProvider finds which node provides
+// a certain byte of the dest of the OR, and calculateSrcByte takes that node,
+// and finds an ultimate src and byte position For example: The supported
+// LoadCombine pattern for vector loads is as follows
+//                                t1
+//                                or
+//                      /                  \
+//                      t2                 t3
+//                     zext                shl
+//                      |                   |     \
+//                     t4                  t5     16
+//                     or                 anyext
+//                 /        \               |
+//                t6        t7             t8
+//               srl        shl             or
+//            /    |      /     \         /     \
+//           t9   t10    t11   t12      t13    t14
+//         trunc*  8    trunc*  8      and     and
+//           |            |          /    |     |    \
+//          t15          t16        t17  t18   t19   t20
+//                                trunc*  255   srl   -256
+//                                   |         /   \
+//                                  t15       t15  16
+//
+// *In this example, the truncs are from i32->i16
+//
+// calculateByteProvider would find t6, t7, t13, and t14 for bytes 0-3
+// respectively. calculateSrcByte would find (given node) -> ultimate src &
+// byteposition: t6 -> t15 & 1, t7 -> t16 & 0, t13 -> t15 & 0, t14 -> t15 & 3.
+// After finding the mapping, we can combine the tree into vperm t15, t16,
+// 0x05000407
+
+// Find the source and byte position from a node.
+// \p DestByte is the byte position of the dest of the or that the src
+// ultimately provides. \p SrcIndex is the byte of the src that maps to this
+// dest of the or byte. \p Depth tracks how many recursive iterations we have
+// performed.
+static const std::optional<ByteProvider<SDValue>>
+calculateSrcByte(const SDValue Op, uint64_t DestByte, uint64_t SrcIndex = 0,
+                 unsigned Depth = 0) {
+  // We may need to recursively traverse a series of SRLs
+  if (Depth >= 6)
+    return std::nullopt;
+
+  switch (Op->getOpcode()) {
+  case ISD::TRUNCATE: {
+    if (Op->getOperand(0).getScalarValueSizeInBits() != 32)
+      return std::nullopt;
+    return calculateSrcByte(Op->getOperand(0), DestByte, SrcIndex, Depth + 1);
+  }
+
+  case ISD::SRL: {
+    auto ShiftOp = dyn_cast<ConstantSDNode>(Op->getOperand(1));
+    if (!ShiftOp)
+      return std::nullopt;
+
+    uint64_t BitShift = ShiftOp->getZExtValue();
+
+    if (BitShift % 8 != 0)
+      return std::nullopt;
+
+    SrcIndex += BitShift / 8;
+
+    return calculateSrcByte(Op->getOperand(0), DestByte, SrcIndex, Depth + 1);
+  }
+
+  default: {
+    if (Op.getScalarValueSizeInBits() != 32)
+      return std::nullopt;
+
+    return ByteProvider<SDValue>::getSrc(Op, DestByte, SrcIndex);
+  }
+  }
+  llvm_unreachable("fully handled switch");
+}
+
+// For a byte position in the result of an Or, traverse the tree and find the
+// node (and the byte of the node) which ultimately provides this {Or,
+// BytePosition}. \p Op is the operand we are currently examining. \p Index is
+// the byte position of the Op that corresponds with the originally requested
+// byte of the Or \p Depth tracks how many recursive iterations we have
+// performed. \p StartingIndex is the originally requested byte of the Or
+static const std::optional<ByteProvider<SDValue>>
+calculateByteProvider(const SDValue &Op, unsigned Index, unsigned Depth,
+                      unsigned StartingIndex = 0) {
+  // Finding Src tree of RHS of or typically requires at least 1 additional
+  // depth
+  if (Depth > 6)
+    return std::nullopt;
+
+  unsigned BitWidth = Op.getScalarValueSizeInBits();
+  if (BitWidth % 8 != 0)
+    return std::nullopt;
+  assert(Index < BitWidth / 8 && "invalid index requested");
+
+  switch (Op.getOpcode()) {
+  case ISD::OR: {
+    auto RHS = calculateByteProvider(Op.getOperand(1), Index, Depth + 1,
+                                     StartingIndex);
+    if (!RHS)
+      return std::nullopt;
+    auto LHS = calculateByteProvider(Op.getOperand(0), Index, Depth + 1,
+                                     StartingIndex);
+    if (!LHS)
+      return std::nullopt;
+    // A well formed Or will have two ByteProviders for each byte, one of which
+    // is constant zero
+    if (!LHS->isConstantZero() && !RHS->isConstantZero())
+      return std::nullopt;
+    if (!LHS || LHS->isConstantZero())
+      return RHS;
+    if (!RHS || RHS->isConstantZero())
+      return LHS;
+    return std::nullopt;
+  }
+
+  case ISD::AND: {
+    auto BitMaskOp = dyn_cast<ConstantSDNode>(Op->getOperand(1));
+    if (!BitMaskOp)
+      return std::nullopt;
+
+    uint32_t BitMask = BitMaskOp->getZExtValue();
+    // Bits we expect for our StartingIndex
+    uint32_t IndexMask = 0xFF << (Index * 8);
+
+    if ((IndexMask & BitMask) != IndexMask) {
+      // If the result of the and partially provides the byte, then it
+      // is not well formatted
+      if (IndexMask & BitMask)
+        return std::nullopt;
+      return ByteProvider<SDValue>::getConstantZero();
+    }
+
+    return calculateSrcByte(Op->getOperand(0), StartingIndex, Index);
+  }
+
+  case ISD::SRL: {
+    auto ShiftOp = dyn_cast<ConstantSDNode>(Op->getOperand(1));
+    if (!ShiftOp)
+      return std::nullopt;
+
+    uint64_t BitShift = ShiftOp->getZExtValue();
+    if (BitShift % 8)
+      return std::nullopt;
+
+    auto BitsProvided = Op.getScalarValueSizeInBits();
+    if (BitsProvided % 8 != 0)
+      return std::nullopt;
+
+    uint64_t BytesProvided = BitsProvided / 8;
+    uint64_t ByteShift = BitShift / 8;
+    // The dest of shift will have good [0 : (BytesProvided - ByteShift)] bytes.
+    // If the byte we are trying to provide (as tracked by index) falls in this
+    // range, then the SRL provides the byte. The byte of interest of the src of
+    // the SRL is Index + ByteShift
+    return BytesProvided - ByteShift > Index
+               ? calculateSrcByte(Op->getOperand(0), StartingIndex,
+                                  Index + ByteShift)
+               : ByteProvider<SDValue>::getConstantZero();
+  }
+
+  case ISD::SHL: {
+    auto ShiftOp = dyn_cast<ConstantSDNode>(Op->getOperand(1));
+    if (!ShiftOp)
+      return std::nullopt;
+
+    uint64_t BitShift = ShiftOp->getZExtValue();
+    if (BitShift % 8 != 0)
+      return std::nullopt;
+    uint64_t ByteShift = BitShift / 8;
+
+    // If we are shifting by an amount greater than (or equal to)
+    // the index we are trying to provide, then it provides 0s. If not,
+    // then this bytes are not definitively 0s, and the corresponding byte
+    // of interest is Index - ByteShift of the src
+    return Index < ByteShift
+               ? ByteProvider<SDValue>::getConstantZero()
+               : calculateByteProvider(Op.getOperand(0), Index - ByteShift,
+                                       Depth + 1, StartingIndex);
+  }
+  case ISD::ANY_EXTEND:
+  case ISD::SIGN_EXTEND:
+  case ISD::ZERO_EXTEND: {
+    SDValue NarrowOp = Op->getOperand(0);
+    unsigned NarrowBitWidth = NarrowOp.getScalarValueSizeInBits();
+    if (NarrowBitWidth % 8 != 0)
+      return std::nullopt;
+    uint64_t NarrowByteWidth = NarrowBitWidth / 8;
+
+    if (Index >= NarrowByteWidth)
+      return Op.getOpcode() == ISD::ZERO_EXTEND
+                 ? std::optional<ByteProvider<SDValue>>(
+                       ByteProvider<SDValue>::getConstantZero())
+                 : std::nullopt;
+    return calculateByteProvider(NarrowOp, Index, Depth + 1, StartingIndex);
+  }
+
+  case ISD::TRUNCATE: {
+    unsigned NarrowBitWidth = Op.getScalarValueSizeInBits();
+    if (NarrowBitWidth % 8 != 0)
+      return std::nullopt;
+    uint64_t NarrowByteWidth = NarrowBitWidth / 8;
+
+    if (NarrowByteWidth >= Index) {
+      return calculateByteProvider(Op.getOperand(0), Index, Depth + 1,
+                                   StartingIndex);
+    }
+
+    return std::nullopt;
+  }
+
+  case ISD::LOAD: {
+    auto L = cast<LoadSDNode>(Op.getNode());
+    unsigned NarrowBitWidth = L->getMemoryVT().getSizeInBits();
+    if (NarrowBitWidth % 8 != 0)
+      return std::nullopt;
+    uint64_t NarrowByteWidth = NarrowBitWidth / 8;
+
+    // If the width of the load does not reach byte we are trying to provide for
+    // and it is not a ZEXTLOAD, then the load does not provide for the byte in
+    // question
+    if (Index >= NarrowByteWidth) {
+      return L->getExtensionType() == ISD::ZEXTLOAD
+                 ? std::optional<ByteProvider<SDValue>>(
+                       ByteProvider<SDValue>::getConstantZero())
+                 : std::nullopt;
+    }
+
+    if (NarrowByteWidth > Index) {
+      return calculateSrcByte(Op, StartingIndex, Index);
+    }
+
+    return std::nullopt;
+  }
+
+  default: {
+    return std::nullopt;
+  }
+  }
+
+  llvm_unreachable("fully handled switch");
+}
+
+// Returns true if the Operand is a scalar and is 16 bits
+static bool is16BitScalarOp(SDValue &Operand) {
+  switch (Operand.getOpcode()) {
+  case ISD::ANY_EXTEND:
+  case ISD::SIGN_EXTEND:
+  case ISD::ZERO_EXTEND: {
+    auto OpVT = Operand.getOperand(0).getValueType();
+    return !OpVT.isVector() && OpVT.getSizeInBits() == 16;
+  }
+  case ISD::LOAD: {
+    LoadSDNode *L = cast<LoadSDNode>(Operand.getNode());
+    auto ExtType = cast<LoadSDNode>(L)->getExtensionType();
+    if (ExtType == ISD::ZEXTLOAD || ExtType == ISD::SEXTLOAD ||
+        ExtType == ISD::EXTLOAD) {
+      auto MemVT = L->getMemoryVT();
+      return !MemVT.isVector() && MemVT.getSizeInBits() == 16;
+    }
+    return false;
+  }
+  default:
+    return false;
+  }
+}
+
+// Returns true if the mask matches consecutive bytes, and the first byte
+// begins at a power of 2 byte offset from 0th byte
+static bool addresses16Bits(int Mask) {
+  int Low8 = Mask & 0xff;
+  int Hi8 = (Mask & 0xff00) >> 8;
+
+  assert(Low8 < 8 && Hi8 < 8);
+  // Are the bytes contiguous in the order of increasing addresses.
+  bool IsConsecutive = (Hi8 - Low8 == 1);
+  // Is the first byte at location that is aligned for 16 bit instructions.
+  // A counter example is taking 2 consecutive bytes starting at the 8th bit.
+  // In this case, we still need code to extract the 16 bit operand, so it
+  // is better to use i8 v_perm
+  bool Is16Aligned = !(Low8 % 2);
+
+  return IsConsecutive && Is16Aligned;
+}
+
+// Do not lower into v_perm if the operands are actually 16 bit
+// and the selected bits (based on PermMask) correspond with two
+// easily addressable 16 bit operands.
+static bool hasEightBitAccesses(uint64_t PermMask, SDValue &Op,
+                                SDValue &OtherOp) {
+  int Low16 = PermMask & 0xffff;
+  int Hi16 = (PermMask & 0xffff0000) >> 16;
+
+  // ByteProvider only accepts 32 bit operands
+  assert(Op.getValueType().getSizeInBits() == 32);
+  assert(OtherOp.getValueType().getSizeInBits() == 32);
+
+  auto OpIs16Bit = is16BitScalarOp(Op);
+  auto OtherOpIs16Bit = is16BitScalarOp(Op);
+
+  // If there is a size mismatch, then we must use masking on at least one
+  // operand
+  if (OpIs16Bit != OtherOpIs16Bit)
+    return true;
+
+  // If both operands are 16 bit, return whether or not we cleanly address both
+  if (is16BitScalarOp(Op) && is16BitScalarOp(OtherOp))
+    return !addresses16Bits(Low16) || !addresses16Bits(Hi16);
+
+  // Both are 32 bit operands
+  return true;
 }
 
 SDValue SITargetLowering::performOrCombine(SDNode *N,
@@ -10132,8 +10520,36 @@ SDValue SITargetLowering::performOrCombine(SDNode *N,
   const SIInstrInfo *TII = getSubtarget()->getInstrInfo();
   if (VT == MVT::i32 && LHS.hasOneUse() && RHS.hasOneUse() &&
       N->isDivergent() && TII->pseudoToMCOpcode(AMDGPU::V_PERM_B32_e64) != -1) {
-    uint32_t LHSMask = getPermuteMask(DAG, LHS);
-    uint32_t RHSMask = getPermuteMask(DAG, RHS);
+
+    // If all the uses of an or need to extract the individual elements, do not
+    // attempt to lower into v_perm
+    auto usesCombinedOperand = [](SDNode *OrUse) {
+      // If we have any non-vectorized use, then it is a candidate for v_perm
+      if (OrUse->getOpcode() != ISD::BITCAST ||
+          !OrUse->getValueType(0).isVector())
+        return true;
+
+      // If we have any non-vectorized use, then it is a candidate for v_perm
+      for (auto VUse : OrUse->uses()) {
+        if (!VUse->getValueType(0).isVector())
+          return true;
+
+        // If the use of a vector is a store, then combining via a v_perm
+        // is beneficial.
+        // TODO -- whitelist more uses
+        for (auto VectorwiseOp : {ISD::STORE, ISD::CopyToReg, ISD::CopyFromReg})
+          if (VUse->getOpcode() == VectorwiseOp)
+            return true;
+      }
+      return false;
+    };
+
+    if (!any_of(N->uses(), usesCombinedOperand))
+      return SDValue();
+
+    uint32_t LHSMask = getPermuteMask(LHS);
+    uint32_t RHSMask = getPermuteMask(RHS);
+
     if (LHSMask != ~0u && RHSMask != ~0u) {
       // Canonicalize the expression in an attempt to have fewer unique masks
       // and therefore fewer registers used to hold the masks.
@@ -10164,6 +10580,71 @@ SDValue SITargetLowering::performOrCombine(SDNode *N,
         return DAG.getNode(AMDGPUISD::PERM, DL, MVT::i32,
                            LHS.getOperand(0), RHS.getOperand(0),
                            DAG.getConstant(Sel, DL, MVT::i32));
+      }
+    }
+    if (LHSMask == ~0u || RHSMask == ~0u) {
+      SmallVector<ByteProvider<SDValue>, 8> PermNodes;
+
+      // VT is known to be MVT::i32, so we need to provide 4 bytes.
+      assert(VT == MVT::i32);
+      for (int i = 0; i < 4; i++) {
+        // Find the ByteProvider that provides the ith byte of the result of OR
+        std::optional<ByteProvider<SDValue>> P =
+            calculateByteProvider(SDValue(N, 0), i, 0, /*StartingIndex = */ i);
+        // TODO support constantZero
+        if (!P || P->isConstantZero())
+          return SDValue();
+
+        PermNodes.push_back(*P);
+      }
+      if (PermNodes.size() != 4)
+        return SDValue();
+
+      int FirstSrc = 0;
+      std::optional<int> SecondSrc;
+      uint64_t permMask = 0x00000000;
+      for (size_t i = 0; i < PermNodes.size(); i++) {
+        auto PermOp = PermNodes[i];
+        // Since the mask is applied to Src1:Src2, Src1 bytes must be offset
+        // by sizeof(Src2) = 4
+        int SrcByteAdjust = 4;
+
+        if (!PermOp.hasSameSrc(PermNodes[FirstSrc])) {
+          if (SecondSrc.has_value())
+            if (!PermOp.hasSameSrc(PermNodes[*SecondSrc]))
+              return SDValue();
+          // Set the index of the second distinct Src node
+          SecondSrc = i;
+          assert(PermNodes[*SecondSrc].Src->getValueType().getSizeInBits() ==
+                 32);
+          SrcByteAdjust = 0;
+        }
+        assert(PermOp.SrcOffset + SrcByteAdjust < 8);
+        assert(!DAG.getDataLayout().isBigEndian());
+        permMask |= (PermOp.SrcOffset + SrcByteAdjust) << (i * 8);
+      }
+
+      SDValue Op = *PermNodes[FirstSrc].Src;
+      SDValue OtherOp = SecondSrc.has_value() ? *PermNodes[*SecondSrc].Src
+                                              : *PermNodes[FirstSrc].Src;
+
+      // Check that we are not just extracting the bytes in order from an op
+      if (Op == OtherOp) {
+        int Low16 = permMask & 0xffff;
+        int Hi16 = (permMask & 0xffff0000) >> 16;
+
+        bool WellFormedLow = (Low16 == 0x0504) || (Low16 == 0x0100);
+        bool WellFormedHi = (Hi16 == 0x0706) || (Hi16 == 0x0302);
+
+        // The perm op would really just produce Op. So combine into Op
+        if (WellFormedLow && WellFormedHi)
+          return Op;
+      }
+
+      if (hasEightBitAccesses(permMask, Op, OtherOp)) {
+        SDLoc DL(N);
+        return DAG.getNode(AMDGPUISD::PERM, DL, MVT::i32, Op, OtherOp,
+                           DAG.getConstant(permMask, DL, MVT::i32));
       }
     }
   }
@@ -10379,6 +10860,7 @@ bool SITargetLowering::isCanonicalized(SelectionDAG &DAG, SDValue Op,
   case ISD::FREM:
   case ISD::FP_ROUND:
   case ISD::FP_EXTEND:
+  case ISD::FLDEXP:
   case AMDGPUISD::FMUL_LEGACY:
   case AMDGPUISD::FMAD_FTZ:
   case AMDGPUISD::RCP:
@@ -10386,11 +10868,12 @@ bool SITargetLowering::isCanonicalized(SelectionDAG &DAG, SDValue Op,
   case AMDGPUISD::RSQ_CLAMP:
   case AMDGPUISD::RCP_LEGACY:
   case AMDGPUISD::RCP_IFLAG:
+  case AMDGPUISD::LOG:
+  case AMDGPUISD::EXP:
   case AMDGPUISD::DIV_SCALE:
   case AMDGPUISD::DIV_FMAS:
   case AMDGPUISD::DIV_FIXUP:
   case AMDGPUISD::FRACT:
-  case AMDGPUISD::LDEXP:
   case AMDGPUISD::CVT_PKRTZ_F16_F32:
   case AMDGPUISD::CVT_F32_UBYTE0:
   case AMDGPUISD::CVT_F32_UBYTE1:
@@ -10493,6 +10976,8 @@ bool SITargetLowering::isCanonicalized(SelectionDAG &DAG, SDValue Op,
     case Intrinsic::amdgcn_rcp_legacy:
     case Intrinsic::amdgcn_rsq_legacy:
     case Intrinsic::amdgcn_trig_preop:
+    case Intrinsic::amdgcn_log:
+    case Intrinsic::amdgcn_exp2:
       return true;
     default:
       break;
@@ -10584,6 +11069,8 @@ bool SITargetLowering::isCanonicalized(Register Reg, MachineFunction &MF,
     case Intrinsic::amdgcn_fmed3:
     case Intrinsic::amdgcn_sin:
     case Intrinsic::amdgcn_cos:
+    case Intrinsic::amdgcn_log:
+    case Intrinsic::amdgcn_exp2:
     case Intrinsic::amdgcn_log_clamp:
     case Intrinsic::amdgcn_rcp:
     case Intrinsic::amdgcn_rcp_legacy:
@@ -11976,12 +12463,12 @@ SDValue SITargetLowering::PerformDAGCombine(SDNode *N,
     return performFCanonicalizeCombine(N, DCI);
   case AMDGPUISD::RCP:
     return performRcpCombine(N, DCI);
+  case ISD::FLDEXP:
   case AMDGPUISD::FRACT:
   case AMDGPUISD::RSQ:
   case AMDGPUISD::RCP_LEGACY:
   case AMDGPUISD::RCP_IFLAG:
-  case AMDGPUISD::RSQ_CLAMP:
-  case AMDGPUISD::LDEXP: {
+  case AMDGPUISD::RSQ_CLAMP: {
     // FIXME: This is probably wrong. If src is an sNaN, it won't be quieted
     SDValue Src = N->getOperand(0);
     if (Src.isUndef())
@@ -13026,6 +13513,30 @@ void SITargetLowering::computeKnownBitsForTargetInstr(
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_USHORT:
     Known.Zero.setHighBits(16);
     break;
+  case AMDGPU::G_AMDGPU_SMED3:
+  case AMDGPU::G_AMDGPU_UMED3: {
+    auto [Dst, Src0, Src1, Src2] = MI->getFirst4Regs();
+
+    KnownBits Known2;
+    KB.computeKnownBitsImpl(Src2, Known2, DemandedElts, Depth + 1);
+    if (Known2.isUnknown())
+      break;
+
+    KnownBits Known1;
+    KB.computeKnownBitsImpl(Src1, Known1, DemandedElts, Depth + 1);
+    if (Known1.isUnknown())
+      break;
+
+    KnownBits Known0;
+    KB.computeKnownBitsImpl(Src0, Known0, DemandedElts, Depth + 1);
+    if (Known0.isUnknown())
+      break;
+
+    // TODO: Handle LeadZero/LeadOne from UMIN/UMAX handling.
+    Known.Zero = Known0.Zero & Known1.Zero & Known2.Zero;
+    Known.One = Known0.One & Known1.One & Known2.One;
+    break;
+  }
   }
 }
 
@@ -13532,6 +14043,11 @@ bool SITargetLowering::isReassocProfitable(SelectionDAG &DAG, SDValue N0,
   // base and offset
   return (DAG.isBaseWithConstantOffset(N0) &&
           hasMemSDNodeUser(*N0->use_begin()));
+}
+
+bool SITargetLowering::isReassocProfitable(MachineRegisterInfo &MRI,
+                                           Register N0, Register N1) const {
+  return true; // FIXME: handle regbanks
 }
 
 MachineMemOperand::Flags

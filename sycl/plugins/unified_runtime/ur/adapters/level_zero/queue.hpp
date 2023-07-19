@@ -212,6 +212,11 @@ struct ur_queue_handle_t_ : _ur_object {
   // constructed, the caller chooses the type of commandlists to use.
   bool UsingImmCmdLists = false;
 
+  // Scope of events used for events on the queue
+  // Can be adjusted with UR_L0_DEVICE_SCOPE_EVENTS
+  // for non-immediate command lists
+  EventsScope ZeEventsScope = AllHostVisible;
+
   // Keeps track of the event associated with the last enqueued command into
   // this queue. this is used to add dependency with the last command to add
   // in-order semantics and updated with the latest event each time a new
@@ -393,6 +398,10 @@ struct ur_queue_handle_t_ : _ur_object {
   // Returns true if the queue has explicit priority set by user.
   bool isPriorityLow() const;
   bool isPriorityHigh() const;
+
+  // Returns true if the queue has an explicitly selected submission mode.
+  bool isBatchedSubmission() const;
+  bool isImmediateSubmission() const;
 
   // Wait for all commandlists associated with this Queue to finish operations.
   ur_result_t synchronize();

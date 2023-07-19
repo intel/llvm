@@ -27,6 +27,7 @@ void BPFunctionNode::dump(raw_ostream &OS) const {
 
 template <typename Func>
 void BalancedPartitioning::BPThreadPool::async(Func &&F) {
+#if LLVM_ENABLE_THREADS
   // This new thread could spawn more threads, so mark it as active
   ++NumActiveThreads;
   TheThreadPool.async([=]() {
@@ -44,9 +45,13 @@ void BalancedPartitioning::BPThreadPool::async(Func &&F) {
       cv.notify_one();
     }
   });
+#else
+  llvm_unreachable("threads are disabled");
+#endif
 }
 
 void BalancedPartitioning::BPThreadPool::wait() {
+#if LLVM_ENABLE_THREADS
   // TODO: We could remove the mutex and condition variable and use
   // std::atomic::wait() instead, but that isn't available until C++20
   {
@@ -56,6 +61,9 @@ void BalancedPartitioning::BPThreadPool::wait() {
   }
   // Now we can call ThreadPool::wait() since all tasks have been submitted
   TheThreadPool.wait();
+#else
+  llvm_unreachable("threads are disabled");
+#endif
 }
 
 BalancedPartitioning::BalancedPartitioning(
@@ -73,8 +81,10 @@ void BalancedPartitioning::run(std::vector<BPFunctionNode> &Nodes) const {
           "Partitioning %d nodes using depth %d and %d iterations per split\n",
           Nodes.size(), Config.SplitDepth, Config.IterationsPerSplit));
   std::optional<BPThreadPool> TP;
+#if LLVM_ENABLE_THREADS
   if (Config.TaskSplitDepth > 1)
     TP.emplace();
+#endif
 
   // Record the input order
   for (unsigned I = 0; I < Nodes.size(); I++)
@@ -211,8 +221,8 @@ unsigned BalancedPartitioning::runIteration(const FunctionNodeRange Nodes,
     unsigned R = Signature.RightCount;
     assert((L > 0 || R > 0) && "incorrect signature");
     float Cost = logCost(L, R);
-    Signature.CachedGainLR = 0;
-    Signature.CachedGainRL = 0;
+    Signature.CachedGainLR = 0.f;
+    Signature.CachedGainRL = 0.f;
     if (L > 0)
       Signature.CachedGainLR = Cost - logCost(L - 1, R + 1);
     if (R > 0)
@@ -247,7 +257,7 @@ unsigned BalancedPartitioning::runIteration(const FunctionNodeRange Nodes,
     auto &[LeftGain, LeftNode] = LeftPair;
     auto &[RightGain, RightNode] = RightPair;
     // Stop when the gain is no longer beneficial
-    if (LeftGain + RightGain <= 0.0)
+    if (LeftGain + RightGain <= 0.f)
       break;
     // Try to exchange the nodes between buckets
     if (moveFunctionNode(*LeftNode, LeftBucket, RightBucket, Signatures, RNG))
@@ -264,7 +274,7 @@ bool BalancedPartitioning::moveFunctionNode(BPFunctionNode &N,
                                             SignaturesT &Signatures,
                                             std::mt19937 &RNG) const {
   // Sometimes we skip the move. This helps to escape local optima
-  if (std::uniform_real_distribution<float>(0.0, 1.0)(RNG) <=
+  if (std::uniform_real_distribution<float>(0.f, 1.f)(RNG) <=
       Config.SkipProbability)
     return false;
 
@@ -309,7 +319,7 @@ void BalancedPartitioning::split(const FunctionNodeRange Nodes,
 float BalancedPartitioning::moveGain(const BPFunctionNode &N,
                                      bool FromLeftToRight,
                                      const SignaturesT &Signatures) {
-  float Gain = 0;
+  float Gain = 0.f;
   for (auto &UN : N.UtilityNodes)
     Gain += (FromLeftToRight ? Signatures[UN].CachedGainLR
                              : Signatures[UN].CachedGainRL);

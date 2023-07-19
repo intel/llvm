@@ -135,11 +135,6 @@ struct ur_device_handle_t_ : _ur_object {
   // Returns whether immediate command lists are used on this device.
   ImmCmdlistMode ImmCommandListUsed{};
 
-  // Scope of events used for events on the device
-  // Can be adjusted with UR_L0_DEVICE_SCOPE_EVENTS
-  // for non-immediate command lists
-  EventsScope ZeEventsScope = AllHostVisible;
-
   bool isSubDevice() { return RootDevice != nullptr; }
 
   // Is this a Data Center GPU Max series (aka PVC)?

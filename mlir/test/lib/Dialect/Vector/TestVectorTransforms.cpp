@@ -374,6 +374,31 @@ struct TestVectorTransferCollapseInnerMostContiguousDims
   }
 };
 
+struct TestSinkVectorBroadcast
+    : public PassWrapper<TestSinkVectorBroadcast, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestSinkVectorBroadcast)
+
+  TestSinkVectorBroadcast() = default;
+  TestSinkVectorBroadcast(const TestSinkVectorBroadcast &pass) = default;
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<memref::MemRefDialect, affine::AffineDialect>();
+  }
+
+  StringRef getArgument() const final { return "test-sink-vector-broadcast"; }
+
+  StringRef getDescription() const final {
+    return "Test lowering patterns that eliminate redundant brodacast "
+           "operations.";
+  }
+
+  void runOnOperation() override {
+    RewritePatternSet patterns(&getContext());
+    populateSinkVectorBroadcastPatterns(patterns);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+  }
+};
+
 struct TestVectorReduceToContractPatternsPatterns
     : public PassWrapper<TestVectorReduceToContractPatternsPatterns,
                          OperationPass<func::FuncOp>> {
@@ -690,26 +715,6 @@ struct TestVectorGatherLowering
   }
 };
 
-struct TestVectorTransferTensorSlicePatterns
-    : public PassWrapper<TestVectorTransferTensorSlicePatterns,
-                         OperationPass<func::FuncOp>> {
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
-      TestVectorTransferTensorSlicePatterns)
-
-  StringRef getArgument() const final {
-    return "test-vector-transfer-tensor-slice-patterns";
-  }
-  StringRef getDescription() const final {
-    return "Test patterns that fold vector transfer and tensor slice ops";
-  }
-
-  void runOnOperation() override {
-    RewritePatternSet patterns(&getContext());
-    populateVectorTransferTensorSliceTransforms(patterns);
-    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
-  }
-};
-
 struct TestFoldArithExtensionIntoVectorContractPatterns
     : public PassWrapper<TestFoldArithExtensionIntoVectorContractPatterns,
                          OperationPass<func::FuncOp>> {
@@ -755,6 +760,8 @@ void registerTestVectorLowerings() {
 
   PassRegistration<TestVectorTransferCollapseInnerMostContiguousDims>();
 
+  PassRegistration<TestSinkVectorBroadcast>();
+
   PassRegistration<TestVectorReduceToContractPatternsPatterns>();
 
   PassRegistration<TestFlattenVectorTransferPatterns>();
@@ -770,8 +777,6 @@ void registerTestVectorLowerings() {
   PassRegistration<TestCreateVectorBroadcast>();
 
   PassRegistration<TestVectorGatherLowering>();
-
-  PassRegistration<TestVectorTransferTensorSlicePatterns>();
 
   PassRegistration<TestFoldArithExtensionIntoVectorContractPatterns>();
 }

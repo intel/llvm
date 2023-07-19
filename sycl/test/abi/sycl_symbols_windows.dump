@@ -219,6 +219,7 @@
 ??$get_property@Vcontext_bound@image@property@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVcontext_bound@image@property@12@XZ
 ??$get_property@Vdiscard_events@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVdiscard_events@0property@oneapi@ext@12@XZ
 ??$get_property@Venable_profiling@queue@property@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVenable_profiling@0property@12@XZ
+??$get_property@Vimmediate_command_list@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVimmediate_command_list@0property@intel@ext@12@XZ
 ??$get_property@Vin_order@queue@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVin_order@queue@property@23@XZ
 ??$get_property@Vin_order@queue@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVin_order@queue@property@12@XZ
 ??$get_property@Vin_order@queue@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVin_order@queue@property@23@XZ
@@ -235,6 +236,7 @@
 ??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVmem_channel@buffer@property@23@XZ
 ??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA?AVmem_channel@buffer@property@12@XZ
 ??$get_property@Vmem_channel@buffer@property@_V1@sycl@@@stream@_V1@sycl@@QEBA?AVmem_channel@buffer@property@12@XZ
+??$get_property@Vno_immediate_command_list@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVno_immediate_command_list@0property@intel@ext@12@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVno_init@property@23@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVno_init@property@12@XZ
 ??$get_property@Vno_init@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA?AVno_init@property@23@XZ
@@ -313,6 +315,7 @@
 ??$has_property@Vcontext_bound@image@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vdiscard_events@queue@property@oneapi@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Venable_profiling@queue@property@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
+??$has_property@Vimmediate_command_list@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vin_order@queue@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
@@ -329,6 +332,7 @@
 ??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vmem_channel@buffer@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
+??$has_property@Vno_immediate_command_list@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@context@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vno_init@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ

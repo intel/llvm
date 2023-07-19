@@ -30,7 +30,7 @@ jobs:
           - name: Intel
             runner: '["Linux", "gen9"]'
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
-            extra_image_opts: -u 1001
+            extra_image_opts:
             extra_cmake_args:
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
             reset_gpu: true
@@ -38,7 +38,7 @@ jobs:
           - name: ESIMD Emu
             runner: '["Linux", "x86-cpu"]'
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
-            extra_image_opts: -u 1001
+            extra_image_opts:
             extra_cmake_args:
             target_devices: ext_intel_esimd_emulator:gpu
             reset_gpu: false
@@ -47,7 +47,7 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
       image: ${{ matrix.image }}
-      image_options: --device=/dev/dri --privileged --cap-add SYS_ADMIN ${{ matrix.extra_image_opts }}
+      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN ${{ matrix.extra_image_opts }}
       extra_cmake_args: ${{ matrix.extra_cmake_args }}
       target_devices: ${{ matrix.target_devices }}
       ref: ${{ inputs.ref }}
