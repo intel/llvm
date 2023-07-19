@@ -1341,7 +1341,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
     ur_queue_handle_t, void *, size_t, size_t, const void *, size_t, size_t,
-    uint32_t, const ur_event_handle_t *, ur_event_handle_t *phEvent) {
+    uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

@@ -103,7 +103,7 @@ public:
 
 private:
   /// @cond ESIMD_DETAIL
-  static inline constexpr bool mask_size_ok_for_mem_io() {
+  static constexpr bool mask_size_ok_for_mem_io() {
     constexpr unsigned Sz = sizeof(element_type) * N;
     return (Sz >= OperandSize::OWORD) && (Sz % OperandSize::OWORD == 0) &&
            isPowerOf2(Sz / OperandSize::OWORD) &&

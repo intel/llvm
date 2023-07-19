@@ -5,40 +5,59 @@ on:
     inputs:
       name:
         type: string
+        required: True
+
       runner:
         type: string
+        required: True
       image:
         type: string
+        required: True
       image_options:
         type: string
-      extra_cmake_args:
-        type: string
+        required: False
+
       target_devices:
         type: string
+        required: True
+      extra_cmake_args:
+        description: |
+          If empty, then HIP_PLATFORM and AMD_ARCH would be automatically added
+          if inputs.target_devices contains 'ext_oneapi_hip'
+        type: string
+        required: False
+
       ref:
         type: string
-      reset_gpu:
-        type: string
+        required: True
       merge_ref:
         description: |
           Commit-ish to merge post-checkout if non-empty. Must be reachable from
           the default_branch input paramter.
         type: string
         default: 'FETCH_HEAD'
+        required: False
 
       sycl_toolchain_artifact:
         type: string
         default: ''
+        required: False
       sycl_toolchain_archive:
         type: string
         default: ''
+        required: False
       sycl_toolchain_decompress_command:
         type: string
         default: ''
+        required: False
 
+      reset_gpu:
+        type: string
+        required: False
       env:
         type: string
         default: '{}'
+        required: False
 
 jobs:
   lin_e2e_only:
@@ -66,11 +85,7 @@ jobs:
         path: llvm
         ref: ${{ inputs.ref }}
         merge_ref: ${{ inputs.merge_ref }}
-        # We run build and HIP E2E tests under different users on the same
-        # runners, so need to use distinct cache paths.
-        cache_path: "/__w/repo_cache_e2e/"
-    - name: Hack to fix testing
-      run: rm -rf /__w/repo_cache_e2e/ || true
+        cache_path: "/__w/repo_cache/"
     - name: Install drivers
       if: env.compute_runtime_tag != ''
       run: |
@@ -111,11 +126,25 @@ jobs:
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
     - run: SYCL_PI_TRACE=-1 sycl-ls
+    - name: Deduce CMake options
+      id: cmake_opts
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.extra_cmake_args }}" ]; then
+          echo 'opts=${{ inputs.extra_cmake_args }}' >> $GITHUB_OUTPUT
+        else
+          if [ "${{ contains(inputs.target_devices, 'ext_oneapi_hip')  }}" == "true" ]; then
+            echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
+          else
+            echo 'opts=' >> $GITHUB_OUTPUT
+          fi
+        fi
+    - run: echo ${{ steps.cmake_opts.outputs.opts }}
     - name: Configure
       run: |
-        cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.target_devices }}" -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ inputs.extra_cmake_args }}
+        cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.target_devices }}" -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
     - name: SYCL End-to-end tests
       env:
-        LIT_OPTS: -v --no-progress-bar --show-unsupported --max-time 3600 --time-tests
+        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests
       run: |
         ninja -C build-e2e check-sycl-e2e

@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o - %s | FileCheck %s
 
 // Checks that the subhandler is correctly emitted in the module
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cstdlib>
 #include <iostream>
@@ -32,29 +32,27 @@ __attribute__((sycl_kernel)) void launch(const Func &kernelFunc) {
 void test() {
   queue q;
   gen_test<int>(q);
-  //CHECK:  define weak void @_ZTS6init_aIiE_NativeCPUKernelsubhandler(ptr %0, ptr %1) #2 {
-  //CHECK-NEXT:entry:
-  //CHECK-NEXT:  %2 = getelementptr %0, ptr %0, i64 0
-  //CHECK-NEXT:  %3 = load ptr, ptr %2, align 8
-  //CHECK-NEXT:  %4 = getelementptr %0, ptr %0, i64 3
-  //CHECK-NEXT:  %5 = load ptr, ptr %4, align 8
-  //CHECK-NEXT:  %6 = getelementptr %0, ptr %0, i64 4
-  //CHECK-NEXT:  %7 = load ptr, ptr %6, align 8
-  //CHECK-NEXT:  %8 = load i32, ptr %7, align 4
-  //CHECK-NEXT:  call void @_ZTS6init_aIiE_NativeCPUKernel_NativeCPUKernel(ptr %3, ptr %5, i32 %8, ptr %1)
+  //CHECK:  define weak void @_ZTS6init_aIiE_NativeCPUKernelsubhandler(ptr %{{.*}}, ptr %[[STATE:.*]]) #{{.*}} {
+  //CHECK:       %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK-NEXT:  %[[ARG1:.*]] = load ptr, ptr %{{.*}}
+  //CHECK-NEXT:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK-NEXT:  %[[ARG2:.*]] = load ptr, ptr %{{.*}}
+  //CHECK-NEXT:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK-NEXT:  %{{.*}} = load ptr, ptr %{{.*}}
+  //CHECK-NEXT:  %[[ARG3:.*]] = load i32, ptr %{{.*}}
+  //CHECK-NEXT:  call void @_ZTS6init_aIiE_NativeCPUKernel_NativeCPUKernel(ptr %[[ARG1]], ptr %[[ARG2]], i32 %[[ARG3]], ptr %[[STATE]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
   gen_test<float>(q);
-  //CHECK:  define weak void @_ZTS6init_aIfE_NativeCPUKernelsubhandler(ptr %0, ptr %1) #2 {
-  //CHECK-NEXT:entry:
-  //CHECK-NEXT:  %2 = getelementptr %0, ptr %0, i64 0
-  //CHECK-NEXT:  %3 = load ptr, ptr %2, align 8
-  //CHECK-NEXT:  %4 = getelementptr %0, ptr %0, i64 3
-  //CHECK-NEXT:  %5 = load ptr, ptr %4, align 8
-  //CHECK-NEXT:  %6 = getelementptr %0, ptr %0, i64 4
-  //CHECK-NEXT:  %7 = load ptr, ptr %6, align 8
-  //CHECK-NEXT:  %8 = load float, ptr %7, align 4
-  //CHECK-NEXT:  call void @_ZTS6init_aIfE_NativeCPUKernel_NativeCPUKernel(ptr %3, ptr %5, float %8, ptr %1)
+  //CHECK:  define weak void @_ZTS6init_aIfE_NativeCPUKernelsubhandler(ptr %{{.*}}, ptr %[[STATE1:.*]]) #{{.*}} {
+  //CHECK:       %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK-NEXT:  %[[ARGF1:.*]] = load ptr, ptr %{{.*}}
+  //CHECK-NEXT:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK-NEXT:  %[[ARGF2:.*]] = load ptr, ptr %{{.*}}, align 8
+  //CHECK-NEXT:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK-NEXT:  %{{.*}} = load ptr, ptr %{{.*}}
+  //CHECK-NEXT:  %[[ARGF3:.*]] = load float, ptr %{{.*}}
+  //CHECK-NEXT:  call void @_ZTS6init_aIfE_NativeCPUKernel_NativeCPUKernel(ptr %[[ARGF1]], ptr %[[ARGF2]], float %[[ARGF3]], ptr %[[STATE1]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 
@@ -66,16 +64,14 @@ void test() {
       acc[id[0]]; // all kernel arguments are removed
     });
   });
-  //CHECK:define weak void @_ZTS5Test1_NativeCPUKernelsubhandler(ptr %0, ptr %1) #2 {
-  //CHECK-NEXT:entry:
-  //CHECK-NEXT:  call void @_ZTS5Test1_NativeCPUKernel_NativeCPUKernel(ptr %1)
+  //CHECK:define weak void @_ZTS5Test1_NativeCPUKernelsubhandler(ptr %{{.*}}, ptr %[[STATE2:.*]]) #{{.*}} {
+  //CHECK:       call void @_ZTS5Test1_NativeCPUKernel_NativeCPUKernel(ptr %[[STATE2]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 
   launch<class TestKernel>([]() {});
-  //CHECK:define weak void @_ZTSZ4testvE10TestKernel_NativeCPUKernelsubhandler(ptr %0, ptr %1) #2 {
-  //CHECK-NEXT:entry:
-  //CHECK-NEXT:  call void @_ZTSZ4testvE10TestKernel_NativeCPUKernel_NativeCPUKernel(ptr %1)
+  //CHECK:define weak void @_ZTSZ4testvE10TestKernel_NativeCPUKernelsubhandler(ptr %{{.*}}, ptr %[[STATE3:.*]]) #2 {
+  //CHECK:       call void @_ZTSZ4testvE10TestKernel_NativeCPUKernel_NativeCPUKernel(ptr %[[STATE3]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 }

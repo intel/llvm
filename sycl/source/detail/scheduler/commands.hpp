@@ -109,10 +109,13 @@ public:
     UPDATE_REQUIREMENT,
     EMPTY_TASK,
     HOST_TASK,
-    FUSION
+    FUSION,
+    EXEC_CMD_BUFFER,
   };
 
-  Command(CommandType Type, QueueImplPtr Queue);
+  Command(CommandType Type, QueueImplPtr Queue,
+          sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+          const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints = {});
 
   /// \param NewDep dependency to be added
   /// \param ToCleanUp container for commands that can be cleaned up.
@@ -383,6 +386,18 @@ public:
   /// intersect with command enqueue.
   std::vector<EventImplPtr> MBlockedUsers;
   std::mutex MBlockedUsersMutex;
+
+protected:
+  /// Gets the command buffer (if any) associated with this command.
+  sycl::detail::pi::PiExtCommandBuffer getCommandBuffer() const {
+    return MCommandBuffer;
+  }
+
+  /// CommandBuffer which will be used to submit to instead of the queue, if
+  /// set.
+  sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+  /// List of sync points for submissions to a command buffer.
+  std::vector<sycl::detail::pi::PiExtSyncPoint> MSyncPointDeps;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to
@@ -619,7 +634,10 @@ class KernelFusionCommand;
 /// operation.
 class ExecCGCommand : public Command {
 public:
-  ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
+  ExecCGCommand(
+      std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+      const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
   std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
@@ -649,6 +667,8 @@ public:
 
 private:
   pi_int32 enqueueImp() final;
+  pi_int32 enqueueImpCommandBuffer();
+  pi_int32 enqueueImpQueue();
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
@@ -720,6 +740,31 @@ private:
 
   FusionStatus MStatus;
 };
+
+// Enqueues a given kernel to a PiExtCommandBuffer
+pi_int32 enqueueImpCommandBufferKernel(
+    context Ctx, DeviceImplPtr DeviceImpl,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    const CGExecKernel &CommandGroup,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
+
+// Sets arguments for a given kernel and device based on the argument type.
+// Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
+// extension.
+void SetArgBasedOnType(
+    const detail::plugin &Plugin, sycl::detail::pi::PiKernel Kernel,
+    const std::shared_ptr<device_image_impl> &DeviceImageImpl,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,
+    size_t NextTrueIndex);
+
+void applyFuncOnFilteredArgs(
+    const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
+    std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func);
+
+void ReverseRangeDimensionsForKernel(NDRDescT &NDR);
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

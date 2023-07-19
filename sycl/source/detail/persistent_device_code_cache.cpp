@@ -12,6 +12,7 @@
 #include <detail/program_manager/program_manager.hpp>
 
 #include <cstdio>
+#include <fstream>
 #include <optional>
 
 #if defined(__SYCL_RT_OS_POSIX_SUPPORT)

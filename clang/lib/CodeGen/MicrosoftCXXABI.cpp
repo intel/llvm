@@ -1279,7 +1279,11 @@ void MicrosoftCXXABI::EmitCXXConstructors(const CXXConstructorDecl *D) {
 void MicrosoftCXXABI::EmitVBPtrStores(CodeGenFunction &CGF,
                                       const CXXRecordDecl *RD) {
   Address This = getThisAddress(CGF);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  This = This.withElementType(CGM.Int8Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   This = CGF.Builder.CreateElementBitCast(This, CGM.Int8Ty, "this.int8");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   const ASTContext &Context = getContext();
   const ASTRecordLayout &Layout = Context.getASTRecordLayout(RD);
 
@@ -1296,8 +1300,12 @@ void MicrosoftCXXABI::EmitVBPtrStores(CodeGenFunction &CGF,
     Address VBPtr = CGF.Builder.CreateConstInBoundsByteGEP(This, Offs);
     llvm::Value *GVPtr =
         CGF.Builder.CreateConstInBoundsGEP2_32(GV->getValueType(), GV, 0, 0);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    VBPtr = VBPtr.withElementType(GVPtr->getType());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     VBPtr = CGF.Builder.CreateElementBitCast(VBPtr, GVPtr->getType(),
                                       "vbptr." + VBT->ObjectWithVPtr->getName());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     CGF.Builder.CreateStore(GVPtr, VBPtr);
   }
 }

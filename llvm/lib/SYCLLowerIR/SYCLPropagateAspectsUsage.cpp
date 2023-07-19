@@ -255,6 +255,13 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
     Result.insert(Aspects.begin(), Aspects.end());
   }
 
+  if (const MDNode *InstApsects = I.getMetadata("sycl_used_aspects")) {
+    for (const MDOperand &MDOp : InstApsects->operands()) {
+      const Constant *C = cast<ConstantAsMetadata>(MDOp)->getValue();
+      Result.insert(cast<ConstantInt>(C)->getSExtValue());
+    }
+  }
+
   return Result;
 }
 
