@@ -1,8 +1,4 @@
 // REQUIRES: level_zero, gpu
-//
-// A non-zero exit code is returned on Windows
-// XFAIL: windows
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
@@ -17,7 +13,7 @@ int main() {
 
   property_list properties{property::queue::in_order()};
   queue QueueA{gpu_selector_v, properties};
-  queue QueueB{gpu_selector_v, properties};
+  queue QueueB{QueueA.get_context(), QueueA.get_device(), properties};
 
   exp_ext::command_graph Graph{QueueA.get_context(), QueueA.get_device()};
 

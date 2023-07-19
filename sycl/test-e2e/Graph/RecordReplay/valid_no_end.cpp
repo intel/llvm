@@ -1,8 +1,4 @@
 // REQUIRES: level_zero, gpu
-//
-// A non-zero exit code is returned on Windows
-// XFAIL: windows
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
@@ -21,7 +17,7 @@ int main() {
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   {
-    queue MyQueue;
+    queue MyQueue(Queue.get_context(), Queue.get_device());
     Graph.begin_recording(MyQueue);
   }
 
