@@ -75,6 +75,7 @@ AtomicRef/xor_local.cpp
 BFloat16/bfloat16_builtins.cpp
 BFloat16/bfloat16_type.cpp
 Basic/accessor/accessor.cpp
+Basic/accessor/empty_zero_dim_accessor.cpp
 Basic/bit_cast/bit_cast.cpp
 Basic/boolean.cpp
 Basic/built-ins.cpp
@@ -119,9 +120,13 @@ Complex/sycl_complex_operator_test.cpp
 Complex/sycl_complex_pow_test.cpp
 Complex/sycl_complex_stream_test.cpp
 DeviceGlobal/device_global_arrow.cpp
+DeviceGlobal/device_global_arrow_dis.cpp
 DeviceGlobal/device_global_device_only.cpp
+DeviceGlobal/device_global_device_only_dis.cpp
 DeviceGlobal/device_global_operator_passthrough.cpp
+DeviceGlobal/device_global_operator_passthrough_dis.cpp
 DeviceGlobal/device_global_subscript.cpp
+DeviceGlobal/device_global_subscript_dis.cpp
 DeviceLib/ITTAnnotations/atomic.cpp
 DeviceLib/built-ins/ext_native_math.cpp
 DeviceLib/built-ins/ext_native_math_fp16.cpp
@@ -524,6 +529,7 @@ SpecConstants/2020/host_apis.cpp
 SpecConstants/2020/kernel-bundle-api.cpp
 SpecConstants/2020/kernel_lambda_with_kernel_handler_arg.cpp
 SpecConstants/2020/non_native/aot_w_kernel_handler_wo_spec_consts.cpp
+SpecConstants/2020/non-packed-struct.cpp
 SpecConstants/2020/vector-convolution-demo.cpp
 SubGroup/attributes.cpp
 SubGroup/broadcast_fp16.cpp
