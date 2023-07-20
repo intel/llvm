@@ -2,8 +2,6 @@
 // UNSUPPORTED: cuda || hip
 // CUDA cannot support SYCL 1.2.1 images.
 //
-// https://github.com/intel/llvm/issues/7585 to fix the failure:
-// XFAIL: cpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

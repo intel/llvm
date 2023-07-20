@@ -93,6 +93,7 @@ Basic/group_local_memory.cpp
 Basic/half_type.cpp
 Basic/image/image.cpp
 Basic/image/image_accessor_readsampler.cpp
+Basic/image/image_accessor_readwrite.cpp
 Basic/image/image_array.cpp
 Basic/image/image_max_size.cpp
 Basic/image/image_read.cpp

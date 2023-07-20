@@ -3,6 +3,9 @@
 // RUN: %{build} -fno-sycl-early-optimizations -DOPTIMIZATIONS_DISABLED=1 -o %t_noopt.out
 // RUN: %{run} %t_noopt.out
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 // Tests that aspect::fp64 requirements are affected by optimizations.
 
 #include <sycl/sycl.hpp>

@@ -1,5 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
 //
 // This test intends to check that no speculative compilation is happening,
 // i.e. there are no exceptions thrown about aspects fp16 or fp64 being
