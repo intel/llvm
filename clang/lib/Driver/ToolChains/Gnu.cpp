@@ -628,13 +628,15 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     for (const auto &II : Inputs) {
       // TODO: Incoming file from the unbundling of the AOCX archive is
       // represented as an object.
-      StringRef FileName(II.getFilename());
-      bool IsAOCXFileList = llvm::sys::path::extension(FileName) == ".aocx" &&
-                            II.getType() == types::TY_Object;
+      bool IsAOCXFile = false;
+      if (II.isFilename())
+        IsAOCXFile = llvm::sys::path::extension(II.getFilename()) == ".aocx";
 
-      if (II.getType() == types::TY_Tempfilelist || IsAOCXFileList) {
+      if (II.getType() == types::TY_Tempfilelist ||
+          (IsAOCXFile && II.getType() == types::TY_Object)) {
         // Take the unbundled list file and pass it in with '@'.
-        const char * ArgFile = C.getArgs().MakeArgString("@" + FileName);
+        const char * ArgFile =
+            C.getArgs().MakeArgString("@" + StringRef(II.getFilename()));
         auto CurInput = InputInfo(types::TY_Object, ArgFile, ArgFile);
         UpdatedInputs.push_back(CurInput);
       } else
