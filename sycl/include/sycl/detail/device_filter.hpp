@@ -10,10 +10,10 @@
 
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/info/info_desc.hpp>
 
 #include <optional>
+#include <ostream>
 #include <string>
 
 namespace sycl {
