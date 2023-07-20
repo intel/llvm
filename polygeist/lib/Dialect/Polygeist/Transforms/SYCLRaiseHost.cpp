@@ -789,16 +789,17 @@ private:
   llvm::Regex regex;
 };
 
-template <typename TypeTag>
-class RaiseArrayCopyConstructorBasePattern
-    : public OpHostRaisePattern<LLVM::MemcpyOp> {
+/// Pattern raising operations of type \tparam OpTy encoding constructors of
+/// the type given by \tparam TypeTag.
+template <typename OpTy, typename TypeTag>
+class RaiseArrayIntrinsicConstructor : public OpHostRaisePattern<OpTy> {
 public:
-  using OpHostRaisePattern<LLVM::MemcpyOp>::OpHostRaisePattern;
+  virtual ~RaiseArrayIntrinsicConstructor() = default;
 
-  LogicalResult matchAndRewrite(LLVM::MemcpyOp op,
+  LogicalResult matchAndRewrite(OpTy op,
                                 PatternRewriter &rewriter) const final {
-    // Check the destination is an alloca of id type
-    auto alloc = op.getDst().getDefiningOp<LLVM::AllocaOp>();
+    // Check the destination is an alloca of the given type
+    auto alloc = op.getDst().template getDefiningOp<LLVM::AllocaOp>();
     if (!alloc || !alloc.getElemType().has_value())
       return failure();
 
@@ -812,18 +813,43 @@ public:
       // Failed to identify the number of dimensions/components
       return failure();
 
+    if (failed(finishMatch(op)))
+      return failure();
+
     unsigned numComponents = arrayTyOrNone->getNumElements();
     Type componentTy = arrayTyOrNone->getElementType();
 
     Type constructedType = rewriter.getType<typename TypeTag::SYCLType>(
         numComponents, componentTy);
     rewriter.replaceOpWithNewOp<sycl::SYCLHostConstructorOp>(
-        op, alloc, /*args=*/op.getSrc(), TypeAttr::get(constructedType));
+        op, alloc, getArgs(op), TypeAttr::get(constructedType));
     return success();
   }
 
-private:
+protected:
+  using OpHostRaisePattern<OpTy>::OpHostRaisePattern;
+
+  /// Further match \p op.
+  virtual LogicalResult finishMatch(OpTy op) const { return success(); }
+
+  /// Get arguments to be passed to the constructor from the given operation \p
+  /// op.
+  virtual SmallVector<Value> getArgs(OpTy op) const = 0;
+
   TypeTag tag;
+};
+
+template <typename TypeTag>
+class RaiseArrayCopyConstructorBasePattern
+    : public RaiseArrayIntrinsicConstructor<LLVM::MemcpyOp, TypeTag> {
+public:
+  using RaiseArrayIntrinsicConstructor<LLVM::MemcpyOp,
+                                       TypeTag>::RaiseArrayIntrinsicConstructor;
+
+protected:
+  SmallVector<Value> getArgs(LLVM::MemcpyOp op) const final {
+    return {op.getSrc()};
+  }
 };
 
 struct RaiseIDConstructor : public RaiseArrayConstructorBasePattern<IDTypeTag> {
@@ -837,44 +863,19 @@ struct RaiseIDCopyConstructor
       IDTypeTag>::RaiseArrayCopyConstructorBasePattern;
 };
 
-class RaiseIDDefaultConstructor : public OpHostRaisePattern<LLVM::MemsetOp> {
+class RaiseIDDefaultConstructor
+    : public RaiseArrayIntrinsicConstructor<LLVM::MemsetOp, IDTypeTag> {
 public:
-  using OpHostRaisePattern<LLVM::MemsetOp>::OpHostRaisePattern;
+  using RaiseArrayIntrinsicConstructor<
+      LLVM::MemsetOp, IDTypeTag>::RaiseArrayIntrinsicConstructor;
 
-  LogicalResult matchAndRewrite(LLVM::MemsetOp op,
-                                PatternRewriter &rewriter) const final {
-    // Check the destination is an alloca of id type
-    auto alloc = op.getDst().getDefiningOp<LLVM::AllocaOp>();
-    if (!alloc || !alloc.getElemType().has_value())
-      return failure();
-
-    Type allocTy = *alloc.getElemType();
-    if (!isClassType(allocTy, tag.getTypeName()))
-      return failure();
-
+protected:
+  LogicalResult finishMatch(LLVM::MemsetOp op) const final {
     // The value being used as a filler is 0
-    Operation *zero = op.getVal().getDefiningOp();
-    if (!zero || !matchPattern(zero, m_Zero()))
-      return failure();
-
-    std::optional<LLVM::LLVMArrayType> arrayTyOrNone =
-        getNumAndTypeOfComponents(cast<LLVM::LLVMStructType>(allocTy));
-    if (!arrayTyOrNone)
-      // Failed to identify the number of dimensions/components
-      return failure();
-
-    unsigned numComponents = arrayTyOrNone->getNumElements();
-    Type componentTy = arrayTyOrNone->getElementType();
-
-    Type constructedType =
-        rewriter.getType<sycl::IDType>(numComponents, componentTy);
-    rewriter.replaceOpWithNewOp<sycl::SYCLHostConstructorOp>(
-        op, alloc, /*args=*/ValueRange(), TypeAttr::get(constructedType));
-    return success();
+    return success(matchPattern(op.getVal(), m_Zero()));
   }
 
-private:
-  IDTypeTag tag;
+  SmallVector<Value> getArgs(LLVM::MemsetOp) const final { return {}; }
 };
 
 class RangeTypeTag {
