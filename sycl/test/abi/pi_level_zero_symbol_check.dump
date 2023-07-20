@@ -153,6 +153,8 @@ piextUSMEnqueuePrefetch
 piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc
+piextUSMImport
 piextUSMPitchedAlloc
+piextUSMRelease
 piextUSMSharedAlloc
 piextWaitExternalSemaphore
