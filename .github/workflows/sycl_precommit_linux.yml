@@ -71,7 +71,6 @@ jobs:
     if: |
       always()
       && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
-      && (github.event.pull_request.head.repo.full_name == 'intel/llvm')
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
     with:
