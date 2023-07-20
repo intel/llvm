@@ -29,6 +29,33 @@ namespace {
     return *this;                                                              \
   }
 
+// compare strings on compile time
+constexpr bool compareStrs(const char *Str1, const char *Str2) {
+  return std::string_view(Str1) == Str2;
+}
+
+// filter properties with AllowedPropsTuple via name checking
+template <typename TestProps, typename AllowedPropsTuple>
+struct PropertiesAreAllowed {};
+
+template <typename TestProps, typename... AllowedProps>
+struct PropertiesAreAllowed<TestProps, std::tuple<const AllowedProps...>> {
+  static constexpr const bool allowed =
+      (compareStrs(detail::PropertyMetaInfo<TestProps>::name,
+                   detail::PropertyMetaInfo<AllowedProps>::name) ||
+       ...);
+};
+
+template <typename... Ts>
+using tuple_cat_t = decltype(std::tuple_cat(std::declval<Ts>()...));
+
+template <typename AllowedPropTuple, typename... Props>
+struct PropertiesFilter {
+  using tuple = tuple_cat_t<typename std::conditional<
+      PropertiesAreAllowed<Props, AllowedPropTuple>::allowed, std::tuple<Props>,
+      std::tuple<>>::type...>;
+};
+
 template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
@@ -41,22 +68,30 @@ class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
 private:
-  T *m_Ptr
-#ifdef __SYCL_DEVICE_ONLY__
-      [[__sycl_detail__::add_ir_annotations_member(
-          detail::PropertyMetaInfo<Props>::name...,
-          detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-      ;
+  T *m_Ptr;
 
 public:
   annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
   annotated_ref(const annotated_ref &) = default;
 
-  operator T() const { return *m_Ptr; }
+  operator T() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return *__builtin_intel_sycl_ptr_annotation(
+        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+        detail::PropertyMetaInfo<Props>::value...);
+#else
+    return *m_Ptr;
+#endif
+  }
 
   annotated_ref &operator=(const T &Obj) {
+#ifdef __SYCL_DEVICE_ONLY__
+    *__builtin_intel_sycl_ptr_annotation(
+        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+        detail::PropertyMetaInfo<Props>::value...) = Obj;
+#else
     *m_Ptr = Obj;
+#endif
     return *this;
   }
 
@@ -97,8 +132,23 @@ template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
-  using reference =
-      sycl::ext::oneapi::experimental::annotated_ref<T, property_list_t>;
+
+  // buffer_location and alignment are allowed for annotated_ref
+  using allowed_properties =
+      std::tuple<decltype(buffer_location<0>), decltype(alignment<0>)>;
+  using filtered_properties =
+      typename PropertiesFilter<allowed_properties, Props...>::tuple;
+
+  // template unpack helper
+  template <typename... FilteredProps> struct unpack {};
+
+  template <typename... FilteredProps>
+  struct unpack<std::tuple<FilteredProps...>> {
+    using type = detail::properties_t<FilteredProps...>;
+  };
+
+  using reference = sycl::ext::oneapi::experimental::annotated_ref<
+      T, typename unpack<filtered_properties>::type>;
 
 #ifdef __SYCL_DEVICE_ONLY__
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;

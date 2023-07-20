@@ -2042,10 +2042,15 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 }
 
 pi_result piextUSMImport(const void *ptr, size_t size, pi_context context) {
+  std::ignore = ptr;
+  std::ignore = size;
+  std::ignore = context;
   return PI_SUCCESS;
 }
 
 pi_result piextUSMRelease(const void *ptr, pi_context context) {
+  std::ignore = ptr;
+  std::ignore = context;
   return PI_SUCCESS;
 }
 
