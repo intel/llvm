@@ -1453,6 +1453,7 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_IP_VERSION = 113,                                ///< [uint32_t] The device IP version. The meaning of the device IP version
                                                                     ///< is implementation-defined, but newer devices should have a higher
                                                                     ///< version than older devices.
+    UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT = 114,                    ///< [::ur_bool_t] return true if the device supports virtual memory.
     UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,            ///< [::ur_bool_t] returns true if the device supports the creation of
                                                                     ///< bindless images
     UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001, ///< [::ur_bool_t] returns true if the device supports the creation of

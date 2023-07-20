@@ -383,6 +383,8 @@ etors:
       desc: "[uint32_t] The maximum number of registers available per block."
     - name: IP_VERSION
       desc: "[uint32_t] The device IP version. The meaning of the device IP version is implementation-defined, but newer devices should have a higher version than older devices."
+    - name: VIRTUAL_MEMORY_SUPPORT
+      desc: "[$x_bool_t] return true if the device supports virtual memory."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
