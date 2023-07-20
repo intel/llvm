@@ -93,15 +93,15 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV: 3 FunctionParameter [[IMG2D_RW]] {{[0-9]+}}
 
 ; CHECK-LLVM:        define spir_kernel void @foo(
-; CHECK-LLVM-SAME:     %opencl.pipe_ro_t addrspace(1)* nocapture %a,
-; CHECK-LLVM-SAME:     %opencl.pipe_wo_t addrspace(1)* nocapture %b,
-; CHECK-LLVM-SAME:     %opencl.image1d_ro_t addrspace(1)* nocapture %c1,
-; CHECK-LLVM-SAME:     %opencl.image2d_ro_t addrspace(1)* nocapture %d1,
-; CHECK-LLVM-SAME:     %opencl.image3d_ro_t addrspace(1)* nocapture %e1,
-; CHECK-LLVM-SAME:     %opencl.image2d_array_ro_t addrspace(1)* nocapture %f1,
-; CHECK-LLVM-SAME:     %opencl.image1d_buffer_ro_t addrspace(1)* nocapture %g1,
-; CHECK-LLVM-SAME:     %opencl.image1d_wo_t addrspace(1)* nocapture %c2,
-; CHECK-LLVM-SAME:     %opencl.image2d_rw_t addrspace(1)* nocapture %d3)
+; CHECK-LLVM-SAME:     %opencl.pipe_ro_t addrspace(1)* %a,
+; CHECK-LLVM-SAME:     %opencl.pipe_wo_t addrspace(1)* %b,
+; CHECK-LLVM-SAME:     %opencl.image1d_ro_t addrspace(1)* %c1,
+; CHECK-LLVM-SAME:     %opencl.image2d_ro_t addrspace(1)* %d1,
+; CHECK-LLVM-SAME:     %opencl.image3d_ro_t addrspace(1)* %e1,
+; CHECK-LLVM-SAME:     %opencl.image2d_array_ro_t addrspace(1)* %f1,
+; CHECK-LLVM-SAME:     %opencl.image1d_buffer_ro_t addrspace(1)* %g1,
+; CHECK-LLVM-SAME:     %opencl.image1d_wo_t addrspace(1)* %c2,
+; CHECK-LLVM-SAME:     %opencl.image2d_rw_t addrspace(1)* %d3)
 ; CHECK-LLVM-SAME:     !kernel_arg_addr_space [[AS:![0-9]+]]
 ; CHECK-LLVM-SAME:     !kernel_arg_access_qual [[AQ:![0-9]+]]
 ; CHECK-LLVM-SAME:     !kernel_arg_type [[TYPE:![0-9]+]]
@@ -110,15 +110,15 @@ target triple = "spir-unknown-unknown"
 
 ; Function Attrs: nounwind readnone
 define spir_kernel void @foo(
-  %spirv.Pipe._0 addrspace(1)* nocapture %a,
-  %spirv.Pipe._1 addrspace(1)* nocapture %b,
-  %spirv.Image._void_0_0_0_0_0_0_0 addrspace(1)* nocapture %c1,
-  %spirv.Image._int_1_0_0_0_0_0_0 addrspace(1)* nocapture %d1,
-  %spirv.Image._uint_2_0_0_0_0_0_0 addrspace(1)* nocapture %e1,
-  %spirv.Image._half_1_0_1_0_0_0_0 addrspace(1)* nocapture %f1,
-  %spirv.Image._float_5_0_0_0_0_0_0 addrspace(1)* nocapture %g1,
-  %spirv.Image._void_0_0_0_0_0_0_1 addrspace(1)* nocapture %c2,
-  %spirv.Image._void_1_0_0_0_0_0_2 addrspace(1)* nocapture %d3) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+  %spirv.Pipe._0 addrspace(1)* %a,
+  %spirv.Pipe._1 addrspace(1)* %b,
+  %spirv.Image._void_0_0_0_0_0_0_0 addrspace(1)* %c1,
+  %spirv.Image._int_1_0_0_0_0_0_0 addrspace(1)* %d1,
+  %spirv.Image._uint_2_0_0_0_0_0_0 addrspace(1)* %e1,
+  %spirv.Image._half_1_0_1_0_0_0_0 addrspace(1)* %f1,
+  %spirv.Image._float_5_0_0_0_0_0_0 addrspace(1)* %g1,
+  %spirv.Image._void_0_0_0_0_0_0_1 addrspace(1)* %c2,
+  %spirv.Image._void_1_0_0_0_0_0_2 addrspace(1)* %d3) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
   ret void
 }

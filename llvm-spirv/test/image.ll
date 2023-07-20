@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 %opencl.image2d_t = type opaque
 
 ; Function Attrs: nounwind
-define spir_kernel void @image_copy(%opencl.image2d_t addrspace(1)* readnone %image1, %opencl.image2d_t addrspace(1)* %image2) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+define spir_kernel void @image_copy(%opencl.image2d_t addrspace(1)* %image1, %opencl.image2d_t addrspace(1)* %image2) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
 entry:
   %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #3
   %conv = trunc i64 %call to i32
