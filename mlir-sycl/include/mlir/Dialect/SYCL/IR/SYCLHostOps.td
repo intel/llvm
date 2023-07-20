@@ -152,7 +152,7 @@ def SYCLHostSetCaptured : SYCL_HostOp<"set_captured"> {
   let description = [{
     This operation represents that the given `value` was captured in the kernel
     function object `lambda` at index `index`. The op is created during the 
-    progressive raising towards the `sycl.host.launch_kernel` op.
+    progressive raising towards the `sycl.host.schedule_kernel` op.
 
     Example:
     ```
