@@ -25,7 +25,7 @@ __urdlllocal ur_result_t UR_APICALL urInit(
     auto pfnInit = context.urDdiTable.Global.pfnInit;
 
     if (nullptr == pfnInit) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -47,7 +47,7 @@ __urdlllocal ur_result_t UR_APICALL urTearDown(
     auto pfnTearDown = context.urDdiTable.Global.pfnTearDown;
 
     if (nullptr == pfnTearDown) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -84,7 +84,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     auto pfnAdapterGet = context.urDdiTable.Global.pfnAdapterGet;
 
     if (nullptr == pfnAdapterGet) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -103,7 +103,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
     auto pfnAdapterRelease = context.urDdiTable.Global.pfnAdapterRelease;
 
     if (nullptr == pfnAdapterRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -129,7 +129,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
     auto pfnAdapterRetain = context.urDdiTable.Global.pfnAdapterRetain;
 
     if (nullptr == pfnAdapterRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -162,7 +162,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
         context.urDdiTable.Global.pfnAdapterGetLastError;
 
     if (nullptr == pfnAdapterGetLastError) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -202,7 +202,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
     auto pfnAdapterGetInfo = context.urDdiTable.Global.pfnAdapterGetInfo;
 
     if (nullptr == pfnAdapterGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -254,7 +254,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     auto pfnGet = context.urDdiTable.Platform.pfnGet;
 
     if (nullptr == pfnGet) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -287,7 +287,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     auto pfnGetInfo = context.urDdiTable.Platform.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -327,7 +327,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
     auto pfnGetApiVersion = context.urDdiTable.Platform.pfnGetApiVersion;
 
     if (nullptr == pfnGetApiVersion) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -355,7 +355,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Platform.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -387,7 +387,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         context.urDdiTable.Platform.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -415,7 +415,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     auto pfnGetBackendOption = context.urDdiTable.Platform.pfnGetBackendOption;
 
     if (nullptr == pfnGetBackendOption) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -458,7 +458,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     auto pfnGet = context.urDdiTable.Device.pfnGet;
 
     if (nullptr == pfnGet) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -496,7 +496,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     auto pfnGetInfo = context.urDdiTable.Device.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -536,7 +536,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     auto pfnRetain = context.urDdiTable.Device.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -562,7 +562,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
     auto pfnRelease = context.urDdiTable.Device.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -598,7 +598,7 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     auto pfnPartition = context.urDdiTable.Device.pfnPartition;
 
     if (nullptr == pfnPartition) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -634,7 +634,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
     auto pfnSelectBinary = context.urDdiTable.Device.pfnSelectBinary;
 
     if (nullptr == pfnSelectBinary) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -671,7 +671,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Device.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -704,7 +704,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
         context.urDdiTable.Device.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -742,7 +742,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
         context.urDdiTable.Device.pfnGetGlobalTimestamps;
 
     if (nullptr == pfnGetGlobalTimestamps) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -771,7 +771,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     auto pfnCreate = context.urDdiTable.Context.pfnCreate;
 
     if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -803,7 +803,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
     auto pfnRetain = context.urDdiTable.Context.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -829,7 +829,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
     auto pfnRelease = context.urDdiTable.Context.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -867,7 +867,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
     auto pfnGetInfo = context.urDdiTable.Context.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -908,7 +908,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Context.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -943,7 +943,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         context.urDdiTable.Context.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -979,7 +979,7 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
         context.urDdiTable.Context.pfnSetExtendedDeleter;
 
     if (nullptr == pfnSetExtendedDeleter) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1011,7 +1011,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
     auto pfnImageCreate = context.urDdiTable.Mem.pfnImageCreate;
 
     if (nullptr == pfnImageCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1072,7 +1072,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     auto pfnBufferCreate = context.urDdiTable.Mem.pfnBufferCreate;
 
     if (nullptr == pfnBufferCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1121,7 +1121,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
     auto pfnRetain = context.urDdiTable.Mem.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1147,7 +1147,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
     auto pfnRelease = context.urDdiTable.Mem.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1180,7 +1180,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
     auto pfnBufferPartition = context.urDdiTable.Mem.pfnBufferPartition;
 
     if (nullptr == pfnBufferPartition) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1221,7 +1221,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Mem.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1254,7 +1254,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
         context.urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
 
     if (nullptr == pfnBufferCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1291,7 +1291,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
         context.urDdiTable.Mem.pfnImageCreateWithNativeHandle;
 
     if (nullptr == pfnImageCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1338,7 +1338,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     auto pfnGetInfo = context.urDdiTable.Mem.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1388,7 +1388,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
     auto pfnImageGetInfo = context.urDdiTable.Mem.pfnImageGetInfo;
 
     if (nullptr == pfnImageGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1430,7 +1430,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
     auto pfnCreate = context.urDdiTable.Sampler.pfnCreate;
 
     if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1474,7 +1474,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     auto pfnRetain = context.urDdiTable.Sampler.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1501,7 +1501,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     auto pfnRelease = context.urDdiTable.Sampler.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1535,7 +1535,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     auto pfnGetInfo = context.urDdiTable.Sampler.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1576,7 +1576,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Sampler.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1609,7 +1609,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
         context.urDdiTable.Sampler.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1647,7 +1647,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     auto pfnHostAlloc = context.urDdiTable.USM.pfnHostAlloc;
 
     if (nullptr == pfnHostAlloc) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1690,7 +1690,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     auto pfnDeviceAlloc = context.urDdiTable.USM.pfnDeviceAlloc;
 
     if (nullptr == pfnDeviceAlloc) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1738,7 +1738,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     auto pfnSharedAlloc = context.urDdiTable.USM.pfnSharedAlloc;
 
     if (nullptr == pfnSharedAlloc) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1779,7 +1779,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
     auto pfnFree = context.urDdiTable.USM.pfnFree;
 
     if (nullptr == pfnFree) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1815,7 +1815,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     auto pfnGetMemAllocInfo = context.urDdiTable.USM.pfnGetMemAllocInfo;
 
     if (nullptr == pfnGetMemAllocInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1850,7 +1850,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
     auto pfnPoolCreate = context.urDdiTable.USM.pfnPoolCreate;
 
     if (nullptr == pfnPoolCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1888,7 +1888,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
     auto pfnPoolRetain = context.urDdiTable.USM.pfnPoolRetain;
 
     if (nullptr == pfnPoolRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1914,7 +1914,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
     auto pfnPoolRelease = context.urDdiTable.USM.pfnPoolRelease;
 
     if (nullptr == pfnPoolRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1947,7 +1947,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     auto pfnPoolGetInfo = context.urDdiTable.USM.pfnPoolGetInfo;
 
     if (nullptr == pfnPoolGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2001,7 +2001,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
         context.urDdiTable.VirtualMem.pfnGranularityGetInfo;
 
     if (nullptr == pfnGranularityGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2049,7 +2049,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
     auto pfnReserve = context.urDdiTable.VirtualMem.pfnReserve;
 
     if (nullptr == pfnReserve) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2078,7 +2078,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
     auto pfnFree = context.urDdiTable.VirtualMem.pfnFree;
 
     if (nullptr == pfnFree) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2113,7 +2113,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
     auto pfnMap = context.urDdiTable.VirtualMem.pfnMap;
 
     if (nullptr == pfnMap) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2151,7 +2151,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
     auto pfnUnmap = context.urDdiTable.VirtualMem.pfnUnmap;
 
     if (nullptr == pfnUnmap) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2182,7 +2182,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
     auto pfnSetAccess = context.urDdiTable.VirtualMem.pfnSetAccess;
 
     if (nullptr == pfnSetAccess) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2225,7 +2225,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
     auto pfnGetInfo = context.urDdiTable.VirtualMem.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2264,7 +2264,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
     auto pfnCreate = context.urDdiTable.PhysicalMem.pfnCreate;
 
     if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2300,7 +2300,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     auto pfnRetain = context.urDdiTable.PhysicalMem.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2327,7 +2327,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     auto pfnRelease = context.urDdiTable.PhysicalMem.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2359,7 +2359,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     auto pfnCreateWithIL = context.urDdiTable.Program.pfnCreateWithIL;
 
     if (nullptr == pfnCreateWithIL) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2416,7 +2416,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     auto pfnCreateWithBinary = context.urDdiTable.Program.pfnCreateWithBinary;
 
     if (nullptr == pfnCreateWithBinary) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2468,7 +2468,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     auto pfnBuild = context.urDdiTable.Program.pfnBuild;
 
     if (nullptr == pfnBuild) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2498,7 +2498,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
     auto pfnCompile = context.urDdiTable.Program.pfnCompile;
 
     if (nullptr == pfnCompile) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2531,7 +2531,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     auto pfnLink = context.urDdiTable.Program.pfnLink;
 
     if (nullptr == pfnLink) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2566,7 +2566,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     auto pfnRetain = context.urDdiTable.Program.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2592,7 +2592,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
     auto pfnRelease = context.urDdiTable.Program.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2628,7 +2628,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
         context.urDdiTable.Program.pfnGetFunctionPointer;
 
     if (nullptr == pfnGetFunctionPointer) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2674,7 +2674,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     auto pfnGetInfo = context.urDdiTable.Program.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2726,7 +2726,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
     auto pfnGetBuildInfo = context.urDdiTable.Program.pfnGetBuildInfo;
 
     if (nullptr == pfnGetBuildInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2762,7 +2762,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
         context.urDdiTable.Program.pfnSetSpecializationConstants;
 
     if (nullptr == pfnSetSpecializationConstants) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2795,7 +2795,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Program.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2828,7 +2828,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
         context.urDdiTable.Program.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2862,7 +2862,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     auto pfnCreate = context.urDdiTable.Kernel.pfnCreate;
 
     if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2902,7 +2902,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     auto pfnSetArgValue = context.urDdiTable.Kernel.pfnSetArgValue;
 
     if (nullptr == pfnSetArgValue) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2934,7 +2934,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     auto pfnSetArgLocal = context.urDdiTable.Kernel.pfnSetArgLocal;
 
     if (nullptr == pfnSetArgLocal) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2969,7 +2969,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     auto pfnGetInfo = context.urDdiTable.Kernel.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3018,7 +3018,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
     auto pfnGetGroupInfo = context.urDdiTable.Kernel.pfnGetGroupInfo;
 
     if (nullptr == pfnGetGroupInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3059,7 +3059,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
     auto pfnGetSubGroupInfo = context.urDdiTable.Kernel.pfnGetSubGroupInfo;
 
     if (nullptr == pfnGetSubGroupInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3090,7 +3090,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     auto pfnRetain = context.urDdiTable.Kernel.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3116,7 +3116,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
     auto pfnRelease = context.urDdiTable.Kernel.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3148,7 +3148,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     auto pfnSetArgPointer = context.urDdiTable.Kernel.pfnSetArgPointer;
 
     if (nullptr == pfnSetArgPointer) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3178,7 +3178,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     auto pfnSetExecInfo = context.urDdiTable.Kernel.pfnSetExecInfo;
 
     if (nullptr == pfnSetExecInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3213,7 +3213,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
     auto pfnSetArgSampler = context.urDdiTable.Kernel.pfnSetArgSampler;
 
     if (nullptr == pfnSetArgSampler) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3244,7 +3244,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     auto pfnSetArgMemObj = context.urDdiTable.Kernel.pfnSetArgMemObj;
 
     if (nullptr == pfnSetArgMemObj) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3271,7 +3271,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
         context.urDdiTable.Kernel.pfnSetSpecializationConstants;
 
     if (nullptr == pfnSetSpecializationConstants) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3304,7 +3304,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Kernel.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3339,7 +3339,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         context.urDdiTable.Kernel.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3382,7 +3382,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     auto pfnGetInfo = context.urDdiTable.Queue.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3426,7 +3426,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     auto pfnCreate = context.urDdiTable.Queue.pfnCreate;
 
     if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3460,7 +3460,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
     auto pfnRetain = context.urDdiTable.Queue.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3486,7 +3486,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     auto pfnRelease = context.urDdiTable.Queue.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3516,7 +3516,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Queue.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3550,7 +3550,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
         context.urDdiTable.Queue.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3585,7 +3585,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueFinish(
     auto pfnFinish = context.urDdiTable.Queue.pfnFinish;
 
     if (nullptr == pfnFinish) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3607,7 +3607,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
     auto pfnFlush = context.urDdiTable.Queue.pfnFlush;
 
     if (nullptr == pfnFlush) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3635,7 +3635,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     auto pfnGetInfo = context.urDdiTable.Event.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3683,7 +3683,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
     auto pfnGetProfilingInfo = context.urDdiTable.Event.pfnGetProfilingInfo;
 
     if (nullptr == pfnGetProfilingInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3717,7 +3717,7 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
     auto pfnWait = context.urDdiTable.Event.pfnWait;
 
     if (nullptr == pfnWait) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3743,7 +3743,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
     auto pfnRetain = context.urDdiTable.Event.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3769,7 +3769,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
     auto pfnRelease = context.urDdiTable.Event.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3797,7 +3797,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Event.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3830,7 +3830,7 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
         context.urDdiTable.Event.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3865,7 +3865,7 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
     auto pfnSetCallback = context.urDdiTable.Event.pfnSetCallback;
 
     if (nullptr == pfnSetCallback) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3922,7 +3922,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     auto pfnKernelLaunch = context.urDdiTable.Enqueue.pfnKernelLaunch;
 
     if (nullptr == pfnKernelLaunch) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3976,7 +3976,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     auto pfnEventsWait = context.urDdiTable.Enqueue.pfnEventsWait;
 
     if (nullptr == pfnEventsWait) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4018,7 +4018,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
         context.urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
 
     if (nullptr == pfnEventsWaitWithBarrier) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4063,7 +4063,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     auto pfnMemBufferRead = context.urDdiTable.Enqueue.pfnMemBufferRead;
 
     if (nullptr == pfnMemBufferRead) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4119,7 +4119,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     auto pfnMemBufferWrite = context.urDdiTable.Enqueue.pfnMemBufferWrite;
 
     if (nullptr == pfnMemBufferWrite) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4185,7 +4185,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     auto pfnMemBufferReadRect = context.urDdiTable.Enqueue.pfnMemBufferReadRect;
 
     if (nullptr == pfnMemBufferReadRect) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4296,7 +4296,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         context.urDdiTable.Enqueue.pfnMemBufferWriteRect;
 
     if (nullptr == pfnMemBufferWriteRect) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4391,7 +4391,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     auto pfnMemBufferCopy = context.urDdiTable.Enqueue.pfnMemBufferCopy;
 
     if (nullptr == pfnMemBufferCopy) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4454,7 +4454,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     auto pfnMemBufferCopyRect = context.urDdiTable.Enqueue.pfnMemBufferCopyRect;
 
     if (nullptr == pfnMemBufferCopyRect) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4545,7 +4545,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     auto pfnMemBufferFill = context.urDdiTable.Enqueue.pfnMemBufferFill;
 
     if (nullptr == pfnMemBufferFill) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4604,7 +4604,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     auto pfnMemImageRead = context.urDdiTable.Enqueue.pfnMemImageRead;
 
     if (nullptr == pfnMemImageRead) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4664,7 +4664,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     auto pfnMemImageWrite = context.urDdiTable.Enqueue.pfnMemImageWrite;
 
     if (nullptr == pfnMemImageWrite) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4724,7 +4724,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     auto pfnMemImageCopy = context.urDdiTable.Enqueue.pfnMemImageCopy;
 
     if (nullptr == pfnMemImageCopy) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4780,7 +4780,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     auto pfnMemBufferMap = context.urDdiTable.Enqueue.pfnMemBufferMap;
 
     if (nullptr == pfnMemBufferMap) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4836,7 +4836,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     auto pfnMemUnmap = context.urDdiTable.Enqueue.pfnMemUnmap;
 
     if (nullptr == pfnMemUnmap) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4893,7 +4893,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     auto pfnUSMFill = context.urDdiTable.Enqueue.pfnUSMFill;
 
     if (nullptr == pfnUSMFill) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4962,7 +4962,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     auto pfnUSMMemcpy = context.urDdiTable.Enqueue.pfnUSMMemcpy;
 
     if (nullptr == pfnUSMMemcpy) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5018,7 +5018,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     auto pfnUSMPrefetch = context.urDdiTable.Enqueue.pfnUSMPrefetch;
 
     if (nullptr == pfnUSMPrefetch) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5068,7 +5068,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     auto pfnUSMAdvise = context.urDdiTable.Enqueue.pfnUSMAdvise;
 
     if (nullptr == pfnUSMAdvise) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5123,7 +5123,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     auto pfnUSMFill2D = context.urDdiTable.Enqueue.pfnUSMFill2D;
 
     if (nullptr == pfnUSMFill2D) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5213,7 +5213,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     auto pfnUSMMemcpy2D = context.urDdiTable.Enqueue.pfnUSMMemcpy2D;
 
     if (nullptr == pfnUSMMemcpy2D) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5292,7 +5292,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
         context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
 
     if (nullptr == pfnDeviceGlobalVariableWrite) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5355,7 +5355,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
         context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
 
     if (nullptr == pfnDeviceGlobalVariableRead) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5421,7 +5421,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
     auto pfnReadHostPipe = context.urDdiTable.Enqueue.pfnReadHostPipe;
 
     if (nullptr == pfnReadHostPipe) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5487,7 +5487,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     auto pfnWriteHostPipe = context.urDdiTable.Enqueue.pfnWriteHostPipe;
 
     if (nullptr == pfnWriteHostPipe) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5547,7 +5547,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     auto pfnPitchedAllocExp = context.urDdiTable.USMExp.pfnPitchedAllocExp;
 
     if (nullptr == pfnPitchedAllocExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5597,7 +5597,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         context.urDdiTable.BindlessImagesExp.pfnUnsampledImageHandleDestroyExp;
 
     if (nullptr == pfnUnsampledImageHandleDestroyExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5633,7 +5633,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
         context.urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
 
     if (nullptr == pfnSampledImageHandleDestroyExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5671,7 +5671,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
         context.urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
 
     if (nullptr == pfnImageAllocateExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5717,7 +5717,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     auto pfnImageFreeExp = context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
 
     if (nullptr == pfnImageFreeExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5757,7 +5757,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
         context.urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
 
     if (nullptr == pfnUnsampledImageCreateExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5819,7 +5819,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         context.urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
 
     if (nullptr == pfnSampledImageCreateExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5904,7 +5904,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     auto pfnImageCopyExp = context.urDdiTable.BindlessImagesExp.pfnImageCopyExp;
 
     if (nullptr == pfnImageCopyExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5957,7 +5957,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
         context.urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
 
     if (nullptr == pfnImageGetInfoExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5995,7 +5995,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
         context.urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
 
     if (nullptr == pfnMipmapGetLevelExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6033,7 +6033,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
         context.urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
 
     if (nullptr == pfnMipmapFreeExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6070,7 +6070,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
         context.urDdiTable.BindlessImagesExp.pfnImportOpaqueFDExp;
 
     if (nullptr == pfnImportOpaqueFDExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6114,7 +6114,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
         context.urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
 
     if (nullptr == pfnMapExternalArrayExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6165,7 +6165,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
         context.urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
 
     if (nullptr == pfnReleaseInteropExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6207,7 +6207,7 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
             .pfnImportExternalSemaphoreOpaqueFDExp;
 
     if (nullptr == pfnImportExternalSemaphoreOpaqueFDExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6246,7 +6246,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
         context.urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
 
     if (nullptr == pfnDestroyExternalSemaphoreExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6290,7 +6290,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
         context.urDdiTable.BindlessImagesExp.pfnWaitExternalSemaphoreExp;
 
     if (nullptr == pfnWaitExternalSemaphoreExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6330,7 +6330,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
         context.urDdiTable.BindlessImagesExp.pfnSignalExternalSemaphoreExp;
 
     if (nullptr == pfnSignalExternalSemaphoreExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6362,7 +6362,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
     auto pfnCreateExp = context.urDdiTable.CommandBufferExp.pfnCreateExp;
 
     if (nullptr == pfnCreateExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6394,7 +6394,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
     auto pfnRetainExp = context.urDdiTable.CommandBufferExp.pfnRetainExp;
 
     if (nullptr == pfnRetainExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6421,7 +6421,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
     auto pfnReleaseExp = context.urDdiTable.CommandBufferExp.pfnReleaseExp;
 
     if (nullptr == pfnReleaseExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6448,7 +6448,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
     auto pfnFinalizeExp = context.urDdiTable.CommandBufferExp.pfnFinalizeExp;
 
     if (nullptr == pfnFinalizeExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6486,7 +6486,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         context.urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
 
     if (nullptr == pfnAppendKernelLaunchExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6546,7 +6546,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMemcpyUSMExp;
 
     if (nullptr == pfnAppendMemcpyUSMExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6603,7 +6603,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyExp;
 
     if (nullptr == pfnAppendMembufferCopyExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6656,7 +6656,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferWriteExp;
 
     if (nullptr == pfnAppendMembufferWriteExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6708,7 +6708,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferReadExp;
 
     if (nullptr == pfnAppendMembufferReadExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6768,7 +6768,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyRectExp;
 
     if (nullptr == pfnAppendMembufferCopyRectExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6835,7 +6835,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferWriteRectExp;
 
     if (nullptr == pfnAppendMembufferWriteRectExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6900,7 +6900,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferReadRectExp;
 
     if (nullptr == pfnAppendMembufferReadRectExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6953,7 +6953,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     auto pfnEnqueueExp = context.urDdiTable.CommandBufferExp.pfnEnqueueExp;
 
     if (nullptr == pfnEnqueueExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6990,7 +6990,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     auto pfnImportExp = context.urDdiTable.USMExp.pfnImportExp;
 
     if (nullptr == pfnImportExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -7017,7 +7017,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
     auto pfnReleaseExp = context.urDdiTable.USMExp.pfnReleaseExp;
 
     if (nullptr == pfnReleaseExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -7050,7 +7050,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
         context.urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
 
     if (nullptr == pfnEnablePeerAccessExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -7079,7 +7079,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
         context.urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
 
     if (nullptr == pfnDisablePeerAccessExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -7119,7 +7119,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
         context.urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
 
     if (nullptr == pfnPeerAccessGetInfoExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
