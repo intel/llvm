@@ -82,6 +82,61 @@ void simpleGuessLocalWorkSize(size_t *ThreadsPerBlock,
     --ThreadsPerBlock[0];
   }
 }
+
+ur_result_t setHipMemAdvise(const void *DevPtr, size_t Size,
+                            ur_usm_advice_flags_t URAdviceFlags,
+                            hipDevice_t Device) {
+  std::unordered_map<ur_usm_advice_flags_t, hipMemoryAdvise>
+      URToHIPMemAdviseDeviceFlagsMap = {
+          {UR_USM_ADVICE_FLAG_SET_READ_MOSTLY, hipMemAdviseSetReadMostly},
+          {UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY, hipMemAdviseUnsetReadMostly},
+          {UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION,
+           hipMemAdviseSetPreferredLocation},
+          {UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION,
+           hipMemAdviseUnsetPreferredLocation},
+          {UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE,
+           hipMemAdviseSetAccessedBy},
+          {UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE,
+           hipMemAdviseUnsetAccessedBy},
+      };
+  for (auto &FlagPair : URToHIPMemAdviseDeviceFlagsMap) {
+    if (URAdviceFlags & FlagPair.first) {
+      UR_CHECK_ERROR(hipMemAdvise(DevPtr, Size, FlagPair.second, Device));
+    }
+  }
+
+  static std::unordered_map<ur_usm_advice_flags_t, hipMemoryAdvise>
+      URToHIPMemAdviseHostFlagsMap = {
+          {UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST,
+           hipMemAdviseSetPreferredLocation},
+          {UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST,
+           hipMemAdviseUnsetPreferredLocation},
+          {UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST, hipMemAdviseSetAccessedBy},
+          {UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST,
+           hipMemAdviseUnsetAccessedBy},
+      };
+
+  for (auto &FlagPair : URToHIPMemAdviseHostFlagsMap) {
+    if (URAdviceFlags & FlagPair.first) {
+      UR_CHECK_ERROR(
+          hipMemAdvise(DevPtr, Size, FlagPair.second, hipCpuDeviceId));
+    }
+  }
+
+  static constexpr std::array<ur_usm_advice_flags_t, 4> UnmappedMemAdviceFlags =
+      {UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY,
+       UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY,
+       UR_USM_ADVICE_FLAG_BIAS_CACHED, UR_USM_ADVICE_FLAG_BIAS_UNCACHED};
+
+  for (auto &UnmappedFlag : UnmappedMemAdviceFlags) {
+    if (URAdviceFlags & UnmappedFlag) {
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
@@ -1328,23 +1383,87 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 #endif
 }
 
+/// USM: memadvise API to govern behavior of automatic migration mechanisms
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
-                   ur_usm_advice_flags_t, ur_event_handle_t *phEvent) {
-#if HIP_VERSION_MAJOR >= 5
+                   ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
+  UR_ASSERT(pMem && size > 0, UR_RESULT_ERROR_INVALID_VALUE);
   void *HIPDevicePtr = const_cast<void *>(pMem);
+
+  // Passing MEM_ADVISE_SET/MEM_ADVISE_CLEAR_PREFERRED_LOCATION and
+  // to hipMemAdvise on a GPU device requires the GPU device to report a
+  // non-zero value for hipDeviceAttributeConcurrentManagedAccess. Therfore,
+  // ignore memory advise if concurrent managed memory access is not available.
+  if ((advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION) ||
+      (advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION) ||
+      (advice & UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE) ||
+      (advice & UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE) ||
+      (advice & UR_USM_ADVICE_FLAG_DEFAULT)) {
+    ur_device_handle_t Device = hQueue->getContext()->getDevice();
+    if (!getAttribute(Device, hipDeviceAttributeConcurrentManagedAccess)) {
+      setErrorMessage("mem_advise ignored as device does not support "
+                      "concurrent managed access",
+                      UR_RESULT_SUCCESS);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
+    // TODO: If pMem points to valid system-allocated pageable memory, we should
+    // check that the device also has the hipDeviceAttributePageableMemoryAccess
+    // property.
+  }
+
   unsigned int PointerRangeSize = 0;
-  UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
-                                        HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
-                                        (hipDeviceptr_t)HIPDevicePtr));
+  UR_CHECK_ERROR(hipPointerGetAttribute(
+      &PointerRangeSize, HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
+      static_cast<hipDeviceptr_t>(HIPDevicePtr)));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 
-  // TODO implement a mapping to hipMemAdvise once the expected behaviour
-  // of urEnqueueUSMAdvise is detailed in the USM extension
-  return urEnqueueEventsWait(hQueue, 0, nullptr, phEvent);
-#else
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-#endif
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
+
+  try {
+    ScopedContext Active(hQueue->getDevice());
+
+    if (phEvent) {
+      EventPtr =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream()));
+      EventPtr->start();
+    }
+
+    if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
+      UR_CHECK_ERROR(hipMemAdvise(pMem, size, hipMemAdviseUnsetReadMostly,
+                                  hQueue->getContext()->getDevice()->get()));
+      UR_CHECK_ERROR(hipMemAdvise(pMem, size,
+                                  hipMemAdviseUnsetPreferredLocation,
+                                  hQueue->getContext()->getDevice()->get()));
+      UR_CHECK_ERROR(hipMemAdvise(pMem, size, hipMemAdviseUnsetAccessedBy,
+                                  hQueue->getContext()->getDevice()->get()));
+    } else {
+      Result = setHipMemAdvise(HIPDevicePtr, size, advice,
+                               hQueue->getContext()->getDevice()->get());
+      // UR_RESULT_ERROR_INVALID_ENUMERATION is returned when using a valid but
+      // currently unmapped advice arguments as not supported by this platform.
+      // Therefore, warn the user instead of throwing and aborting the runtime.
+      if (Result == UR_RESULT_ERROR_INVALID_ENUMERATION) {
+        setErrorMessage("mem_advise is ignored as the advice argument is not "
+                        " supported by this device.",
+                        Result);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+    }
+
+    if (phEvent) {
+      Result = EventPtr->record();
+      *phEvent = EventPtr.release();
+    }
+  } catch (ur_result_t err) {
+    Result = err;
+  } catch (...) {
+    Result = UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(

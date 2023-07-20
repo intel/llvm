@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t1.out
-// REQUIRES: cuda
+// REQUIRES: cuda || hip_amd
 // RUN: %{run} %t1.out
 
 //==---------------- memadvise_cuda.cpp ------------------------------------==//
@@ -32,6 +32,7 @@ int main() {
     return -1;
   }
 
+  // NOTE: PI_MEM_ADVICE_CUDA_* advice values are mapped to the HIP backend too.
   std::vector<int> valid_advices{
       PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY,
       PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY,
