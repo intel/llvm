@@ -63,6 +63,7 @@ set(BOOST_CORE_GIT_TAG 216999e552e7f73e63c7bcc88b8ce9c179bbdbe2)
 #     Avoid -Wsign-conversion warning in checked_delete.hpp
 add_boost_module_headers(NAME "core" SRC_DIR ${BOOST_CORE_SOURCE_DIR} GIT_TAG ${BOOST_CORE_GIT_TAG})
 
+# Describe is a dependency of container_hash
 set(BOOST_DESCRIBE_GIT_TAG a0eafb08100eb15a57b6dae6d270c0012a56aa21)
 # Merge: 1692c3e b54fda5
 # Author: Peter Dimov <pdimov@gmail.com>
@@ -71,12 +72,15 @@ set(BOOST_DESCRIBE_GIT_TAG a0eafb08100eb15a57b6dae6d270c0012a56aa21)
 #     Merge branch 'fix-deprecated-inline-static-variables' of https://github.com/Romain-Geissler-1A/describe into feature/pr-40
 add_boost_module_headers(NAME "describe" SRC_DIR ${BOOST_DESCRIBE_SOURCE_DIR} GIT_TAG ${BOOST_DESCRIBE_GIT_TAG})
 
-set(BOOST_FUNCTIONAL_GIT_TAG 6a573e4b8333ee63ee62ce95558c3667348db233)
-# Author: Glen Fernandes <glen.fernandes@gmail.com>
-# Date:   Mon Apr 17 06:59:02 2023 -0400
+set(BOOST_MOVE_GIT_TAG f1fbb45134065deebe95249c616a967d4b66c809)
+# Author: Ion Gaztañaga <igaztanaga@gmail.com>
+# Date:   Mon Mar 13 13:32:29 2023 +0100
 #
-#     Define unary_function and binary_function unconditionally
-add_boost_module_headers(NAME "functional" SRC_DIR ${BOOST_FUNCTIONAL_SOURCE_DIR} GIT_TAG ${BOOST_FUNCTIONAL_GIT_TAG})
+#     Use [[msvc::intrinsic] attribute if available in move/forward in order to improve debug experience
+add_boost_module_headers(NAME "move" SRC_DIR ${BOOST_MOVE_SOURCE_DIR} GIT_TAG ${BOOST_MOVE_GIT_TAG})
+
+# Reuse mp11 fetched earlier for DPC++ headers
+set(BOOST_UNORDERED_INCLUDE_DIRS ${BOOST_UNORDERED_INCLUDE_DIRS} "${BOOST_MP11_SOURCE_DIR}/include/")
 
 set(BOOST_PREDEF_GIT_TAG 392e4e767469e3469c9390f0d9cca16724dc3fc8)
 # Merge: a12c7fd 499d28e
@@ -85,6 +89,13 @@ set(BOOST_PREDEF_GIT_TAG 392e4e767469e3469c9390f0d9cca16724dc3fc8)
 #
 #     Release 1.14.
 add_boost_module_headers(NAME "predef" SRC_DIR ${BOOST_PREDEF_SOURCE_DIR} GIT_TAG ${BOOST_PREDEF_GIT_TAG})
+
+set(BOOST_PREPROCESSOR_GIT_TAG 667e87b3392db338a919cbe0213979713aca52e3)
+# Author: Peter Dimov <pdimov@gmail.com>
+# Date:   Tue Aug 16 20:59:52 2022 +0300
+#
+#     Change C test names to not conflict with the C++ ones
+add_boost_module_headers(NAME "preprocessor" SRC_DIR ${BOOST_PREPROCESSOR_SOURCE_DIR} GIT_TAG ${BOOST_PREPROCESSOR_GIT_TAG})
 
 set(BOOST_STATIC_ASSERT_GIT_TAG 45eec41c293bc5cd36ec3ed83671f70bc1aadc9f)
 # Merge: ba72d33 a1abfec
@@ -101,6 +112,14 @@ set(BOOST_THROW_EXCEPTION_GIT_TAG 23dd41e920ecd91237500ac6428f7d392a7a875c)
 #     Update ci.yml
 add_boost_module_headers(NAME "throw_exception" SRC_DIR ${BOOST_THROW_EXCEPTION_SOURCE_DIR} GIT_TAG ${BOOST_THROW_EXCEPTION_GIT_TAG})
 
+set(BOOST_TUPLE_GIT_TAG 500e4fa0a2845b96c0dd919e7485e0f216438a01)
+# Merge: aa16ae3 ded3c1d
+# Author: Joel de Guzman <djowel@gmail.com>
+# Date:   Thu Dec 30 23:20:18 2021 +0800
+#
+#     Merge pull request #21 from igaztanaga/patch-1
+add_boost_module_headers(NAME "tuple" SRC_DIR ${BOOST_TUPLE_SOURCE_DIR} GIT_TAG ${BOOST_TUPLE_GIT_TAG})
+
 set(BOOST_TYPE_TRAITS_GIT_TAG 89f5011b4a79d91e42735670e39f72cb25c86c72)
 # Merge: 55feb75 1ebd31e
 # Author: John Maddock <john@johnmaddock.co.uk>
@@ -108,6 +127,3 @@ set(BOOST_TYPE_TRAITS_GIT_TAG 89f5011b4a79d91e42735670e39f72cb25c86c72)
 #
 #     Merge branch 'develop'
 add_boost_module_headers(NAME "type_traits" SRC_DIR ${BOOST_TYPE_TRAITS_SOURCE_DIR} GIT_TAG ${BOOST_TYPE_TRAITS_GIT_TAG})
-
-# Reuse mp11 fetched earlier for DPC++ headers
-set(BOOST_UNORDERED_INCLUDE_DIRS ${BOOST_UNORDERED_INCLUDE_DIRS} "${BOOST_MP11_SOURCE_DIR}/include/")
