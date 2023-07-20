@@ -8,9 +8,9 @@
 
 #pragma once
 
+#include <sycl/detail/boost/mp11/algorithm.hpp>
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/detail/boost/mp11.hpp>
 
 #include <tuple>
 
@@ -207,7 +207,7 @@ template <char... Sizes> struct CharList {};
 
 // Helper for converting characters to a constexpr string.
 template <char... Chars> struct CharsToStr {
-  static inline constexpr const char value[] = {Chars..., '\0'};
+  static constexpr const char value[] = {Chars..., '\0'};
 };
 
 // Helper for converting a list of size_t values to a comma-separated string

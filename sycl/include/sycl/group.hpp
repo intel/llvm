@@ -32,7 +32,7 @@ namespace detail {
 class Builder;
 
 // Implements a barrier accross work items within a work group.
-static inline void workGroupBarrier() {
+inline void workGroupBarrier() {
 #ifdef __SYCL_DEVICE_ONLY__
   constexpr uint32_t flags =
       static_cast<uint32_t>(

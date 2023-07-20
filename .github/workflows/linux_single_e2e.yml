@@ -85,11 +85,7 @@ jobs:
         path: llvm
         ref: ${{ inputs.ref }}
         merge_ref: ${{ inputs.merge_ref }}
-        # We run build and HIP E2E tests under different users on the same
-        # runners, so need to use distinct cache paths.
-        cache_path: "/__w/repo_cache_e2e/"
-    - name: Hack to fix testing
-      run: rm -rf /__w/repo_cache_e2e/ || true
+        cache_path: "/__w/repo_cache/"
     - name: Install drivers
       if: env.compute_runtime_tag != ''
       run: |
