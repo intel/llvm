@@ -143,9 +143,10 @@
 //         - piextDestroyExternalSemaphore
 //         - piextWaitExternalSemaphore
 //         - piextSignalExternalSemaphore
+// 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 
 #define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 36
+#define _PI_H_VERSION_MINOR 37
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -2086,6 +2087,20 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
     const void *src_ptr, size_t src_pitch, size_t width, size_t height,
     pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
     pi_event *event);
+
+/// Import host system memory into USM.
+///
+/// \param ptr start address of memory range to import
+/// \param size is the number of bytes to import
+/// \param context is the pi_context
+__SYCL_EXPORT pi_result piextUSMImport(const void *ptr, size_t size,
+                                       pi_context context);
+
+/// Release host system memory from USM.
+///
+/// \param ptr start address of imported memory range
+/// \param context is the pi_context
+__SYCL_EXPORT pi_result piextUSMRelease(const void *ptr, pi_context context);
 
 ///
 /// Device global variable

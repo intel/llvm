@@ -10,17 +10,9 @@
 
 // 4.5 C++ Standard library classes required for the interface
 
-#include <sycl/bit_cast.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/sycl_span.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 
-#include <exception>
-#include <functional>
 #include <memory>
-#include <mutex>
-#include <string>
-#include <string_view>
-#include <vector>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

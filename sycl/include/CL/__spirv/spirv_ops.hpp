@@ -7,13 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <CL/__spirv/spirv_types.hpp>
-#include <complex>
-#include <cstddef>
-#include <cstdint>
-#include <sycl/detail/defines.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
 
 // Convergent attribute
 #ifdef __SYCL_DEVICE_ONLY__

@@ -79,4 +79,4 @@ jobs:
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
-      check_filters: ${{ needs.detect_changes.outputs.filters }}
+      changes: ${{ needs.detect_changes.outputs.filters }}
