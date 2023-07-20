@@ -246,7 +246,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 
   unsigned int CuFlags;
   CUstream CuStream = reinterpret_cast<CUstream>(hNativeQueue);
-  UR_ASSERT(hContext->getDevice() == hDevice, UR_RESULT_ERROR_INVALID_DEVICE);
 
   auto Return = UR_CHECK_ERROR(cuStreamGetFlags(CuStream, &CuFlags));
 
@@ -266,7 +265,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   *phQueue = new ur_queue_handle_t_{std::move(ComputeCuStreams),
                                     std::move(TransferCuStreams),
                                     hContext,
-                                    hDevice,
+                                    hContext->getDevice(),
                                     CuFlags,
                                     Flags,
                                     /*backend_owns*/ false};
