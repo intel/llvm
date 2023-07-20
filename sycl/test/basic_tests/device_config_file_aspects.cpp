@@ -1,10 +1,5 @@
-//==- DeviceConfigFileAspects.cpp --- Device config file aspects unit test -==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
+// RUN: %clangxx -fsycl %s -o %t.out -I %llvm_main_include_dir
+// RUN: %t.out
 //
 #include <map>
 
@@ -12,22 +7,18 @@
 #include <llvm/SYCLLowerIR/DeviceConfigFile.hpp>
 #include <sycl/sycl.hpp>
 
-#include <helpers/PiMock.hpp>
-
-#include <gtest/gtest.h>
-
 #define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)                    \
   __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)
 
-TEST(DeviceConfigFile, DeviceConfigFileAspects) {
+int main() {
   auto testAspects = DeviceConfigFile::TargetTable.find("__TestAspectList");
   assert(testAspects != DeviceConfigFile::TargetTable.end());
   auto aspectsList = testAspects->second.aspects;
 
 #define __SYCL_ASPECT(ASPECT, ASPECT_VAL)                                      \
   llvm::StringRef s##ASPECT(#ASPECT);                                          \
-  EXPECT_TRUE(std::find(aspectsList.begin(), aspectsList.end(), s##ASPECT) !=  \
-              aspectsList.end());
+  assert(std::find(aspectsList.begin(), aspectsList.end(), s##ASPECT) !=       \
+         aspectsList.end());
 
 #include <sycl/info/aspects.def>
 
@@ -39,9 +30,8 @@ TEST(DeviceConfigFile, DeviceConfigFileAspects) {
   auto deprecatedAspectsList = testDeprecatedAspects->second.aspects;
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ASPECT_VAL, MSG)                      \
   llvm::StringRef s##ASPECT(#ASPECT);                                          \
-  EXPECT_TRUE(std::find(deprecatedAspectsList.begin(),                         \
-                        deprecatedAspectsList.end(),                           \
-                        s##ASPECT) != deprecatedAspectsList.end());
+  assert(std::find(deprecatedAspectsList.begin(), deprecatedAspectsList.end(), \
+                   s##ASPECT) != deprecatedAspectsList.end());
 
 #include <sycl/info/aspects_deprecated.def>
 
