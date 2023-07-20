@@ -600,8 +600,10 @@ namespace pi2ur {
 
 inline pi_result piTearDown(void *PluginParameter) {
   std::ignore = PluginParameter;
-  // Fetch the 1 known adapter so we can release it. Fetching it for a second
-  // time increases the reference count, so we need to release it twice.
+  // Fetch the single known adapter (the one which is statically linked) so we
+  // can release it. Fetching it for a second time (after piPlatformsGet)
+  // increases the reference count, so we need to release it twice.
+  // pi_unified_runtime has its own implementation of piTearDown.
   static std::once_flag AdapterReleaseFlag;
   ur_adapter_handle_t Adapter;
   ur_result_t Ret = UR_RESULT_SUCCESS;

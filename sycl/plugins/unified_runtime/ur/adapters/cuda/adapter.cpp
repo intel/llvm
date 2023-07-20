@@ -49,7 +49,6 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
-  std::lock_guard<std::mutex> Lock{adapter.Mutex};
   adapter.RefCount++;
 
   return UR_RESULT_SUCCESS;

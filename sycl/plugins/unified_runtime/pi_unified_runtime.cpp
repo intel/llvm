@@ -39,38 +39,10 @@ extern "C" {
 __SYCL_EXPORT pi_result piPlatformsGet(pi_uint32 NumEntries,
                                        pi_platform *Platforms,
                                        pi_uint32 *NumPlatforms) {
-  pi_uint32 TotalNumPlatforms = 0;
-  std::vector<uint32_t> NumPlatformsPerAdapter{};
-  std::vector<ur_platform_handle_t> AllPlatforms{};
-  for (auto Adapter : Adapters.Vec) {
-    uint32_t NumPlatformsUR = 0;
-    HANDLE_ERRORS(urPlatformGet(&Adapter, 1, 0, nullptr, &NumPlatformsUR));
-    TotalNumPlatforms += NumPlatformsUR;
-    NumPlatformsPerAdapter.push_back(NumPlatformsUR);
-  }
-
-  if (NumPlatforms) {
-    *NumPlatforms = TotalNumPlatforms;
-  }
-
-  if (Platforms) {
-    AllPlatforms.resize(TotalNumPlatforms);
-    size_t PlatformCount = 0;
-    for (size_t AdapterIndex = 0; AdapterIndex < Adapters.Vec.size();
-         AdapterIndex++) {
-      HANDLE_ERRORS(urPlatformGet(&(Adapters.Vec[AdapterIndex]), 1,
-                                  NumPlatformsPerAdapter[AdapterIndex],
-                                  &AllPlatforms[PlatformCount], nullptr));
-      PlatformCount += NumPlatformsPerAdapter[AdapterIndex];
-    }
-
-    for (uint32_t PlatformIndex = 0;
-         PlatformIndex < std::min(NumEntries, TotalNumPlatforms);
-         PlatformIndex++) {
-      Platforms[PlatformIndex] =
-          reinterpret_cast<pi_platform>(AllPlatforms[PlatformIndex]);
-    }
-  }
+  // Get all the platforms from all available adapters
+  urPlatformGet(Adapters.Vec.data(), static_cast<uint32_t>(Adapters.Vec.size()),
+                NumEntries, reinterpret_cast<ur_platform_handle_t *>(Platforms),
+                NumPlatforms);
 
   return PI_SUCCESS;
 }
