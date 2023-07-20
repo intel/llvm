@@ -123,7 +123,7 @@ jobs:
       with:
         ref: ${{ inputs.ref }}
         sparse-checkout: |
-          devops/actions
+          devops
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - uses: ./devops/actions/cached_checkout
@@ -137,14 +137,14 @@ jobs:
       run: |
         # TODO install into image
         sudo apt install -yq jq
-        sudo cp llvm/devops/scripts/get_release.py /opt/
-        sudo -E llvm/devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
+        sudo cp devops/scripts/get_release.py /opt/
+        sudo -E devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
     - name: Install drivers (deprecated CI interface)
       if: env.compute_runtime_tag != '' && inputs.install_drivers != 'true'
       run: |
         if [ -e /opt/install_drivers.sh ]; then
           # TODO pack this script into container
-          sudo cp llvm/devops/scripts/get_release.py /opt/
+          sudo cp devops/scripts/get_release.py /opt/
           sudo -E /opt/install_drivers.sh --all
         fi
     - name: Source OneAPI TBB vars.sh
