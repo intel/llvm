@@ -1106,6 +1106,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       getArgRequiringSYCLRuntime(options::OPT_fsycl_add_targets_EQ);
   Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
   Arg *SYCLfpga = getArgRequiringSYCLRuntime(options::OPT_fintelfpga);
+  // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
+  Arg *SYCLHostCompiler =
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_EQ);
+  Arg *SYCLHostCompilerOptions =
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_options_EQ);
 
   // -fsycl-targets cannot be used with -fsycl-link-targets
   if (SYCLTargets && SYCLLinkTargets)
@@ -1123,6 +1128,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   if (SYCLTargets && SYCLfpga)
     Diag(clang::diag::err_drv_option_conflict)
         << SYCLTargets->getSpelling() << SYCLfpga->getSpelling();
+  // -fsycl-host-compiler-options cannot be used without -fsycl-host-compiler
+  if (SYCLHostCompilerOptions && !SYCLHostCompiler)
+    Diag(clang::diag::err_drv_fsycl_host_compiler_options)
+        << SYCLHostCompilerOptions->getSpelling();
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!HasValidSYCLRuntime)
@@ -7970,6 +7979,11 @@ void Driver::BuildJobs(Compilation &C) const {
       C.getArgs().hasArg(options::OPT_Qunused_arguments))
     return;
 
+  bool HasValidSYCLRuntime =
+      C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
+                               false) ||
+      C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
+
   // Claim -fdriver-only here.
   (void)C.getArgs().hasArg(options::OPT_fdriver_only);
   // Claim -### here.
@@ -7984,8 +7998,15 @@ void Driver::BuildJobs(Compilation &C) const {
     // DiagnosticsEngine, so that extra values, position, and so on could be
     // printed.
     if (!A->isClaimed()) {
-      if (A->getOption().hasFlag(options::NoArgumentUnused))
-        continue;
+      if (A->getOption().hasFlag(options::NoArgumentUnused)) {
+        if ((A->getOption().matches(
+                 options::OPT_fsycl_dead_args_optimization) ||
+             A->getOption().matches(options::OPT_fsycl_device_lib_jit_link)) &&
+            !HasValidSYCLRuntime)
+          ;
+        else
+          continue;
+      }
 
       // Suppress the warning automatically if this is just a flag, and it is an
       // instance of an argument we already claimed.
