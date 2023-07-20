@@ -243,6 +243,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
     ur_queue_handle_t *phQueue) {
   (void)pProperties;
+  (void)hDevice;
 
   unsigned int CuFlags;
   CUstream CuStream = reinterpret_cast<CUstream>(hNativeQueue);
