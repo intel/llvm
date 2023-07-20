@@ -63,7 +63,7 @@ jobs:
     - name: Build and Push Container (with drivers)
       uses: ./devops/actions/build_container
       with:
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ github.ref_name == 'sycl' }}
         file: ubuntu2204_preinstalled
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -76,7 +76,7 @@ jobs:
     - name: Build and Push Container (no drivers)
       uses: ./devops/actions/build_container
       with:
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ github.ref_name == 'sycl' }}
         file: ubuntu2204_preinstalled
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -89,7 +89,7 @@ jobs:
     - name: Build and Push Container (Build image)
       uses: ./devops/actions/build_container
       with:
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ github.ref_name == 'sycl' }}
         file: ubuntu2204_preinstalled
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
