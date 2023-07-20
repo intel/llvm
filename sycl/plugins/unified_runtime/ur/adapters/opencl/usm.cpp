@@ -440,3 +440,15 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
 
   return RetVal;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMImportExp([[maybe_unused]] ur_context_handle_t Context,
+               [[maybe_unused]] void *HostPtr, [[maybe_unused]] size_t Size) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMReleaseExp([[maybe_unused]] ur_context_handle_t Context,
+                [[maybe_unused]] void *HostPtr) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
