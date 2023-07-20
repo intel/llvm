@@ -418,7 +418,14 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
                    getSPIRVType(OpTypePipe, PT->getAccessQualifier(), !UseTPT));
   }
   case OpTypePipeStorage: {
-    return mapType(T, getSPIRVType(OpTypePipeStorage, !UseTPT));
+    StringRef FullName = "spirv.PipeStorage";
+    auto *STy = StructType::getTypeByName(*Context, FullName);
+    if (!STy)
+      STy = StructType::create(*Context, FullName);
+    if (UseTPT) {
+      return mapType(T, TypedPointerType::get(STy, 1));
+    }
+    return mapType(T, PointerType::get(STy, 1));
   }
   case OpTypeVmeImageINTEL: {
     auto *VT = static_cast<SPIRVTypeVmeImageINTEL *>(T)->getImageType();

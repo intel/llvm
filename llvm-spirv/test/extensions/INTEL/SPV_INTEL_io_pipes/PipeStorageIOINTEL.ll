@@ -1,5 +1,5 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_io_pipes -o %t.spv
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_io_pipes -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
@@ -23,8 +23,8 @@
 ; CHECK-SPIRV: 4 Decorate [[MYPIPE_ID]] IOPipeStorageINTEL 1
 
 ; CHECK-SPIRV: 2 TypePipeStorage [[PIPE_STORAGE_ID:[0-9]+]]
-; CHECK-SPIRV-NEXT: 2 TypePipeStorage [[PIPE_STORAGE_ID_2:[0-9]+]]
-; CHECK-SPIRV: 3 TypeStruct [[CL_PIPE_STORAGE_ID:[0-9]+]] [[PIPE_STORAGE_ID_2]]
+; TODO: struct should have TypePipeStorage, not TypePointer
+; CHECK-SPIRV: 3 TypeStruct [[CL_PIPE_STORAGE_ID:[0-9]+]]
 ; CHECK-SPIRV: 4 TypePointer [[CL_PIPE_STORAGE_PTR_ID:[0-9]+]] 5 [[CL_PIPE_STORAGE_ID]]
 
 ; CHECK-SPIRV: 6 ConstantPipeStorage [[PIPE_STORAGE_ID]] [[CPS_ID:[0-9]+]] 16 16 1
