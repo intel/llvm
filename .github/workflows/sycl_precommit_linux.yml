@@ -1,7 +1,7 @@
 name: SYCL MLIR Pre Commit on Linux
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
     - sycl-mlir
     # Do not run builds if changes are only in the following locations
@@ -13,9 +13,6 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
-    # For CI-related files we explicitly skip all the jobs below even if there
-    # were other (non-ignored) files modified in this PR.
-    - 'devops/*/**'
 
 permissions:
   contents: read
