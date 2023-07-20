@@ -22,19 +22,6 @@
 
 extern "C" {
 
-pi_result piextUSMImport(const void *ptr, size_t size, pi_context context) {
-  std::ignore = ptr;
-  std::ignore = size;
-  std::ignore = context;
-  return PI_SUCCESS;
-}
-
-pi_result piextUSMRelease(const void *ptr, pi_context context) {
-  std::ignore = ptr;
-  std::ignore = context;
-  return PI_SUCCESS;
-}
-
 const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -173,8 +160,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemset2D, pi2ur::piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, pi2ur::piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, pi2ur::piextUSMGetMemAllocInfo)
-  _PI_CL(piextUSMImport, piextUSMImport)
-  _PI_CL(piextUSMRelease, piextUSMRelease)
+  _PI_CL(piextUSMImport, pi2ur::piextUSMImport)
+  _PI_CL(piextUSMRelease, pi2ur::piextUSMRelease)
   // Device global variable
   _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
          pi2ur::piextEnqueueDeviceGlobalVariableWrite)

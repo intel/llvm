@@ -238,6 +238,18 @@ urGetUSMProcAddrTable(ur_api_version_t Version, ur_usm_dditable_t *pDdiTable) {
   return UR_RESULT_SUCCESS;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
+    ur_api_version_t Version, ur_usm_exp_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
+  }
+
+  pDdiTable->pfnImportExp = urUSMImportExp;
+  pDdiTable->pfnReleaseExp = urUSMReleaseExp;
+  return UR_RESULT_SUCCESS;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     ur_api_version_t Version, ur_device_dditable_t *pDdiTable) {
   auto Result = validateProcInputs(Version, pDdiTable);
