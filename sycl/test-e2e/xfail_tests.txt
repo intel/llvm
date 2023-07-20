@@ -89,6 +89,7 @@ Basic/device_implicitly_copyable.cpp
 Basic/diagnostics/non-uniform-wk-gp-test.cpp
 Basic/group_async_copy.cpp
 Basic/group_async_copy_legacy.cpp
+Basic/group_local_memory.cpp
 Basic/half_type.cpp
 Basic/image/image.cpp
 Basic/image/image_accessor_readsampler.cpp
@@ -101,6 +102,7 @@ Basic/image/image_write.cpp
 Basic/image/image_write_fp16.cpp
 Basic/image/srgba-read.cpp
 Basic/multi_ptr.cpp
+Basic/multi_ptr_legacy.cpp
 Basic/multi_ptr_legacy_usm_addr_ext.cpp
 Basic/multi_ptr_usm_addr_ext.cpp
 Basic/sampler/sampler.cpp
