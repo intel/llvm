@@ -60,6 +60,7 @@ template <int dim, int Range, int LRange, int Offset> int testRange() {
   return 0;
 }
 
+// todo: different dimensions
 int main() {
   if (int r = testRange<1 /*Dimension*/, 10 /*range*/, 0 /*Range*/,
                         4 /*global offset*/>())

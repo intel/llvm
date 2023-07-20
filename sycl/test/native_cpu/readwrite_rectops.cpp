@@ -63,6 +63,7 @@ template <typename T> int test_copy_offset() {
   return 0;
 }
 
+// todo: different dimensions
 int main() {
   if (int r = test_copy_offset<int>())
     return r;
