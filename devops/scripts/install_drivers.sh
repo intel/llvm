@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -x
-
 if [ -f "$1" ]; then
     # Read data from the dependencies.json passed as the first argument.
     CONFIG_FILE=$1
