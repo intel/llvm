@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG c7b0caf4e3ce5330bd0669db6e8e498b48e8ad27)
+  set(UNIFIED_RUNTIME_TAG 3c6f02c7a76a0448a83932d93c2dbeff25af70aa)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -91,6 +91,8 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/context.hpp"
     "ur/adapters/level_zero/device.hpp"
     "ur/adapters/level_zero/event.hpp"
+    "ur/adapters/level_zero/image.cpp"
+    "ur/adapters/level_zero/image.hpp"
     "ur/adapters/level_zero/memory.hpp"
     "ur/adapters/level_zero/kernel.hpp"
     "ur/adapters/level_zero/platform.hpp"
@@ -142,6 +144,8 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/enqueue.cpp"
       "ur/adapters/cuda/event.cpp"
       "ur/adapters/cuda/event.hpp"
+      "ur/adapters/cuda/image.cpp"
+      "ur/adapters/cuda/image.hpp"
       "ur/adapters/cuda/kernel.cpp"
       "ur/adapters/cuda/kernel.hpp"
       "ur/adapters/cuda/memory.cpp"

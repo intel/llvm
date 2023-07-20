@@ -348,6 +348,10 @@ struct alignment_key {
 
 template <int K> inline constexpr alignment_key::value_t<K> alignment;
 
+template <typename T, int W>
+struct is_valid_property<T, alignment_key::value_t<W>>
+    : std::bool_constant<std::is_pointer<T>::value> {};
+
 template <> struct is_property_key<alignment_key> : std::true_type {};
 
 template <typename T, typename PropertyListT>
@@ -384,6 +388,23 @@ template <typename... Args> struct DeducedProperties {
 template <typename... Args>
 struct DeducedProperties<detail::properties_t<Args...>> {
   using type = detail::properties_t<Args...>;
+};
+
+template <typename... Args> struct checkValidFPGAPropertySet {
+  using list = std::tuple<Args...>;
+  static constexpr bool has_BufferLocation =
+      ContainsProperty<buffer_location_key, list>::value;
+
+  static constexpr bool has_InterfaceConfig =
+      ContainsProperty<awidth_key, list>::value &&
+      ContainsProperty<dwidth_key, list>::value &&
+      ContainsProperty<latency_key, list>::value &&
+      ContainsProperty<read_write_mode_key, list>::value &&
+      ContainsProperty<maxburst_key, list>::value &&
+      ContainsProperty<wait_request_key, list>::value &&
+      ContainsProperty<alignment_key, list>::value;
+
+  static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
 };
 } // namespace detail
 
