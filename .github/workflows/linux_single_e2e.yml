@@ -54,6 +54,9 @@ on:
       reset_gpu:
         type: string
         required: False
+      install_drivers:
+        type: string
+        required: False
       env:
         type: string
         default: '{}'
@@ -96,6 +99,12 @@ on:
           as we redefine it as part of this workflow.
         default: '{"LIT_FILTER":""}'
 
+      install_drivers:
+        type: choice
+        options:
+          - false
+          - true
+
 jobs:
   lin_e2e_only:
     name: ${{ inputs.name }}
@@ -124,7 +133,14 @@ jobs:
         merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
     - name: Install drivers
-      if: env.compute_runtime_tag != ''
+      if: inputs.install_drivers == 'true'
+      run: |
+        # TODO install into image
+        sudo apt install -yq jq
+        sudo cp llvm/devops/scripts/get_release.py /opt/
+        sudo -E llvm/devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
+    - name: Install drivers (deprecated CI interface)
+      if: env.compute_runtime_tag != '' && inputs.install_drivers != 'true'
       run: |
         if [ -e /opt/install_drivers.sh ]; then
           # TODO pack this script into container
