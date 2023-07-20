@@ -105,7 +105,7 @@ This pass will add a pointer to a `nativecpu_state` struct as kernel argument to
 The resulting IR is:
 
 ```llvm
-define weak dso_local void @_Z6Sample_NativeCPUKernel(ptr noundef align 4 %0, ptr noundef align 4 %1, ptr noundef align 4 %2, ptr %3) local_unnamed_addr #3 !srcloc !74 !kernel_arg_buffer_location !75 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
+define weak dso_local void @_Z6Sample.NativeCPUKernel(ptr noundef align 4 %0, ptr noundef align 4 %1, ptr noundef align 4 %2, ptr %3) local_unnamed_addr #3 !srcloc !74 !kernel_arg_buffer_location !75 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
 entry:
   %ncpu_builtin = call ptr @_Z13get_global_idmP15nativecpu_state(ptr %3)
   %4 = load i64, ptr %ncpu_builtin, align 32, !noalias !78
@@ -136,7 +136,7 @@ entry:
   %7 = load ptr, ptr %6, align 8
   %8 = getelementptr %0, ptr %0, i64 7
   %9 = load ptr, ptr %8, align 8
-  call void @_ZTS10SimpleVaddIiE_NativeCPUKernel(ptr %3, ptr %5, ptr %7, ptr %9, ptr %1)
+  call void @_ZTS10SimpleVaddIiE.NativeCPUKernel(ptr %3, ptr %5, ptr %7, ptr %9, ptr %1)
   ret void
 }
 ```
