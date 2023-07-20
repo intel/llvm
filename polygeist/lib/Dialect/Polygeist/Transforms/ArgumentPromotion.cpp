@@ -341,7 +341,8 @@ void Candidate::modifyCallee() {
 
   // There could be wrapper function between GPU kernel and kernel body
   // function. Privatize the wrapper to improve analyses results (e.g., reaching
-  // definition).
+  // definition). Note: this is a temporary fix, it should be removed when there
+  // is a permanent solution.
   ModuleOp module = funcOp->getParentOfType<ModuleOp>();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
