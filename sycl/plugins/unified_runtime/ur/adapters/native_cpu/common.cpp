@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
-
 #include "common.hpp"
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR

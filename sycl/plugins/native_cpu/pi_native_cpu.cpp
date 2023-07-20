@@ -8,8 +8,6 @@
 
 #include "pi_native_cpu.hpp"
 
-static bool PrintPiTrace = true;
-
 extern "C" {
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
