@@ -1,6 +1,6 @@
 // REQUIRES: native_cpu_be
 // REQUIRES: opencl_be
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,native_cpu -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ %s -o %t
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="opencl:cpu" %t
 
