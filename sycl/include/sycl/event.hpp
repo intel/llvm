@@ -16,7 +16,6 @@
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
 
 #include <memory>
 

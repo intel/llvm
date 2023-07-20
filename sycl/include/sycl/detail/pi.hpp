@@ -156,6 +156,13 @@ using PiExtSyncPoint = ::pi_ext_sync_point;
 using PiExtCommandBuffer = ::pi_ext_command_buffer;
 using PiExtCommandBufferDesc = ::pi_ext_command_buffer_desc;
 using PiPeerAttr = ::pi_peer_attr;
+using PiImageHandle = ::pi_image_handle;
+using PiImageMemHandle = ::pi_image_mem_handle;
+using PiImageCopyFlags = ::pi_image_copy_flags;
+using PiInteropMemHandle = ::pi_interop_mem_handle;
+using PiInteropSemaphoreHandle = ::pi_interop_semaphore_handle;
+using PiImageOffset = ::pi_image_offset_struct;
+using PiImageRegion = ::pi_image_region_struct;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,

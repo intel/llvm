@@ -234,7 +234,7 @@ jobs:
       target_devices: ${{ matrix.targets }}
       ref: ${{ inputs.build_ref || github.sha }}
       merge_ref: ${{ inputs.merge_ref }}
-      reset_gpu: ${{ contains(matrix.runs-on, 'gen9') && contains(matrix.runs-on, 'Linux') }}
+      reset_gpu: ${{ contains(matrix.runs-on, 'gen12') && contains(matrix.runs-on, 'Linux') }}
 
       sycl_toolchain_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
       sycl_toolchain_archive: ${{ inputs.artifact_archive_name }}
@@ -257,7 +257,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
     - name: Reset GPU
-      if: ${{ contains(matrix.config, 'gen9') }}
+      if: ${{ contains(matrix.config, 'gen12') }}
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
