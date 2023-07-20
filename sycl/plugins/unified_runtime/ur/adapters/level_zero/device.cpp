@@ -186,6 +186,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
+    // Return supported for the UR command-buffer experimental feature
+    SupportedExtensions += ("ur_exp_command_buffer ");
+
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_NAME:
@@ -299,15 +302,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     }
 
     uint32_t ZeSubDeviceCount = Device->SubDevices.size();
-    if (ZeSubDeviceCount < 2) {
-      return ReturnValue((ur_device_partition_t)0);
+    if (pSize && ZeSubDeviceCount < 2) {
+      *pSize = 0;
+      return UR_RESULT_SUCCESS;
     }
     bool PartitionedByCSlice = Device->SubDevices[0]->isCCS();
 
     auto ReturnHelper = [&](auto... Partitions) {
       struct {
-        ur_device_partition_t Arr[sizeof...(Partitions) + 1];
-      } PartitionProperties = {{Partitions..., ur_device_partition_t(0)}};
+        ur_device_partition_t Arr[sizeof...(Partitions)];
+      } PartitionProperties = {{Partitions...}};
       return ReturnValue(PartitionProperties);
     };
 
@@ -331,29 +335,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE));
   case UR_DEVICE_INFO_PARTITION_TYPE: {
     // For root-device there is no partitioning to report.
-    if (!Device->isSubDevice())
-      return ReturnValue(ur_device_partition_t(0));
-
-    if (Device->isCCS()) {
-      struct {
-        ur_device_partition_t Arr[2];
-      } PartitionProperties = {
-          {UR_DEVICE_PARTITION_BY_CSLICE, ur_device_partition_t(0)}};
-      return ReturnValue(PartitionProperties);
+    if (pSize && !Device->isSubDevice()) {
+      *pSize = 0;
+      return UR_RESULT_SUCCESS;
     }
 
-    struct {
-      ur_device_partition_t Arr[3];
-    } PartitionProperties = {
-        {UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-         (ur_device_partition_t)
-             UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE,
-         ur_device_partition_t(0)}};
-    return ReturnValue(PartitionProperties);
+    return ReturnValue(Device->SubDeviceCreationProperty);
   }
-
-    // Everything under here is not supported yet
-
+  // Everything under here is not supported yet
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
@@ -1065,13 +1054,10 @@ ur_result_t urDeviceRelease(ur_device_handle_t Device) {
 }
 
 void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
-  // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
-  // host ptr import during buffer creation.
-  const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
-  if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
-    return;
-
-  // Check if USM hostptr import feature is available.
+  // Check if USM hostptr import feature is available. If yes, save the API
+  // pointers. The pointers will be used for both import/release of SYCL buffer
+  // host ptr and the SYCL experimental APIs, prepare_for_device_copy and
+  // release_from_device_copy.
   ze_driver_handle_t DriverHandle = Platform->ZeDriver;
   if (ZE_CALL_NOCHECK(
           zeDriverGetExtensionFunctionAddress,
@@ -1081,6 +1067,15 @@ void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
         zeDriverGetExtensionFunctionAddress,
         (DriverHandle, "zexDriverReleaseImportedPointer",
          reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
+    // Hostptr import/release is supported by this platform.
+    Supported = true;
+
+    // Check if env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
+    // host ptr import during buffer creation.
+    const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
+    if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
+      return;
+
     // Hostptr import/release is turned on because it has been requested
     // by the env var, and this platform supports the APIs.
     Enabled = true;
@@ -1115,6 +1110,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
                             ///< according to the partitioning property.
 ) {
   // Other partitioning ways are not supported by Level Zero
+  UR_ASSERT(Properties->PropCount == 1, UR_RESULT_ERROR_INVALID_VALUE);
   if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
     if ((Properties->pProperties->value.affinity_domain !=
              UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE &&
@@ -1172,6 +1168,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     UR_ASSERT(NumDevices == EffectiveNumDevices, UR_RESULT_ERROR_INVALID_VALUE);
 
   for (uint32_t I = 0; I < NumDevices; I++) {
+    Device->SubDevices[I]->SubDeviceCreationProperty =
+        Properties->pProperties[0];
+    if (Properties->pProperties[0].type ==
+        UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+      // In case the value is NEXT_PARTITIONABLE, we need to change it to the
+      // chosen domain. This will always be NUMA since that's the only domain
+      // supported by level zero.
+      Device->SubDevices[I]->SubDeviceCreationProperty.value.affinity_domain =
+          UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA;
+    }
+
     OutDevices[I] = Device->SubDevices[I];
     // reusing the same pi_device needs to increment the reference count
     urDeviceRetain(OutDevices[I]);

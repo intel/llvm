@@ -205,10 +205,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Atomic64);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    uint64_t Capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
@@ -314,7 +315,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           "runtime.");
     }
 
-    return ReturnValue(uint32_t{Enabled});
+    return ReturnValue(Enabled);
   }
   case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     // This call doesn't match to CUDA as it doesn't have images, but instead
@@ -472,7 +473,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
-    uint64_t Config =
+    ur_device_fp_capability_flags_t Config =
         UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
         UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
         UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
@@ -484,12 +485,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
-    uint64_t Config = UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+    ur_device_fp_capability_flags_t Config =
+        UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
+        UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
+        UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     return ReturnValue(Config);
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
@@ -599,13 +601,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                         UR_QUEUE_FLAG_PROFILING_ENABLE));
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     // The mandated minimum capability:
-    uint64_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
-                          UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
+                                  UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
     // The mandated minimum capability:
-    uint64_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
+    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
@@ -693,13 +695,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
-    return ReturnValue(static_cast<ur_device_partition_t>(0u));
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   }
+
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_PARTITION_TYPE: {
-    return ReturnValue(static_cast<ur_device_partition_t>(0u));
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   }
 
     // Intel USM extensions
@@ -871,6 +880,89 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(int32_t{1});
   }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
+    // On CUDA bindless images are supported.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
+    // On CUDA bindless images can be backed by shared (managed) USM.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
+    // On CUDA 1D bindless image USM is not supported.
+    // More specifically, linear filtering is not supported.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
+    // On CUDA 2D bindless image USM is supported.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP: {
+    int32_t tex_pitch_align = 0;
+    detail::ur::assertion(
+        cuDeviceGetAttribute(&tex_pitch_align,
+                             CU_DEVICE_ATTRIBUTE_TEXTURE_PITCH_ALIGNMENT,
+                             hDevice->get()) == CUDA_SUCCESS);
+    return ReturnValue(tex_pitch_align);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
+    int32_t tex_max_linear_width = 0;
+    detail::ur::assertion(
+        cuDeviceGetAttribute(&tex_max_linear_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_WIDTH,
+                             hDevice->get()) == CUDA_SUCCESS);
+    return ReturnValue(tex_max_linear_width);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
+    int32_t tex_max_linear_height = 0;
+    detail::ur::assertion(
+        cuDeviceGetAttribute(
+            &tex_max_linear_height,
+            CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_HEIGHT,
+            hDevice->get()) == CUDA_SUCCESS);
+    return ReturnValue(tex_max_linear_height);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP: {
+    int32_t tex_max_linear_pitch = 0;
+    detail::ur::assertion(
+        cuDeviceGetAttribute(&tex_max_linear_pitch,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_PITCH,
+                             hDevice->get()) == CUDA_SUCCESS);
+    return ReturnValue(tex_max_linear_pitch);
+  }
+  case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
+    // CUDA supports mipmaps.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP: {
+    // CUDA supports anisotropic filtering.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP: {
+    // CUDA has no query for this, but documentation states max value is 16.
+    return ReturnValue(16.f);
+  }
+  case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
+    // CUDA supports creation of images from individual mipmap levels.
+    return ReturnValue(true);
+  }
+
+  case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP: {
+    // CUDA supports importing external memory.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP: {
+    // CUDA does not support exporting it's own device memory.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP: {
+    // CUDA supports importing external semaphores.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP: {
+    // CUDA does not support exporting semaphores or events.
+    return ReturnValue(false);
+  }
   case UR_DEVICE_INFO_DEVICE_ID: {
     int Value = 0;
     detail::ur::assertion(
@@ -932,7 +1024,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                hDevice->get()) == CUDA_SUCCESS);
     }
 
-    uint64_t MemoryBandwidth = uint64_t(MemoryClockKHz) * MemoryBusWidth * 250;
+    uint32_t MemoryBandwidth = MemoryClockKHz * MemoryBusWidth * 250;
 
     return ReturnValue(MemoryBandwidth);
   }
@@ -992,13 +1084,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(false);
     // TODO: Investigate if this information is available on CUDA.
+  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
   case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case UR_DEVICE_INFO_GPU_EU_SLICES:
   case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:
     break;
@@ -1090,7 +1183,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits
   // instead
   CUdevice CuDevice = 0;
-  memcpy(&CuDevice, hNativeDevice, sizeof(CUdevice));
+  memcpy(&CuDevice, &hNativeDevice, sizeof(CUdevice));
 
   auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
     return Dev->get() == CuDevice;
