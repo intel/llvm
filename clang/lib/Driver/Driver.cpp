@@ -3525,11 +3525,10 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
     // ignored by the driver and sent directly to the linker. When performing
     // offload, we should evaluate them at the driver level.
     if (A->getOption().matches(options::OPT__SLASH_link)) {
-      for (const std::string &Value : A->getValues()) {
+      for (StringRef Value : A->getValues()) {
         // Add any libpath values.
-        StringRef OptCheck(Value);
-        if (OptCheck.startswith_insensitive("-libpath:") ||
-            OptCheck.startswith_insensitive("/libpath:"))
+        if (Value.starts_with_insensitive("-libpath:") ||
+            Value.starts_with_insensitive("/libpath:"))
           LibPaths.emplace_back(Value.substr(std::string("-libpath:").size()));
         if (addLibArg(Value))
           continue;
@@ -3550,7 +3549,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
       // Without this history, we do not know that <dir> was assocated with
       // -rpath and is processed incorrectly.
       static std::string PrevArg;
-      for (const std::string &Value : A->getValues()) {
+      for (StringRef Value : A->getValues()) {
         auto addKnownValues = [&](const StringRef &V) {
           // Only add named static libs objects and --whole-archive options.
           if (optionMatches("-whole-archive", V.str()) ||
@@ -3587,7 +3586,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
           // Found a response file, we want to expand contents to try and
           // discover more libraries and options.
           SmallVector<const char *, 20> ExpandArgs;
-          ExpandArgs.push_back(Value.c_str());
+          ExpandArgs.push_back(Value.data());
 
           llvm::BumpPtrAllocator A;
           llvm::StringSaver S(A);
