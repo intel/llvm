@@ -356,7 +356,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   std::ignore = hProgram;
   std::ignore = pProperties;
   std::ignore = phKernel;
-
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

@@ -40,7 +40,6 @@ urContextRetain(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  // TODO: is it fine as a no-op?
   std::unique_ptr<ur_context_handle_t_> Context{hContext};
   return UR_RESULT_SUCCESS;
 }
@@ -57,7 +56,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return returnValue(1);
   case UR_CONTEXT_INFO_DEVICES:
-    return returnValue(nullptr);
+    return returnValue(hContext->_device);
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return returnValue(nullptr);
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
@@ -70,10 +69,6 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
   case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    // These queries should be dealt with in context_impl.cpp by calling the
-    // queries of each device separately and building the intersection set.
-    // setErrorMessage("These queries should have never come here.",
-    //               PI_ERROR_INVALID_ARG_VALUE);
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
   default:

@@ -19,7 +19,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 
   const bool AskingForAll = DeviceType == UR_DEVICE_TYPE_ALL;
   const bool AskingForDefault = DeviceType == UR_DEVICE_TYPE_DEFAULT;
-  const bool AskingForCPU = DeviceType == UR_DEVICE_TYPE_GPU;
+  const bool AskingForCPU = DeviceType == UR_DEVICE_TYPE_CPU;
   const bool ValidDeviceType = AskingForDefault || AskingForAll || AskingForCPU;
   uint32_t DeviceCount = ValidDeviceType ? 1 : 0;
 
@@ -39,7 +39,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   }
 
   if (DeviceCount == 0) {
-    /// No GPU entry to fill 'Device' array
+    /// No CPU entry to fill 'Device' array
     return UR_RESULT_SUCCESS;
   }
 
