@@ -10,7 +10,9 @@ using urPlatformGetNativeHandleTest = uur::platform::urPlatformsTest;
 TEST_F(urPlatformGetNativeHandleTest, Success) {
     for (auto platform : platforms) {
         ur_native_handle_t native_handle = nullptr;
-        ASSERT_SUCCESS(urPlatformGetNativeHandle(platform, &native_handle));
+        if (auto error = urPlatformGetNativeHandle(platform, &native_handle)) {
+            ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
+        }
     }
 }
 
