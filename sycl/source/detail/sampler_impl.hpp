@@ -11,8 +11,10 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/property_list.hpp>
 
+#include <mutex>
 #include <unordered_map>
 
 namespace sycl {
