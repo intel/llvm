@@ -524,6 +524,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
         return mapType(T, BM->addJointMatrixINTELType(ElemTy, Args));
       }
       default:
+        if (isSubgroupAvcINTELTypeOpCode(Opcode))
+          return mapType(T, BM->addSubgroupAvcINTELType(Opcode));
         return mapType(T, BM->addOpaqueGenericType(Opcode));
       }
     }
