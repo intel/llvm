@@ -754,6 +754,9 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
           continue;
 
         Value *AccessedPointer = GEP->getPointerOperand();
+        if (auto *BC = dyn_cast<CastInst>(AccessedPointer))
+          if (BC->getSrcTy() == BC->getDestTy())
+            AccessedPointer = BC->getOperand(0);
         if (auto *LI = dyn_cast<LoadInst>(AccessedPointer))
           AccessedPointer = LI->getPointerOperand();
         auto PointerSflnIt = PointerSflnMap.find(AccessedPointer);

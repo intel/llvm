@@ -36,8 +36,8 @@
 ;   return 0;
 ; }
 
-; RUN: llvm-as -opaque-pointers=0 < %s > %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_fpga_loop_controls -o %t.spv
+; RUN: llvm-as < %s > %t.bc
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_loop_controls -o %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
@@ -56,6 +56,7 @@
 ; CHECK-SPIRV: 9 Extension "SPV_INTEL_fpga_loop_controls"
 ; CHECK-SPIRV-DAG: TypeInt [[TYPE_INT_64:[0-9]+]] 64 0
 ; CHECK-SPIRV-DAG: TypeInt [[TYPE_INT_32:[0-9]+]] 32 0
+; CHECK-SPIRV-DAG: TypeInt [[TYPE_INT_8:[0-9]+]] 8 0
 ; CHECK-SPIRV-DAG: Constant [[TYPE_INT_64]] [[SIZE:[0-9]+]] 10 0
 ; CHECK-SPIRV-DAG: Constant [[TYPE_INT_32]] [[OFFSET_CONST_0:[0-9]+]] 0
 ; CHECK-SPIRV-DAG: Constant [[TYPE_INT_32]] [[OFFSET_CONST_1:[0-9]+]] 1
@@ -69,14 +70,15 @@
 ; CHECK-SPIRV: TypePointer [[TYPE_EMB_CLOSURE_PARAM_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_EMB_CLOSURE_PTR]]
 ; CHECK-SPIRV: TypePointer [[TYPE_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_ARRAY]]
 ; CHECK-SPIRV: TypePointer [[TYPE_INT_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_INT_32]]
-; CHECK-SPIRV: TypeStruct [[TYPE_SFLN_CLOSURE_STRUCT:[0-9]+]] [[TYPE_INT_PTR]] [[TYPE_INT_PTR]]
+; CHECK-SPIRV: TypePointer [[TYPE_I8_PTR:[0-9]+]] 8 [[TYPE_INT_8]]
+; CHECK-SPIRV: TypeStruct [[TYPE_SFLN_CLOSURE_STRUCT:[0-9]+]] [[TYPE_I8_PTR]] [[TYPE_I8_PTR]]
 ; The next type is only used when initializing the memory fields
 ; CHECK-SPIRV: TypePointer [[TYPE_CLOSURE_INIT_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_SFLN_CLOSURE_STRUCT]]
 ; This is the type used in the kernel function
 ; CHECK-SPIRV: TypePointer [[TYPE_SFLN_CLOSURE_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_SFLN_CLOSURE_STRUCT]]
 ; CHECK-SPIRV: TypeFunction [[TYPE_SFLN_FUNC:[0-9]+]] {{[0-9]+}} [[TYPE_SFLN_CLOSURE_PTR]]
 ; CHECK-SPIRV: TypePointer [[TYPE_SFLN_CLOSURE_PARAM_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_SFLN_CLOSURE_PTR]]
-; CHECK-SPIRV: TypePointer [[TYPE_SFLN_INT_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_INT_PTR]]
+; CHECK-SPIRV: TypePointer [[TYPE_SFLN_INT_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_I8_PTR]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -332,7 +334,8 @@ for.body:                                         ; preds = %for.cond
   %5 = load i32, i32* %i, align 4, !tbaa !5
   %add = add nsw i32 %5, 4
   %idxprom = sext i32 %add to i64
-  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP:[0-9]+]]
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC:[0-9]+]] = bitcast ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]] to ptr addrspace(4)
+  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP:[0-9]+]]
   %ptridx = getelementptr inbounds i32, i32 addrspace(4)* %4, i64 %idxprom, !llvm.index.group !23
   %6 = load i32, i32 addrspace(4)* %ptridx, align 4, !tbaa !5
   %add2 = add nsw i32 %6, 42
@@ -343,7 +346,8 @@ for.body:                                         ; preds = %for.cond
   %8 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %7, align 8, !tbaa !20
   %9 = load i32, i32* %i, align 4, !tbaa !5
   %idxprom3 = sext i32 %9 to i64
-  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD]]{{.*}}, !llvm.index.group ![[BUF1_SFLN_INDEX_GROUP:[0-9]+]]
+  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD_BC:[0-9]+]] = bitcast ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD]] to ptr addrspace(4)
+  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD_BC]]{{.*}}, !llvm.index.group ![[BUF1_SFLN_INDEX_GROUP:[0-9]+]]
   %ptridx4 = getelementptr inbounds i32, i32 addrspace(4)* %8, i64 %idxprom3, !llvm.index.group !24
   %10 = load i32, i32 addrspace(4)* %ptridx4, align 4, !tbaa !5
   %mul = mul nsw i32 %10, %add2
@@ -355,7 +359,8 @@ for.body:                                         ; preds = %for.cond
   %12 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %11, align 8, !tbaa !20
   %13 = load i32, i32* %i, align 4, !tbaa !5
   %idxprom5 = sext i32 %13 to i64
-  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD]]{{.*}}, !llvm.index.group ![[BUF1_SFLN_INDEX_GROUP]]
+  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD_BC:[0-9]+]] = bitcast ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD]] to ptr addrspace(4)
+  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD_BC]]{{.*}}, !llvm.index.group ![[BUF1_SFLN_INDEX_GROUP]]
   %ptridx6 = getelementptr inbounds i32, i32 addrspace(4)* %12, i64 %idxprom5, !llvm.index.group !24
   %14 = load i32, i32 addrspace(4)* %ptridx6, align 4, !tbaa !5
   ; CHECK-SPIRV: InBoundsPtrAccessChain [[TYPE_SFLN_INT_PTR]] [[BUF2_SFLN_PRE_ADD_2_ID]] [[THIS_SFLN_LOAD]] [[OFFSET_CONST_0]] [[OFFSET_CONST_1]]
@@ -366,7 +371,8 @@ for.body:                                         ; preds = %for.cond
   %17 = load i32, i32* %i, align 4, !tbaa !5
   %add7 = add nsw i32 %17, 3
   %idxprom8 = sext i32 %add7 to i64
-  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP]]
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC:[0-9]+]] = bitcast ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]] to ptr addrspace(4)
+  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP]]
   %ptridx9 = getelementptr inbounds i32, i32 addrspace(4)* %16, i64 %idxprom8, !llvm.index.group !23
   %18 = load i32, i32 addrspace(4)* %ptridx9, align 4, !tbaa !5
   %add10 = add nsw i32 %14, %18
@@ -377,7 +383,8 @@ for.body:                                         ; preds = %for.cond
   %20 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %19, align 8, !tbaa !22
   %21 = load i32, i32* %i, align 4, !tbaa !5
   %idxprom11 = sext i32 %21 to i64
-  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP]]
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC:[0-9]+]] = bitcast ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]] to ptr addrspace(4)
+  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP]]
   %ptridx12 = getelementptr inbounds i32, i32 addrspace(4)* %20, i64 %idxprom11, !llvm.index.group !23
   %22 = load i32, i32 addrspace(4)* %ptridx12, align 4, !tbaa !5
   %mul13 = mul nsw i32 %22, %add10

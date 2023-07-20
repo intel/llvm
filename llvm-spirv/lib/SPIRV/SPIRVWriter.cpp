@@ -2327,6 +2327,12 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     // a so-called index group, an MDNode by itself.
     if (MDNode *IndexGroup = GEP->getMetadata("llvm.index.group")) {
       SPIRVValue *ActualMemoryPtr = TransPointerOperand;
+      // If the source is a no-op bitcast (generated to fix up types), look
+      // through it to the underlying gep if possible.
+      if (auto *BC = dyn_cast<CastInst>(PointerOperand))
+        if (BC->getSrcTy() == BC->getDestTy()) {
+          PointerOperand = BC->getOperand(0);
+        }
       if (auto *Load = dyn_cast<LoadInst>(PointerOperand)) {
         ActualMemoryPtr = transValue(Load->getPointerOperand(), BB);
       }
