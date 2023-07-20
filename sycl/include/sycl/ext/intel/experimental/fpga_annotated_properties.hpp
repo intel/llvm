@@ -331,6 +331,29 @@ struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
 template <typename T>
 struct is_valid_property<T, stable_key::value_t> : std::true_type {};
 
+//===----------------------------------------------------------------------===//
+//   Utility for FPGA properties
+//===----------------------------------------------------------------------===//
+//
+namespace detail {
+template <typename... Args> struct checkValidFPGAPropertySet {
+  using list = std::tuple<Args...>;
+  static constexpr bool has_BufferLocation =
+      ContainsProperty<buffer_location_key, list>::value;
+
+  static constexpr bool has_InterfaceConfig =
+      ContainsProperty<awidth_key, list>::value &&
+      ContainsProperty<dwidth_key, list>::value &&
+      ContainsProperty<latency_key, list>::value &&
+      ContainsProperty<read_write_mode_key, list>::value &&
+      ContainsProperty<maxburst_key, list>::value &&
+      ContainsProperty<wait_request_key, list>::value &&
+      ContainsProperty<alignment_key, list>::value;
+
+  static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
+};
+} // namespace detail
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

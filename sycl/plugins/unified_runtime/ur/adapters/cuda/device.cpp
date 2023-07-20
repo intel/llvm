@@ -695,13 +695,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
-    return ReturnValue(static_cast<ur_device_partition_t>(0u));
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   }
+
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_PARTITION_TYPE: {
-    return ReturnValue(static_cast<ur_device_partition_t>(0u));
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   }
 
     // Intel USM extensions
@@ -1176,7 +1183,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits
   // instead
   CUdevice CuDevice = 0;
-  memcpy(&CuDevice, hNativeDevice, sizeof(CUdevice));
+  memcpy(&CuDevice, &hNativeDevice, sizeof(CUdevice));
 
   auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
     return Dev->get() == CuDevice;
