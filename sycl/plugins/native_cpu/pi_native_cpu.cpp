@@ -1431,6 +1431,142 @@ pi_result piTearDown(void *) {
   return PI_SUCCESS;
 }
 
+pi_result piextUSMImport(const void *, size_t ,
+                                       pi_context ) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextUSMRelease(const void *, pi_context) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+
+pi_result piextUSMPitchedAlloc(
+    void **, size_t *, pi_context ,
+    pi_device , pi_usm_mem_properties *, size_t ,
+    size_t , unsigned int ) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemUnsampledImageHandleDestroy(
+    pi_context , pi_device , pi_image_handle ){
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemSampledImageHandleDestroy(
+    pi_context , pi_device , pi_image_handle ) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextBindlessImageSamplerCreate(
+    pi_context , const pi_sampler_properties *,
+    float , float ,
+    float , pi_sampler *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemImageAllocate(pi_context ,
+                                              pi_device ,
+                                              pi_image_format *,
+                                              pi_image_desc *,
+                                              pi_image_mem_handle *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemImageFree(pi_context , pi_device ,
+                                          pi_image_mem_handle ) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemImageCopy(
+    pi_queue , void *, void *,
+    const pi_image_format *, const pi_image_desc *,
+    const pi_image_copy_flags , pi_image_offset ,
+    pi_image_offset , pi_image_region ,
+    pi_image_region , pi_uint32 ,
+    const pi_event *, pi_event *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+
+pi_result piextMemImageGetInfo(
+    const pi_image_mem_handle , pi_image_info ,
+    void *, size_t *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+
+pi_result piextMemMipmapGetLevel(pi_context ,
+                                               pi_device ,
+                                               pi_image_mem_handle ,
+                                               unsigned int ,
+                                               pi_image_mem_handle *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+
+pi_result piextMemImportOpaqueFD(pi_context , pi_device , size_t ,
+                       int , pi_interop_mem_handle *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemUnsampledImageCreate(
+    pi_context , pi_device , pi_image_mem_handle ,
+    pi_image_format *, pi_image_desc *, pi_mem *,
+    pi_image_handle *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemSampledImageCreate(
+    pi_context , pi_device , pi_image_mem_handle ,
+    pi_image_format *, pi_image_desc *,
+    pi_sampler , pi_mem *, pi_image_handle *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+
+pi_result piextMemMipmapFree(pi_context , pi_device ,
+                                           pi_image_mem_handle ) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemMapExternalArray(
+    pi_context , pi_device , pi_image_format *,
+    pi_image_desc *, pi_interop_mem_handle ,
+    pi_image_mem_handle *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextImportExternalSemaphoreOpaqueFD(
+    pi_context , pi_device , int ,
+    pi_interop_semaphore_handle *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextDestroyExternalSemaphore(pi_context , pi_device ,
+                              pi_interop_semaphore_handle ) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextWaitExternalSemaphore(
+    pi_queue , pi_interop_semaphore_handle ,
+    pi_uint32 , const pi_event *,
+    pi_event *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextSignalExternalSemaphore(
+    pi_queue , pi_interop_semaphore_handle ,
+    pi_uint32 , const pi_event *,
+    pi_event *) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemReleaseInterop(
+    pi_context , pi_device , pi_interop_mem_handle ) {
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
