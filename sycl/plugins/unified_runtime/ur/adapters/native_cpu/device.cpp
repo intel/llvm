@@ -95,7 +95,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS:
-    return ReturnValue(ur_device_partition_properties_t{});
+    // Taken from CUDA ur adapter
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   case UR_DEVICE_INFO_VENDOR_ID:
     // '0x8086' : 'Intel HD graphics vendor ID'
     return ReturnValue(uint32_t{0x8086});
