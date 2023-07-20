@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// A transformation pass that renames the kernel names, making sure that the 
+// A transformation pass that renames the kernel names, making sure that the
 // mangled name is a string with no particular semantics.
 //
 //===----------------------------------------------------------------------===//

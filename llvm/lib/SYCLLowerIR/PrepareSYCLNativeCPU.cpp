@@ -105,7 +105,7 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
 
   // Create function signature
   // Todo: we need to ensure that the kernel name is not mangled as a type
-  // name, otherwise this may lead to runtime failures due to *weird* 
+  // name, otherwise this may lead to runtime failures due to *weird*
   // codegen/linking behaviour, we change the name of the kernel, and the
   // subhandler steals its name, we add a suffix to the subhandler later
   // on when lowering the device module
@@ -153,15 +153,13 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   Builder.CreateRetVoid();
 
   // Add sycl-module-id attribute
-  // Todo: we may want to copy other attributes to the subhandler, 
-  // but we can't simply use setAttributes(F->getAttributes) since 
+  // Todo: we may want to copy other attributes to the subhandler,
+  // but we can't simply use setAttributes(F->getAttributes) since
   // the function signatures are different
   if (F->hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
     Attribute MId = F->getFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID);
     SubhF->addFnAttr("sycl-module-id", MId.getValueAsString());
   }
-
-  
 }
 
 // Clones the function and returns a new function with a new argument on type T

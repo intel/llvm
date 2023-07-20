@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// A transformation pass that renames the kernel names, to ensure the name 
+// A transformation pass that renames the kernel names, to ensure the name
 // doesn't clash with other names.
 //
 //===----------------------------------------------------------------------===//
@@ -14,13 +14,12 @@
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
-
 using namespace llvm;
 
-PreservedAnalyses RenameKernelSYCLNativeCPUPass::run(Module &M,
-                                                ModuleAnalysisManager &MAM) {
+PreservedAnalyses
+RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
-  for(auto& F : M) {
+  for (auto &F : M) {
     if (F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
       F.setName(sycl::utils::addSYCLNativeCPUSuffix(F.getName()));
     }

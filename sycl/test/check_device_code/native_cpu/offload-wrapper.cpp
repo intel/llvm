@@ -1,5 +1,6 @@
 // REQUIRES: native_cpu_be
-// This test checks the output for the clang-offload-wrapper for the Native CPU target:
+// This test checks the output for the clang-offload-wrapper for the Native CPU
+// target:
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu %s -o %t.bc
 // RUN: sycl-post-link -emit-param-info -symbols -emit-exported-symbols -O2 -spec-const=rt -device-globals -o %t.table %t.bc
 // RUN: clang-offload-wrapper -o=%t_wrap.bc -host=x86_64-unknown-linux-gnu -target=native_cpu -kind=sycl -batch %t.table -native-cpu
@@ -52,7 +53,8 @@ int main() {
 // CHECK: [[KERNELNAME:@__ncpu_function_name.[0-9]*]] = internal unnamed_addr constant [17 x i8] c"_ZTS10SimpleVadd\00"
 // Check that the string for the end entry is added
 // CHECK: @__ncpu_end_str = internal unnamed_addr constant [16 x i8] c"__nativecpu_end\00"
-// Check that the array of declarations for Native CPU is added to the module, and it contains the entry for the kernel and it's terminated by the end entry
+// Check that the array of declarations for Native CPU is added to the module,
+// and it contains the entry for the kernel and it's terminated by the end entry
 // CHECK: @__sycl_native_cpu_decls = internal constant [{{[0-9]*}} x %__nativecpu_entry] [{{.*}} %__nativecpu_entry { ptr [[KERNELNAME]], ptr @_ZTS10SimpleVadd.SYCLNCPU }, %__nativecpu_entry { ptr @__ncpu_end_str, ptr null }]
 // Check that the declaration for the kernel is added for the wrapper module
 // CHECK-DAG: declare void @_ZTS10SimpleVadd.SYCLNCPU(ptr, ptr)

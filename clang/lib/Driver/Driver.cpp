@@ -9748,8 +9748,8 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
             break;
           default:
             if (isSYCLNativeCPU(Args)) {
-              TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target,
-                                                               HostTC, Args);
+          TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target,
+                                                           HostTC, Args);
             }
           break;
         }

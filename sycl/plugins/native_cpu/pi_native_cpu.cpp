@@ -1210,7 +1210,8 @@ pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
 }
 
 pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *images,
-                                  pi_uint32 num_images, pi_uint32 *selected_image_ind) {
+                                  pi_uint32 num_images,
+                                  pi_uint32 *selected_image_ind) {
   // look for a binary with type __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU
   // Todo: error checking
   const char *image_target = __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU;

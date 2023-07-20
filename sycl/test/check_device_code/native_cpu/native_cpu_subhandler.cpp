@@ -56,7 +56,8 @@ void test() {
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 
-  // Check that subhandler is emitted correctly for kernels with no args:deviceQueue.submit([&](sycl::handler &h) {
+  // Check that subhandler is emitted correctly for kernels with no
+  // args:deviceQueue.submit([&](sycl::handler &h) {
   sycl::accessor<int, 1, sycl::access::mode::write> acc;
   q.submit([&](sycl::handler &h) {
     h.parallel_for<Test1>(range<1>(1), [=](sycl::id<1> id) {
