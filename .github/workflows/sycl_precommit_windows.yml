@@ -84,4 +84,4 @@ jobs:
     with:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
       build_ref: ${{ github.event.pull_request.head.sha }}
-      check_filters: ${{ needs.detect_changes.outputs.filters }}
+      changes: ${{ needs.detect_changes.outputs.filters }}
