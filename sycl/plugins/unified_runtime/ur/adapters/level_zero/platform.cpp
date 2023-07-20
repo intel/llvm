@@ -61,7 +61,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-    UR_ASSERT(NumEntries != 0, UR_RESULT_ERROR_INVALID_VALUE);
+    UR_ASSERT(NumEntries == 0, UR_RESULT_ERROR_INVALID_VALUE);
     if (NumPlatforms)
       *NumPlatforms = 0;
     return UR_RESULT_SUCCESS;
