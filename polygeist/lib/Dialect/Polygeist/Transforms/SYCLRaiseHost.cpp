@@ -1586,7 +1586,7 @@ private:
   // value to an entity of interest (e.g. an accessor).
   Value tryToBroaden(Value stored, Type expected) const {
     if (isClassType(expected, accessorTypeTag.getTypeName())) {
-      // The getelementpointer[0, <capture #>] we have matched earlier is is not
+      // The getelementpointer[0, <capture #>] we have matched earlier is not
       // addressing the entire accessor, but rather the first member in the
       // accessor class (think: getelementpointer[0, <capture #>, 0...]).
       // Instead of the value loaded from that address, we return the address
