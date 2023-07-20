@@ -32,6 +32,8 @@
 #include <llvm/ADT/STLExtras.h>
 #include <type_traits>
 
+#define DEBUG_TYPE "sycl-raise-host"
+
 namespace mlir {
 namespace polygeist {
 #define GEN_PASS_DEF_SYCLRAISEHOSTCONSTRUCTS
@@ -1582,21 +1584,29 @@ private:
     return {op, value};
   }
 
-  // Use the \p expected type as domain knowledge to try to broaden a \p stored
-  // value to an entity of interest (e.g. an accessor).
-  Value tryToBroaden(Value stored, Type expected) const {
+  // Use the \p expected type as domain knowledge to try to broaden an
+  // \p assigned value to an entity of interest (e.g. an accessor).
+  Value tryToBroaden(Value assigned, Type expected) const {
     if (isClassType(expected, accessorTypeTag.getTypeName())) {
-      // The getelementpointer[0, <capture #>] we have matched earlier is not
-      // addressing the entire accessor, but rather the first member in the
+      // The getelementpointer[0, <capture #>] we have matched earlier might not
+      // address the entire accessor, but rather the first member in the
       // accessor class (think: getelementpointer[0, <capture #>, 0...]).
-      // Instead of the value loaded from that address, we return the address
-      // itself, which points to the accessor.
-      auto load = cast<LLVM::LoadOp>(stored.getDefiningOp());
-      return load.getAddr();
+      // Check whether the assigned value is a load from an alloca with the
+      // expected type (i.e. representing an accessor), and if so, return that
+      // address instead.
+      if (auto load = dyn_cast_or_null<LLVM::LoadOp>(assigned.getDefiningOp()))
+        if (auto alloca = dyn_cast_or_null<LLVM::AllocaOp>(
+                load.getAddr().getDefiningOp()))
+          if (auto elemTy = alloca.getElemType();
+              elemTy.has_value() && elemTy.value() == expected)
+            return load.getAddr();
+
+      LLVM_DEBUG(llvm::dbgs()
+                 << "tryToBroaden: Could not infer captured accessor\n");
     }
 
     // No special handling, just return the argument as-is.
-    return stored;
+    return assigned;
   }
 
   AccessorTypeTag accessorTypeTag;
