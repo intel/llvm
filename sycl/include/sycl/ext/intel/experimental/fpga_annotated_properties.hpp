@@ -17,7 +17,9 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-using namespace sycl::ext::oneapi::experimental;
+template <typename PropertyT, typename... Ts>
+using property_value =
+    sycl::ext::oneapi::experimental::property_value<PropertyT, Ts...>;
 //===----------------------------------------------------------------------===//
 //        FPGA properties of annotated_arg/annotated_ptr
 //===----------------------------------------------------------------------===//
@@ -108,7 +110,19 @@ namespace experimental {
 template <typename T, typename PropertyListT> class annotated_arg;
 template <typename T, typename PropertyListT> class annotated_ptr;
 
-using namespace sycl::ext::intel::experimental;
+struct alignment_key;
+using register_map_key = intel::experimental::register_map_key;
+using conduit_key = intel::experimental::conduit_key;
+using stable_key = intel::experimental::stable_key;
+using buffer_location_key = intel::experimental::buffer_location_key;
+using awidth_key = intel::experimental::awidth_key;
+using dwidth_key = intel::experimental::dwidth_key;
+using latency_key = intel::experimental::latency_key;
+using read_write_mode_key = intel::experimental::read_write_mode_key;
+using maxburst_key = intel::experimental::maxburst_key;
+using wait_request_key = intel::experimental::wait_request_key;
+using read_write_mode_enum = intel::experimental::read_write_mode_enum;
+
 template <> struct is_property_key<register_map_key> : std::true_type {};
 template <> struct is_property_key<conduit_key> : std::true_type {};
 template <> struct is_property_key<stable_key> : std::true_type {};

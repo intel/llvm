@@ -13,6 +13,7 @@
 
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
@@ -33,6 +34,10 @@ struct alignment_key {
 template <int K> inline constexpr alignment_key::value_t<K> alignment;
 
 template <> struct is_property_key<alignment_key> : std::true_type {};
+
+template <typename T, int W>
+struct is_valid_property<T, alignment_key::value_t<W>>
+    : std::bool_constant<std::is_pointer<T>::value> {};
 
 template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
@@ -166,7 +171,8 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 
   // buffer_location and alignment are allowed for annotated_ref
   using allowed_properties =
-      std::tuple<decltype(buffer_location<0>), decltype(alignment<0>)>;
+      std::tuple<decltype(ext::intel::experimental::buffer_location<0>),
+                 decltype(ext::oneapi::experimental::alignment<0>)>;
   using filtered_properties =
       typename PropertiesFilter<allowed_properties, Props...>::tuple;
 

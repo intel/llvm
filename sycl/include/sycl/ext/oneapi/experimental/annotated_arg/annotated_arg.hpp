@@ -13,6 +13,7 @@
 
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
