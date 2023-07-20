@@ -165,7 +165,7 @@ program_impl::program_impl(ContextImplPtr Context,
   sycl::detail::pi::PiDevice Device =
       getSyclObjImpl(MDevices[0])->getHandleRef();
   // TODO check build for each device instead
-  cl_program_binary_type BinaryType;
+  cl_program_binary_type BinaryType = PI_PROGRAM_BINARY_TYPE_NONE;
   Plugin->call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_BINARY_TYPE,
       sizeof(cl_program_binary_type), &BinaryType, nullptr);
