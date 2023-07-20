@@ -834,9 +834,9 @@ USMAllocContext::~USMAllocContext() {
   size_t HighPeakSlabsInUse;
   if (pImpl->getParams().PoolTrace > 1) {
     auto MT = pImpl->getParams().memoryTypeName;
-    pImpl->printStats(TitlePrinted, HighBucketSize, HighPeakSlabsInUse, MT);
-    if (TitlePrinted) {
-      try { // cannot throw in destructor
+    try { // cannot throw in destructor
+      pImpl->printStats(TitlePrinted, HighBucketSize, HighPeakSlabsInUse, MT);
+      if (TitlePrinted) {
         std::cout << "Current Pool Size "
                   << pImpl->getParams().limits->TotalSize.load() << std::endl;
         const char *Label = MT;
@@ -844,8 +844,8 @@ USMAllocContext::~USMAllocContext() {
                   << std::string(1, tolower(*Label)) << std::string(Label + 1)
                   << ":" << HighBucketSize << "," << HighPeakSlabsInUse
                   << ",64K" << std::endl;
-      } catch (...) { // ignore exceptions
       }
+    } catch (...) { // ignore exceptions
     }
   }
 }
