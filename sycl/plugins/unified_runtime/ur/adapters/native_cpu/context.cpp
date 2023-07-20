@@ -26,9 +26,8 @@ urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
   assert(DeviceCount == 1);
 
   // TODO: Proper error checking.
-  auto ctx = std::unique_ptr<ur_context_handle_t_>(
-      new ur_context_handle_t_(*phDevices));
-  *phContext = ctx.release();
+  auto ctx = new ur_context_handle_t_(*phDevices);
+  *phContext = ctx;
   return UR_RESULT_SUCCESS;
 }
 
@@ -40,7 +39,7 @@ urContextRetain(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  std::unique_ptr<ur_context_handle_t_> Context{hContext};
+  delete hContext;
   return UR_RESULT_SUCCESS;
 }
 
