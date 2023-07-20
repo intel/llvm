@@ -13,9 +13,6 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
-    # For CI-related files we explicitly skip all the jobs below even if there
-    # were other (non-ignored) files modified in this PR.
-    - 'devops/*/**'
 
 permissions:
   contents: read
