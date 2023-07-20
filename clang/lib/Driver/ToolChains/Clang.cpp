@@ -9012,6 +9012,20 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     const ToolChain *CurTC = &getToolChain();
     const Action *CurDep = JA.getInputs()[I];
 
+    // Special handling for FPGA AOCX binaries that are bundled prior to being
+    // added to the generated archive.
+    bool IsFPGAImage = false;
+    if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_link_EQ)) {
+      llvm::Triple Triple = CurTC->getTriple();
+      IsFPGAImage = (A->getValue() == StringRef("image")) && Triple.isSPIR() &&
+          (Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga);
+    }
+    if (Inputs.size() == 1 && IsFPGAImage) {
+      Triples += Action::GetOffloadKindName(CurKind);
+      Triples += "-fpga_aocx-intel-unknown";
+      continue;
+    }
+
     if (const auto *OA = dyn_cast<OffloadAction>(CurDep)) {
       CurTC = nullptr;
       OA->doOnEachDependence([&](Action *A, const ToolChain *TC, const char *) {
@@ -9056,7 +9070,8 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
   // If we see we are bundling for FPGA using -fintelfpga, add the
   // dependency bundle
   bool IsFPGADepBundle = TCArgs.hasArg(options::OPT_fintelfpga) &&
-                         Output.getType() == types::TY_Object;
+                         Output.getType() == types::TY_Object &&
+                         !TCArgs.hasArg(options::OPT_fsycl_link_EQ);
 
   // For spir64_fpga target, when bundling objects we also want to bundle up the
   // named dependency file.
@@ -9203,7 +9218,11 @@ void OffloadBundler::ConstructJobMultipleOutputs(
           TT.setArchName(types::getTypeName(InputType));
           TT.setVendorName("intel");
           TT.setOS(getToolChain().getTriple().getOS());
-          Triples += "sycl-";
+          if (InputType == types::TY_FPGA_AOCX)
+            // AOCX device is bundled in the host section
+            Triples += "host-";
+          else
+            Triples += "sycl-";
           Triples += TT.normalize();
           continue;
         } else if (Dep.DependentOffloadKind == Action::OFK_Host) {
@@ -9341,24 +9360,25 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     llvm::Triple TT = getToolChain().getTriple();
     SmallString<128> TargetTripleOpt = TT.getArchName();
-    // When wrapping an FPGA device binary, we need to be sure to apply the
-    // appropriate triple that corresponds (fpga_aoc[xr]-intel-<os>)
-    // to the target triple setting.
-    if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
-        TCArgs.hasArg(options::OPT_fsycl_link_EQ)) {
-      SmallString<16> FPGAArch("fpga_");
-      auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ);
-      bool Early = (A->getValue() == StringRef("early"));
-      FPGAArch += Early ? "aocr" : "aocx";
-      if (C.getDriver().IsFPGAEmulationMode() && Early)
-        FPGAArch += "_emu";
-      TT.setArchName(FPGAArch);
-      TT.setVendorName("intel");
-      TargetTripleOpt = TT.str();
+    bool Early = false;
+    if (Arg *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)) {
+      Early = (A->getValue() == StringRef("early"));
       // When wrapping an FPGA aocx binary to archive, do not emit registration
       // functions
       if (A->getValue() == StringRef("image"))
         WrapperArgs.push_back(C.getArgs().MakeArgString("--emit-reg-funcs=0"));
+    }
+    // When wrapping an FPGA device binary, we need to be sure to apply the
+    // appropriate triple that corresponds (fpga_aocr-intel-<os>)
+    // to the target triple setting.
+    if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga && Early) {
+      SmallString<16> FPGAArch("fpga_");
+      FPGAArch += "aocr";
+      if (C.getDriver().IsFPGAEmulationMode())
+        FPGAArch += "_emu";
+      TT.setArchName(FPGAArch);
+      TT.setVendorName("intel");
+      TargetTripleOpt = TT.str();
     }
     // Grab any Target specific options that need to be added to the wrapper
     // information.

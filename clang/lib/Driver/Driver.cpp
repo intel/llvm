@@ -5499,22 +5499,24 @@ class OffloadingActionBuilder final {
             // directly to the backend compilation step (aocr) or wrapper (aocx)
             Action *FPGAAOTAction;
             if (Input->getType() == types::TY_FPGA_AOCR ||
-                Input->getType() == types::TY_FPGA_AOCR_EMU)
+                Input->getType() == types::TY_FPGA_AOCR_EMU) {
               // Generate AOCX/AOCR
               FPGAAOTAction =
                   C.MakeAction<BackendCompileJobAction>(Input, FPGAOutType);
-            else if (Input->getType() == types::TY_FPGA_AOCX)
-              FPGAAOTAction = Input;
+              auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
+                  FPGAAOTAction, types::TY_Tempfilelist,
+                  types::TY_Tempfilelist);
+              RenameAction->addRenameColumnTform(
+                  FileTableTformJobAction::COL_ZERO,
+                  FileTableTformJobAction::COL_CODE);
+              auto *DeviceWrappingAction =
+                  C.MakeAction<OffloadWrapperJobAction>(RenameAction,
+                                                        types::TY_Object);
+              DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
+            } else if (Input->getType() == types::TY_FPGA_AOCX)
+              DA.add(*Input, *TC, nullptr, Action::OFK_SYCL);
             else
               llvm_unreachable("Unexpected FPGA input type.");
-            auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
-                FPGAAOTAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
-            RenameAction->addRenameColumnTform(
-                FileTableTformJobAction::COL_ZERO,
-                FileTableTformJobAction::COL_CODE);
-            auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
-                RenameAction, types::TY_Object);
-            DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
             continue;
           } else if (!types::isFPGA(Input->getType())) {
             // No need for any conversion if we are coming in from the
@@ -5857,10 +5859,20 @@ class OffloadingActionBuilder final {
               WrapperInputs, types::TY_Object);
 
           if (isSpirvAOT) {
-            bool AddBA = (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-                          BoundArch != nullptr);
-            DA.add(*DeviceWrappingAction, *TC, AddBA ? BoundArch : nullptr,
-                   Action::OFK_SYCL);
+            // For FPGA with -fsycl-link=image, we need to bundle the output
+            Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ);
+            if (A && A->getValue() == StringRef("image")) {
+              ActionList BundlingActions;
+              BundlingActions.push_back(DeviceWrappingAction);
+              auto *DeviceBundlingAction =
+                  C.MakeAction<OffloadBundlingJobAction>(BundlingActions);
+              DA.add(*DeviceBundlingAction, *TC, nullptr, Action::OFK_SYCL);
+            } else {
+              bool AddBA = (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+                            BoundArch != nullptr);
+              DA.add(*DeviceWrappingAction, *TC, AddBA ? BoundArch : nullptr,
+                     Action::OFK_SYCL);
+            }
           } else
             withBoundArchForToolChain(TC, [&](const char *BoundArch) {
               DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);

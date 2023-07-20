@@ -620,14 +620,20 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // linked archives.  The unbundled information is a list of files and not
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
-  if (JA.isDeviceOffloading(Action::OFK_OpenMP)) {
+  if (JA.isDeviceOffloading(Action::OFK_OpenMP) ||
+      JA.isOffloading(Action::OFK_SYCL)) {
     InputInfoList UpdatedInputs;
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     for (const auto &II : Inputs) {
-      if (II.getType() == types::TY_Tempfilelist) {
+      // TODO: Incoming file from the unbundling of the AOCX archive is
+      // represented as an object.
+      StringRef FileName(II.getFilename());
+      bool IsAOCXFileList = llvm::sys::path::extension(FileName) == ".aocx" &&
+                            II.getType() == types::TY_Object;
+
+      if (II.getType() == types::TY_Tempfilelist || IsAOCXFileList) {
         // Take the unbundled list file and pass it in with '@'.
-        std::string FileName(II.getFilename());
         const char * ArgFile = C.getArgs().MakeArgString("@" + FileName);
         auto CurInput = InputInfo(types::TY_Object, ArgFile, ArgFile);
         UpdatedInputs.push_back(CurInput);
