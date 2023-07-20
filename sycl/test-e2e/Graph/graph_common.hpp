@@ -14,6 +14,16 @@ namespace exp_ext = sycl::ext::oneapi::experimental;
 // Make tests less verbose by using sycl namespace.
 using namespace sycl;
 
+// Macro for wrapping depends on calls when add_node is used so they are not
+// used in the explicit API
+#ifdef GRAPH_E2E_RECORD_REPLAY
+#define DEPENDS_ON(CGH, EVENTS) CGH->depends_on(EVENTS)
+#else
+#define DEPENDS_ON(CGH, EVENTS)                                                \
+  do {                                                                         \
+  } while (0)
+#endif
+
 // We have 4 versions of the same kernel sequence for testing a combination
 // of graph construction API against memory model. Each submits the same pattern
 /// of 4 kernels with a diamond dependency.
@@ -279,8 +289,7 @@ auto add_nodes(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   Graph.end_recording(Queue);
   return ev;
 #else
-#error                                                                         \
-    "Must define GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY to select an API"
+  std::cout << "Warning: No Graph API selected.\n";
 #endif
 }
 
@@ -310,8 +319,7 @@ auto add_nodes(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   Graph.end_recording(Queue);
   return ev;
 #else
-#error                                                                         \
-    "Must define GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY to select an API"
+  std::cout << "Warning: No Graph API selected.\n";
 #endif
 }
 
@@ -343,8 +351,7 @@ auto add_node(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   Graph.end_recording(Queue);
   return ev;
 #else
-#error                                                                         \
-    "Must define GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY to select an API"
+  std::cout << "Warning: No Graph API selected.\n";
 #endif
 }
 

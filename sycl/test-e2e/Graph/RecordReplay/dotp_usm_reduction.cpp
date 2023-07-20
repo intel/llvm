@@ -9,6 +9,7 @@
 // Tests a dotp operation using a sycl reduction with device USM being added
 // to the graph using the explicit API.
 
+#define GRAPH_E2E_RECORD_REPLAY
 #include "../graph_common.hpp"
 
 int main() {

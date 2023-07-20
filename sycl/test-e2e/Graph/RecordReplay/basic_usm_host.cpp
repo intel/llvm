@@ -6,6 +6,6 @@
 //
 // CHECK-NOT: LEAK
 
-#define GRAPH_E2E_EXPLICIT
+#define GRAPH_E2E_RECORD_REPLAY
 
-#include "../Inputs/buffer_copy_target2host.cpp"
+#include "../Inputs/basic_usm_host.cpp"
