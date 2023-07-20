@@ -81,6 +81,7 @@ piSamplerGetInfo
 piSamplerRelease
 piSamplerRetain
 piTearDown
+piextBindlessImageSamplerCreate
 piextCommandBufferCreate
 piextCommandBufferFinalize
 piextCommandBufferMemBufferCopy
@@ -96,6 +97,7 @@ piextCommandBufferRetain
 piextContextCreateWithNativeHandle
 piextContextGetNativeHandle
 piextContextSetExtendedDeleter
+piextDestroyExternalSemaphore
 piextDeviceCreateWithNativeHandle
 piextDeviceGetNativeHandle
 piextDeviceSelectBinary
@@ -107,6 +109,7 @@ piextEnqueueWriteHostPipe
 piextEventCreateWithNativeHandle
 piextEventGetNativeHandle
 piextGetDeviceFunctionPointer
+piextImportExternalSemaphoreOpaqueFD
 piextKernelCreateWithNativeHandle
 piextKernelGetNativeHandle
 piextKernelSetArgMemObj
@@ -114,7 +117,20 @@ piextKernelSetArgPointer
 piextKernelSetArgSampler
 piextMemCreateWithNativeHandle
 piextMemGetNativeHandle
+piextMemImageAllocate
+piextMemImageCopy
 piextMemImageCreateWithNativeHandle
+piextMemImageFree
+piextMemImageGetInfo
+piextMemImportOpaqueFD
+piextMemMapExternalArray
+piextMemMipmapFree
+piextMemMipmapGetLevel
+piextMemReleaseInterop
+piextMemSampledImageCreate
+piextMemSampledImageHandleDestroy
+piextMemUnsampledImageCreate
+piextMemUnsampledImageHandleDestroy
 piextPeerAccessGetInfo
 piextPlatformCreateWithNativeHandle
 piextPlatformGetNativeHandle
@@ -125,6 +141,7 @@ piextProgramSetSpecializationConstant
 piextQueueCreate
 piextQueueCreateWithNativeHandle
 piextQueueGetNativeHandle
+piextSignalExternalSemaphore
 piextUSMDeviceAlloc
 piextUSMEnqueueFill2D
 piextUSMEnqueueMemAdvise
@@ -136,4 +153,6 @@ piextUSMEnqueuePrefetch
 piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc
+piextUSMPitchedAlloc
 piextUSMSharedAlloc
+piextWaitExternalSemaphore

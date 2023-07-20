@@ -156,7 +156,7 @@ namespace detail {
 
 __SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
 
-static inline std::string codeToString(pi_int32 code) {
+inline std::string codeToString(pi_int32 code) {
   return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
                      ")");
 }

@@ -224,7 +224,7 @@ inline unsigned append(char *Dst, const char *Src) {
   return Len;
 }
 
-static inline unsigned F2I32(float Val) {
+inline unsigned F2I32(float Val) {
   union {
     float FVal;
     unsigned I32Val;
@@ -233,7 +233,7 @@ static inline unsigned F2I32(float Val) {
   return Internal.I32Val;
 }
 
-static inline unsigned long long D2I64(double Val) {
+inline unsigned long long D2I64(double Val) {
   union {
     double DVal;
     unsigned long long I64Val;

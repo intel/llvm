@@ -1301,7 +1301,7 @@
 ?reset@filter_selector@oneapi@ext@_V1@sycl@@QEBAXXZ
 ?resize@AccessorImplHost@detail@_V1@sycl@@QEAAX_K@Z
 ?resize@buffer_impl@detail@_V1@sycl@@QEAAX_K@Z
-?sampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0V?$optional@W4image_target@_V1@sycl@@@std@@PEBXIAEBUcode_location@123@@Z
+?sampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0AEBV?$optional@W4image_target@_V1@sycl@@@std@@PEBXIAEBUcode_location@123@@Z
 ?sampledImageConstructorNotification@image_plain@detail@_V1@sycl@@IEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@AEBUimage_sampler@34@@Z
 ?sampledImageConstructorNotification@image_impl@detail@_V1@sycl@@QEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@AEBUimage_sampler@34@@Z
 ?sampledImageDestructorNotification@image_plain@detail@_V1@sycl@@IEAAXPEAX@Z
@@ -4941,7 +4941,7 @@
 ?throwIfActionIsCreated@handler@_V1@sycl@@AEAAXXZ
 ?throw_asynchronous@queue@_V1@sycl@@QEAAXXZ
 ?unmap@MemoryManager@detail@_V1@sycl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@1V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
-?unsampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0V?$optional@W4image_target@_V1@sycl@@@std@@W4mode@access@23@PEBXIAEBUcode_location@123@@Z
+?unsampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0AEBV?$optional@W4image_target@_V1@sycl@@@std@@W4mode@access@23@PEBXIAEBUcode_location@123@@Z
 ?unsampledImageConstructorNotification@image_impl@detail@_V1@sycl@@QEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@@Z
 ?unsampledImageConstructorNotification@image_plain@detail@_V1@sycl@@IEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@@Z
 ?unsampledImageDestructorNotification@image_impl@detail@_V1@sycl@@QEAAXPEAX@Z

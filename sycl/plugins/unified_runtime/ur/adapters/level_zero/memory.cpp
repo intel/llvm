@@ -161,15 +161,10 @@ ur_result_t enqueueMemCopyRectHelper(
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
              (ZeCommandList, DstBuffer, &ZeDstRegion, DstPitch, DstSlicePitch,
-              SrcBuffer, &ZeSrcRegion, SrcPitch, SrcSlicePitch, nullptr,
+              SrcBuffer, &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
   urPrint("calling zeCommandListAppendMemoryCopyRegion()\n");
-
-  ZE2UR_CALL(zeCommandListAppendBarrier, (ZeCommandList, ZeEvent, 0, nullptr));
-
-  urPrint("calling zeCommandListAppendBarrier() with Event %#llx\n",
-          ur_cast<std::uintptr_t>(ZeEvent));
 
   UR_CALL(Queue->executeCommandList(CommandList, Blocking, OkToBatch));
 

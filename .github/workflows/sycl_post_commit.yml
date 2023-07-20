@@ -5,6 +5,7 @@ on:
     branches:
     - sycl
     - sycl-devops-pr/**
+    - llvmspirv_pulldown
 
 jobs:
   # This job generates matrix of tests for SYCL End-to-End tests
