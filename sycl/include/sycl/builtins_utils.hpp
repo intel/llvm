@@ -12,7 +12,6 @@
 #include <sycl/detail/builtins.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/pointers.hpp>
 #include <sycl/types.hpp>
 
@@ -197,29 +196,25 @@ template <typename T, typename... Ts> constexpr bool CheckAllSameOpType() {
 template <typename... Ts>
 constexpr bool check_all_same_op_type_v = CheckAllSameOpType<Ts...>();
 
+template <size_t Size, typename T8, typename T16, typename T32, typename T64>
+using select_scalar_by_size_t = std::conditional_t<
+    Size == 1, T8,
+    std::conditional_t<
+        Size == 2, T16,
+        std::conditional_t<Size == 4, T32,
+                           std::conditional_t<Size == 8, T64, void>>>>;
+
 template <size_t Size> struct get_signed_int_by_size {
-  using type = std::conditional_t<
-      Size == 1, int8_t,
-      std::conditional_t<
-          Size == 2, int16_t,
-          std::conditional_t<Size == 4, int32_t,
-                             std::conditional_t<Size == 8, int64_t, void>>>>;
+  using type = select_scalar_by_size_t<Size, int8_t, int16_t, int32_t, int64_t>;
 };
 
 template <size_t Size> struct get_unsigned_int_by_size {
-  using type = std::conditional_t<
-      Size == 1, uint8_t,
-      std::conditional_t<
-          Size == 2, uint16_t,
-          std::conditional_t<Size == 4, uint32_t,
-                             std::conditional_t<Size == 8, uint64_t, void>>>>;
+  using type =
+      select_scalar_by_size_t<Size, uint8_t, uint16_t, uint32_t, uint64_t>;
 };
 
 template <size_t Size> struct get_float_by_size {
-  using type = std::conditional_t<
-      Size == 2, half,
-      std::conditional_t<Size == 4, float,
-                         std::conditional_t<Size == 8, double, void>>>;
+  using type = select_scalar_by_size_t<Size, void, half, float, double>;
 };
 
 template <typename T> struct same_size_signed_int {
@@ -231,7 +226,15 @@ template <typename T, size_t N> struct same_size_signed_int<marray<T, N>> {
 template <typename T, int N> struct same_size_signed_int<vec<T, N>> {
   using type = vec<typename same_size_signed_int<T>::type, N>;
 };
-// TODO: Swizzle variant of this?
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct same_size_signed_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                      OperationCurrentT, Indexes...>> {
+  // Converts to vec for simplicity.
+  using type =
+      vec<typename same_size_signed_int<typename VecT::element_type>::type,
+          sizeof...(Indexes)>;
+};
 
 template <typename T>
 using same_size_signed_int_t = typename same_size_signed_int<T>::type;

@@ -3,26 +3,30 @@ import sys
 import os
 from collections import defaultdict
 
-# Common super class representing a templated type.
-# valid_types - A list of the valid types for the instantiation of the template.
-# valid_sizes - A list of the valid sizes for the type instantiating the
-#   template. This is used by vec and marray to restrict their sizes and may be
-#   None to signify no restrictions.
 class TemplatedType:
+  """
+  Common super class representing a templated type.
+  valid_types - A list of the valid types for the instantiation of the template.
+  valid_sizes - A list of the valid sizes for the type instantiating the
+    template. This is used by vec and marray to restrict their sizes and may be
+    None to signify no restrictions.
+  """
   def __init__(self, valid_types, valid_sizes):
     self.valid_types = valid_types
     self.valid_sizes = valid_sizes
 
-# Class representing a sycl::vec type in SYCL builtins.
 class Vec(TemplatedType):
+  """Class representing a sycl::vec type in SYCL builtins."""
   def __init__(self, valid_types, valid_sizes = {1,2,3,4,8,16}):
     super().__init__(valid_types, valid_sizes)
 
-  # Gets the constexpr requirements of a vector type argument:
-  #  1. The argument must be either a vector or a swizzle.
-  #  2. The element type of the argument must be in valid_types
-  #  3. The number of elements must be in valid_sizes. 
   def get_requirements(self, type_name):
+    """
+    Gets the constexpr requirements of a vector type argument:
+    1. The argument must be either a vector or a swizzle.
+    2. The element type of the argument must be in valid_types
+    3. The number of elements must be in valid_sizes.
+    """
     valid_type_str = ', '.join(self.valid_types)
     valid_sizes_str = ', '.join(map(str, self.valid_sizes))
     return [f'detail::is_vec_or_swizzle_v<{type_name}>',
@@ -32,17 +36,19 @@ class Vec(TemplatedType):
   def __hash__(self):
     return hash(("vec", frozenset(self.valid_types), frozenset(self.valid_sizes)))
 
-# Class representing a sycl::marray type in SYCL builtins.
 class Marray(TemplatedType):
+  """Class representing a sycl::marray type in SYCL builtins."""
   def __init__(self, valid_types, valid_sizes = None):
     super().__init__(valid_types, valid_sizes)
 
-  # Gets the constexpr requirements of an marray type argument:
-  #  1. The argument must be an marray.
-  #  2. The element type of the argument must be in valid_types
-  #  3. The number of elements must be in valid_sizes. If valid_sizes is None,
-  #     this requirement is excluded.
   def get_requirements(self, type_name):
+    """
+    Gets the constexpr requirements of an marray type argument:
+    1. The argument must be an marray.
+    2. The element type of the argument must be in valid_types
+    3. The number of elements must be in valid_sizes. If valid_sizes is None,
+       this requirement is excluded.
+    """
     valid_type_str = ', '.join(self.valid_types)
     result = [f'detail::is_marray_v<{type_name}>',
               f'detail::is_valid_elem_type_v<{type_name}, {valid_type_str}>']
@@ -55,35 +61,43 @@ class Marray(TemplatedType):
     valid_sizes_set = frozenset(self.valid_sizes) if self.valid_sizes else None
     return hash(("marray", frozenset(self.valid_types), valid_sizes_set))
 
-# Represents a templated scalar type, i.e. a template type that can have any of
-# the specified scalar types.
 class TemplatedScalar(TemplatedType):
+  """
+  Represents a templated scalar type, i.e. an alias template that can have any
+  of the specified scalar types.
+  """
   def __init__(self, valid_types):
     super().__init__(valid_types, None)
 
-  # Gets the constexpr requirements of the scalar template type, which is only
-  # a requirement that the type is one of the types in valid_types.
   def get_requirements(self, type_name):
+    """
+    Gets the constexpr requirements of the scalar template type, which is only
+    a requirement that the type is one of the types in valid_types.
+    """
     valid_type_str = ', '.join(self.valid_types)
     return [f'detail::check_type_in_v<{type_name}, {valid_type_str}>']
 
   def __hash__(self):
     return hash(("scalar", frozenset(self.valid_types)))
 
-# A class representing a sycl::multi_ptr type.
-# element_type - The type pointed to by the multi_ptr.
 class MultiPtr:
+  """
+  A class representing a sycl::multi_ptr type.
+  element_type - The type pointed to by the multi_ptr.
+  """
   def __init__(self, element_type):
     self.element_type = element_type
 
   def __str__(self):
     return f'multi_ptr<{self.element_type}, Space, IsDecorated>'
 
-# A class representing a raw pointer type.
-# element_type - The type pointed to by the raw pointer.
-# TODO: Raw pointer variants kept for compatibility. They are deprecated and
-#       should be removed.
 class RawPtr:
+  """
+  A class representing a raw pointer type.
+  element_type - The type pointed to by the raw pointer.
+  TODO: Raw pointer variants kept for compatibility. They are deprecated and
+        should be removed.
+  """
   def __init__(self, element_type):
     self.element_type = element_type
     self.deprecation_message = "SYCL builtin functions with raw pointer arguments have been deprecated. Please use multi_ptr."
@@ -91,29 +105,35 @@ class RawPtr:
   def __str__(self):
     return f'{self.element_type}*'
 
-# A class representing the special builtins type for using the element type of
-# another argument.
-# parent_idx - The index of the parent argument in the corresponding builtin.
 class ElementType:
+  """
+  A class representing the special builtins type for using the element type of
+  another argument.
+  parent_idx - The index of the parent argument in the corresponding builtin.
+  """
   def __init__(self, parent_idx):
     self.parent_idx = parent_idx
 
-# A class representing the special cases where a utility trait is applied to
-# another argument type to get the corresponding type.
-# trait - The name of the trait to use for converting the type.
-# parent_idx - The index of the parent argument in the corresponding builtin.
-# NOTE: Traits are primarily defined in sycl/include/sycl/builtins_utils.hpp.
 class ConversionTraitType:
+  """
+  A class representing the special cases where a utility trait is applied to
+  another argument type to get the corresponding type.
+  trait - The name of the trait to use for converting the type.
+  parent_idx - The index of the parent argument in the corresponding builtin.
+  NOTE: Traits are primarily defined in sycl/include/sycl/builtins_utils.hpp.
+  """
   def __init__(self, trait, parent_idx):
     self.trait = trait
     self.parent_idx = parent_idx
 
-# A class representing an instantiated template argument, i.e. a template
-# argument with a given type and an assigned template name.
-# template_name - The name of the argument's type in the template function.
-# template_type - The associated type picked from the valid types in the builtin
-#   definition.
 class InstantiatedTemplatedArg:
+  """
+  A class representing an instantiated template argument, i.e. a template
+  argument with a given type and an assigned template name.
+  template_name - The name of the argument's type in the template function.
+  template_type - The associated type picked from the valid types in the builtin
+    definition.
+  """
   def __init__(self, template_name, templated_type):
     self.template_name = template_name
     self.templated_type = templated_type
@@ -121,12 +141,14 @@ class InstantiatedTemplatedArg:
   def __str__(self):
     return self.template_name
 
-# A class representing an instantiated template return type, i.e. an association
-# between the return type of a builtin and a related template argument.
-# related_arg_type - The related template argument type.
-# template_type - The associated type picked from the valid types in the builtin
-#   definition.
 class InstantiatedTemplatedReturnType:
+  """
+  A class representing an instantiated template return type, i.e. an association
+  between the return type of a builtin and a related template argument.
+  related_arg_type - The related template argument type.
+  template_type - The associated type picked from the valid types in the builtin
+    definition.
+  """
   def __init__(self, related_arg_type, templated_type):
     self.related_arg_type = related_arg_type
     self.templated_type = templated_type
@@ -137,11 +159,13 @@ class InstantiatedTemplatedReturnType:
       return f'detail::get_vec_t<{self.related_arg_type}>'
     return str(self.related_arg_type)
 
-# A class representing an instantiated version of ElementType containing the
-# referenced type.
-# referenced_type - The referenced type.
-# parent_idx - The index of the parent argument in the corresponding builtin.
 class InstantiatedElementType:
+  """
+  A class representing an instantiated version of ElementType containing the
+  referenced type.
+  referenced_type - The referenced type.
+  parent_idx - The index of the parent argument in the corresponding builtin.
+  """
   def __init__(self, referenced_type, parent_idx):
     self.referenced_type = referenced_type
     self.parent_idx = parent_idx
@@ -152,12 +176,14 @@ class InstantiatedElementType:
       return f'detail::get_elem_type_t<{self.referenced_type}>'
     return self.referenced_type
 
-# A class representing an instantiated version of ConversionTraitType containing
-# the parent type.
-# parent_type - The parent type.
-# trait - The name of the trait to use for converting the type.
-# parent_idx - The index of the parent argument in the corresponding builtin.
 class InstantiatedConversionTraitType:
+  """
+  A class representing an instantiated version of ConversionTraitType containing
+  the parent type.
+  parent_type - The parent type.
+  trait - The name of the trait to use for converting the type.
+  parent_idx - The index of the parent argument in the corresponding builtin.
+  """
   def __init__(self, parent_type, trait, parent_idx):
     self.parent_type = parent_type
     self.trait = trait
@@ -385,32 +411,36 @@ builtin_types = {
 
 ### BUILTINS
 
-# Finds the first templated argument in a type list.
 def find_first_template_arg(arg_types):
+  """Finds the first templated argument in a type list."""
   for arg_type in arg_types:
     if isinstance(arg_type, InstantiatedTemplatedArg):
       return arg_type
   return None
 
-# Returns true if the argument type is a templated marray.
 def is_marray_arg(arg_type):
+  """Returns true if the argument type is a templated marray."""
   return isinstance(arg_type, InstantiatedTemplatedArg) and isinstance(arg_type.templated_type, Marray)
 
-# Returns true if the argument type is a templated vector.
 def is_vec_arg(arg_type):
+  """Returns true if the argument type is a templated vector."""
   return isinstance(arg_type, InstantiatedTemplatedArg) and isinstance(arg_type.templated_type, Vec)
 
-# Converts an argument name to a valid argument to be passed to another
-# function. For vector arguments this is done by converting the argument into
-# the associated vector type, needed for swizzles.
 def convert_arg_name(arg_type, arg_name):
+  """
+  Converts an argument name to a valid argument to be passed to another
+  function. For vector arguments this is done by converting the argument into
+  the associated vector type, needed for swizzles.
+  """
   if is_vec_arg(arg_type):
     return f'detail::get_vec_t<{arg_type}>({arg_name})'
   return arg_name
 
-# Gets the arguments to be used inside builtins when calling the implementation
-# invoke functions.
 def get_invoke_args(arg_types, arg_names, convert_args=[]):
+  """
+  Gets the arguments to be used inside builtins when calling the implementation
+  invoke functions.
+  """
   result = list(map(convert_arg_name, arg_types, arg_names))
   for (arg_idx, type_conv) in convert_args:
     # type_conv is either an index or a conversion function/type.
@@ -423,23 +453,25 @@ def get_invoke_args(arg_types, arg_names, convert_args=[]):
     result[arg_idx] = f'{conv}({result[arg_idx]})'
   return result
 
-# Common super class representing a builtin definition.
-# return_type - The name of the type group of the return type. Must match a key
-#   in builtin_types.
-# arg_types - The names of the type group of each argument in the builtin.
-# invoke_name - The implementation invoke function name associated with the
-#   builtin. For scalar and vector builtins this is prefixed by
-#   __sycl_std::__invoke_.
-# custom_invoke - A function object to be used for generating a custom body for
-#   the builtin.
-# size_alias - A name to use as an alias for the size associated with vector and
-#   marray arguments.
-# marray_use_loop - A bool specifying if marray builtins from this definition
-#   should use a loop-based implementation instead of the default vectorized
-#   implementation used when possible.
-# template_scalar_args - A bool specifying if the builtin should combine the
-#   scalar arguments into common template types.
 class DefCommon:
+  """
+  Common super class representing a builtin definition.
+  return_type - The name of the type group of the return type. Must match a key
+    in builtin_types.
+  arg_types - The names of the type group of each argument in the builtin.
+  invoke_name - The implementation invoke function name associated with the
+    builtin. For scalar and vector builtins this is prefixed by
+    __sycl_std::__invoke_.
+  custom_invoke - A function object to be used for generating a custom body for
+    the builtin.
+  size_alias - A name to use as an alias for the size associated with vector and
+    marray arguments.
+  marray_use_loop - A bool specifying if marray builtins from this definition
+    should use a loop-based implementation instead of the default vectorized
+    implementation used when possible.
+  template_scalar_args - A bool specifying if the builtin should combine the
+    scalar arguments into common template types.
+  """
   def __init__(self, return_type, arg_types, invoke_name, invoke_prefix,
                custom_invoke, size_alias, marray_use_loop,
                template_scalar_args):
@@ -452,29 +484,33 @@ class DefCommon:
     self.marray_use_loop = marray_use_loop
     self.template_scalar_args = template_scalar_args
 
-  # Requires that a size alias is specified in the function boy. This returns
-  # the size alias name and any needed initialization of it. If the size alias
-  # hasn't been explicitly requested in the definition, one will be generated
-  # using the alternative_name.
   def require_size_alias(self, alternative_name, marray_type):
+    """
+    Requires that a size alias is specified in the function boy. This returns
+    the size alias name and any needed initialization of it. If the size alias
+    hasn't been explicitly requested in the definition, one will be generated
+    using the alternative_name.
+    """
     if not self.size_alias:
       # If there isn't a size alias defined, we add one.
       return (alternative_name, f'  constexpr size_t {alternative_name} = detail::num_elements<{marray_type.template_name}>::value;\n')
     return (self.size_alias, '')
 
-  # Converts arguments in an marray loop builtin implementation to scalars.
-  # The variable I must be defined in the scope where the generated arguments
-  # are used and indicate the index of the used element.
   def convert_loop_arg(self, arg_type, arg_name):
+    """
+    Converts arguments in an marray loop builtin implementation to scalars.
+    The variable I must be defined in the scope where the generated arguments
+    are used and indicate the index of the used element.
+    """
     if isinstance(arg_type, MultiPtr):
       return f'address_space_cast<Space, IsDecorated, detail::get_elem_type_t<{arg_type.element_type}>>(&(*{arg_name})[I])'
     if is_marray_arg(arg_type):
       return str(arg_name) + '[I]'
     return str(arg_name)
 
-  # Generated the body of a loop-based implementation of marray builtins.
   def get_marray_loop_invoke_body(self, namespaced_builtin_name, return_type,
                                   arg_types, arg_names, first_marray_type):
+    """Generated the body of a loop-based implementation of marray builtins."""
     result = ""
     args = [self.convert_loop_arg(arg_type, arg_name) for arg_type, arg_name in zip(arg_types, arg_names)]
     joined_args = ', '.join(args)
@@ -485,11 +521,13 @@ class DefCommon:
     Res[I] = {namespaced_builtin_name}({joined_args});
   return Res;"""
 
-  # Generates the body of a direct vector cast implementation for marray
-  # builtins.
   def get_marray_vec_cast_invoke_body(self, namespaced_builtin_name,
                                       return_type, arg_types, arg_names,
                                       first_marray_type):
+    """
+    Generates the body of a direct vector cast implementation for marray
+    builtins.
+    """
     result = ""
     vec_cast_args = [f'detail::to_vec({arg_name})' if is_marray_arg(arg_type) else str(arg_name) for arg_type, arg_name in zip(arg_types, arg_names)]
     joined_vec_cast_args = ', '.join(vec_cast_args)
@@ -499,10 +537,10 @@ class DefCommon:
       vec_call = f'detail::to_marray({vec_call})'
     return result + f'  return {vec_call};'
 
-  # Generates the body of a vectorized implementation for marray builtins.
   def get_marray_vectorized_invoke_body(self, namespaced_builtin_name,
                                         return_type, arg_types, arg_names,
                                         first_marray_type):
+    """Generates the body of a vectorized implementation for marray builtins."""
     result = ""
     (size_alias, size_alias_init) = self.require_size_alias('N', first_marray_type)
     result += size_alias_init
@@ -524,9 +562,9 @@ class DefCommon:
     Res[{size_alias} - 1] = {namespaced_builtin_name}({joined_rem_args});
   return Res;"""
 
-  # Generates the body of an marray builtin.
   def get_marray_invoke_body(self, namespaced_builtin_name, return_type,
                              arg_types, arg_names, first_marray_type):
+    """Generates the body of an marray builtin."""
     # If the associated marray types have restriction on their sizes, we assume
     # they can be converted directly to vector.
     if first_marray_type.templated_type.valid_sizes:
@@ -537,18 +575,20 @@ class DefCommon:
     # Otherwise, we vectorize the body.
     return self.get_marray_vectorized_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type)
 
-  # Generates the body of a builtin.
   def get_invoke_body(self, builtin_name, namespace, invoke_name, return_type,
                       arg_types, arg_names):
+    """Generates the body of a builtin."""
     for arg_type in arg_types:
       if is_marray_arg(arg_type):
         namespaced_builtin_name = f'{namespace}::{builtin_name}' if namespace else builtin_name
         return self.get_marray_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, arg_type)
     return self.get_scalar_vec_invoke_body(invoke_name, return_type, arg_types, arg_names)
 
-  # Generates the builtin defined by this instance, using the specific types and
-  # names.
   def get_invoke(self, builtin_name, namespace, return_type, arg_types, arg_names):
+    """
+    Generates the builtin defined by this instance, using the specific types and
+    names.
+    """
     if self.custom_invoke:
       return self.custom_invoke(return_type, arg_types, arg_names)
     invoke_name = self.invoke_name if self.invoke_name else builtin_name
@@ -559,13 +599,15 @@ class DefCommon:
         result += f'  constexpr size_t {self.size_alias} = detail::num_elements<{template_arg.template_name}>::value;'
     return result + self.get_invoke_body(builtin_name, namespace, invoke_name, return_type, arg_types, arg_names)
 
-# A class representing a builtin definition.
-# fast_math_invoke_name - Similar to invoke_name, but will only be used for
-#   valid types when fast math is enabled.
-# convert_args - A list of either strings or tuples specifying how to convert
-#   arguments when calling the implementation invocation function.
-# NOTE: For additional members, see DefCommon.
 class Def(DefCommon):
+  """
+  A class representing a builtin definition.
+  fast_math_invoke_name - Similar to invoke_name, but will only be used for
+    valid types when fast math is enabled.
+  convert_args - A list of either strings or tuples specifying how to convert
+    arguments when calling the implementation invocation function.
+  NOTE: For additional members, see DefCommon.
+  """
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
                convert_args=[], size_alias=None, marray_use_loop=False,
@@ -581,8 +623,8 @@ class Def(DefCommon):
     # conversion function or type.
     self.convert_args = convert_args
 
-  # Generates the body of scalar and vector builtins.
   def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
+    """Generates the body of scalar and vector builtins."""
     invoke_args = get_invoke_args(arg_types, arg_names, self.convert_args)
     result = ""
     if self.fast_math_invoke_name:
@@ -591,9 +633,11 @@ class Def(DefCommon):
   }}\n"""
     return result + f'  return __sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<{return_type}>({(", ".join(invoke_args))});'
 
-# A class representing a relational builtin definition.
-# NOTE: For members, see DefCommon.
 class RelDef(DefCommon):
+  """
+  A class representing a relational builtin definition.
+  NOTE: For members, see DefCommon.
+  """
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None,
                template_scalar_args=False):
@@ -602,39 +646,44 @@ class RelDef(DefCommon):
     super().__init__(return_type, arg_types, invoke_name, invoke_prefix,
                      custom_invoke, None, True, template_scalar_args)
 
-  # Generates the body of scalar and vector builtins.
+  # 
   def get_scalar_vec_invoke_body(self, invoke_name, return_type, arg_types, arg_names):
+    """Generates the body of scalar and vector builtins."""
     if self.custom_invoke:
       return self.custom_invoke(return_type, arg_types, arg_names)
     invoke_args = ', '.join(get_invoke_args(arg_types, arg_names))
     return f'  return detail::RelConverter<{return_type}>::apply(__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<detail::internal_rel_ret_t<{return_type}>>({invoke_args}));'
 
-# Generates the custom body for signed scalar `abs`.
 def custom_signed_abs_scalar_invoke(return_type, _, arg_names):
+  """Generates the custom body for signed scalar `abs`."""
   args = ' ,'.join(arg_names)
   return f'return static_cast<{return_type}>(__sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}));'
 
-# Generates the custom body for signed vector `abs`.
 def custom_signed_abs_vec_invoke(return_type, arg_types, arg_names):
+  """Generates the custom body for signed vector `abs`."""
   args = ' ,'.join(get_invoke_args(arg_types, arg_names))
   return f'return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}).template convert<detail::get_elem_type_t<{return_type}>>();'
 
-# Creates a function for generating the custom body for either `any` or `all`
-# scalar and vector builtins.
 def get_custom_any_all_vec_invoke(invoke_name):
+  """
+  Creates a function for generating the custom body for either `any` or `all`
+  scalar and vector builtins.
+  """
   return (lambda _, arg_types, arg_names: f"""  using VecT = detail::get_vec_t<{arg_types[0]}>;
   return detail::rel_sign_bit_test_ret_t<detail::get_vec_t<VecT>>(
       __sycl_std::__invoke_{invoke_name}<detail::rel_sign_bit_test_ret_t<VecT>>(
           detail::rel_sign_bit_test_arg_t<VecT>({get_invoke_args(arg_types, arg_names)[0]})));""")
 
-# Generates the custom body for `select` with the last argument being bool.
 def custom_bool_select_invoke(return_type, _, arg_names):
+  """Generates the custom body for `select` with the last argument being bool."""
   return f"""  return __sycl_std::__invoke_select<{return_type}>(
       {arg_names[0]}, {arg_names[1]}, static_cast<detail::get_select_opencl_builtin_c_arg_type<{return_type}>>({arg_names[2]}));"""
 
-# Creates a function for generating the custom body for either `any` or `all`
-# marray builtins.
 def get_custom_any_all_marray_invoke(builtin):
+  """
+  Creates a function for generating the custom body for either `any` or `all`
+  marray builtins.
+  """
   return (lambda _, arg_types, arg_names: f'  return std::{builtin}_of({arg_names[0]}.begin(), {arg_names[0]}.end(), [](detail::get_elem_type_t<{arg_types[0]}> X) {{ return {builtin}(X); }});')
 
 # List of all builtins definitions in the sycl namespace.
@@ -1005,9 +1054,11 @@ builtins_groups = [(None, sycl_builtins),
 
 ### GENERATION
 
-# Selects a type from a mapping. If the mapped type needs a parent-typem they
-# are instantiated with it here.
 def select_from_mapping(mappings, arg_types, arg_type):
+  """
+  Selects a type from a mapping. If the mapped type needs a parent-type, they
+  are instantiated with it here.
+  """
   mapping = mappings[arg_type]
   # In some cases we may need to limit definitions to smaller than geninteger so
   # check for the different possible ones.
@@ -1019,8 +1070,8 @@ def select_from_mapping(mappings, arg_types, arg_type):
     return InstantiatedConversionTraitType(parent_mapping, mapping.trait, mapping.parent_idx)
   return mapping
 
-# Instantiates an argument by its type.
 def instantiate_arg(idx, arg):
+  """Instantiates an argument by its type."""
   if isinstance(arg, TemplatedType):
     # Instantiate the template type by giving it a name based on its index.
     return InstantiatedTemplatedArg(f'T{idx}', arg)
@@ -1038,8 +1089,8 @@ def instantiate_arg(idx, arg):
     return InstantiatedConversionTraitType(instantiate_arg(arg.parent_idx, arg.parent_type), arg.trait, arg.parent_idx)
   return arg
 
-# Instantiates a return type by its type.
 def instantiate_return_type(return_type, instantiated_args):
+  """Instantiates a return type by its type."""
   if isinstance(return_type, TemplatedType):
     # Instantiate the tempalte type by giving it the first template argument
     # in the function.
@@ -1059,8 +1110,8 @@ def instantiate_return_type(return_type, instantiated_args):
     return InstantiatedConversionTraitType(instantiate_return_type(return_type.parent_type, instantiated_args), return_type.trait, return_type.parent_idx)
   return return_type
 
-# Checks that the selected types form a valid combination.
 def is_valid_combination(return_type, arg_types):
+  """Checks that the selected types form a valid combination."""
   marray_arg_seen = False
   vec_arg_seen = False
   raw_ptr_seen = False
@@ -1076,9 +1127,11 @@ def is_valid_combination(return_type, arg_types):
   # 2. marray and raw pointers were never supported together and shouldn't be.
   return not (marray_arg_seen and (vec_arg_seen or raw_ptr_seen))
 
-# Converts the scalar arguments in the type list to a single templated scalar
-# type.
 def convert_scalars_to_templated(type_list):
+  """
+  Converts the scalar arguments in the type list to a single templated scalar
+  type.
+  """
   result = []
   scalars = []
   for t in type_list:
@@ -1090,9 +1143,11 @@ def convert_scalars_to_templated(type_list):
     result.append(TemplatedScalar(scalars))
   return result
 
-# Generates all return and argument type combinations for a given builtin
-# definition.
 def type_combinations(return_type, arg_types, template_scalars):
+  """
+  Generates all return and argument type combinations for a given builtin
+  definition.
+  """
   unique_types = list(dict.fromkeys(arg_types + [return_type]))
   unique_type_lists = [builtin_types[unique_type] for unique_type in unique_types]
   if template_scalars:
@@ -1109,8 +1164,8 @@ def type_combinations(return_type, arg_types, template_scalars):
       result.append((instantiated_return_type, instantiated_arg_types))
   return result
 
-# Returns all the unique template arguments in the argument type list.
 def get_all_template_args(arg_types):
+  """Returns all the unique template arguments in the argument type list."""
   result = []
   for arg_type in arg_types:
     if isinstance(arg_type, InstantiatedTemplatedArg):
@@ -1119,19 +1174,23 @@ def get_all_template_args(arg_types):
       result += get_all_template_args([arg_type.element_type])
   return result
 
-# Returns the conjunction of all requirements for the given argument.
 def get_arg_requirement(arg_type, arg_type_name):
+  """Returns the conjunction of all requirements for the given argument."""
   return '(' + (' && '.join(arg_type.get_requirements(arg_type_name))) + ')'
 
-# Returns the template requirement that all the template type names in the
-# given list have the same type.
 def get_all_same_type_requirement(template_names):
+  """
+  Returns the template requirement that all the template type names in the
+  given list have the same type.
+  """
   template_name_args = ', '.join(template_names)
   return f'detail::check_all_same_op_type_v<{template_name_args}>'
 
-# Generates the function return type, including SFINAE if the generated builtin
-# has template arguments.
 def get_func_return(return_type, arg_types):
+  """
+  Generates the function return type, including SFINAE if the generated builtin
+  has template arguments.
+  """
   temp_args = get_all_template_args(arg_types)
   if len(temp_args) > 0:
     type_groups = defaultdict(lambda: [])
@@ -1151,10 +1210,12 @@ def get_func_return(return_type, arg_types):
     return f'std::enable_if_t<{conjunc_reqs}, {return_type}>'
   return str(return_type)
 
-# Gets a list of the template arguments for the given argument types. If there
-# are multi_ptr arguments the space and decoration is added to the end of the
-# template arguments.
 def get_template_args(arg_types):
+  """
+  Gets a list of the template arguments for the given argument types. If there
+  are multi_ptr arguments the space and decoration is added to the end of the
+  template arguments.
+  """
   temp_args = get_all_template_args(arg_types)
   result = [f'typename {temp_arg.template_name}' for temp_arg in temp_args]
   for t in arg_types:
@@ -1164,17 +1225,19 @@ def get_template_args(arg_types):
       break
   return result
 
-# Gets the deprecation statement for a given builtin.
 def get_deprecation(builtin, return_type, arg_types):
+  """Gets the deprecation statement for a given builtin."""
   # TODO: Check builtin for deprecation message and prioritize that.
   for t in [return_type] + arg_types:
     if hasattr(t, 'deprecation_message') and t.deprecation_message:
       return f'__SYCL_DEPRECATED("{t.deprecation_message}")\n'
   return ''
 
-# Get the prefix for a builtin function definitions. This can include `inline`,
-# the template definition, and any associated deprecation attribute.
 def get_func_prefix(builtin, return_type, arg_types):
+  """
+  Get the prefix for a builtin function definitions. This can include `inline`,
+  the template definition, and any associated deprecation attribute.
+  """
   template_args = get_template_args(arg_types)
   func_deprecation = get_deprecation(builtin, return_type, arg_types)
   result = ""
@@ -1186,8 +1249,8 @@ def get_func_prefix(builtin, return_type, arg_types):
     result += "inline "
   return result
 
-# Generates a builtin function definition.
 def generate_builtin(builtin_name, namespace, builtin, return_type, arg_types):
+  """Generates a builtin function definition."""
   func_prefix = get_func_prefix(builtin, return_type, arg_types)
   func_return = get_func_return(return_type, arg_types)
   arg_names = ["a%i" % i for i in range(len(arg_types))]
@@ -1199,10 +1262,12 @@ def generate_builtin(builtin_name, namespace, builtin, return_type, arg_types):
 }}
 """
 
-# Generates all buitlins for the builtin definitions specified. Returns the
-# resulting builtin function definitions in three different lists: scalar,
-# vector and marray builtins.
 def generate_builtins(builtins, namespace):
+  """
+  Generates all buitlins for the builtin definitions specified. Returns the
+  resulting builtin function definitions in three different lists: scalar,
+  vector and marray builtins.
+  """
   scalar_result = []
   vector_result = []
   marray_result = []
@@ -1220,8 +1285,8 @@ def generate_builtins(builtins, namespace):
           scalar_result.append(generated_builtin)
   return (scalar_result, vector_result, marray_result)
 
-# Generates a builtins header.
 def generate_file(directory, file_name, extra_includes, generated_builtins):
+  """Generates a builtins header."""
   instantiated_extra_includes = ('\n'.join([f'#include <{inc}>' for inc in extra_includes]))
 
   with open(os.path.join(directory, file_name), "w+") as f:
