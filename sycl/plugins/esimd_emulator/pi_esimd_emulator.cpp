@@ -2045,11 +2045,13 @@ pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMImport(const void *ptr, size_t size, pi_context context) {
+pi_result piextUSMImport(const void *, size_t, pi_context) {
   return PI_SUCCESS;
 }
 
 pi_result piextUSMRelease(const void *ptr, pi_context context) {
+  (void)ptr;
+  (void)context;
   return PI_SUCCESS;
 }
 
