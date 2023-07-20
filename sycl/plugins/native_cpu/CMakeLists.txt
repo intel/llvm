@@ -27,6 +27,7 @@ add_sycl_plugin(native_cpu
     "../unified_runtime/ur/adapters/native_cpu/runtime.cpp"
     "../unified_runtime/ur/adapters/native_cpu/ur_interface_loader.cpp"
     "../unified_runtime/ur/adapters/native_cpu/usm.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/usm_p2p.cpp"
   INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
   LIBRARIES

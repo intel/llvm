@@ -11,24 +11,6 @@
 static bool PrintPiTrace = true;
 
 extern "C" {
-#define DIE_NO_IMPLEMENTATION                                                  \
-  if (PrintPiTrace) {                                                          \
-    std::cerr << "Not Implemented : " << __FUNCTION__                          \
-              << " - File : " << __FILE__;                                     \
-    std::cerr << " / Line : " << __LINE__ << std::endl;                        \
-  }                                                                            \
-  return PI_ERROR_INVALID_OPERATION;
-
-pi_result piextEnablePeerAccess(pi_device, pi_device) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piextDisablePeerAccess(pi_device, pi_device) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextPeerAccessGetInfo(pi_device, pi_device, pi_peer_attr, size_t,
-                                 void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
-}
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
 
@@ -87,7 +69,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   // Program
   _PI_CL(piProgramCreate, pi2ur::piProgramCreate)
-  _PI_CL(piclProgramCreateWithSource, pi2ur::piclProgramCreateWithSource)
   _PI_CL(piProgramCreateWithBinary, pi2ur::piProgramCreateWithBinary)
   _PI_CL(piProgramGetInfo, pi2ur::piProgramGetInfo)
   _PI_CL(piProgramCompile, pi2ur::piProgramCompile)
@@ -139,7 +120,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, pi2ur::piEnqueueKernelLaunch)
-  _PI_CL(piEnqueueNativeKernel, pi2ur::piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, pi2ur::piEnqueueEventsWait)
   _PI_CL(piEnqueueEventsWaitWithBarrier, pi2ur::piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, pi2ur::piEnqueueMemBufferRead)
@@ -181,9 +161,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, pi2ur::piPluginGetLastError)
 
   // P2P Access
-  _PI_CL(piextEnablePeerAccess, piextEnablePeerAccess)
-  _PI_CL(piextDisablePeerAccess, piextDisablePeerAccess)
-  _PI_CL(piextPeerAccessGetInfo, piextPeerAccessGetInfo)
+  _PI_CL(piextEnablePeerAccess, pi2ur::piextEnablePeerAccess)
+  _PI_CL(piextDisablePeerAccess, pi2ur::piextDisablePeerAccess)
+  _PI_CL(piextPeerAccessGetInfo, pi2ur::piextPeerAccessGetInfo)
 
   // Runtime
   _PI_CL(piTearDown, pi2ur::piTearDown)
