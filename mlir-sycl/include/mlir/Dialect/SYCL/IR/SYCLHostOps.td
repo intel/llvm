@@ -165,15 +165,16 @@ def SYCLHostSetCaptured : SYCL_HostOp<"set_captured"> {
   }];
 }
 
-def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
+def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
     [DeclareOpInterfaceMethods<SymbolUserOpInterface>,
      AttrSizedOperandSegments]> {
-  let summary = "Launches a SYCL kernel.";
+  let summary = "Schedules a SYCL kernel launch.";
   let description = [{
-    This operation represents the launch of a kernel function with the given
-    range and kernel arguments. Its purpose is to collect the information
-    surfaced by the host-raising process about a particular launch, thereby
-    providing an entry-point for host-device analyses and optimizations.
+    This operation represents the scheduling of a launch of the given kernel
+    function with the specified range and kernel arguments. Its purpose is to
+    collect the information surfaced by the host-raising process about a 
+    particular launch, thereby providing an entry-point for host-device analyses
+    and optimizations.
 
     If the `range` operand is not present, this operation represents a
     *single_task* launch, otherwise a *parallel_for* invocation. The `range`
@@ -188,8 +189,8 @@ def SYCLHostLaunchKernel : SYCL_HostOp<"launch_kernel",
 
     Example:
     ```
-    sycl.host.launch_kernel @kernels::@k0[%1](%2, %3)
-    : (memref<?x!sycl_range_1_>, memref<?x!sycl_accessor_1_i32_r_gb>, i32) -> ()
+    sycl.host.schedule_kernel @kernels::@k0[range %1](%2, %3)
+      : (!llvm.ptr, !llvm.ptr, i32) -> ()
     ```
   }];
 
