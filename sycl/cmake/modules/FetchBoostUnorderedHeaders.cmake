@@ -108,3 +108,6 @@ set(BOOST_TYPE_TRAITS_GIT_TAG 89f5011b4a79d91e42735670e39f72cb25c86c72)
 #
 #     Merge branch 'develop'
 add_boost_module_headers(NAME "type_traits" SRC_DIR ${BOOST_TYPE_TRAITS_SOURCE_DIR} GIT_TAG ${BOOST_TYPE_TRAITS_GIT_TAG})
+
+# Reuse mp11 fetched earlier for DPC++ headers
+set(BOOST_UNORDERED_INCLUDE_DIRS ${BOOST_UNORDERED_INCLUDE_DIRS} "${BOOST_MP11_SOURCE_DIR}/include/")
