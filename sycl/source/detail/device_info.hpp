@@ -649,7 +649,6 @@ struct get_device_info_impl<
           {"gfx906", oneapi_exp_arch::amd_gpu_gfx906},
           {"gfx908", oneapi_exp_arch::amd_gpu_gfx908},
           {"gfx90a", oneapi_exp_arch::amd_gpu_gfx90a},
-          {"gfx90a", oneapi_exp_arch::amd_gpu_gfx1010},
           {"gfx1010", oneapi_exp_arch::amd_gpu_gfx1010},
           {"gfx1011", oneapi_exp_arch::amd_gpu_gfx1011},
           {"gfx1012", oneapi_exp_arch::amd_gpu_gfx1012},
