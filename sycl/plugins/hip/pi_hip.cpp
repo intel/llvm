@@ -167,6 +167,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueFill2D, pi2ur::piextUSMEnqueueFill2D)
   _PI_CL(piextUSMEnqueueMemset2D, pi2ur::piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMGetMemAllocInfo, pi2ur::piextUSMGetMemAllocInfo)
+  _PI_CL(piextUSMImport, pi2ur::piextUSMImport)
+  _PI_CL(piextUSMRelease, pi2ur::piextUSMRelease)
   // Device global variable
   _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
          pi2ur::piextEnqueueDeviceGlobalVariableWrite)
