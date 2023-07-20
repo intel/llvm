@@ -34,9 +34,15 @@
 using namespace llvm;
 
 #ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+#if ENABLE_OPAQUE_POINTERS
+static cl::opt<bool> OpaquePointersCL("opaque-pointers",
+                                      cl::desc("Use opaque pointers"),
+                                      cl::init(true));
+#else // ENABLE_OPAQUE_POINTERS
 static cl::opt<bool> OpaquePointersCL("opaque-pointers",
                                       cl::desc("Use opaque pointers"),
                                       cl::init(false));
+#endif // ENABLE_OPAQUE_POINTERS
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 LLVMContextImpl::LLVMContextImpl(LLVMContext &C)
