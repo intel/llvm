@@ -672,8 +672,7 @@ struct get_device_info_impl<
       // TODO: add support of different CPU architectures to
       // sycl_ext_oneapi_device_architecture
       return sycl::ext::oneapi::experimental::architecture::x86_64;
-    }
-    // else is not needed
+    } // else is not needed
 
     // Generating a user-friendly error message
     std::string DeviceStr;
