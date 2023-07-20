@@ -49,11 +49,13 @@ struct ur_queue_handle_t_ {
   std::mutex ComputeStreamMutex;
   std::mutex TransferStreamMutex;
   std::mutex BarrierMutex;
+  bool HasOwnership;
 
   ur_queue_handle_t_(std::vector<native_type> &&ComputeStreams,
                      std::vector<native_type> &&TransferStreams,
                      ur_context_handle_t Context, ur_device_handle_t Device,
-                     unsigned int Flags, ur_queue_flags_t URFlags)
+                     unsigned int Flags, ur_queue_flags_t URFlags,
+                     bool BackendOwns = true)
       : ComputeStreams{std::move(ComputeStreams)},
         TransferStreams{std::move(TransferStreams)},
         DelayCompute(this->ComputeStreams.size(), false),
@@ -62,7 +64,7 @@ struct ur_queue_handle_t_ {
         Device{Device}, RefCount{1}, EventCount{0}, ComputeStreamIdx{0},
         TransferStreamIdx{0}, NumComputeStreams{0}, NumTransferStreams{0},
         LastSyncComputeStreams{0}, LastSyncTransferStreams{0}, Flags(Flags),
-        URFlags(URFlags) {
+        URFlags(URFlags), HasOwnership{BackendOwns} {
     urContextRetain(Context);
     urDeviceRetain(Device);
   }
@@ -235,4 +237,6 @@ struct ur_queue_handle_t_ {
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   uint32_t getNextEventId() noexcept { return ++EventCount; }
+
+  bool backendHasOwnership() const noexcept { return HasOwnership; }
 };
