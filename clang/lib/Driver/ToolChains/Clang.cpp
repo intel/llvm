@@ -5375,13 +5375,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      options::OPT_fno_sycl_esimd_force_stateless_mem, false))
       CmdArgs.push_back("-fsycl-esimd-force-stateless-mem");
 
-    // Add device trait macros args to CmdArgs and SYCLTargetMacroArg.
-    const auto DeviceTraitMacrosArgs = TC.getDeviceTraitMacrosArgs();
-    for (const auto &Arg : DeviceTraitMacrosArgs) {
-      if (IsSYCLOffloadDevice)
-        D.addSYCLTargetMacroArg(Args, Arg);
-      else
-        CmdArgs.push_back(Arg);
+    const auto DeviceTraitsMacrosArgs = D.getDeviceTraitsMacrosArgs();
+    for (const auto &Arg : DeviceTraitsMacrosArgs) {
+      CmdArgs.push_back(Arg);
     }
   }
 

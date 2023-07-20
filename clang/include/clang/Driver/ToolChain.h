@@ -813,10 +813,6 @@ public:
     }
     return TT;
   }
-
-  virtual const llvm::opt::ArgStringList getDeviceTraitMacrosArgs() const {
-    return llvm::opt::ArgStringList();
-  }
 };
 
 /// Set a ToolChain's effective triple. Reset it when the registration object

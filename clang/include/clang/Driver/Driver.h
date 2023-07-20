@@ -787,9 +787,7 @@ private:
   const ToolChain &getOffloadingDeviceToolChain(
       const llvm::opt::ArgList &Args, const llvm::Triple &Target,
       const ToolChain &HostTC,
-      const Action::OffloadKind &TargetDeviceOffloadKind,
-      const llvm::opt::ArgStringList DeviceTraitsMacrosArgs =
-          llvm::opt::ArgStringList()) const;
+      const Action::OffloadKind &TargetDeviceOffloadKind) const;
 
   /// Get bitmasks for which option flags to include and exclude based on
   /// the driver mode.
@@ -855,6 +853,11 @@ private:
   /// SYCL based offloading scenario.  These macros are gathered during
   /// construction of the device compilations.
   mutable std::vector<std::string> SYCLTargetMacroArgs;
+
+  /// Vector of Macros related to Device Traits that need to be added to the
+  /// device compilation in a SYCL based offloading scenario.  These macros are
+  /// gathered during creation of offloading device toolchains.
+  mutable llvm::opt::ArgStringList SYCLDeviceTraitsMacrosArgs;
 
   /// Return the typical executable name for the specified driver \p Mode.
   static const char *getExecutableForDriverMode(DriverMode Mode);
@@ -942,6 +945,16 @@ public:
   StringRef getSYCLUniqueID(StringRef FileName) const {
     return SYCLUniqueIDList[FileName];
   }
+
+  /// Reads device config file to find information about the SYCL targets in
+  /// UniqueSYCLTriplesVec, and defines device traits macros accordingly.
+  void populateSYCLDeviceTraitsMacrosArgs(
+      const llvm::opt::ArgList &Args,
+      const llvm::SmallVector<llvm::Triple, 4> &UniqueSYCLTriplesVec);
+
+  llvm::opt::ArgStringList getDeviceTraitsMacrosArgs() const {
+    return SYCLDeviceTraitsMacrosArgs;
+  }
 };
 
 /// \return True if the last defined optimization level is -Ofast.
@@ -976,12 +989,6 @@ bool IsClangCL(StringRef DriverMode);
 llvm::Error expandResponseFiles(SmallVectorImpl<const char *> &Args,
                                 bool ClangCLMode, llvm::BumpPtrAllocator &Alloc,
                                 llvm::vfs::FileSystem *FS = nullptr);
-
-/// Reads device config file to find information about the targets in
-/// UniqueSYCLTriplesVec, and defines device traits macros accordingly.
-llvm::opt::ArgStringList populateSYCLDeviceTraitMacrosArgs(
-    const llvm::opt::ArgList &Args,
-    const llvm::SmallVector<llvm::Triple, 4> &UniqueSYCLTriplesVec);
 
 } // end namespace driver
 } // end namespace clang
