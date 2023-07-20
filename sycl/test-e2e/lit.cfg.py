@@ -196,7 +196,7 @@ if config.opencl_libs_dir:
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 
 if cl_options:
-    config.substitutions.append( ('%sycl_options',  ' ' + os.path.normpath(os.path.join(config.sycl_libs_dir + '/../lib/sycl7.lib')) + ' /I' +
+    config.substitutions.append( ('%sycl_options',  ' ' + config.sycl_libs_dir + '/../lib/sycl7.lib /I' +
                                 config.sycl_include + ' /I' + os.path.join(config.sycl_include, 'sycl')) )
     config.substitutions.append( ('%include_option',  '/FI' ) )
     config.substitutions.append( ('%debug_option',  '/DEBUG' ) )
@@ -217,6 +217,16 @@ else:
     # configurations
     config.substitutions.append( ('%fPIC', ('' if platform.system() == 'Windows' else '-fPIC')) )
     config.substitutions.append( ('%shared_lib', '-shared') )
+
+
+config.substitutions.append( ('%vulkan_include_dir', config.vulkan_include_dir ) )
+config.substitutions.append( ('%vulkan_lib', config.vulkan_lib ) )
+
+vulkan_lib_path = os.path.dirname(config.vulkan_lib)
+config.substitutions.append( ('%link-vulkan', '-L %s -lvulkan -I %s' % (vulkan_lib_path, config.vulkan_include_dir ) ) )
+
+if config.vulkan_found == "TRUE":
+    config.available_features.add('vulkan')
 
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
@@ -243,8 +253,7 @@ available_devices = {'opencl': ('cpu', 'gpu', 'acc'),
                      'ext_oneapi_cuda':('gpu'),
                      'ext_oneapi_level_zero':('gpu'),
                      'ext_oneapi_hip':('gpu'),
-                     'ext_intel_esimd_emulator':('gpu'),
-                     'native_cpu':('cpu')}
+                     'ext_intel_esimd_emulator':('gpu')}
 for d in config.sycl_devices:
      be, dev = d.split(':')
      if be not in available_devices or dev not in available_devices[be]:
@@ -414,7 +423,7 @@ for sycl_device in config.sycl_devices:
 
     aspect_features = set('aspect-' + a for a in aspects)
     sg_size_features = set('sg-' + s for s in sg_sizes)
-    features = set();
+    features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
 
