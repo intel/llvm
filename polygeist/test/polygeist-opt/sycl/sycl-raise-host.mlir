@@ -681,25 +681,24 @@ llvm.mlir.global private unnamed_addr constant @kernel_str("kernel\00") {addr_sp
 // CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(123 : i16) : i16
 // CHECK:           %[[VAL_3:.*]] = llvm.mlir.constant(32 : i32) : i32
 // CHECK:           %[[VAL_4:.*]] = llvm.mlir.constant(1 : i32) : i32
-// CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(false) : i1
 // CHECK:           sycl.host.handler.set_kernel %[[VAL_0]] -> @device_functions::@foo : !llvm.ptr
-// CHECK:           %[[VAL_6:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
-// CHECK:           %[[VAL_7:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
-// CHECK:           %[[VAL_8:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)> : (i32) -> !llvm.ptr
-// CHECK:           llvm.store %[[VAL_2]], %[[VAL_8]] : i16, !llvm.ptr
-// CHECK:           sycl.host.set_captured %[[VAL_8]][0] = %[[VAL_2]] : !llvm.ptr, i16
-// CHECK:           %[[VAL_9:.*]] = llvm.getelementptr %[[VAL_8]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
-// CHECK:           llvm.store %[[VAL_1]], %[[VAL_9]] : i32, !llvm.ptr
-// CHECK:           sycl.host.set_captured %[[VAL_8]][1] = %[[VAL_1]] : !llvm.ptr, i32
-// CHECK:           %[[VAL_10:.*]] = llvm.getelementptr %[[VAL_8]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
-// CHECK:           %[[VAL_11:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr -> !llvm.ptr
-// CHECK:           llvm.store %[[VAL_11]], %[[VAL_10]] : !llvm.ptr, !llvm.ptr
-// CHECK:           sycl.host.set_captured %[[VAL_8]][2] = %[[VAL_6]] : !llvm.ptr, !llvm.ptr
-// CHECK:           %[[VAL_12:.*]] = llvm.getelementptr %[[VAL_8]][0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
-// CHECK:           "llvm.intr.memcpy"(%[[VAL_12]], %[[VAL_7]], %[[VAL_3]], %[[VAL_5]]) : (!llvm.ptr, !llvm.ptr, i32, i1) -> ()
-// CHECK:           sycl.host.set_captured %[[VAL_8]][3] = %[[VAL_7]] : !llvm.ptr, !llvm.ptr
-// CHECK:           %[[VAL_13:.*]] = llvm.alloca %[[VAL_4]] x !llvm.ptr : (i32) -> !llvm.ptr
-// CHECK:           llvm.store %[[VAL_8]], %[[VAL_13]] : !llvm.ptr, !llvm.ptr
+// CHECK:           %[[VAL_5:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_6:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_7:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)> : (i32) -> !llvm.ptr
+// CHECK:           llvm.store %[[VAL_2]], %[[VAL_7]] : i16, !llvm.ptr
+// CHECK:           sycl.host.set_captured %[[VAL_7]][0] = %[[VAL_2]] : !llvm.ptr, i16
+// CHECK:           %[[VAL_8:.*]] = llvm.getelementptr %[[VAL_7]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
+// CHECK:           llvm.store %[[VAL_1]], %[[VAL_8]] : i32, !llvm.ptr
+// CHECK:           sycl.host.set_captured %[[VAL_7]][1] = %[[VAL_1]] : !llvm.ptr, i32
+// CHECK:           %[[VAL_9:.*]] = llvm.getelementptr %[[VAL_7]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
+// CHECK:           %[[VAL_10:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> !llvm.ptr
+// CHECK:           llvm.store %[[VAL_10]], %[[VAL_9]] : !llvm.ptr, !llvm.ptr
+// CHECK:           sycl.host.set_captured %[[VAL_7]][2] = %[[VAL_5]] : !llvm.ptr, !llvm.ptr
+// CHECK:           %[[VAL_11:.*]] = llvm.getelementptr %[[VAL_7]][0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
+// CHECK:           "llvm.intr.memcpy"(%[[VAL_11]], %[[VAL_6]], %[[VAL_3]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i32) -> ()
+// CHECK:           sycl.host.set_captured %[[VAL_7]][3] = %[[VAL_6]] : !llvm.ptr, !llvm.ptr
+// CHECK:           %[[VAL_12:.*]] = llvm.alloca %[[VAL_4]] x !llvm.ptr : (i32) -> !llvm.ptr
+// CHECK:           llvm.store %[[VAL_7]], %[[VAL_12]] : !llvm.ptr, !llvm.ptr
 // CHECK:           llvm.return
 // CHECK:         }
 
@@ -707,7 +706,6 @@ llvm.func @raise_set_captured(%handler: !llvm.ptr) {
   // COM: ensure this function is detected as a handler
   sycl.host.handler.set_kernel %handler -> @device_functions::@foo : !llvm.ptr
   
-  %cfalse = llvm.mlir.constant (0 : i1) : i1
   %c0 = llvm.mlir.constant (0 : i32) : i32
   %c1 = llvm.mlir.constant (1 : i32) : i32
   %c32 = llvm.mlir.constant (32 : i32) : i32
@@ -734,7 +732,7 @@ llvm.func @raise_set_captured(%handler: !llvm.ptr) {
 
   // COM: Non-scalar values are memcpy'ed
   %gep3 = llvm.getelementptr %lambda_obj[0, 3] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
-  "llvm.intr.memcpy"(%gep3, %vector, %c32, %cfalse) : (!llvm.ptr, !llvm.ptr, i32, i1) -> ()
+  "llvm.intr.memcpy"(%gep3, %vector, %c32) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i32) -> ()
 
   // COM: the annotation (indirectly) marks the struct as the lambda object
   %annotated_ptr = llvm.alloca %c1 x !llvm.ptr : (i32) -> !llvm.ptr
