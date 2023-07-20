@@ -1480,6 +1480,16 @@ private:
   };
 };
 
+/// This pattern detects stores (or memcpy ops) to specific elements in a kernel
+/// lambda object, and raises them to individual `sycl.host.set_captured` ops.
+/// The lambda object is found through an `llvm.var.annotation` with the tag
+/// `kernel`.
+///
+/// Note: This pattern is intended to operate only on the compiler-generated
+/// lambda capturing code, which is idiomatic and can be reasonably expected to
+/// be alias-free. Hence, instead of employing DFA and alias analysis, the
+/// approach for finding assignments-of-interest is detecting GEPs of the form
+/// `<lambda obj>[0, <capture idx>]`.
 class RaiseSetCaptured : public OpHostRaisePattern<LLVM::VarAnnotation> {
 public:
   using OpHostRaisePattern<LLVM::VarAnnotation>::OpHostRaisePattern;
