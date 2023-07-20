@@ -29,7 +29,7 @@ namespace polygeist {
 /// construction.
 class AccessorInformation {
 public:
-  AccessorInformation() {}
+  AccessorInformation() = default;
 
   AccessorInformation(Value buf, std::optional<BufferInformation> bufInfo,
                       bool hasRange, llvm::ArrayRef<size_t> constRange,
@@ -42,14 +42,20 @@ public:
   bool hasKnownBuffer() const { return buffer != nullptr; }
 
   /// Returns the underlying buffer of this accessor.
-  Value getBuffer() const { return buffer; }
+  Value getBuffer() const {
+    assert(hasKnownBuffer() && "Buffer unknown");
+    return buffer;
+  }
 
   /// Returns true if buffer information is available for the buffer underlying
   /// this accessor.
   bool hasBufferInformation() const { return bufferInfo.has_value(); }
 
   /// Returns the buffer information for the buffer underlying this accessor.
-  const BufferInformation &getBufferInfo() const { return *bufferInfo; }
+  const BufferInformation &getBufferInfo() const {
+    assert(hasBufferInformation() && "No buffer information available");
+    return *bufferInfo;
+  }
 
   /// Returns false if the range can be omitted for this accessor, true
   /// otherwise.

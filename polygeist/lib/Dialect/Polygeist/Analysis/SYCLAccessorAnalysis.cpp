@@ -131,33 +131,34 @@ AliasResult AccessorInformation::alias(const AccessorInformation &other,
       // where they completely or partially overlap, so may alias.
       return AliasResult::MayAlias;
 
-    if (!needsRange()) {
+    auto checkFullOverlap =
+        [](const AccessorInformation &thisInfo,
+           const AccessorInformation &otherInfo) -> AliasResult {
+      // Assuming the thisInfo accessor covers the entire buffer (no range and
+      // no offset), check whether the otherInfo accessor also covers the entire
+      // buffer or not.
+      if (otherInfo.hasConstantRange() &&
+          thisInfo.getBufferInfo().hasConstantSize() &&
+          SmallVector<size_t, 3>(otherInfo.getConstantRange()) ==
+              SmallVector<size_t, 3>(
+                  thisInfo.getBufferInfo().getConstantSize()) &&
+          !otherInfo.needsOffset())
+        // The otherInfo accessor also covers the entire buffer, so they must
+        // alias
+        return AliasResult::MustAlias;
+
+      // The otherInfo accessor only covers part of the buffer, so they alias
+      // for some elements.
+      return AliasResult::MayAlias;
+    };
+
+    if (!needsRange())
       // This accessor covers the entire range of the buffer.
-      if (other.hasConstantRange() && getBufferInfo().hasConstantSize() &&
-          SmallVector<size_t, 3>(other.getConstantRange()) ==
-              SmallVector<size_t, 3>(getBufferInfo().getConstantSize()) &&
-          !other.needsOffset())
-        // The other accessor also covers the entire buffer, so they must alias
-        return AliasResult::MustAlias;
+      return checkFullOverlap(*this, other);
 
-      // The other accessor only covers part of the buffer, so they alias for
-      // some elements.
-      return AliasResult::MayAlias;
-    }
-
-    if (!other.needsRange()) {
+    if (!other.needsRange())
       // The other accessor covers the entire range of the buffer.
-      if (hasConstantRange() && getBufferInfo().hasConstantSize() &&
-          SmallVector<size_t, 3>(getConstantRange()) ==
-              SmallVector<size_t, 3>(getBufferInfo().getConstantSize()) &&
-          !needsOffset())
-        // This accessor also covers the entire buffer, so they must alias
-        return AliasResult::MustAlias;
-
-      // This accessor only covers part of the buffer, so they alias for
-      // some elements.
-      return AliasResult::MayAlias;
-    }
+      return checkFullOverlap(other, *this);
 
     // If control flow reaches this point, this and the other accessor both
     // require a range.
