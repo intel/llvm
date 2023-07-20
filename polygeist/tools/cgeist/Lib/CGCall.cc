@@ -1491,6 +1491,7 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
   };
   Optional<Value> V = std::nullopt;
   std::optional<mlir::Type> ElemTy = std::nullopt;
+
   switch (Expr->getBuiltinCallee()) {
   case clang::Builtin::BIceil: {
     VisitArgs();
@@ -1665,6 +1666,15 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
                                    /*isVolatile*/ false);
     V = Args[0];
     ElemTy = Builder.getI8Type();
+  } break;
+  case clang::Builtin::BI__builtin_bswap16:
+  case clang::Builtin::BI__builtin_bswap32:
+  case clang::Builtin::BI__builtin_bswap64:
+  case clang::Builtin::BI_byteswap_ushort:
+  case clang::Builtin::BI_byteswap_ulong:
+  case clang::Builtin::BI_byteswap_uint64: {
+    VisitArgs();
+    V = Builder.create<LLVM::ByteSwapOp>(Loc, Args[0]);
   } break;
   }
 

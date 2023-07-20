@@ -14,6 +14,7 @@ list(APPEND MLIR_CLANG_TEST_DEPS
   FileCheck count not
   llvm-config 
   llvm-dis
+  llvm-as
   mlir-translate
   opt
   split-file
