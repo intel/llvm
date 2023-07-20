@@ -130,6 +130,9 @@ etors:
     - name: "0_6"
       value: "$X_MAKE_VERSION( 0, 6 )"
       desc: "version 0.6"
+    - name: "0_7"
+      value: "$X_MAKE_VERSION( 0, 7 )"
+      desc: "version 0.7"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Returns the API version supported by the specified platform"
