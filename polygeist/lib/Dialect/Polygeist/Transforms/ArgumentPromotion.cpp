@@ -338,6 +338,21 @@ void Candidate::modifyCallee() {
     polygeist::privatize(funcOp);
 
   LLVM_DEBUG(llvm::dbgs() << "\nNew Callee:\n" << funcOp << "\n";);
+
+  // There could be wrapper function between GPU kernel and kernel body
+  // function. Privatize the wrapper to improve analyses results (e.g., reaching
+  // definition). Note: this is a temporary fix, it should be removed when there
+  // is a permanent solution.
+  ModuleOp module = funcOp->getParentOfType<ModuleOp>();
+  SymbolTableCollection symTable;
+  SymbolUserMap userMap(symTable, module);
+  for (Operation *call : userMap.getUsers(funcOp)) {
+    auto caller = call->getParentOfType<FunctionOpInterface>();
+    if (isa<gpu::GPUFuncOp>(caller))
+      continue;
+    if (polygeist::isLinkonceODR(caller))
+      polygeist::privatize(caller);
+  }
 }
 
 void Candidate::peelOperands() {
