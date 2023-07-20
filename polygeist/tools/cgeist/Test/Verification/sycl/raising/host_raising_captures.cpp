@@ -52,10 +52,12 @@ int main() {
     sycl::buffer<float> buff_a(a);
     sycl::buffer<float> buff_b(b);
     q.submit([&](sycl::handler &cgh) {
-        long bar = 456;
-	      sycl::accessor acc_a(buff_a, cgh, sycl::read_only);
-        auto acc_b = buff_b.get_access<sycl::access::mode::write>(cgh);
-	      cgh.parallel_for<KernelName>(N, [=](sycl::id<1> i) { acc_b[i] = acc_a[i] + foo * bar + vec1[1] - vec2[2]; });
-	     });
+      long bar = 456;
+      sycl::accessor acc_a(buff_a, cgh, sycl::read_only);
+      auto acc_b = buff_b.get_access<sycl::access::mode::write>(cgh);
+      cgh.parallel_for<KernelName>(N, [=](sycl::id<1> i) {
+        acc_b[i] = acc_a[i] + foo * bar + vec1[1] - vec2[2];
+      });
+    });
   }
 }
