@@ -8,9 +8,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc
-// TODO: add support for local_accessors to esimd_emulator.
 // UNSUPPORTED: esimd_emulator
 
 // This test verifies usage of slm_block_load() and slm_block_store().
@@ -76,6 +73,7 @@ template <typename T, int VL, int Align = 16> bool test(queue Q) {
   }
 
   bool Pass = true;
+  int NumPrintedErorrs = 0;
   for (int I = 0; I < GlobalRange * VL; I++) {
     int GID = I / VL;
     int LID = GID % LocalRange;
@@ -83,7 +81,7 @@ template <typename T, int VL, int Align = 16> bool test(queue Q) {
 
     T Expected = GID * 100 + VecElementIndex;
     T Computed = Out[I];
-    if (Computed != Expected) {
+    if (Computed != Expected && ++NumPrintedErorrs < 16) {
       std::cout << "Error: Out[" << I << "]:" << Computed << " != " << Expected
                 << ":[expected]" << std::endl;
       Pass = false;
@@ -100,6 +98,15 @@ int main() {
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   esimd_test::printTestLabel(Q, "Local memory size available", DeviceSLMSize);
 
+  // GPU driver had an error in handling of SLM aligned block_loads/stores,
+  // which has been fixed only in "1.3.26816", and in win/opencl version going
+  // _after_ 101.4575.
+  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
+                                 "26816", "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26816 or newer.\n";
+    return 0;
+  }
+
   constexpr size_t Align4 = 4;
   constexpr size_t Align8 = 8;
   constexpr size_t Align16 = 16;
@@ -108,7 +115,7 @@ int main() {
   Pass &= test<int, 16, Align16>(Q);
   Pass &= test<float, 16, Align16>(Q);
 
-  if (Dev.has(aspect::fp16) && esimd_test::minLinuxDriver(Q, "1.3.26032"))
+  if (Dev.has(aspect::fp16))
     Pass &= test<sycl::half, 16, Align16>(Q);
 
   // Check SLM load/store with alignment smaller than 16-bytes.
