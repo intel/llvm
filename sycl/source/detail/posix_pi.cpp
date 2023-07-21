@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/defines.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.hpp>
 
@@ -14,7 +14,7 @@
 #include <string>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail::pi {
 
 void *loadOsLibrary(const std::string &LibraryPath) {
@@ -49,5 +49,5 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
 }
 
 } // namespace detail::pi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

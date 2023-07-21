@@ -1,3 +1,11 @@
+//===- bf16_storage_builtins.hpp ------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
@@ -8,7 +16,7 @@
 #include <sycl/detail/type_traits.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 
 namespace detail {
@@ -81,5 +89,5 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fma(T x, T y, T z) {
 }
 
 } // namespace ext::oneapi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -20,7 +20,7 @@
 // Default signature enables the passing of user code location information to
 // public methods as a default argument.
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // The check for output iterator is commented out as it blocks set_final_data
@@ -147,11 +147,11 @@ private:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 __SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
@@ -162,7 +162,7 @@ inline std::string codeToString(pi_int32 code) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -257,7 +257,7 @@ inline std::string codeToString(pi_int32 code) {
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 // Produces N-dimensional object of type T whose all components are initialized
 // to given integer value.
@@ -459,5 +459,5 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

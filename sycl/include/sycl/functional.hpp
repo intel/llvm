@@ -13,7 +13,7 @@
 #include <functional>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename T = void> using plus = std::plus<T>;
 template <typename T = void> using multiplies = std::multiplies<T>;
@@ -71,5 +71,5 @@ template <> struct maximum<void> {
   }
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

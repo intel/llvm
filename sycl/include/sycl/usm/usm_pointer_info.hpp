@@ -12,7 +12,7 @@
 #include <sycl/usm/usm_enums.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class device;
 class context;
@@ -31,5 +31,5 @@ __SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
 /// \param ctxt is the sycl context the ptr was allocated in
 __SYCL_EXPORT device get_pointer_device(const void *ptr, const context &ctxt);
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

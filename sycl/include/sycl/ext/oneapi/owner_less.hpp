@@ -22,7 +22,7 @@
 #include <sycl/queue.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 
 namespace detail {
@@ -125,5 +125,5 @@ struct owner_less<host_sampled_image_accessor<DataT, Dimensions>>
           host_sampled_image_accessor<DataT, Dimensions>> {};
 
 } // namespace ext::oneapi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
