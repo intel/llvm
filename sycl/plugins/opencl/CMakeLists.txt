@@ -26,6 +26,7 @@ add_sycl_plugin(opencl
     "../unified_runtime/ur/adapters/opencl/device.cpp"
     "../unified_runtime/ur/adapters/opencl/device.hpp"
     "../unified_runtime/ur/adapters/opencl/enqueue.cpp"
+    "../unified_runtime/ur/adapters/opencl/image.cpp"
     "../unified_runtime/ur/adapters/opencl/kernel.cpp"
     "../unified_runtime/ur/adapters/opencl/platform.cpp"
     "../unified_runtime/ur/adapters/opencl/platform.hpp"

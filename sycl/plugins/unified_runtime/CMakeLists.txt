@@ -266,6 +266,7 @@ if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/opencl/device.hpp"
       "ur/adapters/opencl/enqueue.cpp"
       "ur/adapters/opencl/event.cpp"
+      "ur/adapters/opencl/image.cpp"
       "ur/adapters/opencl/kernel.cpp"
       "ur/adapters/opencl/memory.cpp"
       "ur/adapters/opencl/platform.cpp"
