@@ -276,7 +276,8 @@ progress guarantees that can be requested by a kernel's <<properties,
 properties>>.
 
 The queries are expressed in terms of a _target_ execution scope and a
-_coordination scope_, as described previously. Note that these queries
+_coordination scope_, as described previously. The _coordination_ scope
+must be broader than the _target_ execution scope. Note that these queries
 cannot be used to reason about the thread of execution associated with
 the root-group, because it is always the top of the hierarchy; when the
 target execution scope is `root_group`, it is not possible to specify
