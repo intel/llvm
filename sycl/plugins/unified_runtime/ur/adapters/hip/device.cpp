@@ -921,60 +921,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
-    const ur_device_native_properties_t *pProperties,
-    ur_device_handle_t *phDevice)
-{
-  std::ignore = pProperties;
-
-  // We can't cast between ur_native_handle_t and hipDevice_t, so memcpy the bits
-  // instead
-  hipDevice_t HIPDevice = 0;
-  memcpy(&HIPDevice, &hNativeDevice, sizeof(hipDevice_t));
-
-  auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev)
-  {
-    return Dev->get() == HIPDevice;
-  };
-
-  // If a platform is provided just check if the device is in it
-  if (hPlatform)
-  {
-    auto SearchRes = std::find_if(begin(hPlatform->Devices),
-                                  end(hPlatform->Devices), IsDevice);
-    if (SearchRes != end(hPlatform->Devices))
-    {
-      *phDevice = SearchRes->get();
-      return UR_RESULT_SUCCESS;
-    }
-  }
-
-  // Get list of platforms
-  uint32_t NumPlatforms = 0;
-  ur_result_t Result = urPlatformGet(0, nullptr, &NumPlatforms);
-  if (Result != UR_RESULT_SUCCESS)
-    return Result;
-
-  ur_platform_handle_t *Plat = static_cast<ur_platform_handle_t *>(
-      malloc(NumPlatforms * sizeof(ur_platform_handle_t)));
-  Result = urPlatformGet(NumPlatforms, Plat, nullptr);
-  if (Result != UR_RESULT_SUCCESS)
-    return Result;
-
-  // Iterate through platforms to find device that matches nativeHandle
-  for (uint32_t j = 0; j < NumPlatforms; ++j)
-  {
-    auto SearchRes =
-        std::find_if(begin(Plat[j]->Devices), end(Plat[j]->Devices), IsDevice);
-    if (SearchRes != end(Plat[j]->Devices))
-    {
-      *phDevice = static_cast<ur_device_handle_t>((*SearchRes).get());
-      return UR_RESULT_SUCCESS;
-    }
-  }
-
-  // If the provided nativeHandle cannot be matched to an
-  // existing device return error
+    ur_native_handle_t, ur_platform_handle_t,
+    const ur_device_native_properties_t *, ur_device_handle_t *) {
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 

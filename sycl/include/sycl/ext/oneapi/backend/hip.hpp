@@ -41,9 +41,12 @@ inline device make_device<backend::ext_oneapi_hip>(
       return dev;
     }
   }
-  pi_native_handle NativeHandle = static_cast<pi_native_handle>(BackendObject);
-  return detail::make_device(NativeHandle,
-                             backend::ext_oneapi_hip);
+  // The ext_oneapi_hip platform(s) adds all n available devices where n
+  // is returned from call to `hipGetDeviceCount`. 
+  // Hence if this code is reached then the requested device ordinal must
+  // not be visible to the driver.
+  throw sycl::exception(make_error_code(errc::invalid),
+                          "Native device has an invalid ordinal.");
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
