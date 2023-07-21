@@ -97,7 +97,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextMemCreateWithNativeHandle, pi2ur::piextMemCreateWithNativeHandle)
   // Program
   _PI_CL(piProgramCreate, pi2ur::piProgramCreate)
-  _PI_CL(piclProgramCreateWithSource, pi2ur::piclProgramCreateWithSource)
   _PI_CL(piProgramCreateWithBinary, pi2ur::piProgramCreateWithBinary)
   _PI_CL(piProgramGetInfo, pi2ur::piProgramGetInfo)
   _PI_CL(piProgramCompile, pi2ur::piProgramCompile)
@@ -168,6 +167,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueFill2D, pi2ur::piextUSMEnqueueFill2D)
   _PI_CL(piextUSMEnqueueMemset2D, pi2ur::piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMGetMemAllocInfo, pi2ur::piextUSMGetMemAllocInfo)
+  _PI_CL(piextUSMImport, pi2ur::piextUSMImport)
+  _PI_CL(piextUSMRelease, pi2ur::piextUSMRelease)
   // Device global variable
   _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
          pi2ur::piextEnqueueDeviceGlobalVariableWrite)

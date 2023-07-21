@@ -1366,18 +1366,6 @@ pi_result piextMemImageCreateWithNativeHandle(
   return PI_SUCCESS;
 }
 
-pi_result piclProgramCreateWithSource(pi_context context, pi_uint32 count,
-                                      const char **strings,
-                                      const size_t *lengths,
-                                      pi_program *ret_program) {
-
-  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
-  *ret_program = cast<pi_program>(
-      clCreateProgramWithSource(cast<cl_context>(context), cast<cl_uint>(count),
-                                strings, lengths, cast<cl_int *>(&ret_err)));
-  return ret_err;
-}
-
 pi_result piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
@@ -2053,6 +2041,19 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return RetVal;
 }
 
+pi_result piextUSMImport(const void *ptr, size_t size, pi_context context) {
+  std::ignore = ptr;
+  std::ignore = size;
+  std::ignore = context;
+  return PI_SUCCESS;
+}
+
+pi_result piextUSMRelease(const void *ptr, pi_context context) {
+  std::ignore = ptr;
+  std::ignore = context;
+  return PI_SUCCESS;
+}
+
 /// API for writing data from host to a device global variable.
 ///
 /// \param queue is the queue
@@ -2637,7 +2638,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextMemCreateWithNativeHandle, piextMemCreateWithNativeHandle)
   // Program
   _PI_CL(piProgramCreate, piProgramCreate)
-  _PI_CL(piclProgramCreateWithSource, piclProgramCreateWithSource)
   _PI_CL(piProgramCreateWithBinary, piProgramCreateWithBinary)
   _PI_CL(piProgramGetInfo, clGetProgramInfo)
   _PI_CL(piProgramCompile, clCompileProgram)
@@ -2708,6 +2708,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
+  _PI_CL(piextUSMImport, piextUSMImport)
+  _PI_CL(piextUSMRelease, piextUSMRelease)
   // Device global variable
   _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
          piextEnqueueDeviceGlobalVariableWrite)
@@ -2726,6 +2728,12 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferMemBufferCopy, piextCommandBufferMemBufferCopy)
   _PI_CL(piextCommandBufferMemBufferCopyRect,
          piextCommandBufferMemBufferCopyRect)
+  _PI_CL(piextCommandBufferMemBufferRead, piextCommandBufferMemBufferRead)
+  _PI_CL(piextCommandBufferMemBufferReadRect,
+         piextCommandBufferMemBufferReadRect)
+  _PI_CL(piextCommandBufferMemBufferWrite, piextCommandBufferMemBufferWrite)
+  _PI_CL(piextCommandBufferMemBufferWriteRect,
+         piextCommandBufferMemBufferWriteRect)
   _PI_CL(piextEnqueueCommandBuffer, piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)

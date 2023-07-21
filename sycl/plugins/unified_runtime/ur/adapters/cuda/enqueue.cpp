@@ -6,6 +6,7 @@
 //
 //===-----------------------------------------------------------------===//
 
+#include "enqueue.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
@@ -775,7 +776,7 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
   case CU_AD_FORMAT_FLOAT:
     return 4;
   default:
-    sycl::detail::ur::die("Invalid image format.");
+    detail::ur::die("Invalid image format.");
     return 0;
   }
 }
