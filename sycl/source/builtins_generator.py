@@ -871,8 +871,8 @@ sycl_builtins = {# Math functions
                            Def("vigeninteger", ["vigeninteger", "elementtype0", "elementtype0"], invoke_prefix="s_"),
                            Def("vugeninteger", ["vugeninteger", "elementtype0", "elementtype0"], invoke_prefix="u_"),
                            Def("mgentype", ["mgentype", "elementtype0", "elementtype0"], marray_use_loop=True)],
-                 "degrees": [Def("genfloat", ["genfloat"])],
-                 "(max)": [Def("genfloat", ["genfloat", "genfloat"], invoke_name="fmax_common"),
+                 "degrees": [Def("genfloat", ["genfloat"], template_scalar_args=True)],
+                 "(max)": [Def("genfloat", ["genfloat", "genfloat"], invoke_name="fmax_common", template_scalar_args=True),
                            Def("vfloatn", ["vfloatn", "float"], invoke_name="fmax_common", convert_args=[(1,0)]),
                            Def("vdoublen", ["vdoublen", "double"], invoke_name="fmax_common", convert_args=[(1,0)]),
                            Def("vhalfn", ["vhalfn", "half"], invoke_name="fmax_common", convert_args=[(1,0)]), # Non-standard. Deprecated.
@@ -881,7 +881,7 @@ sycl_builtins = {# Math functions
                            Def("vigeninteger", ["vigeninteger", "elementtype0"], invoke_name="s_max"),
                            Def("vugeninteger", ["vugeninteger", "elementtype0"], invoke_name="u_max"),
                            Def("mgentype", ["mgentype", "elementtype0"], marray_use_loop=True)],
-                 "(min)": [Def("genfloat", ["genfloat", "genfloat"], invoke_name="fmin_common"),
+                 "(min)": [Def("genfloat", ["genfloat", "genfloat"], invoke_name="fmin_common", template_scalar_args=True),
                            Def("vfloatn", ["vfloatn", "float"], invoke_name="fmin_common", convert_args=[(1,0)]),
                            Def("vdoublen", ["vdoublen", "double"], invoke_name="fmin_common", convert_args=[(1,0)]),
                            Def("vhalfn", ["vhalfn", "half"], invoke_name="fmax_common", convert_args=[(1,0)]), # Non-standard. Deprecated.
@@ -890,14 +890,14 @@ sycl_builtins = {# Math functions
                            Def("vigeninteger", ["vigeninteger", "elementtype0"], invoke_name="s_min"),
                            Def("vugeninteger", ["vugeninteger", "elementtype0"], invoke_name="u_min"),
                            Def("mgentype", ["mgentype", "elementtype0"], marray_use_loop=True)],
-                 "mix": [Def("genfloat", ["genfloat", "genfloat", "genfloat"]),
+                 "mix": [Def("genfloat", ["genfloat", "genfloat", "genfloat"], template_scalar_args=True),
                          Def("vfloatn", ["vfloatn", "vfloatn", "float"], convert_args=[(2,0)]),
                          Def("vdoublen", ["vdoublen", "vdoublen", "double"], convert_args=[(2,0)]),
                          Def("vhalfn", ["vhalfn", "vhalfn", "half"], convert_args=[(2,0)]), # Non-standard. Deprecated.
                          Def("mfloatn", ["mfloatn", "mfloatn", "float"]),
                          Def("mdoublen", ["mdoublen", "mdoublen", "double"]),
                          Def("mhalfn", ["mhalfn", "mhalfn", "half"])], # Non-standard. Deprecated.
-                 "radians": [Def("genfloat", ["genfloat"])],
+                 "radians": [Def("genfloat", ["genfloat"], template_scalar_args=True)],
                  "step": [Def("genfloat", ["genfloat", "genfloat"]),
                           Def("vfloatn", ["float", "vfloatn"], convert_args=[(0,1)]),
                           Def("vdoublen", ["double", "vdoublen"], convert_args=[(0,1)]),
@@ -905,14 +905,14 @@ sycl_builtins = {# Math functions
                           Def("mfloatn", ["float", "mfloatn"]),
                           Def("mdoublen", ["double", "mdoublen"]),
                           Def("mhalfn", ["half", "mhalfn"])], # Non-standard. Deprecated.
-                 "smoothstep": [Def("genfloat", ["genfloat", "genfloat", "genfloat"]),
+                 "smoothstep": [Def("genfloat", ["genfloat", "genfloat", "genfloat"], template_scalar_args=True),
                                 Def("vfloatn", ["float", "float", "vfloatn"], convert_args=[(0,2),(1,2)]),
                                 Def("vdoublen", ["double", "double", "vdoublen"], convert_args=[(0,2),(1,2)]),
                                 Def("vhalfn", ["half", "half", "vhalfn"], convert_args=[(0,2),(1,2)]), # Non-standard. Deprecated.
                                 Def("mfloatn", ["float", "float", "mfloatn"]),
                                 Def("mdoublen", ["double", "double", "mdoublen"]),
                                 Def("mhalfn", ["half", "half", "mhalfn"])],
-                 "sign": [Def("genfloat", ["genfloat"])],
+                 "sign": [Def("genfloat", ["genfloat"], template_scalar_args=True)],
                  "abs": [Def("genfloat", ["genfloat"], invoke_prefix="f", template_scalar_args=True), # TODO: Non-standard. Deprecate.
                          Def("sigeninteger", ["sigeninteger"], custom_invoke=custom_signed_abs_scalar_invoke, template_scalar_args=True),
                          Def("vigeninteger", ["vigeninteger"], custom_invoke=custom_signed_abs_vec_invoke),
@@ -921,32 +921,35 @@ sycl_builtins = {# Math functions
                  # Geometric functions
                  "cross": [Def("vfloat3or4", ["vfloat3or4", "vfloat3or4"]),
                            Def("vdouble3or4", ["vdouble3or4", "vdouble3or4"]),
-                           Def("vhalf3or4", ["vhalf3or4", "vhalf3or4"]), # TODO: Non-standard. Deprecate.
+                           Def("vhalf3or4", ["vhalf3or4", "vhalf3or4"]),
                            Def("mfloat3or4", ["mfloat3or4", "mfloat3or4"]),
                            Def("mdouble3or4", ["mdouble3or4", "mdouble3or4"]),
-                           Def("mhalf3or4", ["mhalf3or4", "mhalf3or4"])], # TODO: Non-standard. Deprecate.
+                           Def("mhalf3or4", ["mhalf3or4", "mhalf3or4"])],
                  "dot": [Def("float", ["vgeofloat", "vgeofloat"], invoke_name="Dot"),
                          Def("double", ["vgeodouble", "vgeodouble"], invoke_name="Dot"),
-                         Def("half", ["vgeohalf", "vgeohalf"], invoke_name="Dot"), # TODO: Non-standard. Deprecate.
+                         Def("half", ["vgeohalf", "vgeohalf"], invoke_name="Dot"),
                          Def("float", ["mgeofloat", "mgeofloat"], invoke_name="Dot"),
                          Def("double", ["mgeodouble", "mgeodouble"], invoke_name="Dot"),
-                         Def("half", ["mgeohalf", "mgeohalf"], invoke_name="Dot"), # TODO: Non-standard. Deprecate.
+                         Def("half", ["mgeohalf", "mgeohalf"], invoke_name="Dot"),
                          Def("sgenfloat", ["sgenfloat", "sgenfloat"], custom_invoke=(lambda return_types, arg_types, arg_names: '  return ' + ' * '.join(arg_names) + ';'))],
                  "distance": [Def("float", ["gengeofloat", "gengeofloat"]),
                               Def("double", ["gengeodouble", "gengeodouble"]),
-                              Def("half", ["gengeohalf", "gengeohalf"])], # TODO: Non-standard. Deprecate.
+                              Def("half", ["gengeohalf", "gengeohalf"])],
                  "length": [Def("float", ["gengeofloat"]),
                             Def("double", ["gengeodouble"]),
-                            Def("half", ["gengeohalf"])], # TODO: Non-standard. Deprecate.
+                            Def("half", ["gengeohalf"])],
                  "normalize": [Def("gengeofloat", ["gengeofloat"]),
                                Def("gengeodouble", ["gengeodouble"]),
-                               Def("gengeohalf", ["gengeohalf"])], # TODO: Non-standard. Deprecate.
+                               Def("gengeohalf", ["gengeohalf"])],
                  "fast_distance": [Def("float", ["gengeofloat", "gengeofloat"]),
-                                   Def("double", ["gengeodouble", "gengeodouble"])],
+                                   Def("double", ["gengeodouble", "gengeodouble"]),
+                                   Def("half", ["gengeohalf", "gengeohalf"])],
                  "fast_length": [Def("float", ["gengeofloat"]),
-                                 Def("double", ["gengeodouble"])],
+                                 Def("double", ["gengeodouble"]),
+                                 Def("half", ["gengeohalf"])],
                  "fast_normalize": [Def("gengeofloat", ["gengeofloat"]),
-                                    Def("gengeodouble", ["gengeodouble"])],
+                                    Def("gengeodouble", ["gengeodouble"]),
+                                    Def("gengeohalf", ["gengeohalf"])],
                  # Relational functions
                  "isequal": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdEqual"),
                              RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdEqual"),
