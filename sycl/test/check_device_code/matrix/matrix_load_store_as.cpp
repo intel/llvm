@@ -3,8 +3,6 @@
 // Check that SROA and mem2reg won't leave alloca of matrix type in IR
 // CHECK-NOT: alloca target("spirv.JointMatrixINTEL"
 
-// REQUIRES: TEMPORARY_DISABLED
-
 // check that correct address spaces are used to load from and store to
 #define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
 #include <sycl/sycl.hpp>

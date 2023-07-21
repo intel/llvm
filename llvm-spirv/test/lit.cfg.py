@@ -16,7 +16,7 @@ config.name = 'LLVM_SPIRV'
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.spvasm']
+config.suffixes = ['.cl', '.ll', '.spt', '.spvasm']
 
 # excludes: A list of directories  and fles to exclude from the testsuite.
 config.excludes = ['CMakeLists.txt']
