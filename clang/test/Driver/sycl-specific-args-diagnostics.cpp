@@ -30,8 +30,7 @@
 
 // Warning should be emitted when using -fsycl-default-sub-group-size= without -fsycl
 // RUN:   %clang -### -fsycl-default-sub-group-size=10  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-DSS %s
-// WARNING-DSS: warning: argument unused during compilation: '-fsycl-default-sub-group-size=10' [-Wunused-command-line-argument]
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-default-sub-group-size=10 %s
 // RUN:   %clang_cl -### -fsycl-default-sub-group-size=10  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-DSS-CL %s
 // WARNING-DSS-CL: unknown argument ignored in clang-cl: '-fsycl-default-sub-group-size=10' [-Wunknown-argument]
@@ -42,17 +41,15 @@
 
 // Warning should be emitted when using -fsycl-device-lib=libc without -fsycl
 // RUN:   %clang -### -fsycl-device-lib=libc  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-DEVICE-LIB %s
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-lib=libc %s
 // RUN:   %clang_cl -### -fsycl-device-lib=libc  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-DEVICE-LIB %s
-// WARNING-DEVICE-LIB: warning: argument unused during compilation: '-fsycl-device-lib=libc' [-Wunused-command-line-argument]
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-lib=libc %s
 
 // Warning should be emitted when using -fsycl-device-obj=spirv without -fsycl
 // RUN:   %clang -### -fsycl-device-obj=spirv  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-DEVICE-OBJ %s
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-obj=spirv  %s
 // RUN:   %clang_cl -### -fsycl-device-obj=spirv  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-DEVICE-OBJ %s
-// WARNING-DEVICE-OBJ: warning: argument unused during compilation: '-fsycl-device-obj=spirv' [-Wunused-command-line-argument]
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-obj=spirv %s
 
 // Warning should not be emitted when using -fsycl-device-only without -fsycl
 // RUN:   %clang -### -fsycl-device-only  %s 2>&1 \
@@ -87,8 +84,7 @@
 
 // Warning should be emitted when using -fsycl-fp32-prec-sqrt without -fsycl
 // RUN:   %clang -### -fsycl-fp32-prec-sqrt  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-FP32 -DOPT=-fsycl-fp32-prec-sqrt %s
-// WARNING-FP32: warning: argument unused during compilation: '-fsycl-fp32-prec-sqrt' [-Wunused-command-line-argument]
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-fp32-prec-sqrt %s
 // RUN:   %clang_cl -### -fsycl-fp32-prec-sqrt  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-FP32-CL -DOPT=-fsycl-fp32-prec-sqrt %s
 // WARNING-FP32-CL: warning: unknown argument ignored in clang-cl: '[[OPT]]' [-Wunknown-argument]
@@ -107,17 +103,15 @@
 
 // Warning should be emitted when using -fsycl-libspirv-path without -fsycl
 // RUN:   %clang -### -fsycl-libspirv-path=libspirv.bc  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-LIBSPRIV  %s
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-libspirv-path=libspirv.bc  %s
 // RUN:   %clang_cl -### -fsycl-libspirv-path=libspirv.bc  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-LIBSPRIV %s
-// WARNING-LIBSPRIV: warning: argument unused during compilation: '-fsycl-libspirv-path=libspirv.bc' [-Wunused-command-line-argument]
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-libspirv-path=libspirv.bc %s
 
 // Warning should be emitted when using -fsycl-max-parallel-link-jobs without -fyscl
 // RUN:   %clang -### -fsycl-max-parallel-link-jobs=4  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-PARALLEL %s
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-max-parallel-link-jobs=4 %s
 // RUN:   %clang_cl -### -fsycl-max-parallel-link-jobs=4  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-PARALLEL %s
-// WARNING-PARALLEL: warning: argument unused during compilation: '-fsycl-max-parallel-link-jobs=4' [-Wunused-command-line-argument]
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-max-parallel-link-jobs=4 %s
 
 // Warning should be emitted when using -fsycl-optimize-non-user-code without -fsycl
 // RUN:   %clang -### -fsycl-optimize-non-user-code  %s 2>&1 \

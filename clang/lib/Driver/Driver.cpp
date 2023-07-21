@@ -1131,7 +1131,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // -fsycl-host-compiler-options cannot be used without -fsycl-host-compiler
   if (SYCLHostCompilerOptions && !SYCLHostCompiler)
     Diag(clang::diag::warn_drv_fsycl_host_compiler_options)
-        << SYCLHostCompilerOptions->getSpelling().split('=').first;
+        << SYCLHostCompilerOptions->getSpelling().split('=').first
+        << "-fsycl-host-compiler";
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!HasValidSYCLRuntime)
