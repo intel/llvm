@@ -228,7 +228,7 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
   let hasVerifier = 1;
 }
 
-def SYCLHostSubmit : SYCL_HostOp<"submit",
+def SYCLHostSubmitOp : SYCL_HostOp<"submit",
     [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = "Submits a SYCL kernel.";
   let description = [{
@@ -244,12 +244,12 @@ def SYCLHostSubmit : SYCL_HostOp<"submit",
   }];
 
   let arguments = (ins
-    SymbolRefAttr:$kernel_name,
+    SymbolRefAttr:$c_g_f_name,
     Arg<LLVM_AnyPointer, "The queue", [MemWrite]>:$queue,
     Arg<LLVM_AnyPointer, "The event", [MemWrite]>:$event,
     Variadic<AnyType>:$args);
   let assemblyFormat = [{
-    $queue `(` (`[` $args^ `]`)? `` $kernel_name `)` `->` $event
+    $queue `(` (`[` $args^ `]`)? `` $c_g_f_name `)` `->` $event
       attr-dict `:` type(operands)
   }];
 }

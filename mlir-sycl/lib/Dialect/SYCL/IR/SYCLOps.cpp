@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -598,8 +599,14 @@ LogicalResult SYCLHostScheduleKernel::verify() {
 }
 
 LogicalResult
-SYCLHostSubmit::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
+SYCLHostSubmitOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  SymbolRefAttr symbol = getCGFNameAttr();
+  auto cgf =
+      symbolTable.lookupNearestSymbolFrom<LLVM::LLVMFuncOp>(*this, symbol);
+  if (!cgf)
+    return emitOpError("'")
+           << symbol << "' does not reference a valid CGF function";
+  return success();
 }
 
 #define GET_OP_CLASSES
