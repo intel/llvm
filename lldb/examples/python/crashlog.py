@@ -306,6 +306,8 @@ class CrashLog(symbolication.Symbolicator):
             if self.show_symbol_progress():
                 with print_lock:
                     print("Getting symbols for %s %s..." % (uuid_str, self.path))
+            # Keep track of unresolved source paths.
+            unavailable_source_paths = set()
             if os.path.exists(self.dsymForUUIDBinary):
                 dsym_for_uuid_command = "%s %s" % (self.dsymForUUIDBinary, uuid_str)
                 s = subprocess.check_output(dsym_for_uuid_command, shell=True)
@@ -335,6 +337,12 @@ class CrashLog(symbolication.Symbolicator):
                                     plist["DBGSymbolRichExecutable"]
                                 )
                                 self.resolved_path = self.path
+                            if "DBGSourcePathRemapping" in plist:
+                                path_remapping = plist["DBGSourcePathRemapping"]
+                                for _, value in path_remapping.items():
+                                    source_path = os.path.expanduser(value)
+                                    if not os.path.exists(source_path):
+                                        unavailable_source_paths.add(source_path)
             if not self.resolved_path and os.path.exists(self.path):
                 if not self.find_matching_slice():
                     return False
@@ -373,6 +381,12 @@ class CrashLog(symbolication.Symbolicator):
             ):
                 with print_lock:
                     print("Resolved symbols for %s %s..." % (uuid_str, self.path))
+                    if len(unavailable_source_paths):
+                        for source_path in unavailable_source_paths:
+                            print(
+                                "Could not access remapped source path for %s %s"
+                                % (uuid_str, source_path)
+                            )
                 return True
             else:
                 self.unavailable = True
@@ -1271,7 +1285,7 @@ class Symbolicate:
         pass
 
     def __call__(self, debugger, command, exe_ctx, result):
-        SymbolicateCrashLogs(debugger, shlex.split(command), result)
+        SymbolicateCrashLogs(debugger, shlex.split(command), result, True)
 
     def get_short_help(self):
         return "Symbolicate one or more darwin crash log files."
@@ -1307,7 +1321,7 @@ def SymbolicateCrashLog(crash_log, options):
         for thread in crash_log.threads:
             if thread.did_crash():
                 for ident in thread.idents:
-                    for image in self.crashlog.find_images_with_identifier(ident):
+                    for image in crash_log.find_images_with_identifier(ident):
                         image.resolve = True
 
     futures = []
@@ -1596,7 +1610,7 @@ be disassembled and lookups can be performed using the addresses found in the cr
     return CreateSymbolicateCrashLogOptions("crashlog", description, True)
 
 
-def SymbolicateCrashLogs(debugger, command_args, result):
+def SymbolicateCrashLogs(debugger, command_args, result, is_command):
     option_parser = CrashLogOptionParser()
 
     if not len(command_args):
@@ -1607,6 +1621,26 @@ def SymbolicateCrashLogs(debugger, command_args, result):
         (options, args) = option_parser.parse_args(command_args)
     except:
         return
+
+    # Interactive mode requires running the crashlog command from inside lldb.
+    if options.interactive and not is_command:
+        lldb_exec = (
+            subprocess.check_output(["/usr/bin/xcrun", "-f", "lldb"])
+            .decode("utf-8")
+            .strip()
+        )
+        sys.exit(
+            os.execv(
+                lldb_exec,
+                [
+                    lldb_exec,
+                    "-o",
+                    "command script import lldb.macosx",
+                    "-o",
+                    "crashlog {}".format(shlex.join(command_args)),
+                ],
+            )
+        )
 
     if options.version:
         print(debugger.GetVersionString())
@@ -1659,7 +1693,7 @@ if __name__ == "__main__":
     # Create a new debugger instance
     debugger = lldb.SBDebugger.Create()
     result = lldb.SBCommandReturnObject()
-    SymbolicateCrashLogs(debugger, sys.argv[1:], result)
+    SymbolicateCrashLogs(debugger, sys.argv[1:], result, False)
     lldb.SBDebugger.Destroy(debugger)
 
 

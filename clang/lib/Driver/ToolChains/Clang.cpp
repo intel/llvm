@@ -2232,6 +2232,12 @@ static void SetRISCVSmallDataLimit(const ToolChain &TC, const ArgList &Args,
     if (Args.hasArg(options::OPT_G)) {
       D.Diag(diag::warn_drv_unsupported_sdata);
     }
+  } else if (Triple.isAndroid()) {
+    // GP relaxation is not supported on Android.
+    SmallDataLimit = "0";
+    if (Args.hasArg(options::OPT_G)) {
+      D.Diag(diag::warn_drv_unsupported_sdata);
+    }
   } else if (Arg *A = Args.getLastArg(options::OPT_G)) {
     SmallDataLimit = A->getValue();
   }
@@ -2641,6 +2647,9 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
     CmdArgs.push_back("-mincremental-linker-compatible");
 
   Args.AddLastArg(CmdArgs, options::OPT_femit_dwarf_unwind_EQ);
+
+  Args.addOptInFlag(CmdArgs, options::OPT_femit_compact_unwind_non_canonical,
+                    options::OPT_fno_emit_compact_unwind_non_canonical);
 
   // If you add more args here, also add them to the block below that
   // starts with "// If CollectArgsForIntegratedAssembler() isn't called below".
@@ -3522,7 +3531,7 @@ static void RenderSSPOptions(const Driver &D, const ToolChain &TC,
         }
       }
       CmdArgs.push_back("-target-feature");
-      CmdArgs.push_back("+read-tp-hard");
+      CmdArgs.push_back("+read-tp-tpidruro");
     }
     if (EffectiveTriple.isAArch64() && Value != "sysreg" && Value != "global") {
       D.Diag(diag::err_drv_invalid_value_with_suggestion)
@@ -5086,7 +5095,24 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back("-aux-triple");
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
+
+    if (JA.isDeviceOffloading(Action::OFK_HIP) &&
+        getToolChain().getTriple().isAMDGPU()) {
+      // Device side compilation printf
+      if (Args.getLastArg(options::OPT_mprintf_kind_EQ)) {
+        CmdArgs.push_back(Args.MakeArgString(
+            "-mprintf-kind=" +
+            Args.getLastArgValue(options::OPT_mprintf_kind_EQ)));
+        // Force compiler error on invalid conversion specifiers
+        CmdArgs.push_back(
+            Args.MakeArgString("-Werror=format-invalid-specifier"));
+      }
+    }
   }
+
+  // Unconditionally claim the printf option now to avoid unused diagnostic.
+  if (const Arg *PF = Args.getLastArg(options::OPT_mprintf_kind_EQ))
+    PF->claim();
 
   Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
 
@@ -6685,26 +6711,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   addDebugPrefixMapArg(D, TC, Args, CmdArgs);
 
-  if (Arg *A = Args.getLastArg(options::OPT_ftemplate_depth_,
-                               options::OPT_ftemplate_depth_EQ)) {
-    CmdArgs.push_back("-ftemplate-depth");
-    CmdArgs.push_back(A->getValue());
-  }
-
-  if (Arg *A = Args.getLastArg(options::OPT_foperator_arrow_depth_EQ)) {
-    CmdArgs.push_back("-foperator-arrow-depth");
-    CmdArgs.push_back(A->getValue());
-  }
-
-  if (Arg *A = Args.getLastArg(options::OPT_fconstexpr_depth_EQ)) {
-    CmdArgs.push_back("-fconstexpr-depth");
-    CmdArgs.push_back(A->getValue());
-  }
-
-  if (Arg *A = Args.getLastArg(options::OPT_fconstexpr_steps_EQ)) {
-    CmdArgs.push_back("-fconstexpr-steps");
-    CmdArgs.push_back(A->getValue());
-  }
+  Args.AddLastArg(CmdArgs, options::OPT_ftemplate_depth_EQ);
+  Args.AddLastArg(CmdArgs, options::OPT_foperator_arrow_depth_EQ);
+  Args.AddLastArg(CmdArgs, options::OPT_fconstexpr_depth_EQ);
+  Args.AddLastArg(CmdArgs, options::OPT_fconstexpr_steps_EQ);
 
   Args.AddLastArg(CmdArgs, options::OPT_fexperimental_library);
 
@@ -6770,25 +6780,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   else
     CmdArgs.push_back("19");
 
-  if (Arg *A = Args.getLastArg(options::OPT_fmacro_backtrace_limit_EQ)) {
-    CmdArgs.push_back("-fmacro-backtrace-limit");
-    CmdArgs.push_back(A->getValue());
-  }
-
-  if (Arg *A = Args.getLastArg(options::OPT_ftemplate_backtrace_limit_EQ)) {
-    CmdArgs.push_back("-ftemplate-backtrace-limit");
-    CmdArgs.push_back(A->getValue());
-  }
-
-  if (Arg *A = Args.getLastArg(options::OPT_fconstexpr_backtrace_limit_EQ)) {
-    CmdArgs.push_back("-fconstexpr-backtrace-limit");
-    CmdArgs.push_back(A->getValue());
-  }
-
-  if (Arg *A = Args.getLastArg(options::OPT_fspell_checking_limit_EQ)) {
-    CmdArgs.push_back("-fspell-checking-limit");
-    CmdArgs.push_back(A->getValue());
-  }
+  Args.AddLastArg(CmdArgs, options::OPT_fconstexpr_backtrace_limit_EQ);
+  Args.AddLastArg(CmdArgs, options::OPT_fmacro_backtrace_limit_EQ);
+  Args.AddLastArg(CmdArgs, options::OPT_ftemplate_backtrace_limit_EQ);
+  Args.AddLastArg(CmdArgs, options::OPT_fspell_checking_limit_EQ);
+  Args.AddLastArg(CmdArgs, options::OPT_fcaret_diagnostics_max_lines_EQ);
 
   // Pass -fmessage-length=.
   unsigned MessageLength = 0;
@@ -9554,7 +9550,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
         C.getArgsForToolChain(TC, OffloadAction->getOffloadingArch(),
                               OffloadAction->getOffloadingDeviceKind());
     StringRef File = C.getArgs().MakeArgString(TC->getInputFilename(Input));
-    StringRef Arch = (OffloadAction->getOffloadingArch())
+    StringRef Arch = OffloadAction->getOffloadingArch()
                          ? OffloadAction->getOffloadingArch()
                          : TCArgs.getLastArgValue(options::OPT_march_EQ);
     StringRef Kind =
@@ -9567,14 +9563,24 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     llvm::copy_if(Features, std::back_inserter(FeatureArgs),
                   [](StringRef Arg) { return !Arg.startswith("-target"); });
 
+    if (TC->getTriple().isAMDGPU()) {
+      for (StringRef Feature : llvm::split(Arch.split(':').second, ':')) {
+        FeatureArgs.emplace_back(
+            Args.MakeArgString(Feature.take_back() + Feature.drop_back()));
+      }
+    }
+
+    // TODO: We need to pass in the full target-id and handle it properly in the
+    // linker wrapper.
     SmallVector<std::string> Parts{
         "file=" + File.str(),
         "triple=" + TC->getTripleString(),
-        "arch=" + Arch.str(),
+        "arch=" + getProcessorFromTargetID(TC->getTriple(), Arch).str(),
         "kind=" + Kind.str(),
     };
 
-    if (TC->getDriver().isUsingLTO(/* IsOffload */ true))
+    if (TC->getDriver().isUsingLTO(/* IsOffload */ true) ||
+        TC->getTriple().isAMDGPU())
       for (StringRef Feature : FeatureArgs)
         Parts.emplace_back("feature=" + Feature.str());
 
@@ -9721,7 +9727,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_global_variable_decorations"
         ",+SPV_INTEL_fpga_buffer_location"
         ",+SPV_INTEL_fpga_argument_interfaces"
-        ",+SPV_INTEL_fpga_invocation_pipelining_attributes";
+        ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
+        ",+SPV_INTEL_fpga_latency_control";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
     if (C.getDriver().IsFPGAHWMode())
       // Enable several extensions on FPGA H/W exclusively

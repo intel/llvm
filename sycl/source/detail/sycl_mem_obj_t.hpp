@@ -17,7 +17,7 @@
 #include <sycl/properties/buffer_properties.hpp>
 #include <sycl/properties/image_properties.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/range.hpp>
 
 #include <cstring>
 #include <memory>
@@ -175,7 +175,7 @@ public:
   bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
     bool Aligned =
         (reinterpret_cast<std::uintptr_t>(HostPtr) % RequiredAlign) == 0;
-    return Aligned || useHostPtr();
+    return !MHostPtrReadOnly && (Aligned || useHostPtr());
   }
 
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
@@ -186,13 +186,15 @@ public:
       });
     }
 
-    if (canReuseHostPtr(HostPtr, RequiredAlign)) {
-      MUserPtr = HostPtr;
-    } else {
-      setAlign(RequiredAlign);
-      MShadowCopy = allocateHostMem();
-      MUserPtr = MShadowCopy;
-      std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+    if (HostPtr) {
+      if (canReuseHostPtr(HostPtr, RequiredAlign)) {
+        MUserPtr = HostPtr;
+      } else {
+        setAlign(RequiredAlign);
+        MShadowCopy = allocateHostMem();
+        MUserPtr = MShadowCopy;
+        std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+      }
     }
   }
 

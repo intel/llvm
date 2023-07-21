@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -44,8 +44,10 @@ enum DataLessPropKind {
   QueuePriorityLow = 17,
   QueuePriorityHigh = 18,
   GraphNoCycleCheck = 19,
+  QueueSubmissionBatched = 20,
+  QueueSubmissionImmediate = 21,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 19,
+  LastKnownDataLessPropKind = 21,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };

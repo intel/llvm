@@ -218,7 +218,7 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     GCCInstallation.init(Triple, Args);
   }
   Multilibs = GCCInstallation.getMultilibs();
-  SelectedMultilib = GCCInstallation.getMultilib();
+  SelectedMultilibs.assign({GCCInstallation.getMultilib()});
   llvm::Triple::ArchType Arch = Triple.getArch();
   std::string SysRoot = computeSysRoot();
   ToolChain::path_list &PPaths = getProgramPaths();
@@ -262,8 +262,8 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   const bool IsRISCV = Triple.isRISCV();
   const bool IsCSKY = Triple.isCSKY();
 
-  if (IsCSKY)
-    SysRoot = SysRoot + SelectedMultilib.osSuffix();
+  if (IsCSKY && !SelectedMultilibs.empty())
+    SysRoot = SysRoot + SelectedMultilibs.back().osSuffix();
 
   if ((IsMips || IsCSKY) && !SysRoot.empty())
     ExtraOpts.push_back("--sysroot=" + SysRoot);

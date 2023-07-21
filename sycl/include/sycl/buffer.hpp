@@ -16,6 +16,7 @@
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
+#include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/stl.hpp>
@@ -172,12 +173,6 @@ public:
   using EnableIfSameNonConstIterators = typename std::enable_if_t<
       std::is_same_v<ItA, ItB> && !std::is_const_v<ItA>, ItA>;
 
-  std::array<size_t, 3> rangeToArray(range<3> &r) { return {r[0], r[1], r[2]}; }
-
-  std::array<size_t, 3> rangeToArray(range<2> &r) { return {r[0], r[1], 0}; }
-
-  std::array<size_t, 3> rangeToArray(range<1> &r) { return {r[0], 0, 0}; }
-
   buffer(const range<dimensions> &bufferRange,
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
@@ -188,7 +183,7 @@ public:
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), nullptr, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(const range<dimensions> &bufferRange, AllocatorT allocator,
@@ -202,7 +197,7 @@ public:
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), nullptr, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
@@ -215,7 +210,7 @@ public:
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
@@ -229,7 +224,7 @@ public:
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   template <typename _T = T>
@@ -244,7 +239,7 @@ public:
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   template <typename _T = T>
@@ -260,7 +255,7 @@ public:
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T> &hostData,
@@ -277,7 +272,7 @@ public:
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), (void *)hostData.get(),
         (const void *)typeid(T).name(), dimensions, sizeof(T),
-        rangeToArray(Range).data());
+        detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T[]> &hostData,
@@ -294,7 +289,7 @@ public:
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), (void *)hostData.get(),
         (const void *)typeid(T).name(), dimensions, sizeof(T),
-        rangeToArray(Range).data());
+        detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T> &hostData,
@@ -310,7 +305,7 @@ public:
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), (void *)hostData.get(),
         (const void *)typeid(T).name(), dimensions, sizeof(T),
-        rangeToArray(Range).data());
+        detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T[]> &hostData,
@@ -326,7 +321,7 @@ public:
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), (void *)hostData.get(),
         (const void *)typeid(T).name(), dimensions, sizeof(T),
-        rangeToArray(Range).data());
+        detail::rangeToArray(Range).data());
   }
 
   template <class InputIterator, int N = dimensions,
@@ -429,7 +424,7 @@ public:
         IsSubBuffer(true) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
 
     if (b.is_sub_buffer())
       throw sycl::invalid_object_error(
@@ -450,7 +445,7 @@ public:
         OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(buffer &&rhs,
@@ -459,7 +454,7 @@ public:
         OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer &operator=(const buffer &rhs) = default;
@@ -744,7 +739,7 @@ private:
     Range[0] = buffer_plain::getSize() / sizeof(T);
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), &MemObject, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   void addOrReplaceAccessorProperties(const property_list &PropertyList) {
@@ -764,7 +759,7 @@ private:
         OffsetInBytes(reinterpretOffset), IsSubBuffer(isSubBuffer) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), Impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   template <typename Type, int N>

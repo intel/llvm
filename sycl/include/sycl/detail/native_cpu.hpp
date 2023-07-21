@@ -18,7 +18,6 @@ namespace detail {
 struct NativeCPUArgDesc {
   void *MPtr;
 
-  void *getPtr() const { return MPtr; }
   NativeCPUArgDesc(void *Ptr) : MPtr(Ptr){};
 };
 
