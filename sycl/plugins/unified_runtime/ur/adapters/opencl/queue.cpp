@@ -47,12 +47,6 @@ convertURQueuePropertiesToCL(const ur_queue_properties_t *URQueueProperties) {
   if (URQueueProperties->flags & UR_QUEUE_FLAG_ON_DEVICE_DEFAULT) {
     CLCommandQueueProperties |= CL_QUEUE_ON_DEVICE_DEFAULT;
   }
-  if (URQueueProperties->flags & UR_QUEUE_FLAG_PRIORITY_LOW) {
-    CLCommandQueueProperties |= CL_QUEUE_PRIORITY_LOW_KHR;
-  }
-  if (URQueueProperties->flags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
-    CLCommandQueueProperties |= CL_QUEUE_PRIORITY_HIGH_KHR;
-  }
 
   return CLCommandQueueProperties;
 }
@@ -84,7 +78,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 
   cl_int RetErr = CL_INVALID_OPERATION;
 
-  if (Version >= oclv::V2_0) {
+  if (Version < oclv::V2_0) {
     *phQueue = cl_adapter::cast<ur_queue_handle_t>(
         clCreateCommandQueue(cl_adapter::cast<cl_context>(hContext),
                              cl_adapter::cast<cl_device_id>(hDevice),
@@ -93,6 +87,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     return UR_RESULT_SUCCESS;
   }
 
+  /* TODO: Add support for CL_QUEUE_PRIORITY_KHR */
   cl_queue_properties CreationFlagProperties[] = {
       CL_QUEUE_PROPERTIES, CLProperties & SupportByOpenCL, 0};
   *phQueue =
