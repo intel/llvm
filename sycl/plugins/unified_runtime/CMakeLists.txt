@@ -202,6 +202,7 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/hip/sampler.cpp"
       "ur/adapters/hip/sampler.hpp"
       "ur/adapters/hip/usm.cpp"
+      "ur/adapters/hip/image.cpp"
       "ur/adapters/hip/program.cpp"
       "ur/adapters/hip/program.hpp"
       "ur/adapters/hip/kernel.cpp"

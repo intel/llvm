@@ -108,6 +108,7 @@ add_sycl_plugin(hip
     "../unified_runtime/ur/adapters/hip/sampler.cpp"
     "../unified_runtime/ur/adapters/hip/sampler.hpp"
     "../unified_runtime/ur/adapters/hip/usm.cpp"
+    "../unified_runtime/ur/adapters/hip/image.cpp"
     "../unified_runtime/ur/adapters/hip/program.cpp"
     "../unified_runtime/ur/adapters/hip/program.hpp"
     "../unified_runtime/ur/adapters/hip/kernel.cpp"
