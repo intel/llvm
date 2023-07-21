@@ -42,7 +42,7 @@ static LogicalResult joinDimsInfo(IDRangeInformation &globalSizeInfo,
   // Get number of dimensions
   size_t dimensions = nonTops.front()->getNumDimensions();
   if (!std::all_of(nonTops.begin() + 1, nonTops.end(),
-                   [&](const IDRangeInformation *info) {
+                   [=](const IDRangeInformation *info) {
                      return info->getNumDimensions() == dimensions;
                    }))
     return failure();
