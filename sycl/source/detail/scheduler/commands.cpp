@@ -49,7 +49,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -3182,5 +3182,5 @@ void KernelFusionCommand::printDot(std::ostream &Stream) const {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // inline namespace _V1
 } // namespace sycl
