@@ -294,10 +294,6 @@ def IIT_V1 : IIT_Vec<1, 28>;
 def IIT_VARARG : IIT_VT<isVoid, 29>;
 def IIT_HALF_VEC_ARG : IIT_Base<30>;
 def IIT_SAME_VEC_WIDTH_ARG : IIT_Base<31>;
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-def IIT_PTR_TO_ARG : IIT_Base<32>;
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
-def IIT_PTR_TO_ELT : IIT_Base<33>;
 def IIT_VEC_OF_ANYPTRS_TO_ELT : IIT_Base<34>;
 def IIT_I128 : IIT_Int<128, 35>;
 def IIT_V512 : IIT_Vec<512, 36>;
@@ -320,7 +316,6 @@ def IIT_PPCF128 : IIT_VT<ppcf128, 52>;
 def IIT_V3 : IIT_Vec<3, 53>;
 def IIT_EXTERNREF : IIT_VT<externref, 54>;
 def IIT_FUNCREF : IIT_VT<funcref, 55>;
-def IIT_ANYPTR_TO_ELT : IIT_Base<56>;
 def IIT_I2 : IIT_Int<2, 57>;
 def IIT_I4 : IIT_Int<4, 58>;
 def IIT_AARCH64_SVCOUNT : IIT_VT<aarch64svcount, 59>;
@@ -451,12 +446,6 @@ class LLVMScalarOrSameVectorWidth<int idx, LLVMType elty>
   ], elty.Sig);
 }
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-class LLVMPointerTo<int num> : LLVMMatchType<num, IIT_PTR_TO_ARG>;
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
-class LLVMPointerToElt<int num> : LLVMMatchType<num, IIT_PTR_TO_ELT>;
-class LLVMAnyPointerToElt<int num>
-  : LLVMMatchTypeNextArg<num, IIT_ANYPTR_TO_ELT>;
 class LLVMVectorOfAnyPointersToElt<int num>
   : LLVMMatchTypeNextArg<num, IIT_VEC_OF_ANYPTRS_TO_ELT>;
 class LLVMVectorElementType<int num> : LLVMMatchType<num, IIT_VEC_ELEMENT>;
@@ -2310,13 +2299,13 @@ def int_masked_scatter:
 
 def int_masked_expandload:
   DefaultAttrsIntrinsic<[llvm_anyvector_ty],
-            [LLVMPointerToElt<0>, LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
+            [llvm_ptr_ty, LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
              LLVMMatchType<0>],
             [IntrReadMem, IntrWillReturn, NoCapture<ArgIndex<0>>]>;
 
 def int_masked_compressstore:
   DefaultAttrsIntrinsic<[],
-            [llvm_anyvector_ty, LLVMPointerToElt<0>,
+            [llvm_anyvector_ty, llvm_ptr_ty,
              LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>],
             [IntrWriteMem, IntrArgMemOnly, IntrWillReturn,
              NoCapture<ArgIndex<1>>]>;
@@ -2455,7 +2444,7 @@ def int_matrix_multiply
 
 def int_matrix_column_major_load
   : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
-              [LLVMPointerToElt<0>, llvm_anyint_ty, llvm_i1_ty,
+              [llvm_ptr_ty, llvm_anyint_ty, llvm_i1_ty,
                llvm_i32_ty, llvm_i32_ty],
               [IntrNoSync, IntrWillReturn, IntrArgMemOnly, IntrReadMem,
                NoCapture<ArgIndex<0>>, ImmArg<ArgIndex<2>>, ImmArg<ArgIndex<3>>,
@@ -2463,7 +2452,7 @@ def int_matrix_column_major_load
 
 def int_matrix_column_major_store
   : DefaultAttrsIntrinsic<[],
-              [llvm_anyvector_ty, LLVMPointerToElt<0>,
+              [llvm_anyvector_ty, llvm_ptr_ty,
                llvm_anyint_ty, llvm_i1_ty, llvm_i32_ty, llvm_i32_ty],
               [IntrNoSync, IntrWillReturn, IntrArgMemOnly, IntrWriteMem,
                WriteOnly<ArgIndex<1>>, NoCapture<ArgIndex<1>>,
