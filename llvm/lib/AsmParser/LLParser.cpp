@@ -2697,7 +2697,11 @@ bool LLParser::parseType(Type *&Result, const Twine &Msg, bool AllowVoid) {
     // Handle "ptr" opaque pointer type.
     //
     // Type ::= ptr ('addrspace' '(' uint32 ')')?
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    if (Result->isPointerTy()) {
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     if (Result->isOpaquePointerTy()) {
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       unsigned AddrSpace;
       if (parseOptionalAddrSpace(AddrSpace))
         return true;

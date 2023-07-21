@@ -1380,7 +1380,7 @@ unsigned BitcodeReader::getVirtualTypeID(Type *Ty,
            "Incorrect cached contained type IDs");
     return It->second;
   }
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 #ifndef NDEBUG
   if (!Ty->isOpaquePointerTy()) {
     assert(Ty->getNumContainedTypes() == ChildTypeIDs.size() &&
@@ -1391,6 +1391,7 @@ unsigned BitcodeReader::getVirtualTypeID(Type *Ty,
     }
   }
 #endif
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   unsigned TypeID = TypeList.size();
   TypeList.push_back(Ty);

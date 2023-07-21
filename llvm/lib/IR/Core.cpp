@@ -797,7 +797,11 @@ LLVMTypeRef LLVMPointerType(LLVMTypeRef ElementType, unsigned AddressSpace) {
 }
 
 LLVMBool LLVMPointerTypeIsOpaque(LLVMTypeRef Ty) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return true;
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   return unwrap(Ty)->isOpaquePointerTy();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 LLVMTypeRef LLVMVectorType(LLVMTypeRef ElementType, unsigned ElementCount) {
