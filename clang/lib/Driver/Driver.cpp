@@ -7993,9 +7993,8 @@ void Driver::BuildJobs(Compilation &C) const {
     // DiagnosticsEngine, so that extra values, position, and so on could be
     // printed.
     if (!A->isClaimed()) {
-      if (A->getOption().hasFlag(options::NoArgumentUnused)) {
+      if (A->getOption().hasFlag(options::NoArgumentUnused))
         continue;
-      }
 
       // Suppress the warning automatically if this is just a flag, and it is an
       // instance of an argument we already claimed.
