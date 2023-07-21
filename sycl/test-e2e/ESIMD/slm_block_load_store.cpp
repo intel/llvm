@@ -1,4 +1,4 @@
-//==-- local_accessor_block_load_store.cpp  - DPC++ ESIMD on-device test --==//
+//==-- slm_block_load_store.cpp  - DPC++ ESIMD on-device test --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,14 +8,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-//
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc
-// TODO: add support for local_accessors to esimd_emulator.
 // UNSUPPORTED: esimd_emulator
-// This test verifies usage of block_load/block_store for local_accessor.
+
+// This test verifies usage of slm_block_load() and slm_block_store().
 
 #include "esimd_test_utils.hpp"
 
@@ -34,7 +29,6 @@ template <typename T, int VL, int Align = 16> bool test(queue Q) {
   constexpr uint32_t LocalRange = 16;
   constexpr uint32_t GlobalRange = LocalRange * 2; // 2 groups.
 
-  // The test is going to use (LocalRange * VL) elements of T type.
   auto Dev = Q.get_device();
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   constexpr uint32_t UsedSLMSize = LocalRange * VL * sizeof(T) + Align;
@@ -51,29 +45,26 @@ template <typename T, int VL, int Align = 16> bool test(queue Q) {
 
   try {
     nd_range<1> NDRange{range<1>{GlobalRange}, range<1>{LocalRange}};
-    Q.submit([&](handler &CGH) {
-       auto LocalAcc = local_accessor<T, 1>(UsedSLMSize / sizeof(T), CGH);
+    Q.parallel_for(NDRange, [=](nd_item<1> Item) SYCL_ESIMD_KERNEL {
+       slm_init<UsedSLMSize>();
 
-       CGH.parallel_for(NDRange, [=](nd_item<1> Item) SYCL_ESIMD_KERNEL {
-         uint32_t GID = Item.get_global_id(0);
-         uint32_t LID = Item.get_local_id(0);
-         overaligned_tag<Align> AlignTag;
+       uint32_t GID = Item.get_global_id(0);
+       uint32_t LID = Item.get_local_id(0);
+       overaligned_tag<Align> AlignTag;
 
-         simd<int, VL> IntValues(GID * 100, 1);
-         simd<T, VL> ValuesToSLM = IntValues;
-         block_store(LocalAcc, Align + LID * VL * sizeof(T), ValuesToSLM,
-                     AlignTag);
+       simd<int, VL> IntValues(GID * 100, 1);
+       simd<T, VL> ValuesToSLM = IntValues;
+       slm_block_store(Align + LID * VL * sizeof(T), ValuesToSLM, AlignTag);
 
-         Item.barrier();
+       Item.barrier();
 
-         if (LID == 0) {
-           for (int LID = 0; LID < LocalRange; LID++) {
-             simd<T, VL> ValuesFromSLM = block_load<T, VL>(
-                 LocalAcc, Align + LID * VL * sizeof(T), AlignTag);
-             ValuesFromSLM.copy_to(Out + (GID + LID) * VL);
-           } // end for (int LID = 0; LID < LocalRange; LID++)
-         }   // end if (LID == 0)
-       });
+       if (LID == 0) {
+         for (int LID = 0; LID < LocalRange; LID++) {
+           simd<T, VL> ValuesFromSLM =
+               slm_block_load<T, VL>(Align + LID * VL * sizeof(T), AlignTag);
+           ValuesFromSLM.copy_to(Out + (GID + LID) * VL);
+         } // end for (int LID = 0; LID < LocalRange; LID++)
+       }   // end if (LID == 0)
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
@@ -82,6 +73,7 @@ template <typename T, int VL, int Align = 16> bool test(queue Q) {
   }
 
   bool Pass = true;
+  int NumPrintedErorrs = 0;
   for (int I = 0; I < GlobalRange * VL; I++) {
     int GID = I / VL;
     int LID = GID % LocalRange;
@@ -89,7 +81,7 @@ template <typename T, int VL, int Align = 16> bool test(queue Q) {
 
     T Expected = GID * 100 + VecElementIndex;
     T Computed = Out[I];
-    if (Computed != Expected) {
+    if (Computed != Expected && ++NumPrintedErorrs < 16) {
       std::cout << "Error: Out[" << I << "]:" << Computed << " != " << Expected
                 << ":[expected]" << std::endl;
       Pass = false;
@@ -106,6 +98,15 @@ int main() {
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   esimd_test::printTestLabel(Q, "Local memory size available", DeviceSLMSize);
 
+  // GPU driver had an error in handling of SLM aligned block_loads/stores,
+  // which has been fixed only in "1.3.26816", and in win/opencl version going
+  // _after_ 101.4575.
+  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
+                                 "26816", "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26816 or newer.\n";
+    return 0;
+  }
+
   constexpr size_t Align4 = 4;
   constexpr size_t Align8 = 8;
   constexpr size_t Align16 = 16;
@@ -114,15 +115,17 @@ int main() {
   Pass &= test<int, 16, Align16>(Q);
   Pass &= test<float, 16, Align16>(Q);
 
-  if (Dev.has(aspect::fp16) &&
-      esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                "26032", "101.4502"))
+  if (Dev.has(aspect::fp16))
     Pass &= test<sycl::half, 16, Align16>(Q);
+
+  // Check SLM load/store with alignment smaller than 16-bytes.
+  Pass &= test<int, 16, Align4>(Q);
+  Pass &= test<float, 16, Align8>(Q);
 
   // Check SLM load/store with vector size that is not power of 2
   // and/or is too big for 1 flat-load/store.
-  Pass &= test<int, 16, Align4>(Q);
-  Pass &= test<float, 16, Align8>(Q);
+  Pass &= test<int, 24, Align4>(Q);
+  Pass &= test<float, 80, Align8>(Q);
 
   std::cout << "Test result: " << (Pass ? "Pass" : "Fail") << std::endl;
   return Pass ? 0 : 1;
