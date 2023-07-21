@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include "sycl/half_type.hpp"
-#include <sycl/detail/defines.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/half_type.hpp>
 
