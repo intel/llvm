@@ -49,5 +49,5 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
 }
 
 } // namespace detail::pi
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

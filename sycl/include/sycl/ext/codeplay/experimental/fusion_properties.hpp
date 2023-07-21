@@ -98,5 +98,5 @@ struct is_property_of<
     ext::codeplay::experimental::property::queue::enable_fusion, queue>
     : std::true_type {};
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

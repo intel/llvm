@@ -266,5 +266,5 @@ template <int Dims> nd_item<Dims> this_nd_item() {
 #endif
 }
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

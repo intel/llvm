@@ -29,5 +29,5 @@ void memUnmapHelper(const PluginPtr &Plugin, pi_queue command_queue,
                     pi_uint32 num_events_in_wait_list,
                     const pi_event *event_wait_list, pi_event *event);
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

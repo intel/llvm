@@ -95,5 +95,5 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
   return {static_cast<int>(Err), sycl_category()};
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

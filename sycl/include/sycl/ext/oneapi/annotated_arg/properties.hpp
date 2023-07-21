@@ -411,5 +411,5 @@ template <typename... Args> struct checkValidFPGAPropertySet {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

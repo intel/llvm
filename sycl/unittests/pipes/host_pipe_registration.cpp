@@ -35,7 +35,7 @@ template <size_t KernelSize> struct KernelInfo<TestKernel<KernelSize>> {
 };
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 using namespace sycl;

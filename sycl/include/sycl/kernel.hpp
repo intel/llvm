@@ -181,7 +181,7 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 };
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

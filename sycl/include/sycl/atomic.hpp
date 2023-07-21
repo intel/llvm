@@ -68,7 +68,7 @@ template <> struct GetSpirvMemoryScope<access::address_space::local_space> {
 };
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -83,7 +83,7 @@ inline std::memory_order getStdMemoryOrder(__spv::MemorySemanticsMask::Flag) {
   return std::memory_order_relaxed;
 }
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 // std::atomic version of atomic SPIR-V builtins
@@ -401,7 +401,7 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
   return Object.fetch_max(Operand, MemoryOrder);
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_STATIC_ASSERT_NOT_FLOAT

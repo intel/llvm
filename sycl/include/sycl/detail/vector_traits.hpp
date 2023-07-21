@@ -26,5 +26,5 @@ template <typename T, int N>
 struct vector_alignment
     : vector_alignment_impl<std::remove_cv_t<std::remove_reference_t<T>>, N> {};
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

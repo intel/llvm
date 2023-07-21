@@ -479,5 +479,5 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
 }
 
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -654,6 +654,6 @@ void privateStaticSort(GroupT group, T *keys, U *values, std::byte *scratch,
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 #endif

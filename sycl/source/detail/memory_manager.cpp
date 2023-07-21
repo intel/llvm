@@ -1433,5 +1433,5 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

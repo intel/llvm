@@ -18,5 +18,5 @@ __SYCL_EXPORT void add(const void *DeviceGlobalPtr, const char *UniqueId) {
 }
 
 } // namespace detail::device_global_map
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -1004,7 +1004,7 @@ constexpr complex<float> operator""if(unsigned long long __im) {
 } // namespace oneapi
 } // namespace ext
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #undef _SYCL_EXT_CPLX_INLINE_VISIBILITY

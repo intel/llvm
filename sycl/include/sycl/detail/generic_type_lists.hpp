@@ -23,7 +23,7 @@ namespace sycl {
 inline namespace _V1 {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace sycl {
@@ -591,5 +591,5 @@ using nonlocal_address_space_list =
                        access::address_space::ext_intel_global_host_space>;
 } // namespace gvl
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

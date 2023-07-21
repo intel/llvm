@@ -228,5 +228,5 @@ private:
 };
 } // namespace ext::oneapi
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

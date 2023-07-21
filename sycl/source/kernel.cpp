@@ -96,5 +96,5 @@ pi_native_handle kernel::getNative() const { return impl->getNative(); }
 
 pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

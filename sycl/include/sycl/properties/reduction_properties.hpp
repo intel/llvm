@@ -20,5 +20,5 @@ class initialize_to_identity
 } // namespace property::reduction
 
 // Reduction property trait specializations
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

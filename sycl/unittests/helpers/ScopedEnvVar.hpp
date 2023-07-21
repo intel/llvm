@@ -64,5 +64,5 @@ private:
   std::function<void()> MConfigReset;
 };
 } // namespace unittest
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

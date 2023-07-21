@@ -52,5 +52,5 @@ interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
   return MQueue->getNative(NativeHandleDesc);
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

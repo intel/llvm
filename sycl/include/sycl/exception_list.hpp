@@ -71,5 +71,5 @@ inline void defaultAsyncHandler(exception_list Exceptions) {
   std::terminate();
 }
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

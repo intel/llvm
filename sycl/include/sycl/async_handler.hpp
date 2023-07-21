@@ -19,5 +19,5 @@ inline namespace _V1 {
 class exception_list;
 
 using async_handler = std::function<void(sycl::exception_list)>;
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

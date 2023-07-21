@@ -24,5 +24,5 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl);
 
 } // namespace usm
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

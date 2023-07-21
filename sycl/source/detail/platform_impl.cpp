@@ -665,5 +665,5 @@ platform_impl::getDeviceImplHelper(sycl::detail::pi::PiDevice PiDevice) {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

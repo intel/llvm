@@ -42,5 +42,5 @@ template <class T, int N>
 using simd_mask =
     std::experimental::simd_mask<T, simd_abi::native_fixed_size<T, N>>;
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

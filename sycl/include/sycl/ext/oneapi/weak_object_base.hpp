@@ -77,5 +77,5 @@ protected:
   detail::getSyclWeakObjImpl(const weak_object_base<Obj> &WeakObj);
 };
 } // namespace ext::oneapi::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -30,5 +30,5 @@ void exception_list::PushBack(value_type &&Value) {
 
 void exception_list::Clear() noexcept { MList.clear(); }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

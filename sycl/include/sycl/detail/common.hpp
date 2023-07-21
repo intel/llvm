@@ -147,7 +147,7 @@ private:
 };
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace sycl {
@@ -162,7 +162,7 @@ inline std::string codeToString(pi_int32 code) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -459,5 +459,5 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

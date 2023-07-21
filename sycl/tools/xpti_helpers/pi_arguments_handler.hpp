@@ -105,5 +105,5 @@ private:
 #undef _PI_API
 };
 } // namespace xpti_helpers
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

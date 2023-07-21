@@ -20,5 +20,5 @@ template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
   return get_spec_constant_symbolic_ID_impl<SpecName>();
 }
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -324,7 +324,7 @@ public:
       : device_error(make_error_code(errc::feature_not_supported), Msg, Err) {}
 };
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

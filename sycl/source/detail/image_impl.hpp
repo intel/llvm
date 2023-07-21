@@ -350,5 +350,5 @@ private:
   std::optional<image_sampler> MSampler = std::nullopt;
 };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

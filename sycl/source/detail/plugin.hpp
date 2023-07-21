@@ -310,5 +310,5 @@ private:
 using PluginPtr = std::shared_ptr<plugin>;
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

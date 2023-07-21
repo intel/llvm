@@ -52,7 +52,7 @@ struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
 };
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 template <typename T>

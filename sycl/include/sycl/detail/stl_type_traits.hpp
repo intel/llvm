@@ -51,5 +51,5 @@ struct is_output_iterator<T, output_iterator_requirements<T>> {
 };
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

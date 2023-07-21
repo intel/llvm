@@ -299,5 +299,5 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

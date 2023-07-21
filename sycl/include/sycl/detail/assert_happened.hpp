@@ -40,5 +40,5 @@ struct AssertHappened {
   uint64_t LID2 = 0;
 };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

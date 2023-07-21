@@ -189,7 +189,7 @@ namespace detail {
 // Arbitrary precision integer type
 template <int Bits> using ap_int = _BitInt(Bits);
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 #endif // __SYCL_DEVICE_ONLY__
 

@@ -132,6 +132,6 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 }
 
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 #endif

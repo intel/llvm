@@ -31,5 +31,5 @@ inline void atomic_fence(memory_order order, memory_scope scope) {
 #endif
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

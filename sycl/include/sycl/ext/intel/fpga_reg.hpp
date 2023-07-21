@@ -42,7 +42,7 @@ template <typename _T>
 
 } // namespace ext::intel
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 // Keep it consistent with FPGA attributes like intelfpga::memory()

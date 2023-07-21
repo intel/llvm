@@ -408,5 +408,5 @@ template <typename BinaryOperation, typename AccumulatorT>
 inline constexpr AccumulatorT known_identity_v =
     sycl::known_identity<BinaryOperation, AccumulatorT>::value;
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

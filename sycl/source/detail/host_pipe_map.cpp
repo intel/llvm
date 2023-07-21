@@ -20,5 +20,5 @@ __SYCL_EXPORT void add(const void *HostPipePtr, const char *UniqueId) {
 
 } // namespace host_pipe_map
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -31,5 +31,5 @@ private:
   std::shared_ptr<detail::queue_impl> MQueue;
 };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -30,5 +30,5 @@ typename Param::return_type get_context_info(sycl::detail::pi::PiContext Ctx,
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

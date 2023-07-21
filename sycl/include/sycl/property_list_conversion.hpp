@@ -20,5 +20,5 @@ inline property_list::operator ext::oneapi::accessor_property_list<T...>() {
   return ext::oneapi::accessor_property_list<T...>(MDataLessProps,
                                                    MPropsWithData);
 }
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -272,5 +272,5 @@ private:
 }; // class device_impl
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

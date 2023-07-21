@@ -2885,5 +2885,5 @@ auto reduction(span<T, Extent> Span, const T &Identity,
   return detail::make_reduction<BinaryOperation, 1, Extent, true>(
       Span.data(), Identity, Combiner, InitializeToIdentity);
 }
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

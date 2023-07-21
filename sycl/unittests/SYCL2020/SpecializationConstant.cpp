@@ -34,7 +34,7 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
   return "SC1";
 }
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateImageWithSpecConsts() {

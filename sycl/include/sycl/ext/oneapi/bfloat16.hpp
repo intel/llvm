@@ -213,5 +213,5 @@ inline bfloat16 bitsToBfloat16(const Bfloat16StorageT Value) {
 
 } // namespace ext::oneapi
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

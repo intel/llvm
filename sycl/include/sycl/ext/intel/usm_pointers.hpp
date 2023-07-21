@@ -60,5 +60,5 @@ using decorated_host_ptr =
 
 } // namespace intel
 } // namespace ext
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

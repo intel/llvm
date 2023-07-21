@@ -333,5 +333,5 @@ masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
 
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

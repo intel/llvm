@@ -145,5 +145,5 @@ size_t LeavesCollection::eraseHostAccessorCommand(EmptyCommand *Cmd) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

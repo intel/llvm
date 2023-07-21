@@ -311,5 +311,5 @@ sycl::half habs(sycl::half x) { return sycl::fabs(x); }
 
 sycl::half2 habs2(sycl::half2 x) { return sycl::fabs(x); }
 } // namespace ext::intel::math
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

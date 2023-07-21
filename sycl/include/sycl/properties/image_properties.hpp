@@ -82,5 +82,5 @@ struct is_property_of<property::image::context_bound,
                       unsampled_image<Dimensions, AllocatorT>>
     : std::true_type {};
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

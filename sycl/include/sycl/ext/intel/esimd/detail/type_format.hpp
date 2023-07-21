@@ -84,7 +84,7 @@ using compute_format_type_2d_t =
     typename compute_format_type_2d<Ty, EltTy, Height, Width>::type;
 
 } // namespace ext::intel::esimd::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

@@ -56,5 +56,5 @@ using defaultLatencyConstraintProperty =
     latency_constraint_key::value_t<0, latency_control_type::none, 0>;
 
 } // namespace ext::intel::experimental::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

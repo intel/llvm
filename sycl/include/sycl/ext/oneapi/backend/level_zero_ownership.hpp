@@ -21,5 +21,5 @@ namespace ext::oneapi::level_zero {
 enum class ownership { transfer, keep };
 
 } // namespace ext::oneapi::level_zero
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

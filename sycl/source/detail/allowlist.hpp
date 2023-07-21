@@ -32,5 +32,5 @@ void applyAllowList(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
                     const PluginPtr &Plugin);
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -68,7 +68,7 @@ struct CmpCStr {
 using SerializedObj = std::vector<unsigned char>;
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #endif //__SYCL_DEVICE_ONLY

@@ -17,5 +17,5 @@ class AssertInfoCopier;
 
 } // namespace __sycl_service_kernel__
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

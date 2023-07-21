@@ -226,5 +226,5 @@ public:
 /// @} sycl_esimd_core_vectors
 
 } // namespace ext::intel::esimd
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -30,5 +30,5 @@ template <typename propertyT, typename syclObjectT>
 inline constexpr bool is_property_of_v =
     is_property_of<propertyT, syclObjectT>::value;
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

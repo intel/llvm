@@ -224,7 +224,7 @@ ESIMD_MATH_INTRINSIC_IMPL(float, cos)
 ESIMD_MATH_INTRINSIC_IMPL(float, exp)
 ESIMD_MATH_INTRINSIC_IMPL(float, log)
 } // namespace ext::intel::esimd::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #undef __ESIMD_SIMT_BEGIN

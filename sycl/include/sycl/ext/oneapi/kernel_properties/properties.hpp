@@ -183,7 +183,7 @@ struct HasKernelPropertiesGetMethod<T,
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #ifdef __SYCL_DEVICE_ONLY__

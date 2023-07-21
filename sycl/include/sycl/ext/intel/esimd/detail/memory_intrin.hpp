@@ -83,7 +83,7 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 }
 
 } // namespace ext::intel::esimd::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 // flat_read does flat-address gather

@@ -1822,5 +1822,5 @@ get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

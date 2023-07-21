@@ -3182,5 +3182,5 @@ void KernelFusionCommand::printDot(std::ostream &Stream) const {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

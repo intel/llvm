@@ -247,5 +247,5 @@ namespace __SYCL2020_DEPRECATED(
     "use 'ext::intel::experimental' instead") INTEL {
 using namespace ext::intel::experimental;
 }
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

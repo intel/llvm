@@ -44,5 +44,5 @@ typename Param::return_type get_event_info(sycl::detail::pi::PiEvent Event,
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

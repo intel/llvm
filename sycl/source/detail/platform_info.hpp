@@ -89,5 +89,5 @@ get_platform_info_host<info::platform::extensions>() {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

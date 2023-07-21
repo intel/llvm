@@ -65,5 +65,5 @@ T make(const context &Context,
   return make_queue(Context, detail::pi::cast<pi_native_handle>(Interop));
 }
 } // namespace opencl
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -3208,5 +3208,5 @@ private:
   // Set value of the gpu cache configuration for the kernel.
   void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
 };
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

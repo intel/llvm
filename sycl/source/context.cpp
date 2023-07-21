@@ -144,5 +144,5 @@ context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
 pi_native_handle context::getNative() const { return impl->getNative(); }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -440,5 +440,5 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

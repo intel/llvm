@@ -179,7 +179,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
 } // namespace native
 
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_CONSTANT_AS

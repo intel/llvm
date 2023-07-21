@@ -28,5 +28,5 @@ __SYCL_EXPORT void free(void *Ptr, const context &Ctxt,
                         const code_location &CL);
 
 } // namespace detail::usm
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

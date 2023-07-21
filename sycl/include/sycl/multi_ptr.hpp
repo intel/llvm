@@ -1607,5 +1607,5 @@ bool operator<=(std::nullptr_t,
   return true;
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

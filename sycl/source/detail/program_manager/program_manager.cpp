@@ -2552,7 +2552,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {

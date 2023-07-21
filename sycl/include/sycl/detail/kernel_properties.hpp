@@ -56,5 +56,5 @@ struct PropertyMetaInfo<sycl::detail::register_alloc_mode_key::value_t<Mode>> {
 };
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

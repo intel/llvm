@@ -65,7 +65,7 @@ log(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #undef __NOEXC

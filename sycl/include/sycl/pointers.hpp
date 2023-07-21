@@ -95,5 +95,5 @@ using decorated_private_ptr =
     multi_ptr<ElementType, access::address_space::private_space,
               access::decorated::yes>;
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

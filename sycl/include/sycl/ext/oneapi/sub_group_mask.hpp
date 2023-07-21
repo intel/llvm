@@ -317,5 +317,5 @@ group_ballot(Group g, bool predicate) {
 #undef BITS_TYPE
 
 } // namespace ext::oneapi
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

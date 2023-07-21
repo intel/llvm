@@ -86,7 +86,7 @@ __ESIMD_API uint32_t localAccessorToOffset(local_accessor<T, Dimensions> acc) {
 }
 
 } // namespace ext::intel::esimd::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

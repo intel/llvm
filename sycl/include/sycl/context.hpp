@@ -238,7 +238,7 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

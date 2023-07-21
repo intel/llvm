@@ -343,5 +343,5 @@ auto dpasw(__ESIMD_NS::simd<BT, BN> B, __ESIMD_NS::simd<AT, AN> A) {
 /// @} sycl_esimd_xmx_systolic_array_api
 
 } // namespace ext::intel::esimd::xmx
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

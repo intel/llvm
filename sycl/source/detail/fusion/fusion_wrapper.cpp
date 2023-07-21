@@ -42,5 +42,5 @@ event fusion_wrapper::complete_fusion(const property_list &PropList) {
 }
 
 } // namespace ext::codeplay::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

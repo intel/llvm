@@ -119,5 +119,5 @@ static T calc(Group g, typename GroupOpTag<T>::type, T x,
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -40,5 +40,5 @@ template <>
 struct is_property<ext::intel::experimental::property::usm::buffer_location>
     : std::true_type {};
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

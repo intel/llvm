@@ -29,5 +29,5 @@ DecorT *getDecorated(multi_ptr<T, Space, IsDecorated> ptr) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -31,5 +31,5 @@ __SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
 /// \param ctxt is the sycl context the ptr was allocated in
 __SYCL_EXPORT device get_pointer_device(const void *ptr, const context &ctxt);
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

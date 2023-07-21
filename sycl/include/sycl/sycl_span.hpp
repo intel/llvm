@@ -632,7 +632,7 @@ span(_Container &) -> span<typename _Container::value_type>;
 template <class _Container>
 span(const _Container &) -> span<const typename _Container::value_type>;
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #endif // _SYCL_SPAN

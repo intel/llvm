@@ -45,5 +45,5 @@ private:
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
 }
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

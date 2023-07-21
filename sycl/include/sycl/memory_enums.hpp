@@ -101,5 +101,5 @@ static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {
 #endif // __SYCL_DEVICE_ONLY__
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

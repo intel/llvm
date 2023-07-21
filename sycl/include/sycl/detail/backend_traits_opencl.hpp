@@ -153,5 +153,5 @@ inline PiDevice
     cast(cl_device_id) = delete; // Use piextCreateDeviceWithNativeHandle
 } // namespace pi
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

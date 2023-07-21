@@ -125,5 +125,5 @@ struct owner_less<host_sampled_image_accessor<DataT, Dimensions>>
           host_sampled_image_accessor<DataT, Dimensions>> {};
 
 } // namespace ext::oneapi
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

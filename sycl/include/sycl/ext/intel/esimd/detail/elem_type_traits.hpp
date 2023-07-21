@@ -607,7 +607,7 @@ static inline constexpr bool is_generic_floating_point_v =
     element_type_traits<T>::is_floating_point;
 
 } // namespace ext::intel::esimd::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

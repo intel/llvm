@@ -259,5 +259,5 @@ bool device::ext_oneapi_architecture_is(
   return impl->extOneapiArchitectureIs(arch);
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

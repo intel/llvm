@@ -178,5 +178,5 @@ void printOuts(Arg0 arg0, Args... args) {
 
 } // namespace pi
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

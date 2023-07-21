@@ -24,5 +24,5 @@ void fpga_loop_fuse_independent [[intel::loop_fuse_independent(_N)]] (_F f) {
 
 } // namespace intel
 } // namespace ext
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

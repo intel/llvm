@@ -61,5 +61,5 @@ bool sampler::operator!=(const sampler &rhs) const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

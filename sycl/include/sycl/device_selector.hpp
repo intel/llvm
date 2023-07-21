@@ -169,5 +169,5 @@ detail::DSelectorInvocableType aspect_selector() {
   return aspect_selector({AspectList...}, {});
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

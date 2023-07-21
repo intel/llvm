@@ -63,5 +63,5 @@ struct IsRuntimeProperty<intel::experimental::cache_config_key>
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

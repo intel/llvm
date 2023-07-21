@@ -35,5 +35,5 @@ enum class dpas_argument_type {
 };
 
 } // namespace ext::intel::esimd::xmx
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

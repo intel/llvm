@@ -1183,6 +1183,6 @@ __SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOrKHR)
 
 } // namespace spirv
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 #endif //  __SYCL_DEVICE_ONLY__

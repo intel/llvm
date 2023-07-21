@@ -540,5 +540,5 @@ uint64_t device_impl::getCurrentDeviceTime() {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

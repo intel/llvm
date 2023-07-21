@@ -184,5 +184,5 @@ float4 getBorderColor(const image_channel_order ImgChannelOrder) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

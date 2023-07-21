@@ -69,7 +69,7 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
   }
 };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateDefaultImage() {

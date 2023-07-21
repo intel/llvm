@@ -81,5 +81,5 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fma(T x, T y, T z) {
 }
 
 } // namespace ext::oneapi
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

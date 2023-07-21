@@ -437,5 +437,5 @@ void handleErrorOrWarning(pi_result Error, pi_kernel_group_info Descriptor,
 }
 } // namespace detail::kernel_get_group_info
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

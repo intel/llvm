@@ -250,5 +250,5 @@ struct is_device_copyable<
     std::enable_if_t<!std::is_trivially_copyable_v<
         ext::oneapi::experimental::properties<PropertiesT>>>>
     : is_device_copyable<PropertiesT> {};
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

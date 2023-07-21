@@ -44,7 +44,7 @@ template <> struct KernelInfo<KernelE> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelE"; }
 };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace {

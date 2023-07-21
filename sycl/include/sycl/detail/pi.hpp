@@ -298,7 +298,7 @@ template <class To, class FromE> To cast(std::vector<FromE> Values) {
 } // namespace pi
 } // namespace detail
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #undef _PI_API

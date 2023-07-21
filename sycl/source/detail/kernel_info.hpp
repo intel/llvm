@@ -212,5 +212,5 @@ inline uint32_t get_kernel_device_specific_info_host<
                              PI_ERROR_INVALID_KERNEL);
 }
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -66,5 +66,5 @@ __ESIMD_API auto merge(simd_view<BaseT1, RegionT1> v1,
 /// @} sycl_esimd_misc
 
 } // namespace ext::intel::esimd
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -611,5 +611,5 @@ void executable_command_graph::update(
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

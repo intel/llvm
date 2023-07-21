@@ -95,5 +95,5 @@ context platform::ext_oneapi_get_default_context() const {
   return detail::createSyclObjFromImpl<context>(It->second);
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

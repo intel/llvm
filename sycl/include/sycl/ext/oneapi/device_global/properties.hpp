@@ -130,5 +130,5 @@ struct PropertyMetaInfo<implement_in_csr_key::value_t<Enable>> {
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

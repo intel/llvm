@@ -296,5 +296,5 @@ BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(trunc)
 #undef BFLOAT16_MATH_FP32_WRAPPERS
 #undef BFLOAT16_MATH_FP32_WRAPPERS_MARRAY
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

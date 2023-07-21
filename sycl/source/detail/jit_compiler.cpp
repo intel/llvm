@@ -1009,7 +1009,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION

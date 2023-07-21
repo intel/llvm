@@ -31,7 +31,7 @@ struct KernelInfo<BuildOptsTestKernel> : public unittest::MockKernelInfoBase {
 };
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 static pi_result redefinedProgramBuild(

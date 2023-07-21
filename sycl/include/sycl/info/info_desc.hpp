@@ -198,5 +198,5 @@ template <int Dimensions> struct max_work_groups;
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

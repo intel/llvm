@@ -297,5 +297,5 @@ enum class split_barrier_action : uint8_t {
 /// @} sycl_esimd_core
 
 } // namespace ext::intel::experimental::esimd
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

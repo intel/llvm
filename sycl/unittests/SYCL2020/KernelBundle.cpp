@@ -39,7 +39,7 @@ struct KernelInfo<TestKernelWithAspects> : public unittest::MockKernelInfoBase {
 };
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage

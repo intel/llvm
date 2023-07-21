@@ -1264,7 +1264,7 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
   return Out;
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 namespace std {
 template <> struct hash<sycl::stream> {

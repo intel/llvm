@@ -268,5 +268,5 @@ bool queue::ext_codeplay_supports_fusion() const {
       ext::codeplay::experimental::property::queue::enable_fusion>();
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

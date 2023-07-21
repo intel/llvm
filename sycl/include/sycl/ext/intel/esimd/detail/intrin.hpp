@@ -209,7 +209,7 @@ ESIMD_INLINE
 }
 
 } // namespace ext::intel::esimd::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 // vload

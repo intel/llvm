@@ -483,5 +483,5 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
 #undef __ESIMD_DEF_SIMD_VIEW_CMP_OP
 
 } // namespace ext::intel::esimd::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -76,5 +76,5 @@ int32_t dot_acc(vec<int8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
 
 } // namespace ext::oneapi
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

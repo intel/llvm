@@ -140,5 +140,5 @@ using find_twice_as_large_type_t =
     find_type_t<TypeList, is_type_size_double_of, T>;
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

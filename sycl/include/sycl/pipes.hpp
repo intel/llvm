@@ -14,5 +14,5 @@ namespace sycl {
 inline namespace _V1 {
 template <class name, class dataT, int32_t min_capacity = 0>
 using pipe = ext::intel::pipe<name, dataT, min_capacity>;
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

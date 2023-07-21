@@ -156,5 +156,5 @@ template <typename ParentGroup>
 struct is_group<ext::oneapi::experimental::ballot_group<ParentGroup>>
     : std::true_type {};
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

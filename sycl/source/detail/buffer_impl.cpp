@@ -93,5 +93,5 @@ buffer_impl::getNativeVector(backend BackendName) const {
   return Handles;
 }
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

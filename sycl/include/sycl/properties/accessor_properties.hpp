@@ -220,5 +220,5 @@ template <>
 struct IsCompileTimePropertyInstance<
     ext::oneapi::property::no_offset::instance<>> : std::true_type {};
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

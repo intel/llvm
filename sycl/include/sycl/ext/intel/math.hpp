@@ -230,5 +230,5 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> trunc(Tp x) {
 }
 
 } // namespace ext::intel::math
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

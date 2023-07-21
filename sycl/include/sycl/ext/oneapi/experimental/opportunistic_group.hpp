@@ -156,5 +156,5 @@ template <>
 struct is_group<ext::oneapi::experimental::opportunistic_group>
     : std::true_type {};
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

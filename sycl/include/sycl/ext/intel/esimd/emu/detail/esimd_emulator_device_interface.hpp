@@ -71,7 +71,7 @@ struct ESIMDEmuPluginOpaqueData {
 __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface();
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_EMU

@@ -34,5 +34,5 @@ public:
   void wait() { __spirv_GroupWaitEvents(__spv::Scope::Workgroup, 1, &m_Event); }
 };
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

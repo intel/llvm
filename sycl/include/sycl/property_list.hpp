@@ -67,5 +67,5 @@ private:
   friend class ext::oneapi::accessor_property_list;
 };
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

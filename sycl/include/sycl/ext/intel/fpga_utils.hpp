@@ -31,5 +31,5 @@ struct _GetValue<_Type, _T1, _T...> {
 };
 } // namespace ext::intel
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

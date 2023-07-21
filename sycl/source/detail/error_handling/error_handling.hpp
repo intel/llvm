@@ -35,5 +35,5 @@ void handleErrorOrWarning(pi_result, pi_kernel_group_info, const PluginPtr &);
 } // namespace kernel_get_group_info
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

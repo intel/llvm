@@ -28,7 +28,7 @@ inline namespace _V1 {
 namespace detail {
 class Command;
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 class MockCommand : public sycl::detail::Command {

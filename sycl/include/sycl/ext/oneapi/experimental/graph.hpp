@@ -283,5 +283,5 @@ template <>
 struct is_property_of<ext::oneapi::experimental::property::node::depends_on,
                       ext::oneapi::experimental::node> : std::true_type {};
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

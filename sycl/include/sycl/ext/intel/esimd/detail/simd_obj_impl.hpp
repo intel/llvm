@@ -929,5 +929,5 @@ template <>
 struct is_simd_flag_type<detail::dqword_element_aligned_tag> : std::true_type {
 };
 } // namespace ext::intel::esimd
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

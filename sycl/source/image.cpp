@@ -226,5 +226,5 @@ void image_plain::unsampledImageDestructorNotification(void *UserObj) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

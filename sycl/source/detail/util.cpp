@@ -16,5 +16,5 @@ namespace detail {
 Sync &Sync::getInstance() { return GlobalHandler::instance().getSync(); }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

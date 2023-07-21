@@ -322,5 +322,5 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

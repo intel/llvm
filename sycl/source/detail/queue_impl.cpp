@@ -582,5 +582,5 @@ bool queue_impl::ext_oneapi_empty() const {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

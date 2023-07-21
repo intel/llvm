@@ -710,5 +710,5 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
 
 } // namespace pi
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -377,5 +377,5 @@ template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
 #undef __OPENCL_CONSTANT_AS__
 #undef __OPENCL_PRIVATE_AS__
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

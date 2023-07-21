@@ -43,5 +43,5 @@ template <>
 struct is_property_of<ext::oneapi::cuda::property::context::use_primary_context,
                       context> : std::true_type {};
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

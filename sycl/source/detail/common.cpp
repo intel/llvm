@@ -91,5 +91,5 @@ std::vector<std::string> split_string(const std::string &str, char delimeter) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

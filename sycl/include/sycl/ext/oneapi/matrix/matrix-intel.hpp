@@ -519,5 +519,5 @@ joint_matrix_store(Group sg,
 } // namespace intel::experimental::matrix
 
 } // namespace ext
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

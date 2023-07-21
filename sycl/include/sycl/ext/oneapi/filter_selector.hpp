@@ -51,5 +51,5 @@ public:
 };
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 #endif // __SYCL_INTERNAL_API
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

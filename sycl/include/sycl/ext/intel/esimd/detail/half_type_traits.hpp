@@ -151,7 +151,7 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 }
 
 } // namespace ext::intel::esimd::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

@@ -211,5 +211,5 @@ private:
   std::vector<ReqToMem> MMemObjs;
 };
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

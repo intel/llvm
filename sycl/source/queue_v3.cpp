@@ -70,5 +70,5 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
             detail::getSyclObjImpl(SyclContext)->get_async_handler(),
             PropList) {}
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

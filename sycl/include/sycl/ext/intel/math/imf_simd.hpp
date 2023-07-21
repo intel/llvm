@@ -583,5 +583,5 @@ std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsadu4(Tp x,
   return __imf_vsadu4(x, y);
 }
 } // namespace ext::intel::math
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

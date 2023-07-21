@@ -61,5 +61,5 @@ enum class atomic_op : uint8_t {
 /// @} sycl_esimd_memory_lsc
 
 } // namespace ext::intel::esimd::native::lsc
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

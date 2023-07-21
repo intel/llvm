@@ -786,5 +786,5 @@ template <typename... Args> inline void check_vector_size() {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

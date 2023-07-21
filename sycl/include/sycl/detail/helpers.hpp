@@ -252,5 +252,5 @@ template <size_t count, class F> void loop(F &&f) {
 }
 } // namespace detail
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

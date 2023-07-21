@@ -196,7 +196,7 @@ auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
 #endif // __ESIMD_FORCE_STATELESS_MEM
 
 } // namespace ext::intel::esimd::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

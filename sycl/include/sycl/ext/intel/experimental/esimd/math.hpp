@@ -1765,5 +1765,5 @@ bfn(T src0, T src1, T src2) {
 /// @} sycl_esimd_logical
 
 } // namespace ext::intel::experimental::esimd
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

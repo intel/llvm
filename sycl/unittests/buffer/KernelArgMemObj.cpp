@@ -30,7 +30,7 @@ struct KernelInfo<TestKernelWithMemObj> : public unittest::MockKernelInfoBase {
   static constexpr uint32_t getKernelSize() { return 32; }
 };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateImage() {

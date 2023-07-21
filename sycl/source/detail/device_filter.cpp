@@ -407,5 +407,5 @@ bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

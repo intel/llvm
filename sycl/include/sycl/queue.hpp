@@ -2263,7 +2263,7 @@ private:
                                const std::vector<event> &DepEvents);
 };
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace std {
@@ -2367,7 +2367,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 #undef __SYCL_ASSERT_START
 } // namespace detail
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 #endif // __SYCL_USE_FALLBACK_ASSERT
 

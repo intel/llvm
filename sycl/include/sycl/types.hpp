@@ -2150,7 +2150,7 @@ __SYCL_RELLOGOP(&&)
 __SYCL_RELLOGOP(||)
 #undef __SYCL_RELLOGOP
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace sycl {
@@ -2435,7 +2435,7 @@ struct CheckDeviceCopyable<
 #endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_ALIGNED_VAR

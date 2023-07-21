@@ -125,5 +125,5 @@ void stream_impl::flush(const EventImplPtr &LeadEvent) {
 
 void stream_impl::flush() { flush(nullptr); }
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

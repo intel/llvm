@@ -50,5 +50,5 @@ std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

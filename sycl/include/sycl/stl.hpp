@@ -45,5 +45,5 @@ std::unique_ptr<T> make_unique_ptr(ArgsT &&...Args) {
   return std::unique_ptr<T>(new T(std::forward<ArgsT>(Args)...));
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

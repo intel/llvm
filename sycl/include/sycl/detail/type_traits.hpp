@@ -479,5 +479,5 @@ template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
 };
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

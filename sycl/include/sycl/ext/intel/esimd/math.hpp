@@ -1087,5 +1087,5 @@ ESIMD_INLINE ESIMD_NODEBUG T0 reduce(simd<T1, SZ> v, BinaryOperation op) {
 /// @} sycl_esimd_math
 
 } // namespace ext::intel::esimd
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

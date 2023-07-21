@@ -26,7 +26,7 @@ inline namespace _V1 {
 namespace detail::half_impl {
 class half;
 } // namespace detail::half_impl
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace sycl {
@@ -702,7 +702,7 @@ template <> struct dwordtype<unsigned int> {
 };
 
 } // namespace ext::intel::esimd::emu::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #endif // #ifndef __SYCL_DEVICE_ONLY__

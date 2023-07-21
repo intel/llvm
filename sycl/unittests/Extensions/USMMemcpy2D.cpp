@@ -122,7 +122,7 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
   }
 };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateMemopsImage() {

@@ -391,5 +391,5 @@ using computation_type_t =
 template <int N> using mask_type_t = detail::simd_mask_storage_t<N>;
 
 } // namespace ext::intel::esimd
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

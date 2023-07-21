@@ -1152,6 +1152,6 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const image_sampler &Smpl,
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 #endif

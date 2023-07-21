@@ -36,5 +36,5 @@ private:
   std::atomic_flag MLock = ATOMIC_FLAG_INIT;
 };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

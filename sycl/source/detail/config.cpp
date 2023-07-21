@@ -186,5 +186,5 @@ const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -21,7 +21,7 @@ template <typename T, int N> class vec;
 namespace detail::half_impl {
 class half;
 } // namespace detail::half_impl
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
@@ -156,7 +156,7 @@ __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
 #endif
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_MAKE_VECTOR_ALIAS

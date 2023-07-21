@@ -136,5 +136,5 @@ void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
 #endif
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

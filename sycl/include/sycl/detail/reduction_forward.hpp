@@ -65,5 +65,5 @@ template <typename T> struct IsReduction;
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

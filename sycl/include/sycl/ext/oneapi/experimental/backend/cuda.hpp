@@ -99,5 +99,5 @@ inline queue make_queue<backend::ext_oneapi_cuda>(
                             /*Backend*/ backend::ext_oneapi_cuda);
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

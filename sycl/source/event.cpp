@@ -111,5 +111,5 @@ std::vector<pi_native_handle> event::getNativeVector() const {
   return ReturnVector;
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -275,5 +275,5 @@ int OSUtil::makeDir(const char *Dir) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

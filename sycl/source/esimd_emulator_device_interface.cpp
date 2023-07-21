@@ -73,5 +73,5 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
   return Interface;
 }
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

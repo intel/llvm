@@ -375,5 +375,5 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 __attribute__((destructor(110))) static void syclUnload() { shutdown(); }
 #endif
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

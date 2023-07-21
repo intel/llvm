@@ -576,7 +576,7 @@ inline float cast_if_host_half(half_impl::half val) {
 
 } // namespace detail
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 // Partial specialization of some functions in namespace `std`

@@ -1115,7 +1115,7 @@ private:
   friend class sampled_image_accessor;
 };
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

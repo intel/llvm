@@ -606,5 +606,5 @@ void joint_matrix_mad_cuda(
 } // namespace detail
 } // namespace oneapi
 } // namespace ext
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

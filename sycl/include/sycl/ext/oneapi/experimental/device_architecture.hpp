@@ -524,5 +524,5 @@ constexpr static auto if_architecture_is(T fnTrue) {
 }
 
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -2489,5 +2489,5 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc,
 /// @endcond EXCLUDE
 
 } // namespace ext::intel::esimd
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

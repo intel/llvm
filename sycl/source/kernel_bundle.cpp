@@ -346,5 +346,5 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   return true;
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

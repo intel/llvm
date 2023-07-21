@@ -37,5 +37,5 @@ __SYCL_EXPORT void
 associateWithHandler(handler &, SampledImageAccessorBaseHost *, image_target);
 #endif
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

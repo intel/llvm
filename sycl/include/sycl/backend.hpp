@@ -363,5 +363,5 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
           false, State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

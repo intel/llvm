@@ -89,5 +89,5 @@ void math_dsp_control(Function f) {
 
 } // namespace intel
 } // namespace ext
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

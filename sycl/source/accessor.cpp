@@ -177,5 +177,5 @@ image_sampler SampledImageAccessorBaseHost::getSampler() const {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

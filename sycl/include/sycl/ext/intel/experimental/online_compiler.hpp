@@ -221,5 +221,5 @@ online_compiler<source_language::cm>::compile(const std::string &src) {
 }
 
 } // namespace ext::intel::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

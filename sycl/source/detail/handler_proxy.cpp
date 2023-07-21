@@ -30,5 +30,5 @@ void associateWithHandler(handler &CGH, SampledImageAccessorBaseHost *Acc,
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

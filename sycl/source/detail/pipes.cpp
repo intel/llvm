@@ -25,5 +25,5 @@ __SYCL_EXPORT std::string pipe_base::get_pipe_name(const void *HostPipePtr) {
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

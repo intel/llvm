@@ -102,5 +102,5 @@ struct is_property_of<ext::oneapi::property::buffer::use_pinned_host_memory,
                       buffer<T, Dimensions, AllocatorT, void>>
     : std::true_type {};
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

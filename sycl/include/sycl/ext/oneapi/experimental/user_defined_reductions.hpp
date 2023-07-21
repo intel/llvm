@@ -135,5 +135,5 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
 #endif
 }
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

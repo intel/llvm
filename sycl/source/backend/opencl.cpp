@@ -113,5 +113,5 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
   return ExtensionsString.find(Extension) != std::string::npos;
 }
 } // namespace opencl
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

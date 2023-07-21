@@ -120,5 +120,5 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

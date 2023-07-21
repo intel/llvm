@@ -37,5 +37,5 @@ group_barrier(Group G, memory_scope FenceScope = Group::fence_scope) {
 #endif
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

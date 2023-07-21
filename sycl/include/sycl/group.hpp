@@ -711,5 +711,5 @@ template <int Dims> group<Dims> this_group() {
 #endif
 }
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

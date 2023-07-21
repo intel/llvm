@@ -41,7 +41,7 @@ namespace detail {
 template <typename ImageType> struct sampled_opencl_image_type;
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #define __SYCL_INVOKE_SPIRV_CALL_ARG1(call)                                    \
@@ -306,7 +306,7 @@ __SYCL_IMAGETY_WRITE_2_DIM_IARRAY
 __SYCL_IMAGETY_DISCARD_WRITE_2_DIM_IARRAY
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_SAMPLED_AND_IMAGETY_DEFINE

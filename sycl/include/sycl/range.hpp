@@ -240,5 +240,5 @@ inline std::array<size_t, 3> rangeToArray(const range<1> &r) {
 }
 } // namespace detail
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

@@ -132,7 +132,7 @@ struct image_sampler {
   filtering_mode filtering;
 };
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

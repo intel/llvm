@@ -41,5 +41,5 @@ event fusion_wrapper_impl::complete_fusion(const property_list &PropList) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

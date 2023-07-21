@@ -25,5 +25,5 @@ enum class __SYCL_TYPE(aspect) aspect {
 #undef __SYCL_ASPECT_DEPRECATED
 #undef __SYCL_ASPECT
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

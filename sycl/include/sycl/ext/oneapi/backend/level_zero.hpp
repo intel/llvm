@@ -229,5 +229,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
 using namespace ext::oneapi::level_zero;
 }
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

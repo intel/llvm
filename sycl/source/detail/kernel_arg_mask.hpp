@@ -31,5 +31,5 @@ inline KernelArgMask createKernelArgMask(const ByteArray &Bytes) {
   return Result;
 }
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

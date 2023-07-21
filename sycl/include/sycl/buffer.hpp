@@ -840,7 +840,7 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
     -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

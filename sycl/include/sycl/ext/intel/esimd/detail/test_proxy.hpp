@@ -103,7 +103,7 @@ public:
 };
 
 } // namespace ext::intel::esimd::detail::test
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #endif // __ESIMD_ENABLE_TEST_PROXY

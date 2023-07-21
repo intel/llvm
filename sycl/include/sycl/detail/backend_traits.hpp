@@ -33,5 +33,5 @@ template <backend Backend> struct InteropFeatureSupportMap {
   static constexpr bool MakeImage = false;
 };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

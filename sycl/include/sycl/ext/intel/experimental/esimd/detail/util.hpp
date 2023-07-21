@@ -53,7 +53,7 @@ template <typename enumClass, enumClass... T>
 inline constexpr bool is_one_of_enum_v = is_one_of_enum<enumClass, T...>::value;
 
 } // namespace ext::intel::experimental::esimd::detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

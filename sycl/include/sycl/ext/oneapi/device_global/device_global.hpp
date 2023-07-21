@@ -216,7 +216,7 @@ public:
 };
 
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_HOST_NOT_SUPPORTED

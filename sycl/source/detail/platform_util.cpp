@@ -152,5 +152,5 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

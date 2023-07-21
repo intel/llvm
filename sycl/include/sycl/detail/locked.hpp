@@ -30,5 +30,5 @@ public:
   T &get() const { return m_Value.get(); }
 };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

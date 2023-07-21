@@ -90,5 +90,5 @@ private:
   std::shared_ptr<detail::fusion_wrapper_impl> MImpl;
 };
 } // namespace ext::codeplay::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

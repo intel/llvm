@@ -349,5 +349,5 @@ device filter_selector::select_device() const {
   return ext::oneapi::filter_selector::select_device();
 }
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

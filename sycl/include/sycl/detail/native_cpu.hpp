@@ -22,7 +22,7 @@ struct NativeCPUArgDesc {
 };
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 struct __nativecpu_state {
