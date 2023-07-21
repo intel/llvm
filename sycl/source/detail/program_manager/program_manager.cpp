@@ -377,22 +377,44 @@ static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
   return temp;
 }
 
-static void appendCompileOptionsForRegAllocMode(std::string &CompileOpts,
-                                                const RTDeviceBinaryImage &Img,
-                                                bool IsEsimdImage) {
-  pi_device_binary_property Prop = Img.getProperty("sycl-register-alloc-mode");
-  if (!Prop)
+static void
+appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
+                                         const RTDeviceBinaryImage &Img,
+                                         bool IsEsimdImage) {
+  // TODO: sycl-register-alloc-mode is deprecated and should be removed in the
+  // next ABI break.
+  pi_device_binary_property RegAllocModeProp =
+      Img.getProperty("sycl-register-alloc-mode");
+  pi_device_binary_property GRFSizeProp = Img.getProperty("sycl-grf-size");
+
+  if (!RegAllocModeProp && !GRFSizeProp)
     return;
-  uint32_t PropVal = DeviceBinaryProperty(Prop).asUint32();
-  if (PropVal == static_cast<uint32_t>(register_alloc_mode_enum::large)) {
+  // The mutual exclusivity of these properties should have been checked in
+  // sycl-post-link.
+  assert(!RegAllocModeProp || !GRFSizeProp);
+  bool IsLargeGRF = false;
+  bool IsAutoGRF = false;
+  if (RegAllocModeProp) {
+    uint32_t RegAllocModePropVal =
+        DeviceBinaryProperty(RegAllocModeProp).asUint32();
+    IsLargeGRF = RegAllocModePropVal ==
+                 static_cast<uint32_t>(register_alloc_mode_enum::large);
+    IsAutoGRF = RegAllocModePropVal ==
+                static_cast<uint32_t>(register_alloc_mode_enum::automatic);
+  } else {
+    assert(GRFSizeProp);
+    uint32_t GRFSizePropVal = DeviceBinaryProperty(GRFSizeProp).asUint32();
+    IsLargeGRF = GRFSizePropVal == 256;
+    IsAutoGRF = GRFSizePropVal == 0;
+  }
+  if (IsLargeGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.
     CompileOpts += IsEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
   // TODO: Support Auto GRF for ESIMD once vc supports it.
-  if (PropVal == static_cast<uint32_t>(register_alloc_mode_enum::automatic) &&
-      !IsEsimdImage) {
+  if (IsAutoGRF && !IsEsimdImage) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.
@@ -431,7 +453,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += " -disable-finalizer-msg";
   }
 
-  appendCompileOptionsForRegAllocMode(CompileOpts, Img, isEsimdImage);
+  appendCompileOptionsForGRFSizeProperties(CompileOpts, Img, isEsimdImage);
 
   const auto &PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
 
@@ -633,20 +655,34 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
 
   for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : ARange) {
     using namespace std::literals;
-    if ((*It)->Name != "aspects"sv)
-      continue;
-    ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
-    // 8 because we need to skip 64-bits of size of the byte array
-    auto *AIt = reinterpret_cast<const std::uint32_t *>(&Aspects[8]);
-    auto *AEnd =
-        reinterpret_cast<const std::uint32_t *>(&Aspects[0] + Aspects.size());
-    while (AIt != AEnd) {
-      auto Aspect = static_cast<aspect>(*AIt);
-      if (!Dev->has(Aspect))
+    if ((*It)->Name == "aspects"sv) {
+      ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
+      // 8 because we need to skip 64-bits of size of the byte array
+      Aspects.dropBytes(8);
+      while (!Aspects.empty()) {
+        auto Aspect = static_cast<aspect>(Aspects.consume<int>());
+        if (!Dev->has(Aspect))
+          throw sycl::exception(errc::kernel_not_supported,
+                                "Required aspect " + getAspectNameStr(Aspect) +
+                                    " is not supported on the device");
+      }
+    } else if ((*It)->Name == "reqd_sub_group_size"sv) {
+      auto ReqdSubGroupSize = DeviceBinaryProperty(*It).asUint32();
+      auto SupportedSubGroupSizes =
+          Device.get_info<info::device::sub_group_sizes>();
+
+      // !getUint32PropAsBool(Img, "isEsimdImage") is a WA for ESIMD,
+      // as ESIMD images have a reqd-sub-group-size of 1, but currently
+      // no backend currently includes 1 as a valid sub-group size.
+      // This can be removed if backends add 1 as a valid sub-group size.
+      if (!getUint32PropAsBool(Img, "isEsimdImage") &&
+          std::none_of(SupportedSubGroupSizes.cbegin(),
+                       SupportedSubGroupSizes.cend(),
+                       [=](auto s) { return s == ReqdSubGroupSize; }))
         throw sycl::exception(errc::kernel_not_supported,
-                              "Required aspect " + getAspectNameStr(Aspect) +
+                              "Sub-group size " +
+                                  std::to_string(ReqdSubGroupSize) +
                                   " is not supported on the device");
-      ++AIt;
     }
   }
 
@@ -2436,9 +2472,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
 
   auto AspectsPropIt = getPropIt("aspects");
   auto ReqdWGSizePropIt = getPropIt("reqd_work_group_size");
-
-  if (!AspectsPropIt && !ReqdWGSizePropIt)
-    return true;
+  auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
 
   // Checking if device supports defined aspects
   if (AspectsPropIt) {
@@ -2501,6 +2535,19 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
           return false;
     }
   }
+
+  // Check if device supports required sub-group size.
+  if (ReqdSubGroupSizePropIt) {
+    auto ReqdSubGroupSize =
+        DeviceBinaryProperty(*(ReqdSubGroupSizePropIt.value())).asUint32();
+    auto SupportedSubGroupSizes = Dev.get_info<info::device::sub_group_sizes>();
+    if (!getUint32PropAsBool(Img, "isEsimdImage") &&
+        std::none_of(SupportedSubGroupSizes.cbegin(),
+                     SupportedSubGroupSizes.cend(),
+                     [=](auto s) { return s == ReqdSubGroupSize; }))
+      return false;
+  }
+
   return true;
 }
 

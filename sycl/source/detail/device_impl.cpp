@@ -480,6 +480,15 @@ std::string device_impl::getDeviceName() const {
   return MDeviceName;
 }
 
+ext::oneapi::experimental::architecture device_impl::getDeviceArch() const {
+  std::call_once(MDeviceArchFlag, [this]() {
+    MDeviceArch =
+        get_info<ext::oneapi::experimental::info::device::architecture>();
+  });
+
+  return MDeviceArch;
+}
+
 // On first call this function queries for device timestamp
 // along with host synchronized timestamp and stores it in memeber varaible
 // MDeviceHostBaseTime. Subsequent calls to this function would just retrieve

@@ -131,6 +131,8 @@ template <typename PropertiesT> class properties {
                 "Properties in property list are not sorted.");
   static_assert(detail::SortedAllUnique<PropertiesT>::value,
                 "Duplicate properties in property list.");
+  static_assert(detail::NoConflictingProperties<PropertiesT>::value,
+                "Conflicting properties in property list.");
 
 public:
   template <typename... PropertyValueTs>

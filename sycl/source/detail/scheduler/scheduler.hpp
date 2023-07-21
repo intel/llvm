@@ -367,9 +367,16 @@ public:
   /// It's called by SYCL's queue.submit.
   ///
   /// \param CommandGroup is a unique_ptr to a command group to be added.
+  /// \param Queue Queue that is registering the command-group.
+  /// \param CommandBuffer Optional command buffer to enqueue to instead of
+  /// directly to the queue.
+  /// \param Dependencies Optional list of dependency
+  /// sync points when enqueuing to a command buffer.
   /// \return an event object to wait on for command group completion.
-  EventImplPtr addCG(std::unique_ptr<detail::CG> CommandGroup,
-                     const QueueImplPtr &Queue);
+  EventImplPtr
+  addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -526,13 +533,19 @@ protected:
     /// Registers \ref CG "command group" and adds it to the dependency graph.
     ///
     /// \sa queue::submit, Scheduler::addCG
+    /// \param CommandBuffer Optional command buffer to enqueue to instead of
+    /// directly to the queue.
+    /// \param Dependencies Optional list of dependency
+    /// sync points when enqueuing to a command buffer.
     ///
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    GraphBuildResult addCG(std::unique_ptr<detail::CG> CommandGroup,
-                           const QueueImplPtr &Queue,
-                           std::vector<Command *> &ToEnqueue);
+    GraphBuildResult addCG(
+        std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+        std::vector<Command *> &ToEnqueue,
+        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
@@ -869,21 +882,6 @@ protected:
   std::mutex MAuxiliaryResourcesMutex;
 
   QueueImplPtr DefaultHostQueue;
-
-  // This thread local flag is a workaround for a problem with managing
-  // auxiliary resources. We would like to release internal buffers used for
-  // reductions in a deferred manner, but marking them individually isn't an
-  // option since all auxiliary resources (buffers, host memory, USM) are passed
-  // to the library as type erased shared pointers. This flag makes it so that
-  // release of every memory object is deferred while it's set, and it should
-  // only be set during release of auxiliary resources.
-  // TODO Remove once ABI breaking changes are allowed.
-  friend class SYCLMemObjT;
-  static thread_local bool ForceDeferredMemObjRelease;
-  struct ForceDeferredReleaseWrapper {
-    ForceDeferredReleaseWrapper() { ForceDeferredMemObjRelease = true; };
-    ~ForceDeferredReleaseWrapper() { ForceDeferredMemObjRelease = false; };
-  };
 
   friend class Command;
   friend class DispatchHostTask;

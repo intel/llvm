@@ -411,6 +411,7 @@ enum NodeType {
   STRICT_FSQRT,
   STRICT_FPOW,
   STRICT_FPOWI,
+  STRICT_FLDEXP,
   STRICT_FSIN,
   STRICT_FCOS,
   STRICT_FEXP,
@@ -926,8 +927,10 @@ enum NodeType {
   FCBRT,
   FSIN,
   FCOS,
-  FPOWI,
   FPOW,
+  FPOWI,
+  /// FLDEXP - ldexp, inspired by libm (op0 * 2**op1).
+  FLDEXP,
   FLOG,
   FLOG2,
   FLOG10,
@@ -1315,6 +1318,10 @@ enum NodeType {
   /// FMIN/FMAX nodes can have flags, for NaN/NoNaN variants.
   VECREDUCE_FMAX,
   VECREDUCE_FMIN,
+  /// FMINIMUM/FMAXIMUM nodes propatate NaNs and signed zeroes using the
+  /// llvm.minimum and llvm.maximum semantics.
+  VECREDUCE_FMAXIMUM,
+  VECREDUCE_FMINIMUM,
   /// Integer reductions may have a result type larger than the vector element
   /// type. However, the reduction is performed using the vector element type
   /// and the value in the top bits is unspecified.

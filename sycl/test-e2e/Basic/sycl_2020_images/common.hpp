@@ -329,20 +329,18 @@ ApplyAddressingMode(CoordT<ImageType::Sampled, Dims> Coord,
   }
 }
 
-template <image_format Format> static constexpr size_t getMaxInt() {
-  using rep_elem_type = typename FormatTraits<Format>::rep_elem_type;
-  return static_cast<size_t>(std::numeric_limits<rep_elem_type>::max());
-}
-
 template <image_format Format>
 typename FormatTraits<Format>::pixel_type PickNewColor(size_t I,
                                                        size_t AccSize) {
+  using RepElemT = typename FormatTraits<Format>::rep_elem_type;
   using PixelType = typename FormatTraits<Format>::pixel_type;
+
   size_t Idx = I * 4;
 
   // Pick a new color. Make sure it isn't too big for the data type.
   PixelType NewColor{Idx, Idx + 1, Idx + 2, Idx + 3};
-  NewColor = sycl::min(NewColor, PixelType{getMaxInt<Format>()});
+  PixelType MaxPixelVal{std::numeric_limits<RepElemT>::max()};
+  NewColor = sycl::min(NewColor, MaxPixelVal);
   if constexpr (FormatTraits<Format>::Normalized)
     NewColor /= AccSize * 4;
   return NewColor;
@@ -395,7 +393,7 @@ float4 CalcLinearRead(typename FormatTraits<Format>::rep_elem_type *RefData,
   CoordT<ImageType::Sampled, Dims> AdjCoord = Coord;
   if constexpr (AddrMode == addressing_mode::repeat) {
     assert(Normalized);
-    AdjCoord -= floor(AdjCoord);
+    AdjCoord -= sycl::floor(AdjCoord);
     AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
   } else if constexpr (AddrMode == addressing_mode::mirrored_repeat) {
     assert(Normalized);

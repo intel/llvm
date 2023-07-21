@@ -545,7 +545,7 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
     if (Index >= IDs.size()) {
       // If it is a new specialization constant, we need to generate IDs for
       // scalar elements, starting with the second one.
-      assert(!isa_and_nonnull<UndefValue>(DefaultValue) &&
+      assert(!isa<UndefValue>(DefaultValue) &&
              "All scalar values should be defined");
       IDs.push_back({IDs.back().ID + 1, false});
     }
@@ -562,22 +562,26 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
     Elements.push_back(Def);
   };
   auto LoopIteration = [&](Type *Ty, unsigned LocalIndex) {
-    // Select corresponding element of the default value if it was provided
-    Constant *Def =
-        DefaultValue ? DefaultValue->getAggregateElement(LocalIndex) : nullptr;
-    if (isa_and_nonnull<UndefValue>(Def))
-      HandleUndef(Def);
-    else
-      Elements.push_back(
-          emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index, Def));
-  };
+    // Select corresponding element of the default value.
+    // There are cases when provided default value contains less elements than
+    // specialization constants: it could happen when a struct is extended with
+    // a padding to make its size aligned. In such cases, we simply initialize
+    // any "extra" elements with undef.
+    Constant *ElemDefaultValue = DefaultValue->getAggregateElement(LocalIndex);
+    if (!ElemDefaultValue)
+      ElemDefaultValue = UndefValue::get(Ty);
 
-  if (isa_and_nonnull<UndefValue>(DefaultValue)) {
     // If the default value is a composite and has the value 'undef', we should
     // not generate a bunch of __spirv_SpecConstant for its elements but
     // pass it into __spirv_SpecConstantComposite as is.
-    HandleUndef(DefaultValue);
-  } else if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
+    if (isa<UndefValue>(ElemDefaultValue))
+      HandleUndef(ElemDefaultValue);
+    else
+      Elements.push_back(emitSpecConstantRecursiveImpl(
+          Ty, InsertBefore, IDs, Index, ElemDefaultValue));
+  };
+
+  if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       LoopIteration(ArrTy->getElementType(), I);
     }
@@ -726,7 +730,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         unsigned CurrentOffset = Ins.first->second;
         if (IsNewSpecConstant) {
           unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
-          unsigned Align = M.getDataLayout().getABITypeAlignment(SCTy);
+          uint64_t Align = M.getDataLayout().getABITypeAlign(SCTy).value();
 
           // Ensure correct alignment
           if (CurrentOffset % Align != 0) {

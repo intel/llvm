@@ -28,10 +28,9 @@
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -336,14 +335,15 @@ void saveModuleIR(Module &M, StringRef OutFilename) {
   raw_fd_ostream Out{OutFilename, EC, sys::fs::OF_None};
   checkError(EC, "error opening the file '" + OutFilename + "'");
 
-  // TODO: Use the new PassManager instead?
-  legacy::PassManager PrintModule;
-
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  PassBuilder PB;
+  PB.registerModuleAnalyses(MAM);
   if (OutputAssembly)
-    PrintModule.add(createPrintModulePass(Out, ""));
+    MPM.addPass(PrintModulePass(Out));
   else if (Force || !CheckBitcodeOutputToConsole(Out))
-    PrintModule.add(createBitcodeWriterPass(Out));
-  PrintModule.run(M);
+    MPM.addPass(BitcodeWriterPass(Out));
+  MPM.run(M, MAM);
 }
 
 std::string saveModuleIR(Module &M, int I, StringRef Suff) {
@@ -366,8 +366,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
   {
-    std::map<StringRef, std::vector<uint32_t>> Requirements;
-    getSYCLDeviceRequirements(M, Requirements);
+    std::map<StringRef, llvm::util::PropertyValue> Requirements;
+    getSYCLDeviceRequirements(MD, Requirements);
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, Requirements);
   }
   if (MD.Props.SpecConstsMet) {
@@ -454,12 +454,12 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
   }
-
+  bool HasRegAllocMode = false;
   {
     StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
     uint32_t RegAllocModeVal;
 
-    bool HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
+    HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
       if (!F->hasFnAttribute(RegAllocModeAttr))
         return false;
       const auto &Attr = F->getFnAttribute(RegAllocModeAttr);
@@ -469,6 +469,25 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     if (HasRegAllocMode) {
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
           {RegAllocModeAttr, RegAllocModeVal});
+    }
+  }
+
+  {
+    StringRef GRFSizeAttr = "sycl-grf-size";
+    uint32_t GRFSizeVal;
+
+    bool HasGRFSize = llvm::any_of(MD.entries(), [&](const Function *F) {
+      if (!F->hasFnAttribute(GRFSizeAttr))
+        return false;
+      const auto &Attr = F->getFnAttribute(GRFSizeAttr);
+      GRFSizeVal = getAttributeAsInteger<uint32_t>(Attr);
+      return true;
+    });
+    if (HasGRFSize) {
+      if (HasRegAllocMode)
+        error("Unsupported use of both register_alloc_mode and "
+              "grf_size");
+      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({GRFSizeAttr, GRFSizeVal});
     }
   }
 
@@ -955,6 +974,7 @@ processInputModule(std::unique_ptr<Module> M) {
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
     SmallVector<module_split::ModuleDesc, 2> MMs =
         handleESIMD(std::move(MDesc), Modified, SplitOccurred);
+    assert(MMs.size() && "at least one module is expected after ESIMD split");
 
     if (IROutputOnly) {
       if (SplitOccurred) {

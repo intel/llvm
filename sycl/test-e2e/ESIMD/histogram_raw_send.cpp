@@ -11,8 +11,6 @@
 // UNSUPPORTED: ze_debug
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
-// RUN: %{build} -DNEW_API -o %t2.out
-// RUN: %{run} %t2.out
 
 // The test checks raw send functionality with atomic write implementation
 // on SKL. It does not work on DG1 due to send instruction incompatibility.
@@ -87,15 +85,9 @@ ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
   constexpr uint8_t numSrc1 = 0x1;
   constexpr uint8_t isEOT = 0;
   constexpr uint8_t isSendc = 0;
-#ifdef NEW_API
   experimental::esimd::raw_sends(oldDst, vAddr, src0, exDesc, desc, execSize,
                                  sfid, numSrc0, numSrc1, numDst, isEOT, isSendc,
                                  pred);
-#else
-  experimental::esimd::raw_sends_load(oldDst, vAddr, src0, exDesc, desc,
-                                      execSize, sfid, numSrc0, numSrc1, numDst,
-                                      isEOT, isSendc, pred);
-#endif
 }
 
 int main(int argc, char *argv[]) {

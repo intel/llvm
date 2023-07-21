@@ -10,7 +10,17 @@
 ; CHECK-SPIRV: ExtInstImport [[#EISId:]] "NonSemantic.Shader.DebugInfo.200"
 
 ; CHECK-SPIRV: String [[#LocalVarNameId:]] "A$1$upperbound"
-; CHECK-SPIRV: TypeInt [[#TyInt64Id:]] 64 0
+; CHECK-SPIRV-DAG: TypeInt [[#TyInt32Id:]] 32 0
+; CHECK-SPIRV-DAG: TypeInt [[#TyInt64Id:]] 64 0
+; CHECK-NOT: THIS LINE IS USED TO SEPARATE DAGs
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant15Id:]] 15{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant24Id:]] 24{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant25Id:]] 25{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant27Id:]] 27{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant33Id:]] 33{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant34Id:]] 34{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant67Id:]] 67{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant68Id:]] 68{{[[:space:]]}}
 ; CHECK-SPIRV-DAG: Constant [[#TyInt64Id]] [[#Constant1Id:]] 1 0
 ; CHECK-SPIRV-DAG: Constant [[#TyInt64Id]] [[#Constant1000Id:]] 1000 0
 ; CHECK-SPIRV: [[#DINoneId:]] [[#EISId]] DebugInfoNone
@@ -25,10 +35,22 @@
 
 ; CHECK-SPIRV: [[#EISId]] DebugTypeSubrange [[#Constant1000Id]] [[#Constant1Id]] [[#DINoneId]] [[#DINoneId]]
 
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Constant15Id]] [[#Constant15Id]] [[#Constant67Id]] [[#Constant68Id]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Constant27Id]] [[#Constant27Id]] [[#Constant24Id]] [[#Constant25Id]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Constant34Id]] [[#Constant34Id]] [[#Constant33Id]] [[#Constant34Id]]
+
+; CHECK-LLVM: ![[#Scope_A:]] = distinct !DISubprogram(name: "random_fill_sp.DIR.OMP.TARGET.8.split.split.split.split"
 ; CHECK-LLVM: [[#Subrange1:]] = !DISubrange(lowerBound: 1, upperBound: ![[#UpperBound:]])
 ; CHECK-LLVM: [[#UpperBound]] = !DILocalVariable(name: "A$1$upperbound"
+; CHECK-LLVM: !DILocation(line: 15, column: 67, scope: ![[#Scope_A]]
+; CHECK-LLVM: ![[#Scope_B:]] = distinct !DISubprogram(name: "random_fill_sp.DIR.OMP.TARGET.8.split.split.split.split"
 ; CHECK-LLVM: !DISubrange(lowerBound: !DIExpression(), upperBound: !DIExpression())
+; CHECK-LLVM: !DILocation(line: 15, column: 67, scope: ![[#Scope_B]]
+; CHECK-LLVM: ![[#Scope_C:]] = distinct !DISubprogram(name: "test_target_map_array_default_IP_test_array_map_no_map_type_.DIR.OMP.TARGET.340.split"
 ; CHECK-LLVM: !DISubrange(count: 1000, lowerBound: 1)
+; CHECK-LLVM: !DILocation(line: 27, column: 24, scope: ![[#Scope_C]]
+; CHECK-LLVM: ![[#Scope_D:]] = distinct !DISubprogram(name: "test"
+; CHECK-LLVM: !DILocation(line: 34, column: 33, scope: ![[#Scope_D]]
 
 ; ModuleID = 'DebugInfoSubrangeUpperBound.bc'
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024"
