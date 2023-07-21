@@ -231,7 +231,8 @@ INSTANTIATE_TEST_SUITE_P(
         UR_DEVICE_INFO_ASYNC_BARRIER,                          //
         UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT,                    //
         UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED,         //
-        UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP            //
+        UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP,           //
+        UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT                  //
         ),
     [](const ::testing::TestParamInfo<ur_device_info_t> &info) {
         std::stringstream ss;
