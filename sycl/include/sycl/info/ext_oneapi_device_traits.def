@@ -16,13 +16,16 @@ __SYCL_PARAM_TRAITS_SPEC(
 
 // Bindless images pitched allocation
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
-                         image_row_pitch_align, size_t,
+                         image_row_pitch_align, uint32_t,
                          PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_PITCH_ALIGN)
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
-                         max_image_linear_width, size_t,
+                         max_image_linear_row_pitch, uint32_t,
+                         PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH)
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
+                         max_image_linear_width, uint32_t,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH)
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
-                         max_image_linear_height, size_t,
+                         max_image_linear_height, uint32_t,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT)
 
 // Bindles images mipmaps

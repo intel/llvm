@@ -1822,7 +1822,7 @@ get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
 }
 
 template <>
-inline size_t get_device_info_host<
+inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::image_row_pitch_align>() {
   throw runtime_error("Obtaining image pitch alignment is not "
                       "supported on HOST device",
@@ -1830,7 +1830,15 @@ inline size_t get_device_info_host<
 }
 
 template <>
-inline size_t get_device_info_host<
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_row_pitch>() {
+  throw runtime_error("Obtaining max image linear pitch is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::max_image_linear_width>() {
   throw runtime_error("Obtaining max image linear width is not "
                       "supported on HOST device",
@@ -1838,7 +1846,7 @@ inline size_t get_device_info_host<
 }
 
 template <>
-inline size_t get_device_info_host<
+inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::max_image_linear_height>() {
   throw runtime_error("Obtaining max image linear height is not "
                       "supported on HOST device",
