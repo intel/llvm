@@ -568,6 +568,47 @@ struct get_device_info_impl<range<Dimensions>,
   }
 };
 
+#define ARCHES(X)                                                              \
+  X("5.0", oneapi_exp_arch::nvidia_gpu_sm_50)                                  \
+  X("5.2", oneapi_exp_arch::nvidia_gpu_sm_52)                                  \
+  X("5.3", oneapi_exp_arch::nvidia_gpu_sm_53)                                  \
+  X("6.0", oneapi_exp_arch::nvidia_gpu_sm_60)                                  \
+  X("6.1", oneapi_exp_arch::nvidia_gpu_sm_61)                                  \
+  X("6.2", oneapi_exp_arch::nvidia_gpu_sm_62)                                  \
+  X("7.0", oneapi_exp_arch::nvidia_gpu_sm_70)                                  \
+  X("7.2", oneapi_exp_arch::nvidia_gpu_sm_72)                                  \
+  X("7.5", oneapi_exp_arch::nvidia_gpu_sm_75)                                  \
+  X("8.0", oneapi_exp_arch::nvidia_gpu_sm_80)                                  \
+  X("8.6", oneapi_exp_arch::nvidia_gpu_sm_86)                                  \
+  X("8.7", oneapi_exp_arch::nvidia_gpu_sm_87)                                  \
+  X("8.9", oneapi_exp_arch::nvidia_gpu_sm_89)                                  \
+  X("9.0", oneapi_exp_arch::nvidia_gpu_sm_90)                                  \
+  X("gfx701", oneapi_exp_arch::amd_gpu_gfx701)                                 \
+  X("gfx702", oneapi_exp_arch::amd_gpu_gfx702)                                 \
+  X("gfx801", oneapi_exp_arch::amd_gpu_gfx801)                                 \
+  X("gfx802", oneapi_exp_arch::amd_gpu_gfx802)                                 \
+  X("gfx803", oneapi_exp_arch::amd_gpu_gfx803)                                 \
+  X("gfx805", oneapi_exp_arch::amd_gpu_gfx805)                                 \
+  X("gfx810", oneapi_exp_arch::amd_gpu_gfx810)                                 \
+  X("gfx900", oneapi_exp_arch::amd_gpu_gfx900)                                 \
+  X("gfx902", oneapi_exp_arch::amd_gpu_gfx902)                                 \
+  X("gfx904", oneapi_exp_arch::amd_gpu_gfx904)                                 \
+  X("gfx906", oneapi_exp_arch::amd_gpu_gfx906)                                 \
+  X("gfx908", oneapi_exp_arch::amd_gpu_gfx908)                                 \
+  X("gfx90a", oneapi_exp_arch::amd_gpu_gfx90a)                                 \
+  X("gfx1010", oneapi_exp_arch::amd_gpu_gfx1010)                               \
+  X("gfx1011", oneapi_exp_arch::amd_gpu_gfx1011)                               \
+  X("gfx1012", oneapi_exp_arch::amd_gpu_gfx1012)                               \
+  X("gfx1013", oneapi_exp_arch::amd_gpu_gfx1013)                               \
+  X("gfx1030", oneapi_exp_arch::amd_gpu_gfx1030)                               \
+  X("gfx1031", oneapi_exp_arch::amd_gpu_gfx1031)                               \
+  X("gfx1032", oneapi_exp_arch::amd_gpu_gfx1032)                               \
+  X("gfx1034", oneapi_exp_arch::amd_gpu_gfx1034)
+
+#define CMP(s, i)                                                              \
+  if (strcmp(s, arch) == 0)                                                    \
+    return i;
+
 template <>
 struct get_device_info_impl<
     ext::oneapi::experimental::architecture,
@@ -621,42 +662,13 @@ struct get_device_info_impl<
       return ReturnHelper(MapDeviceIpToArch, DeviceIp);
     } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
                                  backend::ext_oneapi_hip == CurrentBackend)) {
-      std::map<std::string, oneapi_exp_arch> MapVersionToArch = {
-          {"5.0", oneapi_exp_arch::nvidia_gpu_sm_50},
-          {"5.2", oneapi_exp_arch::nvidia_gpu_sm_52},
-          {"5.3", oneapi_exp_arch::nvidia_gpu_sm_53},
-          {"6.0", oneapi_exp_arch::nvidia_gpu_sm_60},
-          {"6.1", oneapi_exp_arch::nvidia_gpu_sm_61},
-          {"6.2", oneapi_exp_arch::nvidia_gpu_sm_62},
-          {"7.0", oneapi_exp_arch::nvidia_gpu_sm_70},
-          {"7.2", oneapi_exp_arch::nvidia_gpu_sm_72},
-          {"7.5", oneapi_exp_arch::nvidia_gpu_sm_75},
-          {"8.0", oneapi_exp_arch::nvidia_gpu_sm_80},
-          {"8.6", oneapi_exp_arch::nvidia_gpu_sm_86},
-          {"8.7", oneapi_exp_arch::nvidia_gpu_sm_87},
-          {"8.9", oneapi_exp_arch::nvidia_gpu_sm_89},
-          {"9.0", oneapi_exp_arch::nvidia_gpu_sm_90},
-          {"gfx701", oneapi_exp_arch::amd_gpu_gfx701},
-          {"gfx702", oneapi_exp_arch::amd_gpu_gfx702},
-          {"gfx801", oneapi_exp_arch::amd_gpu_gfx801},
-          {"gfx802", oneapi_exp_arch::amd_gpu_gfx802},
-          {"gfx803", oneapi_exp_arch::amd_gpu_gfx803},
-          {"gfx805", oneapi_exp_arch::amd_gpu_gfx805},
-          {"gfx810", oneapi_exp_arch::amd_gpu_gfx810},
-          {"gfx900", oneapi_exp_arch::amd_gpu_gfx900},
-          {"gfx902", oneapi_exp_arch::amd_gpu_gfx902},
-          {"gfx904", oneapi_exp_arch::amd_gpu_gfx904},
-          {"gfx906", oneapi_exp_arch::amd_gpu_gfx906},
-          {"gfx908", oneapi_exp_arch::amd_gpu_gfx908},
-          {"gfx90a", oneapi_exp_arch::amd_gpu_gfx90a},
-          {"gfx1010", oneapi_exp_arch::amd_gpu_gfx1010},
-          {"gfx1011", oneapi_exp_arch::amd_gpu_gfx1011},
-          {"gfx1012", oneapi_exp_arch::amd_gpu_gfx1012},
-          {"gfx1013", oneapi_exp_arch::amd_gpu_gfx1013},
-          {"gfx1030", oneapi_exp_arch::amd_gpu_gfx1030},
-          {"gfx1031", oneapi_exp_arch::amd_gpu_gfx1031},
-          {"gfx1032", oneapi_exp_arch::amd_gpu_gfx1032},
-          {"gfx1034", oneapi_exp_arch::amd_gpu_gfx1034}};
+      auto MapArchToDevice = [](const char *arch) {
+        ARCHES(CMP);
+        throw sycl::exception(
+            make_error_code(errc::runtime),
+            "The current device architecture is not supported by "
+            "sycl_ext_oneapi_device_architecture.");
+      };
       size_t resultSize = 0;
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(), PiInfoCode<info::device::version>::value, 0,
@@ -666,8 +678,7 @@ struct get_device_info_impl<
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
           resultSize, DeviceArch.get(), nullptr);
-
-      return ReturnHelper(MapVersionToArch, std::string(DeviceArch.get()));
+      return MapArchToDevice(DeviceArch.get());
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
       // TODO: add support of different CPU architectures to
       // sycl_ext_oneapi_device_architecture
