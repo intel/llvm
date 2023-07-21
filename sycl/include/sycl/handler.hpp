@@ -39,8 +39,6 @@
 #include <sycl/detail/native_cpu.hpp>
 #endif
 
-#include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
