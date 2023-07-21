@@ -1335,7 +1335,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
   void *HIPDevicePtr = const_cast<void *>(pMem);
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
-                                        1,
+                                        HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
                                         (hipDeviceptr_t)HIPDevicePtr));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 
