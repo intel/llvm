@@ -1,6 +1,8 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// UNSUPPORTED: hip
+// TODO reenable this test when -ffast-math works with cmath_test for SPIR-V
+// compilation
+// REQUIRES: cuda
 // RUN: %{build} -fno-builtin %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
