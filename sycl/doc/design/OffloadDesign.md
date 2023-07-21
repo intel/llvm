@@ -183,17 +183,16 @@ performed including all of optional device libraries, the static device
 libraries and the dependency information that was gathered above.  This link
 step is performed with `--only-needed` to streamline the final device binary.
 
-The device libraries that are linked in is provided by the driver.  The driver
-is responsible for letting the `clang-linker-wrapper` know what device libraries
-are required to be linked in as well as the location.
+A list of device libraries that need to linked in with user code is provided by
+the driver.  The driver is also responsible for letting the
+`clang-linker-wrapper` know the location of the device libraries.
 
 |            Option                    |   Expected Behavior   |
 |--------------------------------------|-----------------------|
 | `--sycl-device-libraries=<arg>`      | A comma separated list of device libraries that are linked during the device link. |
-| `--sycl-device-libraries-full=<arg>` | A comma separated list of device libraries that are linked during the first device link.  These libraries are required in full and should not be impacted by use of `--only-needed` |
-| `--device-library-location=<arg>`    | The location in which the device libraries reside to be used during compilation |
+| `--device-library-location=<arg>`    | The location in which the device libraries reside |
 
-*Table: Options to control device libraries*
+*Table: Options to pass device libraries to the clang-linker-wrapper*
 
 The device libraries are controlled via the `-fno-sycl-device-lib=arg` option
 where the driver determines based on this option which libraries to tell the
@@ -246,7 +245,6 @@ are given further below.
 |------------------------------|----------------------------------------------|
 | `--fpga-link-type=<arg>`     | Tells the link step to perform 'early' or 'image' processing to create archives for FPGA |
 | `--parallel-link-sycl=<arg>` | Provide the number of parallel jobs that will be used when processing split jobs |
-| `--no-sycl-device-lib=<arg>` | Provide the list of device libraries to restrict from linking during device link |
 
 *Table: Additional Options for clang-linker-wrapper*
 
