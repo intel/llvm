@@ -2505,13 +2505,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       else {
         IID = Intrinsic::ptr_annotation;
         auto *PtrTy = dyn_cast<PointerType>(Ty);
-        if (PtrTy &&
-            (PtrTy->isOpaque() ||
-             isa<IntegerType>(PtrTy->getNonOpaquePointerElementType())))
+        if (PtrTy) {
           RetTy = PtrTy;
-        // Whether a struct or a pointer to some other type,
-        // bitcast to i8*
-        else {
+        } else {
+          // If a struct - bitcast to i8*
           RetTy = Int8PtrTyPrivate;
           ValAsArg = Builder.CreateBitCast(Val, RetTy);
         }

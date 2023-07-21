@@ -493,31 +493,6 @@ bool SPIRVRegularizeLLVMBase::regularize() {
             II.setMetadata(MDName, nullptr);
           }
         }
-        // Add an additional bitcast in case address space cast also changes
-        // pointer element type.
-        if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(&II)) {
-          Type *DestTy = ASCast->getDestTy();
-          Type *SrcTy = ASCast->getSrcTy();
-          if (!II.getContext().supportsTypedPointers())
-            continue;
-          if (DestTy->getScalarType()->getNonOpaquePointerElementType() !=
-              SrcTy->getScalarType()->getNonOpaquePointerElementType()) {
-            Type *InterTy = PointerType::getWithSamePointeeType(
-                cast<PointerType>(DestTy->getScalarType()),
-                cast<PointerType>(SrcTy->getScalarType())
-                    ->getPointerAddressSpace());
-            if (DestTy->isVectorTy())
-              InterTy = VectorType::get(
-                  InterTy, cast<VectorType>(DestTy)->getElementCount());
-            BitCastInst *NewBCast = new BitCastInst(
-                ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
-            AddrSpaceCastInst *NewASCast =
-                new AddrSpaceCastInst(NewBCast, DestTy, /*NameStr=*/"", ASCast);
-            ToErase.push_back(ASCast);
-            ASCast->dropAllReferences();
-            ASCast->replaceAllUsesWith(NewASCast);
-          }
-        }
         if (auto Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
           // Transform:
           // %1 = cmpxchg i32* %ptr, i32 %comparator, i32 %0 seq_cst acquire
