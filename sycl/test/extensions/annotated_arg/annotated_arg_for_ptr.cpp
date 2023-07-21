@@ -10,6 +10,7 @@
 
 using namespace sycl;
 using namespace ext::oneapi::experimental;
+using namespace ext::intel::experimental;
 
 using annotated_arg_t1 =
     annotated_arg<int *, decltype(properties(awidth<32>, dwidth<32>))>;

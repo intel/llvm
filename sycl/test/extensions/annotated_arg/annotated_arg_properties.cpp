@@ -1,9 +1,11 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // expected-no-diagnostics
 
-#include <sycl/sycl.hpp>
+#include "sycl/sycl.hpp"
+#include <sycl/ext/intel/fpga_extensions.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
+using namespace sycl::ext::intel::experimental;
 
 static annotated_arg<int, decltype(properties())> AnnotatedArg1;
 static annotated_arg<int, decltype(properties(register_map))> AnnotatedArg2;
