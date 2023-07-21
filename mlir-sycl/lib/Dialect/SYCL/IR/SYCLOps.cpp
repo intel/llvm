@@ -577,11 +577,11 @@ LogicalResult SYCLHostHandlerSetNDRange::verify() {
 }
 
 LogicalResult
-SYCLHostLaunchKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
+SYCLHostScheduleKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
   return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
 }
 
-LogicalResult SYCLHostLaunchKernel::verify() {
+LogicalResult SYCLHostScheduleKernel::verify() {
   // TODO: verify that the given args match the kernel's signature.
   Value range = getRange();
   Value offset = getOffset();

@@ -575,8 +575,8 @@ func.func @set_nd_range_unexpected_offset(%handler: !llvm.ptr, %nd_range: !llvm.
 // -----
 
 func.func @f(%handler: !llvm.ptr) {
-  // expected-error @below {{'sycl.host.launch_kernel' op '@kernels::@k0' does not reference a valid kernel}}
-  sycl.host.launch_kernel @kernels::@k0 : () -> ()
+  // expected-error @below {{'sycl.host.schedule_kernel' op '@kernels::@k0' does not reference a valid kernel}}
+  sycl.host.schedule_kernel @kernels::@k0 : () -> ()
   func.return
 }
 
@@ -588,9 +588,9 @@ gpu.module @kernels {
 
 // -----
 
-func.func @launch_kernel_nd_range_unexpected_attr() {
-  // expected-error @below {{'sycl.host.launch_kernel' op expects nd_range to be unset when a range is not present}}
-  sycl.host.launch_kernel @ekernels::@k0 {nd_range} : () -> ()
+func.func @schedule_kernel_nd_range_unexpected_attr() {
+  // expected-error @below {{'sycl.host.schedule_kernel' op expects nd_range to be unset when a range is not present}}
+  sycl.host.schedule_kernel @ekernels::@k0 {nd_range} : () -> ()
   func.return
 }
 
@@ -602,9 +602,9 @@ gpu.module @kernels {
 
 // -----
 
-func.func @launch_kernel_nd_range_unexpected_offset(%nd_range: !llvm.ptr, %offset: !llvm.ptr) {
-  // expected-error @below {{'sycl.host.launch_kernel' op expects no offset argument if the nd_range attribute is set}}
-  sycl.host.launch_kernel @ekernels::@k0[nd_range %nd_range, offset %offset] : (!llvm.ptr, !llvm.ptr) -> ()
+func.func @schedule_kernel_nd_range_unexpected_offset(%nd_range: !llvm.ptr, %offset: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.schedule_kernel' op expects no offset argument if the nd_range attribute is set}}
+  sycl.host.schedule_kernel @ekernels::@k0[nd_range %nd_range, offset %offset] : (!llvm.ptr, !llvm.ptr) -> ()
   func.return
 }
 
