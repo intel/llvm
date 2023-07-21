@@ -54,9 +54,10 @@ int main() {
         sycl::image_channel_type::fp32);
 
     auto device_pitch_align = dev.get_info<
-        sycl::ext::oneapi::experimental::info::device::image_pitch_align>();
-    auto device_max_pitch = dev.get_info<sycl::ext::oneapi::experimental::info::
-                                             device::max_image_linear_pitch>();
+        sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();
+    auto device_max_pitch =
+        dev.get_info<sycl::ext::oneapi::experimental::info::device::
+                         max_image_linear_row_pitch>();
 
     // Pitch requirements:
     //  - pitch % device_pitch_align == 0

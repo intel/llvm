@@ -65,17 +65,17 @@ int main() {
     // values are correct
     // But we should at least see that the query itself works
     auto pitch_align = dev.get_info<
-        sycl::ext::oneapi::experimental::info::device::image_pitch_align>();
+        sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();
     auto max_pitch = dev.get_info<sycl::ext::oneapi::experimental::info::
-                                      device::max_image_linear_pitch>();
+                                      device::max_image_linear_row_pitch>();
     auto max_width = dev.get_info<sycl::ext::oneapi::experimental::info::
                                       device::max_image_linear_width>();
     auto max_height = dev.get_info<sycl::ext::oneapi::experimental::info::
                                        device::max_image_linear_height>();
 
 #ifdef VERBOSE_PRINT
-    std::cout << "image_pitch_align: " << pitch_align
-              << "\nmax_image_linear_pitch: " << max_pitch
+    std::cout << "image_row_pitch_align: " << pitch_align
+              << "\nmax_image_linear_row_pitch: " << max_pitch
               << "\nmax_image_linear_width: " << max_width
               << "\nmax_image_linear_height: " << max_height << "\n";
 #endif
