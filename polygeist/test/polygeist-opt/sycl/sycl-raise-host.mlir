@@ -209,13 +209,14 @@ llvm.func @raise_get_access() -> !llvm.ptr attributes {personality = @__gxx_pers
 ^bb0:
   %lp = llvm.landingpad cleanup : !llvm.struct<(ptr, i32)>
   llvm.resume %lp : !llvm.struct<(ptr, i32)>
-^bb1:
 
+^bb1:
   // COM: Write-only
   llvm.invoke @_ZN4sycl3_V16bufferIfLi1ENS0_6detail17aligned_allocatorIfEEvE10get_accessILNS0_6access4modeE1025ELNS7_6targetE2014EEENS0_8accessorIfLi1EXT_EXT0_ELNS7_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEERNS0_7handlerENS2_13code_locationE(%acc_w, %buf_3, %pl, %cl) to ^bb3 unwind ^bb2 : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 ^bb2:
   %lp1 = llvm.landingpad cleanup : !llvm.struct<(ptr, i32)>
   llvm.resume %lp1 : !llvm.struct<(ptr, i32)>
+
 ^bb3:
   llvm.return %buf_1 : !llvm.ptr
 }
