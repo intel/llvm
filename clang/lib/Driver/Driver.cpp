@@ -1130,8 +1130,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         << SYCLTargets->getSpelling() << SYCLfpga->getSpelling();
   // -fsycl-host-compiler-options cannot be used without -fsycl-host-compiler
   if (SYCLHostCompilerOptions && !SYCLHostCompiler)
-    Diag(clang::diag::err_drv_fsycl_host_compiler_options)
-        << SYCLHostCompilerOptions->getSpelling();
+    Diag(clang::diag::warn_drv_fsycl_host_compiler_options)
+        << SYCLHostCompilerOptions->getSpelling().split('=').first;
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!HasValidSYCLRuntime)
@@ -7979,11 +7979,6 @@ void Driver::BuildJobs(Compilation &C) const {
       C.getArgs().hasArg(options::OPT_Qunused_arguments))
     return;
 
-  bool HasValidSYCLRuntime =
-      C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
-                               false) ||
-      C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
-
   // Claim -fdriver-only here.
   (void)C.getArgs().hasArg(options::OPT_fdriver_only);
   // Claim -### here.
@@ -7999,13 +7994,7 @@ void Driver::BuildJobs(Compilation &C) const {
     // printed.
     if (!A->isClaimed()) {
       if (A->getOption().hasFlag(options::NoArgumentUnused)) {
-        if ((A->getOption().matches(
-                 options::OPT_fsycl_dead_args_optimization) ||
-             A->getOption().matches(options::OPT_fsycl_device_lib_jit_link)) &&
-            !HasValidSYCLRuntime)
-          ;
-        else
-          continue;
+        continue;
       }
 
       // Suppress the warning automatically if this is just a flag, and it is an
