@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 4a9e53b0d7b15d9b0239864d13999f32e6c73bac)
+  set(UNIFIED_RUNTIME_TAG 3c6f02c7a76a0448a83932d93c2dbeff25af70aa)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -71,7 +71,7 @@ add_sycl_plugin(unified_runtime
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
-    LevelZeroLoader-Headers # we need for #include <ze_api.h> in ur_level_zero_common.h
+    LevelZeroLoader-Headers # we need for #include <ze_api.h> in common.h
 )
 
 # Build level zero adapter
@@ -85,30 +85,34 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/usm_allocator_config.hpp"
     "ur/adapters/level_zero/ur_level_zero.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
-    "ur/adapters/level_zero/ur_loader_interface.cpp"
-    "ur/adapters/level_zero/ur_level_zero_common.hpp"
-    "ur/adapters/level_zero/ur_level_zero_context.hpp"
-    "ur/adapters/level_zero/ur_level_zero_device.hpp"
-    "ur/adapters/level_zero/ur_level_zero_event.hpp"
-    "ur/adapters/level_zero/ur_level_zero_mem.hpp"
-    "ur/adapters/level_zero/ur_level_zero_kernel.hpp"
-    "ur/adapters/level_zero/ur_level_zero_platform.hpp"
-    "ur/adapters/level_zero/ur_level_zero_program.hpp"
-    "ur/adapters/level_zero/ur_level_zero_queue.hpp"
-    "ur/adapters/level_zero/ur_level_zero_sampler.hpp"
-    "ur/adapters/level_zero/ur_level_zero_usm.hpp"
-    "ur/adapters/level_zero/ur_level_zero.cpp"
-    "ur/adapters/level_zero/ur_level_zero_common.cpp"
-    "ur/adapters/level_zero/ur_level_zero_context.cpp"
-    "ur/adapters/level_zero/ur_level_zero_device.cpp"
-    "ur/adapters/level_zero/ur_level_zero_event.cpp"
-    "ur/adapters/level_zero/ur_level_zero_mem.cpp"
-    "ur/adapters/level_zero/ur_level_zero_kernel.cpp"
-    "ur/adapters/level_zero/ur_level_zero_platform.cpp"
-    "ur/adapters/level_zero/ur_level_zero_program.cpp"
-    "ur/adapters/level_zero/ur_level_zero_queue.cpp"
-    "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
-    "ur/adapters/level_zero/ur_level_zero_usm.cpp"
+    "ur/adapters/level_zero/ur_interface_loader.cpp"
+    "ur/adapters/level_zero/command_buffer.hpp"
+    "ur/adapters/level_zero/common.hpp"
+    "ur/adapters/level_zero/context.hpp"
+    "ur/adapters/level_zero/device.hpp"
+    "ur/adapters/level_zero/event.hpp"
+    "ur/adapters/level_zero/image.cpp"
+    "ur/adapters/level_zero/image.hpp"
+    "ur/adapters/level_zero/memory.hpp"
+    "ur/adapters/level_zero/kernel.hpp"
+    "ur/adapters/level_zero/platform.hpp"
+    "ur/adapters/level_zero/program.hpp"
+    "ur/adapters/level_zero/queue.hpp"
+    "ur/adapters/level_zero/sampler.hpp"
+    "ur/adapters/level_zero/usm.hpp"
+    "ur/adapters/level_zero/command_buffer.cpp"
+    "ur/adapters/level_zero/common.cpp"
+    "ur/adapters/level_zero/context.cpp"
+    "ur/adapters/level_zero/device.cpp"
+    "ur/adapters/level_zero/event.cpp"
+    "ur/adapters/level_zero/memory.cpp"
+    "ur/adapters/level_zero/kernel.cpp"
+    "ur/adapters/level_zero/platform.cpp"
+    "ur/adapters/level_zero/program.cpp"
+    "ur/adapters/level_zero/queue.cpp"
+    "ur/adapters/level_zero/sampler.cpp"
+    "ur/adapters/level_zero/usm.cpp"
+    "ur/adapters/level_zero/usm_p2p.cpp"
   INCLUDE_DIRS
     ${sycl_inc_dir}
   LIBRARIES
@@ -140,6 +144,8 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/enqueue.cpp"
       "ur/adapters/cuda/event.cpp"
       "ur/adapters/cuda/event.hpp"
+      "ur/adapters/cuda/image.cpp"
+      "ur/adapters/cuda/image.hpp"
       "ur/adapters/cuda/kernel.cpp"
       "ur/adapters/cuda/kernel.hpp"
       "ur/adapters/cuda/memory.cpp"
@@ -155,6 +161,9 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/tracing.cpp"
       "ur/adapters/cuda/ur_interface_loader.cpp"
       "ur/adapters/cuda/usm.cpp"
+      "ur/adapters/cuda/command_buffer.hpp"
+      "ur/adapters/cuda/command_buffer.cpp"
+      "ur/adapters/cuda/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES
@@ -167,6 +176,65 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
     VERSION "0.0.0"
     SOVERSION "0"
   )
+endif()
+
+if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+  # Build HIP adapter
+  add_sycl_library("ur_adapter_hip" SHARED 
+    SOURCES
+      "ur/ur.hpp"
+      "ur/ur.cpp"
+      "ur/usm_allocator.cpp"
+      "ur/usm_allocator.hpp"
+      "ur/adapters/hip/common.cpp"
+      "ur/adapters/hip/common.hpp"
+      "ur/adapters/hip/context.cpp"
+      "ur/adapters/hip/context.hpp"
+      "ur/adapters/hip/device.cpp"
+      "ur/adapters/hip/device.hpp"
+      "ur/adapters/hip/enqueue.cpp"
+      "ur/adapters/hip/event.cpp"
+      "ur/adapters/hip/event.hpp"
+      "ur/adapters/hip/platform.cpp"
+      "ur/adapters/hip/platform.hpp"
+      "ur/adapters/hip/memory.cpp"
+      "ur/adapters/hip/memory.hpp"
+      "ur/adapters/hip/sampler.cpp"
+      "ur/adapters/hip/sampler.hpp"
+      "ur/adapters/hip/usm.cpp"
+      "ur/adapters/hip/program.cpp"
+      "ur/adapters/hip/program.hpp"
+      "ur/adapters/hip/kernel.cpp"
+      "ur/adapters/hip/kernel.hpp"
+      "ur/adapters/hip/queue.cpp"
+      "ur/adapters/hip/queue.hpp"
+      "ur/adapters/hip/command_buffer.hpp"
+      "ur/adapters/hip/command_buffer.cpp"
+      "ur/adapters/hip/usm_p2p.cpp"
+      "ur/adapters/hip/ur_interface_loader.cpp"
+    INCLUDE_DIRS
+      ${sycl_inc_dir}
+    LIBRARIES
+      UnifiedRuntime-Headers
+      Threads::Threads
+  )
+
+  set_target_properties("ur_adapter_hip" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+  )
+
+  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+    target_link_libraries(ur_adapter_hip PUBLIC rocmdrv)
+    # Set HIP define to select AMD platform
+    target_compile_definitions(ur_adapter_hip PRIVATE __HIP_PLATFORM_AMD__)
+  elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")
+    target_link_libraries(ur_adapter_hip PUBLIC cudadrv cudart)
+    # Set HIP define to select NVIDIA platform
+    target_compile_definitions(ur_adapter_hip PRIVATE __HIP_PLATFORM_NVIDIA__)
+  else()
+    message(FATAL_ERROR "Unspecified PI HIP platform please set SYCL_BUILD_PI_HIP_PLATFORM to 'AMD' or 'NVIDIA'")
+  endif()
 endif()
 
 if (TARGET UnifiedRuntimeLoader)

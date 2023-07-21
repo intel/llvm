@@ -91,7 +91,7 @@ int main() {
     }
     for (int j = 0; j < NV; j++) {
       auto d = s[j] - r[k * NV + j];
-      if (abs(d) > 1e-10) {
+      if (std::abs(d) > 1e-10) {
         printf("partial fail ");
         printf("%i\t%i\t%g\t%g\n", k, j, s[j], r[k * NV + j]);
         fails++;

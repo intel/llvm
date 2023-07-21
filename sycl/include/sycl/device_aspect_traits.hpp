@@ -141,7 +141,7 @@ struct all_devices_have<aspect::ext_intel_legacy_image>
 
 #ifdef __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 // Special case where any_device_has is trivially true.
-template <aspect Aspect> struct any_device_has : std::true_t {};
+template <aspect Aspect> struct any_device_has : std::true_type {};
 #else
 template <aspect Aspect> struct any_device_has;
 template <>

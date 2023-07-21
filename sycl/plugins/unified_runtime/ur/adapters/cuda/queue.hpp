@@ -99,7 +99,7 @@ struct ur_queue_handle_t_ {
     if (StreamToken == std::numeric_limits<uint32_t>::max()) {
       return false;
     }
-    return LastSyncComputeStreams >= StreamToken;
+    return LastSyncComputeStreams > StreamToken;
   }
 
   bool canReuseStream(uint32_t StreamToken) {

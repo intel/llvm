@@ -1,3 +1,11 @@
+//===- device_architecture.hpp --------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp>
@@ -21,7 +29,7 @@ enum class architecture {
   intel_gpu_tgllp,
   intel_gpu_rkl,
   intel_gpu_adl_s,
-  intel_gpu_rpl_s,
+  intel_gpu_rpl_s = intel_gpu_adl_s,
   intel_gpu_adl_p,
   intel_gpu_adl_n,
   intel_gpu_dg1,

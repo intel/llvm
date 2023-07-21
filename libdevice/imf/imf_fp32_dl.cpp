@@ -25,4 +25,35 @@ DEVICE_EXTERN_C_INLINE float __devicelib_imf_fabsf(float x) {
 DEVICE_EXTERN_C_INLINE
 int64_t __devicelib_imf_llabs(int64_t x) { return x >= 0 ? x : -x; }
 
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_exp10f(float x) { return __fast_exp10f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_expf(float x) { return __fast_expf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_fdividef(float x, float y) {
+  return __fast_fdividef(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_logf(float x) { return __fast_logf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_log2f(float x) { return __fast_log2f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_log10f(float x) { return __fast_log10f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_powf(float x, float y) { return __fast_powf(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_max(int x, int y) { return x > y ? x : y; }
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_min(int x, int y) { return x < y ? x : y; }
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_hadd(int x, int y) { return __shadd(x, y); }
 #endif /*__LIBDEVICE_IMF_ENABLED__*/

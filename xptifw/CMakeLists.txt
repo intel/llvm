@@ -71,14 +71,9 @@ endif()
 if (XPTI_BUILD_SAMPLES)
   add_subdirectory(samples/basic_collector)
   add_subdirectory(samples/syclpi_collector)
+  add_subdirectory(basic_test)
 endif()
 
 if (XPTI_BUILD_BENCHMARK)
   add_subdirectory(benchmark)
-endif()
-
-# The tests in basic_test are written using TBB, so these tests are enabled
-# only if TBB has been enabled.
-if (XPTI_ENABLE_TBB)
-  add_subdirectory(basic_test)
 endif()

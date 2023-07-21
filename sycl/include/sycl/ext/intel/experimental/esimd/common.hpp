@@ -24,10 +24,6 @@ namespace ext::intel::experimental::esimd {
 /// @addtogroup sycl_esimd_core
 /// @{
 
-using argument_type
-    __SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpas_argument_type") =
-        __ESIMD_NS::xmx::dpas_argument_type;
-
 /// The scope that lsc_fence operation should apply to
 /// Supported platforms: DG2, PVC
 enum class lsc_scope : uint8_t {

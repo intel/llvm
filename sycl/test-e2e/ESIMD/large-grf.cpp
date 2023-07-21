@@ -20,13 +20,19 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-
+// RUN: %{build} -DUSE_NEW_API=1 -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 #include "esimd_test_utils.hpp"
 
 #include <iostream>
-#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
+#ifdef USE_NEW_API
+#include <sycl/ext/intel/experimental/grf_size_properties.hpp>
+#else
+#include <sycl/detail/kernel_properties.hpp>
+#endif
 
 using namespace sycl;
 using namespace sycl::detail;
@@ -122,8 +128,12 @@ int main(void) {
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
     queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+#ifdef USE_NEW_API
+    sycl::ext::oneapi::experimental::properties prop{grf_size<256>};
+#else
     sycl::ext::oneapi::experimental::properties prop{
         register_alloc_mode<register_alloc_mode_enum::large>};
+#endif
     auto dev = q.get_device();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 

@@ -1,9 +1,6 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
-// JIT compilation path is not taken on HIP backend.
-// UNSUPPORTED: hip
-
 // This tests checks that implicitly created kernel_bundles (i.e. through
 // setting a specialization ID from host) only builds the device image
 // containing the kernel it launches.

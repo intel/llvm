@@ -6,6 +6,7 @@
 //
 //===-----------------------------------------------------------------===//
 
+#include "enqueue.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
@@ -134,7 +135,8 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
   assert(ThreadsPerBlock != nullptr);
   assert(GlobalWorkSize != nullptr);
   assert(Kernel != nullptr);
-  int MinGrid, MaxBlockSize, MaxBlockDim[3];
+  int MinGrid, MaxBlockSize;
+  size_t MaxBlockDim[3];
 
   // The below assumes a three dimensional range but this is not guaranteed by
   // UR.
@@ -143,48 +145,20 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
     GlobalSizeNormalized[i] = GlobalWorkSize[i];
   }
 
-  static auto IsPrime = [](size_t Number) -> bool {
-    auto LastNumToCheck = ceil(sqrt(Number));
-    if (Number < 2)
-      return false;
-    if (Number == 2)
-      return true;
-    if (Number % 2 == 0)
-      return false;
-    for (int i = 3; i <= LastNumToCheck; i += 2) {
-      if (Number % i == 0)
-        return false;
-    }
-    return true;
-  };
-
-  cuDeviceGetAttribute(&MaxBlockDim[1], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
-                       Device->get());
-  cuDeviceGetAttribute(&MaxBlockDim[2], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
-                       Device->get());
+  MaxBlockDim[1] = Device->getMaxBlockDimY();
+  MaxBlockDim[2] = Device->getMaxBlockDimZ();
 
   UR_CHECK_ERROR(
       cuOccupancyMaxPotentialBlockSize(&MinGrid, &MaxBlockSize, Kernel->get(),
                                        NULL, LocalSize, MaxThreadsPerBlock[0]));
 
-  ThreadsPerBlock[2] =
-      std::min(GlobalSizeNormalized[2], size_t(MaxBlockDim[2]));
-  ThreadsPerBlock[1] = std::min(
-      GlobalSizeNormalized[1],
-      std::min(MaxBlockSize / ThreadsPerBlock[2], size_t(MaxBlockDim[1])));
+  ThreadsPerBlock[2] = std::min(GlobalSizeNormalized[2], MaxBlockDim[2]);
+  ThreadsPerBlock[1] =
+      std::min(GlobalSizeNormalized[1],
+               std::min(MaxBlockSize / ThreadsPerBlock[2], MaxBlockDim[1]));
   MaxBlockDim[0] = MaxBlockSize / (ThreadsPerBlock[1] * ThreadsPerBlock[2]);
-  ThreadsPerBlock[0] =
-      std::min(MaxThreadsPerBlock[0],
-               std::min(GlobalSizeNormalized[0], size_t(MaxBlockDim[0])));
-
-  // When GlobalSizeNormalized[0] is prime threadPerBlock[0] will later
-  // computed as 1, which is not efficient configuration. In such case we use
-  // GlobalSizeNormalized[0] + 1 to compute threadPerBlock[0].
-  int Adjusted0DimGlobalWorkSize =
-      (IsPrime(GlobalSizeNormalized[0]) &&
-       (ThreadsPerBlock[0] != GlobalSizeNormalized[0]))
-          ? GlobalSizeNormalized[0] + 1
-          : GlobalSizeNormalized[0];
+  ThreadsPerBlock[0] = std::min(
+      MaxThreadsPerBlock[0], std::min(GlobalSizeNormalized[0], MaxBlockDim[0]));
 
   static auto IsPowerOf2 = [](size_t Value) -> bool {
     return Value && !(Value & (Value - 1));
@@ -194,7 +168,7 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
   // work group size to produce uniform work groups.
   // Additionally, for best compute utilisation, the local size has
   // to be a power of two.
-  while (0u != (Adjusted0DimGlobalWorkSize % ThreadsPerBlock[0]) ||
+  while (0u != (GlobalSizeNormalized[0] % ThreadsPerBlock[0]) ||
          !IsPowerOf2(ThreadsPerBlock[0])) {
     --ThreadsPerBlock[0];
   }
@@ -207,16 +181,7 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
 bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
                                      ur_kernel_handle_t Kernel,
                                      size_t BlockSize) {
-  int MaxRegsPerBlock{0};
-  UR_CHECK_ERROR(cuDeviceGetAttribute(
-      &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
-      Device->get()));
-
-  int RegsPerThread{0};
-  UR_CHECK_ERROR(cuFuncGetAttribute(&RegsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS,
-                                    Kernel->get()));
-
-  return BlockSize * RegsPerThread > size_t(MaxRegsPerBlock);
+  return BlockSize * Kernel->getRegsPerThread() > Device->getMaxRegsPerBlock();
 }
 
 /// Enqueues a wait on the given CUstream for all specified events (See
@@ -228,8 +193,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   // This function makes one stream work on the previous work (or work
   // represented by input events) and then all future work waits on that stream.
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
-
   ur_result_t Result;
 
   try {
@@ -316,11 +279,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   // Preconditions
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hQueue->getContext() == hKernel->getContext(),
             UR_RESULT_ERROR_INVALID_KERNEL);
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pGlobalWorkOffset, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
@@ -335,7 +295,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   size_t MaxWorkGroupSize = 0u;
   size_t MaxThreadsPerBlock[3] = {};
   bool ProvidedLocalWorkGroupSize = (pLocalWorkSize != nullptr);
-  int32_t LocalSize = hKernel->getLocalSize();
+  uint32_t LocalSize = hKernel->getLocalSize();
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
@@ -386,7 +346,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     if (MaxWorkGroupSize <
-        size_t(ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2])) {
+        ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
       return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
     }
 
@@ -537,9 +497,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   CUdeviceptr DevPtr = hBuffer->Mem.BufferMem.get();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
@@ -588,9 +545,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   CUdeviceptr DevPtr = hBuffer->Mem.BufferMem.get();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
@@ -636,8 +590,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -680,10 +632,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hBufferSrc, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBufferDst, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   CUdeviceptr SrcPtr = hBufferSrc->Mem.BufferMem.get();
   CUdeviceptr DstPtr = hBufferDst->Mem.BufferMem.get();
@@ -723,8 +671,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     size_t patternSize, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   auto ArgsAreMultiplesOfPatternSize =
       (offset % patternSize == 0) || (size % patternSize == 0);
 
@@ -830,7 +776,7 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
   case CU_AD_FORMAT_FLOAT:
     return 4;
   default:
-    sycl::detail::ur::die("Invalid image format.");
+    detail::ur::die("Invalid image format.");
     return 0;
   }
 }
@@ -910,8 +856,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
   std::ignore = rowPitch;
   std::ignore = slicePitch;
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hImage->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -979,8 +923,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
   std::ignore = rowPitch;
   std::ignore = slicePitch;
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hImage->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -1123,9 +1065,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ur_map_flags_t mapFlags, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent, void **ppRetMap) {
-  UR_ASSERT(ppRetMap != nullptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hQueue != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hBuffer->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -1184,10 +1123,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   ur_result_t Result = UR_RESULT_SUCCESS;
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMappedPtr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   UR_ASSERT(hMem->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(hMem->Mem.BufferMem.getMapPtr() != nullptr,
@@ -1233,10 +1168,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
-  UR_ASSERT(ptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(size % patternSize == 0, UR_RESULT_ERROR_INVALID_SIZE);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
@@ -1287,9 +1218,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
@@ -1326,7 +1254,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
   ur_device_handle_t Device = hQueue->getContext()->getDevice();
 
   // Certain cuda devices and Windows do not have support for some Unified
@@ -1352,8 +1279,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   // flags is currently unused so fail if set
   if (flags != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
   ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
@@ -1384,9 +1310,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-
   // Certain cuda devices and Windows do not have support for some Unified
   // Memory features. Passing CU_MEM_ADVISE_SET/CLEAR_PREFERRED_LOCATION and
   // to cuMemAdvise on a GPU device requires the GPU device to report a non-zero
@@ -1473,7 +1396,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     const void *pSrc, size_t srcPitch, size_t width, size_t height,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
   ur_result_t result = UR_RESULT_SUCCESS;
 
   try {
@@ -1520,17 +1442,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
     size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(!hBuffer->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  if (phEventWaitList) {
-    UR_ASSERT(numEventsInWaitList > 0, UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  } else {
-    UR_ASSERT(numEventsInWaitList == 0,
-              UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  }
   UR_ASSERT(offset + size <= hBuffer->Mem.BufferMem.Size,
             UR_RESULT_ERROR_INVALID_SIZE);
 
@@ -1577,17 +1489,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(!hBuffer->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  if (phEventWaitList) {
-    UR_ASSERT(numEventsInWaitList > 0, UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  } else {
-    UR_ASSERT(numEventsInWaitList == 0,
-              UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  }
   UR_ASSERT(offset + size <= hBuffer->Mem.BufferMem.Size,
             UR_RESULT_ERROR_INVALID_SIZE);
 
@@ -1633,10 +1535,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     bool blockingWrite, size_t count, size_t offset, const void *pSrc,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(name && pSrc, UR_RESULT_ERROR_INVALID_VALUE);
-
   // Since CUDA requires a the global variable to be referenced by name, we use
   // metadata to find the correct name to access it by.
   auto DeviceGlobalNameIt = hProgram->GlobalIDMD.find(name);
@@ -1669,10 +1567,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     bool blockingRead, size_t count, size_t offset, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(name && pDst, UR_RESULT_ERROR_INVALID_VALUE);
-
   // Since CUDA requires a the global variable to be referenced by name, we use
   // metadata to find the correct name to access it by.
   auto DeviceGlobalNameIt = hProgram->GlobalIDMD.find(name);

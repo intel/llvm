@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/defines.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.hpp>
 
 #include <dlfcn.h>
@@ -16,17 +17,24 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail::pi {
 
-void *loadOsPluginLibrary(const std::string &PluginPath) {
+void *loadOsLibrary(const std::string &LibraryPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
   // RTLD_DEEPBIND option when there are multiple plugins.
-  void *so = dlopen(PluginPath.c_str(), RTLD_NOW);
+  void *so = dlopen(LibraryPath.c_str(), RTLD_NOW);
   if (!so && trace(TraceLevel::PI_TRACE_ALL)) {
     char *Error = dlerror();
-    std::cerr << "SYCL_PI_TRACE[-1]: dlopen(" << PluginPath << ") failed with <"
-              << (Error ? Error : "unknown error") << ">" << std::endl;
+    std::cerr << "SYCL_PI_TRACE[-1]: dlopen(" << LibraryPath
+              << ") failed with <" << (Error ? Error : "unknown error") << ">"
+              << std::endl;
   }
   return so;
 }
+
+void *loadOsPluginLibrary(const std::string &PluginPath) {
+  return loadOsLibrary(PluginPath);
+}
+
+int unloadOsLibrary(void *Library) { return dlclose(Library); }
 
 int unloadOsPluginLibrary(void *Library) {
   // The mock plugin does not have an associated library, so we allow nullptr

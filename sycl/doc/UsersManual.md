@@ -32,6 +32,10 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
+    * native_cpu - allows to run SYCL applications with no need of an 
+    additional backend (note that this feature is WIP and experimental, and 
+    currently overrides all the other specified SYCL targets when enabled.)
+
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
@@ -285,11 +289,13 @@ and not recommended to use in production environment.
     various events inside JIT generated kernels. These device libraries are
     linked in by default.
 
-**`-f[no-]sycl-link-huge-device-code`**
+**`-f[no-]sycl-link-huge-device-code`** [DEPRECATED]
 
     Place device code later in the linked binary in order to avoid precluding
     32-bit PC relative relocations between surrounding ELF sections when device
     code is larger than 2GiB. This is disabled by default.
+
+    Deprecated in favor of `-f[no-]link-huge-device-code`.
 
     NOTE: This option is currently only supported on Linux.
 
@@ -344,11 +350,17 @@ and not recommended to use in production environment.
 
     Compile only device part of the code and ignore host part.
 
-**`-f[no-]sycl-use-bitcode`** [EXPERIMENTAL]
+**`-f[no-]sycl-use-bitcode`** [DEPRECATED]
 
     Emit SYCL device code in LLVM-IR bitcode format. When disabled, SPIR-V is
     emitted.
     Enabled by default.
+
+**`-fsycl-device-obj=<arg>`** [EXPERIMENTAL]
+
+    Specify format of device code stored in the resulting object. The <arg> can
+    be one of the following:  "spirv" - SPIR-V is emitted, "llvmir" - LLVM-IR
+    bitcode format is emitted (default).
 
 **`-fsycl-help[=backend]`**
 
@@ -409,6 +421,17 @@ and not recommended to use in production environment.
     of 4Gb per surface.
     Also, some of Intel GPUs or GPU run-time/drivers may support only
     "stateless" memory accesses.
+
+**`-ftarget-compile-fast`** [EXPERIMENTAL]
+    Instructs the target backend to reduce compilation time, potentially
+    at the cost of runtime performance. Currently only supported on Intel GPUs.
+
+**`-f[no-]target-export-symbols`**
+
+    Exposes exported symbols in a generated target library to allow for
+    visibility to other modules.
+
+    NOTE: This flag is only supported for spir64_gen AOT targets.
 
 # Example: SYCL device code compilation
 

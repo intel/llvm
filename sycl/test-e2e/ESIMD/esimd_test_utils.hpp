@@ -149,7 +149,7 @@ bool cmp_binary_files(const char *testOutFile, const char *referenceFile,
   double maxRelativeDiff = 0;
   bool status = true;
   for (size_t i = 0; i < size; i++) {
-    const auto diff = abs(testVec[i] - referenceVec[i]);
+    const auto diff = std::abs(testVec[i] - referenceVec[i]);
     if (diff > tolerance) {
       if (!mismatchRateTolerance || (totalMismatches < mismatchReportLimit)) {
 

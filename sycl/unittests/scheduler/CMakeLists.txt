@@ -15,11 +15,9 @@ add_sycl_unittest(SchedulerTests OBJECT
     RequiredWGSize.cpp
     QueueFlushing.cpp
     GraphCleanup.cpp
-    Regression.cpp
     utils.cpp
     LeafLimitDiffContexts.cpp
     InOrderQueueSyncCheck.cpp
-    RunOnHostIntelCG.cpp
     EnqueueWithDependsOnDeps.cpp
     AccessorDefaultCtor.cpp
     KernelFusion.cpp

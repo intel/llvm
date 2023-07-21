@@ -572,11 +572,11 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(uint32_t, SZ)
 __ESIMD_UNARY_EXT_MATH_HOST_INTRIN(inv, 1.f / src_cpp[i])
 __ESIMD_UNARY_EXT_MATH_HOST_INTRIN(log, logf(src_cpp[i]) / logf(2.f))
 __ESIMD_UNARY_EXT_MATH_HOST_INTRIN(exp, powf(2.f, src_cpp[i]))
-__ESIMD_UNARY_EXT_MATH_HOST_INTRIN(sqrt, sqrt(src_cpp[i]))
+__ESIMD_UNARY_EXT_MATH_HOST_INTRIN(sqrt, sycl::sqrt(src_cpp[i]))
 __ESIMD_UNARY_EXT_MATH_HOST_INTRIN(ieee_sqrt, sqrt(src_cpp[i]))
-__ESIMD_UNARY_EXT_MATH_HOST_INTRIN(rsqrt, 1.f / sqrt(src_cpp[i]))
-__ESIMD_UNARY_EXT_MATH_HOST_INTRIN(sin, sin(src_cpp[i]))
-__ESIMD_UNARY_EXT_MATH_HOST_INTRIN(cos, cos(src_cpp[i]))
+__ESIMD_UNARY_EXT_MATH_HOST_INTRIN(rsqrt, 1.f / sycl::sqrt(src_cpp[i]))
+__ESIMD_UNARY_EXT_MATH_HOST_INTRIN(sin, sycl::sin(src_cpp[i]))
+__ESIMD_UNARY_EXT_MATH_HOST_INTRIN(cos, sycl::cos(src_cpp[i]))
 
 #undef __ESIMD_UNARY_EXT_MATH_HOST_INTRIN
 
@@ -627,7 +627,7 @@ __esimd_rndd(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
 
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
-    retv[i] = floor(src0[i]);
+    retv[i] = sycl::floor(src0[i]);
   }
   return retv;
 }
@@ -640,13 +640,13 @@ __esimd_rndu(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
 
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
-    if (src0[i] - floor(src0[i]) > 0.0f) {
+    if (src0[i] - sycl::floor(src0[i]) > 0.0f) {
       increment = 1;
     } else {
       increment = 0;
     }
 
-    retv[i] = floor(src0[i]) + increment;
+    retv[i] = sycl::floor(src0[i]) + increment;
   }
 
   return retv;
@@ -682,12 +682,12 @@ __esimd_rndz(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
 
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
-    if (fabs(src0[i]) < fabs(floor(src0[i]))) {
+    if (sycl::fabs(src0[i]) < sycl::fabs(sycl::floor(src0[i]))) {
       increment = 1;
     } else {
       increment = 0;
     }
-    retv[i] = floor(src0[i]) + increment;
+    retv[i] = sycl::floor(src0[i]) + increment;
   }
 
   return retv;

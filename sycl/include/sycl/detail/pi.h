@@ -92,11 +92,61 @@
 // 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
 // 12.31 Added PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP device
 // info query.
-// 12.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
+// 13.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
 // piextQueueGetNativeHandle
+// 14.33 Added new parameter (memory object properties) to
+// piextKernelSetArgMemObj
+// 14.34 Added command-buffer extension methods
+// 14.35 Added piextEnablePeerAccess, piextDisablePeerAccess,
+// piextPeerAccessGetInfo, and pi_peer_attr enum.
+// 14.36 Adding support for experimental bindless images. This includes:
+//       - Added device info queries
+//         - Device queries for bindless image support
+//           - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT
+//         - Device queries for pitched USM allocations
+//           - PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_PITCH_ALIGN
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH
+//         - Device queries for mipmap image support
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY
+//           - PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT
+//         - Device queries for interop memory support
+//           - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT
+//           - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT
+//       - Added PI_IMAGE_INFO_DEPTH to _pi_image_info
+//       - Added _pi_image_copy_flags enum to determine direction of copy
+//       - Added new extension functions
+//         - piextBindlessImageSamplerCreate
+//         - piextUSMPitchedAlloc
+//         - piextMemUnsampledImageHandleDestroy
+//         - piextMemSampledImageHandleDestroy
+//         - piextMemImageAllocate
+//         - piextMemImageFree
+//         - piextMemUnsampledImageCreate
+//         - piextMemSampledImageCreate
+//         - piextMemImageCopy
+//         - piextMemImageGetInfo
+//         - piextMemMipmapGetLevel
+//         - piextMemMipmapFree
+//         - piextMemImportOpaqueFD
+//         - piextMemMapExternalArray
+//         - piextMemReleaseInterop
+//         - piextImportExternalSemaphoreOpaqueFD
+//         - piextDestroyExternalSemaphore
+//         - piextWaitExternalSemaphore
+//         - piextSignalExternalSemaphore
+// 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 
-#define _PI_H_VERSION_MAJOR 13
-#define _PI_H_VERSION_MINOR 32
+#define _PI_H_VERSION_MAJOR 14
+#define _PI_H_VERSION_MINOR 37
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -216,6 +266,7 @@ typedef enum {
   PI_EXT_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
   PI_EXT_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
   PI_EXT_PLATFORM_BACKEND_ESIMD = 5,      ///< The backend is ESIMD
+  PI_EXT_PLATFORM_BACKEND_NATIVE_CPU = 6, ///< The backend is NATIVE_CPU
 } _pi_platform_backend;
 
 typedef enum {
@@ -317,6 +368,7 @@ typedef enum {
   // Intel UUID extension.
   PI_DEVICE_INFO_UUID = 0x106A,
   // These are Intel-specific extensions.
+  PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION = 0x4250,
   PI_DEVICE_INFO_DEVICE_ID = 0x4251,
   PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
   PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,
@@ -356,6 +408,25 @@ typedef enum {
   PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 0x20008,
   // The number of max registers per block (device specific)
   PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 0x20009,
+
+  // Bindless images, mipmaps, interop
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT = 0x20100,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT = 0x20101,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT = 0x20102,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT = 0x20103,
+  PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_PITCH_ALIGN = 0x20104,
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH = 0x20105,
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT = 0x20106,
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH = 0x20107,
+  PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT = 0x20108,
+  PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT = 0x20109,
+  PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY = 0x2010A,
+  PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT = 0x2010B,
+  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT = 0x2010C,
+  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT = 0x2010D,
+  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT = 0x2010E,
+  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
+
 } _pi_device_info;
 
 typedef enum {
@@ -474,6 +545,7 @@ typedef enum {
   PI_COMMAND_TYPE_SVM_MEMFILL = 0x120B,
   PI_COMMAND_TYPE_SVM_MAP = 0x120C,
   PI_COMMAND_TYPE_SVM_UNMAP = 0x120D,
+  PI_COMMAND_TYPE_EXT_COMMAND_BUFFER = 0x12A8,
   PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ = 0x418E,
   PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE = 0x418F
 } _pi_command_type;
@@ -540,6 +612,12 @@ typedef enum {
   PI_IMAGE_CHANNEL_TYPE_FLOAT = 0x10DE
 } _pi_image_channel_type;
 
+typedef enum {
+  PI_IMAGE_COPY_HOST_TO_DEVICE = 0,
+  PI_IMAGE_COPY_DEVICE_TO_HOST = 1,
+  PI_IMAGE_COPY_DEVICE_TO_DEVICE = 2
+} _pi_image_copy_flags;
+
 typedef enum { PI_BUFFER_CREATE_TYPE_REGION = 0x1220 } _pi_buffer_create_type;
 
 const pi_bool PI_TRUE = 1;
@@ -582,6 +660,7 @@ constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS =
     0x1152;
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE = 0x1153;
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE = 0x1154;
+constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_MIP_FILTER_MODE = 0x1155;
 
 using pi_memory_order_capabilities = pi_bitfield;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELAXED = 0x01;
@@ -654,6 +733,8 @@ constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE_DEFAULT = (1 << 3);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS = (1 << 4);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
+constexpr pi_queue_properties PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE = (1 << 7);
+constexpr pi_queue_properties PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE = (1 << 8);
 // clang-format on
 
 typedef enum {
@@ -696,6 +777,8 @@ using pi_program_binary_type = _pi_program_binary_type;
 using pi_kernel_info = _pi_kernel_info;
 using pi_profiling_info = _pi_profiling_info;
 using pi_kernel_cache_config = _pi_kernel_cache_config;
+
+using pi_image_copy_flags = _pi_image_copy_flags;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_partition_property = intptr_t;
@@ -1000,6 +1083,10 @@ using pi_program = _pi_program *;
 using pi_kernel = _pi_kernel *;
 using pi_event = _pi_event *;
 using pi_sampler = _pi_sampler *;
+using pi_image_handle = pi_uint64;
+using pi_image_mem_handle = void *;
+using pi_interop_mem_handle = pi_uint64;
+using pi_interop_semaphore_handle = pi_uint64;
 
 typedef struct {
   pi_image_channel_order image_channel_order;
@@ -1024,7 +1111,17 @@ using pi_image_desc = _pi_image_desc;
 
 typedef enum { PI_MEM_CONTEXT = 0x1106, PI_MEM_SIZE = 0x1102 } _pi_mem_info;
 
+typedef enum {
+  PI_PEER_ACCESS_SUPPORTED =
+      0x0, ///< returns a uint32_t: 1 if P2P Access is supported
+           ///< otherwise P2P Access is not supported.
+  PI_PEER_ATOMICS_SUPPORTED =
+      0x1 ///< returns a uint32_t: 1 if Atomic operations are supported over the
+          ///< P2P link, otherwise such operations are not supported.
+} _pi_peer_attr;
+
 using pi_mem_info = _pi_mem_info;
+using pi_peer_attr = _pi_peer_attr;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
@@ -1081,6 +1178,14 @@ __SYCL_EXPORT pi_result piDevicesGet(pi_platform platform,
                                      pi_device_type device_type,
                                      pi_uint32 num_entries, pi_device *devices,
                                      pi_uint32 *num_devices);
+
+__SYCL_EXPORT pi_result piextEnablePeerAccess(pi_device command_device,
+                                              pi_device peer_device);
+__SYCL_EXPORT pi_result piextDisablePeerAccess(pi_device command_device,
+                                               pi_device peer_device);
+__SYCL_EXPORT pi_result piextPeerAccessGetInfo(
+    pi_device command_device, pi_device peer_device, pi_peer_attr attr,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 /// Returns requested info for provided native device
 /// Return PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT for
@@ -1326,12 +1431,6 @@ __SYCL_EXPORT pi_result piextMemImageCreateWithNativeHandle(
 
 __SYCL_EXPORT pi_result piProgramCreate(pi_context context, const void *il,
                                         size_t length, pi_program *res_program);
-
-__SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
-                                                    pi_uint32 count,
-                                                    const char **strings,
-                                                    const size_t *lengths,
-                                                    pi_program *ret_program);
 
 /// Creates a PI program for a context and loads the given binary into it.
 ///
@@ -1610,12 +1709,6 @@ __SYCL_EXPORT pi_result piEnqueueKernelLaunch(
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
-__SYCL_EXPORT pi_result piEnqueueNativeKernel(
-    pi_queue queue, void (*user_func)(void *), void *args, size_t cb_args,
-    pi_uint32 num_mem_objects, const pi_mem *mem_list,
-    const void **args_mem_loc, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event);
-
 __SYCL_EXPORT pi_result piEnqueueEventsWait(pi_queue command_queue,
                                             pi_uint32 num_events_in_wait_list,
                                             const pi_event *event_wait_list,
@@ -1709,13 +1802,38 @@ __SYCL_EXPORT pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                           const pi_event *event_wait_list,
                                           pi_event *event);
 
+#ifndef PI_BIT
+#define PI_BIT(_i) (1 << _i)
+#endif // PI_BIT
+
+typedef enum {
+  PI_ACCESS_READ_WRITE = PI_BIT(0),
+  PI_ACCESS_WRITE_ONLY = PI_BIT(1),
+  PI_ACCESS_READ_ONLY = PI_BIT(2)
+} _pi_mem_obj_access;
+using pi_mem_obj_access = _pi_mem_obj_access;
+typedef uint32_t pi_mem_access_flag;
+
+typedef enum {
+  PI_KERNEL_ARG_MEM_OBJ_ACCESS = 27,
+  PI_ENUM_FORCE_UINT32 = 0x7fffffff
+} _pi_mem_obj_property_type;
+using pi_mem_obj_property_type = _pi_mem_obj_property_type;
+
+typedef struct {
+  pi_mem_obj_property_type type;
+  void *pNext;
+  pi_mem_access_flag mem_access;
+} _pi_mem_obj_property;
+using pi_mem_obj_property = _pi_mem_obj_property;
+
 // Extension to allow backends to process a PI memory object before adding it
 // as an argument for a kernel.
 // Note: This is needed by the CUDA backend to extract the device pointer to
 // the memory as the kernels uses it rather than the PI object itself.
-__SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel kernel,
-                                                pi_uint32 arg_index,
-                                                const pi_mem *arg_value);
+__SYCL_EXPORT pi_result piextKernelSetArgMemObj(
+    pi_kernel kernel, pi_uint32 arg_index,
+    const pi_mem_obj_property *arg_properties, const pi_mem *arg_value);
 
 // Extension to allow backends to process a PI sampler object before adding it
 // as an argument for a kernel.
@@ -1808,6 +1926,22 @@ __SYCL_EXPORT pi_result piextUSMSharedAlloc(void **result_ptr,
                                             pi_device device,
                                             pi_usm_mem_properties *properties,
                                             size_t size, pi_uint32 alignment);
+
+/// Allocates memory accessible on device
+///
+/// \param result_ptr contains the allocated memory
+/// \param result_pitch contains the returned memory pitch
+/// \param context is the pi_context
+/// \param device is the device the memory will be allocated on
+/// \param properties are optional allocation properties
+/// \param width_in_bytes is the width of the allocation in bytes
+/// \param height is the height of the allocation in rows
+/// \param element_size_bytes is the size in bytes of an element in the
+/// allocation
+__SYCL_EXPORT pi_result piextUSMPitchedAlloc(
+    void **result_ptr, size_t *result_pitch, pi_context context,
+    pi_device device, pi_usm_mem_properties *properties, size_t width_in_bytes,
+    size_t height, unsigned int element_size_bytes);
 
 /// Indicates that the allocated USM memory is no longer needed on the runtime
 /// side. The actual freeing of the memory may be done in a blocking or deferred
@@ -1954,6 +2088,20 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
     pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
     pi_event *event);
 
+/// Import host system memory into USM.
+///
+/// \param ptr start address of memory range to import
+/// \param size is the number of bytes to import
+/// \param context is the pi_context
+__SYCL_EXPORT pi_result piextUSMImport(const void *ptr, size_t size,
+                                       pi_context context);
+
+/// Release host system memory from USM.
+///
+/// \param ptr start address of imported memory range
+/// \param context is the pi_context
+__SYCL_EXPORT pi_result piextUSMRelease(const void *ptr, pi_context context);
+
 ///
 /// Device global variable
 ///
@@ -2099,6 +2247,444 @@ __SYCL_EXPORT pi_result piPluginGetBackendOption(pi_platform platform,
 __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
                                                 uint64_t *DeviceTime,
                                                 uint64_t *HostTime);
+
+/// Command buffer extension
+struct _pi_ext_command_buffer;
+struct _pi_ext_sync_point;
+using pi_ext_command_buffer = _pi_ext_command_buffer *;
+using pi_ext_sync_point = pi_uint32;
+
+typedef enum {
+  PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC = 0
+} pi_ext_structure_type;
+
+struct pi_ext_command_buffer_desc final {
+  pi_ext_structure_type stype;
+  const void *pNext;
+  pi_queue_properties *properties;
+};
+
+/// API to create a command-buffer.
+/// \param context The context to associate the command-buffer with.
+/// \param device The device to associate the command-buffer with.
+/// \param desc Descriptor for the new command-buffer.
+/// \param ret_command_buffer Pointer to fill with the address of the new
+/// command-buffer.
+__SYCL_EXPORT pi_result
+piextCommandBufferCreate(pi_context context, pi_device device,
+                         const pi_ext_command_buffer_desc *desc,
+                         pi_ext_command_buffer *ret_command_buffer);
+
+/// API to increment the reference count of the command-buffer
+/// \param command_buffer The command_buffer to retain.
+__SYCL_EXPORT pi_result
+piextCommandBufferRetain(pi_ext_command_buffer command_buffer);
+
+/// API to decrement the reference count of the command-buffer. After the
+/// command_buffer reference count becomes zero and has finished execution, the
+/// command-buffer is deleted.
+/// \param command_buffer The command_buffer to release.
+__SYCL_EXPORT pi_result
+piextCommandBufferRelease(pi_ext_command_buffer command_buffer);
+
+/// API to stop command-buffer recording such that no more commands can be
+/// appended, and makes the command-buffer ready to enqueue on a command-queue.
+/// \param command_buffer The command_buffer to finalize.
+__SYCL_EXPORT pi_result
+piextCommandBufferFinalize(pi_ext_command_buffer command_buffer);
+
+/// API to append a kernel execution command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param kernel The kernel to append.
+/// \param work_dim Dimension of the kernel execution.
+/// \param global_work_offset Offset to use when executing kernel.
+/// \param global_work_size Global work size to use when executing kernel.
+/// \param local_work_size Local work size to use when executing kernel.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this kernel execution.
+__SYCL_EXPORT pi_result piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM memcpy command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param dst_ptr is the location the data will be copied
+/// \param src_ptr is the data to be copied
+/// \param size is number of bytes to copy
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemcpyUSM(
+    pi_ext_command_buffer command_buffer, void *dst_ptr, const void *src_ptr,
+    size_t size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer copy command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param src_buffer is the data to be copied
+/// \param dst_buffer is the location the data will be copied
+/// \param src_offset offset into \p src_buffer
+/// \param dst_offset offset into \p dst_buffer
+/// \param size is number of bytes to copy
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    size_t src_offset, size_t dst_offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a rectangular mem buffer copy command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param src_buffer is the data to be copied
+/// \param dst_buffer is the location the data will be copied
+/// \param src_origin offset for the start of the region to copy in src_buffer
+/// \param dst_origin offset for the start of the region to copy in dst_buffer
+/// \param region The size of the region to be copied
+/// \param src_row_pitch Row pitch for the src data
+/// \param src_slice_pitch Slice pitch for the src data
+/// \param dst_row_pitch Row pitch for the dst data
+/// \param dst_slice_pitch Slice pitch for the dst data
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
+    pi_buff_rect_region region, size_t src_row_pitch, size_t src_slice_pitch,
+    size_t dst_row_pitch, size_t dst_slice_pitch,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer read command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the data to be read
+/// \param offset offset into \p buffer
+/// \param size is number of bytes to read
+/// \param dst is the pointer to the destination
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a rectangular mem buffer read command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the data to be read
+/// \param buffer_offset offset for the start of the region to read in buffer
+/// \param host_offset offset for the start of the region to be written from ptr
+/// \param region The size of the region to read
+/// \param buffer_row_pitch Row pitch for the source buffer data
+/// \param buffer_slice_pitch Slice pitch for the source buffer data
+/// \param host_row_pitch Row pitch for the destination data ptr
+/// \param host_slice_pitch Slice pitch for the destination data ptr
+/// \param ptr is the location the data will be written
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer write command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the location to write the data
+/// \param offset offset into \p buffer
+/// \param size is number of bytes to write
+/// \param ptr is the pointer to the source
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, const void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a rectangular mem buffer write command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the location to write the data
+/// \param buffer_offset offset for the start of the region to write in buffer
+/// \param host_offset offset for the start of the region to be read from ptr
+/// \param region The size of the region to write
+/// \param buffer_row_pitch Row pitch for the buffer data
+/// \param buffer_slice_pitch Slice pitch for the buffer data
+/// \param host_row_pitch Row pitch for the source data ptr
+/// \param host_slice_pitch Slice pitch for the source data ptr
+/// \param ptr is the pointer to the source
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    const void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to submit the command-buffer to queue for execution, returns an error if
+/// the command-buffer is not finalized or another instance of the same
+/// command-buffer is currently executing.
+/// \param command_buffer The command-buffer to be submitted.
+/// \param queue The PI queue to submit on.
+/// \param num_events_in_wait_list The number of events that this execution
+/// depends on.
+/// \param event_wait_list List of pi_events to wait on.
+/// \param event The pi_event associated with this enqueue.
+__SYCL_EXPORT pi_result
+piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer, pi_queue queue,
+                          pi_uint32 num_events_in_wait_list,
+                          const pi_event *event_wait_list, pi_event *event);
+
+/// API to destroy bindless unsampled image handles.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param handle is the image handle
+__SYCL_EXPORT pi_result piextMemUnsampledImageHandleDestroy(
+    pi_context context, pi_device device, pi_image_handle handle);
+
+/// API to destroy bindless sampled image handles.
+///
+/// \param context is the pi_context
+/// \param handle is the image handle
+__SYCL_EXPORT pi_result piextMemSampledImageHandleDestroy(
+    pi_context context, pi_device device, pi_image_handle handle);
+
+/// API to allocate memory for bindless images.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param flags are extra flags to pass (currently unused)
+/// \param image_format format of the image (channel order and data type)
+/// \param image_desc image descriptor
+/// \param ret_mem is the returning memory handle to newly allocated memory
+__SYCL_EXPORT pi_result piextMemImageAllocate(pi_context context,
+                                              pi_device device,
+                                              pi_image_format *image_format,
+                                              pi_image_desc *image_desc,
+                                              pi_image_mem_handle *ret_mem);
+
+/// API to retrieve individual image from mipmap.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param mip_mem is the memory handle to the mipmap
+/// \param level is the requested level of the mipmap
+/// \param ret_mem is the returning memory handle to the individual image
+__SYCL_EXPORT pi_result piextMemMipmapGetLevel(pi_context context,
+                                               pi_device device,
+                                               pi_image_mem_handle mip_mem,
+                                               unsigned int level,
+                                               pi_image_mem_handle *ret_mem);
+
+/// API to free memory for bindless images.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param memory_handle is the handle to image memory to be freed
+__SYCL_EXPORT pi_result piextMemImageFree(pi_context context, pi_device device,
+                                          pi_image_mem_handle memory_handle);
+
+/// API to free mipmap memory for bindless images.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param memory_handle is the handle to image memory to be freed
+__SYCL_EXPORT pi_result piextMemMipmapFree(pi_context context, pi_device device,
+                                           pi_image_mem_handle memory_handle);
+
+/// API to create bindless image handles.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param img_mem is the handle to memory from which to create the image
+/// \param image_format format of the image (channel order and data type)
+/// \param image_desc image descriptor
+/// \param ret_mem is the returning pi_mem image object
+/// \param ret_handle is the returning memory handle to newly allocated memory
+__SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
+    pi_context context, pi_device device, pi_image_mem_handle img_mem,
+    pi_image_format *image_format, pi_image_desc *image_desc, pi_mem *ret_mem,
+    pi_image_handle *ret_handle);
+
+/// API to create sampled bindless image handles.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param img_mem is the handle to memory from which to create the image
+/// \param image_format format of the image (channel order and data type)
+/// \param image_desc image descriptor
+/// \param sampler is the pi_sampler
+/// \param ret_mem is the returning pi_mem image object
+/// \param ret_handle is the returning memory handle to newly allocated memory
+__SYCL_EXPORT pi_result piextMemSampledImageCreate(
+    pi_context context, pi_device device, pi_image_mem_handle img_mem,
+    pi_image_format *image_format, pi_image_desc *image_desc,
+    pi_sampler sampler, pi_mem *ret_mem, pi_image_handle *ret_handle);
+
+/// API to create samplers for bindless images.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param sampler_properties is the pointer to the sampler properties bitfield
+/// \param min_mipmap_level_clamp is the minimum mipmap level to sample from
+/// \param max_mipmap_level_clamp is the maximum mipmap level to sample from
+/// \param max_anisotropy is the maximum anisotropic ratio
+/// \param result_sampler is the returned sampler
+__SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
+    pi_context context, const pi_sampler_properties *sampler_properties,
+    float min_mipmap_level_clamp, float max_mipmap_level_clamp,
+    float max_anisotropy, pi_sampler *result_sampler);
+
+/// API to copy image data Host to Device or Device to Host.
+///
+/// \param queue is the queue to submit to
+/// \param dst_ptr is the location the data will be copied to
+/// \param src_ptr is the data to be copied
+/// \param image_format format of the image (channel order and data type)
+/// \param image_desc image descriptor
+/// \param flags flags describing copy direction (H2D or D2H)
+/// \param src_offset is the offset into the source image/memory
+/// \param dst_offset is the offset into the destination image/memory
+/// \param copy_extent is the extent (region) of the image/memory to copy
+/// \param host_extent is the extent (region) of the memory on the host
+/// \param num_events_in_wait_list is the number of events in the wait list
+/// \param event_wait_list is the list of events to wait on before copying
+/// \param event is the returned event representing this operation
+__SYCL_EXPORT pi_result piextMemImageCopy(
+    pi_queue command_queue, void *dst_ptr, void *src_ptr,
+    const pi_image_format *image_format, const pi_image_desc *image_desc,
+    const pi_image_copy_flags flags, pi_image_offset src_offset,
+    pi_image_offset dst_offset, pi_image_region copy_extent,
+    pi_image_region host_extent, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
+/// API to query an image memory handle for specific properties.
+///
+/// \param mem_handle is the handle to the image memory
+/// \param param_name is the queried info name
+/// \param param_value is the returned query value
+/// \param param_value_size_ret is the returned query value size
+__SYCL_EXPORT pi_result piextMemImageGetInfo(
+    const pi_image_mem_handle mem_handle, pi_image_info param_name,
+    void *param_value, size_t *param_value_size_ret);
+
+/// API to import external memory in the form of a file descriptor.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param size is the size of the external memory
+/// \param file_descriptor is the file descriptor
+/// \param ret_handle is the returned interop memory handle to the external
+/// memory
+__SYCL_EXPORT pi_result
+piextMemImportOpaqueFD(pi_context context, pi_device device, size_t size,
+                       int file_descriptor, pi_interop_mem_handle *ret_handle);
+
+/// API to map an interop memory handle to an image memory handle.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param image_format format of the image (channel order and data type)
+/// \param image_desc image descriptor
+/// \param mem_handle is the interop memory handle to the external memory
+/// \param ret_mem is the returned image memory handle to the externally
+/// allocated memory
+__SYCL_EXPORT pi_result piextMemMapExternalArray(
+    pi_context context, pi_device device, pi_image_format *image_format,
+    pi_image_desc *image_desc, pi_interop_mem_handle mem_handle,
+    pi_image_mem_handle *ret_mem);
+
+/// API to destroy interop memory.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param memory_handle is the handle to interop memory to be freed
+__SYCL_EXPORT pi_result piextMemReleaseInterop(
+    pi_context context, pi_device device, pi_interop_mem_handle memory_handle);
+
+/// API to import an external semaphore in the form of a file descriptor.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param file_descriptor is the file descriptor
+/// \param ret_handle is the returned interop semaphore handle to the external
+/// semaphore
+__SYCL_EXPORT pi_result piextImportExternalSemaphoreOpaqueFD(
+    pi_context context, pi_device device, int file_descriptor,
+    pi_interop_semaphore_handle *ret_handle);
+
+/// API to destroy the external semaphore handle.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param sem_handle is the interop semaphore handle to the external semaphore
+/// to be destroyed
+__SYCL_EXPORT pi_result
+piextDestroyExternalSemaphore(pi_context context, pi_device device,
+                              pi_interop_semaphore_handle sem_handle);
+
+/// API to instruct the queue with a non-blocking wait on an external semaphore.
+///
+/// \param command_queue is the queue instructed to wait
+/// \param sem_handle is the interop semaphore handle
+/// \param num_events_in_wait_list is the number of events in the wait list
+/// \param event_wait_list is the list of events to wait on before this
+/// operation
+/// \param event is the returned event representing this operation
+__SYCL_EXPORT pi_result piextWaitExternalSemaphore(
+    pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
+
+/// API to instruct the queue to signal the external semaphore handle once all
+/// previous commands have completed execution.
+///
+/// \param command_queue is the queue instructed to signal
+/// \param sem_handle is the interop semaphore handle to signal
+/// \param num_events_in_wait_list is the number of events in the wait list
+/// \param event_wait_list is the list of events to wait on before this
+/// operation
+/// \param event is the returned event representing this operation
+__SYCL_EXPORT pi_result piextSignalExternalSemaphore(
+    pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

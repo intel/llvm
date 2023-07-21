@@ -60,7 +60,7 @@ int main() {
     cgh.parallel_for(nd_range<1>(N_wg, 1), K);
   });
 
-  auto acc_global = b.get_access<access::mode::read>();
+  auto acc_global = b.get_host_access();
   for (int i = 0; i < N_wg; i++) {
     if (acc_global[i] != 1) {
       std::cerr << "Error in WG " << i << std::endl;

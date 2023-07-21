@@ -2195,13 +2195,21 @@ static llvm::Value *EmitTypeidFromVTable(CodeGenFunction &CGF, const Expr *E,
 }
 
 llvm::Value *CodeGenFunction::EmitCXXTypeidExpr(const CXXTypeidExpr *E) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::Type *PtrTy = llvm::PointerType::getUnqual(getLLVMContext());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Type *StdTypeInfoPtrTy =
     ConvertType(E->getType())->getPointerTo();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   if (E->isTypeOperand()) {
     llvm::Constant *TypeInfo =
         CGM.GetAddrOfRTTIDescriptor(E->getTypeOperand(getContext()));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    return TypeInfo;
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateBitCast(TypeInfo, StdTypeInfoPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   // C++ [expr.typeid]p2:
@@ -2211,12 +2219,20 @@ llvm::Value *CodeGenFunction::EmitCXXTypeidExpr(const CXXTypeidExpr *E) {
   //   type) to which the glvalue refers.
   // If the operand is already most derived object, no need to look up vtable.
   if (E->isPotentiallyEvaluated() && !E->isMostDerived(getContext()))
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    return EmitTypeidFromVTable(*this, E->getExprOperand(), PtrTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     return EmitTypeidFromVTable(*this, E->getExprOperand(),
                                 StdTypeInfoPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   QualType OperandTy = E->getExprOperand()->getType();
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return CGM.GetAddrOfRTTIDescriptor(OperandTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   return Builder.CreateBitCast(CGM.GetAddrOfRTTIDescriptor(OperandTy),
                                StdTypeInfoPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 static llvm::Value *EmitDynamicCastToNull(CodeGenFunction &CGF,

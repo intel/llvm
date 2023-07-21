@@ -5,8 +5,8 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:2" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:3" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 
-// Temporarily disable on L0 and HIP due to fails in CI
-// UNSUPPORTED: level_zero, hip
+// Temporarily disable on L0 due to fails in CI
+// UNSUPPORTED: level_zero
 
 #include <fstream>
 #include <iostream>
@@ -28,7 +28,8 @@ const std::map<backend, std::string> BackendStringMap = {
     {backend::ext_oneapi_level_zero, "ext_oneapi_level_zero"},
     {backend::ext_intel_esimd_emulator, "ext_intel_esimd_emulator"},
     {backend::ext_oneapi_cuda, "ext_oneapi_cuda"},
-    {backend::ext_oneapi_hip, "ext_oneapi_hip"}};
+    {backend::ext_oneapi_hip, "ext_oneapi_hip"},
+    {backend::ext_native_cpu, "ext_native_cpu"}};
 
 std::string getDeviceTypeName(const device &d) {
   auto DeviceType = d.get_info<info::device::device_type>();

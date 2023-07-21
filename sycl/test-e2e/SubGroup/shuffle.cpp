@@ -1,10 +1,6 @@
-// UNSUPPORTED: hip_amd
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// Missing __spirv_SubgroupShuffleINTEL, __spirv_SubgroupShuffleUpINTEL,
-// __spirv_SubgroupShuffleDownINTEL, __spirv_SubgroupShuffleXorINTEL on AMD
-//
+
 //==------------ shuffle.cpp - SYCL sub_group shuffle test -----*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

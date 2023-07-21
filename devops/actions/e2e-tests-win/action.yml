@@ -10,6 +10,10 @@ inputs:
   cmake_args:
     description: 'Extra arguments to cmake command'
     required: false
+  sycl_archive:
+    description: 'Name of SYCL toolchain archive file'
+    required: false
+    default: 'llvm_sycl.tar.gz'
 
 post-if: false
 runs:
@@ -23,14 +27,17 @@ runs:
     shell: bash
     run: |
       mkdir install
-      tar -xf llvm_sycl.tar.gz -C install
-      rm llvm_sycl.tar.gz
+      tar -xf ${{ inputs.sycl_archive }} -C install
+      rm ${{ inputs.sycl_archive }}
   - name: Configure
     shell: cmd
     run: |
       mkdir build-e2e
       set PATH=%GITHUB_WORKSPACE%\install\bin;%PATH%
       cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.targets }}" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py" ${{ inputs.cmake_args }}
+      echo "::group::sycl-ls --verbose"
+      sycl-ls --verbose
+      echo "::endgroup::
   - name: Run testing
     shell: bash
     run: |

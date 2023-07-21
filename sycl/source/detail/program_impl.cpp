@@ -13,7 +13,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/pi.h>
-#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/property_list.hpp>
 
@@ -98,8 +97,8 @@ program_impl::program_impl(
   }
 
   if (!is_host()) {
-    std::vector<RT::PiDevice> Devices(get_pi_devices());
-    std::vector<RT::PiProgram> Programs;
+    std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
+    std::vector<sycl::detail::pi::PiProgram> Programs;
     bool NonInterOpToLink = false;
     for (const auto &Prg : ProgramList) {
       if (!Prg->MLinkable && NonInterOpToLink)
@@ -108,10 +107,11 @@ program_impl::program_impl(
       Programs.push_back(Prg->MProgram);
     }
     const PluginPtr &Plugin = getPlugin();
-    RT::PiResult Err = Plugin->call_nocheck<PiApiKind::piProgramLink>(
-        MContext->getHandleRef(), Devices.size(), Devices.data(),
-        LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr, nullptr,
-        &MProgram);
+    sycl::detail::pi::PiResult Err =
+        Plugin->call_nocheck<PiApiKind::piProgramLink>(
+            MContext->getHandleRef(), Devices.size(), Devices.data(),
+            LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr,
+            nullptr, &MProgram);
     Plugin->checkPiResult<compile_program_error>(Err);
   }
 }
@@ -124,7 +124,7 @@ program_impl::program_impl(ContextImplPtr Context,
 
 program_impl::program_impl(ContextImplPtr Context,
                            pi_native_handle InteropProgram,
-                           RT::PiProgram Program)
+                           sycl::detail::pi::PiProgram Program)
     : MProgram(Program), MContext(Context), MLinkable(true) {
   const PluginPtr &Plugin = getPlugin();
   if (MProgram == nullptr) {
@@ -141,9 +141,10 @@ program_impl::program_impl(ContextImplPtr Context,
   Plugin->call<PiApiKind::piProgramGetInfo>(
       MProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(pi_uint32), &NumDevices,
       nullptr);
-  std::vector<RT::PiDevice> PiDevices(NumDevices);
+  std::vector<sycl::detail::pi::PiDevice> PiDevices(NumDevices);
   Plugin->call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_DEVICES,
-                                            sizeof(RT::PiDevice) * NumDevices,
+                                            sizeof(sycl::detail::pi::PiDevice) *
+                                                NumDevices,
                                             PiDevices.data(), nullptr);
   std::vector<device> SyclContextDevices =
       MContext->get_info<info::context::devices>();
@@ -161,7 +162,8 @@ program_impl::program_impl(ContextImplPtr Context,
   SyclContextDevices.erase(NewEnd, SyclContextDevices.end());
   MDevices = SyclContextDevices;
   assert(!MDevices.empty() && "No device found for this program");
-  RT::PiDevice Device = getSyclObjImpl(MDevices[0])->getHandleRef();
+  sycl::detail::pi::PiDevice Device =
+      getSyclObjImpl(MDevices[0])->getHandleRef();
   // TODO check build for each device instead
   cl_program_binary_type BinaryType;
   Plugin->call<PiApiKind::piProgramGetBuildInfo>(
@@ -198,7 +200,8 @@ program_impl::program_impl(ContextImplPtr Context,
   }
 }
 
-program_impl::program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
+program_impl::program_impl(ContextImplPtr Context,
+                           sycl::detail::pi::PiKernel Kernel)
     : program_impl(Context, reinterpret_cast<pi_native_handle>(nullptr),
                    ProgramManager::getInstance().getPiProgramFromPiKernel(
                        Kernel, Context)) {
@@ -237,19 +240,6 @@ void program_impl::compile_with_kernel_name(std::string KernelName,
   MState = program_state::compiled;
 }
 
-void program_impl::compile_with_source(std::string KernelSource,
-                                       std::string CompileOptions) {
-  std::lock_guard<std::mutex> Lock(MMutex);
-  throw_if_state_is_not(program_state::none);
-  // TODO should it throw if it's host?
-  if (!is_host()) {
-    create_cl_program_with_source(KernelSource);
-    compile(CompileOptions);
-  }
-  MState = program_state::compiled;
-  MIsInterop = true;
-}
-
 void program_impl::build_with_kernel_name(std::string KernelName,
                                           std::string BuildOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
@@ -267,25 +257,12 @@ void program_impl::build_with_kernel_name(std::string KernelName,
   MState = program_state::linked;
 }
 
-void program_impl::build_with_source(std::string KernelSource,
-                                     std::string BuildOptions) {
-  std::lock_guard<std::mutex> Lock(MMutex);
-  throw_if_state_is_not(program_state::none);
-  // TODO should it throw if it's host?
-  if (!is_host()) {
-    create_cl_program_with_source(KernelSource);
-    build(BuildOptions);
-  }
-  MState = program_state::linked;
-  MIsInterop = true;
-}
-
 void program_impl::link(std::string LinkOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::compiled);
   if (!is_host()) {
     check_device_feature_support<info::device::is_linker_available>(MDevices);
-    std::vector<RT::PiDevice> Devices(get_pi_devices());
+    std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
     const PluginPtr &Plugin = getPlugin();
     const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
     if (!LinkOpts) {
@@ -298,9 +275,10 @@ void program_impl::link(std::string LinkOptions) {
     if (MProgram != nullptr)
       Plugin->call<PiApiKind::piProgramRelease>(MProgram);
 
-    RT::PiResult Err = Plugin->call_nocheck<PiApiKind::piProgramLink>(
-        MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
-        /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
+    sycl::detail::pi::PiResult Err =
+        Plugin->call_nocheck<PiApiKind::piProgramLink>(
+            MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
+            /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
     Plugin->checkPiResult<compile_program_error>(Err);
     MLinkOptions = LinkOptions;
     MBuildOptions = LinkOptions;
@@ -315,12 +293,12 @@ bool program_impl::has_kernel(std::string KernelName,
     return !IsCreatedFromSource;
   }
 
-  std::vector<RT::PiDevice> Devices(get_pi_devices());
+  std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
   pi_uint64 function_ptr;
   const PluginPtr &Plugin = getPlugin();
 
-  RT::PiResult Err = PI_SUCCESS;
-  for (RT::PiDevice Device : Devices) {
+  sycl::detail::pi::PiResult Err = PI_SUCCESS;
+  for (sycl::detail::pi::PiDevice Device : Devices) {
     Err = Plugin->call_nocheck<PiApiKind::piextGetDeviceFunctionPointer>(
         Device, MProgram, KernelName.c_str(), &function_ptr);
     if (Err != PI_SUCCESS &&
@@ -376,37 +354,18 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
   return Result;
 }
 
-void program_impl::create_cl_program_with_source(const std::string &Source) {
-  assert(!MProgram && "This program already has an encapsulated cl_program");
-  const char *Src = Source.c_str();
-  size_t Size = Source.size();
-  const PluginPtr &Plugin = getPlugin();
-  RT::PiResult Err =
-      Plugin->call_nocheck<PiApiKind::piclProgramCreateWithSource>(
-          MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
-
-  if (Err == PI_ERROR_INVALID_OPERATION) {
-    throw feature_not_supported(
-        "program::compile_with_source is not supported by the selected backend",
-        PI_ERROR_INVALID_OPERATION);
-  }
-
-  if (Err != PI_SUCCESS) {
-    Plugin->reportPiError(Err, "create_cl_program_with_source()");
-  }
-}
-
 void program_impl::compile(const std::string &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
-  std::vector<RT::PiDevice> Devices(get_pi_devices());
+  std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
   const PluginPtr &Plugin = getPlugin();
   const char *CompileOpts = SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
   if (!CompileOpts) {
     CompileOpts = Options.c_str();
   }
-  RT::PiResult Err = Plugin->call_nocheck<PiApiKind::piProgramCompile>(
-      MProgram, Devices.size(), Devices.data(), CompileOpts, 0, nullptr,
-      nullptr, nullptr, nullptr);
+  sycl::detail::pi::PiResult Err =
+      Plugin->call_nocheck<PiApiKind::piProgramCompile>(
+          MProgram, Devices.size(), Devices.data(), CompileOpts, 0, nullptr,
+          nullptr, nullptr, nullptr);
 
   if (Err != PI_SUCCESS) {
     throw compile_program_error(
@@ -420,12 +379,13 @@ void program_impl::compile(const std::string &Options) {
 
 void program_impl::build(const std::string &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
-  std::vector<RT::PiDevice> Devices(get_pi_devices());
+  std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
   const PluginPtr &Plugin = getPlugin();
   ProgramManager::getInstance().flushSpecConstants(*this);
-  RT::PiResult Err = Plugin->call_nocheck<PiApiKind::piProgramBuild>(
-      MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
-      nullptr);
+  sycl::detail::pi::PiResult Err =
+      Plugin->call_nocheck<PiApiKind::piProgramBuild>(
+          MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
+          nullptr);
 
   if (Err != PI_SUCCESS) {
     throw compile_program_error(
@@ -436,17 +396,17 @@ void program_impl::build(const std::string &Options) {
   MBuildOptions = Options;
 }
 
-std::vector<RT::PiDevice> program_impl::get_pi_devices() const {
-  std::vector<RT::PiDevice> PiDevices;
+std::vector<sycl::detail::pi::PiDevice> program_impl::get_pi_devices() const {
+  std::vector<sycl::detail::pi::PiDevice> PiDevices;
   for (const auto &Device : MDevices) {
     PiDevices.push_back(getSyclObjImpl(Device)->getHandleRef());
   }
   return PiDevices;
 }
 
-std::pair<RT::PiKernel, const KernelArgMask *>
+std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>
 program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
-  std::pair<RT::PiKernel, const KernelArgMask *> Result;
+  std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *> Result;
 
   if (is_cacheable()) {
     std::tie(Result.first, std::ignore, Result.second, std::ignore) =
@@ -456,8 +416,9 @@ program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
     getPlugin()->call<PiApiKind::piKernelRetain>(Result.first);
   } else {
     const PluginPtr &Plugin = getPlugin();
-    RT::PiResult Err = Plugin->call_nocheck<PiApiKind::piKernelCreate>(
-        MProgram, KernelName.c_str(), &Result.first);
+    sycl::detail::pi::PiResult Err =
+        Plugin->call_nocheck<PiApiKind::piKernelCreate>(
+            MProgram, KernelName.c_str(), &Result.first);
     if (Err == PI_ERROR_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
           "This instance of program does not contain the kernel requested",
@@ -508,19 +469,9 @@ void program_impl::create_pi_program_with_kernel_name(
   MProgram = PM.createPIProgram(Img, get_context(), {FirstDevice});
 }
 
-void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
-                                          size_t ValSize) {
-  if (MState != program_state::none)
-    throw sycl::ext::oneapi::experimental::spec_const_error(
-        "Invalid program state", PI_ERROR_INVALID_PROGRAM);
-  // Reuse cached programs lock as opposed to introducing a new lock.
-  auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();
-  spec_constant_impl &SC = SpecConstRegistry[Name];
-  SC.set(ValSize, ValAddr);
-}
-
-void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
-                                        RT::PiProgram NativePrg) const {
+void program_impl::flush_spec_constants(
+    const RTDeviceBinaryImage &Img,
+    sycl::detail::pi::PiProgram NativePrg) const {
   // iterate via all specialization constants the program's image depends on,
   // and set each to current runtime value (if any)
   const RTDeviceBinaryImage::PropertyRange &SCRange = Img.getSpecConstants();

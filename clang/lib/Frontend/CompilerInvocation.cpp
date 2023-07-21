@@ -504,6 +504,12 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     LangOpts.NewAlignOverride = 0;
   }
 
+  // Diagnose FPAccuracy option validity.
+  if (!LangOpts.FPAccuracyVal.empty())
+    for (const auto &F : LangOpts.FPAccuracyFuncMap)
+      Diags.Report(diag::warn_function_fp_accuracy_already_set)
+          << F.second << F.first;
+
   // Prevent the user from specifying both -fsycl-is-device and -fsycl-is-host.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsHost)
     Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
@@ -1901,7 +1907,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
   if (Arg *A = Args.getLastArg(OPT_ftlsmodel_EQ)) {
     if (T.isOSAIX()) {
       StringRef Name = A->getValue();
-      if (Name != "global-dynamic")
+      if (Name != "global-dynamic" && Name != "local-exec")
         Diags.Report(diag::err_aix_unsupported_tls_model) << Name;
     }
   }
@@ -2033,9 +2039,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
             << "-fdiagnostics-hotness-threshold=";
     }
   }
-
-  if (Args.getLastArg(options::OPT_ffp_builtin_accuracy_EQ))
-    Opts.FPAccuracy = 1;
 
   if (auto *arg =
           Args.getLastArg(options::OPT_fdiagnostics_misexpect_tolerance_EQ)) {
@@ -2360,10 +2363,20 @@ clang::CreateAndPopulateDiagOpts(ArrayRef<const char *> Argv) {
   unsigned MissingArgIndex, MissingArgCount;
   InputArgList Args = getDriverOptTable().ParseArgs(
       Argv.slice(1), MissingArgIndex, MissingArgCount);
+
+  bool ShowColors = true;
+  if (std::optional<std::string> NoColor =
+          llvm::sys::Process::GetEnv("NO_COLOR");
+      NoColor && !NoColor->empty()) {
+    // If the user set the NO_COLOR environment variable, we'll honor that
+    // unless the command line overrides it.
+    ShowColors = false;
+  }
+
   // We ignore MissingArgCount and the return value of ParseDiagnosticArgs.
   // Any errors that would be diagnosed here will also be diagnosed later,
   // when the DiagnosticsEngine actually exists.
-  (void)ParseDiagnosticArgs(*DiagOpts, Args);
+  (void)ParseDiagnosticArgs(*DiagOpts, Args, /*Diags=*/nullptr, ShowColors);
   return DiagOpts;
 }
 
@@ -3422,7 +3435,7 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
   if (Opts.OpenMP && !Opts.OpenMPSimd) {
     GenerateArg(Args, OPT_fopenmp, SA);
 
-    if (Opts.OpenMP != 50)
+    if (Opts.OpenMP != 51)
       GenerateArg(Args, OPT_fopenmp_version_EQ, Twine(Opts.OpenMP), SA);
 
     if (!Opts.OpenMPUseTLS)
@@ -3438,7 +3451,7 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
   if (Opts.OpenMPSimd) {
     GenerateArg(Args, OPT_fopenmp_simd, SA);
 
-    if (Opts.OpenMP != 50)
+    if (Opts.OpenMP != 51)
       GenerateArg(Args, OPT_fopenmp_version_EQ, Twine(Opts.OpenMP), SA);
   }
 
@@ -3620,22 +3633,12 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
             if (FuncName.back() == ']')
               FuncName = FuncName.drop_back(1);
             auto FuncMap = Opts.FPAccuracyFuncMap.find(FuncName.str());
-            if (FuncMap != Opts.FPAccuracyFuncMap.end()) {
-              if (!FuncMap->second.empty()) {
-                Diags.Report(diag::warn_function_fp_accuracy_already_set)
-                    << FuncMap->second << FuncName.str();
-              }
-            } else {
-              checkFPAccuracyIsValid(ValElement[0], Diags);
-              if (!Opts.FPAccuracyVal.empty())
-                Diags.Report(diag::warn_function_fp_accuracy_already_set)
-                    << Opts.FPAccuracyVal << FuncName.str();
-              // No need to fill the map if the FPaccuracy is 'default'.
-              // The default builtin will be generated.
-              if (!ValElement[0].equals("default"))
-                Opts.FPAccuracyFuncMap.insert(
-                    {FuncName.str(), ValElement[0].str()});
-            }
+            checkFPAccuracyIsValid(ValElement[0], Diags);
+            // No need to fill the map if the FPaccuracy is 'default'.
+            // The default builtin will be generated.
+            if (!ValElement[0].equals("default"))
+              Opts.FPAccuracyFuncMap.insert(
+                  {FuncName.str(), ValElement[0].str()});
           }
         }
       }
@@ -3944,7 +3947,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.OpenCLForceVectorABI = Args.hasArg(OPT_fopencl_force_vector_abi);
 
   // Check if -fopenmp is specified and set default version to 5.0.
-  Opts.OpenMP = Args.hasArg(OPT_fopenmp) ? 50 : 0;
+  Opts.OpenMP = Args.hasArg(OPT_fopenmp) ? 51 : 0;
   // Check if -fopenmp-simd is specified.
   bool IsSimdSpecified =
       Args.hasFlag(options::OPT_fopenmp_simd, options::OPT_fno_openmp_simd,
@@ -3964,7 +3967,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   if (Opts.OpenMP || Opts.OpenMPSimd) {
     if (int Version = getLastArgIntValue(
             Args, OPT_fopenmp_version_EQ,
-            (IsSimdSpecified || IsTargetSpecified) ? 50 : Opts.OpenMP, Diags))
+            (IsSimdSpecified || IsTargetSpecified) ? 51 : Opts.OpenMP, Diags))
       Opts.OpenMP = Version;
     // Provide diagnostic when a given target is not expected to be an OpenMP
     // device or host.

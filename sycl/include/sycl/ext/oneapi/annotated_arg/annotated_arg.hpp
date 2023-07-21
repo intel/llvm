@@ -30,18 +30,6 @@ struct HasSubscriptOperator
     : std::bool_constant<
           !std::is_void_v<decltype(std::declval<T>().operator[](0))>> {};
 
-// Deduce a `properties<>` type from given variadic properties
-template <typename... Args> struct DeducedProperties {
-  using type = decltype(properties{std::declval<Args>()...});
-};
-
-// Partial specialization for deducing a `properties<>` type by forwarding the
-// given `properties<>` type
-template <typename... Args>
-struct DeducedProperties<detail::properties_t<Args...>> {
-  using type = detail::properties_t<Args...>;
-};
-
 } // namespace detail
 
 // Deduction guide
@@ -192,6 +180,10 @@ public:
                 "Property list is invalid.");
   static_assert(check_property_list<T, Props...>::value,
                 "The property list contains invalid property.");
+  // check the set if FPGA specificed properties are used
+  static_assert(detail::checkValidFPGAPropertySet<Props...>::value,
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
+                "can only be set with BufferLocation together.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;

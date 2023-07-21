@@ -27,12 +27,11 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-context::context(const property_list &PropList)
-    : context(default_selector().select_device(), PropList) {}
+context::context(const property_list &PropList) : context(device{}, PropList) {}
 
 context::context(const async_handler &AsyncHandler,
                  const property_list &PropList)
-    : context(default_selector().select_device(), AsyncHandler, PropList) {}
+    : context(device{}, AsyncHandler, PropList) {}
 
 context::context(const device &Device, const property_list &PropList)
     : context(std::vector<device>(1, Device), PropList) {}
@@ -87,7 +86,8 @@ context::context(const std::vector<device> &DeviceList,
 context::context(cl_context ClContext, async_handler AsyncHandler) {
   const auto &Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
   impl = std::make_shared<detail::context_impl>(
-      detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler, Plugin);
+      detail::pi::cast<sycl::detail::pi::PiContext>(ClContext), AsyncHandler,
+      Plugin);
 }
 
 template <typename Param>

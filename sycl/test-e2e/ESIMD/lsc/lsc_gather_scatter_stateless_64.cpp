@@ -40,26 +40,18 @@ int main() {
          uint64_t offsetStart = (Size - VL) * sizeof(uint64_t);
          simd<uint64_t, VL> offset(offsetStart, sizeof(uint64_t));
          simd<uint64_t, VL> beginning(0, sizeof(uint64_t));
-         simd<uint64_t, VL> va =
-             lsc_gather<uint64_t, 1, lsc_data_size::default_size,
-                        cache_hint::none, cache_hint::none, VL>(PA, beginning);
+         simd<uint64_t, VL> va = lsc_gather<uint64_t>(PA, beginning);
          simd_mask<VL> pred = 1;
          simd<uint64_t, VL> old_values = 0;
          lsc_prefetch<uint64_t, 1, lsc_data_size::default_size,
-                      cache_hint::cached, cache_hint::cached, VL>(PA, offset);
+                      cache_hint::cached, cache_hint::cached>(PA, offset);
          simd<uint64_t, VL> vb =
-             lsc_gather<uint64_t, 1, lsc_data_size::default_size,
-                        cache_hint::none, cache_hint::none, VL>(
-                 PA, offset, pred, old_values);
-         simd<uint64_t, VL> vc =
-             lsc_gather<uint64_t, 1, lsc_data_size::default_size,
-                        cache_hint::none, cache_hint::none, VL>(PA, offset);
+             lsc_gather<uint64_t>(PA, offset, pred, old_values);
+         simd<uint64_t, VL> vc = lsc_gather<uint64_t>(PA, offset);
          va *= 5;
          vb += vc;
-         lsc_scatter<uint64_t, 1, lsc_data_size::default_size, cache_hint::none,
-                     cache_hint::none, VL>(PA, beginning, va);
-         lsc_scatter<uint64_t, 1, lsc_data_size::default_size, cache_hint::none,
-                     cache_hint::none, VL>(PA, offset, vb);
+         lsc_scatter<uint64_t>(PA, beginning, va);
+         lsc_scatter<uint64_t>(PA, offset, vb);
        });
      }).wait();
   } catch (sycl::exception const &e) {

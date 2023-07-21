@@ -1,6 +1,6 @@
-// UNSUPPORTED: hip
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
+
 // Currently the feature is supported only on CPU and GPU, natively or by
 // software emulation.
 // UNSUPPORTED: accelerator

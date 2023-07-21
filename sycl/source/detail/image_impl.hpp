@@ -47,17 +47,17 @@ __SYCL_EXPORT uint8_t getImageNumberChannels(image_channel_order Order);
 __SYCL_EXPORT uint8_t getImageElementSize(uint8_t NumChannels,
                                           image_channel_type Type);
 
-__SYCL_EXPORT RT::PiMemImageChannelOrder
+__SYCL_EXPORT sycl::detail::pi::PiMemImageChannelOrder
 convertChannelOrder(image_channel_order Order);
 
 __SYCL_EXPORT image_channel_order
-convertChannelOrder(RT::PiMemImageChannelOrder Order);
+convertChannelOrder(sycl::detail::pi::PiMemImageChannelOrder Order);
 
-__SYCL_EXPORT RT::PiMemImageChannelType
+__SYCL_EXPORT sycl::detail::pi::PiMemImageChannelType
 convertChannelType(image_channel_type Type);
 
 __SYCL_EXPORT image_channel_type
-convertChannelType(RT::PiMemImageChannelType Type);
+convertChannelType(sycl::detail::pi::PiMemImageChannelType Type);
 
 class __SYCL_EXPORT image_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
@@ -247,7 +247,8 @@ public:
   size_t size() const noexcept { return MRange.size(); }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, RT::PiEvent &OutEventToWait) override;
+                    void *HostPtr,
+                    sycl::detail::pi::PiEvent &OutEventToWait) override;
 
   MemObjType getType() const override { return MemObjType::Image; }
 
@@ -277,10 +278,22 @@ public:
     }
   }
 
+  void sampledImageConstructorNotification(const detail::code_location &CodeLoc,
+                                           void *UserObj, const void *HostObj,
+                                           uint32_t Dim, size_t Range[3],
+                                           image_format Format,
+                                           const image_sampler &Sampler);
+  void sampledImageDestructorNotification(void *UserObj);
+
+  void unsampledImageConstructorNotification(
+      const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
+      uint32_t Dim, size_t Range[3], image_format Format);
+  void unsampledImageDestructorNotification(void *UserObj);
+
 private:
   std::vector<device> getDevices(const ContextImplPtr Context);
 
-  RT::PiMemObjectType getImageType() {
+  sycl::detail::pi::PiMemObjectType getImageType() {
     if (MDimensions == 1)
       return (MIsArrayImage ? PI_MEM_TYPE_IMAGE1D_ARRAY : PI_MEM_TYPE_IMAGE1D);
     if (MDimensions == 2)
@@ -288,8 +301,8 @@ private:
     return PI_MEM_TYPE_IMAGE3D;
   }
 
-  RT::PiMemImageDesc getImageDesc(bool InitFromHostPtr) {
-    RT::PiMemImageDesc Desc;
+  sycl::detail::pi::PiMemImageDesc getImageDesc(bool InitFromHostPtr) {
+    sycl::detail::pi::PiMemImageDesc Desc;
     Desc.image_type = getImageType();
 
     // MRange<> is [width], [width,height], or [width,height,depth] (which
@@ -310,17 +323,17 @@ private:
     return Desc;
   }
 
-  bool checkImageDesc(const RT::PiMemImageDesc &Desc, ContextImplPtr Context,
-                      void *UserPtr);
+  bool checkImageDesc(const sycl::detail::pi::PiMemImageDesc &Desc,
+                      ContextImplPtr Context, void *UserPtr);
 
-  RT::PiMemImageFormat getImageFormat() {
-    RT::PiMemImageFormat Format;
+  sycl::detail::pi::PiMemImageFormat getImageFormat() {
+    sycl::detail::pi::PiMemImageFormat Format;
     Format.image_channel_order = detail::convertChannelOrder(MOrder);
     Format.image_channel_data_type = detail::convertChannelType(MType);
     return Format;
   }
 
-  bool checkImageFormat(const RT::PiMemImageFormat &Format,
+  bool checkImageFormat(const sycl::detail::pi::PiMemImageFormat &Format,
                         ContextImplPtr Context);
 
   uint8_t MDimensions = 0;

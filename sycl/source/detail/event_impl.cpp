@@ -41,7 +41,7 @@ void event_impl::ensureContextInitialized() {
     QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
     this->setContextImpl(detail::getSyclObjImpl(HostQueue->get_context()));
   } else {
-    const device &SyclDevice = default_selector().select_device();
+    const device SyclDevice;
     this->setContextImpl(detail::queue_impl::getDefaultOrNew(
         detail::getSyclObjImpl(SyclDevice)));
   }
@@ -100,8 +100,10 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
-const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
-RT::PiEvent &event_impl::getHandleRef() { return MEvent; }
+const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
+  return MEvent;
+}
+sycl::detail::pi::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() {
   ensureContextInitialized();
@@ -121,27 +123,28 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MIsContextInitialized = true;
 }
 
-event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
+event_impl::event_impl(sycl::detail::pi::PiEvent Event,
+                       const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
       MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
       MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw sycl::invalid_parameter_error(
-        "The syclContext must match the OpenCL context associated with the "
-        "clEvent.",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "The syclContext must match the OpenCL context "
+                          "associated with the clEvent. " +
+                              codeToString(PI_ERROR_INVALID_CONTEXT));
   }
 
-  RT::PiContext TempContext;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(MEvent, PI_EVENT_INFO_CONTEXT,
-                                               sizeof(RT::PiContext),
-                                               &TempContext, nullptr);
+  sycl::detail::pi::PiContext TempContext;
+  getPlugin()->call<PiApiKind::piEventGetInfo>(
+      MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
+      &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw sycl::invalid_parameter_error(
-        "The syclContext must match the OpenCL context associated with the "
-        "clEvent.",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "The syclContext must match the OpenCL context "
+                          "associated with the clEvent. " +
+                              codeToString(PI_ERROR_INVALID_CONTEXT));
   }
 }
 
@@ -157,7 +160,9 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
-        throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Out of host memory " +
+                                  codeToString(PI_ERROR_OUT_OF_HOST_MEMORY));
     }
     return;
   }
@@ -168,7 +173,8 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                         uint64_t &IId) const {
   void *TraceEvent = nullptr;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
+  if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
   // Use a thread-safe counter to get a unique instance ID for the wait() on the
   // event
@@ -178,7 +184,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   // Create a string with the event address so it
   // can be associated with other debug data
   xpti::utils::StringHelper SH;
-  Name = SH.nameWithAddress<RT::PiEvent>("event.wait", MEvent);
+  Name = SH.nameWithAddress<sycl::detail::pi::PiEvent>("event.wait", MEvent);
 
   // We can emit the wait associated with the graph if the
   // event does not have a command object or associated with
@@ -192,7 +198,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
 
   // Record the current instance ID for use by Epilog
   IId = InstanceID++;
-  xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
+  xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,
                         IId, static_cast<const void *>(Name.c_str()));
   TraceEvent = (void *)WaitEvent;
 #endif
@@ -203,12 +209,14 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
                                        const std::string &Name,
                                        int32_t StreamID, uint64_t IId) const {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiTraceEnabled() && TelemetryEvent))
+  constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
+  if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
+        TelemetryEvent))
     return;
   // Close the wait() scope
   xpti::trace_event_data_t *TraceEvent =
       (xpti::trace_event_data_t *)TelemetryEvent;
-  xptiNotifySubscribers(StreamID, xpti::trace_wait_end, nullptr, TraceEvent,
+  xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
                         IId, static_cast<const void *>(Name.c_str()));
 #endif
 }
@@ -217,6 +225,12 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
+
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait method cannot be used for an event associated "
+                          "with a command graph.");
+  }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
@@ -287,8 +301,10 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling info is not available. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -302,8 +318,10 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling info is not available. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getEndTime();
 }
 

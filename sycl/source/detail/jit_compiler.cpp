@@ -54,7 +54,7 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   }
 }
 
-std::pair<const RTDeviceBinaryImage *, RT::PiProgram>
+std::pair<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
 retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
   auto KernelName = KernelCG->getKernelName();
 
@@ -78,14 +78,14 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
     auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
     auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
-    RT::PiProgram Program =
+    sycl::detail::pi::PiProgram Program =
         detail::ProgramManager::getInstance().createPIProgram(**DeviceImage,
                                                               Context, Device);
     return {*DeviceImage, Program};
   }
 
   const RTDeviceBinaryImage *DeviceImage = nullptr;
-  RT::PiProgram Program = nullptr;
+  sycl::detail::pi::PiProgram Program = nullptr;
   if (KernelCG->getKernelBundle() != nullptr) {
     // Retrieve the device image from the kernel bundle.
     auto KernelBundle = KernelCG->getKernelBundle();
@@ -636,7 +636,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<Requirement *> &Requirements = CGData.MRequirements;
   std::vector<detail::EventImplPtr> &Events = CGData.MEvents;
   std::vector<::jit_compiler::NDRange> Ranges;
-  RT::PiKernelCacheConfig KernelCacheConfig =
+  sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;

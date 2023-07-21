@@ -19,8 +19,9 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <typename Param>
-typename Param::return_type get_event_profiling_info(RT::PiEvent Event,
-                                                     const PluginPtr &Plugin) {
+typename Param::return_type
+get_event_profiling_info(sycl::detail::pi::PiEvent Event,
+                         const PluginPtr &Plugin) {
   static_assert(is_event_profiling_info_desc<Param>::value,
                 "Unexpected event profiling info descriptor");
   typename Param::return_type Result{0};
@@ -31,7 +32,7 @@ typename Param::return_type get_event_profiling_info(RT::PiEvent Event,
 }
 
 template <typename Param>
-typename Param::return_type get_event_info(RT::PiEvent Event,
+typename Param::return_type get_event_info(sycl::detail::pi::PiEvent Event,
                                            const PluginPtr &Plugin) {
   static_assert(is_event_info_desc<Param>::value,
                 "Unexpected event info descriptor");

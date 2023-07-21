@@ -438,6 +438,33 @@ mathematical operation.
 |Compute the hyperbolic tangent of complex number x.
 |===
 
+
+=== Suffixes for complex number literals
+
+This proposal describes literal suffixes for constructing complex number literals.
+The suffixes `i` and `if` create complex numbers of the types `complex<double>` and `complex<float>` respectively, with their imaginary part denoted by the given literal number and the real part being zero.
+
+```C++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+namespace literals {
+namespace complex_literals {
+constexpr complex<double> operator""i(long double x);
+constexpr complex<double> operator""i(unsigned long long x);
+
+constexpr complex<float> operator""if(long double x);
+constexpr complex<float> operator""if(unsigned long long x);
+} // namespace complex_literals
+} // namespace literals
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+```
+
+
 == Implementation notes
 
 The complex mathematical operations can all be defined using SYCL built-ins.

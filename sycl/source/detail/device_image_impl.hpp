@@ -58,7 +58,7 @@ public:
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
                     std::shared_ptr<std::vector<kernel_id>> KernelIDs,
-                    RT::PiProgram Program)
+                    sycl::detail::pi::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::move(KernelIDs)) {
@@ -68,7 +68,8 @@ public:
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
                     std::shared_ptr<std::vector<kernel_id>> KernelIDs,
-                    RT::PiProgram Program, const SpecConstMapT &SpecConstMap,
+                    sycl::detail::pi::PiProgram Program,
+                    const SpecConstMapT &SpecConstMap,
                     const std::vector<unsigned char> &SpecConstsBlob)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
@@ -201,7 +202,9 @@ public:
         [&Dev](const device &DevCand) { return Dev == DevCand; });
   }
 
-  const RT::PiProgram &get_program_ref() const noexcept { return MProgram; }
+  const sycl::detail::pi::PiProgram &get_program_ref() const noexcept {
+    return MProgram;
+  }
 
   const RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
 
@@ -215,7 +218,7 @@ public:
     return MSpecConstsBlob;
   }
 
-  RT::PiMem &get_spec_const_buffer_ref() noexcept {
+  sycl::detail::pi::PiMem &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
       const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
@@ -337,7 +340,7 @@ private:
   std::vector<device> MDevices;
   bundle_state MState;
   // Native program handler which this device image represents
-  RT::PiProgram MProgram = nullptr;
+  sycl::detail::pi::PiProgram MProgram = nullptr;
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp
   std::shared_ptr<std::vector<kernel_id>> MKernelIDs;
@@ -351,7 +354,7 @@ private:
   // Buffer containing binary blob which can have values of all specialization
   // constants in the image, it is using for storing non-native specialization
   // constants
-  RT::PiMem MSpecConstsBuffer = nullptr;
+  sycl::detail::pi::PiMem MSpecConstsBuffer = nullptr;
   // Contains map of spec const names to their descriptions + offsets in
   // the MSpecConstsBlob
   std::map<std::string, std::vector<SpecConstDescT>> MSpecConstSymMap;

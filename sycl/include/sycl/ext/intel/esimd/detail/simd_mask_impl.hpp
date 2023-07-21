@@ -103,7 +103,7 @@ public:
 
 private:
   /// @cond ESIMD_DETAIL
-  static inline constexpr bool mask_size_ok_for_mem_io() {
+  static constexpr bool mask_size_ok_for_mem_io() {
     constexpr unsigned Sz = sizeof(element_type) * N;
     return (Sz >= OperandSize::OWORD) && (Sz % OperandSize::OWORD == 0) &&
            isPowerOf2(Sz / OperandSize::OWORD) &&
@@ -130,6 +130,11 @@ public:
   simd_mask_impl &operator=(element_type val) noexcept {
     base_type::set(val);
     return *this;
+  }
+
+  /// Copy assignment operator.
+  simd_mask_impl &operator=(const simd_mask_impl &other) noexcept {
+    return base_type::operator=(other);
   }
 
   /// Conversion to boolean. Available only when the number of elements is 1.

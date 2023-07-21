@@ -492,6 +492,7 @@ DeclRefExpr::DeclRefExpr(const ASTContext &Ctx, ValueDecl *D,
   DeclRefExprBits.RefersToEnclosingVariableOrCapture =
       RefersToEnclosingVariableOrCapture;
   DeclRefExprBits.NonOdrUseReason = NOUR;
+  DeclRefExprBits.IsImmediateEscalating = false;
   DeclRefExprBits.Loc = L;
   setDependence(computeDependence(this, Ctx));
 }
@@ -529,6 +530,7 @@ DeclRefExpr::DeclRefExpr(const ASTContext &Ctx,
     getTrailingObjects<ASTTemplateKWAndArgsInfo>()->initializeFrom(
         TemplateKWLoc);
   }
+  DeclRefExprBits.IsImmediateEscalating = false;
   DeclRefExprBits.HadMultipleCandidates = 0;
   setDependence(computeDependence(this, Ctx));
 }
@@ -839,7 +841,21 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
         Out << "static ";
     }
 
+    class PrettyCallbacks final : public PrintingCallbacks {
+    public:
+      PrettyCallbacks(const LangOptions &LO) : LO(LO) {}
+      std::string remapPath(StringRef Path) const override {
+        SmallString<128> p(Path);
+        LO.remapPathPrefix(p);
+        return std::string(p);
+      }
+
+    private:
+      const LangOptions &LO;
+    };
     PrintingPolicy Policy(Context.getLangOpts());
+    PrettyCallbacks PrettyCB(Context.getLangOpts());
+    Policy.Callbacks = &PrettyCB;
     std::string Proto;
     llvm::raw_string_ostream POut(Proto);
 

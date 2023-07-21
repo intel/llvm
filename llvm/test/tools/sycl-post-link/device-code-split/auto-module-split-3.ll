@@ -6,9 +6,11 @@
 ; placed in the same module as @_Z3foov.
 ;
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-TU0-IR \
-; RUN:     --implicit-check-not TU0_kernel --implicit-check-not _Z3foov
+; RUN:     --implicit-check-not TU0_kernel --implicit-check-not _Z3foov \
+; RUN:     --implicit-check-not _Z4foo3v
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-TU1-IR \
-; RUN:     --implicit-check-not TU1_kernel --implicit-check-not _Z4foo2v
+; RUN:     --implicit-check-not TU1_kernel --implicit-check-not _Z4foo2v \
+; RUN:     --implicit-check-not _Z4foo1v
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-SYM
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-SYM
 ;
@@ -25,7 +27,7 @@
 ;
 ; CHECK-TU1-IR: define dso_local spir_kernel void @_ZTSZ4mainE10TU0_kernel
 ; CHECK-TU1-IR: define dso_local spir_func void @_Z3foov
-; CHECK-TU1-IR: define dso_local spir_func i32 @_Z4foo1v
+; CHECK-TU1-IR: define dso_local spir_func i32 @_Z4foo3v
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
@@ -75,6 +77,14 @@ entry:
   ret i32 %arg
 }
 
+; Function Attrs: nounwind
+define dso_local spir_func i32 @_Z4foo3v(i32 %arg) #2 {
+entry:
+  %a = alloca i32, align 4
+  store i32 %arg, i32* %a, align 4
+  ret i32 %arg
+}
+
 define dso_local spir_kernel void @_ZTSZ4mainE11TU1_kernel1() #1 {
 entry:
   call spir_func void @_Z4foo2v()
@@ -93,6 +103,7 @@ entry:
 
 attributes #0 = { "sycl-module-id"="TU1.cpp" }
 attributes #1 = { "sycl-module-id"="TU2.cpp" }
+attributes #2 = { "referenced-indirectly" }
 
 !opencl.spir.version = !{!0, !0}
 !spirv.Source = !{!1, !1}

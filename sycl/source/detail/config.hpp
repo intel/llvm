@@ -13,6 +13,7 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/pi.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
@@ -237,7 +238,7 @@ getSyclDeviceTypeMap();
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support

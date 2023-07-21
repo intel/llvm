@@ -1,11 +1,14 @@
-// local_accessors are not supported in esimd_emulator yet.
-// UNSUPPORTED: esimd_emulator
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: gpu
+// TODO: GPU driver on Windows requires a fix/update.
+// XFAIL: windows
+
+// Failure on Linux: https://github.com/intel/llvm/issues/10138
+// UNSUPPORTED: linux
+
+// esimd_emulator does not yet support local accessors
+// UNSUPPORTED: esimd_emulator
 
 // This test verifies usage of local_accessor methods operator[]
 // and get_pointer().
@@ -50,7 +53,7 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
          uint32_t GID = Item.get_global_id(0);
          uint32_t LID = Item.get_local_id(0);
          uint32_t LocalAccOffset = static_cast<uint32_t>(
-             reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer()));
+             reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer().get()));
          if constexpr (TestSubscript) {
            for (int I = 0; I < VL; I++)
              LocalAcc[LID * VL + I] = GID * 100 + I;

@@ -14,10 +14,17 @@
 
 namespace llvm {
 
-class Module;
 class StringRef;
 
+namespace module_split {
+class ModuleDesc;
+}
+namespace util {
+class PropertyValue;
+}
+
 void getSYCLDeviceRequirements(
-    const Module &M, std::map<StringRef, std::vector<uint32_t>> &Requirements);
+    const module_split::ModuleDesc &M,
+    std::map<StringRef, util::PropertyValue> &Requirements);
 
 } // namespace llvm

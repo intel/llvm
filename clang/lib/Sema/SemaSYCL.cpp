@@ -20,6 +20,7 @@
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SYCLNativeCPUHelpers.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
@@ -1027,6 +1028,15 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
   return TAL->get(0).getAsType().getCanonicalType();
 }
 
+// Kernel names are currently mangled as type names which
+// may collide (in the IR) with the "real" type names generated
+// for RTTI etc when compiling host and device code together.
+// Therefore the mangling of the kernel function is changed for
+// NativeCPU to avoid such potential collision.
+static void changeManglingForNativeCPU(std::string &Name) {
+  Name.append("_NativeCPUKernel");
+}
+
 // Gets a name for the OpenCL kernel function, calculated from the first
 // template argument of the kernel caller function.
 static std::pair<std::string, std::string>
@@ -1039,9 +1049,20 @@ constructKernelName(Sema &S, const FunctionDecl *KernelCallerFunc,
   llvm::raw_svector_ostream Out(Result);
 
   MC.mangleTypeName(KernelNameType, Out);
+  std::string MangledName(Out.str());
 
-  return {std::string(Out.str()), SYCLUniqueStableNameExpr::ComputeName(
-                                      S.getASTContext(), KernelNameType)};
+  std::string StableName =
+      SYCLUniqueStableNameExpr::ComputeName(S.getASTContext(), KernelNameType);
+
+  // When compiling for the SYCLNativeCPU device we need a C++ identifier
+  // as the kernel name and cannot use the name produced by some manglers
+  // including the MS mangler.
+  if (S.getLangOpts().SYCLIsNativeCPU) {
+    MangledName = StableName;
+    changeManglingForNativeCPU(MangledName);
+  }
+
+  return {MangledName, StableName};
 }
 
 static bool isDefaultSPIRArch(ASTContext &Context) {
@@ -1257,8 +1278,6 @@ class KernelObjVisitor {
                   QualType FieldTy, HandlerTys &... Handlers) {
     if (isSyclSpecialType(FieldTy, SemaRef))
       KF_FOR_EACH(handleSyclSpecialType, Field, FieldTy);
-    else if (isSyclType(FieldTy, SYCLTypeAttr::spec_constant))
-      KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
     else if (FieldTy->isStructureOrClassType()) {
       if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
         CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
@@ -1326,10 +1345,6 @@ public:
     return true;
   }
   virtual bool handleSyclSpecialType(FieldDecl *, QualType) { return true; }
-
-  virtual bool handleSyclSpecConstantType(FieldDecl *, QualType) {
-    return true;
-  }
 
   virtual bool handleStructType(FieldDecl *, QualType) { return true; }
   virtual bool handleUnionType(FieldDecl *, QualType) { return true; }
@@ -1822,11 +1837,6 @@ public:
     return true;
   }
   bool handleSyclSpecialType(FieldDecl *, QualType) final {
-    CollectionStack.back() = true;
-    return true;
-  }
-
-  bool handleSyclSpecConstantType(FieldDecl *, QualType) final {
     CollectionStack.back() = true;
     return true;
   }
@@ -3448,10 +3458,6 @@ public:
     return handleSpecialType(BS, Ty);
   }
 
-  bool handleSyclSpecConstantType(FieldDecl *FD, QualType Ty) final {
-    return handleSpecialType(FD, Ty);
-  }
-
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     Expr *PointerRef =
         createPointerParamReferenceExpr(FieldTy, StructDepth != 0);
@@ -3714,21 +3720,6 @@ public:
       llvm_unreachable(
           "Unexpected SYCL special class when generating integration header");
     }
-    return true;
-  }
-
-  bool handleSyclSpecConstantType(FieldDecl *FD, QualType FieldTy) final {
-    const TemplateArgumentList &TemplateArgs =
-        cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl())
-            ->getTemplateInstantiationArgs();
-    assert(TemplateArgs.size() == 2 &&
-           "Incorrect template args for spec constant type");
-    // Get specialization constant ID type, which is the second template
-    // argument.
-    QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
-    const std::string SpecConstName = SYCLUniqueStableNameExpr::ComputeName(
-        SemaRef.getASTContext(), SpecConstIDTy);
-    Header.addSpecConstant(SpecConstName, SpecConstIDTy);
     return true;
   }
 
@@ -5291,6 +5282,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       Printer.Visit(K.NameType);
       O << "> {\n";
     }
+
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
       << "\"; }\n";
@@ -5690,6 +5682,16 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     }
   }
 
+  if (S.getLangOpts().SYCLIsNativeCPU) {
+    // This is a temporary workaround for the integration header file
+    // being emitted too early.
+    std::string HCName = getNativeCPUHeaderName(S.getLangOpts());
+
+    OS << "\n// including the kernel handlers calling the kernels\n";
+    OS << "\n#include \"";
+    OS << HCName;
+    OS << "\"\n\n";
+  }
   if (EmittedFirstSpecConstant)
     OS << "#include <sycl/detail/spec_const_integration.hpp>\n";
 

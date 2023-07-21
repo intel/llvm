@@ -4012,6 +4012,14 @@ std::pair<Value *, FPClassTest> llvm::fcmpToClassTest(FCmpInst::Predicate Pred,
   if (!match(RHS, m_APFloat(ConstRHS)))
     return {nullptr, fcNone};
 
+  // fcmp ord x, zero|normal|subnormal|inf -> ~fcNan
+  if (Pred == FCmpInst::FCMP_ORD && !ConstRHS->isNaN())
+    return {LHS, ~fcNan};
+
+  // fcmp uno x, zero|normal|subnormal|inf -> fcNan
+  if (Pred == FCmpInst::FCMP_UNO && !ConstRHS->isNaN())
+    return {LHS, fcNan};
+
   if (ConstRHS->isZero()) {
     // Compares with fcNone are only exactly equal to fcZero if input denormals
     // are not flushed.
@@ -4118,8 +4126,14 @@ std::pair<Value *, FPClassTest> llvm::fcmpToClassTest(FCmpInst::Predicate Pred,
     }
     case FCmpInst::FCMP_OLT:
     case FCmpInst::FCMP_UGE: {
-      if (ConstRHS->isNegative()) // TODO
-        return {nullptr, fcNone};
+      if (ConstRHS->isNegative()) {
+        // No value is ordered and less than negative infinity.
+        // All values are unordered with or at least negative infinity.
+        // fcmp olt x, -inf -> false
+        // fcmp uge x, -inf -> true
+        Mask = fcNone;
+        break;
+      }
 
       // fcmp olt fabs(x), +inf -> fcFinite
       // fcmp uge fabs(x), +inf -> ~fcFinite
@@ -4142,6 +4156,15 @@ std::pair<Value *, FPClassTest> llvm::fcmpToClassTest(FCmpInst::Predicate Pred,
       Mask = fcPosInf;
       if (IsFabs)
         Mask |= fcNegInf;
+      break;
+    }
+    case FCmpInst::FCMP_OGT:
+    case FCmpInst::FCMP_ULE: {
+      if (ConstRHS->isNegative())
+        return {nullptr, fcNone};
+
+      // No value is ordered and greater than infinity.
+      Mask = fcNone;
       break;
     }
     default:
@@ -4176,6 +4199,10 @@ std::pair<Value *, FPClassTest> llvm::fcmpToClassTest(FCmpInst::Predicate Pred,
     default:
       return {nullptr, fcNone};
     }
+  } else if (ConstRHS->isNaN()) {
+    // fcmp o__ x, nan -> false
+    // fcmp u__ x, nan -> true
+    Mask = fcNone;
   } else
     return {nullptr, fcNone};
 
@@ -4442,7 +4469,8 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
         // If the input denormal mode could be PreserveSign, a negative
         // subnormal input could produce a negative zero output.
         const Function *F = II->getFunction();
-        if (F && KnownSrc.isKnownNeverLogicalNegZero(*F, II->getType())) {
+        if (Q.IIQ.hasNoSignedZeros(II) ||
+            (F && KnownSrc.isKnownNeverLogicalNegZero(*F, II->getType()))) {
           Known.knownNot(fcNegZero);
           if (KnownSrc.isKnownNeverNaN())
             Known.SignBit = false;
@@ -4760,28 +4788,35 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
     if ((InterestedClasses & fcNan) != fcNan)
       break;
 
+    // fcSubnormal is only needed in case of DAZ.
+    const FPClassTest NeedForNan = fcNan | fcInf | fcZero | fcSubnormal;
+
     KnownFPClass KnownLHS, KnownRHS;
-    computeKnownFPClass(Op->getOperand(1), DemandedElts,
-                        fcNan | fcInf | fcZero | fcSubnormal, KnownRHS,
+    computeKnownFPClass(Op->getOperand(1), DemandedElts, NeedForNan, KnownRHS,
                         Depth + 1, Q);
-    if (KnownRHS.isKnownNeverNaN() &&
-        (KnownRHS.isKnownNeverInfinity() || KnownRHS.isKnownNeverZero())) {
-      computeKnownFPClass(Op->getOperand(0), DemandedElts,
-                          fcNan | fcInf | fcZero, KnownLHS, Depth + 1, Q);
-      if (!KnownLHS.isKnownNeverNaN())
-        break;
+    if (!KnownRHS.isKnownNeverNaN())
+      break;
 
-      const Function *F = cast<Instruction>(Op)->getFunction();
+    computeKnownFPClass(Op->getOperand(0), DemandedElts, NeedForNan, KnownLHS,
+                        Depth + 1, Q);
+    if (!KnownLHS.isKnownNeverNaN())
+      break;
 
-      // If neither side can be zero (or nan) fmul never produces NaN.
-      // TODO: Check operand combinations.
-      // e.g. fmul nofpclass(inf nan zero), nofpclass(nan) -> nofpclass(nan)
-      if ((KnownLHS.isKnownNeverInfinity() ||
-           (F && KnownLHS.isKnownNeverLogicalZero(*F, Op->getType()))) &&
-          (KnownRHS.isKnownNeverInfinity() ||
-           (F && KnownRHS.isKnownNeverLogicalZero(*F, Op->getType()))))
-        Known.knownNot(fcNan);
+    // If 0 * +/-inf produces NaN.
+    if (KnownLHS.isKnownNeverInfinity() && KnownRHS.isKnownNeverInfinity()) {
+      Known.knownNot(fcNan);
+      break;
     }
+
+    const Function *F = cast<Instruction>(Op)->getFunction();
+    if (!F)
+      break;
+
+    if ((KnownRHS.isKnownNeverInfinity() ||
+         KnownLHS.isKnownNeverLogicalZero(*F, Op->getType())) &&
+        (KnownLHS.isKnownNeverInfinity() ||
+         KnownRHS.isKnownNeverLogicalZero(*F, Op->getType())))
+      Known.knownNot(fcNan);
 
     break;
   }
@@ -7911,6 +7946,10 @@ static bool isTruePredicate(CmpInst::Predicate Pred, const Value *LHS,
 
     // LHS u<= LHS +_{nuw} C   for any C
     if (match(RHS, m_NUWAdd(m_Specific(LHS), m_APInt(C))))
+      return true;
+
+    // RHS >> V u<= RHS for any V
+    if (match(LHS, m_LShr(m_Specific(RHS), m_Value())))
       return true;
 
     // Match A to (X +_{nuw} CA) and B to (X +_{nuw} CB)
