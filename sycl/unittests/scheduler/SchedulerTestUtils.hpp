@@ -24,11 +24,11 @@
 sycl::detail::Requirement getMockRequirement();
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class Command;
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 class MockCommand : public sycl::detail::Command {

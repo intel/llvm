@@ -39,7 +39,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global (to the SYCL runtime) graph handle that all command groups are a
@@ -710,5 +710,5 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
 
 } // namespace pi
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -11,7 +11,7 @@
 #include <sycl/ext/intel/experimental/pipes.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -25,5 +25,5 @@ __SYCL_EXPORT std::string pipe_base::get_pipe_name(const void *HostPipePtr) {
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

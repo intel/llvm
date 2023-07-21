@@ -12,7 +12,7 @@
 #include <sycl/ext/oneapi/properties/property_utils.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
@@ -85,5 +85,5 @@ struct IsCompileTimePropertyValue<property_value<PropertyT, PropertyValueTs...>>
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

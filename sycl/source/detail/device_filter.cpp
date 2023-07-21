@@ -16,7 +16,7 @@
 #include <string_view>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 std::vector<std::string_view> tokenize(const std::string_view &Filter,
@@ -407,5 +407,5 @@ bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

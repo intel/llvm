@@ -13,7 +13,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::level_zero {
 // Implementation of various "make" functions resides in libsycl.so and thus
 // their interface needs to be backend agnostic.
@@ -229,5 +229,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
 using namespace ext::oneapi::level_zero;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

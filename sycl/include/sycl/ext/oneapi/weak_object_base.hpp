@@ -11,7 +11,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::detail {
 template <typename SYCLObjT> class weak_object_base;
 
@@ -77,5 +77,5 @@ protected:
   detail::getSyclWeakObjImpl(const weak_object_base<Obj> &WeakObj);
 };
 } // namespace ext::oneapi::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

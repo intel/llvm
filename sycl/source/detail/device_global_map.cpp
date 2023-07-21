@@ -9,7 +9,7 @@
 #include <detail/program_manager/program_manager.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail::device_global_map {
 
 __SYCL_EXPORT void add(const void *DeviceGlobalPtr, const char *UniqueId) {
@@ -18,5 +18,5 @@ __SYCL_EXPORT void add(const void *DeviceGlobalPtr, const char *UniqueId) {
 }
 
 } // namespace detail::device_global_map
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

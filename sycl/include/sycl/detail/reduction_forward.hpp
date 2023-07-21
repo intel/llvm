@@ -15,7 +15,7 @@
 #include <sycl/detail/common.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           bool ExplicitIdentity, typename RedOutVar>
@@ -65,5 +65,5 @@ template <typename T> struct IsReduction;
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

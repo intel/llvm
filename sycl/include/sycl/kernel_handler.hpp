@@ -15,7 +15,7 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 /// Reading the value of a specialization constant
 ///
 /// \ingroup sycl_api
@@ -65,5 +65,5 @@ private:
   char *MSpecializationConstantsBuffer = nullptr;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

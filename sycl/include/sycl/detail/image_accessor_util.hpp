@@ -23,7 +23,7 @@
 #include <cstdint>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <typename T>
@@ -1152,6 +1152,6 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const image_sampler &Smpl,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif

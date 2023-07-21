@@ -414,7 +414,7 @@ class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_ptr) annotated_p
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 #endif

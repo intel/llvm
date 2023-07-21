@@ -22,7 +22,7 @@
 #include <sycl/stl.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class handler;
 class queue;
@@ -840,7 +840,7 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
     -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

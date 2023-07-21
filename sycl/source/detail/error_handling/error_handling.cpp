@@ -17,7 +17,7 @@
 #include <sycl/detail/pi.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail::enqueue_kernel_launch {
 
 void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
@@ -437,5 +437,5 @@ void handleErrorOrWarning(pi_result Error, pi_kernel_group_info Descriptor,
 }
 } // namespace detail::kernel_get_group_info
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

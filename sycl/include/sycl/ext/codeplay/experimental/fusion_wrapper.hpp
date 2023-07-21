@@ -11,7 +11,7 @@
 #include <sycl/queue.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 class fusion_wrapper_impl;
@@ -90,5 +90,5 @@ private:
   std::shared_ptr<detail::fusion_wrapper_impl> MImpl;
 };
 } // namespace ext::codeplay::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

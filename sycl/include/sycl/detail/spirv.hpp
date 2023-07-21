@@ -21,7 +21,7 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 struct sub_group;
 namespace ext {
 namespace oneapi {
@@ -1183,6 +1183,6 @@ __SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOrKHR)
 
 } // namespace spirv
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif //  __SYCL_DEVICE_ONLY__

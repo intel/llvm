@@ -27,7 +27,7 @@
 #include <tuple>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /// Base non-template class which is a base class for all reduction
@@ -2885,5 +2885,5 @@ auto reduction(span<T, Extent> Span, const T &Identity,
   return detail::make_reduction<BinaryOperation, 1, Extent, true>(
       Span.data(), Identity, Combiner, InitializeToIdentity);
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

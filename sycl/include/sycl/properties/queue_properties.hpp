@@ -12,7 +12,7 @@
 #include <sycl/properties/property_traits.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   namespace NS_QUALIFIER {                                                     \
   class PROP_NAME                                                              \
@@ -54,5 +54,5 @@ class queue;
 
 #include <sycl/properties/queue_properties.def>
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

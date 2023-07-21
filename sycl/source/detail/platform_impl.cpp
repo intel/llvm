@@ -25,7 +25,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
@@ -665,5 +665,5 @@ platform_impl::getDeviceImplHelper(sycl::detail::pi::PiDevice PiDevice) {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

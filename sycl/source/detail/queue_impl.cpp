@@ -24,7 +24,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
@@ -582,5 +582,5 @@ bool queue_impl::ext_oneapi_empty() const {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

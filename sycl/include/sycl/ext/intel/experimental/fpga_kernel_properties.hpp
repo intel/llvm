@@ -13,7 +13,7 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental {
 
 template <typename T, typename PropertyListT> class fpga_kernel_attribute;
@@ -150,5 +150,5 @@ struct PropertyMetaInfo<intel::experimental::pipelined_key::value_t<Value>> {
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

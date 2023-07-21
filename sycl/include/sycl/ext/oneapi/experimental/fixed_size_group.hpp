@@ -11,7 +11,7 @@
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
@@ -175,5 +175,5 @@ struct is_group<
     ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>>
     : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

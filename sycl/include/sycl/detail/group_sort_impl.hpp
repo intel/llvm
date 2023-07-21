@@ -19,7 +19,7 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // ---- merge sort implementation
@@ -654,6 +654,6 @@ void privateStaticSort(GroupT group, T *keys, U *values, std::byte *scratch,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif

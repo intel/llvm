@@ -16,7 +16,7 @@
 #include <optional>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 namespace detail {
 // Import from detail:: into ext::oneapi::detail:: to improve readability later
@@ -227,5 +227,5 @@ private:
 };
 
 } // namespace ext::oneapi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

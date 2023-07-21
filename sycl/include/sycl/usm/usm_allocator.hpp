@@ -20,7 +20,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
 public:
@@ -125,5 +125,5 @@ private:
   property_list MPropList;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

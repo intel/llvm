@@ -16,7 +16,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 using DeviceDescT = std::map<std::string, std::string>;
@@ -32,5 +32,5 @@ void applyAllowList(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
                     const PluginPtr &Plugin);
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

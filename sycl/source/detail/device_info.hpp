@@ -27,7 +27,7 @@
 #include <thread>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 inline std::vector<info::fp_config> read_fp_bitfield(pi_device_fp_config bits) {
@@ -1822,5 +1822,5 @@ get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

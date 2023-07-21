@@ -13,7 +13,7 @@
 #include <sycl/detail/pi.h>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 namespace enqueue_kernel_launch {
@@ -35,5 +35,5 @@ void handleErrorOrWarning(pi_result, pi_kernel_group_info, const PluginPtr &);
 } // namespace kernel_get_group_info
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

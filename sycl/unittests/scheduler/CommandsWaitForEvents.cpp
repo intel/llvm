@@ -84,7 +84,7 @@ pi_result piEventsWaitRedefine(pi_uint32 num_events,
 class StreamAUXCmdsWait_TestKernel;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<StreamAUXCmdsWait_TestKernel>
@@ -97,7 +97,7 @@ struct KernelInfo<StreamAUXCmdsWait_TestKernel>
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateDefaultImage() {

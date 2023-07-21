@@ -18,7 +18,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename To, typename From>
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
@@ -45,5 +45,5 @@ constexpr
 
 #endif // __cpp_lib_bit_cast
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

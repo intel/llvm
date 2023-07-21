@@ -14,7 +14,7 @@
 #include <sycl/detail/export.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -151,5 +151,5 @@ template <class KernelNameType> struct KernelInfo {
 #endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

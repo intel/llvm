@@ -19,7 +19,7 @@
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
@@ -929,5 +929,5 @@ template <>
 struct is_simd_flag_type<detail::dqword_element_aligned_tag> : std::true_type {
 };
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

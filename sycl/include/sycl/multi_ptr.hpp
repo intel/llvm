@@ -15,7 +15,7 @@
 #include <sycl/detail/type_traits.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -1607,5 +1607,5 @@ bool operator<=(std::nullptr_t,
   return true;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

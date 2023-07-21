@@ -18,7 +18,7 @@
 // 4.6.2 Context class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declarations
 class device;
 class platform;
@@ -238,7 +238,7 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

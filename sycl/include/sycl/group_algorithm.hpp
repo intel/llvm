@@ -26,7 +26,7 @@
 #include <sycl/sub_group.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // ---- linear_id_to_id
@@ -1077,5 +1077,5 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   return joint_inclusive_scan(g, first, last, result, binary_op, init);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

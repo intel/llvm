@@ -14,7 +14,7 @@
 #include <set>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 kernel_id::kernel_id(const char *Name)
     : impl(std::make_shared<detail::kernel_id_impl>(Name)) {}
@@ -346,5 +346,5 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   return true;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

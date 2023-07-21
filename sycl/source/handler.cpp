@@ -29,7 +29,7 @@
 #include <sycl/stream.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -1081,5 +1081,5 @@ handler::getCommandGraph() const {
   return MQueue->getCommandGraph();
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -16,7 +16,7 @@
 #include <cstddef>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 ///
 // Explicit USM
 ///
@@ -314,5 +314,5 @@ __SYCL_EXPORT void release_from_device_copy(const void *Ptr,
 
 } // namespace ext::oneapi::experimental
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

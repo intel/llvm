@@ -12,7 +12,7 @@
 #include <sycl/properties/property_traits.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 template <typename... PropsT> class accessor_property_list;
 } // namespace ext::oneapi
@@ -67,5 +67,5 @@ private:
   friend class ext::oneapi::accessor_property_list;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

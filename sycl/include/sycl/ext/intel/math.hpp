@@ -53,7 +53,7 @@ _iml_half_internal __imf_truncf16(_iml_half_internal);
 };
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::math {
 
 static_assert(sizeof(sycl::half) == sizeof(_iml_half_internal),
@@ -230,5 +230,5 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> trunc(Tp x) {
 }
 
 } // namespace ext::intel::math
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

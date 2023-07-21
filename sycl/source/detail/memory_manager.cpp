@@ -26,7 +26,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -1433,5 +1433,5 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

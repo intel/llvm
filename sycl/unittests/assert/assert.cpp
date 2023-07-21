@@ -41,7 +41,7 @@
 class TestKernel;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
@@ -69,7 +69,7 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
   }
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateDefaultImage() {

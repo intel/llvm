@@ -10,7 +10,7 @@
 #include <sycl/detail/common_info.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 /// @brief CodeLocation information slot in thread local storage
 /// @details This structure is maintained by the SYCL runtime to manage the
@@ -91,5 +91,5 @@ std::vector<std::string> split_string(const std::string &str, char delimeter) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

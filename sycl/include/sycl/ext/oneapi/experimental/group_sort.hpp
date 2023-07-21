@@ -17,7 +17,7 @@
 #include "group_helpers_sorters.hpp"
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
@@ -132,6 +132,6 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 }
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif

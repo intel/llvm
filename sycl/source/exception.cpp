@@ -14,7 +14,7 @@
 #include <cstring>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 exception::exception(std::error_code EC, const char *Msg)
     : exception(EC, nullptr, Msg) {}
@@ -95,5 +95,5 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
   return {static_cast<int>(Err), sycl_category()};
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -15,7 +15,7 @@
 #include <sycl/feature_test.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace intel::experimental::matrix::layout {
 constexpr sycl::ext::oneapi::experimental::matrix::layout packed =
@@ -519,5 +519,5 @@ joint_matrix_store(Group sg,
 } // namespace intel::experimental::matrix
 
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

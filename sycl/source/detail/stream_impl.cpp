@@ -15,7 +15,7 @@
 #include <cstdio>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
@@ -125,5 +125,5 @@ void stream_impl::flush(const EventImplPtr &LeadEvent) {
 
 void stream_impl::flush() { flush(nullptr); }
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
