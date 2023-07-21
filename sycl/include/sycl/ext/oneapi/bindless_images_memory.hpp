@@ -53,7 +53,7 @@ private:
 } // namespace detail
 
 /// A class that represents image memory
-class image_mem {
+class __SYCL_EXPORT image_mem {
   using raw_handle_type = image_mem_handle;
 
 public:
@@ -61,9 +61,9 @@ public:
   image_mem(const image_mem &) = default;
   image_mem(image_mem &&rhs) = default;
 
-  __SYCL_EXPORT image_mem(const image_descriptor &desc,
-                          const device &syclDevice, const context &syclContext);
-  __SYCL_EXPORT image_mem(const image_descriptor &desc, const queue &syclQueue);
+  image_mem(const image_descriptor &desc, const device &syclDevice,
+            const context &syclContext);
+  image_mem(const image_descriptor &desc, const queue &syclQueue);
   ~image_mem() = default;
 
   image_mem &operator=(const image_mem &) = default;
@@ -79,14 +79,13 @@ public:
   sycl::device get_device() const { return impl->get_device(); }
   sycl::context get_context() const { return impl->get_context(); }
 
-  __SYCL_EXPORT sycl::range<3> get_range() const;
-  __SYCL_EXPORT sycl::image_channel_type get_channel_type() const;
-  __SYCL_EXPORT sycl::image_channel_order get_channel_order() const;
-  __SYCL_EXPORT unsigned int get_num_channels() const;
-  __SYCL_EXPORT image_type get_type() const;
+  sycl::range<3> get_range() const;
+  sycl::image_channel_type get_channel_type() const;
+  sycl::image_channel_order get_channel_order() const;
+  unsigned int get_num_channels() const;
+  image_type get_type() const;
 
-  __SYCL_EXPORT raw_handle_type __SYCL_EXPORT
-  get_mip_level_mem_handle(const unsigned int level) const;
+  raw_handle_type get_mip_level_mem_handle(const unsigned int level) const;
 
 protected:
   std::shared_ptr<detail::image_mem_impl> impl;

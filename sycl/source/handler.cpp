@@ -1315,33 +1315,29 @@ handler::getPiImageCopyFlags(sycl::usm::alloc SrcPtrType,
                              sycl::usm::alloc DstPtrType) {
   if (DstPtrType == sycl::usm::alloc::device) {
     // Dest is on device
-    if (SrcPtrType == sycl::usm::alloc::device) {
+    if (SrcPtrType == sycl::usm::alloc::device)
       return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
-    } else if (SrcPtrType == sycl::usm::alloc::host ||
-               SrcPtrType == sycl::usm::alloc::unknown) {
+    if (SrcPtrType == sycl::usm::alloc::host ||
+        SrcPtrType == sycl::usm::alloc::unknown)
       return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
-    } else {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Unknown copy source location");
-    }
-  } else if (DstPtrType == sycl::usm::alloc::host ||
-             DstPtrType == sycl::usm::alloc::unknown) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unknown copy source location");
+  }
+  if (DstPtrType == sycl::usm::alloc::host ||
+      DstPtrType == sycl::usm::alloc::unknown) {
     // Dest is on host
-    if (SrcPtrType == sycl::usm::alloc::device) {
+    if (SrcPtrType == sycl::usm::alloc::device)
       return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
-    } else if (SrcPtrType == sycl::usm::alloc::host ||
-               SrcPtrType == sycl::usm::alloc::unknown) {
+    if (SrcPtrType == sycl::usm::alloc::host ||
+        SrcPtrType == sycl::usm::alloc::unknown)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Cannot copy image from host to host");
-    } else {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Unknown copy source location");
-    }
-  } else {
     throw sycl::exception(make_error_code(errc::invalid),
-                          "Unknown copy destination location");
+                          "Unknown copy source location");
   }
-  return {};
+
+  throw sycl::exception(make_error_code(errc::invalid),
+                        "Unknown copy destination location");
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
