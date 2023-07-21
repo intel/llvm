@@ -22,7 +22,7 @@ struct S1 {
 // CHECK-NEXT: return "_ZN2S11aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
 constexpr sycl::specialization_id b{202};
@@ -34,7 +34,7 @@ constexpr sycl::specialization_id b{202};
 // CHECK-NEXT: return "____ZL1b";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 inline constexpr sycl::specialization_id c{3};
 // CHECK: namespace sycl {
@@ -45,7 +45,7 @@ inline constexpr sycl::specialization_id c{3};
 // CHECK-NEXT: return "_Z1c";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 static constexpr sycl::specialization_id d{205};
 // CHECK: namespace sycl {
@@ -56,7 +56,7 @@ static constexpr sycl::specialization_id d{205};
 // CHECK-NEXT: return "____ZL1d";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
 namespace inner {
@@ -69,7 +69,7 @@ constexpr sycl::specialization_id same_name{5};
 // CHECK-NEXT: return "____ZN5innerL9same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 }
 constexpr sycl::specialization_id same_name{6};
@@ -81,7 +81,7 @@ constexpr sycl::specialization_id same_name{6};
 // CHECK-NEXT: return "____ZL9same_name";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 namespace {
 constexpr sycl::specialization_id same_name{207};
@@ -100,7 +100,7 @@ constexpr sycl::specialization_id same_name{207};
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 }
 namespace {
@@ -121,7 +121,7 @@ constexpr sycl::specialization_id same_name{208};
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_15inner9same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 }
 } // namespace
@@ -148,7 +148,7 @@ constexpr sycl::specialization_id same_name{209};
 // CHECK-NEXT: return "____ZN5outer5inner12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 }
 }

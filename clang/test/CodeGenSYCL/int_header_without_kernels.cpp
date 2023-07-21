@@ -20,7 +20,7 @@ using namespace sycl::ext::oneapi;
 // CHECK-HEADER-NEXT: __sycl_device_global_registration __sycl_device_global_registrar;
 // CHECK-HEADER-NEXT: } // namespace
 // CHECK-HEADER: } // namespace detail
-// CHECK-HEADER: } // inline namespace _V1
+// CHECK-HEADER: } // namespace _V1
 // CHECK-HEADER: } // namespace sycl
 
 // CHECK-FOOTER: #include <sycl/detail/defines_elementary.hpp>

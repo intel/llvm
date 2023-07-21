@@ -20,7 +20,7 @@ constexpr sycl::specialization_id a{2};
 // CHECK-NEXT: return "____ZL1a";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 sycl::ext::oneapi::device_global<int> b;
 
@@ -36,7 +36,7 @@ struct Wrapper {
 // CHECK-NEXT:   return "_ZN7Wrapper1aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
 template <typename T>
@@ -54,7 +54,7 @@ template class TemplateWrapper<float>;
 // CHECK-NEXT:   return "_ZN15TemplateWrapperIfE1aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
 namespace {
@@ -78,7 +78,7 @@ sycl::ext::oneapi::device_global<int> b;
 // CHECK-NEXT:   return "____ZN12_GLOBAL__N_11aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
 // CHECK: namespace {
@@ -124,7 +124,7 @@ constexpr sycl::specialization_id a{2};
 // CHECK-NEXT:   return "____ZN5outer12_GLOBAL__N_15inner12_GLOBAL__N_11aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 sycl::ext::oneapi::device_global<int> b;
 // CHECK: namespace outer {
@@ -184,7 +184,7 @@ struct Wrapper {
 // CHECK-NEXT:   return "____ZN5outer12_GLOBAL__N_15inner12_GLOBAL__N_17Wrapper1aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
 // CHECK-NEXT: namespace outer {

@@ -57,5 +57,5 @@ namespace detail {
     static constexpr int64_t getKernelSize() { return 0; }
   };
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

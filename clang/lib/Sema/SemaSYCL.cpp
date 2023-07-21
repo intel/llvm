@@ -5347,7 +5347,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "\n";
   O << "} // namespace detail\n";
-  O << "} // inline namespace _V1\n";
+  O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
   O << "\n";
 }
@@ -5677,7 +5677,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       OS << "\";\n";
       OS << "}\n";
       OS << "} // namespace detail\n";
-      OS << "} // inline namespace _V1\n";
+      OS << "} // namespace _V1\n";
       OS << "} // namespace sycl\n";
     }
   }

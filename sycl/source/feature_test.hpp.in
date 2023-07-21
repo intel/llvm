@@ -103,5 +103,5 @@ inline namespace _V1 {
 #include "detail/plugins/esimd_emulator/features.hpp"
 #endif
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

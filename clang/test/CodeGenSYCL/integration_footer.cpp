@@ -20,7 +20,7 @@ sycl::specialization_id<int> GlobalSpecID;
 // CHECK-NEXT: return "_Z12GlobalSpecID";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
 struct Wrapper {
@@ -33,7 +33,7 @@ struct Wrapper {
   // CHECK-NEXT: return "_ZN7Wrapper13WrapperSpecIDE";
   // CHECK-NEXT: }
   // CHECK-NEXT: } // namespace detail
-  // CHECK-NEXT: } // inline namespace _V1
+  // CHECK-NEXT: } // namespace _V1
   // CHECK-NEXT: } // namespace sycl
 };
 
@@ -50,7 +50,7 @@ template class WrapperTemplate<int>;
 // CHECK-NEXT: return "_ZN15WrapperTemplateIiE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 template class WrapperTemplate<double>;
 // CHECK: namespace sycl {
@@ -61,7 +61,7 @@ template class WrapperTemplate<double>;
 // CHECK-NEXT: return "_ZN15WrapperTemplateIdE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
 namespace Foo {
@@ -74,7 +74,7 @@ specialization_id<int> NSSpecID;
 // CHECK-NEXT: return "_ZN3Foo8NSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 inline namespace Bar {
 specialization_id<int> InlineNSSpecID;
@@ -86,7 +86,7 @@ specialization_id<int> InlineNSSpecID;
 // CHECK-NEXT: return "_ZN3Foo3Bar14InlineNSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 specialization_id<int> NSSpecID;
 // CHECK: namespace sycl {
@@ -97,7 +97,7 @@ specialization_id<int> NSSpecID;
 // CHECK-NEXT: return "_ZN3Foo3Bar8NSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
 struct Wrapper {
@@ -110,7 +110,7 @@ struct Wrapper {
   // CHECK-NEXT: return "_ZN3Foo3Bar7Wrapper13WrapperSpecIDE";
   // CHECK-NEXT: }
   // CHECK-NEXT: } // namespace detail
-  // CHECK-NEXT: } // inline namespace _V1
+  // CHECK-NEXT: } // namespace _V1
   // CHECK-NEXT: } // namespace sycl
 };
 
@@ -127,7 +127,7 @@ template class WrapperTemplate<int>;
 // CHECK-NEXT: return "_ZN3Foo3Bar15WrapperTemplateIiE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 template class WrapperTemplate<double>;
 // CHECK: namespace sycl {
@@ -138,7 +138,7 @@ template class WrapperTemplate<double>;
 // CHECK-NEXT: return "_ZN3Foo3Bar15WrapperTemplateIdE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 } // namespace Bar
 namespace {
@@ -162,7 +162,7 @@ specialization_id<int> AnonNSSpecID;
 // CHECK-NEXT: return "____ZN3Foo12_GLOBAL__N_112AnonNSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 } // namespace
 
@@ -209,7 +209,7 @@ auto x = HasVarTemplate::VarTempl<int, 2>.getDefaultValue();
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiLi2EEE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // inline namespace _V1
+// CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
 template <typename T> struct GlobalWrapper {

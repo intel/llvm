@@ -814,7 +814,7 @@ inline const char *get_spec_constant_symbolic_ID<id_float>() {
 }
 
 } // namespace detail
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 // Detailed description of this header is provided below in corresponding RT section
