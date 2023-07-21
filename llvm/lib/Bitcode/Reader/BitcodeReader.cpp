@@ -2385,11 +2385,13 @@ Error BitcodeReader::parseTypeTableBody() {
     case bitc::TYPE_CODE_OPAQUE_POINTER: { // OPAQUE_POINTER: [addrspace]
       if (Record.size() != 1)
         return error("Invalid opaque pointer record");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       if (LLVM_UNLIKELY(!Context.hasSetOpaquePointersValue())) {
         Context.setOpaquePointers(true);
       } else if (Context.supportsTypedPointers())
         return error(
             "Opaque pointers are only supported in -opaque-pointers mode");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       unsigned AddressSpace = Record[0];
       ResultTy = PointerType::get(Context, AddressSpace);
       break;
