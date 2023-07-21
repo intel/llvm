@@ -597,5 +597,10 @@ LogicalResult SYCLHostScheduleKernel::verify() {
   return verifyNdRange(*this, range, offset, ndRange);
 }
 
+LogicalResult
+SYCLHostSubmit::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
+}
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"
