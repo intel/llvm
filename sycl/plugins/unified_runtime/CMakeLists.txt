@@ -180,8 +180,7 @@ endif()
 
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   # Build HIP adapter
-  add_sycl_library(
-    "ur_adapter_hip" SHARED 
+  add_sycl_library("ur_adapter_hip" SHARED 
     SOURCES
       "ur/ur.hpp"
       "ur/ur.cpp"

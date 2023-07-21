@@ -46,7 +46,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  // TODO: is this fine as no-op?
   delete hQueue;
   return UR_RESULT_SUCCESS;
 }
