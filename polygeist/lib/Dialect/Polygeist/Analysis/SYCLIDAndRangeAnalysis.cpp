@@ -28,18 +28,18 @@ namespace polygeist {
 
 raw_ostream &operator<<(raw_ostream &os, const IDRangeInformation &info) {
   if (!info.hasFixedDimensions()) {
-    os.indent(4) << "<unknown>\n";
+    os << "<unknown>";
     return os;
   }
 
   if (info.isConstant()) {
-    os.indent(4) << "constant<";
+    os << "constant<";
     llvm::interleaveComma(info.getConstantValues(), os);
-    os << ">\n";
+    os << ">";
     return os;
   }
 
-  os.indent(4) << "fixed<" << info.getNumDimensions() << ">\n";
+  os << "fixed<" << info.getNumDimensions() << ">";
   return os;
 }
 
