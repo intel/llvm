@@ -955,14 +955,14 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
   // Otherwise form a regular getelementptr. Recompute the indices so that
   // we eliminate over-indexing of the notional static type array bounds.
   // This makes it easy to determine if the getelementptr is "inbounds".
-  // Also, this helps GlobalOpt do SROA on GlobalVariables.
 
-  // For GEPs of GlobalValues, use the value type even for opaque pointers.
-  // Otherwise use an i8 GEP.
+  // For GEPs of GlobalValues, use the value type, otherwise use an i8 GEP.
   if (auto *GV = dyn_cast<GlobalValue>(Ptr))
     SrcElemTy = GV->getValueType();
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   else if (!PTy->isOpaque())
     SrcElemTy = PTy->getNonOpaquePointerElementType();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   else
     SrcElemTy = Type::getInt8Ty(Ptr->getContext());
 

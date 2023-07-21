@@ -333,7 +333,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   if (Subtarget.is64Bit())
     setOperationAction(ISD::ABS, MVT::i32, Custom);
 
-  if (!Subtarget.hasStdExtZicond() && !Subtarget.hasVendorXVentanaCondOps() &&
+  if (!Subtarget.hasVendorXVentanaCondOps() &&
       !Subtarget.hasVendorXTHeadCondMov())
     setOperationAction(ISD::SELECT, XLenVT, Custom);
 
@@ -5762,6 +5762,129 @@ static SDValue combineSelectToBinOp(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+/// RISC-V doesn't have general instructions for integer setne/seteq, but we can
+/// check for equality with 0. This function emits nodes that convert the
+/// seteq/setne into something that can be compared with 0.
+/// Based on RISCVDAGToDAGISel::selectSETCC but modified to produce
+/// target-independent SelectionDAG nodes rather than machine nodes.
+static bool selectSETCC(SDValue N, ISD::CondCode ExpectedCCVal, SDValue &Val,
+                        SelectionDAG &DAG) {
+  assert(ISD::isIntEqualitySetCC(ExpectedCCVal) &&
+         "Unexpected condition code!");
+
+  // We're looking for a setcc.
+  if (N->getOpcode() != ISD::SETCC)
+    return false;
+
+  // Must be an equality comparison.
+  ISD::CondCode CCVal = cast<CondCodeSDNode>(N->getOperand(2))->get();
+  if (CCVal != ExpectedCCVal)
+    return false;
+
+  SDValue LHS = N->getOperand(0);
+  SDValue RHS = N->getOperand(1);
+
+  if (!LHS.getValueType().isInteger())
+    return false;
+
+  // If the RHS side is 0, we don't need any extra instructions, return the LHS.
+  if (isNullConstant(RHS)) {
+    Val = LHS;
+    return true;
+  }
+
+  SDLoc DL(N);
+
+  if (auto *C = dyn_cast<ConstantSDNode>(RHS)) {
+    int64_t CVal = C->getSExtValue();
+    // If the RHS is -2048, we can use xori to produce 0 if the LHS is -2048 and
+    // non-zero otherwise.
+    if (CVal == -2048) {
+      Val = DAG.getNode(ISD::XOR, DL, N->getValueType(0), LHS,
+                        DAG.getConstant(CVal, DL, N->getValueType(0)));
+      return true;
+    }
+    // If the RHS is [-2047,2048], we can use addi with -RHS to produce 0 if the
+    // LHS is equal to the RHS and non-zero otherwise.
+    if (isInt<12>(CVal) || CVal == 2048) {
+      Val = DAG.getNode(ISD::ADD, DL, N->getValueType(0), LHS,
+                        DAG.getConstant(-CVal, DL, N->getValueType(0)));
+      return true;
+    }
+  }
+
+  // If nothing else we can XOR the LHS and RHS to produce zero if they are
+  // equal and a non-zero value if they aren't.
+  Val = DAG.getNode(ISD::XOR, DL, N->getValueType(0), LHS, RHS);
+  return true;
+}
+
+// Transform `binOp (select cond, x, c0), c1` where `c0` and `c1` are constants
+// into `select cond, binOp(x, c1), binOp(c0, c1)` if profitable.
+// For now we only consider transformation profitable if `binOp(c0, c1)` ends up
+// being `0` or `-1`. In such cases we can replace `select` with `and`.
+// TODO: Should we also do this if `binOp(c0, c1)` is cheaper to materialize
+// than `c0`?
+static SDValue
+foldBinOpIntoSelectIfProfitable(SDNode *BO, SelectionDAG &DAG,
+                                const RISCVSubtarget &Subtarget) {
+  if (Subtarget.hasShortForwardBranchOpt())
+    return SDValue();
+
+  unsigned SelOpNo = 0;
+  SDValue Sel = BO->getOperand(0);
+  if (Sel.getOpcode() != ISD::SELECT || !Sel.hasOneUse()) {
+    SelOpNo = 1;
+    Sel = BO->getOperand(1);
+  }
+
+  if (Sel.getOpcode() != ISD::SELECT || !Sel.hasOneUse())
+    return SDValue();
+
+  unsigned ConstSelOpNo = 1;
+  unsigned OtherSelOpNo = 2;
+  if (!dyn_cast<ConstantSDNode>(Sel->getOperand(ConstSelOpNo))) {
+    ConstSelOpNo = 2;
+    OtherSelOpNo = 1;
+  }
+  SDValue ConstSelOp = Sel->getOperand(ConstSelOpNo);
+  ConstantSDNode *ConstSelOpNode = dyn_cast<ConstantSDNode>(ConstSelOp);
+  if (!ConstSelOpNode || ConstSelOpNode->isOpaque())
+    return SDValue();
+
+  SDValue ConstBinOp = BO->getOperand(SelOpNo ^ 1);
+  ConstantSDNode *ConstBinOpNode = dyn_cast<ConstantSDNode>(ConstBinOp);
+  if (!ConstBinOpNode || ConstBinOpNode->isOpaque())
+    return SDValue();
+
+  SDLoc DL(Sel);
+  EVT VT = BO->getValueType(0);
+
+  SDValue NewConstOps[2] = {ConstSelOp, ConstBinOp};
+  if (SelOpNo == 1)
+    std::swap(NewConstOps[0], NewConstOps[1]);
+
+  SDValue NewConstOp =
+      DAG.FoldConstantArithmetic(BO->getOpcode(), DL, VT, NewConstOps);
+  if (!NewConstOp)
+    return SDValue();
+
+  const APInt &NewConstAPInt =
+      cast<ConstantSDNode>(NewConstOp)->getAPIntValue();
+  if (!NewConstAPInt.isZero() && !NewConstAPInt.isAllOnes())
+    return SDValue();
+
+  SDValue OtherSelOp = Sel->getOperand(OtherSelOpNo);
+  SDValue NewNonConstOps[2] = {OtherSelOp, ConstBinOp};
+  if (SelOpNo == 1)
+    std::swap(NewNonConstOps[0], NewNonConstOps[1]);
+  SDValue NewNonConstOp = DAG.getNode(BO->getOpcode(), DL, VT, NewNonConstOps);
+
+  SDValue NewT = (ConstSelOpNo == 1) ? NewConstOp : NewNonConstOp;
+  SDValue NewF = (ConstSelOpNo == 1) ? NewNonConstOp : NewConstOp;
+  return DAG.getSelect(DL, VT, Sel.getOperand(0), NewT, NewF);
+}
+
 SDValue RISCVTargetLowering::lowerSELECT(SDValue Op, SelectionDAG &DAG) const {
   SDValue CondV = Op.getOperand(0);
   SDValue TrueV = Op.getOperand(1);
@@ -5769,6 +5892,68 @@ SDValue RISCVTargetLowering::lowerSELECT(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
   MVT VT = Op.getSimpleValueType();
   MVT XLenVT = Subtarget.getXLenVT();
+
+  // When Zicond is present, emit CZERO_EQZ and CZERO_NEZ nodes to implement
+  // the SELECT. Performing the lowering here allows for greater control over
+  // when CZERO_{EQZ/NEZ} are used vs another branchless sequence or
+  // RISCVISD::SELECT_CC node (branch-based select).
+  if (Subtarget.hasStdExtZicond() && VT.isInteger()) {
+    SDValue NewCondV;
+    if (selectSETCC(CondV, ISD::SETNE, NewCondV, DAG)) {
+      if (isNullConstant(FalseV))
+        // (select (riscv_setne c), t, 0) -> (czero_eqz t, c)
+        return DAG.getNode(RISCVISD::CZERO_EQZ, DL, VT, TrueV, NewCondV);
+      else if (isNullConstant(TrueV))
+        // (select (riscv_setne c), 0, f) -> (czero_nez f, c)
+        return DAG.getNode(RISCVISD::CZERO_NEZ, DL, VT, FalseV, NewCondV);
+      // (select (riscv_setne c), t, f) -> (or (czero_eqz t, c), (czero_nez f,
+      // c)
+      return DAG.getNode(
+          ISD::OR, DL, VT,
+          DAG.getNode(RISCVISD::CZERO_EQZ, DL, VT, TrueV, NewCondV),
+          DAG.getNode(RISCVISD::CZERO_NEZ, DL, VT, FalseV, NewCondV));
+    }
+    if (selectSETCC(CondV, ISD::SETEQ, NewCondV, DAG)) {
+      if (isNullConstant(FalseV))
+        // (select (riscv_seteq c), t, 0) -> (czero_nez t, c)
+        return DAG.getNode(RISCVISD::CZERO_NEZ, DL, VT, TrueV, NewCondV);
+      else if (isNullConstant(TrueV))
+        // (select (riscv_seteq c), 0, f) -> (czero_eqz f, c)
+        return DAG.getNode(RISCVISD::CZERO_EQZ, DL, VT, FalseV, NewCondV);
+      // (select (riscv_seteq c), t, f) -> (or (czero_eqz f, c), (czero_nez t,
+      // c)
+      return DAG.getNode(
+          ISD::OR, DL, VT,
+          DAG.getNode(RISCVISD::CZERO_EQZ, DL, VT, FalseV, NewCondV),
+          DAG.getNode(RISCVISD::CZERO_NEZ, DL, VT, TrueV, NewCondV));
+    }
+    if (isNullConstant(FalseV)) {
+      // (select c, t, 0) -> (czero_eqz t, c)
+      return DAG.getNode(RISCVISD::CZERO_EQZ, DL, VT, TrueV, CondV);
+    }
+    if (isNullConstant(TrueV)) {
+      // (select c, 0, f) -> (czero_nez f, c)
+      return DAG.getNode(RISCVISD::CZERO_NEZ, DL, VT, FalseV, CondV);
+    }
+    if (TrueV.getOpcode() == ISD::AND &&
+        (TrueV.getOperand(0) == FalseV || TrueV.getOperand(1) == FalseV)) {
+      // (select c, (and f, x), f) -> (or (and f, x), (czero_nez f, c))
+      return DAG.getNode(
+          ISD::OR, DL, VT, TrueV,
+          DAG.getNode(RISCVISD::CZERO_NEZ, DL, VT, FalseV, CondV));
+    }
+    if (FalseV.getOpcode() == ISD::AND &&
+        (FalseV.getOperand(0) == TrueV || FalseV.getOperand(1) == TrueV)) {
+      // (select c, t, (and t, x)) -> (or (czero_eqz t, c), (and t, x))
+      return DAG.getNode(
+          ISD::OR, DL, VT, FalseV,
+          DAG.getNode(RISCVISD::CZERO_EQZ, DL, VT, TrueV, CondV));
+    }
+    // (select c, t, f) -> (or (czero_eqz t, c), (czero_nez f, c))
+    return DAG.getNode(ISD::OR, DL, VT,
+                       DAG.getNode(RISCVISD::CZERO_EQZ, DL, VT, TrueV, CondV),
+                       DAG.getNode(RISCVISD::CZERO_NEZ, DL, VT, FalseV, CondV));
+  }
 
   // Lower vector SELECTs to VSELECTs by splatting the condition.
   if (VT.isVector()) {
@@ -5779,6 +5964,18 @@ SDValue RISCVTargetLowering::lowerSELECT(SDValue Op, SelectionDAG &DAG) const {
 
   if (SDValue V = combineSelectToBinOp(Op.getNode(), DAG, Subtarget))
     return V;
+
+  if (Op.hasOneUse()) {
+    unsigned UseOpc = Op->use_begin()->getOpcode();
+    if (isBinOp(UseOpc) && DAG.isSafeToSpeculativelyExecute(UseOpc)) {
+      SDNode *BinOp = *Op->use_begin();
+      if (SDValue NewSel = foldBinOpIntoSelectIfProfitable(*Op->use_begin(),
+                                                           DAG, Subtarget)) {
+        DAG.ReplaceAllUsesWith(BinOp, &NewSel);
+        return lowerSELECT(NewSel, DAG);
+      }
+    }
+  }
 
   // (select cc, 1.0, 0.0) -> (sint_to_fp (zext cc))
   // (select cc, 0.0, 1.0) -> (sint_to_fp (zext (xor cc, 1)))
@@ -6899,6 +7096,15 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
         IntNo == Intrinsic::riscv_zip ? RISCVISD::ZIP : RISCVISD::UNZIP;
     return DAG.getNode(Opc, DL, XLenVT, Op.getOperand(1));
   }
+  case Intrinsic::riscv_clmul:
+    return DAG.getNode(RISCVISD::CLMUL, DL, XLenVT, Op.getOperand(1),
+                       Op.getOperand(2));
+  case Intrinsic::riscv_clmulh:
+    return DAG.getNode(RISCVISD::CLMULH, DL, XLenVT, Op.getOperand(1),
+                       Op.getOperand(2));
+  case Intrinsic::riscv_clmulr:
+    return DAG.getNode(RISCVISD::CLMULR, DL, XLenVT, Op.getOperand(1),
+                       Op.getOperand(2));
   case Intrinsic::experimental_get_vector_length:
     return lowerGetVectorLength(Op.getNode(), DAG, Subtarget);
   case Intrinsic::riscv_vmv_x_s:
@@ -9769,6 +9975,34 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
       SDValue NewOp =
           DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, N->getOperand(1));
       SDValue Res = DAG.getNode(Opc, DL, MVT::i64, NewOp);
+      Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Res));
+      return;
+    }
+    case Intrinsic::riscv_clmul: {
+      if (!Subtarget.is64Bit() || N->getValueType(0) != MVT::i32)
+        return;
+
+      SDValue NewOp0 =
+          DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, N->getOperand(1));
+      SDValue NewOp1 =
+          DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, N->getOperand(2));
+      SDValue Res = DAG.getNode(RISCVISD::CLMUL, DL, MVT::i64, NewOp0, NewOp1);
+      Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Res));
+      return;
+    }
+    case Intrinsic::riscv_clmulh:
+    case Intrinsic::riscv_clmulr: {
+      if (!Subtarget.is64Bit() || N->getValueType(0) != MVT::i32)
+        return;
+
+      SDValue NewOp0 =
+          DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, N->getOperand(1));
+      SDValue NewOp1 =
+          DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, N->getOperand(2));
+      SDValue Res = DAG.getNode(RISCVISD::CLMUL, DL, MVT::i64, NewOp0, NewOp1);
+      unsigned ShAmt = IntNo == Intrinsic::riscv_clmulh ? 32 : 31;
+      Res = DAG.getNode(ISD::SRL, DL, MVT::i64, Res,
+                        DAG.getConstant(ShAmt, DL, MVT::i64));
       Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Res));
       return;
     }
@@ -15754,6 +15988,9 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(ORC_B)
   NODE_NAME_CASE(ZIP)
   NODE_NAME_CASE(UNZIP)
+  NODE_NAME_CASE(CLMUL)
+  NODE_NAME_CASE(CLMULH)
+  NODE_NAME_CASE(CLMULR)
   NODE_NAME_CASE(TH_LWD)
   NODE_NAME_CASE(TH_LWUD)
   NODE_NAME_CASE(TH_LDD)
@@ -15901,6 +16138,8 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(READ_CSR)
   NODE_NAME_CASE(WRITE_CSR)
   NODE_NAME_CASE(SWAP_CSR)
+  NODE_NAME_CASE(CZERO_EQZ)
+  NODE_NAME_CASE(CZERO_NEZ)
   }
   // clang-format on
   return nullptr;
