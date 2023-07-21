@@ -13,8 +13,6 @@
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
-#define DEBUG_TYPE "sycl-nd-range-analysis"
-
 using namespace mlir;
 using namespace mlir::polygeist;
 
