@@ -15,10 +15,8 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 template <>
 inline backend_return_t<backend::ext_oneapi_hip, device>
-get_native<backend::ext_oneapi_hip, device>(const device &Obj)
-{
-  if (Obj.get_backend() != backend::ext_oneapi_hip)
-  {
+get_native<backend::ext_oneapi_hip, device>(const device &Obj) {
+  if (Obj.get_backend() != backend::ext_oneapi_hip) {
     throw sycl::exception(make_error_code(errc::backend_mismatch),
                           "Backends mismatch");
   }
@@ -30,23 +28,20 @@ get_native<backend::ext_oneapi_hip, device>(const device &Obj)
 
 template <>
 inline device make_device<backend::ext_oneapi_hip>(
-    const backend_input_t<backend::ext_oneapi_hip, device> &BackendObject)
-{
+    const backend_input_t<backend::ext_oneapi_hip, device> &BackendObject) {
   auto devs = device::get_devices(info::device_type::gpu);
-  for (auto &dev : devs)
-  {
+  for (auto &dev : devs) {
     if (dev.get_backend() == backend::ext_oneapi_hip &&
-        BackendObject == get_native<backend::ext_oneapi_hip>(dev))
-    {
+        BackendObject == get_native<backend::ext_oneapi_hip>(dev)) {
       return dev;
     }
   }
   // The ext_oneapi_hip platform(s) adds all n available devices where n
-  // is returned from call to `hipGetDeviceCount`. 
+  // is returned from call to `hipGetDeviceCount`.
   // Hence if this code is reached then the requested device ordinal must
   // not be visible to the driver.
   throw sycl::exception(make_error_code(errc::invalid),
-                          "Native device has an invalid ordinal.");
+                            "Native device has an invalid ordinal.");
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

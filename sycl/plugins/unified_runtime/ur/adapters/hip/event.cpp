@@ -15,10 +15,10 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        ur_context_handle_t Context,
                                        ur_queue_handle_t Queue,
                                        hipStream_t Stream, uint32_t StreamToken)
-    : CommandType{Type}, RefCount{1}, HasOwnership{true}, HasBeenWaitedOn{false}, IsRecorded{false},
-      IsStarted{false}, StreamToken{StreamToken}, EvEnd{nullptr},
-      EvStart{nullptr}, EvQueued{nullptr}, Queue{Queue}, Stream{Stream},
-      Context{Context} {
+    : CommandType{Type}, RefCount{1}, HasOwnership{true},
+      HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
+      StreamToken{StreamToken}, EvEnd{nullptr}, EvStart{nullptr},
+      EvQueued{nullptr}, Queue{Queue}, Stream{Stream}, Context{Context} {
 
   bool ProfilingEnabled = Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE;
 
