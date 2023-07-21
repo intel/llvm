@@ -303,7 +303,8 @@ not prevent SYCL or other extensions from introducing new execution scopes.
 |`forward_progress_guarantee`
 |Return the strongest forward progress guarantee that this device can support
  for threads of execution with the specified combination of scope and
- coordination scope.
+ coordination scope. Specializations of `forward_progress_guarantee` are only
+ available when `CoordinationScope` is broader than `Scope`.
 
 |===
 
