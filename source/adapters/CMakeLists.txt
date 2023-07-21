@@ -3,8 +3,30 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_subdirectory(null)
+function(add_ur_adapter name)
+    add_library(${name} ${ARGN})
+    if(MSVC)
+        set(TARGET_LIBNAME ${name})
+        string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
 
+        set(ADAPTER_VERSION_SCRIPT ${name}.def)
+
+        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.def.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
+        set_target_properties(${name} PROPERTIES
+            LINK_FLAGS "/DEF:${ADAPTER_VERSION_SCRIPT}"
+        )
+    else()
+        set(TARGET_LIBNAME lib${name}_${PROJECT_VERSION_MAJOR}.0)
+        string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
+
+        set(ADAPTER_VERSION_SCRIPT ${name}.map)
+
+        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.map.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
+        target_link_options(${name} PRIVATE "-Wl,--version-script=${ADAPTER_VERSION_SCRIPT}")
+    endif()
+endfunction()
+
+add_subdirectory(null)
 
 if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP)
     # fetch adapter sources from SYCL

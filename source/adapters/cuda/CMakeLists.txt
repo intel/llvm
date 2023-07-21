@@ -7,7 +7,7 @@ set(CUDA_DIR "${SYCL_ADAPTER_DIR}/sycl/plugins/unified_runtime/ur/adapters/cuda"
 
 set(TARGET_NAME ur_adapter_cuda)
 
-add_library(${TARGET_NAME}
+add_ur_adapter(${TARGET_NAME}
     SHARED
     ${CUDA_DIR}/ur_interface_loader.cpp
     ${CUDA_DIR}/common.hpp
