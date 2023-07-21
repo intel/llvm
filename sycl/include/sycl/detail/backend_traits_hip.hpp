@@ -100,7 +100,7 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_hip> {
   static constexpr bool MakeDevice = true;
   static constexpr bool MakeContext = false;
   static constexpr bool MakeQueue = true;
-  static constexpr bool MakeEvent = false;
+  static constexpr bool MakeEvent = true;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
   static constexpr bool MakeKernelBundle = false;
