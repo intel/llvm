@@ -226,14 +226,14 @@ gengeofloat = ["float", Vec(["float"], {1,2,3,4}), Marray(["float"], {1,2,3,4})]
 gengeodouble = ["double", Vec(["double"], {1,2,3,4}), Marray(["double"], {1,2,3,4})]
 gengeohalf = ["half", Vec(["half"], {1,2,3,4}), Marray(["half"], {1,2,3,4})]
 
-vint8n = [Vec(["int8_t"])]
-vint16n = [Vec(["int16_t"])]
-vint32n = [Vec(["int32_t"])]
-vint64n = [Vec(["int64_t", "long long"])]
-vuint8n = [Vec(["uint8_t"])]
-vuint16n = [Vec(["uint16_t"])]
-vuint32n = [Vec(["uint32_t"])]
-vuint64n = [Vec(["uint64_t", "unsigned long long"])]
+vint8n = [Vec(["int8_t", "char", "signed char"])] # Fundamental integer types non-standard. Deprecated.
+vint16n = [Vec(["int16_t", "short"])] # Fundamental integer types non-standard. Deprecated.
+vint32n = [Vec(["int32_t", "int"])] # Fundamental integer types non-standard. Deprecated.
+vint64n = [Vec(["int64_t", "long long"])] # Fundamental integer types non-standard. Deprecated.
+vuint8n = [Vec(["uint8_t", "unsigned char"])] # Fundamental integer types non-standard. Deprecated.
+vuint16n = [Vec(["uint16_t", "unsigned short"])] # Fundamental integer types non-standard. Deprecated.
+vuint32n = [Vec(["uint32_t", "unsigned int"])] # Fundamental integer types non-standard. Deprecated.
+vuint64n = [Vec(["uint64_t", "unsigned long long"])] # Fundamental integer types non-standard. Deprecated.
 
 mint8n = [Marray(["int8_t"])]
 mint16n = [Marray(["int16_t"])]
@@ -251,15 +251,20 @@ geninteger = ["char", "signed char", "short", "int", "long", "long long",
               "unsigned char", "unsigned short", "unsigned int",
               "unsigned long", "unsigned long long",
               Vec(["int8_t", "int16_t", "int32_t", "int64_t", "uint8_t",
-                  "uint16_t","uint32_t","uint64_t", "unsigned long long"]), # unsigned long long non-standard. Deprecated.
+                  "uint16_t","uint32_t","uint64_t",
+                  "char", "signed char", "short", "int", "long", "long long",
+                  "unsigned char", "unsigned short", "unsigned int",
+                  "unsigned long", "unsigned long long"]), # Fundamental integer types non-standard. Deprecated.
               Marray(["char", "signed char", "short", "int", "long", "long long",
                       "unsigned char", "unsigned short", "unsigned int",
                       "unsigned long", "unsigned long long"])]
 sigeninteger = ["char", "signed char", "short", "int", "long", "long long"]
-vigeninteger = [Vec(["int8_t", "int16_t", "int32_t", "int64_t", "long long"])] # long long non-standard. Deprecated.
+vigeninteger = [Vec(["int8_t", "int16_t", "int32_t", "int64_t",
+                     "char", "signed char", "short", "int", "long", "long long"])] # Fundamental integer types non-standard. Deprecated.
 migeninteger = [Marray(["char", "signed char", "short", "int", "long", "long long"])]
 igeninteger = ["char", "signed char", "short", "int", "long", "long long",
-                Vec(["int8_t", "int16_t", "int32_t", "int64_t", "long long"]), # long long non-standard. Deprecated.
+                Vec(["int8_t", "int16_t", "int32_t", "int64_t",
+                     "char", "signed char", "short", "int", "long", "long long"]), # Fundamental integer types non-standard. Deprecated.
                 Marray(["char", "signed char", "short", "int", "long", "long long"])]
 vugeninteger = [Vec(["uint8_t", "uint16_t", "uint32_t", "uint64_t",
                      "unsigned char", "unsigned short", "unsigned int", "unsigned long", "unsigned long long"])] # Non-standard. Deprecated.
@@ -277,7 +282,9 @@ sgentype = ["char", "signed char", "short", "int", "long", "long long",
             "unsigned long", "unsigned long long", "float", "double", "half"]
 vgentype = [Vec(["int8_t", "int16_t", "int32_t", "int64_t", "uint8_t", "uint16_t",
                  "uint32_t", "uint64_t", "float", "double", "half",
-                 "long long", "unsigned long long"])] # long long non-standard. Deprecated.
+                 "char", "signed char", "short", "int", "long", "long long",
+                 "unsigned char", "unsigned short", "unsigned int",
+                 "unsigned long", "unsigned long long"])] # Fundamental integer types non-standard. Deprecated.
 mgentype = [Marray(["char", "signed char", "short", "int", "long", "long long",
                     "unsigned char", "unsigned short", "unsigned int",
                     "unsigned long", "unsigned long long", "float", "double", "half"])]
