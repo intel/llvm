@@ -106,7 +106,7 @@ The value of this environment variable is a comma separated list of filters, whe
 - `opencl`
 - `cuda`
 - `hip`
-- `esimd_emulator`
+- `esimd_emulator` (Deprecated)
 - `*`
 
 Possible values of `device_type` are:
