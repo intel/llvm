@@ -2150,11 +2150,6 @@ __SYCL_RELLOGOP(&&)
 __SYCL_RELLOGOP(||)
 #undef __SYCL_RELLOGOP
 
-} // namespace _V1
-} // namespace sycl
-
-namespace sycl {
-inline namespace _V1 {
 namespace detail {
 
 // Vectors of size 1 are handled separately and therefore 1 is not included in
