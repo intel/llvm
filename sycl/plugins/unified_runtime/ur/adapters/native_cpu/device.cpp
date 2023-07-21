@@ -95,6 +95,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS:
+    // TODO: Ensure this property is tested correctly
     // Taken from CUDA ur adapter
     if (pPropSizeRet) {
       *pPropSizeRet = 0;

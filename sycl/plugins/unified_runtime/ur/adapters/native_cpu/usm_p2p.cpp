@@ -18,8 +18,8 @@ urUsmP2PDisablePeerAccessExp(ur_device_handle_t, ur_device_handle_t) {
   DIE_NO_IMPLEMENTATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
-    ur_device_handle_t, ur_device_handle_t, ur_exp_peer_info_t, size_t propSize,
-    void *pPropValue, size_t *pPropSizeRet) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t, ur_device_handle_t,
+                             ur_exp_peer_info_t, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }

@@ -48,10 +48,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize) {
+    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
+    const ur_kernel_arg_local_properties_t *pProperties) {
   std::ignore = hKernel;
   std::ignore = argIndex;
   std::ignore = argSize;
+  std::ignore = pProperties;
 
   DIE_NO_IMPLEMENTATION
 }

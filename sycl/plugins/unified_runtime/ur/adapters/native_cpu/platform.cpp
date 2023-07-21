@@ -27,7 +27,7 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
   if (NumEntries == 0) {
     if (phPlatforms != nullptr) {
       if (PrintTrace) {
-        std::cerr << "Invalid argument combination for piPlatformsGet\n";
+        std::cerr << "Invalid argument combination for urPlatformsGet\n";
       }
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
@@ -92,6 +92,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
   std::ignore = pFrontendOption;
   std::ignore = ppPlatformOption;
 
-  // Equivalent to piPluginGetBackendOption
-  CONTINUE_NO_IMPLEMENTATION
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
+    ur_native_handle_t hNativePlatform,
+    const ur_platform_native_properties_t *pProperties,
+    ur_platform_handle_t *phPlatform) {
+  std::ignore = hNativePlatform;
+  std::ignore = pProperties;
+  std::ignore = phPlatform;
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
+    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
+  std::ignore = hPlatform;
+  std::ignore = phNativePlatform;
+
+  DIE_NO_IMPLEMENTATION;
 }

@@ -8,7 +8,8 @@
 
 #include "common.hpp"
 
-// Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
+// Global variables for UR_RESULT_ADAPTER_SPECIFIC_ERROR
+// See urGetLastResult
 thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
 thread_local char ErrorMessage[MaxMessageSize];
 

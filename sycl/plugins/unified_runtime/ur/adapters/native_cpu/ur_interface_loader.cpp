@@ -26,9 +26,7 @@ ur_result_t validateProcInputs(ur_api_version_t version, void *pDdiTable) {
 }
 } // namespace
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_api_version_t version, ur_platform_dditable_t *pDdiTable) {
@@ -36,11 +34,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnCreateWithNativeHandle = urPlatformCreateWithNativeHandle;
   pDdiTable->pfnGet = urPlatformGet;
   pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
   pDdiTable->pfnGetInfo = urPlatformGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
+  pDdiTable->pfnGetNativeHandle = urPlatformGetNativeHandle;
   pDdiTable->pfnGetBackendOption = urPlatformGetBackendOption;
   return UR_RESULT_SUCCESS;
 }
@@ -115,13 +113,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnGetSubGroupInfo = urKernelGetSubGroupInfo;
   pDdiTable->pfnRelease = urKernelRelease;
   pDdiTable->pfnRetain = urKernelRetain;
-  pDdiTable->pfnSetArgLocal = nullptr;
+  pDdiTable->pfnSetArgLocal = urKernelSetArgLocal;
   pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
   pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
-  pDdiTable->pfnSetSpecializationConstants = nullptr;
+  pDdiTable->pfnSetSpecializationConstants = urKernelSetSpecializationConstants;
   return UR_RESULT_SUCCESS;
 }
 
@@ -132,9 +130,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     return result;
   }
   pDdiTable->pfnCreate = urSamplerCreate;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urSamplerGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
+  pDdiTable->pfnGetNativeHandle = urSamplerGetNativeHandle;
   pDdiTable->pfnRelease = urSamplerRelease;
   pDdiTable->pfnRetain = urSamplerRetain;
   return UR_RESULT_SUCCESS;
@@ -232,10 +230,10 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
   pDdiTable->pfnFree = urUSMFree;
   pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
-  pDdiTable->pfnPoolCreate = nullptr;
-  pDdiTable->pfnPoolRetain = nullptr;
-  pDdiTable->pfnPoolRelease = nullptr;
-  pDdiTable->pfnPoolGetInfo = nullptr;
+  pDdiTable->pfnPoolCreate = urUSMPoolCreate;
+  pDdiTable->pfnPoolRetain = urUSMPoolRetain;
+  pDdiTable->pfnPoolRelease = urUSMPoolRelease;
+  pDdiTable->pfnPoolGetInfo = urUSMPoolGetInfo;
   pDdiTable->pfnSharedAlloc = urUSMSharedAlloc;
   return UR_RESULT_SUCCESS;
 }
@@ -273,6 +271,4 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
   return retVal;
 }
 
-#if defined(__cplusplus)
 } // extern "C"
-#endif
