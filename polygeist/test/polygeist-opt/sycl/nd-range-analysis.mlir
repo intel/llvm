@@ -14,27 +14,6 @@
 // CHECK-NEXT:    operand #0
 // CHECK-NEXT:    nd_range:
 // CHECK-NEXT:      <constant<42>, constant<21>, constant<10>>
-// CHECK-LABEL: test_tag: constant_ndr:
-// CHECK-NEXT:    operand #0
-// CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <constant<42, 21>, constant<21, 42>, constant<0, 0>>
-// CHECK-LABEL: test_tag: ndr_cpy:
-// CHECK-NEXT:    operand #0
-// CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <constant<42, 21>, constant<21, 42>, constant<0, 0>>
-// CHECK-LABEL: test_tag: propagate_dims_ndr:
-// CHECK-NEXT:    operand #0
-// CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <fixed<3>, fixed<3>, constant<0, 0, 0>>
-// CHECK-LABEL: test_tag: fixed_dims_ndr:
-// CHECK-NEXT:    operand #0
-// CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <fixed<3>, fixed<3>, fixed<3>>
-// CHECK-LABEL: test_tag: diff_dims_ndr:
-// CHECK-NEXT:    operand #0
-// CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <fixed<2>, fixed<2>, fixed<2>>
-  
 llvm.func @constant_ndr_offset() -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
   %c10 = arith.constant 10 : i64
@@ -52,6 +31,10 @@ llvm.func @constant_ndr_offset() -> !llvm.ptr {
   llvm.return %ndr : !llvm.ptr
 }
 
+// CHECK-LABEL: test_tag: constant_ndr:
+// CHECK-NEXT:    operand #0
+// CHECK-NEXT:    nd_range:
+// CHECK-NEXT:      <constant<42, 21>, constant<21, 42>, constant<0, 0>>
 llvm.func @constant_ndr() -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
   %c21 = arith.constant 21 : i64
@@ -66,6 +49,10 @@ llvm.func @constant_ndr() -> !llvm.ptr {
   llvm.return %ndr : !llvm.ptr
 }
 
+// CHECK-LABEL: test_tag: ndr_cpy:
+// CHECK-NEXT:    operand #0
+// CHECK-NEXT:    nd_range:
+// CHECK-NEXT:      <constant<42, 21>, constant<21, 42>, constant<0, 0>>
 llvm.func @copy_ndr() -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
   %c21 = arith.constant 21 : i64
@@ -82,6 +69,10 @@ llvm.func @copy_ndr() -> !llvm.ptr {
   llvm.return %ndr_cpy : !llvm.ptr
 }
 
+// CHECK-LABEL: test_tag: propagate_dims_ndr:
+// CHECK-NEXT:    operand #0
+// CHECK-NEXT:    nd_range:
+// CHECK-NEXT:      <fixed<3>, fixed<3>, constant<0, 0, 0>>
 llvm.func @propagate_dims_ndr(%global_size: !llvm.ptr,
                               %local_size: !llvm.ptr) -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
@@ -96,6 +87,10 @@ llvm.func @propagate_dims_ndr(%global_size: !llvm.ptr,
   llvm.return %ndr : !llvm.ptr
 }
 
+// CHECK-LABEL: test_tag: fixed_dims_ndr:
+// CHECK-NEXT:    operand #0
+// CHECK-NEXT:    nd_range:
+// CHECK-NEXT:      <fixed<3>, fixed<3>, fixed<3>>
 llvm.func @fixed_dims_ndr(%global_size: !llvm.ptr,
                           %local_size: !llvm.ptr,
                           %offset: !llvm.ptr) -> !llvm.ptr {
@@ -109,6 +104,10 @@ llvm.func @fixed_dims_ndr(%global_size: !llvm.ptr,
   llvm.return %ndr : !llvm.ptr
 }
 
+// CHECK-LABEL: test_tag: diff_dims_ndr:
+// CHECK-NEXT:    operand #0
+// CHECK-NEXT:    nd_range:
+// CHECK-NEXT:      <fixed<2>, fixed<2>, fixed<2>>
 llvm.func @diff_dims_ndr() -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
   %c21 = arith.constant 21 : i64
@@ -120,5 +119,60 @@ llvm.func @diff_dims_ndr() -> !llvm.ptr {
   sycl.host.constructor(%local_size, %c21, %c42) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
   sycl.host.constructor(%ndr, %global_size, %local_size) {type = !sycl_nd_range_2_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   %1 = llvm.load %ndr {tag = "diff_dims_ndr"} : !llvm.ptr -> i32
+  llvm.return %ndr : !llvm.ptr
+}
+
+// CHECK-LABEL: test_tag: join_ndr:
+// CHECK-NEXT:    operand #0
+// CHECK-NEXT:    nd_range:
+// CHECK-NEXT:      <fixed<1>, constant<21>, constant<10>>
+llvm.func @join_ndr(%arg0: i1) -> !llvm.ptr {
+  %c1 = arith.constant 1 : i32
+  %c10 = arith.constant 10 : i64
+  %c21 = arith.constant 21 : i64
+  %c42 = arith.constant 42 : i64
+  %ndr = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %global_size = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %local_size = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %offset = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  sycl.host.constructor(%local_size, %c21) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+  scf.if %arg0 {
+    sycl.host.constructor(%global_size, %c42) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+    sycl.host.constructor(%offset, %c10) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+    sycl.host.constructor(%ndr, %global_size, %local_size, %offset) {type = !sycl_nd_range_1_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  } else {
+    sycl.host.constructor(%global_size, %c10) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+    sycl.host.constructor(%offset, %c10) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+    sycl.host.constructor(%ndr, %global_size, %local_size, %offset) {type = !sycl_nd_range_1_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  }
+  %1 = llvm.load %ndr {tag = "join_ndr"} : !llvm.ptr -> i32
+  llvm.return %ndr : !llvm.ptr
+}
+
+// CHECK-LABEL: test_tag: join_ndr_top:
+// CHECK-NEXT:    operand #0
+// CHECK-NEXT:    nd_range:
+// CHECK-NEXT:      <unknown>
+llvm.func @join_ndr_top(%arg0: i1) -> !llvm.ptr {
+  %c1 = arith.constant 1 : i32
+  %c10 = arith.constant 10 : i64
+  %c21 = arith.constant 21 : i64
+  %c42 = arith.constant 42 : i64
+  %ndr = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::nd_range", (struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %global_size = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %local_size = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %offset = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  scf.if %arg0 {
+    sycl.host.constructor(%global_size, %c42, %c42) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
+    sycl.host.constructor(%local_size, %c21, %c21) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
+    sycl.host.constructor(%offset, %c10, %c10) {type = !sycl_id_2_} : (!llvm.ptr, i64, i64) -> ()
+    sycl.host.constructor(%ndr, %global_size, %local_size, %offset) {type = !sycl_nd_range_2_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  } else {
+    sycl.host.constructor(%global_size, %c10) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+    sycl.host.constructor(%local_size, %c21) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+    sycl.host.constructor(%offset, %c10) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+    sycl.host.constructor(%ndr, %global_size, %local_size, %offset) {type = !sycl_nd_range_1_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  }
+  %1 = llvm.load %ndr {tag = "join_ndr_top"} : !llvm.ptr -> i32
   llvm.return %ndr : !llvm.ptr
 }
