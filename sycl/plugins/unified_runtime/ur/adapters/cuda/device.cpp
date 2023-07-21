@@ -1176,7 +1176,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits
   // instead
   CUdevice CuDevice = 0;
-  memcpy(&CuDevice, hNativeDevice, sizeof(CUdevice));
+  memcpy(&CuDevice, &hNativeDevice, sizeof(CUdevice));
 
   auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
     return Dev->get() == CuDevice;

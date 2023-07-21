@@ -185,7 +185,8 @@ public:
         F(HostPtr);
       });
     }
-    if(HostPtr){
+
+    if (HostPtr) {
       if (canReuseHostPtr(HostPtr, RequiredAlign)) {
         MUserPtr = HostPtr;
       } else {
