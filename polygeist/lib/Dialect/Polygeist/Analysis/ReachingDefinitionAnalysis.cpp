@@ -169,10 +169,12 @@ ChangeResult ReachingDefinition::removePotentialModifiers(Value val) {
 
 std::optional<ReachingDefinition::ModifiersTy>
 ReachingDefinition::getModifiers(Value val, DataFlowSolver &solver) const {
-  val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
-    return solver.lookupState<UnderlyingValueLattice>(val);
-  });
-  assert(val && "expected an underlying value");
+  Value underlyingVal =
+      UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
+        return solver.lookupState<UnderlyingValueLattice>(val);
+      });
+  if (underlyingVal)
+    val = underlyingVal;
 
   if (valueToModifiers.contains(val))
     return valueToModifiers.at(val);
@@ -182,10 +184,12 @@ ReachingDefinition::getModifiers(Value val, DataFlowSolver &solver) const {
 std::optional<ReachingDefinition::ModifiersTy>
 ReachingDefinition::getPotentialModifiers(Value val,
                                           DataFlowSolver &solver) const {
-  val = UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
-    return solver.lookupState<UnderlyingValueLattice>(val);
-  });
-  assert(val && "expected an underlying value");
+  Value underlyingVal =
+      UnderlyingValueAnalysis::getMostUnderlyingValue(val, [&](Value val) {
+        return solver.lookupState<UnderlyingValueLattice>(val);
+      });
+  if (underlyingVal)
+    val = underlyingVal;
 
   if (valueToPotentialModifiers.contains(val))
     return valueToPotentialModifiers.at(val);

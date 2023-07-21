@@ -329,3 +329,51 @@ gpu.func @kernel(%cond: i1, %arg1: memref<?x!sycl_nd_item_2>) kernel {
 }
 
 }
+
+// -----
+
+!sycl_array_2 = !sycl.array<[2], (memref<2xi64, 4>)>
+!sycl_id_2 = !sycl.id<[2], (!sycl_array_2)>
+!sycl_range_2 = !sycl.range<[2], (!sycl_array_2)>
+!sycl_accessor_impl_device_2 = !sycl.accessor_impl_device<[2], (!sycl_id_2, !sycl_range_2, !sycl_range_2)>
+!sycl_group_2 = !sycl.group<[2], (!sycl_range_2, !sycl_range_2, !sycl_range_2, !sycl_id_2)>
+!sycl_item_base_2 = !sycl.item_base<[2, true], (!sycl_range_2, !sycl_id_2, !sycl_id_2)>
+!sycl_accessor_2_f32_r_gb = !sycl.accessor<[2, f32, read, global_buffer], (!sycl_accessor_impl_device_2, !llvm.struct<(memref<?xf32, 2>)>)>
+!sycl_item_2 = !sycl.item<[2, true], (!sycl_item_base_2)>
+!sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
+
+gpu.module @device_func {
+
+func.func private @test5(%alloca_cond: memref<1xi1>)  {
+  %alloca = memref.alloca() : memref<10xi64>
+  %c0 = arith.constant 0 : index
+
+  // FIXME: Improve uniformity analysis to handle multiple callers,
+  //        with multiple underlying values.
+  // CHECK: test5_load1, uniformity: unknown
+  %cond = memref.load %alloca_cond[%c0] { tag = "test5_load1" } : memref<1xi1>
+
+  return
+}
+
+gpu.func @kernel1(%cond: i1, %arg1: memref<?x!sycl_nd_item_2>) kernel {
+  %alloca = memref.alloca() : memref<1xi1>
+  %c0 = arith.constant 0 : index
+
+  // COM: Store the condition (uniform) into memory.
+  memref.store %cond, %alloca[%c0] : memref<1xi1>
+  func.call @test5(%alloca) : (memref<1xi1>) -> ()
+  gpu.return
+}
+
+gpu.func @kernel2(%cond: i1, %arg1: memref<?x!sycl_nd_item_2>) kernel {
+  %alloca = memref.alloca() : memref<1xi1>
+  %c0 = arith.constant 0 : index
+
+  // COM: Store the condition (uniform) into memory.
+  memref.store %cond, %alloca[%c0] : memref<1xi1>
+  func.call @test5(%alloca) : (memref<1xi1>) -> ()
+  gpu.return
+}
+
+}
