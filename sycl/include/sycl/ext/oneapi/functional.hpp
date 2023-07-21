@@ -14,7 +14,7 @@
 #include <functional>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 
 template <typename T = void> using plus = std::plus<T>;
@@ -119,5 +119,5 @@ static T calc(Group g, typename GroupOpTag<T>::type, T x,
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

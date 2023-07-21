@@ -12,7 +12,7 @@
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -371,5 +371,5 @@ template <typename... Args> struct checkValidFPGAPropertySet {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

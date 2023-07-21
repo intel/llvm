@@ -9,7 +9,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 image_plain::image_plain(image_channel_order Order, image_channel_type Type,
@@ -226,5 +226,5 @@ void image_plain::unsampledImageDestructorNotification(void *UserObj) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

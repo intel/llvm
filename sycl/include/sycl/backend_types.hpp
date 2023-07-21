@@ -13,7 +13,7 @@
 #include <ostream>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 enum class backend : char {
   host __SYCL2020_DEPRECATED("'host' backend is no longer supported") = 0,
@@ -64,5 +64,5 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   return Out;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
