@@ -1321,15 +1321,10 @@ bool InferAddressSpacesImpl::rewriteWithNewAddressSpaces(
         if (AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(CurUser)) {
           unsigned NewAS = NewV->getType()->getPointerAddressSpace();
           if (ASC->getDestAddressSpace() == NewAS) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-            if (!cast<PointerType>(ASC->getType()->getScalarType())
-                     ->hasSameElementTypeAs(
-                         cast<PointerType>(NewV->getType()->getScalarType()))) {
-#else
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
             if (!cast<PointerType>(ASC->getType())
                     ->hasSameElementTypeAs(
                         cast<PointerType>(NewV->getType()))) {
-#endif
               BasicBlock::iterator InsertPos;
               if (Instruction *NewVInst = dyn_cast<Instruction>(NewV))
                 InsertPos = std::next(NewVInst->getIterator());
@@ -1341,6 +1336,7 @@ bool InferAddressSpacesImpl::rewriteWithNewAddressSpaces(
               NewV = CastInst::Create(Instruction::BitCast, NewV,
                                       ASC->getType(), "", &*InsertPos);
             }
+#endif
             ASC->replaceAllUsesWith(NewV);
             DeadInstructions.push_back(ASC);
             continue;

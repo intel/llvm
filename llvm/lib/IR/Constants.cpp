@@ -2226,7 +2226,7 @@ Constant *ConstantExpr::getAddrSpaceCast(Constant *C, Type *DstTy,
                                          bool OnlyIfReduced) {
   assert(CastInst::castIsValid(Instruction::AddrSpaceCast, C, DstTy) &&
          "Invalid constantexpr addrspacecast!");
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // Canonicalize addrspacecasts between different pointer types by first
   // bitcasting the pointer type and then converting the address space.
   PointerType *SrcScalarTy = cast<PointerType>(C->getType()->getScalarType());
@@ -2241,6 +2241,7 @@ Constant *ConstantExpr::getAddrSpaceCast(Constant *C, Type *DstTy,
     }
     C = getBitCast(C, MidTy);
   }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   return getFoldedCast(Instruction::AddrSpaceCast, C, DstTy, OnlyIfReduced);
 }
 

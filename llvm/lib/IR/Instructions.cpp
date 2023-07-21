@@ -3397,6 +3397,11 @@ unsigned CastInst::isEliminableCastPair(
         "Illegal addrspacecast, bitcast sequence!");
       // Allowed, use first cast's opcode
       return firstOp;
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    case 14:
+      // bitcast, addrspacecast -> addrspacecast
+      return Instruction::AddrSpaceCast;
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     case 14: {
       // bitcast, addrspacecast -> addrspacecast if the element type of
       // bitcast's source is the same as that of addrspacecast's destination.
@@ -3406,6 +3411,7 @@ unsigned CastInst::isEliminableCastPair(
         return Instruction::AddrSpaceCast;
       return 0;
     }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     case 15:
       // FIXME: this state can be merged with (1), but the following assert
       // is useful to check the correcteness of the sequence due to semantic
