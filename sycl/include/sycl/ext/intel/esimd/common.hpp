@@ -65,8 +65,13 @@ using SurfaceIndex = unsigned int;
 
 namespace detail {
 
-template <typename T>
-struct is_saturation_tag {
+// Type used in internal functions to designate SLM access by
+// providing dummy accessor of this type. Used to make it possible to delegate
+// implemenations of SLM memory accesses to general surface-based memory
+// accesses and thus reuse validity checks etc.
+struct LocalAccessorMarker {};
+
+template <typename T> struct is_saturation_tag {
   static constexpr bool value =
       std::is_same_v<T, __ESIMD_NS::saturation_on_tag> ||
       std::is_same_v<T, __ESIMD_NS::saturation_off_tag>;

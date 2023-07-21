@@ -58,7 +58,7 @@ SYCL_EXTERNAL vec<unsigned short, 8> get8ui16() SYCL_ESIMD_FUNCTION;
 SYCL_EXTERNAL vec<unsigned char, 8> get8ui8() SYCL_ESIMD_FUNCTION;
 
 SYCL_EXTERNAL void
-test_mem_intrins(uint64_t addr, const vec<float, 8> &xf,
+test_mem_intrins(int *addr, const vec<float, 8> &xf,
                  const vec<float, 8> &xi) SYCL_ESIMD_FUNCTION {
   {
     constexpr SurfaceIndex si = 0;
@@ -78,18 +78,37 @@ test_mem_intrins(uint64_t addr, const vec<float, 8> &xf,
     // CHECK-LABEL: call void @llvm.genx.oword.st.v8f32(i32 0, i32 0, <8 x float> %{{[a-zA-Z0-9.]+}})
   }
   {
-    vec<int, 8> x = __esimd_svm_block_ld_unaligned<int, 8>(addr);
-    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.block.ld.unaligned.v8i32.i64(i64 %{{[a-zA-Z0-9.]+}})
+    using VecT = typename simd<int, 8>::raw_vector_type;
+    VecT *vec_addr = reinterpret_cast<VecT *>(addr);
+    vec<int, 8> x = __esimd_svm_block_ld<int, 8, 4>(vec_addr);
+    // CHECK-LABEL: load <8 x i32>, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 4
     use(x);
   }
   {
-    vec<int, 8> x = __esimd_svm_block_ld<int, 8>(addr);
-    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.block.ld.v8i32.i64(i64 %{{[a-zA-Z0-9.]+}})
+    using VecT = typename simd<int, 8>::raw_vector_type;
+    VecT *vec_addr = reinterpret_cast<VecT *>(addr);
+    vec<int, 8> x = __esimd_svm_block_ld<int, 8, 32>(vec_addr);
+    // CHECK-LABEL: load <8 x i32>, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 32
     use(x);
   }
   {
-    __esimd_svm_block_st<int, 8>(addr, get8i());
-    // CHECK-LABEL: call void @llvm.genx.svm.block.st.i64.v8i32(i64 %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}})
+    using VecT = typename simd<int, 8>::raw_vector_type;
+    VecT *vec_addr = reinterpret_cast<VecT *>(addr);
+    __esimd_svm_block_st<int, 8, 32>(vec_addr, get8i());
+    // CHECK-LABEL: store <8 x i32> %{{[a-zA-Z0-9.]+}}, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 32
+  }
+  {
+    uint32_t offset = 128;
+    vec<int, 8> x = __esimd_slm_block_ld<int, 8, 32>(offset);
+    // CHECK: %[[VAR_OFF1:[0-9a-zA-Z_.]+]] = inttoptr i32 %{{[a-zA-Z0-9.]+}} to ptr addrspace(3)
+    // CHECK-NEXT: load <8 x i32>, ptr addrspace(3) %[[VAR_OFF1]], align 32
+    use(x);
+  }
+  {
+    uint32_t offset = 256;
+    __esimd_slm_block_st<int, 8, 4>(offset, get8i());
+    // CHECK: %[[VAR_OFF2:[0-9a-zA-Z_.]+]] = inttoptr i32 %{{[a-zA-Z0-9.]+}} to ptr addrspace(3)
+    // CHECK-NEXT: store <8 x i32> %{{[a-zA-Z0-9.]+}}, ptr addrspace(3) %[[VAR_OFF2]], align 4
   }
   {
     auto x = __esimd_svm_gather<unsigned char, 8>(get8ui64(), get8ui16());
@@ -178,6 +197,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   // CHECK-LABEL: @_Z3foov
   constexpr int VL = 32;
   uint32_t *ptr = 0;
+  using VecT = typename simd<uint32_t, VL>::raw_vector_type;
+  VecT *vec_ptr = 0;
 
   int x = 0, y = 0, z = 0;
 
@@ -197,11 +218,10 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
       v_addr.data(), v1.data(), v1.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.cmpxchg.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
-  uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
-  simd<uint32_t, VL> v00 = __esimd_svm_block_ld_unaligned<uint32_t, VL>(addr);
-  // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.block.ld.unaligned.v32i32.i64(i64 %{{[0-9a-zA-Z_.]+}})
-  __esimd_svm_block_st<uint32_t, VL>(addr, v00.data());
-  // CHECK: call void @llvm.genx.svm.block.st.i64.v32i32(i64 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
+  simd<uint32_t, VL> v00 = __esimd_svm_block_ld<uint32_t, VL, 4>(vec_ptr);
+  // CHECK: %[[VAR1:[0-9a-zA-Z_.]+]] = load <32 x i32>, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 4
+  __esimd_svm_block_st<uint32_t, VL, 128>(vec_ptr, v00.data());
+  // CHECK-NEXT: store <32 x i32> %[[VAR1]], ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 128
 
   simd<uint32_t, VL> v01 =
       __esimd_svm_gather<uint32_t, VL>(v_addr.data(), pred.data());

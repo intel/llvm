@@ -8,6 +8,8 @@
  * Test check basic support of local memory access in invoke_simd.
  */
 
+#include "../invoke_simd_utils.hpp"
+
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/sycl.hpp>
@@ -76,6 +78,15 @@ int main(void) {
   auto Dev = Q.get_device();
   std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
             << std::endl;
+
+  // GPU driver had an error in handling of SLM aligned block_loads/stores,
+  // which has been fixed only in "1.3.26816", and in win/opencl version going
+  // _after_ 101.4575.
+  if (!isGPUDriverGE(Q, GPUDriverOS::LinuxAndWindows, "26816", "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26816 or newer.\n";
+    return 0;
+  }
+
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   std::cout << "Local Memory Size: " << DeviceSLMSize << std::endl;
 
