@@ -571,47 +571,19 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDTest) {
   uint64_t instance;
   /// Simulates the specialization of a Kernel as used by MKL where
   /// the same kernel may be compiled multiple times
-  xpti::payload_t Payload("foo", "foo.cpp", 1, 5,
-                          (void *)&Id0 /*Value will be ignored*/);
+  xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)&Id0);
   auto Result = xptiMakeEvent("foo", &Payload, 0,
                               (xpti::trace_activity_type_t)1, &instance);
-  Id0.p1 = XPTI_PACK32_RET64(Payload.source_file_sid(), Payload.name_sid());
-  Id0.p2 = XPTI_PACK32_RET64(Payload.line_no, Payload.column_no);
-  Id0.p3 = 0;
-  xpti::payload_t P("foo", "foo.cpp", 1, 5,
-                    (void *)&Id1 /* Value will be ignored*/);
+  Id0.p1 = XPTI_PACK32_RET64(Payload.source_file_sid(), Payload.line_no);
+  Id0.p2 = XPTI_PACK32_RET64(0, Payload.name_sid());
+  Id0.p3 = (uint64_t)Payload.code_ptr_va;
+  xpti::payload_t P("foo", "foo.cpp", 1, 0, (void *)&Id1);
   auto Result1 =
       xptiMakeEvent("foo", &P, 0, (xpti::trace_activity_type_t)1, &instance);
-  Id1.p1 = XPTI_PACK32_RET64(P.source_file_sid(), P.name_sid());
-  Id1.p2 = XPTI_PACK32_RET64(P.line_no, P.column_no);
-  Id1.p3 = 0;
-  // Since codeptr value is ignored, Id0.p1 == Id1.p1 && Id0.p2 == Id1.p2
-  EXPECT_EQ(Result, Result1);
-  EXPECT_EQ(Id0.hash(), Id1.hash());
-}
-
-TEST_F(xptiCorrectnessTest, xptiUniversalIDNDEBUGTest) {
-  xpti::uid_t Id0, Id1;
-  uint64_t instance;
-
-  xpti::payload_t P1;
-  auto Result2 =
-      xptiMakeEvent("foo", &P1, 0, (xpti::trace_activity_type_t)1, &instance);
-  Id0.p1 = 0;
-  Id0.p2 = 0;
-  Id0.p3 = (uint64_t)(&P1);
-  xpti::payload_t P2; // Value will be ignored
-  auto Result3 =
-      xptiMakeEvent("foo", &P2, 0, (xpti::trace_activity_type_t)1, &instance);
-  Id1.p1 = 0;
-  Id1.p2 = 0;
-  Id1.p3 = (uint64_t)(&P2); // Value will be ignored
-  // Since codeptr value is ignored, Id0.p1 == Id1.p1 && Id0.p2 == Id1.p2
-  // and Id0.p3 !> Id1.p3 as these will have different monotonically increasing
-  // 64-bit values, the hash generated will be different. This will result in
-  // two different trace events; This is expected result when NDEBUG is used
-  // during compilation and conflicts are avoided with unique 64-bit values
-  EXPECT_NE(Result2, Result3);
+  Id1.p1 = XPTI_PACK32_RET64(P.source_file_sid(), P.line_no);
+  Id1.p2 = XPTI_PACK32_RET64(0, P.name_sid());
+  Id1.p3 = (uint64_t)P.code_ptr_va;
+  EXPECT_NE(Result, Result1);
   EXPECT_NE(Id0.hash(), Id1.hash());
 }
 
@@ -620,17 +592,16 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDRandomTest) {
   set<uint64_t> HashSet;
   random_device QRd;
   mt19937_64 Gen(QRd());
-  uniform_int_distribution<uint32_t> MStringID, MLineNo, MColumnNo, MAddr;
+  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
 
   MStringID = uniform_int_distribution<uint32_t>(1, 1000000);
   MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
-  MColumnNo = uniform_int_distribution<uint32_t>(1, 256);
   MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
 
   for (int i = 0; i < 1000000; ++i) {
     xpti::uid_t id;
-    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MStringID(Gen));
-    id.p2 = XPTI_PACK32_RET64(MLineNo(Gen), MColumnNo(Gen));
+    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
+    id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
     id.p3 = (uint64_t)MAddr(Gen);
 
     uint64_t hash = id.hash();
@@ -640,13 +611,13 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDRandomTest) {
 
   xpti::uid_t id1, id2;
   uint32_t sid = MStringID(Gen), ln = MLineNo(Gen), kid = MStringID(Gen),
-           addr = MAddr(Gen), col = MColumnNo(Gen);
-  id1.p1 = XPTI_PACK32_RET64(sid, kid);
-  id1.p2 = XPTI_PACK32_RET64(ln, col);
+           addr = MAddr(Gen);
+  id1.p1 = XPTI_PACK32_RET64(sid, ln);
+  id1.p2 = XPTI_PACK32_RET64(0, kid);
   id1.p3 = (uint64_t)addr;
 
-  id2.p1 = XPTI_PACK32_RET64(sid, kid);
-  id2.p2 = XPTI_PACK32_RET64(ln, col);
+  id2.p1 = XPTI_PACK32_RET64(sid, ln);
+  id2.p2 = XPTI_PACK32_RET64(0, kid);
   id2.p3 = (uint64_t)addr;
 
   EXPECT_EQ(id1.hash(), id2.hash());
@@ -657,18 +628,17 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDMapTest) {
   map<xpti::uid_t, uint64_t> MapTest;
   random_device QRd;
   mt19937_64 Gen(QRd());
-  uniform_int_distribution<uint32_t> MStringID, MLineNo, MColumnNo, MAddr;
+  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
 
   MStringID = uniform_int_distribution<uint32_t>(1, 1000000);
   MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
-  MColumnNo = uniform_int_distribution<uint32_t>(1, 256);
   MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
 
   constexpr unsigned int Count = 100000;
   for (unsigned int i = 0; i < Count; ++i) {
     xpti::uid_t id;
-    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MStringID(Gen));
-    id.p2 = XPTI_PACK32_RET64(MLineNo(Gen), MColumnNo(Gen));
+    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
+    id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
     id.p3 = (uint64_t)MAddr(Gen);
 
     uint64_t hash = id.hash();
@@ -693,18 +663,17 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDUnorderedMapTest) {
   unordered_map<xpti::uid_t, uint64_t> MapTest;
   random_device QRd;
   mt19937_64 Gen(QRd());
-  uniform_int_distribution<uint32_t> MStringID, MLineNo, MColumnNo, MAddr;
+  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
 
   MStringID = uniform_int_distribution<uint32_t>(1, 1000000);
   MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
-  MColumnNo = uniform_int_distribution<uint32_t>(1, 256);
   MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
 
   constexpr unsigned int Count = 100000;
   for (unsigned int i = 0; i < Count; ++i) {
     xpti::uid_t id;
-    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MStringID(Gen));
-    id.p2 = XPTI_PACK32_RET64(MLineNo(Gen), MColumnNo(Gen));
+    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
+    id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
     id.p3 = (uint64_t)MAddr(Gen);
 
     uint64_t hash = id.hash();

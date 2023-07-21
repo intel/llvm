@@ -82,9 +82,7 @@ TEST_F(xptiApiTest, xptiRegisterPayloadBadInput) {
   xpti::payload_t p;
 
   auto ID = xptiRegisterPayload(&p);
-  // With the new change in Hash algorithm, an invalid payload will generate a
-  // 64-bit ID using the monotonically increasing value in uid.p3
-  EXPECT_NE(ID, xpti::invalid_uid);
+  EXPECT_EQ(ID, xpti::invalid_uid);
 }
 
 TEST_F(xptiApiTest, xptiGetUniqueId) {

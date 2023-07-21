@@ -14,57 +14,6 @@
 #include <unordered_map>
 
 namespace xpti {
-/// @brief Hash generation helper
-/// @details The Universal ID concept in XPTI requires a good hashing function
-/// and this data type provides the necessary functionality for creating the
-/// Universal ID. This implementation is derived from the paper:
-/// "Strongly universal string hashing is fast" by Daniel Lemire and Owen Kaser
-/// and the corresponding Java implementation available in the blog 2018/08/15:
-///  https:// github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/
-struct hash_t {
-  // Random 64-bit constants used in generating the hash
-  static const uint64_t a1 = 0x65d200ce55b19ad8L;
-  static const uint64_t b1 = 0x4f2162926e40c299L;
-  static const uint64_t c1 = 0x162dd799029970f8L;
-  static const uint64_t a2 = 0x68b665e6872bd1f4L;
-  static const uint64_t b2 = 0xb6cfcf9d79b51db2L;
-  static const uint64_t c2 = 0x7a2b92ae912898c2L;
-
-  // Ability to generate a 32-bit hash from a 64-bit value
-  uint32_t hash32_1(uint64_t x) const {
-    int low = (int)x;
-    int high = (int)(x >> 32);
-    return (int)((a1 * low + b1 * high + c1) >> 32);
-  }
-  // Ability to generate a different 32-bit hash from a 64-bit value
-  // Alows you combine two different hash values generated from the same 64-bit
-  // value to create a 64-bit hash
-  uint32_t hash32_2(uint64_t x) const {
-    int low = (int)x;
-    int high = (int)(x >> 32);
-    return (int)((a2 * low + b2 * high + c2) >> 32);
-  }
-
-  // Create a 64-bit hash from a 64-bit value
-  uint64_t hash64(uint64_t x) const {
-    int low = (int)x;
-    int high = (int)(x >> 32);
-    return ((a1 * low + b1 * high + c1) >> 32) |
-           ((a2 * low + b2 * high + c2) & 0xFFFFFFFF00000000L);
-  }
-
-  // Murmur hash that is a non-cryptographic has function for general hash
-  // based lookup implemented by Daniel Lemire to compare the fast hash with a
-  // standard hash function
-  uint64_t murmur64(uint64_t h) const {
-    h ^= h >> 33;
-    h *= 0xff51afd7ed558ccdL;
-    h ^= h >> 33;
-    h *= 0xc4ceb9fe1a85ec53L;
-    h ^= h >> 33;
-    return h;
-  }
-};
 /// @brief Universal ID data structure that is central to XPTI
 /// @details A given trace point is referred to by it its universal ID and this
 /// data structure has all the elements that are necessary to map to the code
@@ -79,20 +28,14 @@ struct uid_t {
   /// dynamic stack walk is performed, the upper 32-bits contain the string ID
   /// of the caller->callee combination string.
   uint64_t p2 = 0;
-  /// Previous implementations stored a reference to a SYCL object in p3 and
-  /// since such references are generally not available whn the payload and UID
-  /// are created, p3 will now contain a monotonically increasing 64-bit value
-  /// that is always considered unique. In the case payload information is
-  /// invalid (when NDEBUG is provided at compile time), the hash will return
-  /// the unique value in p3
+  /// Contains the address of the kernel object or SYCL object references and
+  /// only the lower 32-bits will be used to generate the hash
   uint64_t p3 = 0;
-  /// Hash generation helper
-  hash_t helper;
 
   uid_t() = default;
   /// Computes a hash that is a bijection between N^3 and N
   /// (x,y,z) |-> (x) + (x+y+1)/2 + (x+y+z+2)/3
-  uint64_t old_hash() const {
+  uint64_t hash() const {
     /// Use lower 32-bits of the address
     uint32_t v3 = (uint32_t)(p3 & 0x00000000ffffffff);
     /// Use p1 and p2 as is; since p1 and p2 upper 32-bits is built from string
@@ -101,10 +44,6 @@ struct uid_t {
     /// 64-bit accumulator.
     return (p1 + (p1 + p2 + 1) / 2 + (p1 + p2 + v3 + 2) / 3);
   }
-
-  /// New hash generation function that will take into account the absence of
-  /// code location information required to generate p1 and p2
-  uint64_t hash() const { return helper.hash64(p1) + helper.hash64(p2) + p3; }
 
   bool operator<(const uid_t &rhs) const {
     if (p1 < rhs.p1)
@@ -224,7 +163,7 @@ struct payload_t {
   /// Kernel/lambda/function address
   const void *code_ptr_va = nullptr;
   /// Internal bookkeeping slot - do not change.
-  uint64_t internal = 0;
+  uint64_t internal;
   /// Flags indicating whether string name, codepointer, source file and hash
   /// values are available
   uint64_t flags = 0;
@@ -320,9 +259,8 @@ struct payload_t {
     }
   }
 
-  int32_t name_sid() const { return (int32_t)(uid.p1 & 0x00000000ffffffff); }
-  // Will be deprecated during the next ABI breakage window
-  int32_t stacktrace_sid() const { return 0; }
+  int32_t name_sid() const { return (int32_t)(uid.p2 & 0x00000000ffffffff); }
+  int32_t stacktrace_sid() const { return (int32_t)(uid.p2 >> 32); }
   int32_t source_file_sid() const { return (int32_t)(uid.p1 >> 32); }
 };
 
