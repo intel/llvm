@@ -21,6 +21,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declarations
 class device;
+class context;
 enum class aspect;
 
 namespace ext::oneapi {
