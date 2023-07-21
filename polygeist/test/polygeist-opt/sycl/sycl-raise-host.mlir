@@ -150,6 +150,75 @@ llvm.func @raise_accessor() -> !llvm.ptr attributes {personality = @__gxx_person
   llvm.return %1 : !llvm.ptr
 }
 
+// -----
+
+llvm.func @__gxx_personality_v0(...) -> i32
+llvm.func @_ZN4sycl3_V16bufferIfLi1ENS0_6detail17aligned_allocatorIfEEvE10get_accessILNS0_6access4modeE1024ELNS7_6targetE2014EEENS0_8accessorIfLi1EXT_EXT0_ELNS7_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEERNS0_7handlerENS2_13code_locationE(!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+
+// CHECK-LABEL: !sycl_accessor_1_21llvm2Evoid_r_gb = !sycl.accessor<[1, !llvm.void, read, global_buffer], (!llvm.void)>
+// CHECK:       !sycl_accessor_1_21llvm2Evoid_w_gb = !sycl.accessor<[1, !llvm.void, write, global_buffer], (!llvm.void)>
+// CHECK:       !sycl_id_1_ = !sycl.id<[1], (!llvm.void)>
+// CHECK:       !sycl_range_1_ = !sycl.range<[1], (!llvm.void)>
+// CHECK:       !sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!sycl_range_1_, !sycl_id_1_)>
+
+// CHECK-LABEL:   llvm.func @raise_get_access() -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
+// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
+// CHECK:           %[[VAL_1:.*]] = arith.constant 128 : i64
+// CHECK:           %[[VAL_2:.*]] = arith.constant 64 : i64
+// CHECK:           %[[VAL_3:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_4:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_5:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_6:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::accessor", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_7:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::accessor", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_8:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::accessor", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_9:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::property_list", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_10:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// COM: Read-only
+// CHECK:           sycl.host.constructor(%[[VAL_6]], %[[VAL_3]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_accessor_1_21llvm2Evoid_r_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// COM: Read-write with range and offset
+// CHECK:           sycl.host.constructor(%[[VAL_7]], %[[VAL_4]], %[[VAL_1]], %[[VAL_2]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           llvm.br ^bb1
+// CHECK:         ^bb1:
+// COM: Write-only
+// CHECK:           sycl.host.constructor(%[[VAL_8]], %[[VAL_5]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           llvm.br ^bb2
+// CHECK:         ^bb2:
+// CHECK:           llvm.return %[[VAL_3]] : !llvm.ptr
+// CHECK:         }
+llvm.func @raise_get_access() -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
+  %0 = arith.constant 1 : i32
+  %range = arith.constant 128 : i64
+  %offset = arith.constant 64 : i64
+  
+  %buf_1 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %buf_2 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %buf_3 = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::buffer", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  
+  %acc_r = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::accessor", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %acc_rw = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::accessor", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %acc_w = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::accessor", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  
+  %pl = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::property_list", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %cl = llvm.alloca %0 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+
+  // COM: Read-only
+  llvm.call @_ZN4sycl3_V16bufferIfLi1ENS0_6detail17aligned_allocatorIfEEvE10get_accessILNS0_6access4modeE1024ELNS7_6targetE2014EEENS0_8accessorIfLi1EXT_EXT0_ELNS7_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEERNS0_7handlerENS2_13code_locationE(%acc_r, %buf_1, %pl, %cl) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+
+  // COM: Read-write, with range and offset
+  llvm.invoke @_ZN4sycl3_V16bufferIfLi1ENS0_6detail17aligned_allocatorIfEEvE10get_accessILNS0_6access4modeE1026ELNS7_6targetE2014EEENS0_8accessorIfLi1EXT_EXT0_ELNS7_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEERNS0_7handlerENS0_5rangeILi1EEENS0_2idILi1EEENS2_13code_locationE(%acc_rw, %buf_2, %range, %offset, %pl, %cl) to ^bb1 unwind ^bb0 : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
+^bb0:
+  %lp = llvm.landingpad cleanup : !llvm.struct<(ptr, i32)>
+  llvm.resume %lp : !llvm.struct<(ptr, i32)>
+^bb1:
+
+  // COM: Write-only
+  llvm.invoke @_ZN4sycl3_V16bufferIfLi1ENS0_6detail17aligned_allocatorIfEEvE10get_accessILNS0_6access4modeE1025ELNS7_6targetE2014EEENS0_8accessorIfLi1EXT_EXT0_ELNS7_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEERNS0_7handlerENS2_13code_locationE(%acc_w, %buf_3, %pl, %cl) to ^bb3 unwind ^bb2 : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+^bb2:
+  %lp1 = llvm.landingpad cleanup : !llvm.struct<(ptr, i32)>
+  llvm.resume %lp1 : !llvm.struct<(ptr, i32)>
+^bb3:
+  llvm.return %buf_1 : !llvm.ptr
+}
 
 // -----
 
