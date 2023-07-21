@@ -23,14 +23,11 @@
 
 namespace sycl {
 inline namespace _V1 {
+
 namespace detail::half_impl {
 class half;
 } // namespace detail::half_impl
-} // namespace _V1
-} // namespace sycl
 
-namespace sycl {
-inline namespace _V1 {
 namespace ext::intel::esimd::emu::detail {
 
 using half = sycl::detail::half_impl::half;

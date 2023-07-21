@@ -23,11 +23,7 @@ namespace sycl {
 inline namespace _V1 {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
-} // namespace _V1
-} // namespace sycl
 
-namespace sycl {
-inline namespace _V1 {
 namespace detail {
 namespace gtl {
 // floating point types
