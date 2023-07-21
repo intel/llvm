@@ -41,7 +41,7 @@ inline device make_device<backend::ext_oneapi_hip>(
   // Hence if this code is reached then the requested device ordinal must
   // not be visible to the driver.
   throw sycl::exception(make_error_code(errc::invalid),
-                            "Native device has an invalid ordinal.");
+                        "Native device has an invalid ordinal.");
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
