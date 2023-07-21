@@ -634,7 +634,7 @@ DataT read_image(const unsampled_image_handle &imageHandle,
   // TODO: add SPIRV part for unsampled image read
 #endif
 #else
-  assert(false);   // Bindless images not yet implemented on host
+  assert(false); // Bindless images not yet implemented on host
 #endif
 }
 
@@ -701,7 +701,7 @@ DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
   // TODO: add SPIRV for mipmap level read
 #endif
 #else
-  assert(false);   // Bindless images not yet implemented on host
+  assert(false); // Bindless images not yet implemented on host
 #endif
 }
 
@@ -763,7 +763,7 @@ void write_image(const unsampled_image_handle &imageHandle,
   // TODO: add SPIRV part for unsampled image write
 #endif
 #else
-  assert(false);   // Bindless images not yet implemented on host
+  assert(false); // Bindless images not yet implemented on host
 #endif
 }
 
