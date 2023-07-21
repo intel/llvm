@@ -20,9 +20,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 void populate_pi_structs(const image_descriptor &desc, pi_image_desc &piDesc,
                          pi_image_format &piFormat, size_t pitch = 0) {
@@ -118,17 +116,11 @@ __SYCL_EXPORT void destroy_image_handle(unsampled_image_handle &imageHandle,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
   pi_image_handle piImageHandle = imageHandle.raw_handle;
 
-  Error = Plugin->call_nocheck<
-      sycl::detail::PiApiKind::piextMemUnsampledImageHandleDestroy>(
+  Plugin->call<sycl::errc::runtime,
+               sycl::detail::PiApiKind::piextMemUnsampledImageHandleDestroy>(
       C, Device, piImageHandle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::runtime_error("Failed to destroy image handle!",
-                              PI_ERROR_INVALID_MEM_OBJECT);
-  }
 }
 
 __SYCL_EXPORT void destroy_image_handle(unsampled_image_handle &imageHandle,
@@ -147,17 +139,11 @@ __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
   pi_image_handle piImageHandle = imageHandle.raw_handle;
 
-  Error = Plugin->call_nocheck<
-      sycl::detail::PiApiKind::piextMemSampledImageHandleDestroy>(
+  Plugin->call<sycl::errc::runtime,
+               sycl::detail::PiApiKind::piextMemSampledImageHandleDestroy>(
       C, Device, piImageHandle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::runtime_error("Failed to destroy image handle!",
-                              PI_ERROR_INVALID_MEM_OBJECT);
-  }
 }
 
 __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
@@ -176,12 +162,11 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
 
   // Non-mipmap images must have only 1 level
   if (desc.num_levels != 1)
-    throw sycl::runtime_error("Image number of levels must be 1",
-                              PI_ERROR_INVALID_MEM_OBJECT);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Image number of levels must be 1");
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -190,13 +175,9 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
   image_mem_handle retHandle;
 
   // Call impl.
-  Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemImageAllocate>(
+  Plugin->call<sycl::errc::memory_allocation,
+               sycl::detail::PiApiKind::piextMemImageAllocate>(
       C, Device, &piFormat, &piDesc, &retHandle.raw_handle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::memory_allocation_error("Failed to allocate image memory!",
-                                        PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
-  }
 
   return retHandle;
 }
@@ -216,12 +197,11 @@ alloc_mipmap_mem(const image_descriptor &desc, const sycl::device &syclDevice,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
 
   // Mipmaps must have more than one level
   if (desc.num_levels <= 1)
-    throw sycl::runtime_error("Mipmap number of levels must be 2 or more",
-                              PI_ERROR_INVALID_MEM_OBJECT);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Mipmap number of levels must be 2 or more");
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -229,13 +209,9 @@ alloc_mipmap_mem(const image_descriptor &desc, const sycl::device &syclDevice,
 
   // Call impl.
   image_mem_handle retHandle;
-  Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemImageAllocate>(
+  Plugin->call<sycl::errc::memory_allocation,
+               sycl::detail::PiApiKind::piextMemImageAllocate>(
       C, Device, &piFormat, &piDesc, &retHandle.raw_handle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::memory_allocation_error("Failed to allocate mipmap memory!",
-                                        PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
-  }
 
   return retHandle;
 }
@@ -257,17 +233,12 @@ __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
 
   // Call impl.
   image_mem_handle individual_image;
-  Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemMipmapGetLevel>(
+  Plugin->call<sycl::errc::runtime,
+               sycl::detail::PiApiKind::piextMemMipmapGetLevel>(
       C, Device, mipMem.raw_handle, level, &individual_image.raw_handle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::runtime_error("Failed to retrieve a mipmap image level!",
-                              PI_ERROR_INVALID_MEM_OBJECT);
-  }
 
   return individual_image;
 }
@@ -290,13 +261,9 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  auto Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemImageFree>(
+  Plugin->call<sycl::errc::memory_allocation,
+               sycl::detail::PiApiKind::piextMemImageFree>(
       C, Device, memHandle.raw_handle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::memory_allocation_error("Failed to free image memory!",
-                                        PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
-  }
 }
 
 __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
@@ -315,16 +282,9 @@ __SYCL_EXPORT void free_mipmap_mem(image_mem_handle memoryHandle,
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  auto Error =
-      Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemMipmapFree>(
-          C, Device, memoryHandle.raw_handle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::memory_allocation_error("Failed to free mipmap memory!",
-                                        PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
-  }
-
-  return;
+  Plugin->call<sycl::errc::memory_allocation,
+               sycl::detail::PiApiKind::piextMemMipmapFree>(
+      C, Device, memoryHandle.raw_handle);
 }
 
 __SYCL_EXPORT void free_mipmap_mem(image_mem_handle memoryHandle,
@@ -356,7 +316,6 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -365,16 +324,10 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
   // Call impl.
   pi_image_handle piImageHandle;
   pi_mem piImage;
-  Error =
-      Plugin
-          ->call_nocheck<sycl::detail::PiApiKind::piextMemUnsampledImageCreate>(
-              C, Device, memHandle.raw_handle, &piFormat, &piDesc, &piImage,
-              &piImageHandle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::runtime_error("Failed to create unsampled image handle!",
-                              PI_ERROR_INVALID_MEM_OBJECT);
-  }
+  Plugin->call<sycl::errc::runtime,
+               sycl::detail::PiApiKind::piextMemUnsampledImageCreate>(
+      C, Device, memHandle.raw_handle, &piFormat, &piDesc, &piImage,
+      &piImageHandle);
 
   return unsampled_image_handle{piImageHandle};
 }
@@ -397,7 +350,6 @@ create_image(image_mem_handle memHandle, const bindless_image_sampler &sampler,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
 
   const pi_sampler_properties sProps[] = {
       PI_SAMPLER_INFO_NORMALIZED_COORDS,
@@ -407,14 +359,14 @@ create_image(image_mem_handle memHandle, const bindless_image_sampler &sampler,
       PI_SAMPLER_INFO_FILTER_MODE,
       static_cast<pi_sampler_properties>(sampler.filtering),
       PI_SAMPLER_INFO_MIP_FILTER_MODE,
-      static_cast<pi_sampler_properties>(sampler.mipmapFiltering),
+      static_cast<pi_sampler_properties>(sampler.mipmap_filtering),
       0};
 
   pi_sampler piSampler = {};
-  Error = Plugin->call_nocheck<
-      sycl::detail::PiApiKind::piextBindlessImageSamplerCreate>(
-      C, sProps, sampler.minMipmapLevelClamp, sampler.maxMipmapLevelClamp,
-      sampler.maxAnisotropy, &piSampler);
+  Plugin->call<sycl::errc::runtime,
+               sycl::detail::PiApiKind::piextBindlessImageSamplerCreate>(
+      C, sProps, sampler.min_mipmap_level_clamp, sampler.max_mipmap_level_clamp,
+      sampler.max_anisotropy, &piSampler);
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -423,15 +375,10 @@ create_image(image_mem_handle memHandle, const bindless_image_sampler &sampler,
   // Call impl.
   pi_image_handle piImageHandle;
   pi_mem piImage;
-  Error =
-      Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemSampledImageCreate>(
-          C, Device, memHandle.raw_handle, &piFormat, &piDesc, piSampler,
-          &piImage, &piImageHandle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::runtime_error("Failed to create sampled image!",
-                              PI_ERROR_INVALID_MEM_OBJECT);
-  }
+  Plugin->call<sycl::errc::runtime,
+               sycl::detail::PiApiKind::piextMemSampledImageCreate>(
+      C, Device, memHandle.raw_handle, &piFormat, &piDesc, piSampler, &piImage,
+      &piImageHandle);
 
   return sampled_image_handle{piImageHandle};
 }
@@ -470,7 +417,6 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
 
   const pi_sampler_properties sProps[] = {
       PI_SAMPLER_INFO_NORMALIZED_COORDS,
@@ -480,14 +426,14 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
       PI_SAMPLER_INFO_FILTER_MODE,
       static_cast<pi_sampler_properties>(sampler.filtering),
       PI_SAMPLER_INFO_MIP_FILTER_MODE,
-      static_cast<pi_sampler_properties>(sampler.mipmapFiltering),
+      static_cast<pi_sampler_properties>(sampler.mipmap_filtering),
       0};
 
   pi_sampler piSampler = {};
-  Error = Plugin->call_nocheck<
-      sycl::detail::PiApiKind::piextBindlessImageSamplerCreate>(
-      C, sProps, sampler.minMipmapLevelClamp, sampler.maxMipmapLevelClamp,
-      sampler.maxAnisotropy, &piSampler);
+  Plugin->call<sycl::errc::runtime,
+               sycl::detail::PiApiKind::piextBindlessImageSamplerCreate>(
+      C, sProps, sampler.min_mipmap_level_clamp, sampler.max_mipmap_level_clamp,
+      sampler.max_anisotropy, &piSampler);
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -496,15 +442,11 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   // Call impl.
   pi_mem piImage;
   pi_image_handle piImageHandle;
-  Error =
-      Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemSampledImageCreate>(
-          C, Device, devPtr, &piFormat, &piDesc, piSampler, &piImage,
-          &piImageHandle);
+  Plugin->call<sycl::errc::runtime,
+               sycl::detail::PiApiKind::piextMemSampledImageCreate>(
+      C, Device, devPtr, &piFormat, &piDesc, piSampler, &piImage,
+      &piImageHandle);
 
-  if (Error != PI_SUCCESS) {
-    throw sycl::runtime_error("Failed to create sampled image handle!",
-                              PI_ERROR_INVALID_MEM_OBJECT);
-  }
   return sampled_image_handle{piImageHandle};
 }
 
@@ -527,18 +469,11 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<external_mem_fd>(
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  pi_result Error;
-
   pi_interop_mem_handle piInteropMem;
-  Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemImportOpaqueFD>(
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextMemImportOpaqueFD>(
       C, Device, externalMem.size_in_bytes,
       externalMem.external_handle.file_descriptor, &piInteropMem);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::exception(
-        sycl::errc::invalid,
-        "Invalid external memory handle passed to `import_external_memory`");
-  }
 
   return interop_mem_handle{piInteropMem};
 }
@@ -561,7 +496,6 @@ __SYCL_EXPORT image_mem_handle map_external_memory_array(
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -570,15 +504,9 @@ __SYCL_EXPORT image_mem_handle map_external_memory_array(
   pi_interop_mem_handle piInteropMem{memHandle.raw_handle};
 
   image_mem_handle retHandle;
-  Error =
-      Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemMapExternalArray>(
-          C, Device, &piFormat, &piDesc, piInteropMem, &retHandle.raw_handle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::exception(
-        sycl::errc::invalid,
-        "Invalid interop memory handle passed to `map_external_memory_array`");
-  }
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextMemMapExternalArray>(
+      C, Device, &piFormat, &piDesc, piInteropMem, &retHandle.raw_handle);
 
   return image_mem_handle{retHandle};
 }
@@ -600,16 +528,10 @@ __SYCL_EXPORT void release_external_memory(interop_mem_handle interopMem,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
 
-  Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemReleaseInterop>(
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextMemReleaseInterop>(
       C, Device, (pi_interop_mem_handle)interopMem.raw_handle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::exception(
-        sycl::errc::invalid,
-        "Invalid interop memory handle passed to `release_external_memory`");
-  }
 }
 
 __SYCL_EXPORT void release_external_memory(interop_mem_handle interopMem,
@@ -629,20 +551,13 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
-  pi_result Error;
 
   pi_interop_semaphore_handle piInteropSemaphore;
 
-  Error = Plugin->call_nocheck<
-      sycl::detail::PiApiKind::piextImportExternalSemaphoreOpaqueFD>(
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextImportExternalSemaphoreOpaqueFD>(
       C, Device, externalSemaphoreDesc.external_handle.file_descriptor,
       &piInteropSemaphore);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::exception(
-        sycl::errc::invalid,
-        "Invalid semaphore handle passed to `import_external_semaphore`");
-  }
 
   return interop_semaphore_handle{piInteropSemaphore};
 }
@@ -666,17 +581,10 @@ destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
-  pi_result Error;
 
-  Error = Plugin->call_nocheck<
-      sycl::detail::PiApiKind::piextDestroyExternalSemaphore>(
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextDestroyExternalSemaphore>(
       C, Device, (pi_interop_semaphore_handle)semaphoreHandle.raw_handle);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::exception(
-        sycl::errc::invalid,
-        "Invalid semaphore handle passed to `destroy_external_semaphore`");
-  }
 }
 
 __SYCL_EXPORT void
@@ -689,33 +597,24 @@ destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
 __SYCL_EXPORT sycl::range<3> get_image_range(const image_mem_handle memHandle,
                                              const sycl::device &syclDevice,
                                              const sycl::context &syclContext) {
+  std::ignore = syclDevice;
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
-
-  (void)Device;
 
   size_t Width, Height, Depth;
 
-  Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemImageGetInfo>(
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextMemImageGetInfo>(
       memHandle.raw_handle, PI_IMAGE_INFO_WIDTH, &Width, nullptr);
 
-  if (Error == PI_SUCCESS)
-    Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemImageGetInfo>(
-        memHandle.raw_handle, PI_IMAGE_INFO_HEIGHT, &Height, nullptr);
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextMemImageGetInfo>(
+      memHandle.raw_handle, PI_IMAGE_INFO_HEIGHT, &Height, nullptr);
 
-  if (Error == PI_SUCCESS)
-    Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemImageGetInfo>(
-        memHandle.raw_handle, PI_IMAGE_INFO_DEPTH, &Depth, nullptr);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::exception(sycl::errc::invalid,
-                          "Invalid memory handle passed to `get_image_range`");
-  }
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextMemImageGetInfo>(
+      memHandle.raw_handle, PI_IMAGE_INFO_DEPTH, &Depth, nullptr);
 
   return {Width, Height, Depth};
 }
@@ -730,25 +629,16 @@ __SYCL_EXPORT sycl::image_channel_type
 get_image_channel_type(const image_mem_handle memHandle,
                        const sycl::device &syclDevice,
                        const sycl::context &syclContext) {
+  std::ignore = syclDevice;
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
 
   pi_image_format PIFormat;
 
-  (void)Device;
-
-  Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemImageGetInfo>(
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextMemImageGetInfo>(
       memHandle.raw_handle, PI_IMAGE_INFO_FORMAT, &PIFormat, nullptr);
-  if (Error != PI_SUCCESS) {
-    throw sycl::exception(
-        sycl::errc::invalid,
-        "Invalid memory handle passed to `get_image_channel_type`");
-  }
 
   image_channel_type ChannelType =
       sycl::detail::convertChannelType(PIFormat.image_channel_data_type);
@@ -770,34 +660,27 @@ __SYCL_EXPORT void *pitched_alloc_device(size_t *resultPitch,
                                          const sycl::context &syclContext) {
   void *RetVal = nullptr;
   if (widthInBytes == 0 || height == 0 || elementSizeBytes == 0) {
-    throw sycl::memory_allocation_error(
-        "Cannot allocate pitched memory with zero size!",
-        PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::memory_allocation),
+                          "Cannot allocate pitched memory with zero size!");
   }
 
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   if (CtxImpl->is_host()) {
-    throw sycl::memory_allocation_error(
-        "Cannot allocate pitched memory on host!",
-        PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::memory_allocation),
+                          "Cannot allocate pitched memory on host!");
   }
 
   pi_context PiContext = CtxImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
   pi_device PiDevice;
 
   PiDevice = sycl::detail::getSyclObjImpl(syclDevice)->getHandleRef();
 
-  Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextUSMPitchedAlloc>(
+  Plugin->call<sycl::errc::memory_allocation,
+               sycl::detail::PiApiKind::piextUSMPitchedAlloc>(
       &RetVal, resultPitch, PiContext, PiDevice, nullptr, widthInBytes, height,
       elementSizeBytes);
-
-  if (Error != PI_SUCCESS) {
-    throw sycl::memory_allocation_error("Failed to allocate pitched memory!",
-                                        PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
-  }
 
   return RetVal;
 }
@@ -838,25 +721,16 @@ __SYCL_EXPORT unsigned int
 get_image_num_channels(const image_mem_handle memHandle,
                        const sycl::device &syclDevice,
                        const sycl::context &syclContext) {
+  std::ignore = syclDevice;
+
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_result Error;
-
   pi_image_format PIFormat;
 
-  (void)Device;
-
-  Error = Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemImageGetInfo>(
+  Plugin->call<sycl::errc::runtime,
+               sycl::detail::PiApiKind::piextMemImageGetInfo>(
       memHandle.raw_handle, PI_IMAGE_INFO_FORMAT, &PIFormat, nullptr);
-  if (Error != PI_SUCCESS) {
-    throw sycl::runtime_error(
-        "Failed to get the number of channels from image memory!",
-        PI_ERROR_INVALID_MEM_OBJECT);
-  }
 
   image_channel_order Order =
       sycl::detail::convertChannelOrder(PIFormat.image_channel_order);
@@ -871,8 +745,6 @@ get_image_num_channels(const image_mem_handle memHandle,
                                 syclQueue.get_context());
 }
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

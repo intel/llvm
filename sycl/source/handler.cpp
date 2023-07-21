@@ -1008,38 +1008,6 @@ void handler::ext_oneapi_copy(
   PiFormat.image_channel_order =
       sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
 
-  // Flags
-  sycl::detail::pi::PiImageCopyFlags PiCopyFlags;
-  sycl::usm::alloc DstPtrType = get_pointer_type(Dest, MQueue->get_context());
-  sycl::usm::alloc SrcPtrType = get_pointer_type(Src, MQueue->get_context());
-  if (DstPtrType == sycl::usm::alloc::device) {
-    // Dest is on device
-    if (SrcPtrType == sycl::usm::alloc::device) {
-      PiCopyFlags =
-          sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
-    } else if (SrcPtrType == sycl::usm::alloc::host ||
-               SrcPtrType == sycl::usm::alloc::unknown) {
-      PiCopyFlags =
-          sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
-    } else {
-      assert(false && "Unknown copy source location");
-    }
-  } else if (DstPtrType == sycl::usm::alloc::host ||
-             DstPtrType == sycl::usm::alloc::unknown) {
-    // Dest is on host
-    if (SrcPtrType == sycl::usm::alloc::device) {
-      PiCopyFlags =
-          sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
-    } else if (SrcPtrType == sycl::usm::alloc::host ||
-               SrcPtrType == sycl::usm::alloc::unknown) {
-      assert(false && "Cannot copy image from host to host");
-    } else {
-      assert(false && "Unknown copy source location");
-    }
-  } else {
-    assert(false && "Unknown copy destination location");
-  }
-
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
   MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
@@ -1047,7 +1015,9 @@ void handler::ext_oneapi_copy(
   MImpl->MImageDesc = PiDesc;
   MImpl->MImageDesc.image_row_pitch = Pitch;
   MImpl->MImageFormat = PiFormat;
-  MImpl->MImageCopyFlags = PiCopyFlags;
+  MImpl->MImageCopyFlags =
+      getPiImageCopyFlags(get_pointer_type(Src, MQueue->get_context()),
+                          get_pointer_type(Dest, MQueue->get_context()));
   setType(detail::CG::CopyImage);
 }
 
@@ -1074,38 +1044,6 @@ void handler::ext_oneapi_copy(
   PiFormat.image_channel_order =
       sycl::_V1::detail::convertChannelOrder(DeviceImgDesc.channel_order);
 
-  // Flags
-  sycl::detail::pi::PiImageCopyFlags PiCopyFlags;
-  sycl::usm::alloc DstPtrType = get_pointer_type(Dest, MQueue->get_context());
-  sycl::usm::alloc SrcPtrType = get_pointer_type(Src, MQueue->get_context());
-  if (DstPtrType == sycl::usm::alloc::device) {
-    // Dest is on device
-    if (SrcPtrType == sycl::usm::alloc::device) {
-      PiCopyFlags =
-          sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
-    } else if (SrcPtrType == sycl::usm::alloc::host ||
-               SrcPtrType == sycl::usm::alloc::unknown) {
-      PiCopyFlags =
-          sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
-    } else {
-      assert(false && "Unknown copy source location");
-    }
-  } else if (DstPtrType == sycl::usm::alloc::host ||
-             DstPtrType == sycl::usm::alloc::unknown) {
-    // Dest is on host
-    if (SrcPtrType == sycl::usm::alloc::device) {
-      PiCopyFlags =
-          sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
-    } else if (SrcPtrType == sycl::usm::alloc::host ||
-               SrcPtrType == sycl::usm::alloc::unknown) {
-      assert(false && "Cannot copy image from host to host");
-    } else {
-      assert(false && "Unknown copy source location");
-    }
-  } else {
-    assert(false && "Unknown copy destination location");
-  }
-
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
   MImpl->MHostExtent = {HostExtent[0], HostExtent[1], HostExtent[2]};
@@ -1113,7 +1051,9 @@ void handler::ext_oneapi_copy(
   MImpl->MImageDesc = PiDesc;
   MImpl->MImageDesc.image_row_pitch = DeviceRowPitch;
   MImpl->MImageFormat = PiFormat;
-  MImpl->MImageCopyFlags = PiCopyFlags;
+  MImpl->MImageCopyFlags =
+      getPiImageCopyFlags(get_pointer_type(Src, MQueue->get_context()),
+                          get_pointer_type(Dest, MQueue->get_context()));
   setType(detail::CG::CopyImage);
 }
 
@@ -1368,6 +1308,40 @@ handler::getCommandGraph() const {
     return MGraph;
   }
   return MQueue->getCommandGraph();
+}
+
+sycl::detail::pi::PiImageCopyFlags
+handler::getPiImageCopyFlags(sycl::usm::alloc SrcPtrType,
+                             sycl::usm::alloc DstPtrType) {
+  if (DstPtrType == sycl::usm::alloc::device) {
+    // Dest is on device
+    if (SrcPtrType == sycl::usm::alloc::device) {
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
+    } else if (SrcPtrType == sycl::usm::alloc::host ||
+               SrcPtrType == sycl::usm::alloc::unknown) {
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+    } else {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Unknown copy source location");
+    }
+  } else if (DstPtrType == sycl::usm::alloc::host ||
+             DstPtrType == sycl::usm::alloc::unknown) {
+    // Dest is on host
+    if (SrcPtrType == sycl::usm::alloc::device) {
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+    } else if (SrcPtrType == sycl::usm::alloc::host ||
+               SrcPtrType == sycl::usm::alloc::unknown) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Cannot copy image from host to host");
+    } else {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Unknown copy source location");
+    }
+  } else {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unknown copy destination location");
+  }
+  return {};
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

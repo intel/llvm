@@ -17,9 +17,8 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
+
 /// Opaque unsampled image handle type.
 struct unsampled_image_handle {
   using raw_handle_type = pi_uint64;
@@ -623,22 +622,20 @@ template <typename DataT, typename CoordT>
 DataT read_image(const unsampled_image_handle &imageHandle,
                  const CoordT &coords) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  if constexpr (coordSize == 1 || coordSize == 2 || coordSize == 4) {
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinate to be have 1, 2, or 4 components "
+                "for 1D, 2D and 3D images respectively.");
+
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-    return __invoke__ImageRead<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                        coords);
+  return __invoke__ImageRead<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
+                                                      coords);
 #else
-    // TODO: add SPIRV part for unsampled image read
+  // TODO: add SPIRV part for unsampled image read
 #endif
 #else
-    assert(false); // Bindless images not yet implemented on host
+  assert(false);   // Bindless images not yet implemented on host
 #endif
-  } else {
-    static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                  "Expected input coordinate to be have 1, 2, or 4 components "
-                  "for 1D, 2D and 3D images respectively.");
-  }
 }
 
 /**
@@ -661,22 +658,20 @@ template <typename DataT, typename CoordT>
 DataT read_image(const sampled_image_handle &imageHandle,
                  const CoordT &coords) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  if constexpr (coordSize == 1 || coordSize == 2 || coordSize == 4) {
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinate to be have 1, 2, or 4 components "
+                "for 1D, 2D and 3D images respectively.");
+
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-    return __invoke__ImageRead<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                        coords);
+  return __invoke__ImageRead<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
+                                                      coords);
 #else
-    // TODO: add SPIRV part for sampled image read
+  // TODO: add SPIRV part for sampled image read
 #endif
 #else
-    assert(false); // Bindless images not yet implemented on host.
+  assert(false); // Bindless images not yet implemented on host.
 #endif
-  } else {
-    static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                  "Expected input coordinate to be have 1, 2, or 4 components "
-                  "for 1D, 2D and 3D images respectively.");
-  }
 }
 
 /**
@@ -694,22 +689,20 @@ template <typename DataT, typename CoordT>
 DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
                  const float level) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  if constexpr (coordSize == 1 || coordSize == 2 || coordSize == 4) {
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinate to be have 1, 2, or 4 components "
+                "for 1D, 2D and 3D images respectively.");
+
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-    return __invoke__ImageReadLod<DataT, uint64_t, CoordT>(
-        imageHandle.raw_handle, coords, level);
+  return __invoke__ImageReadLod<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
+                                                         coords, level);
 #else
-    // TODO: add SPIRV for mipmap level read
+  // TODO: add SPIRV for mipmap level read
 #endif
 #else
-    assert(false); // Bindless images not yet implemented on host
+  assert(false);   // Bindless images not yet implemented on host
 #endif
-  } else {
-    static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                  "Expected input coordinate to be have 1, 2, or 4 components "
-                  "for 1D, 2D and 3D images respectively.");
-  }
 }
 
 /**
@@ -728,23 +721,21 @@ template <typename DataT, typename CoordT>
 DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
                  const CoordT &dX, const CoordT &dY) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  if constexpr (coordSize == 1 || coordSize == 2 || coordSize == 4) {
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinate and gradient to have 1, 2, or 4 "
+                "components "
+                "for 1D, 2D and 3D images respectively.");
+
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-    return __invoke__ImageReadGrad<DataT, uint64_t, CoordT>(
-        imageHandle.raw_handle, coords, dX, dY);
+  return __invoke__ImageReadGrad<DataT, uint64_t, CoordT>(
+      imageHandle.raw_handle, coords, dX, dY);
 #else
-    // TODO: add SPIRV part for mipmap grad read
+  // TODO: add SPIRV part for mipmap grad read
 #endif
 #else
-    assert(false); // Bindless images not yet implemented on host
+  assert(false); // Bindless images not yet implemented on host
 #endif
-  } else {
-    static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                  "Expected input coordinate and gradient to have 1, 2, or 4 "
-                  "components "
-                  "for 1D, 2D and 3D images respectively.");
-  }
 }
 
 /**
@@ -760,26 +751,22 @@ template <typename DataT, typename CoordT>
 void write_image(const unsampled_image_handle &imageHandle,
                  const CoordT &Coords, const DataT &Color) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  if constexpr (coordSize == 1 || coordSize == 2 || coordSize == 4) {
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinate to be have 1, 2, or 4 components "
+                "for 1D, 2D and 3D images respectively.");
+
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-    __invoke__ImageWrite<uint64_t, CoordT, DataT>(
-        (uint64_t)imageHandle.raw_handle, Coords, Color);
+  __invoke__ImageWrite<uint64_t, CoordT, DataT>(
+      (uint64_t)imageHandle.raw_handle, Coords, Color);
 #else
-    // TODO: add SPIRV part for unsampled image write
+  // TODO: add SPIRV part for unsampled image write
 #endif
 #else
-    assert(false); // Bindless images not yet implemented on host
+  assert(false);   // Bindless images not yet implemented on host
 #endif
-  } else {
-    static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                  "Expected input coordinate to be have 1, 2, or 4 components "
-                  "for 1D, 2D and 3D images respectively.");
-  }
 }
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

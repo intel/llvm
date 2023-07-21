@@ -19,9 +19,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 class queue;
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 /// Opaque image memory handle type
 struct image_mem_handle {
@@ -106,9 +104,7 @@ enum image_copy_flags : unsigned int {
   DtoD = 2,
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

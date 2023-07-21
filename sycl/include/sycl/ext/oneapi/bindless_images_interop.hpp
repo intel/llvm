@@ -10,9 +10,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 /// Opaque interop memory handle type
 struct interop_mem_handle {
@@ -53,8 +51,6 @@ template <typename HandleType> struct external_semaphore_descriptor {
   HandleType external_handle;
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

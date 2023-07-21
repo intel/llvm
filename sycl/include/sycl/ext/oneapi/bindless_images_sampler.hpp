@@ -12,9 +12,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 struct bindless_image_sampler {
 
@@ -30,22 +28,20 @@ struct bindless_image_sampler {
                          float minMipmapLevelClamp, float maxMipmapLevelClamp,
                          float maxAnisotropy)
       : addressing(addressing), coordinate(coordinate), filtering(filtering),
-        mipmapFiltering(mipmapFiltering),
-        minMipmapLevelClamp(minMipmapLevelClamp),
-        maxMipmapLevelClamp(maxMipmapLevelClamp), maxAnisotropy(maxAnisotropy) {
-  }
+        mipmap_filtering(mipmapFiltering),
+        min_mipmap_level_clamp(minMipmapLevelClamp),
+        max_mipmap_level_clamp(maxMipmapLevelClamp),
+        max_anisotropy(maxAnisotropy) {}
 
   sycl::addressing_mode addressing;
   sycl::coordinate_normalization_mode coordinate;
   sycl::filtering_mode filtering;
-  sycl::filtering_mode mipmapFiltering;
-  float minMipmapLevelClamp = 0.f;
-  float maxMipmapLevelClamp = 0.f;
-  float maxAnisotropy = 0.f;
+  sycl::filtering_mode mipmap_filtering;
+  float min_mipmap_level_clamp = 0.f;
+  float max_mipmap_level_clamp = 0.f;
+  float max_anisotropy = 0.f;
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
