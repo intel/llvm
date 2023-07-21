@@ -3,11 +3,11 @@
 // RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
-// RUN: llvm-spirv -r %t.spv --spirv-target-env CL2.0 -o %t.rev.bc
-// RUN: llvm-dis %t.rev.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv --spirv-target-env CL2.0 -o %t.rev.bc
+// RUN: llvm-dis -opaque-pointers=0 %t.rev.bc
 // RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
-// RUN: llvm-spirv -r %t.spv --spirv-target-env SPV-IR -o %t.rev.bc
-// RUN: llvm-dis %t.rev.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv --spirv-target-env SPV-IR -o %t.rev.bc
+// RUN: llvm-dis -opaque-pointers=0 %t.rev.bc
 // RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-SPV-IR
 
 // CHECK-SPIRV: EntryPoint {{[0-9]+}} [[BlockKer1:[0-9]+]] "__device_side_enqueue_block_invoke_kernel"

@@ -423,10 +423,16 @@ GVNPass::Expression GVNPass::ValueTable::createGEPExpr(GetElementPtrInst *GEP) {
   unsigned BitWidth = DL.getIndexTypeSizeInBits(PtrTy);
   MapVector<Value *, APInt> VariableOffsets;
   APInt ConstantOffset(BitWidth, 0);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  if (GEP->collectOffset(DL, BitWidth, VariableOffsets, ConstantOffset)) {
+    // Convert into offset representation, to recognize equivalent address
+    // calculations that use different type encoding.
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   if (PtrTy->isOpaquePointerTy() &&
       GEP->collectOffset(DL, BitWidth, VariableOffsets, ConstantOffset)) {
     // For opaque pointers, convert into offset representation, to recognize
     // equivalent address calculations that use different type encoding.
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     LLVMContext &Context = GEP->getContext();
     E.opcode = GEP->getOpcode();
     E.type = nullptr;
@@ -439,8 +445,13 @@ GVNPass::Expression GVNPass::ValueTable::createGEPExpr(GetElementPtrInst *GEP) {
       E.varargs.push_back(
           lookupOrAdd(ConstantInt::get(Context, ConstantOffset)));
   } else {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    // If converting to offset representation fails (for scalable vectors),
+    // fall back to type-based implementation:
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     // If converting to offset representation fails (for typed pointers and
     // scalable vectors), fall back to type-based implementation:
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     E.opcode = GEP->getOpcode();
     E.type = GEP->getSourceElementType();
     for (Use &Op : GEP->operands())

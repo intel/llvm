@@ -797,7 +797,10 @@ ScalableVectorType *ScalableVectorType::get(Type *ElementType,
 PointerType *PointerType::get(Type *EltTy, unsigned AddressSpace) {
   assert(EltTy && "Can't get a pointer to <null> type!");
   assert(isValidElementType(EltTy) && "Invalid type for pointer element!");
-
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // Automatically convert typed pointers to opaque pointers.
+  return get(EltTy->getContext(), AddressSpace);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   LLVMContextImpl *CImpl = EltTy->getContext().pImpl;
 
   // Automatically convert typed pointers to opaque pointers.
@@ -810,12 +813,15 @@ PointerType *PointerType::get(Type *EltTy, unsigned AddressSpace) {
   if (!Entry)
     Entry = new (CImpl->Alloc) PointerType(EltTy, AddressSpace);
   return Entry;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 PointerType *PointerType::get(LLVMContext &C, unsigned AddressSpace) {
   LLVMContextImpl *CImpl = C.pImpl;
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   assert(CImpl->getOpaquePointers() &&
          "Can only create opaque pointers in opaque pointer mode");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Since AddressSpace #0 is the common case, we special case it.
   PointerType *&Entry = AddressSpace == 0 ? CImpl->AS0PointerType

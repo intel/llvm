@@ -826,6 +826,9 @@ lltok::Kind LLLexer::LexIdentifier() {
   TYPEKEYWORD("x86_amx",   Type::getX86_AMXTy(Context));
   TYPEKEYWORD("token",     Type::getTokenTy(Context));
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  TYPEKEYWORD("ptr",       PointerType::getUnqual(Context));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   if (Keyword == "ptr") {
     // setOpaquePointers() must be called before creating any pointer types.
     if (!Context.hasSetOpaquePointersValue()) {
@@ -837,6 +840,7 @@ lltok::Kind LLLexer::LexIdentifier() {
     TyVal = PointerType::getUnqual(Context);
     return lltok::Type;
   }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 #undef TYPEKEYWORD
 

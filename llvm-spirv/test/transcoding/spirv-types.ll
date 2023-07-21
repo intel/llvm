@@ -10,8 +10,8 @@
 ; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
 ; RUN: llvm-dis -opaque-pointers=0 %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
-; RUN: llvm-spirv --spirv-target-env=SPV-IR -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis %t.rev.bc
+; RUN: llvm-spirv --spirv-target-env=SPV-IR -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
+; RUN: llvm-dis -opaque-pointers=0 %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPIRV
 
 ; Check that produced SPIR-V friendly IR is correctly recognized

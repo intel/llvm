@@ -595,6 +595,9 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
   }
   case Type::PointerTyID: {
     PointerType *PTy = cast<PointerType>(Ty);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    OS << "ptr";
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     if (PTy->isOpaque()) {
       OS << "ptr";
       if (unsigned AddressSpace = PTy->getAddressSpace())
@@ -602,9 +605,12 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
       return;
     }
     print(PTy->getNonOpaquePointerElementType(), OS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     if (unsigned AddressSpace = PTy->getAddressSpace())
       OS << " addrspace(" << AddressSpace << ')';
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     OS << '*';
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return;
   }
   case Type::ArrayTyID: {

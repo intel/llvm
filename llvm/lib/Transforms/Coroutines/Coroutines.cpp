@@ -596,7 +596,7 @@ static void checkAsyncFuncPointer(const Instruction *I, Value *V) {
   auto *AsyncFuncPtrAddr = dyn_cast<GlobalVariable>(V->stripPointerCasts());
   if (!AsyncFuncPtrAddr)
     fail(I, "llvm.coro.id.async async function pointer not a global", V);
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (AsyncFuncPtrAddr->getType()->isOpaquePointerTy())
     return;
 
@@ -610,6 +610,7 @@ static void checkAsyncFuncPointer(const Instruction *I, Value *V) {
          "llvm.coro.id.async async function pointer argument's type is not "
          "<{i32, i32}>",
          V);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 void CoroIdAsyncInst::checkWellFormed() const {

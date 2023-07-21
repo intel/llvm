@@ -3,10 +3,10 @@
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
-; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 ; CHECK-LLVM: call spir_func ptr @_Z29async_work_group_strided_copyPU3AS1Dv2_hPU3AS3KS_jj9ocl_event(
 ; CHECK-LLVM: call spir_func void @_Z17wait_group_eventsiPU3AS49ocl_event(

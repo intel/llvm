@@ -378,9 +378,17 @@ bool LLVMContext::hasSetOpaquePointersValue() const {
 }
 
 void LLVMContext::setOpaquePointers(bool Enable) const {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  assert(Enable && "Cannot disable opaque pointers");
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   pImpl->setOpaquePointers(Enable);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 bool LLVMContext::supportsTypedPointers() const {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return false;
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   return !pImpl->getOpaquePointers();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }

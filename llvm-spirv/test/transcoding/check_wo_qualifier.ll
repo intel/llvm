@@ -1,8 +1,8 @@
 ; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM: define spir_kernel void @sample_kernel(ptr addrspace(1)
 ; CHECK-LLVM-SAME: !kernel_arg_access_qual [[AQ:![0-9]+]]

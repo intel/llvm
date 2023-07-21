@@ -886,8 +886,7 @@ RVVIntrinsic::RVVIntrinsic(
     : IRName(IRName), IsMasked(IsMasked),
       HasMaskedOffOperand(HasMaskedOffOperand), HasVL(HasVL), Scheme(Scheme),
       SupportOverloading(SupportOverloading), HasBuiltinAlias(HasBuiltinAlias),
-      ManualCodegen(ManualCodegen.str()), NF(NF), PolicyAttrs(NewPolicyAttrs),
-      HasFRMRoundModeOp(HasFRMRoundModeOp) {
+      ManualCodegen(ManualCodegen.str()), NF(NF), PolicyAttrs(NewPolicyAttrs) {
 
   // Init BuiltinName, Name and OverloadedName
   BuiltinName = NewName.str();
@@ -1073,10 +1072,7 @@ void RVVIntrinsic::updateNamesAndPolicy(
       appendPolicySuffix("_mu");
     else if (PolicyAttrs.isTAMAPolicy()) {
       Name += "_m";
-      if (HasPolicy)
-        BuiltinName += "_tama";
-      else
-        BuiltinName += "_m";
+      BuiltinName += "_m";
     } else
       llvm_unreachable("Unhandled policy condition");
   } else {

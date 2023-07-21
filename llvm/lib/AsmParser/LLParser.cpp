@@ -996,6 +996,7 @@ static void maybeSetDSOLocal(bool DSOLocal, GlobalValue &GV) {
     GV.setDSOLocal(true);
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 static std::string typeComparisonErrorMessage(StringRef Message, Type *Ty1,
                                               Type *Ty2) {
   std::string ErrString;
@@ -1003,6 +1004,7 @@ static std::string typeComparisonErrorMessage(StringRef Message, Type *Ty1,
   ErrOS << Message << " (" << *Ty1 << " vs " << *Ty2 << ")";
   return ErrOS.str();
 }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 /// parseAliasOrIFunc:
 ///   ::= GlobalVar '=' OptionalLinkage OptionalPreemptionSpecifier
@@ -1075,6 +1077,7 @@ bool LLParser::parseAliasOrIFunc(const std::string &Name, LocTy NameLoc,
     return error(AliaseeLoc, "An alias or ifunc must have pointer type");
   unsigned AddrSpace = PTy->getAddressSpace();
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (IsAlias) {
     if (!PTy->isOpaqueOrPointeeTypeMatches(Ty))
       return error(
@@ -1088,6 +1091,7 @@ bool LLParser::parseAliasOrIFunc(const std::string &Name, LocTy NameLoc,
       return error(ExplicitTypeLoc,
                    "explicit pointee type should be a function type");
   }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   GlobalValue *GVal = nullptr;
 
@@ -1605,6 +1609,14 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
 //===----------------------------------------------------------------------===//
 
 static inline GlobalValue *createGlobalFwdRef(Module *M, PointerType *PTy) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // The used global type does not matter. We will later RAUW it with a
+  // global/function of the correct type.
+  return new GlobalVariable(*M, Type::getInt8Ty(M->getContext()), false,
+                            GlobalValue::ExternalWeakLinkage, nullptr, "",
+                            nullptr, GlobalVariable::NotThreadLocal,
+                            PTy->getAddressSpace());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   // For opaque pointers, the used global type does not matter. We will later
   // RAUW it with a global/function of the correct type.
   if (PTy->isOpaque())
@@ -1621,6 +1633,7 @@ static inline GlobalValue *createGlobalFwdRef(Module *M, PointerType *PTy) {
     return new GlobalVariable(
         *M, ElemTy, false, GlobalValue::ExternalWeakLinkage, nullptr, "",
         nullptr, GlobalVariable::NotThreadLocal, PTy->getAddressSpace());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *LLParser::checkValidVariableType(LocTy Loc, const Twine &Name, Type *Ty,
@@ -2697,7 +2710,11 @@ bool LLParser::parseType(Type *&Result, const Twine &Msg, bool AllowVoid) {
     // Handle "ptr" opaque pointer type.
     //
     // Type ::= ptr ('addrspace' '(' uint32 ')')?
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    if (Result->isPointerTy()) {
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     if (Result->isOpaquePointerTy()) {
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       unsigned AddrSpace;
       if (parseOptionalAddrSpace(AddrSpace))
         return true;
@@ -4056,7 +4073,9 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
     if (parseToken(lltok::lparen, "expected '(' in constantexpr"))
       return true;
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     LocTy ExplicitTypeLoc = Lex.getLoc();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     if (Opc == Instruction::GetElementPtr) {
       if (parseType(Ty) ||
           parseToken(lltok::comma, "expected comma after getelementptr's type"))
@@ -4075,6 +4094,7 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
         return error(ID.Loc, "base of getelementptr must be a pointer");
 
       Type *BaseType = Elts[0]->getType();
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       auto *BasePointerType = cast<PointerType>(BaseType->getScalarType());
       if (!BasePointerType->isOpaqueOrPointeeTypeMatches(Ty)) {
         return error(
@@ -4083,7 +4103,7 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
                 "explicit pointee type doesn't match operand's pointee type",
                 Ty, BasePointerType->getNonOpaquePointerElementType()));
       }
-
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       unsigned GEPWidth =
           BaseType->isVectorTy()
               ? cast<FixedVectorType>(BaseType)->getNumElements()
@@ -6117,10 +6137,12 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
     auto FRVI = ForwardRefVals.find(FunctionName);
     if (FRVI != ForwardRefVals.end()) {
       FwdFn = FRVI->second.first;
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       if (!FwdFn->getType()->isOpaque() &&
           !FwdFn->getType()->getNonOpaquePointerElementType()->isFunctionTy())
         return error(FRVI->second.second, "invalid forward reference to "
                                           "function as global value!");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       if (FwdFn->getType() != PFT)
         return error(FRVI->second.second,
                      "invalid forward reference to "
@@ -7701,6 +7723,7 @@ int LLParser::parseLoad(Instruction *&Inst, PerFunctionState &PFS) {
       Ordering == AtomicOrdering::AcquireRelease)
     return error(Loc, "atomic load cannot use Release ordering");
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (!cast<PointerType>(Val->getType())->isOpaqueOrPointeeTypeMatches(Ty)) {
     return error(
         ExplicitTypeLoc,
@@ -7708,6 +7731,7 @@ int LLParser::parseLoad(Instruction *&Inst, PerFunctionState &PFS) {
             "explicit pointee type doesn't match operand's pointee type", Ty,
             Val->getType()->getNonOpaquePointerElementType()));
   }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   SmallPtrSet<Type *, 4> Visited;
   if (!Alignment && !Ty->isSized(&Visited))
     return error(ExplicitTypeLoc, "loading unsized types is not allowed");
@@ -7752,9 +7776,11 @@ int LLParser::parseStore(Instruction *&Inst, PerFunctionState &PFS) {
     return error(PtrLoc, "store operand must be a pointer");
   if (!Val->getType()->isFirstClassType())
     return error(Loc, "store operand must be a first class value");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (!cast<PointerType>(Ptr->getType())
            ->isOpaqueOrPointeeTypeMatches(Val->getType()))
     return error(Loc, "stored value and pointer type do not match");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   if (isAtomic && !Alignment)
     return error(Loc, "atomic store must have explicit non-zero alignment");
   if (Ordering == AtomicOrdering::Acquire ||
@@ -7806,12 +7832,14 @@ int LLParser::parseCmpXchg(Instruction *&Inst, PerFunctionState &PFS) {
     return tokError("invalid cmpxchg failure ordering");
   if (!Ptr->getType()->isPointerTy())
     return error(PtrLoc, "cmpxchg operand must be a pointer");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (!cast<PointerType>(Ptr->getType())
            ->isOpaqueOrPointeeTypeMatches(Cmp->getType()))
     return error(CmpLoc, "compare value and pointer type do not match");
   if (!cast<PointerType>(Ptr->getType())
            ->isOpaqueOrPointeeTypeMatches(New->getType()))
     return error(NewLoc, "new value and pointer type do not match");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   if (Cmp->getType() != New->getType())
     return error(NewLoc, "compare value and new value type do not match");
   if (!New->getType()->isFirstClassType())
@@ -7897,9 +7925,11 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
     return tokError("atomicrmw cannot be unordered");
   if (!Ptr->getType()->isPointerTy())
     return error(PtrLoc, "atomicrmw operand must be a pointer");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (!cast<PointerType>(Ptr->getType())
            ->isOpaqueOrPointeeTypeMatches(Val->getType()))
     return error(ValLoc, "atomicrmw value and pointer type do not match");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   if (Operation == AtomicRMWInst::Xchg) {
     if (!Val->getType()->isIntegerTy() &&
@@ -7968,7 +7998,9 @@ int LLParser::parseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
   bool InBounds = EatIfPresent(lltok::kw_inbounds);
 
   Type *Ty = nullptr;
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   LocTy ExplicitTypeLoc = Lex.getLoc();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   if (parseType(Ty) ||
       parseToken(lltok::comma, "expected comma after getelementptr's type") ||
       parseTypeAndValue(Ptr, Loc, PFS))
@@ -7979,6 +8011,7 @@ int LLParser::parseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
   if (!BasePointerType)
     return error(Loc, "base of getelementptr must be a pointer");
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (!BasePointerType->isOpaqueOrPointeeTypeMatches(Ty)) {
     return error(
         ExplicitTypeLoc,
@@ -7986,6 +8019,7 @@ int LLParser::parseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
             "explicit pointee type doesn't match operand's pointee type", Ty,
             BasePointerType->getNonOpaquePointerElementType()));
   }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   SmallVector<Value*, 16> Indices;
   bool AteExtraComma = false;
