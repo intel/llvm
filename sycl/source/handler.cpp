@@ -41,6 +41,34 @@ bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
   return DGEntry && !DGEntry->MImageIdentifiers.empty();
 }
 
+sycl::detail::pi::PiImageCopyFlags
+getPiImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
+  if (DstPtrType == sycl::usm::alloc::device) {
+    // Dest is on device
+    if (SrcPtrType == sycl::usm::alloc::device)
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
+    if (SrcPtrType == sycl::usm::alloc::host ||
+        SrcPtrType == sycl::usm::alloc::unknown)
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unknown copy source location");
+  }
+  if (DstPtrType == sycl::usm::alloc::host ||
+      DstPtrType == sycl::usm::alloc::unknown) {
+    // Dest is on host
+    if (SrcPtrType == sycl::usm::alloc::device)
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+    if (SrcPtrType == sycl::usm::alloc::host ||
+        SrcPtrType == sycl::usm::alloc::unknown)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Cannot copy image from host to host");
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unknown copy source location");
+  }
+  throw sycl::exception(make_error_code(errc::invalid),
+                        "Unknown copy destination location");
+}
+
 } // namespace detail
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
@@ -1015,9 +1043,9 @@ void handler::ext_oneapi_copy(
   MImpl->MImageDesc = PiDesc;
   MImpl->MImageDesc.image_row_pitch = Pitch;
   MImpl->MImageFormat = PiFormat;
-  MImpl->MImageCopyFlags =
-      getPiImageCopyFlags(get_pointer_type(Src, MQueue->get_context()),
-                          get_pointer_type(Dest, MQueue->get_context()));
+  MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
+      get_pointer_type(Src, MQueue->get_context()),
+      get_pointer_type(Dest, MQueue->get_context()));
   setType(detail::CG::CopyImage);
 }
 
@@ -1051,9 +1079,9 @@ void handler::ext_oneapi_copy(
   MImpl->MImageDesc = PiDesc;
   MImpl->MImageDesc.image_row_pitch = DeviceRowPitch;
   MImpl->MImageFormat = PiFormat;
-  MImpl->MImageCopyFlags =
-      getPiImageCopyFlags(get_pointer_type(Src, MQueue->get_context()),
-                          get_pointer_type(Dest, MQueue->get_context()));
+  MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
+      get_pointer_type(Src, MQueue->get_context()),
+      get_pointer_type(Dest, MQueue->get_context()));
   setType(detail::CG::CopyImage);
 }
 
@@ -1308,36 +1336,6 @@ handler::getCommandGraph() const {
     return MGraph;
   }
   return MQueue->getCommandGraph();
-}
-
-sycl::detail::pi::PiImageCopyFlags
-handler::getPiImageCopyFlags(sycl::usm::alloc SrcPtrType,
-                             sycl::usm::alloc DstPtrType) {
-  if (DstPtrType == sycl::usm::alloc::device) {
-    // Dest is on device
-    if (SrcPtrType == sycl::usm::alloc::device)
-      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
-    if (SrcPtrType == sycl::usm::alloc::host ||
-        SrcPtrType == sycl::usm::alloc::unknown)
-      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unknown copy source location");
-  }
-  if (DstPtrType == sycl::usm::alloc::host ||
-      DstPtrType == sycl::usm::alloc::unknown) {
-    // Dest is on host
-    if (SrcPtrType == sycl::usm::alloc::device)
-      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
-    if (SrcPtrType == sycl::usm::alloc::host ||
-        SrcPtrType == sycl::usm::alloc::unknown)
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Cannot copy image from host to host");
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unknown copy source location");
-  }
-
-  throw sycl::exception(make_error_code(errc::invalid),
-                        "Unknown copy destination location");
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
