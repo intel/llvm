@@ -466,7 +466,7 @@ class kernel {
 template <typename Param, typename... T>
 typename Param::return_type ext_oneapi_get_info(T... args) const;
 ----
-_Constraints_: Available only when the types `T...` described by the parameter
+_Constraints_: Available only when the types `+T...+` described by the parameter
 pack match the type list defined by `Param::argument_types`.
 
 _Preconditions_: `Param` must be one of the `info::kernel` descriptors defined
@@ -474,7 +474,7 @@ in this extension, and the type alias `Param::return_type` must be defined in
 accordance with the table below.
 
 _Returns_: Information about the kernel that applies when the kernel is
-submitted with the configuration described by the parameter pack `T...`.
+submitted with the configuration described by the parameter pack `+T...+`.
 
 This extension adds several new queries to this interface, many of which
 already have equivalents in the `kernel_device_specific` or `device`
