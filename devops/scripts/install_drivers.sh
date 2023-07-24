@@ -1,12 +1,24 @@
 #!/bin/bash
 
-CR_TAG=$compute_runtime_tag
-IGC_TAG=$igc_tag
-CM_TAG=$cm_tag
-L0_TAG=$level_zero_tag
-TBB_TAG=$tbb_tag
-FPGA_TAG=$fpgaemu_tag
-CPU_TAG=$cpu_tag
+if [ -f "$1" ]; then
+    # Read data from the dependencies.json passed as the first argument.
+    CONFIG_FILE=$1
+    CR_TAG=$(jq -r '.linux.compute_runtime.github_tag' $CONFIG_FILE)
+    IGC_TAG=$(jq -r '.linux.igc.github_tag' $CONFIG_FILE)
+    CM_TAG=$(jq -r '.linux.cm.github_tag' $CONFIG_FILE)
+    L0_TAG=$(jq -r '.linux.level_zero.github_tag' $CONFIG_FILE)
+    TBB_TAG=$(jq -r '.linux.tbb.github_tag' $CONFIG_FILE)
+    FPGA_TAG=$(jq -r '.linux.fpgaemu.github_tag' $CONFIG_FILE)
+    CPU_TAG=$(jq -r '.linux.oclcpu.github_tag' $CONFIG_FILE)
+else
+    CR_TAG=$compute_runtime_tag
+    IGC_TAG=$igc_tag
+    CM_TAG=$cm_tag
+    L0_TAG=$level_zero_tag
+    TBB_TAG=$tbb_tag
+    FPGA_TAG=$fpgaemu_tag
+    CPU_TAG=$cpu_tag
+fi
 
 TBB_INSTALLED=false
 
@@ -85,7 +97,7 @@ InstallFPGAEmu () {
   cd $INSTALL_LOCATION
   if [ -d "$INSTALL_LOCATION/fpgaemu" ]; then
     echo "$INSTALL_LOCATION/fpgaemu exists and will be removed!"
-    rm -Rf $INSTALL_LOCATION/oclcpu;
+    rm -Rf $INSTALL_LOCATION/fpgaemu;
   fi
   python3 $LOCATION/get_release.py intel/llvm $FPGA_TAG \
     | grep -E ".*fpgaemu.*tar.gz" \
