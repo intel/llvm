@@ -26,16 +26,16 @@ struct umf_memory_provider_ops_t {
     uint32_t version;
 
     ///
-    /// \brief Initializes memory pool.
-    /// \param params pool-specific params
-    /// \param pool returns pointer to the pool
+    /// \brief Initializes memory provider.
+    /// \param params provider-specific params
+    /// \param provider returns pointer to the provider
     /// \return UMF_RESULT_SUCCESS on success or appropriate error code on failure.
-    enum umf_result_t (*initialize)(void *params, void **pool);
+    enum umf_result_t (*initialize)(void *params, void **provider);
 
     ///
-    /// \brief Finalizes memory pool.
-    /// \param pool pool to finalize
-    void (*finalize)(void *pool);
+    /// \brief Finalizes memory provider.
+    /// \param provider provider to finalize
+    void (*finalize)(void *provider);
 
     /// Refer to memory_provider.h for description of those functions
     enum umf_result_t (*alloc)(void *provider, size_t size, size_t alignment,
