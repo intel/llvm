@@ -20,8 +20,8 @@ struct umf_memory_provider_t {
 };
 
 enum umf_result_t
-umfMemoryProviderCreate(struct umf_memory_provider_ops_t *ops, void *params,
-                        umf_memory_provider_handle_t *hProvider) {
+umfMemoryProviderCreate(const struct umf_memory_provider_ops_t *ops,
+                        void *params, umf_memory_provider_handle_t *hProvider) {
     umf_memory_provider_handle_t provider =
         malloc(sizeof(struct umf_memory_provider_t));
     if (!provider) {
