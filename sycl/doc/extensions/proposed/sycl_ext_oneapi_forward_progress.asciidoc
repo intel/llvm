@@ -228,7 +228,7 @@ source code.
 For example, consider a kernel using locks/mutexes. Attempting to acquire a
 lock is a blocking operation, and so if two threads of execution providing
 weakly parallel forward progress guarantees attempt to acquire the lock
-simultaneously this will result in a deadlock. To correctly avoid a deadlock,
+simultaneously this may result in a deadlock. To correctly avoid a deadlock,
 the developer must correctly identify the coordination scope: if any work-item
 may try to acquire the lock, then work-items require stronger forward progress
 guarantees at root-group coordination scope; if each work-group has its own
