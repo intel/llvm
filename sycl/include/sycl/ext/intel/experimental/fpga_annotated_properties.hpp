@@ -1,4 +1,5 @@
-//==-- properties.hpp - SYCL properties associated with annotated_arg/ptr --==//
+//==-- fpga_annotated_properties.hpp - SYCL properties associated with
+// annotated_arg/ptr --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,20 +9,19 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
-namespace oneapi {
+namespace intel {
 namespace experimental {
 
-template <typename T, typename PropertyListT> class annotated_arg;
-template <typename T, typename PropertyListT> class annotated_ptr;
-
+template <typename PropertyT, typename... Ts>
+using property_value =
+    sycl::ext::oneapi::experimental::property_value<PropertyT, Ts...>;
 //===----------------------------------------------------------------------===//
-//        Common properties of annotated_arg/annotated_ptr
+//        FPGA properties of annotated_arg/annotated_ptr
 //===----------------------------------------------------------------------===//
 struct register_map_key {
   using value_t = property_value<register_map_key>;
@@ -101,6 +101,27 @@ inline constexpr read_write_mode_key::value_t<read_write_mode_enum::write>
     read_write_mode_write;
 inline constexpr read_write_mode_key::value_t<read_write_mode_enum::read_write>
     read_write_mode_readwrite;
+
+} // namespace experimental
+} // namespace intel
+
+namespace oneapi {
+namespace experimental {
+template <typename T, typename PropertyListT> class annotated_arg;
+template <typename T, typename PropertyListT> class annotated_ptr;
+
+struct alignment_key;
+using register_map_key = intel::experimental::register_map_key;
+using conduit_key = intel::experimental::conduit_key;
+using stable_key = intel::experimental::stable_key;
+using buffer_location_key = intel::experimental::buffer_location_key;
+using awidth_key = intel::experimental::awidth_key;
+using dwidth_key = intel::experimental::dwidth_key;
+using latency_key = intel::experimental::latency_key;
+using read_write_mode_key = intel::experimental::read_write_mode_key;
+using maxburst_key = intel::experimental::maxburst_key;
+using wait_request_key = intel::experimental::wait_request_key;
+using read_write_mode_enum = intel::experimental::read_write_mode_enum;
 
 template <> struct is_property_key<register_map_key> : std::true_type {};
 template <> struct is_property_key<conduit_key> : std::true_type {};
@@ -287,9 +308,6 @@ struct PropertyMetaInfo<read_write_mode_key::value_t<Mode>> {
 } // namespace detail
 
 // 'buffer_location' and mmhost properties are pointers-only
-template <typename T, typename PropertyValueT>
-struct is_valid_property : std::false_type {};
-
 template <typename T, int N>
 struct is_valid_property<T, buffer_location_key::value_t<N>>
     : std::bool_constant<std::is_pointer<T>::value> {};
@@ -327,68 +345,31 @@ struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
 template <typename T>
 struct is_valid_property<T, stable_key::value_t> : std::true_type {};
 
-template <typename T, typename... Props>
-struct check_property_list : std::true_type {};
-
-template <typename T, typename Prop, typename... Props>
-struct check_property_list<T, Prop, Props...>
-    : std::conditional_t<is_valid_property<T, Prop>::value,
-                         check_property_list<T, Props...>, std::false_type> {
-  static_assert(is_valid_property<T, Prop>::value,
-                "Property is invalid for the given type.");
-};
-
 //===----------------------------------------------------------------------===//
-//        Specific properties of annotated_ptr
-//===----------------------------------------------------------------------===//
-struct alignment_key {
-  template <int K>
-  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
-};
-
-template <int K> inline constexpr alignment_key::value_t<K> alignment;
-
-template <> struct is_property_key<alignment_key> : std::true_type {};
-
-template <typename T, typename PropertyListT>
-struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
-    : std::true_type {};
-
-namespace detail {
-
-template <> struct PropertyToKind<alignment_key> {
-  static constexpr PropKind Kind = PropKind::Alignment;
-};
-
-template <> struct IsCompileTimeProperty<alignment_key> : std::true_type {};
-
-template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
-  static constexpr const char *name = "sycl-alignment";
-  static constexpr int value = N;
-};
-
-} // namespace detail
-
-//===----------------------------------------------------------------------===//
-//   Utility type trait for annotated_arg/annotated_ptr deduction guide
+//   Utility for FPGA properties
 //===----------------------------------------------------------------------===//
 //
 namespace detail {
-// Deduce a `properties<>` type from given variadic properties
-template <typename... Args> struct DeducedProperties {
-  using type = decltype(properties{std::declval<Args>()...});
-};
+template <typename... Args> struct checkValidFPGAPropertySet {
+  using list = std::tuple<Args...>;
+  static constexpr bool has_BufferLocation =
+      ContainsProperty<buffer_location_key, list>::value;
 
-// Partial specialization for deducing a `properties<>` type by forwarding the
-// given `properties<>` type
-template <typename... Args>
-struct DeducedProperties<detail::properties_t<Args...>> {
-  using type = detail::properties_t<Args...>;
+  static constexpr bool has_InterfaceConfig =
+      ContainsProperty<awidth_key, list>::value &&
+      ContainsProperty<dwidth_key, list>::value &&
+      ContainsProperty<latency_key, list>::value &&
+      ContainsProperty<read_write_mode_key, list>::value &&
+      ContainsProperty<maxburst_key, list>::value &&
+      ContainsProperty<wait_request_key, list>::value &&
+      ContainsProperty<alignment_key, list>::value;
+
+  static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
 };
 } // namespace detail
 
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

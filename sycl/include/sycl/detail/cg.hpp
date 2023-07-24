@@ -30,7 +30,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class queue;
@@ -497,6 +497,17 @@ public:
   size_t getOffset() { return MOffset; }
 };
 
+/// "Execute command-buffer" command group class.
+class CGExecCommandBuffer : public CG {
+public:
+  sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+
+  CGExecCommandBuffer(sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+                      CG::StorageInitHelper CGData)
+      : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
+        MCommandBuffer(CommandBuffer) {}
+};
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -283,10 +283,37 @@ int main() {
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::queue udq4{ctx, uds, ah};
 
-  // expected-warning@+2{{'local' is deprecated: use `local_accessor` instead}}
   Queue.submit([&](sycl::handler &CGH) {
+    // expected-warning@+1{{'local' is deprecated: use `local_accessor` instead}}
     sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::target::local>
         LocalAcc(sycl::range<1>(1), CGH);
+    // expected-warning@+3{{'multi_ptr' is deprecated: multi_ptr construction using target::local specialized accessor is deprecated since SYCL 2020}}
+    sycl::multi_ptr<int, sycl::access::address_space::local_space,
+                    sycl::access::decorated::no>
+        LocalMptr(LocalAcc);
+    // expected-warning@+3{{'multi_ptr' is deprecated: multi_ptr construction using target::local specialized accessor is deprecated since SYCL 2020}}
+    sycl::multi_ptr<int, sycl::access::address_space::generic_space,
+                    sycl::access::decorated::no>
+        GenericMptr(LocalAcc);
+    // expected-warning@+1{{'local' is deprecated: use `local_accessor` instead}}
+    sycl::accessor<const int, 1, sycl::access::mode::read, sycl::target::local>
+        LocalConstAcc(sycl::range<1>(1), CGH);
+    // expected-warning@+3{{'multi_ptr' is deprecated: multi_ptr construction using target::local specialized accessor is deprecated since SYCL 2020}}
+    sycl::multi_ptr<const int, sycl::access::address_space::local_space,
+                    sycl::access::decorated::no>
+        LocalConstMptr(LocalConstAcc);
+    // expected-warning@+3{{'multi_ptr' is deprecated: multi_ptr construction using target::local specialized accessor is deprecated since SYCL 2020}}
+    sycl::multi_ptr<const int, sycl::access::address_space::generic_space,
+                    sycl::access::decorated::no>
+        GenericConstMptr(LocalConstAcc);
+    // expected-warning@+3{{'multi_ptr' is deprecated: multi_ptr construction using target::local specialized accessor is deprecated since SYCL 2020}}
+    sycl::multi_ptr<const void, sycl::access::address_space::local_space,
+                    sycl::access::decorated::no>
+        LocalConstVoidMptr(LocalConstAcc);
+    // expected-warning@+3{{'multi_ptr' is deprecated: multi_ptr construction using target::local specialized accessor is deprecated since SYCL 2020}}
+    sycl::multi_ptr<void, sycl::access::address_space::local_space,
+                    sycl::access::decorated::no>
+        LocalVoidMptr(LocalAcc);
   });
 
   Queue.submit([&](sycl::handler &CGH) {

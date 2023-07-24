@@ -1,3 +1,6 @@
+// https://github.com/intel/llvm/issues/10369
+// UNSUPPORTED: gpu
+//
 // UNSUPPORTED: cuda, hip
 // REQUIRES: gpu,linux
 // RUN: %{build} -o %t.out

@@ -13,11 +13,12 @@
 
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/annotated_arg/properties.hpp>
+#include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
+#include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -180,6 +181,10 @@ public:
                 "Property list is invalid.");
   static_assert(check_property_list<T, Props...>::value,
                 "The property list contains invalid property.");
+  // check the set if FPGA specificed properties are used
+  static_assert(detail::checkValidFPGAPropertySet<Props...>::value,
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
+                "can only be set with BufferLocation together.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;
@@ -267,5 +272,5 @@ public:
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

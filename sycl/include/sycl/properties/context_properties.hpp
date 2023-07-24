@@ -13,7 +13,7 @@
 #include <sycl/properties/property_traits.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::cuda::property::context {
 class __SYCL_DEPRECATED("the primary contexts are now always used")
     use_primary_context : public ::sycl::detail::DataLessProperty<
@@ -43,5 +43,5 @@ template <>
 struct is_property_of<ext::oneapi::cuda::property::context::use_primary_context,
                       context> : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

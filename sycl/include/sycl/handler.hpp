@@ -17,6 +17,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/handler_proxy.hpp>
 #include <sycl/detail/os_util.hpp>
+#include <sycl/detail/reduction_forward.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
@@ -32,9 +33,7 @@
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/reduction_forward.hpp>
 #include <sycl/sampler.hpp>
-#include <sycl/stl.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 #ifdef __SYCL_NATIVE_CPU__
 #include <sycl/detail/native_cpu.hpp>
@@ -93,7 +92,7 @@ class __copyAcc2Acc;
 class MockHandler;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 
@@ -1541,6 +1540,12 @@ private:
 
     setType(detail::CG::CodeplayHostTask);
   }
+
+  /// @brief Get the command graph if any associated with this handler. It can
+  /// come from either the associated queue or from being set explicitly through
+  /// the appropriate constructor.
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  getCommandGraph() const;
 
 public:
   handler(const handler &) = delete;
@@ -3203,5 +3208,5 @@ private:
   // Set value of the gpu cache configuration for the kernel.
   void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
 };
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

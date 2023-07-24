@@ -49,7 +49,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -94,7 +94,7 @@ static std::string deviceToString(device Device) {
     return "UNKNOWN";
 }
 
-static void applyFuncOnFilteredArgs(
+void applyFuncOnFilteredArgs(
     const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
     std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func) {
   if (!EliminatedArgMask) {
@@ -482,12 +482,15 @@ void Command::waitForEvents(QueueImplPtr Queue,
 /// It is safe to bind MPreparedDepsEvents and MPreparedHostDepsEvents
 /// references to event_impl class members because Command
 /// should not outlive the event connected to it.
-Command::Command(CommandType Type, QueueImplPtr Queue)
+Command::Command(
+    CommandType Type, QueueImplPtr Queue,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
-      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
-      MType(Type) {
+      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
   MEvent->setSubmittedQueue(MWorkerQueue);
@@ -1848,9 +1851,12 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   }
 }
 
-ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
-                             QueueImplPtr Queue)
-    : Command(CommandType::RUN_CG, std::move(Queue)),
+ExecCGCommand::ExecCGCommand(
+    std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies)
+    : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
+              Dependencies),
       MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
@@ -2176,7 +2182,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR,
 // Initially we keep the order of NDRDescT as it provided by the user, this
 // simplifies overall handling and do the reverse only when
 // the kernel is enqueued.
-static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
+void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   if (NDR.Dims > 1) {
     std::swap(NDR.GlobalSize[0], NDR.GlobalSize[NDR.Dims - 1]);
     std::swap(NDR.LocalSize[0], NDR.LocalSize[NDR.Dims - 1]);
@@ -2196,6 +2202,89 @@ pi_mem_obj_access AccessModeToPi(access::mode AccessorMode) {
   }
 }
 
+void SetArgBasedOnType(
+    const PluginPtr &Plugin, sycl::detail::pi::PiKernel Kernel,
+    const std::shared_ptr<device_image_impl> &DeviceImageImpl,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,
+    size_t NextTrueIndex) {
+  switch (Arg.MType) {
+  case kernel_param_kind_t::kind_stream:
+    break;
+  case kernel_param_kind_t::kind_accessor: {
+    Requirement *Req = (Requirement *)(Arg.MPtr);
+    assert(getMemAllocationFunc != nullptr &&
+           "We should have caught this earlier.");
+
+    sycl::detail::pi::PiMem MemArg =
+        (sycl::detail::pi::PiMem)getMemAllocationFunc(Req);
+    if (Context.get_backend() == backend::opencl) {
+      // clSetKernelArg (corresponding to piKernelSetArg) returns an error
+      // when MemArg is null, which is the case when zero-sized buffers are
+      // handled. Below assignment provides later call to clSetKernelArg with
+      // acceptable arguments.
+      if (!MemArg)
+        MemArg = sycl::detail::pi::PiMem();
+
+      Plugin->call<PiApiKind::piKernelSetArg>(
+          Kernel, NextTrueIndex, sizeof(sycl::detail::pi::PiMem), &MemArg);
+    } else {
+      pi_mem_obj_property MemObjData{};
+      MemObjData.mem_access = AccessModeToPi(Req->MAccessMode);
+      MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
+      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                       &MemObjData, &MemArg);
+    }
+    break;
+  }
+  case kernel_param_kind_t::kind_std_layout: {
+    Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, Arg.MSize,
+                                            Arg.MPtr);
+    break;
+  }
+  case kernel_param_kind_t::kind_sampler: {
+    sampler *SamplerPtr = (sampler *)Arg.MPtr;
+    sycl::detail::pi::PiSampler Sampler =
+        detail::getSyclObjImpl(*SamplerPtr)->getOrCreateSampler(Context);
+    Plugin->call<PiApiKind::piextKernelSetArgSampler>(Kernel, NextTrueIndex,
+                                                      &Sampler);
+    break;
+  }
+  case kernel_param_kind_t::kind_pointer: {
+    Plugin->call<PiApiKind::piextKernelSetArgPointer>(Kernel, NextTrueIndex,
+                                                      Arg.MSize, Arg.MPtr);
+    break;
+  }
+  case kernel_param_kind_t::kind_specialization_constants_buffer: {
+    if (IsHost) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "SYCL2020 specialization constants are not yet supported on host "
+          "device " +
+              codeToString(PI_ERROR_INVALID_OPERATION));
+    }
+    assert(DeviceImageImpl != nullptr);
+    sycl::detail::pi::PiMem SpecConstsBuffer =
+        DeviceImageImpl->get_spec_const_buffer_ref();
+    // Avoid taking an address of nullptr
+    sycl::detail::pi::PiMem *SpecConstsBufferArg =
+        SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
+
+    pi_mem_obj_property MemObjData{};
+    MemObjData.mem_access = PI_ACCESS_READ_ONLY;
+    MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
+    Plugin->call<PiApiKind::piextKernelSetArgMemObj>(
+        Kernel, NextTrueIndex, &MemObjData, SpecConstsBufferArg);
+    break;
+  }
+  case kernel_param_kind_t::kind_invalid:
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Invalid kernel param kind " +
+                              codeToString(PI_ERROR_INVALID_VALUE));
+    break;
+  }
+}
+
 static pi_result SetKernelParamsAndLaunch(
     const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
@@ -2207,82 +2296,9 @@ static pi_result SetKernelParamsAndLaunch(
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
-    switch (Arg.MType) {
-    case kernel_param_kind_t::kind_stream:
-      break;
-    case kernel_param_kind_t::kind_accessor: {
-      Requirement *Req = (Requirement *)(Arg.MPtr);
-      assert(getMemAllocationFunc != nullptr &&
-             "We should have caught this earlier.");
-
-      sycl::detail::pi::PiMem MemArg =
-          (sycl::detail::pi::PiMem)getMemAllocationFunc(Req);
-      if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
-        // clSetKernelArg (corresponding to piKernelSetArg) returns an error
-        // when MemArg is null, which is the case when zero-sized buffers are
-        // handled. Below assignment provides later call to clSetKernelArg with
-        // acceptable arguments.
-        if (!MemArg)
-          MemArg = sycl::detail::pi::PiMem();
-
-        Plugin->call<PiApiKind::piKernelSetArg>(
-            Kernel, NextTrueIndex, sizeof(sycl::detail::pi::PiMem), &MemArg);
-      } else {
-        pi_mem_obj_property MemObjData{};
-        MemObjData.mem_access = AccessModeToPi(Req->MAccessMode);
-        MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
-        Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                         &MemObjData, &MemArg);
-      }
-      break;
-    }
-    case kernel_param_kind_t::kind_std_layout: {
-      Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, Arg.MSize,
-                                              Arg.MPtr);
-      break;
-    }
-    case kernel_param_kind_t::kind_sampler: {
-      sampler *SamplerPtr = (sampler *)Arg.MPtr;
-      sycl::detail::pi::PiSampler Sampler =
-          detail::getSyclObjImpl(*SamplerPtr)
-              ->getOrCreateSampler(Queue->get_context());
-      Plugin->call<PiApiKind::piextKernelSetArgSampler>(Kernel, NextTrueIndex,
-                                                        &Sampler);
-      break;
-    }
-    case kernel_param_kind_t::kind_pointer: {
-      Plugin->call<PiApiKind::piextKernelSetArgPointer>(Kernel, NextTrueIndex,
-                                                        Arg.MSize, Arg.MPtr);
-      break;
-    }
-    case kernel_param_kind_t::kind_specialization_constants_buffer: {
-      if (Queue->is_host()) {
-        throw sycl::exception(
-            sycl::make_error_code(sycl::errc::feature_not_supported),
-            "SYCL2020 specialization constants are not yet supported on host "
-            "device " +
-                codeToString(PI_ERROR_INVALID_OPERATION));
-      }
-      assert(DeviceImageImpl != nullptr);
-      sycl::detail::pi::PiMem SpecConstsBuffer =
-          DeviceImageImpl->get_spec_const_buffer_ref();
-      // Avoid taking an address of nullptr
-      sycl::detail::pi::PiMem *SpecConstsBufferArg =
-          SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
-
-      pi_mem_obj_property MemObjData{};
-      MemObjData.mem_access = PI_ACCESS_READ_ONLY;
-      MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
-      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(
-          Kernel, NextTrueIndex, &MemObjData, SpecConstsBufferArg);
-      break;
-    }
-    case kernel_param_kind_t::kind_invalid:
-      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Invalid kernel param kind " +
-                                codeToString(PI_ERROR_INVALID_VALUE));
-      break;
-    }
+    SetArgBasedOnType(Plugin, Kernel, DeviceImageImpl, getMemAllocationFunc,
+                      Queue->get_context(), Queue->is_host(), Arg,
+                      NextTrueIndex);
   };
 
   applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
@@ -2342,6 +2358,82 @@ void DispatchNativeKernel(void *Blob) {
   delete Reqs;
   delete HostKernel;
   delete NDRDesc;
+}
+
+pi_int32 enqueueImpCommandBufferKernel(
+    context Ctx, DeviceImplPtr DeviceImpl,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    const CGExecKernel &CommandGroup,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+  auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
+  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
+  pi_kernel PiKernel = nullptr;
+  std::mutex *KernelMutex = nullptr;
+  pi_program PiProgram = nullptr;
+
+  auto Kernel = CommandGroup.MSyclKernel;
+  const KernelArgMask *EliminatedArgMask;
+  if (Kernel != nullptr) {
+    PiKernel = Kernel->getHandleRef();
+  } else {
+    std::tie(PiKernel, KernelMutex, EliminatedArgMask, PiProgram) =
+        sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
+            ContextImpl, DeviceImpl, CommandGroup.MKernelName, nullptr);
+  }
+
+  auto SetFunc = [&Plugin, &PiKernel, &Ctx, &getMemAllocationFunc](
+                     sycl::detail::ArgDesc &Arg, size_t NextTrueIndex) {
+    sycl::detail::SetArgBasedOnType(
+        Plugin, PiKernel,
+        nullptr /* TODO: Handle spec constants and pass device image here */
+        ,
+        getMemAllocationFunc, Ctx, false, Arg, NextTrueIndex);
+  };
+  // Copy args for modification
+  auto Args = CommandGroup.MArgs;
+  sycl::detail::applyFuncOnFilteredArgs(EliminatedArgMask, Args, SetFunc);
+
+  // Remember this information before the range dimensions are reversed
+  const bool HasLocalSize = (CommandGroup.MNDRDesc.LocalSize[0] != 0);
+
+  // Copy NDRDesc for modification
+  auto NDRDesc = CommandGroup.MNDRDesc;
+  // Reverse kernel dims
+  sycl::detail::ReverseRangeDimensionsForKernel(NDRDesc);
+
+  size_t RequiredWGSize[3] = {0, 0, 0};
+  size_t *LocalSize = nullptr;
+
+  if (HasLocalSize)
+    LocalSize = &NDRDesc.LocalSize[0];
+  else {
+    Plugin->call<sycl::detail::PiApiKind::piKernelGetGroupInfo>(
+        PiKernel, DeviceImpl->getHandleRef(),
+        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+        RequiredWGSize,
+        /* param_value_size_ret = */ nullptr);
+
+    const bool EnforcedLocalSize =
+        (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
+         RequiredWGSize[2] != 0);
+    if (EnforcedLocalSize)
+      LocalSize = RequiredWGSize;
+  }
+
+  pi_result Res = Plugin->call_nocheck<
+      sycl::detail::PiApiKind::piextCommandBufferNDRangeKernel>(
+      CommandBuffer, PiKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+      &NDRDesc.GlobalSize[0], LocalSize, SyncPoints.size(),
+      SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint);
+
+  if (Res != pi_result::PI_SUCCESS) {
+    throw sycl::exception(errc::invalid,
+                          "Failed to add kernel to PI command-buffer");
+  }
+
+  return Res;
 }
 
 pi_int32 enqueueImpKernel(
@@ -2512,7 +2604,113 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
   return Error;
 }
 
+pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  auto RawEvents = getPiEvents(EventImpls);
+  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+
+  sycl::detail::pi::PiEvent *Event =
+      (MQueue->has_discard_events_support() &&
+       MCommandGroup->getRequirements().size() == 0)
+          ? nullptr
+          : &MEvent->getHandleRef();
+  sycl::detail::pi::PiExtSyncPoint OutSyncPoint;
+  switch (MCommandGroup->getType()) {
+  case CG::CGTYPE::Kernel: {
+    CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
+
+    auto getMemAllocationFunc = [this](Requirement *Req) {
+      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+      return AllocaCmd->getMemAllocation();
+    };
+
+    if (!Event) {
+      // Kernel only uses assert if it's non interop one
+      bool KernelUsesAssert =
+          !(ExecKernel->MSyclKernel && ExecKernel->MSyclKernel->isInterop()) &&
+          ProgramManager::getInstance().kernelUsesAssert(
+              ExecKernel->MKernelName);
+      if (KernelUsesAssert) {
+        Event = &MEvent->getHandleRef();
+      }
+    }
+    auto result = enqueueImpCommandBufferKernel(
+        MQueue->get_context(), MQueue->getDeviceImplPtr(), MCommandBuffer,
+        *ExecKernel, MSyncPointDeps, &OutSyncPoint, getMemAllocationFunc);
+    MEvent->setSyncPoint(OutSyncPoint);
+    return result;
+  }
+  case CG::CGTYPE::CopyUSM: {
+    CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
+    MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
+        MQueue->getContextImplPtr(), Copy->getSrc(), MCommandBuffer,
+        Copy->getLength(), Copy->getDst(), MSyncPointDeps, &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::CopyAccToAcc: {
+    CGCopy *Copy = (CGCopy *)MCommandGroup.get();
+    Requirement *ReqSrc = (Requirement *)(Copy->getSrc());
+    Requirement *ReqDst = (Requirement *)(Copy->getDst());
+
+    AllocaCommandBase *AllocaCmdSrc = getAllocaForReq(ReqSrc);
+    AllocaCommandBase *AllocaCmdDst = getAllocaForReq(ReqDst);
+
+    MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer,
+        AllocaCmdSrc->getSYCLMemObj(), AllocaCmdSrc->getMemAllocation(),
+        ReqSrc->MDims, ReqSrc->MMemoryRange, ReqSrc->MAccessRange,
+        ReqSrc->MOffset, ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(),
+        ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
+        ReqDst->MOffset, ReqDst->MElemSize, std::move(MSyncPointDeps),
+        &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::CopyAccToPtr: {
+    CGCopy *Copy = (CGCopy *)MCommandGroup.get();
+    Requirement *Req = (Requirement *)Copy->getSrc();
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+    MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
+        AllocaCmd->getMemAllocation(), Req->MDims, Req->MMemoryRange,
+        Req->MAccessRange, Req->MOffset, Req->MElemSize, (char *)Copy->getDst(),
+        Req->MDims, Req->MAccessRange,
+        /*DstOffset=*/{0, 0, 0}, Req->MElemSize, std::move(MSyncPointDeps),
+        &OutSyncPoint);
+
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::CopyPtrToAcc: {
+    CGCopy *Copy = (CGCopy *)MCommandGroup.get();
+    Requirement *Req = (Requirement *)(Copy->getDst());
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+    MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
+        (char *)Copy->getSrc(), Req->MDims, Req->MAccessRange,
+        /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
+        Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
+        Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
+
+    return PI_SUCCESS;
+  }
+  default:
+    throw runtime_error("CG type not implemented for command buffers.",
+                        PI_ERROR_INVALID_OPERATION);
+  }
+}
+
 pi_int32 ExecCGCommand::enqueueImp() {
+  if (MCommandBuffer) {
+    return enqueueImpCommandBuffer();
+  } else {
+    return enqueueImpQueue();
+  }
+}
+
+pi_int32 ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -2831,7 +3029,13 @@ pi_int32 ExecCGCommand::enqueueImp() {
                                     typeSize, RawEvents, Event, read);
   }
   case CG::CGTYPE::ExecCommandBuffer: {
-    throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);
+    CGExecCommandBuffer *CmdBufferCG =
+        static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
+    return MQueue->getPlugin()
+        ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
+            CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
+            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            Event);
   }
   case CG::CGTYPE::None:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
@@ -2842,7 +3046,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
 }
 
 bool ExecCGCommand::producesPiEvent() const {
-  return MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask;
+  return !MCommandBuffer &&
+         MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask;
 }
 
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
@@ -2977,5 +3182,5 @@ void KernelFusionCommand::printDot(std::ostream &Stream) const {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

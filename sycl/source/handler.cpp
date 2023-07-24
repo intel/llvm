@@ -29,7 +29,7 @@
 #include <sycl/stream.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -367,7 +367,8 @@ event handler::finalize() {
     // If we have a subgraph node we don't want to actually execute this command
     // graph submission.
     if (!MSubgraphNode) {
-      event GraphCompletionEvent = MExecGraph->enqueue(MQueue);
+      event GraphCompletionEvent =
+          MExecGraph->enqueue(MQueue, std::move(CGData));
       MLastEvent = GraphCompletionEvent;
       return MLastEvent;
     }
@@ -376,9 +377,19 @@ event handler::finalize() {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
-    detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
-    MLastEvent = detail::createSyclObjFromImpl<event>(Event);
-    return MLastEvent;
+
+    // Empty nodes are handled by Graph like standard nodes
+    // For Standard mode (non-graph),
+    // empty nodes are not sent to the scheduler to save time
+    if (MGraph || MQueue->getCommandGraph()) {
+      CommandGroup.reset(
+          new detail::CG(detail::CG::None, std::move(CGData), MCodeLoc));
+    } else {
+      detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
+      MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+      return MLastEvent;
+    }
+    break;
   }
 
   if (!MSubgraphNode && !CommandGroup)
@@ -399,14 +410,33 @@ event handler::finalize() {
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
     auto EventImpl = std::make_shared<detail::event_impl>();
-
-    // Extract relevant data from the handler and pass to graph to create a
-    // new node representing this command group.
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
-        GraphImpl->add(MCGType, std::move(CommandGroup));
+        nullptr;
+
+    // Create a new node in the graph representing this command-group
+    if (MQueue->isInOrder()) {
+      // In-order queues create implicit linear dependencies between nodes.
+      // Find the last node added to the graph from this queue, so our new
+      // node can set it as a predecessor.
+      auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
+
+      NodeImpl = DependentNode
+                     ? GraphImpl->add(MCGType, std::move(CommandGroup),
+                                      {DependentNode})
+                     : GraphImpl->add(MCGType, std::move(CommandGroup));
+
+      // If we are recording an in-order queue remember the new node, so it
+      // can be used as a dependency for any more nodes recorded from this
+      // queue.
+      GraphImpl->setLastInorderNode(MQueue, NodeImpl);
+    } else {
+      NodeImpl = GraphImpl->add(MCGType, std::move(CommandGroup));
+    }
 
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(EventImpl, NodeImpl);
+
+    EventImpl->setCommandGraph(GraphImpl);
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -842,18 +872,25 @@ void handler::depends_on(event Event) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
   }
+  if (auto Graph = getCommandGraph(); Graph) {
+    auto EventGraph = EventImpl->getCommandGraph();
+    if (EventGraph == nullptr) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Graph nodes cannot depend on events from outside the graph.");
+    }
+    if (EventGraph != Graph) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Graph nodes cannot depend on events from another graph.");
+    }
+  }
   CGData.MEvents.push_back(EventImpl);
 }
 
 void handler::depends_on(const std::vector<event> &Events) {
   for (const event &Event : Events) {
-    auto EventImpl = detail::getSyclObjImpl(Event);
-    if (EventImpl->isDiscarded()) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Queue operation cannot depend on discarded event.");
-    }
-    CGData.MEvents.push_back(EventImpl);
+    depends_on(Event);
   }
 }
 
@@ -1020,8 +1057,15 @@ void handler::ext_oneapi_graph(
     // Store the node representing the subgraph in the handler so that we can
     // return it to the user later.
     MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl->getSchedule());
+
+    // If we are recording an in-order queue remember the subgraph node, so it
+    // can be used as a dependency for any more nodes recorded from this queue.
+    if (MQueue && MQueue->isInOrder()) {
+      ParentGraph->setLastInorderNode(MQueue, MSubgraphNode);
+    }
     // Associate an event with the subgraph node.
     auto SubgraphEvent = std::make_shared<event_impl>();
+    SubgraphEvent->setCommandGraph(ParentGraph);
     ParentGraph->addEventForNode(SubgraphEvent, MSubgraphNode);
   } else {
     // Set the exec graph for execution during finalize.
@@ -1029,5 +1073,13 @@ void handler::ext_oneapi_graph(
   }
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+handler::getCommandGraph() const {
+  if (MGraph) {
+    return MGraph;
+  }
+  return MQueue->getCommandGraph();
+}
+
+} // namespace _V1
 } // namespace sycl

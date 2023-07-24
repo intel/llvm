@@ -19,13 +19,12 @@
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
-#include <sycl/stl.hpp>
 
 #include <memory>
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declarations
 class device_selector;
 template <backend BackendName, class SyclObjectT>
@@ -290,7 +289,7 @@ private:
       -> backend_return_t<BackendName, SyclObjectT>;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

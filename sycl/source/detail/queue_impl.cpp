@@ -24,7 +24,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
@@ -145,6 +145,16 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
+  // If we have a command graph set we need to capture the copy through normal
+  // queue submission rather than execute the copy directly.
+  if (MGraph) {
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.memcpy(Dest, Src, Count);
+        },
+        Self, {});
+  }
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
@@ -466,6 +476,12 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
+  if (MGraph) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait cannot be called for a queue which is "
+                          "recording to a command graph.");
+  }
+
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
   std::vector<event> SharedEvents;
   {
@@ -566,5 +582,5 @@ bool queue_impl::ext_oneapi_empty() const {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
