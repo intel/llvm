@@ -125,7 +125,7 @@ public:
 #else
     *m_Ptr = Obj;
 #endif
-    return T;
+    return Obj;
   }
 
   T operator=(const annotated_ref &Ref) const { return *this = *Ref; }
