@@ -2856,7 +2856,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
-                            Copy->getDst(), std::move(RawEvents), Event,detail::code_location::current());
+                            Copy->getDst(), std::move(RawEvents), Event,
+                            detail::code_location::current());
 
     return PI_SUCCESS;
   }

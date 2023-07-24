@@ -123,7 +123,8 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 
 event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
-                         const std::vector<event> &DepEvents, const code_location &CodeLoc) {
+                         const std::vector<event> &DepEvents,
+                         const code_location &CodeLoc) {
 #if XPTI_ENABLE_INSTRUMENTATION
   // We need a code pointer value and we duse the object ptr; If code location
   // is available, we use the source file information along with the object
@@ -157,7 +158,8 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   }
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext), nullptr,CodeLoc);
+                            getOrWaitEvents(DepEvents, MContext), nullptr,
+                            CodeLoc);
     return createDiscardedEvent();
   }
   event ResEvent;
