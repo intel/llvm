@@ -175,7 +175,7 @@ public:
   bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
     bool Aligned =
         (reinterpret_cast<std::uintptr_t>(HostPtr) % RequiredAlign) == 0;
-    return Aligned || useHostPtr();
+    return !MHostPtrReadOnly && (Aligned || useHostPtr());
   }
 
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
@@ -259,13 +259,20 @@ public:
 
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
-  bool hasUserDataPtr() const { return MUserPtr != nullptr; };
+  bool isInterop() const override;
 
-  bool isInterop() const;
+  bool hasUserDataPtr() const override { return MUserPtr != nullptr; }
 
-  bool isHostPointerReadOnly() const { return MHostPtrReadOnly; }
+  bool isHostPointerReadOnly() const override { return MHostPtrReadOnly; }
+
+  bool usesPinnedHostMemory() const override {
+    return has_property<
+        sycl::ext::oneapi::property::buffer::use_pinned_host_memory>();
+  }
 
   void detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &Self) const;
+
+  void markAsInternal() { MIsInternal = true; }
 
 protected:
   // An allocateMem helper that determines which host ptr to use
@@ -307,6 +314,10 @@ protected:
   // we have read only HostPtr - MUploadDataFunctor is empty but delayed release
   // must be not allowed.
   bool MHostPtrProvided;
+  // Indicates that the memory object was allocated internally. Such memory
+  // objects can be released in a deferred manner regardless of whether a host
+  // pointer was provided or not.
+  bool MIsInternal = false;
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

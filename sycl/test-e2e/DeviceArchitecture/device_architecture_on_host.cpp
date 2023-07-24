@@ -1,7 +1,4 @@
-// UNSUPPORTED: cuda, hip, esimd_emulator
-
-// Enable this test, when GPU driver on Windows CI machines will be updated
-// XFAIL: windows
+// UNSUPPORTED: cuda, hip, esimd_emulator, accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

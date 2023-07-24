@@ -45,7 +45,7 @@ ESIMD_INLINE void slm_load_store_test(
 
   uint32_t LocalAccOffset =
       static_cast<uint32_t>(
-          reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer())) +
+          reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer().get())) +
       LAByteOffset;
   auto Local1 = esimd::slm_block_load<dtype, VL>(LocalAccOffset);
   auto Local2 = esimd::slm_block_load<dtype, VL>(LocalAccOffset +

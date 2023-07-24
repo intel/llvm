@@ -127,6 +127,9 @@ if config.opencl_be == "ON":
 if config.level_zero_be == "ON":
     config.available_features.add('level_zero_be')
 
+if config.native_cpu_be == "ON":
+    config.available_features.add('native_cpu_be')
+
 if triple == 'nvptx64-nvidia-cuda':
     llvm_config.with_system_environment('CUDA_PATH')
     config.available_features.add('cuda')

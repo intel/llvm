@@ -111,5 +111,133 @@ is to show the basic ESIMD APIs in well known examples.
          });
        })
     ```
+4) Dot Product Accumulate Systolic (DPAS) API - ["dpas"](./dpas.md)
+
+   Please see the full source code here: ["dpas"](./dpas.md)
+
+   ```c++
+    // Res = A * B.
+    // Assume the HW is PVC.
+
+    constexpr int SystolicDepth = 8;
+    constexpr int RepeatCount = 4;
+    constexpr int ExecSize = 16; // 16 for PVC, 8 for DG2.
+
+    // Let A and B be matrices of unsigned 4-bit integers.
+    constexpr xmx::dpas_argument_type BPrec = xmx::dpas_argument_type::u4;
+    constexpr xmx::dpas_argument_type APrec = xmx::dpas_argument_type::u4;
+
+    constexpr int AElemBitSize = 4; // 4-bit integers.
+    constexpr int BElemBitSize = 4; // 4-bit integers.
+
+    // Elements of A and B will are packed into uint8_t,
+    // meaning that one uint8_t holds two 4-bit unsigned integers.
+    // Packaging for A and res is horizontal, for B is vertical.
+    using PackedType = unsigned char;
+    using APackedType = PackedType;
+    using BPackedType = PackedType;
+
+    // Result type, according to documentation is either int or uint.
+    using ResType = unsigned int; // as both A and B are unsigned.
+
+    constexpr int OpsPerChannel =
+        std::min(32 / std::max(AElemBitSize, BElemBitSize), 8);
+
+    // A(M x K) * B(K x N) + C(M x N).
+    // where:
+    constexpr int M = RepeatCount;
+    constexpr int K = SystolicDepth * OpsPerChannel;
+    constexpr int N = ExecSize;
+
+    int main() {
+      unsigned n_errs = 0;
+      try {
+        queue q(gpu_selector_v, create_exception_handler());
+        auto dev = q.get_device();
+        std::cout << "Running on " << dev.get_info<info::device::name>()
+                  << std::endl;
+
+        constexpr unsigned Size = 128;
+        constexpr unsigned VL = 16;
+
+        constexpr int APackedSize =
+            M * K * AElemBitSize / (sizeof(APackedType) * 8);
+        constexpr int BPackedSize =
+            K * N * BElemBitSize / (sizeof(BPackedType) * 8);
+
+        auto a_packed = aligned_alloc_shared<APackedType>(128, APackedSize, q);
+        auto b_packed = aligned_alloc_shared<BPackedType>(128, BPackedSize, q);
+        auto res = aligned_alloc_shared<ResType>(128, M * N, q);
+
+        std::unique_ptr<APackedType, usm_deleter> guard_a(a_packed, usm_deleter{q});
+        std::unique_ptr<BPackedType, usm_deleter> guard_b(b_packed, usm_deleter{q});
+        std::unique_ptr<ResType, usm_deleter> guard_res(res, usm_deleter{q});
+
+        // Initialize a_packed;
+        unsigned value = 0;
+        for (int i = 0; i < M; i++) {
+          for (int j = 0; j < K; j++) {
+            value += 1;
+            write_to_horizontally_packed_matrix_a(a_packed, i, j,
+                                                  static_cast<APackedType>(value));
+          }
+        }
+
+        // Initialize b_packed;
+        for (int i = 0; i < K; i++) {
+          for (int j = 0; j < N; j++) {
+            int value = (i + j % 4) == 0 ? 1 : (2 + i + j) % 3;
+            write_to_vertically_packed_matrix_b(b_packed, i, j,
+                                                static_cast<BPackedType>(value));
+            assert(value == (int)(static_cast<BPackedType>(value)) && "ERROR");
+          }
+        }
+
+        q.single_task([=]() [[intel::sycl_explicit_simd] {
+           esimd::simd<APackedType, APackedSize> a(a_packed,
+                                                   esimd::overaligned_tag<16>{});
+           esimd::simd<BPackedType, BPackedSize> b(b_packed,
+                                                   esimd::overaligned_tag<16>{});
+           esimd::simd<ResType, M * N> c;
+
+           // Compute C = AxB;
+           c = xmx::dpas<8, RepeatCount, ResType, BPackedType, APackedType, BPrec,
+                         APrec>(b, a);
+           c.copy_to(res);
+         }).wait();
+   ...
+   }
+   ```
+
+4) Using simd_view to construct views of simd objects - ["simd_view"](./simd_view.md).
+   Please see the full source code here: ["simd_view"](./simd_view.md).
+
+   ```c++
+   float *a = malloc_shared<float>(Size, q); // USM memory for A.
+
+   // Initialize a.
+
+   // For elements of 'a' with indices, which are:
+   //   * multiple of 4: multiply by 6;
+   //   * multiple of 2: multiply by 3;
+   q.parallel_for(Size / VL, [=](id<1> i) [[intel::sycl_explicit_simd]] {
+      auto element_offset = i * VL;
+      simd<float, VL> vec_a(a + element_offset);
+
+      // simd_view of simd<float, VL> using the even-index elements.
+      auto vec_a_even_elems_view = vec_a.select<VL / 2, 2>(0);
+      vec_a_even_elems_view *= 3;
+
+      // simd_view with even indices constructed from previous
+      // simd_view of simd<float, VL> using the even-index elements.
+      // This results in a simd_view containing every fourth element
+      // of vec_a.
+      auto vec_a_mult_four_view = vec_a_even_elems_view.select<VL / 4, 2>(0);
+      vec_a_mult_four_view *= 2;
+
+      // Copy back to the memory.
+      vec_a.copy_to(a + element_offset);
+   }).wait_and_throw();
+   ```
 
 6) TODO: Add more examples here.

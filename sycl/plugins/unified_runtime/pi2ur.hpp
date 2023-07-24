@@ -291,7 +291,7 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
       case UR_PLATFORM_BACKEND_CUDA:
         return PI_EXT_PLATFORM_BACKEND_CUDA;
       case UR_PLATFORM_BACKEND_HIP:
-        return PI_EXT_PLATFORM_BACKEND_CUDA;
+        return PI_EXT_PLATFORM_BACKEND_HIP;
       default:
         die("UR_PLATFORM_INFO_BACKEND: unhandled value");
       }
@@ -1455,7 +1455,9 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
                 PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
                 PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS |
                 PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW |
-                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)),
+                PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH |
+                PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE |
+                PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -1482,6 +1484,10 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
     UrProperties.flags |= UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
   if (Properties[1] & __SYCL_PI_CUDA_USE_DEFAULT_STREAM)
     UrProperties.flags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
+  if (Properties[1] & PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE)
+    UrProperties.flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+  if (Properties[1] & PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE)
+    UrProperties.flags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
 
   ur_queue_index_properties_t IndexProperties{};
   IndexProperties.stype = UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES;
@@ -1961,28 +1967,6 @@ piEnqueueMemImageFill(pi_queue Queue, pi_mem Image, const void *FillColor,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   die("piEnqueueMemImageFill: not implemented");
-  return PI_SUCCESS;
-}
-
-inline pi_result
-piEnqueueNativeKernel(pi_queue Queue, void (*UserFunc)(void *), void *Args,
-                      size_t CbArgs, pi_uint32 NumMemObjects,
-                      const pi_mem *MemList, const void **ArgsMemLoc,
-                      pi_uint32 NumEventsInWaitList,
-                      const pi_event *EventsWaitList, pi_event *Event) {
-  std::ignore = UserFunc;
-  std::ignore = Args;
-  std::ignore = CbArgs;
-  std::ignore = NumMemObjects;
-  std::ignore = MemList;
-  std::ignore = ArgsMemLoc;
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventsWaitList;
-  std::ignore = Event;
-
-  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-
-  die("piEnqueueNativeKernel: not implemented");
   return PI_SUCCESS;
 }
 
@@ -4073,6 +4057,308 @@ inline pi_result piSamplerRelease(pi_sampler Sampler) {
 }
 
 // Sampler
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// Command-buffer extension
+
+inline pi_result
+piextCommandBufferCreate(pi_context Context, pi_device Device,
+                         const pi_ext_command_buffer_desc *Desc,
+                         pi_ext_command_buffer *RetCommandBuffer) {
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  const ur_exp_command_buffer_desc_t *UrDesc =
+      reinterpret_cast<const ur_exp_command_buffer_desc_t *>(Desc);
+  ur_exp_command_buffer_handle_t *UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t *>(RetCommandBuffer);
+
+  HANDLE_ERRORS(
+      urCommandBufferCreateExp(UrContext, UrDevice, UrDesc, UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferRetain(pi_ext_command_buffer CommandBuffer) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferRetainExp(UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextCommandBufferRelease(pi_ext_command_buffer CommandBuffer) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferReleaseExp(UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextCommandBufferFinalize(pi_ext_command_buffer CommandBuffer) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferFinalizeExp(UrCommandBuffer));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer CommandBuffer, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+
+  HANDLE_ERRORS(urCommandBufferAppendKernelLaunchExp(
+      UrCommandBuffer, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
+      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemcpyUSM(
+    pi_ext_command_buffer CommandBuffer, void *DstPtr, const void *SrcPtr,
+    size_t Size, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferAppendMemcpyUSMExp(
+      UrCommandBuffer, DstPtr, SrcPtr, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer CommandBuffer, pi_mem SrcMem, pi_mem DstMem,
+    size_t SrcOffset, size_t DstOffset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_mem_handle_t UrSrcMem = reinterpret_cast<ur_mem_handle_t>(SrcMem);
+  ur_mem_handle_t UrDstMem = reinterpret_cast<ur_mem_handle_t>(DstMem);
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferCopyExp(
+      UrCommandBuffer, UrSrcMem, UrDstMem, SrcOffset, DstOffset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem SrcMem, pi_mem DstMem,
+    pi_buff_rect_offset SrcOrigin, pi_buff_rect_offset DstOrigin,
+    pi_buff_rect_region Region, size_t SrcRowPitch, size_t SrcSlicePitch,
+    size_t DstRowPitch, size_t DstSlicePitch, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_mem_handle_t UrSrcMem = reinterpret_cast<ur_mem_handle_t>(SrcMem);
+  ur_mem_handle_t UrDstMem = reinterpret_cast<ur_mem_handle_t>(DstMem);
+
+  ur_rect_offset_t UrSrcOrigin{SrcOrigin->x_bytes, SrcOrigin->y_scalar,
+                               SrcOrigin->z_scalar};
+  ur_rect_offset_t UrDstOrigin{DstOrigin->x_bytes, DstOrigin->y_scalar,
+                               DstOrigin->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferCopyRectExp(
+      UrCommandBuffer, UrSrcMem, UrDstMem, UrSrcOrigin, UrDstOrigin, UrRegion,
+      SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer,
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, void *Ptr,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+  ur_rect_offset_t UrBufferOffset{BufferOffset->x_bytes, BufferOffset->y_scalar,
+                                  BufferOffset->z_scalar};
+  ur_rect_offset_t UrHostOffset{HostOffset->x_bytes, HostOffset->y_scalar,
+                                HostOffset->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferReadRectExp(
+      UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
+      BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer CommandBuffer, pi_mem Src, size_t Offset, size_t Size,
+    void *Dst, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  PI_ASSERT(Src, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Src);
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferReadExp(
+      UrCommandBuffer, UrBuffer, Offset, Size, Dst, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer,
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, const void *Ptr,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+  ur_rect_offset_t UrBufferOffset{BufferOffset->x_bytes, BufferOffset->y_scalar,
+                                  BufferOffset->z_scalar};
+  ur_rect_offset_t UrHostOffset{HostOffset->x_bytes, HostOffset->y_scalar,
+                                HostOffset->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferWriteRectExp(
+      UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
+      BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
+      const_cast<void *>(Ptr), NumSyncPointsInWaitList, SyncPointWaitList,
+      SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, size_t Offset,
+    size_t Size, const void *Ptr, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+
+  HANDLE_ERRORS(urCommandBufferAppendMembufferWriteExp(
+      UrCommandBuffer, UrBuffer, Offset, Size, const_cast<void *>(Ptr),
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
+                                           pi_queue Queue,
+                                           pi_uint32 NumEventsInWaitList,
+                                           const pi_event *EventWaitList,
+                                           pi_event *Event) {
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  const ur_event_handle_t *UrEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urCommandBufferEnqueueExp(
+      UrCommandBuffer, UrQueue, NumEventsInWaitList, UrEventWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+// Command-buffer extension
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// usm-p2p
+
+inline pi_result piextEnablePeerAccess(pi_device command_device,
+                                       pi_device peer_device) {
+  auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
+  auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
+
+  HANDLE_ERRORS(urUsmP2PEnablePeerAccessExp(commandDevice, peerDevice));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextDisablePeerAccess(pi_device command_device,
+                                        pi_device peer_device) {
+  auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
+  auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
+
+  HANDLE_ERRORS(urUsmP2PDisablePeerAccessExp(commandDevice, peerDevice));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextPeerAccessGetInfo(pi_device command_device, pi_device peer_device,
+                       pi_peer_attr attr, size_t param_value_size,
+                       void *param_value, size_t *param_value_size_ret) {
+  auto commandDevice = reinterpret_cast<ur_device_handle_t>(command_device);
+  auto peerDevice = reinterpret_cast<ur_device_handle_t>(peer_device);
+
+  ur_exp_peer_info_t propName;
+  switch (attr) {
+  case PI_PEER_ACCESS_SUPPORTED: {
+    propName = UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED;
+    break;
+  }
+  case PI_PEER_ATOMICS_SUPPORTED: {
+    propName = UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED;
+    break;
+  }
+  default: {
+    return PI_ERROR_INVALID_VALUE;
+  }
+  }
+
+  HANDLE_ERRORS(urUsmP2PPeerAccessGetInfoExp(
+      commandDevice, peerDevice, propName, param_value_size, param_value,
+      param_value_size_ret));
+
+  return PI_SUCCESS;
+}
+
+// usm-p2p
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace pi2ur

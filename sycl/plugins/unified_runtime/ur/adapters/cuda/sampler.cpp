@@ -32,7 +32,6 @@ urSamplerCreate(ur_context_handle_t hContext, const ur_sampler_desc_t *pDesc,
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
                  size_t propValueSize, void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -62,18 +61,15 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRetain(ur_sampler_handle_t hSampler) {
-  UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   hSampler->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRelease(ur_sampler_handle_t hSampler) {
-  UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  sycl::detail::ur::assertion(
+  detail::ur::assertion(
       hSampler->getReferenceCount() != 0,
       "Reference count overflow detected in urSamplerRelease.");
 

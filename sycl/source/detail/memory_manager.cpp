@@ -41,15 +41,15 @@ uint64_t emitMemAllocBeginTrace(uintptr_t ObjHandle, size_t AllocSize,
   (void)GuardZone;
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_begin);
+  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
     xpti::mem_alloc_data_t MemAlloc{ObjHandle, 0 /* alloc ptr */, AllocSize,
                                     GuardZone};
 
     CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(
-        GMemAllocStreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_begin),
-        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
+                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
   }
 #endif
   return CorrelationID;
@@ -64,13 +64,13 @@ void emitMemAllocEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
   (void)GuardZone;
   (void)CorrelationID;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_end);
+  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
     xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, AllocSize, GuardZone};
 
-    xptiNotifySubscribers(
-        GMemAllocStreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_end),
-        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
+                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
   }
 #endif
 }
@@ -80,15 +80,15 @@ uint64_t emitMemReleaseBeginTrace(uintptr_t ObjHandle, uintptr_t AllocPtr) {
   (void)AllocPtr;
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_begin);
+  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
     xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
                                     0 /* guard zone */};
 
     CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(
-        GMemAllocStreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_begin),
-        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
+                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
   }
 #endif
   return CorrelationID;
@@ -100,14 +100,14 @@ void emitMemReleaseEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
   (void)AllocPtr;
   (void)CorrelationID;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_end);
+  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
     xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
                                     0 /* guard zone */};
 
-    xptiNotifySubscribers(
-        GMemAllocStreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_end),
-        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
+                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
   }
 #endif
 }

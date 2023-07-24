@@ -72,17 +72,17 @@ std::string getCudaVersionString() {
   return stream.str();
 }
 
-void sycl::detail::ur::die(const char *Message) {
+void detail::ur::die(const char *Message) {
   std::cerr << "ur_die: " << Message << std::endl;
   std::terminate();
 }
 
-void sycl::detail::ur::assertion(bool Condition, const char *Message) {
+void detail::ur::assertion(bool Condition, const char *Message) {
   if (!Condition)
     die(Message);
 }
 
-void sycl::detail::ur::cuPrint(const char *Message) {
+void detail::ur::cuPrint(const char *Message) {
   std::cerr << "ur_print: " << Message << std::endl;
 }
 
@@ -96,6 +96,20 @@ thread_local char ErrorMessage[MaxMessageSize];
   assert(strlen(pMessage) <= MaxMessageSize);
   strcpy(ErrorMessage, pMessage);
   ErrorMessageCode = ErrorCode;
+}
+
+void setPluginSpecificMessage(CUresult cu_res) {
+  const char *error_string;
+  const char *error_name;
+  cuGetErrorName(cu_res, &error_name);
+  cuGetErrorString(cu_res, &error_string);
+  char *message = (char *)malloc(strlen(error_string) + strlen(error_name) + 2);
+  strcpy(message, error_name);
+  strcat(message, "\n");
+  strcat(message, error_string);
+
+  setErrorMessage(message, UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+  free(message);
 }
 
 // Returns plugin specific error and warning messages; common implementation

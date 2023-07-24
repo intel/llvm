@@ -36,7 +36,11 @@ item<Dims, false> getDelinearizedItem(range<Dims> Range, id<Dims> Id);
 /// in a range.
 ///
 /// \ingroup sycl_api
-template <int dimensions = 1, bool with_offset = true> class item {
+template <int Dimensions = 1, bool with_offset = true> class item {
+public:
+  static constexpr int dimensions = Dimensions;
+
+private:
 #ifndef __SYCL_DISABLE_ITEM_TO_INT_CONV__
   /* Helper class for conversion operator. Void type is not suitable. User
    * cannot even try to get address of the operator __private_class(). User
@@ -50,48 +54,48 @@ template <int dimensions = 1, bool with_offset = true> class item {
 public:
   item() = delete;
 
-  id<dimensions> get_id() const { return MImpl.MIndex; }
+  id<Dimensions> get_id() const { return MImpl.MIndex; }
 
-  size_t __SYCL_ALWAYS_INLINE get_id(int dimension) const {
-    size_t Id = MImpl.MIndex[dimension];
+  size_t __SYCL_ALWAYS_INLINE get_id(int Dimension) const {
+    size_t Id = MImpl.MIndex[Dimension];
     __SYCL_ASSUME_INT(Id);
     return Id;
   }
 
-  size_t __SYCL_ALWAYS_INLINE operator[](int dimension) const {
-    size_t Id = MImpl.MIndex[dimension];
+  size_t __SYCL_ALWAYS_INLINE operator[](int Dimension) const {
+    size_t Id = MImpl.MIndex[Dimension];
     __SYCL_ASSUME_INT(Id);
     return Id;
   }
 
-  range<dimensions> get_range() const { return MImpl.MExtent; }
+  range<Dimensions> get_range() const { return MImpl.MExtent; }
 
-  size_t __SYCL_ALWAYS_INLINE get_range(int dimension) const {
-    size_t Id = MImpl.MExtent[dimension];
+  size_t __SYCL_ALWAYS_INLINE get_range(int Dimension) const {
+    size_t Id = MImpl.MExtent[Dimension];
     __SYCL_ASSUME_INT(Id);
     return Id;
   }
 #ifndef __SYCL_DISABLE_ITEM_TO_INT_CONV__
-  operator EnableIfT<dimensions == 1, std::size_t>() const { return get_id(0); }
+  operator EnableIfT<Dimensions == 1, std::size_t>() const { return get_id(0); }
 #endif // __SYCL_DISABLE_ITEM_TO_INT_CONV__
   template <bool has_offset = with_offset>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  std::enable_if_t<has_offset, id<dimensions>> get_offset() const {
+  std::enable_if_t<has_offset, id<Dimensions>> get_offset() const {
     return MImpl.MOffset;
   }
 
   template <bool has_offset = with_offset>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   std::enable_if_t<has_offset, size_t> __SYCL_ALWAYS_INLINE
-      get_offset(int dimension) const {
-    size_t Id = MImpl.MOffset[dimension];
+      get_offset(int Dimension) const {
+    size_t Id = MImpl.MOffset[Dimension];
     __SYCL_ASSUME_INT(Id);
     return Id;
   }
 
   template <bool has_offset = with_offset>
-  operator std::enable_if_t<!has_offset, item<dimensions, true>>() const {
-    return detail::Builder::createItem<dimensions, true>(
+  operator std::enable_if_t<!has_offset, item<Dimensions, true>>() const {
+    return detail::Builder::createItem<Dimensions, true>(
         MImpl.MExtent, MImpl.MIndex, /*Offset*/ {});
   }
 
@@ -103,7 +107,7 @@ public:
 
   item(const item &rhs) = default;
 
-  item(item<dimensions, with_offset> &&rhs) = default;
+  item(item<Dimensions, with_offset> &&rhs) = default;
 
   item &operator=(const item &rhs) = default;
 
@@ -115,13 +119,13 @@ public:
 
 protected:
   template <bool has_offset = with_offset>
-  item(std::enable_if_t<has_offset, const range<dimensions>> &extent,
-       const id<dimensions> &index, const id<dimensions> &offset)
+  item(std::enable_if_t<has_offset, const range<Dimensions>> &extent,
+       const id<Dimensions> &index, const id<Dimensions> &offset)
       : MImpl{extent, index, offset} {}
 
   template <bool has_offset = with_offset>
-  item(std::enable_if_t<!has_offset, const range<dimensions>> &extent,
-       const id<dimensions> &index)
+  item(std::enable_if_t<!has_offset, const range<Dimensions>> &extent,
+       const id<Dimensions> &index)
       : MImpl{extent, index} {}
 
   friend class detail::Builder;
@@ -131,13 +135,13 @@ private:
   template <typename, int, typename> friend class detail::RoundedRangeKernel;
   template <typename, int, typename>
   friend class detail::RoundedRangeKernelWithKH;
-  void set_allowed_range(const range<dimensions> rnwi) { MImpl.MExtent = rnwi; }
+  void set_allowed_range(const range<Dimensions> rnwi) { MImpl.MExtent = rnwi; }
 
   template <int Dims>
   friend item<Dims, false>
   detail::reduction::getDelinearizedItem(range<Dims> Range, id<Dims> Id);
 
-  detail::ItemBase<dimensions, with_offset> MImpl;
+  detail::ItemBase<Dimensions, with_offset> MImpl;
 };
 
 template <int Dims>

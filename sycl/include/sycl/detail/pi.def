@@ -106,7 +106,6 @@ _PI_API(piSamplerRetain)
 _PI_API(piSamplerRelease)
 // Queue commands
 _PI_API(piEnqueueKernelLaunch)
-_PI_API(piEnqueueNativeKernel)
 _PI_API(piEnqueueEventsWait)
 _PI_API(piEnqueueEventsWaitWithBarrier)
 _PI_API(piEnqueueMemBufferRead)
@@ -145,7 +144,6 @@ _PI_API(piPluginGetLastError)
 
 _PI_API(piTearDown)
 
-
 _PI_API(piextUSMEnqueueFill2D)
 _PI_API(piextUSMEnqueueMemset2D)
 _PI_API(piextUSMEnqueueMemcpy2D)
@@ -157,5 +155,24 @@ _PI_API(piextEnqueueDeviceGlobalVariableWrite)
 _PI_API(piextEnqueueDeviceGlobalVariableRead)
 
 _PI_API(piPluginGetBackendOption)
+
+_PI_API(piextEnablePeerAccess)
+_PI_API(piextDisablePeerAccess)
+_PI_API(piextPeerAccessGetInfo)
+
+// command-buffer Extension
+_PI_API(piextCommandBufferCreate)
+_PI_API(piextCommandBufferRetain)
+_PI_API(piextCommandBufferRelease)
+_PI_API(piextCommandBufferFinalize)
+_PI_API(piextCommandBufferNDRangeKernel)
+_PI_API(piextCommandBufferMemcpyUSM)
+_PI_API(piextCommandBufferMemBufferCopy)
+_PI_API(piextCommandBufferMemBufferCopyRect)
+_PI_API(piextCommandBufferMemBufferWrite)
+_PI_API(piextCommandBufferMemBufferWriteRect)
+_PI_API(piextCommandBufferMemBufferRead)
+_PI_API(piextCommandBufferMemBufferReadRect)
+_PI_API(piextEnqueueCommandBuffer)
 
 #undef _PI_API

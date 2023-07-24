@@ -80,7 +80,7 @@
         "amdgpu"
       ],
       "image": "${{ inputs.amdgpu_image }}",
-      "container_options": "--device=/dev/dri --device=/dev/kfd",
+      "container_options": "-u 1001 --device=/dev/dri --device=/dev/kfd",
       "targets": "ext_oneapi_hip:gpu",
       "cmake_args": "-DHIP_PLATFORM=\"AMD\" -DAMD_ARCH=\"gfx1031\""
     },

@@ -22,16 +22,11 @@ enum class backend : char {
   host __SYCL2020_DEPRECATED("'host' backend is no longer supported") = 0,
   opencl = 1,
   ext_oneapi_level_zero = 2,
-  level_zero __SYCL2020_DEPRECATED("use 'ext_oneapi_level_zero' instead") =
-      ext_oneapi_level_zero,
   ext_oneapi_cuda = 3,
-  cuda __SYCL2020_DEPRECATED("use 'ext_oneapi_cuda' instead") = ext_oneapi_cuda,
   all = 4,
   ext_intel_esimd_emulator = 5,
-  esimd_cpu __SYCL2020_DEPRECATED("use 'ext_intel_esimd_emulator' instead") =
-      ext_intel_esimd_emulator,
   ext_oneapi_hip = 6,
-  hip __SYCL2020_DEPRECATED("use 'ext_oneapi_hip' instead") = ext_oneapi_hip,
+  ext_native_cpu = 7,
 };
 
 template <backend Backend> class backend_traits;
@@ -62,6 +57,9 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
     break;
   case backend::ext_oneapi_hip:
     Out << "ext_oneapi_hip";
+    break;
+  case backend::ext_native_cpu:
+    Out << "ext_native_cpu";
     break;
   case backend::all:
     Out << "all";

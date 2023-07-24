@@ -189,7 +189,8 @@ auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
   using QualTPtrType =
       std::conditional_t<std::is_const_v<typename AccessorTy::value_type>,
                          const T *, T *>;
-  auto BytePtr = reinterpret_cast<QualCharPtrType>(Acc.get_pointer()) + Offset;
+  auto BytePtr =
+      reinterpret_cast<QualCharPtrType>(Acc.get_pointer().get()) + Offset;
   return reinterpret_cast<QualTPtrType>(BytePtr);
 }
 #endif // __ESIMD_FORCE_STATELESS_MEM

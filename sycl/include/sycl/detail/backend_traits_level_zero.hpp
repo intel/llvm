@@ -15,7 +15,6 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/detail/defines.hpp>
@@ -46,9 +45,7 @@ class device_impl;
 
 // TODO the interops for context, device, event, platform and program
 // may be removed after removing the deprecated 'get_native()' methods
-// from the corresponding classes. The interop<backend, queue> specialization
-// is also used in the get_queue() method of the deprecated class
-// interop_handler and also can be removed after API cleanup.
+// from the corresponding classes.
 template <> struct interop<backend::ext_oneapi_level_zero, context> {
   using type = ze_context_handle_t;
 };
@@ -68,30 +65,6 @@ template <> struct interop<backend::ext_oneapi_level_zero, queue> {
 
 template <> struct interop<backend::ext_oneapi_level_zero, platform> {
   using type = ze_driver_handle_t;
-};
-
-// TODO the interops for accessor is used in the already deprecated class
-// interop_handler and can be removed after API cleanup.
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_level_zero,
-               accessor<DataT, Dimensions, AccessMode, access::target::device,
-                        access::placeholder::false_t>> {
-  using type = char *;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<
-    backend::ext_oneapi_level_zero,
-    accessor<DataT, Dimensions, AccessMode, access::target::constant_buffer,
-             access::placeholder::false_t>> {
-  using type = char *;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_level_zero,
-               accessor<DataT, Dimensions, AccessMode, access::target::image,
-                        access::placeholder::false_t>> {
-  using type = ze_image_handle_t;
 };
 
 template <> struct interop<backend::ext_oneapi_level_zero, kernel> {

@@ -9,6 +9,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <sycl/detail/helpers.hpp>
 
+#include <detail/buffer_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -61,6 +62,10 @@ void waitEvents(std::vector<sycl::event> DepEvents) {
   for (auto SyclEvent : DepEvents) {
     detail::getSyclObjImpl(SyclEvent)->waitInternal();
   }
+}
+
+void markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
+  BufImpl->markAsInternal();
 }
 
 } // namespace detail
