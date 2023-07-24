@@ -68,7 +68,9 @@ bool isConstructor(const Definition &def) {
 
 mlir::polygeist::NDRangeInformation::NDRangeInformation(size_t dimensions)
     : globalSizeInfo(dimensions), localSizeInfo(dimensions),
-      offsetInfo(dimensions) {}
+      offsetInfo(dimensions) {
+  assert(1 <= dimensions && dimensions < 4 && "Invalid number of dimensions");
+}
 
 mlir::polygeist::NDRangeInformation::NDRangeInformation(
     const IDRangeInformation &globalSizeInfo,
@@ -100,20 +102,22 @@ mlir::polygeist::NDRangeInformation::getOffsetInfo() const {
   return offsetInfo;
 }
 
-namespace mlir {
-namespace polygeist {
-NDRangeInformation join(const NDRangeInformation &lhs,
-                        const NDRangeInformation &rhs) {
+NDRangeInformation
+mlir::polygeist::NDRangeInformation::join(const NDRangeInformation &lhs,
+                                          const NDRangeInformation &rhs) {
   return {lhs.globalSizeInfo.join(rhs.globalSizeInfo),
           lhs.localSizeInfo.join(rhs.localSizeInfo),
           lhs.offsetInfo.join(rhs.offsetInfo)};
 }
 
+namespace mlir {
+namespace polygeist {
 raw_ostream &operator<<(raw_ostream &os, const NDRangeInformation &ndr) {
   if (ndr.isTop())
     return os << "<unknown>";
-  return os << "<" << ndr.globalSizeInfo << ", " << ndr.localSizeInfo << ", "
-            << ndr.offsetInfo << ">";
+  return os << "<global_size: " << ndr.globalSizeInfo
+            << ", local_size: " << ndr.localSizeInfo
+            << ", offset: " << ndr.offsetInfo << ">";
 }
 } // namespace polygeist
 } // namespace mlir
@@ -184,21 +188,22 @@ mlir::polygeist::SYCLNDRangeAnalysis::getNDRangeInformationFromConstruction(
     if (first) {
       info = getInformation(def);
       first = false;
-    } else {
-      info = join(info, getInformation(def));
-      if (info.isTop())
-        // Early return: As soon as joining of the different information has led
-        // to top, we can end the processing.
-        return info;
+      continue;
     }
+
+    info = NDRangeInformation::join(info, getInformation(def));
+    // Early return: As soon as joining of the different information has led to
+    // top, we can end the processing.
+    if (info.isTop())
+      return info;
   }
 
   if (pMods) {
     for (const Definition &def : *pMods) {
-      info = join(info, getInformation(def));
+      info = NDRangeInformation::join(info, getInformation(def));
+      // Early return: As soon as joining of the different information has led
+      // to top, we can end the processing.
       if (info.isTop())
-        // Early return: As soon as joining of the different information has led
-        // to top, we can end the processing.
         return info;
     }
   }

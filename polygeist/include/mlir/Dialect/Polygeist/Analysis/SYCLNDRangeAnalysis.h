@@ -25,6 +25,9 @@ class Definition;
 /// construction.
 class NDRangeInformation {
 public:
+  static NDRangeInformation join(const NDRangeInformation &lhs,
+                                 const NDRangeInformation &rhs);
+
   NDRangeInformation() = default;
 
   explicit NDRangeInformation(size_t dimensions);
@@ -44,16 +47,13 @@ public:
 
   bool isTop() const;
 
-  friend NDRangeInformation join(const NDRangeInformation &lhs,
-                                 const NDRangeInformation &rhs);
-
 private:
   friend raw_ostream &operator<<(raw_ostream &, const NDRangeInformation &);
 
   IDRangeInformation globalSizeInfo;
   IDRangeInformation localSizeInfo;
   IDRangeInformation offsetInfo;
-}; // namespace polygeist
+};
 
 /// Analysis to determine properties of interest about `sycl::nd_range` from its
 /// construction.

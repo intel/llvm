@@ -13,7 +13,7 @@
 // CHECK-LABEL: test_tag: constant_ndr_offset:
 // CHECK-NEXT:    operand #0
 // CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <constant<42>, constant<21>, constant<10>>
+// CHECK-NEXT:      <global_size: constant<42>, local_size: constant<21>, offset: constant<10>>
 llvm.func @constant_ndr_offset() -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
   %c10 = arith.constant 10 : i64
@@ -34,7 +34,7 @@ llvm.func @constant_ndr_offset() -> !llvm.ptr {
 // CHECK-LABEL: test_tag: constant_ndr:
 // CHECK-NEXT:    operand #0
 // CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <constant<42, 21>, constant<21, 42>, constant<0, 0>>
+// CHECK-NEXT:      <global_size: constant<42, 21>, local_size: constant<21, 42>, offset: constant<0, 0>>
 llvm.func @constant_ndr() -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
   %c21 = arith.constant 21 : i64
@@ -49,10 +49,10 @@ llvm.func @constant_ndr() -> !llvm.ptr {
   llvm.return %ndr : !llvm.ptr
 }
 
-// CHECK-LABEL: test_tag: ndr_cpy:
+// CHECK-LABEL: test_tag: copy_ndr:
 // CHECK-NEXT:    operand #0
 // CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <constant<42, 21>, constant<21, 42>, constant<0, 0>>
+// CHECK-NEXT:      <global_size: constant<42, 21>, local_size: constant<21, 42>, offset: constant<0, 0>>
 llvm.func @copy_ndr() -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
   %c21 = arith.constant 21 : i64
@@ -65,14 +65,14 @@ llvm.func @copy_ndr() -> !llvm.ptr {
   sycl.host.constructor(%local_size, %c21, %c42) {type = !sycl_range_2_} : (!llvm.ptr, i64, i64) -> ()
   sycl.host.constructor(%ndr, %global_size, %local_size) {type = !sycl_nd_range_2_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   sycl.host.constructor(%ndr_cpy, %ndr) {type = !sycl_nd_range_2_} : (!llvm.ptr, !llvm.ptr) -> ()
-  %1 = llvm.load %ndr_cpy {tag = "ndr_cpy"} : !llvm.ptr -> i32
+  %1 = llvm.load %ndr_cpy {tag = "copy_ndr"} : !llvm.ptr -> i32
   llvm.return %ndr_cpy : !llvm.ptr
 }
 
 // CHECK-LABEL: test_tag: propagate_dims_ndr:
 // CHECK-NEXT:    operand #0
 // CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <fixed<3>, fixed<3>, constant<0, 0, 0>>
+// CHECK-NEXT:      <global_size: fixed<3>, local_size: fixed<3>, offset: constant<0, 0, 0>>
 llvm.func @propagate_dims_ndr(%global_size: !llvm.ptr,
                               %local_size: !llvm.ptr) -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
@@ -90,7 +90,7 @@ llvm.func @propagate_dims_ndr(%global_size: !llvm.ptr,
 // CHECK-LABEL: test_tag: fixed_dims_ndr:
 // CHECK-NEXT:    operand #0
 // CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <fixed<3>, fixed<3>, fixed<3>>
+// CHECK-NEXT:      <global_size: fixed<3>, local_size: fixed<3>, offset: fixed<3>>
 llvm.func @fixed_dims_ndr(%global_size: !llvm.ptr,
                           %local_size: !llvm.ptr,
                           %offset: !llvm.ptr) -> !llvm.ptr {
@@ -107,7 +107,7 @@ llvm.func @fixed_dims_ndr(%global_size: !llvm.ptr,
 // CHECK-LABEL: test_tag: diff_dims_ndr:
 // CHECK-NEXT:    operand #0
 // CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <fixed<2>, fixed<2>, fixed<2>>
+// CHECK-NEXT:      <global_size: fixed<2>, local_size: fixed<2>, offset: fixed<2>>
 llvm.func @diff_dims_ndr() -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
   %c21 = arith.constant 21 : i64
@@ -125,7 +125,7 @@ llvm.func @diff_dims_ndr() -> !llvm.ptr {
 // CHECK-LABEL: test_tag: join_ndr:
 // CHECK-NEXT:    operand #0
 // CHECK-NEXT:    nd_range:
-// CHECK-NEXT:      <fixed<1>, constant<21>, constant<10>>
+// CHECK-NEXT:      <global_size: fixed<1>, local_size: constant<21>, offset: constant<10>>
 llvm.func @join_ndr(%arg0: i1) -> !llvm.ptr {
   %c1 = arith.constant 1 : i32
   %c10 = arith.constant 10 : i64
