@@ -131,6 +131,9 @@ enum NodeType : unsigned {
 
   // Scalar cryptography
   CLMUL, CLMULH, CLMULR,
+  SHA256SIG0, SHA256SIG1, SHA256SUM0, SHA256SUM1,
+  SM4KS, SM4ED,
+  SM3P0, SM3P1,
 
   // Vector Extension
   // VMV_V_V_VL matches the semantics of vmv.v.v but includes an extra operand
@@ -230,6 +233,12 @@ enum NodeType : unsigned {
   SMAX_VL,
   UMIN_VL,
   UMAX_VL,
+
+  BITREVERSE_VL,
+  BSWAP_VL,
+  CTLZ_VL,
+  CTTZ_VL,
+  CTPOP_VL,
 
   SADDSAT_VL,
   UADDSAT_VL,
