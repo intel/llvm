@@ -38,7 +38,7 @@ destroyMemoryProviderWrappers(umf_memory_provider_handle_t *providers,
     free(providers);
 }
 
-enum umf_result_t umfPoolCreate(struct umf_memory_pool_ops_t *ops,
+enum umf_result_t umfPoolCreate(const struct umf_memory_pool_ops_t *ops,
                                 umf_memory_provider_handle_t *providers,
                                 size_t numProviders, void *params,
                                 umf_memory_pool_handle_t *hPool) {

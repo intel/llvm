@@ -32,7 +32,7 @@ struct umf_memory_pool_ops_t;
 /// \param hPool [out] handle to the newly created memory pool
 /// \return UMF_RESULT_SUCCESS on success or appropriate error code on failure.
 ///
-enum umf_result_t umfPoolCreate(struct umf_memory_pool_ops_t *ops,
+enum umf_result_t umfPoolCreate(const struct umf_memory_pool_ops_t *ops,
                                 umf_memory_provider_handle_t *providers,
                                 size_t numProviders, void *params,
                                 umf_memory_pool_handle_t *hPool);
