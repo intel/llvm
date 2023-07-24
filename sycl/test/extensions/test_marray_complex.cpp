@@ -216,17 +216,19 @@ template <typename T, std::size_t NumElements> struct test_pow_types {
 template <typename T> void check_constructors() {
   using Complex = typename sycl::ext::oneapi::experimental::complex<T>;
 
+  constexpr Complex cplx{T{42}, T{0}};
+
   {
-    sycl::marray<Complex, 1> a;
-    sycl::marray<Complex, 1> b{};
-    sycl::marray<Complex, 1> c{Complex{1, 0}};
-    sycl::marray<Complex, 2> d{Complex{1, 0}, Complex{2, 0}};
+    sycl::marray<Complex, 1> a{};
+    sycl::marray<Complex, 1> b{cplx};
+    sycl::marray<Complex, 2> c{cplx, cplx};
+    sycl::marray<Complex, 4> d{c, c};
   }
   {
-    constexpr sycl::marray<Complex, 1> a;
-    constexpr sycl::marray<Complex, 1> b{};
-    constexpr sycl::marray<Complex, 1> c{Complex{1, 0}};
-    constexpr sycl::marray<Complex, 2> d{Complex{1, 0}, Complex{2, 0}};
+    constexpr sycl::marray<Complex, 1> a{};
+    constexpr sycl::marray<Complex, 1> b{cplx};
+    constexpr sycl::marray<Complex, 2> c{cplx, cplx};
+    constexpr sycl::marray<Complex, 4> d{c, c};
   }
 }
 
