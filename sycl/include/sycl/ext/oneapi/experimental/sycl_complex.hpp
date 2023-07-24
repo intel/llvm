@@ -1029,6 +1029,11 @@ private:
                    std::index_sequence<Is...>)
       : MData{Arr[Is]...} {}
 
+  /// FIXME: If the subscript operator is made constexpr this can be removed.
+  // detail::HelperFlattenMArrayArg::MArrayToArray needs to have access to
+  // MData.
+  friend class detail::HelperFlattenMArrayArg;
+
 public:
   constexpr marray() : MData{} {};
 
@@ -1040,9 +1045,9 @@ public:
   template <
       typename... ArgTN,
       typename = std::enable_if_t<
-          sycl::detail::AllSuitableArgTypes<ArgTN...>::value &&
+          sycl::detail::AllSuitableArgTypes<ComplexDataT, ArgTN...>::value &&
           sycl::detail::GetMArrayArgsSize<ArgTN...>::value == NumElements>>
-  constexpr marray(const ArgTN &...Args)
+  constexpr marray(const ArgTN &... Args)
       : marray{
             sycl::detail::MArrayArgArrayCreator<ComplexDataT, ArgTN...>::Create(
                 Args...),
@@ -1077,7 +1082,7 @@ public:
 
   // subscript operator
   reference operator[](std::size_t i) { return MData[i]; }
-  constexpr const_reference operator[](std::size_t i) const { return MData[i]; }
+  const_reference operator[](std::size_t i) const { return MData[i]; }
 
   marray &operator=(const marray<ComplexDataT, NumElements> &rhs) = default;
   marray &operator=(const ComplexDataT &rhs) {
