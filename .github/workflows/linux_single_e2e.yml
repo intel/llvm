@@ -218,7 +218,7 @@ jobs:
         CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
       run: |
         if [ -n "$CMAKE_EXTRA_ARGS" ]; then
-          echo 'opts=$CMAKE_EXTRA_ARGS' >> $GITHUB_OUTPUT
+          echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
         else
           if [ "${{ contains(inputs.target_devices, 'ext_oneapi_hip')  }}" == "true" ]; then
             echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
