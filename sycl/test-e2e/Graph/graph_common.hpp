@@ -289,7 +289,7 @@ auto add_nodes(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   Graph.end_recording(Queue);
   return ev;
 #else
-  std::cout << "Warning: No Graph API selected.\n";
+  assert(0 && "Error: Cannot use add_nodes without selecting an API");
 #endif
 }
 
@@ -319,7 +319,7 @@ auto add_nodes(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   Graph.end_recording(Queue);
   return ev;
 #else
-  std::cout << "Warning: No Graph API selected.\n";
+  assert(0 && "Error: Cannot use add_nodes without selecting an API");
 #endif
 }
 
@@ -351,7 +351,7 @@ auto add_node(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   Graph.end_recording(Queue);
   return ev;
 #else
-  std::cout << "Warning: No Graph API selected.\n";
+  assert(0 && "Error: Cannot use add_node without selecting an API");
 #endif
 }
 
