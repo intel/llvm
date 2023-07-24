@@ -1601,8 +1601,11 @@ private:
         // GEPs with only constant indices have a non-zero offset to `ptr`
         // (otherwise they would've been folded away).
         if (auto gep = dyn_cast<LLVM::GEPOp>(user);
-            gep && cast<LLVM::GEPOp>(user).getDynamicIndices().empty())
+            gep && cast<LLVM::GEPOp>(user).getDynamicIndices().empty()) {
+          assert(llvm::any_of(gep.getRawConstantIndices(),
+                              [](auto idx) { return idx > 0; }));
           continue;
+        }
 
         // Storing `ptr` somewhere else is only allowed if specifically
         // requested by the caller.
