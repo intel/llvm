@@ -1,0 +1,435 @@
+= sycl_ext_oneapi_virtual_functions
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+* link:../experimental/sycl_ext_oneapi_named_sub_group_sizes.asciidoc[
+  sycl_ext_oneapi_named_sub_group_sizes]
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Backend support status
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_oneapi_virtual_functions`.  The application must check that the
+device has this aspect before submitting a kernel using any of the APIs in this
+extension.  If the application fails to do this, the implementation throws
+a synchronous exception with the `errc::kernel_not_supported` error code
+when the kernel is submitted to the queue.
+
+== Overview
+
+The main purpose of this extension is to reduce amount of SYCL language
+restrictions for device code by allowing to call virtual member functions
+from device functions.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_VIRTUAL_FUNCTIONS` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New language restrictions for device functions
+
+The following restriction, listed in section 5.4 of the core SYCL specification
+does not apply if this extension is supported by the implementation:
+
+> The odr-use of polymorphic classes and classes with virtual inheritance is
+> allowed. *However, no virtual member functions are allowed to be called in a
+> device function.*
+
+However, there are still some limitations of how virtual member functions can
+be used:
+
+- if an object is constructed in host code, calling a virtual function for that
+  object in device code has undefined behavior
+- if an object is constructed in device code, calling a virtual function for
+  that object in host code has undefined behavior
+
+=== New properties
+
+Due to the indirect nature of virtual member functions, compiler may not be able
+to understand member function of which exact class is being called. Moreover,
+when code is distributed over several translation units, compiler may not be
+able to even see definitions of all virtual member functions which may be called
+in a kernel.
+
+Therefore, to provide a mechanism for an implementation to help detect virtual
+member functions, which are going to be used from kernels and enforce necessary
+restrictions on them, new compile-time-constant properties are proposed:
+
+[source,dpcpp]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  struct indirectly_callable_key {
+    template <typename Set>
+    using value_t = property_value<indirectly_callable_key, Set>;
+  };
+
+  struct calls_indirectly_key {
+    template <typename Set>
+    using value_t = property_value<calls_indirectly_key, Set>;
+  };
+
+  template <typename Set = void>
+  inline constexpr indirectly_callable_key::value_t<Set> indirectly_callable;
+
+  template <typename Set = void>
+  inline constexpr calls_indirectly_key::value_t<Set> calls_indirectly;
+
+  template <>
+  struct is_property_key<indirectly_callable_key> : std::true_type {};
+  template <> struct is_property_key<calls_indirectly_key> : std::true_type {};
+}
+----
+
+|===
+|Property|Description
+|`indirectly_callable`
+|The `indirectly_callable` property marks a virtual member function as a device
+function, thus making it available to be called from SYCL kernel and device
+functions. Should only be applied to virtual member functions and to do so,
+`SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro should be used.
+
+Parameter `Set` specifies a group of kernels, which can call this virtual member
+function, it must be a C++ typename. Calling a virtual member function from a
+kernel without `calls_indirectly` property, or with a `calls_indirectly`
+property with a different value of `Set` parameter is an undefined behavior.
+
+|`calls_indirectly`
+|The `calls_indirectly` property marks a SYCL kernel function as performing
+calls through virtual member functions.
+
+Parameter `Set` specifies a group of virtual member functions which can be
+called from this kernel, it must be a C++ typename. Calling a virtual member
+function without `indirectly_callable` property, or with an
+`indirectly_callable` property with a different value of `Set` parameter is an
+undefined behavior.
+|===
+
+If a virtual member function is called from device code, both definition and
+declaration of that function must be decorated with the +indirectly_callable+
+property. `Set` property parameter must match between definition and
+declaration and implementation should provide a diagnostic in case of mismatch.
+
+Applying the +indirectly_callable+ property to a SYCL Kernel function is illegal
+and an implementation should produce a diagnostic for that.
+
+Applying the +indirectly_callable+ property to an arbitrary device function,
+which is not a virtual member function has no effect. NOTE: This behavior may be
+changed in either future version of this extension or in other extensions.
+
+Virtual member functions that are decorated with the +indirectly_callable+
+property are considered device functions, which must obey the restrictions
+listed in section 5.4 of the core SYCL specification "Language restrictions for
+device functions". Virtual member functions that are not decorated with this
+attribute do not need to obey these restrictions, even if other definitions of
+that virtual member function in other classes in the inheritance hierarchy are
+decorated with the attribute.
+
+[source,dpcpp]
+----
+using syclext = sycl::ext::oneapi::experimental;
+
+struct set_A;
+
+class Foo {
+public:
+  // properties to functions should be applied using the macro:
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable) void foo() {}
+
+  // both declaration and definition should be annotated:
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable) void bar();
+
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable<set_A>) void baz() {}
+};
+
+void SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable) Foo::bar() {}
+
+// kernel calling virtual function should also be annotated:
+/* */.single_task(syclext::properties{syclext::calls_indirectly}, [=] {
+  Foo *ptr = /* ... */;
+  ptr->bar()
+
+  // Note: this kernel can only call 'Foo::foo' and 'Foo::bar' but not
+  // 'Foo::baz', because the latter is declared within a different "set".
+});
+----
+
+=== Optional kernel features handling
+
+The core SYCL specification (5.8 Attributes for device code) says the following
+in the description of `device_has` attribute for SYCL kernels and non-kernel
+device functions.
+
+When the attribute is applied to a kernel:
+
+> ... it causes the compiler to issue a diagnostic if the kernel (or any of the
+> functions it calls) uses an optional feature that is associated with an aspect
+> that is not listed in the attribute.
+
+When the attribute is applied to a function:
+
+> ... it causes the compiler to issue a diagnostic if the device function (or
+> any of the functions it calls) uses an optional feature that is associated
+> with an aspect that is not listed in the attribute.
+
+Due to dynamic nature of virtual member functions, compiler is not able to
+perform static analysis of a call graph in order to understand which exact
+virtual functions are called from which kernels, in general case.
+
+Therefore, compiler is not required to issue a diagnostic if a virtual member
+function called from a kernel or a device function uses optional kernel features
+which are not listed in `device_has` attribute attached to the kernel or the
+device function.
+
+Calling a virtual function which uses optional kernel features not compatible
+with a current device is an undefined behavior.
+
+[source,dpcpp]
+----
+using syclext = sycl::ext::oneapi::experimental;
+
+struct Foo {
+  // properties to functions should be applied using the macro:
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable) void foo() {
+    double d = 3.14;
+  }
+
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable) void bar() {}
+};
+
+sycl::queue q;
+
+q.single_task(syclext::properties{syclext::calls_indirectly},
+    [=] [[sycl::device_has()]] {
+  Foo *ptr = /* ... */;
+  // No diagnostic about kernel using 'fp64' aspect not listed in `device_has`
+  // attribute is not guaranteed to be emitted here.
+  ptr->foo()
+});
+----
+
+An implementation may not raise a compile time diagnostic or a run time
+exception merely due to speculative compilation of a virtual member function for
+a device when the application does not actually call that member function on
+that device.
+
+[source,dpcpp]
+----
+using syclext = sycl::ext::oneapi::experimental;
+
+struct Foo {
+// properties to functions should be applied using the macro:
+virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    syclext::indirectly_callable) void foo() {
+  double d = 3.14;
+}
+
+virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    syclext::indirectly_callable) void bar() {}
+};
+
+sycl::queue q(/* device selector choosing a device *without* fp64 support */);
+assert(!q.get_device().has(sycl::aspect::fp64));
+
+q.single_task(syclext::properties{syclext::calls_indirectly}, [=] {
+  Foo *ptr = /* ... */;
+  // 'Foo::bar' doesn't use any optional features and this call is legal.
+  // No compilation issues or runtime exceptions should be reported due to
+  // 'Foo::foo' using unsupported fp64 aspect, because it is not called.
+  ptr->bar()
+});
+----
+
+=== Kernel bundles and device images
+
+When an object of a polymorphic class is constructed, it stores a pointer to
+virtual table, which points to its virtual member functions. Addresses of those
+functions are only accessible and valid within a kernel bundle containing a
+kernel which used to construct an object.
+
+Performing calls to virtual member functions of an object constructed in a
+kernel from a different kernel bundle is an undefined behavior.
+
+If an object of a polymorphic class is constructed in a kernel `A`, stored to a
+memory and retrieved in a kernel `B` to perform a call through virtual member
+function, then both kernels `A` and `B` must be present in the same device
+image or otherwise behavior is undefined.
+
+[source,dpcpp]
+----
+using syclext = sycl::ext::oneapi::experimental;
+
+struct Base {
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable) void foo() {}
+};
+
+class Constructor;
+class Use;
+
+int main() {
+  sycl::queue Q;
+
+  Base *Obj = sycl::malloc_device<Derived>(1, Q);
+  int *Result = sycl::malloc_shared<int>(2, Q);
+
+  auto bundleA
+    = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Q.get_context(),
+        {sycl::get_kernel_id<Constructor>()});
+  auto bundleB
+    = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Q.get_context(),
+        {sycl::get_kernel_id<Use>()});
+
+
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.use_kernel_bundle(bundleA);
+    CGH.single_task<Constructor>(syclext::properties{syclext::calls_indirectly},
+        [=] {
+      // Only placement new can be used within device functions.
+      new (Obj) Derived;
+    });
+  });
+
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.use_kernel_bundle(bundleB);
+    CGH.single_task<Use>(syclext::properties{syclext::calls_indirectly}, [=] {
+      // Call to 'Base::foo' is an undefined behavior here, because 'Obj' was
+      // constructed within kernel bundle `bundleA`
+      Obj->foo();
+    });
+  });
+
+  return 0;
+}
+----
+
+
+== Example usage
+
+[source,dpcpp]
+----
+#include <sycl/sycl.hpp>
+
+using syclext = sycl::ext::oneapi::experimental;
+
+class Base {
+public:
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable) int get_random_number() {
+    return 4; // Chosen by fair dice roll. Guaranteed to be random
+  }
+
+  // Not considered to be a device function, can use full set of C++ features
+  virtual int get_host_random_number() {
+    throw std::runtime_error("Not Implemented");
+  }
+};
+
+class Derived : public Base {
+public:
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
+  int get_random_number() override {
+    return 221;
+  }
+};
+
+int main() {
+  sycl::queue Q;
+
+  Base *Obj = sycl::malloc_device<Derived>(1, Q);
+  int *Result = sycl::malloc_shared<int>(1, Q);
+
+  Q.single_task([=] {
+    // Only placement new can be used within device functions.
+    new (Obj) Derived;
+  });
+
+  auto props = syclext::properties{syclext::calls_indirectly};
+  Q.single_task(props, [=] {
+    Base B;
+    Result[0] = B.get_random_number();
+  }).wait();
+  assert(A[0] == 4);
+
+  Q.single_task(props, [=] {
+    A[0] = Obj->get_random_number();
+  }).wait();
+  assert(A[0] == 221);
+
+  return 0;
+}
+----
