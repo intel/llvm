@@ -63,7 +63,7 @@ Abhishek Tiwari, Intel
 
 The sycl_ext_oneapi_kernel_properties extension introduces a kernel functor
 member function named `get` for embedding
-sycl::ext::oneapi::experimental::properties into the type of kernel functors.
+`sycl::ext::oneapi::experimental::properties` into the type of kernel functors.
 
 This extension proposes a macro that expands to take the form of the `get`
 function.
@@ -101,6 +101,7 @@ as a functor.
 === Macro
 
 The following kernel will be used as the base for comparison:
+
 .Kernel definition using the get function
 ```c++
 using namespace ext::intel::experimental;
@@ -172,7 +173,7 @@ struct MyKernel {
   }
 };
 ```
-This style encapsulates the properties in an initializer_list.
+This style encapsulates the properties in an `std::initializer_list`.
 
 .Using macro style 3
 ```c++
@@ -273,17 +274,20 @@ public:
 
 Issues with this approach:
 
-1. Aggregate initialization requires additional empty initializer_list be passed:
+- Aggregate initialization requires that an additional empty
+`std::initializer_list` be passed:
 
-  ```c++
-  auto* array_a = sycl::malloc_host(...);
-  int N = ...;
-  q.single_task(MyKernel{{}, array_A, N}).wait();
-  ```
+```c++
+auto* array_a = sycl::malloc_host(...);
+int N = ...;
+q.single_task(MyKernel{{}, array_A, N}).wait();
+```
 
-2. An additional kernel argument is generated which is unexpected. This will
+- An additional kernel argument is generated which is unexpected. This will
 require the compiler to chop it off and that in turn would require additional
 changes to other dependent parts of the compiler like the runtime.
+
+Due to these issues this option was discarded.
 
 === Defining properties into a type in the functor
 
@@ -303,11 +307,13 @@ struct MyKernel {
 
 The problem with this approach is that it will only work with compile time
 constant properties whereas the `get` method was designed to work with runtime
-properties as well.
+properties as well. Hence, if we use this approach then we have 2 APIs for
+setting properties that are not equivalent.
 
-If we use this approach then we have 2 APIs for setting properties. This
-approach potentially requires non trivil amount of updates to the implementation
-to keep the 2 APIs working.
+This approach potentially requires non trivil amount of updates to the
+implementation to keep the 2 APIs working.
+
+Due to these issues this option was discarded.
 
 == Issues
 
