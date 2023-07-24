@@ -1589,7 +1589,7 @@ struct __abi_storage_kind : public std::false_type {};
 
 template <_StorageKind _K, int _Np>
 struct __abi_storage_kind<__simd_abi<_K, _Np>> : public std::true_type {
-  static inline constexpr _StorageKind value = _K;
+  static constexpr _StorageKind value = _K;
 };
 
 template <typename _Tp, class _Abi> struct __mask_element {

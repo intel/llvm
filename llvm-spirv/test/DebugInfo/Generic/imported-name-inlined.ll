@@ -29,14 +29,12 @@ target triple = "spir64-unknown-unknown"
 ; CHECK:     DW_AT_name {{.*}} "f1"
 ; CHECK:     DW_TAG_imported_declaration
 ; CHECK:     NULL
-; CHECK:   DW_TAG_namespace
-; CHECK:     DW_TAG_subprogram
-; CHECK:     NULL
 ; CHECK:   DW_TAG_subprogram
 ; CHECK:     DW_AT_name {{.*}} "f2"
 ; CHECK:     DW_TAG_inlined_subroutine
-; CHECK:       DW_TAG_imported_declaration
-; CHECK:       NULL
+; CHECK:     NULL
+; CHECK:   DW_TAG_namespace
+; CHECK:     DW_TAG_subprogram
 ; CHECK:     NULL
 ; CHECK:   NULL
 

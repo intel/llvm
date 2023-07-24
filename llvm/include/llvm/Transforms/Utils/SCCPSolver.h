@@ -74,8 +74,6 @@ public:
 
   ~SCCPSolver();
 
-  void addLoopInfo(Function &F, LoopInfo &LI);
-
   void addPredicateInfo(Function &F, DominatorTree &DT, AssumptionCache &AC);
 
   /// markBlockExecutable - This method can be used by clients to mark all of
@@ -84,8 +82,6 @@ public:
   bool markBlockExecutable(BasicBlock *BB);
 
   const PredicateBase *getPredicateInfoFor(Instruction *I);
-
-  const LoopInfo &getLoopInfo(Function &F);
 
   /// trackValueOfGlobalVariable - Clients can use this method to
   /// inform the SCCPSolver that it should track loads and stores to the
@@ -164,7 +160,7 @@ public:
 
   /// Helper to return a Constant if \p LV is either a constant or a constant
   /// range with a single element.
-  Constant *getConstant(const ValueLatticeElement &LV) const;
+  Constant *getConstant(const ValueLatticeElement &LV, Type *Ty) const;
 
   /// Return either a Constant or nullptr for a given Value.
   Constant *getConstantOrNull(Value *V) const;

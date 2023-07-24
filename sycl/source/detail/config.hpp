@@ -13,6 +13,7 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/pi.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
@@ -23,7 +24,7 @@
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifdef DISABLE_CONFIG_FROM_ENV
@@ -610,5 +611,5 @@ private:
 #undef INVALID_CONFIG_EXCEPTION
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

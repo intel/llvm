@@ -14,7 +14,7 @@ template <typename T> class init_a;
 template <typename T> bool test(queue myQueue) {
   {
     buffer<float, 1> a(range<1>{N});
-    const T test = 42;
+    const T test = rand() % 10;
 
     myQueue.submit([&](handler &cgh) {
       auto A = a.get_access<access::mode::write>(cgh);

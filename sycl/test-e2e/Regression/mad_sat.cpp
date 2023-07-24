@@ -30,7 +30,7 @@ int main() {
         resultPtr[0] = sycl::mad_sat(inputData_0, inputData_1, inputData_2);
       });
     });
-    const auto HostAccessor = buffer.get_access<sycl::access::mode::read>();
+    const auto HostAccessor = buffer.get_host_access();
     for (int i = 0; i < 3; i++)
       assert((HostAccessor[0][i] == verification3[i]) && "Incorrect result");
   }
@@ -54,7 +54,7 @@ int main() {
         resultPtr[0] = sycl::mad_sat(inputData_0, inputData_1, inputData_2);
       });
     });
-    const auto HostAccessor = buffer.get_access<sycl::access::mode::read>();
+    const auto HostAccessor = buffer.get_host_access();
     for (int i = 0; i < 4; i++)
       assert((HostAccessor[0][i] == verification4[i]) && "Incorrect result");
   }
@@ -85,7 +85,7 @@ int main() {
         resultPtr[0] = sycl::mad_sat(inputData_0, inputData_1, inputData_2);
       });
     });
-    const auto HostAccessor = buffer.get_access<sycl::access::mode::read>();
+    const auto HostAccessor = buffer.get_host_access();
     for (int i = 0; i < 8; i++)
       assert((HostAccessor[0][i] == verification8[i]) && "Incorrect result");
   }
@@ -129,7 +129,7 @@ int main() {
         resultPtr[0] = sycl::mad_sat(inputData_0, inputData_1, inputData_2);
       });
     });
-    const auto HostAccessor = buffer.get_access<sycl::access::mode::read>();
+    const auto HostAccessor = buffer.get_host_access();
     for (int i = 0; i < 16; i++)
       assert((HostAccessor[0][i] == verification16[i]) && "Incorrect result");
   }

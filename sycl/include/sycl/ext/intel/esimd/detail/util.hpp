@@ -24,7 +24,7 @@
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 /// ESIMD intrinsic operand size in bytes.
@@ -165,7 +165,7 @@ template <> struct word_type<uint> {
 
 // Utility for compile time loop unrolling.
 template <unsigned N> class ForHelper {
-  template <unsigned I, typename Action> static inline void repeat(Action A) {
+  template <unsigned I, typename Action> static void repeat(Action A) {
     if constexpr (I < N)
       A(I);
     if constexpr (I + 1 < N)
@@ -173,7 +173,7 @@ template <unsigned N> class ForHelper {
   }
 
 public:
-  template <typename Action> static inline void unroll(Action A) {
+  template <typename Action> static void unroll(Action A) {
     ForHelper::template repeat<0, Action>(A);
   }
 };
@@ -189,13 +189,14 @@ auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
   using QualTPtrType =
       std::conditional_t<std::is_const_v<typename AccessorTy::value_type>,
                          const T *, T *>;
-  auto BytePtr = reinterpret_cast<QualCharPtrType>(Acc.get_pointer()) + Offset;
+  auto BytePtr =
+      reinterpret_cast<QualCharPtrType>(Acc.get_pointer().get()) + Offset;
   return reinterpret_cast<QualTPtrType>(BytePtr);
 }
 #endif // __ESIMD_FORCE_STATELESS_MEM
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

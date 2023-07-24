@@ -2115,7 +2115,7 @@ static void handleTLSModelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   if (S.Context.getTargetInfo().getTriple().isOSAIX() &&
-      Model != "global-dynamic") {
+      Model != "global-dynamic" && Model != "local-exec") {
     S.Diag(LiteralLoc, diag::err_aix_attr_unsupported_tls_model) << Model;
     return;
   }
@@ -5779,6 +5779,15 @@ void Sema::AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
   if (ICE.isInvalid())
     return;
 
+  uint64_t MaximumAlignment = Sema::MaximumAlignment;
+  if (Context.getTargetInfo().getTriple().isOSBinFormatCOFF())
+    MaximumAlignment = std::min(MaximumAlignment, uint64_t(8192));
+  if (Alignment > MaximumAlignment) {
+    Diag(AttrLoc, diag::err_attribute_aligned_too_great)
+        << MaximumAlignment << E->getSourceRange();
+    return;
+  }
+
   uint64_t AlignVal = Alignment.getZExtValue();
   // C++11 [dcl.align]p2:
   //   -- if the constant expression evaluates to zero, the alignment
@@ -5791,15 +5800,6 @@ void Sema::AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
         << E->getSourceRange();
       return;
     }
-  }
-
-  uint64_t MaximumAlignment = Sema::MaximumAlignment;
-  if (Context.getTargetInfo().getTriple().isOSBinFormatCOFF())
-    MaximumAlignment = std::min(MaximumAlignment, uint64_t(8192));
-  if (AlignVal > MaximumAlignment) {
-    Diag(AttrLoc, diag::err_attribute_aligned_too_great)
-        << MaximumAlignment << E->getSourceRange();
-    return;
   }
 
   const auto *VD = dyn_cast<VarDecl>(D);

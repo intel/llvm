@@ -219,7 +219,6 @@ set(SYCL_SOURCES
     "handler.cpp"
     "image.cpp"
     "interop_handle.cpp"
-    "interop_handler.cpp"
     "kernel.cpp"
     "kernel_bundle.cpp"
     "platform.cpp"

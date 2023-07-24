@@ -422,6 +422,9 @@ def FeatureHardenSlsIJmp
 //===----------------------------------------------------------------------===//
 // X86 Subtarget Tuning features
 //===----------------------------------------------------------------------===//
+def TuningPreferMovmskOverVTest : SubtargetFeature<"prefer-movmsk-over-vtest",
+                                       "PreferMovmskOverVTest", "true",
+                                       "Prefer movmsk over vtest instruction">;
 
 def TuningSlowSHLD : SubtargetFeature<"slow-shld", "IsSHLDSlow", "true",
                                        "SHLD instruction is slow">;
@@ -558,6 +561,10 @@ def TuningNoDomainDelayShuffle : SubtargetFeature<"no-bypass-delay-shuffle",
 def TuningPreferShiftShuffle : SubtargetFeature<"faster-shift-than-shuffle",
                                    "PreferLowerShuffleAsShift", "true",
                                    "Shifts are faster (or as fast) as shuffle">;
+
+def TuningFastImmVectorShift : SubtargetFeature<"tuning-fast-imm-vector-shift",
+                                   "FastImmVectorShift", "true",
+                                   "Vector shifts are fast (2/cycle) as opposed to slow (1/cycle)">;
 
 // On some X86 processors, a vzeroupper instruction should be inserted after
 // using ymm/zmm registers before executing code that may use SSE instructions.
@@ -936,7 +943,8 @@ def ProcessorFeatures {
                                       TuningPreferShiftShuffle,
                                       TuningNoDomainDelayMov,
                                       TuningNoDomainDelayShuffle,
-                                      TuningNoDomainDelayBlend];
+                                      TuningNoDomainDelayBlend,
+                                      TuningFastImmVectorShift];
   list<SubtargetFeature> SKXFeatures =
     !listconcat(BDWFeatures, SKXAdditionalFeatures);
 
@@ -977,7 +985,8 @@ def ProcessorFeatures {
                                       TuningAllowLight256Bit,
                                       TuningNoDomainDelayMov,
                                       TuningNoDomainDelayShuffle,
-                                      TuningNoDomainDelayBlend];
+                                      TuningNoDomainDelayBlend,
+                                      TuningFastImmVectorShift];
   list<SubtargetFeature> CNLFeatures =
     !listconcat(SKLFeatures, CNLAdditionalFeatures);
 
@@ -1005,7 +1014,8 @@ def ProcessorFeatures {
                                       TuningAllowLight256Bit,
                                       TuningNoDomainDelayMov,
                                       TuningNoDomainDelayShuffle,
-                                      TuningNoDomainDelayBlend];
+                                      TuningNoDomainDelayBlend,
+                                      TuningFastImmVectorShift];
   list<SubtargetFeature> ICLFeatures =
     !listconcat(CNLFeatures, ICLAdditionalFeatures);
 
@@ -1166,7 +1176,9 @@ def ProcessorFeatures {
                                                   FeatureMOVDIRI,
                                                   FeatureMOVDIR64B,
                                                   FeatureWAITPKG];
-  list<SubtargetFeature> ADLAdditionalTuning = [TuningPERMFalseDeps];
+  list<SubtargetFeature> ADLAdditionalTuning = [TuningPERMFalseDeps,
+                                                TuningPreferMovmskOverVTest,
+                                                TuningFastImmVectorShift];
   list<SubtargetFeature> ADLTuning = !listconcat(SKLTuning, ADLAdditionalTuning);
   list<SubtargetFeature> ADLFeatures =
     !listconcat(TRMFeatures, ADLAdditionalFeatures);

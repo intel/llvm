@@ -17,6 +17,10 @@ __SYCL_DATA_LESS_PROP(ext::oneapi::property::queue, priority_low,
                       QueuePriorityLow)
 __SYCL_DATA_LESS_PROP(ext::oneapi::property::queue, priority_high,
                       QueuePriorityHigh)
+__SYCL_DATA_LESS_PROP(ext::intel::property::queue, no_immediate_command_list,
+                      QueueSubmissionBatched)
+__SYCL_DATA_LESS_PROP(ext::intel::property::queue, immediate_command_list,
+                      QueueSubmissionImmediate)
 
 __SYCL_DATA_LESS_PROP(ext::oneapi::cuda::property::queue, use_default_stream,
                       UseDefaultStream)

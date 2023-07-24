@@ -9,18 +9,18 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/pi.h>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/id.hpp>
+#include <sycl/range.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class device;
 class platform;
 class kernel_id;
 enum class memory_scope;
+enum class memory_order;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {
@@ -185,13 +185,18 @@ template <typename T, T param> struct compatibility_param_traits {};
   } /*namespace info */                                                        \
   } /*namespace Namespace */
 
-namespace ext::oneapi::experimental::info::device {
+namespace ext::oneapi::experimental::info {
+
+enum class graph_support_level { unsupported = 0, native, emulated };
+
+namespace device {
 template <int Dimensions> struct max_work_groups;
-} // namespace ext::oneapi::experimental::info::device
+} // namespace device
+} // namespace ext::oneapi::experimental::info
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
