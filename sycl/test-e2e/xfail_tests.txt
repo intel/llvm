@@ -326,6 +326,7 @@ ESIMD/slm_alloc.cpp
 ESIMD/slm_alloc_many_kernels_many_funcs.cpp
 ESIMD/slm_alloc_many_kernels_one_func.cpp
 ESIMD/slm_barrier.cpp
+ESIMD/slm_block_load_store.cpp
 ESIMD/slm_split_barrier.cpp
 ESIMD/spec_const/spec_const_bool.cpp
 ESIMD/spec_const/spec_const_char.cpp
