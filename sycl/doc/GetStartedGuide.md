@@ -44,10 +44,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
 * C++ compiler
-  * Linux: `GCC` version 7.1.0 or later (including libstdc++) -
-    [Download](https://gcc.gnu.org/install/)
-  * Windows: `Visual Studio` version 15.7 preview 4 or later -
-    [Download](https://visualstudio.microsoft.com/downloads/)
+  * See LLVM's [host compiler toolchain requirements](../../llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
 
 Alternatively, you can use a Docker image that has everything you need for building
 pre-installed:
