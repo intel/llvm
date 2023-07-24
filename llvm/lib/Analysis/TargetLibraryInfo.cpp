@@ -1210,8 +1210,14 @@ void TargetLibraryInfoImpl::addAltMathFunctionsFromLib(
     addAltMathFunctions(AltMathFuncs);
     break;
   }
-  case NoAltMathLibrary:
+  case NoAltMathLibrary: {
+    const AltMathDesc AltMathFuncs[] = {
+#define TLI_DEFINE_NO_ALTMATHFUNCS
+#include "llvm/Analysis/AltMathLibFuncs.def"
+    };
+    addAltMathFunctions(AltMathFuncs);
     break;
+  }
   }
 }
 

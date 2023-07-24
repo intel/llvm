@@ -75,6 +75,7 @@ TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_cos, Type::DoubleTyID, FIXED(2), "__
 
 
 #endif
+#undef TLI_DEFINE_TEST_ALTMATHFUNCS
 
 #if defined(TLI_DEFINE_SVML_ALTMATHFUNCS)
 //-----------------------SIN-----------------------//
@@ -1168,6 +1169,71 @@ TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sqrt, Type::FloatTyID, FIXED(8), "__
 TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sqrt, Type::FloatTyID, FIXED(8), "__svml_sqrtf8_ha", 0.6)
 #endif
 #undef TLI_DEFINE_SVML_ALTMATHFUNCS
+#if defined(TLI_DEFINE_NO_ALTMATHFUNCS)
+
+// NO_ALTMATH_LIB Single precision implementations
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sin, Type::FloatTyID, FIXED(1), "sin", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_cos, Type::FloatTyID, FIXED(1), "cos", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_tan, Type::FloatTyID, FIXED(1), "tan", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sinh, Type::FloatTyID, FIXED(1), "sinh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_cosh, Type::FloatTyID, FIXED(1), "cosh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_tanh, Type::FloatTyID, FIXED(1), "tanh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_asin, Type::FloatTyID, FIXED(1), "asin", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_acos, Type::FloatTyID, FIXED(1), "acos", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_atan, Type::FloatTyID, FIXED(1), "atan", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_atan2, Type::FloatTyID, FIXED(1), "atan2", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_asinh, Type::FloatTyID, FIXED(1), "asinh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_acosh, Type::FloatTyID, FIXED(1), "acosh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_atanh, Type::FloatTyID, FIXED(1), "atanh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_exp, Type::FloatTyID, FIXED(1), "exp", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_exp2, Type::FloatTyID, FIXED(1), "exp2", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_exp10, Type::FloatTyID, FIXED(1), "exp10", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_expm1, Type::FloatTyID, FIXED(1), "expm1", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_log, Type::FloatTyID, FIXED(1), "log", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_log2, Type::FloatTyID, FIXED(1), "log2", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_log10, Type::FloatTyID, FIXED(1), "log10", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_log1p, Type::FloatTyID, FIXED(1), "log1p", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_hypot, Type::FloatTyID, FIXED(1), "hypot", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_pow, Type::FloatTyID, FIXED(1), "pow", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_ldexp, Type::FloatTyID, FIXED(1), "ldexp", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sqrt, Type::FloatTyID, FIXED(1), "sqrt", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_rsqrt, Type::FloatTyID, FIXED(1), "rsqrt", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_erf, Type::FloatTyID, FIXED(1), "erf", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_erfc, Type::FloatTyID, FIXED(1), "erfc", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sincos, Type::FloatTyID, FIXED(1), "sincos", 0.6)
+
+// NO_ALTMATH_LIB Double precision implementations
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sin, Type::DoubleTyID, FIXED(1), "sin", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_cos, Type::DoubleTyID, FIXED(1), "cos", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_tan, Type::DoubleTyID, FIXED(1), "tan", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sinh, Type::DoubleTyID, FIXED(1), "sinh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_cosh, Type::DoubleTyID, FIXED(1), "cosh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_tanh, Type::DoubleTyID, FIXED(1), "tanh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_asin, Type::DoubleTyID, FIXED(1), "asin", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_acos, Type::DoubleTyID, FIXED(1), "acos", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_atan, Type::DoubleTyID, FIXED(1), "atan", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_atan2, Type::DoubleTyID, FIXED(1), "atan2", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_asinh, Type::DoubleTyID, FIXED(1), "asinh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_acosh, Type::DoubleTyID, FIXED(1), "acosh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_atanh, Type::DoubleTyID, FIXED(1), "atanh", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_exp, Type::DoubleTyID, FIXED(1), "exp", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_exp2, Type::DoubleTyID, FIXED(1), "exp2", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_exp10, Type::DoubleTyID, FIXED(1), "exp10", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_expm1, Type::DoubleTyID, FIXED(1), "expm1", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_log, Type::DoubleTyID, FIXED(1), "log", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_log2, Type::DoubleTyID, FIXED(1), "log2", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_log10, Type::DoubleTyID, FIXED(1), "log10", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_log1p, Type::DoubleTyID, FIXED(1), "log1p", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_hypot, Type::DoubleTyID, FIXED(1), "hypot", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_pow, Type::DoubleTyID, FIXED(1), "pow", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_ldexp, Type::DoubleTyID, FIXED(1), "ldexp", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sqrt, Type::DoubleTyID, FIXED(1), "sqrt", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_rsqrt, Type::DoubleTyID, FIXED(1), "rsqrt", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_erf, Type::DoubleTyID, FIXED(1), "erf", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_erfc, Type::DoubleTyID, FIXED(1), "erfc", 0.6)
+TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sincos, Type::DoubleTyID, FIXED(1), "sincos", 0.6)
+
+#endif
+#undef TLI_DEFINE_NO_ALTMATHFUNCS
 
 #undef TLI_DEFINE_ALTMATHFUNC
-#undef TLI_DEFINE_TEST_ALTMATHFUNCS
