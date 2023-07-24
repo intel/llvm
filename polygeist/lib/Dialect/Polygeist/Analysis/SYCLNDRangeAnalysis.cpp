@@ -236,8 +236,8 @@ mlir::polygeist::SYCLNDRangeAnalysis::getInformation(const Definition &def) {
     }
     return NDRangeInformation();
   }
-  case 3:
-  case 2: {
+  case 2:
+  case 3: {
     std::optional<IDRangeInformation> globalSizeInfo =
         idRangeAnalysis.getIDRangeInformationFromConstruction<sycl::RangeType>(
             constructor, args[0]);
