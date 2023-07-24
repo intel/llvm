@@ -128,8 +128,7 @@ static llvm::cl::opt<bool> EnableLICM("licm", llvm::cl::init(true),
                                       llvm::cl::desc("Turn on LICM"));
 
 static llvm::cl::opt<bool>
-    EnableLoopInternalization("enable-loop-internalization",
-                              llvm::cl::init(false),
+    EnableLoopInternalization("loop-internalization", llvm::cl::init(false),
                               llvm::cl::desc("Enable loop internalization"));
 
 static llvm::cl::opt<bool>
