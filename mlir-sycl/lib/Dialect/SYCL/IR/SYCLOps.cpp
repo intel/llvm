@@ -606,24 +606,34 @@ SYCLHostSubmitOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   if (!cgf)
     return emitOpError("'")
            << symbol << "' does not reference a valid CGF function";
-  if (cgf.getLinkage() != LLVM::Linkage::Internal)
-    return emitOpError("'")
-           << symbol << "' expects CGF function to have internal linkage";
-  constexpr auto hasValidCGFSignature = [](LLVM::LLVMFuncOp cgf) {
-    if (cgf.isVarArg())
-      return false;
-    ArrayRef<Type> resultTypes = cgf.getResultTypes();
-    ArrayRef<Type> argumentTypes = cgf.getArgumentTypes();
-    return resultTypes.size() == 1 && isa<LLVM::LLVMVoidType>(resultTypes[0]) &&
-           argumentTypes.size() == 2 &&
-           llvm::all_of(argumentTypes, [](Type type) {
-             return isa<LLVM::LLVMPointerType>(type);
-           });
-  };
-  if (!hasValidCGFSignature(cgf))
-    return emitOpError("'")
-           << symbol
-           << "' expects CGF function type to be (!llvm.ptr, !llvm.ptr) -> ()";
+  if (LLVM::Linkage linkage = cgf.getLinkage();
+      linkage != LLVM::Linkage::Internal) {
+    auto diag = emitOpError()
+                << "expects CGF function to have internal linkage";
+    diag.attachNote() << "got: '" << stringifyEnum(linkage) << "'";
+    return diag;
+  }
+
+  if (cgf.isVarArg())
+    return emitOpError("expects CGF function to not have variadic arguments");
+
+  constexpr unsigned numInputs = 2;
+  LLVM::LLVMFunctionType fnType = cgf.getFunctionType();
+  if (fnType.getNumParams() != numInputs)
+    return emitOpError("incorrect number of operands for CGF");
+
+  for (unsigned i = 0; i < numInputs; ++i) {
+    Type type = fnType.getParamType(i);
+    if (!isa<LLVM::LLVMPointerType>(type))
+      return emitOpError("expecting CGF's operand type '!llvm.ptr', but got ")
+             << type << " for operand number " << i;
+  }
+
+  if (Type returnType = fnType.getReturnType();
+      !isa<LLVM::LLVMVoidType>(returnType))
+    return emitOpError("expecting CGF's result type '!llvm.void', but got ")
+           << returnType;
+
   return success();
 }
 
