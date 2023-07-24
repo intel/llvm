@@ -1,0 +1,323 @@
+= sycl_ext_oneapi_kernel_properties_macro
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2021-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 7 and
+the following extensions:
+
+- link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+- link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Contributors
+
+Joe Garvey, Intel +
+Ajaykumar Kannan, Intel +
+Abhishek Tiwari, Intel
+
+== Overview
+
+The sycl_ext_oneapi_kernel_properties extension introduces a kernel functor
+member function named `get` for embedding
+sycl::ext::oneapi::experimental::properties into the type of kernel functors.
+
+This extension proposes a macro that expands to take the form of the `get`
+function.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `sycl_ext_oneapi_kernel_properties_macro` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Motivation
+
+Using the proposed macro will allow the user to shorten the amount of characters
+needed and might even improve code readability. It can also help reduce the
+coding style differences between writing the kernel as lambda vs writing it
+as a functor.
+
+=== Macro
+
+The following kernel will be used as the base for comparison:
+.Kernel definition using the get function
+```c++
+using namespace ext::intel::experimental;
+using namespace ext::oneapi::experimental;
+
+struct MyKernel {
+  ... // kernel arguments
+
+  auto get(properties_tag){
+    return properties{streaming_interface_accept_downstream_stall,
+                                  pipelined<1>};
+  }
+
+  void operator()() const {
+    ... // kernel body
+  }
+};
+```
+
+_There are a couple of different ways we can define the macro. When the extension
+review concludes we will pick one of these. Below we outline each of them_:
+
+.Macro 1
+```c++
+#define __kernel_properties1(...) auto get(properties_tag) { return properties{__VA_ARGS__};}
+```
+
+.Macro 2
+```c++
+#define __kernel_properties2(...) auto get(properties_tag) { return properties __VA_ARGS__ ;}
+```
+
+.Macro 3
+```c++
+#define __kernel_properties3(...) auto get(properties_tag) { return __VA_ARGS__ ;}
+```
+
+The examples below show the kernel definition when using these macros:
+
+.Using macro style 1
+```c++
+using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::oneapi::experimental;
+
+struct MyKernel {
+  ... // kernel arguments
+  __kernel_properties(streaming_interface_accept_downstream_stall,
+                       pipelined<1>);
+
+  void operator()() const {
+    ... // kernel body
+  }
+};
+```
+This style requires the least number of characters to write out.
+
+.Using macro style 2
+```c++
+using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::oneapi::experimental;
+
+struct MyKernel {
+  ... // kernel arguments
+  __kernel_properties({streaming_interface_accept_downstream_stall,
+                        pipelined<1>});
+
+  void operator()() const {
+    ... // kernel body
+  }
+};
+```
+This style encapsulates the properties in an initializer_list.
+
+.Using macro style 3
+```c++
+using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::oneapi::experimental;
+
+struct MyKernel {
+  ... // kernel arguments
+  __kernel_properties(properties{streaming_interface_accept_downstream_stall,
+                                  pipelined<1>});
+
+  void operator()() const {
+    ... // kernel body
+  }
+};
+```
+This style passes the properties object. Its advantage is that it is very
+similar to passing kernel properties to lambdas:
+
+.Lambda example
+
+```c++
+using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::oneapi::experimental;
+
+{
+  q.single_task(properties{streaming_interface_accept_downstream_stall,
+                            pipelined<1>}, [=] { ... });
+}
+```
+
+Note that users may write any of the above macros in one of two styles- like a
+separate function call or like a macro applied to the operator()():
+
+.As a separate function call
+```c++
+struct MyKernel {
+  ... // kernel arguments
+  __kernel_properties(properties{streaming_interface_accept_downstream_stall,
+                                  pipelined<1>});
+
+  void operator()() const {
+    ... // kernel body
+  }
+};
+```
+
+.As a macro applied on the operator()()
+```c++
+struct MyKernel {
+  ... // kernel arguments
+  __kernel_properties(properties{streaming_interface_accept_downstream_stall,
+                                  pipelined<1>})
+  void operator()() const {
+    ... // kernel body
+  }
+};
+```
+
+== Alternatives considered
+
+_This is a non normative section and is only present here to aid discussion.
+This will be removed before the extension is published_
+
+=== Inheriting from a base functor with properties applied
+
+This would look something like:
+```c++
+using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::oneapi::experimental;
+
+// *****************************************************************************
+// All of this will be in the headers
+using streaming_interface_t = streaming_interface_key::value_t<
+    streaming_interface_options_enum::accept_downstream_stall>;
+
+template <int pipeline_directive_and_initiation_interval = -1>
+using pipelined_t =
+    pipelined_key::value_t<pipeline_directive_and_initiation_interval>;
+
+template <typename... Props> struct KernelPropertiesBase {
+  using ptype = ext::oneapi::experimental::detail::properties_t<Props...>;
+  auto get(properties_tag) { return ptype{}; }
+};
+// **************************** End of header **********************************
+
+// **** user code **********
+struct MyKernel : KernelPropertiesBase<decltype(properties{
+  streaming_interface_accept_downstream_stall,
+  pipelined})> {
+
+public:
+  annotated_arg<int *, ...> arg_a;
+  int n;
+  void operator()() const { ... }
+};
+```
+
+Issues with this approach:
+
+1. Aggregate initialization requires additional empty initializer_list be passed:
+
+  ```c++
+  auto* array_a = sycl::malloc_host(...);
+  int N = ...;
+  q.single_task(MyKernel{{}, array_A, N}).wait();
+  ```
+
+2. An additional kernel argument is generated which is unexpected. This will
+require the compiler to chop it off and that in turn would require additional
+changes to other dependent parts of the compiler like the runtime.
+
+=== Defining properties into a type in the functor
+
+The following pseudocode shows this approach:
+
+```c++
+struct MyKernel {
+  // set the properties
+  using kernel_props_type = decltype(properties{
+      streaming_interface_accept_downstream_stall,
+    pipelined})
+  
+  ... // kernel arguments
+  void operator()() const { ... }
+};
+```
+
+The problem with this approach is that it will only work with compile time
+constant properties whereas the `get` method was designed to work with runtime
+properties as well.
+
+If we use this approach then we have 2 APIs for setting properties. This
+approach potentially requires non trivil amount of updates to the implementation
+to keep the 2 APIs working.
+
+== Issues
+
+1. Name of the macro.
+2. Style of the macro.
+3. Do we recommend using `macro();` syntax or `macro() void operator()() {...}`
+syntax.
+
+//. asd
+//+
+//--
+//*RESOLUTION*: Not resolved.
+//--
