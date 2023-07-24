@@ -617,13 +617,11 @@ gpu.module @kernels {
 // -----
 
 func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
-  // expected-error @below {{'sycl.host.submit' op '@kernels::@k0' does not reference a valid CGF function}}
-  sycl.host.submit %queue(@kernels::@k0) -> %event : !llvm.ptr, !llvm.ptr
+  // expected-error @below {{'sycl.host.submit' op '@f0' does not reference a valid CGF function}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
   func.return
 }
 
-gpu.module @kernels {
-  gpu.func @k0() {
-    gpu.return
-  }
+func.func @f0() {
+  func.return
 }

@@ -238,13 +238,13 @@ def SYCLHostSubmitOp : SYCL_HostOp<"submit",
 
     Example:
     ```
-    sycl.host.submit %queue([%buff_a, %buff_b]@kernels::@k0) -> %event
+    sycl.host.submit %queue([%buff_a, %buff_b]@cgf_impl) -> %event
       : !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr
     ```
   }];
 
   let arguments = (ins
-    SymbolRefAttr:$c_g_f_name,
+    FlatSymbolRefAttr:$c_g_f_name,
     Arg<LLVM_AnyPointer, "The queue", [MemWrite]>:$queue,
     Arg<LLVM_AnyPointer, "The event", [MemWrite]>:$event,
     Variadic<AnyType>:$args);

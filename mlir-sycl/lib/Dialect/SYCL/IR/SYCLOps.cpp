@@ -600,7 +600,7 @@ LogicalResult SYCLHostScheduleKernel::verify() {
 
 LogicalResult
 SYCLHostSubmitOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  SymbolRefAttr symbol = getCGFNameAttr();
+  FlatSymbolRefAttr symbol = getCGFNameAttr();
   auto cgf =
       symbolTable.lookupNearestSymbolFrom<LLVM::LLVMFuncOp>(*this, symbol);
   if (!cgf)
