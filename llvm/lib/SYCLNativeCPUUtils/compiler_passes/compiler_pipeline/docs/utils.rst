@@ -1084,6 +1084,34 @@ with a required sub-group size and checks whether the vectorizer was able to
 satisfy that requirement. As such, it should be run after vectorization. A
 compiler diagnostic is raised for each kernel for which this does not hold.
 
+ReplaceTargetExtTysPass
+-----------------------
+
+The ``ReplaceTargetExtTysPass`` pass replaces certain `target extension types
+<https://llvm.org/docs/LangRef.html#target-extension-type>`_ found in the
+initial compiler IR. It replaces them with new types reported by the
+``BuiltinInfo::getRemappedTargetExtTy`` analysis function. This is conceptually
+replacing abstract and target-agnostic opaque types with concrete ones ready
+for the target.
+
+This pass can replace any of the following types:
+
+* ``spirv.Image``
+* ``spirv.Event``
+* ``spirv.Sampler``
+
+It replaces any of the above types across the module, replacing any functions
+with any of these target extension types as function parameters or return types
+*in-place*, i.e., with a new function with the updated function signature.
+
+If the target's compiler backend is able to handle any of the above types
+natively then the target **may** opt out of this process completely. Note
+however that some aspects of the ComputeMux compiler **may** make assumptions
+about some of the above types, such as the type of images passed to any of the
+:doc:`/modules/builtins/libimg` functions. This means that in such a situation,
+it may be required to skip other passes such as the
+``compiler::ImageArgumentSubstitutionPass``.
+
 Metadata Utilities
 ------------------
 
