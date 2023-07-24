@@ -33,7 +33,7 @@ struct trace_event_data_t;
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class context;
 
@@ -156,6 +156,13 @@ using PiExtSyncPoint = ::pi_ext_sync_point;
 using PiExtCommandBuffer = ::pi_ext_command_buffer;
 using PiExtCommandBufferDesc = ::pi_ext_command_buffer_desc;
 using PiPeerAttr = ::pi_peer_attr;
+using PiImageHandle = ::pi_image_handle;
+using PiImageMemHandle = ::pi_image_mem_handle;
+using PiImageCopyFlags = ::pi_image_copy_flags;
+using PiInteropMemHandle = ::pi_interop_mem_handle;
+using PiInteropSemaphoreHandle = ::pi_interop_semaphore_handle;
+using PiImageOffset = ::pi_image_offset_struct;
+using PiImageRegion = ::pi_image_region_struct;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
@@ -291,7 +298,7 @@ template <class To, class FromE> To cast(std::vector<FromE> Values) {
 } // namespace pi
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef _PI_API

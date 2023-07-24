@@ -211,7 +211,7 @@
 /// accessor(3)
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 class stream;
 namespace ext::intel::esimd::detail {
 // Forward declare a "back-door" access class to support ESIMD.
@@ -248,13 +248,14 @@ void __SYCL_EXPORT constructorNotification(void *BufferObj, void *AccessorObj,
                                            const code_location &CodeLoc);
 
 void __SYCL_EXPORT unsampledImageConstructorNotification(
-    void *ImageObj, void *AccessorObj, std::optional<image_target> Target,
-    access::mode Mode, const void *Type, uint32_t ElemSize,
-    const code_location &CodeLoc);
+    void *ImageObj, void *AccessorObj,
+    const std::optional<image_target> &Target, access::mode Mode,
+    const void *Type, uint32_t ElemSize, const code_location &CodeLoc);
 
 void __SYCL_EXPORT sampledImageConstructorNotification(
-    void *ImageObj, void *AccessorObj, std::optional<image_target> Target,
-    const void *Type, uint32_t ElemSize, const code_location &CodeLoc);
+    void *ImageObj, void *AccessorObj,
+    const std::optional<image_target> &Target, const void *Type,
+    uint32_t ElemSize, const code_location &CodeLoc);
 
 template <typename T>
 using IsPropertyListT = typename std::is_base_of<PropertyListBase, T>;
@@ -4074,7 +4075,7 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

@@ -16,7 +16,7 @@
 // 4.6.1 Device selection class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class device;
@@ -51,5 +51,5 @@ public:
 };
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 #endif // __SYCL_INTERNAL_API
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -27,7 +27,7 @@
 #include <thread>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 inline std::vector<info::fp_config> read_fp_bitfield(pi_device_fp_config bits) {
@@ -917,6 +917,13 @@ template <typename Param>
 typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
   static_assert(is_device_info_desc<Param>::value,
                 "Invalid device information descriptor");
+  if (std::is_same<Param,
+                   sycl::_V1::ext::intel::info::device::free_memory>::value) {
+    if (!Dev->has(aspect::ext_intel_free_memory))
+      throw invalid_object_error(
+          "The device does not have the ext_intel_free_memory aspect",
+          PI_ERROR_INVALID_DEVICE);
+  }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }
 
@@ -1815,5 +1822,5 @@ get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

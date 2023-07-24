@@ -854,6 +854,11 @@ private:
   /// construction of the device compilations.
   mutable std::vector<std::string> SYCLTargetMacroArgs;
 
+  /// Vector of Macros related to Device Traits that need to be added to the
+  /// device compilation in a SYCL based offloading scenario.  These macros are
+  /// gathered during creation of offloading device toolchains.
+  mutable llvm::opt::ArgStringList SYCLDeviceTraitsMacrosArgs;
+
   /// Return the typical executable name for the specified driver \p Mode.
   static const char *getExecutableForDriverMode(DriverMode Mode);
 
@@ -939,6 +944,16 @@ public:
   /// getSYCLUniqueID - Get the Unique ID associated with the file.
   StringRef getSYCLUniqueID(StringRef FileName) const {
     return SYCLUniqueIDList[FileName];
+  }
+
+  /// Reads device config file to find information about the SYCL targets in
+  /// UniqueSYCLTriplesVec, and defines device traits macros accordingly.
+  void populateSYCLDeviceTraitsMacrosArgs(
+      const llvm::opt::ArgList &Args,
+      const llvm::SmallVector<llvm::Triple, 4> &UniqueSYCLTriplesVec);
+
+  llvm::opt::ArgStringList getDeviceTraitsMacrosArgs() const {
+    return SYCLDeviceTraitsMacrosArgs;
   }
 };
 

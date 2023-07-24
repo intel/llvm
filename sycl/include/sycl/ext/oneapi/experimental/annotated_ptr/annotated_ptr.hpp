@@ -13,14 +13,50 @@
 
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/annotated_arg/properties.hpp>
+#include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
+#include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+
+//===----------------------------------------------------------------------===//
+//        Specific properties of annotated_ptr
+//===----------------------------------------------------------------------===//
+struct alignment_key {
+  template <int K>
+  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
+};
+
+template <int K> inline constexpr alignment_key::value_t<K> alignment;
+
+template <> struct is_property_key<alignment_key> : std::true_type {};
+
+template <typename T, int W>
+struct is_valid_property<T, alignment_key::value_t<W>>
+    : std::bool_constant<std::is_pointer<T>::value> {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+namespace detail {
+
+template <> struct PropertyToKind<alignment_key> {
+  static constexpr PropKind Kind = PropKind::Alignment;
+};
+
+template <> struct IsCompileTimeProperty<alignment_key> : std::true_type {};
+
+template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
+  static constexpr const char *name = "sycl-alignment";
+  static constexpr int value = N;
+};
+
+} // namespace detail
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
@@ -28,6 +64,33 @@ namespace {
     (*m_Ptr) op rhs;                                                           \
     return *this;                                                              \
   }
+
+// compare strings on compile time
+constexpr bool compareStrs(const char *Str1, const char *Str2) {
+  return std::string_view(Str1) == Str2;
+}
+
+// filter properties with AllowedPropsTuple via name checking
+template <typename TestProps, typename AllowedPropsTuple>
+struct PropertiesAreAllowed {};
+
+template <typename TestProps, typename... AllowedProps>
+struct PropertiesAreAllowed<TestProps, std::tuple<const AllowedProps...>> {
+  static constexpr const bool allowed =
+      (compareStrs(detail::PropertyMetaInfo<TestProps>::name,
+                   detail::PropertyMetaInfo<AllowedProps>::name) ||
+       ...);
+};
+
+template <typename... Ts>
+using tuple_cat_t = decltype(std::tuple_cat(std::declval<Ts>()...));
+
+template <typename AllowedPropTuple, typename... Props>
+struct PropertiesFilter {
+  using tuple = tuple_cat_t<typename std::conditional<
+      PropertiesAreAllowed<Props, AllowedPropTuple>::allowed, std::tuple<Props>,
+      std::tuple<>>::type...>;
+};
 
 template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_ref {
@@ -41,22 +104,30 @@ class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
 private:
-  T *m_Ptr
-#ifdef __SYCL_DEVICE_ONLY__
-      [[__sycl_detail__::add_ir_annotations_member(
-          detail::PropertyMetaInfo<Props>::name...,
-          detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-      ;
+  T *m_Ptr;
 
 public:
   annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
   annotated_ref(const annotated_ref &) = default;
 
-  operator T() const { return *m_Ptr; }
+  operator T() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return *__builtin_intel_sycl_ptr_annotation(
+        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+        detail::PropertyMetaInfo<Props>::value...);
+#else
+    return *m_Ptr;
+#endif
+  }
 
   annotated_ref &operator=(const T &Obj) {
+#ifdef __SYCL_DEVICE_ONLY__
+    *__builtin_intel_sycl_ptr_annotation(
+        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+        detail::PropertyMetaInfo<Props>::value...) = Obj;
+#else
     *m_Ptr = Obj;
+#endif
     return *this;
   }
 
@@ -97,8 +168,24 @@ template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
-  using reference =
-      sycl::ext::oneapi::experimental::annotated_ref<T, property_list_t>;
+
+  // buffer_location and alignment are allowed for annotated_ref
+  using allowed_properties =
+      std::tuple<decltype(ext::intel::experimental::buffer_location<0>),
+                 decltype(ext::oneapi::experimental::alignment<0>)>;
+  using filtered_properties =
+      typename PropertiesFilter<allowed_properties, Props...>::tuple;
+
+  // template unpack helper
+  template <typename... FilteredProps> struct unpack {};
+
+  template <typename... FilteredProps>
+  struct unpack<std::tuple<FilteredProps...>> {
+    using type = detail::properties_t<FilteredProps...>;
+  };
+
+  using reference = sycl::ext::oneapi::experimental::annotated_ref<
+      T, typename unpack<filtered_properties>::type>;
 
 #ifdef __SYCL_DEVICE_ONLY__
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;
@@ -121,6 +208,12 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 public:
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
+  static_assert(check_property_list<T *, Props...>::value,
+                "The property list contains invalid property.");
+  // check the set if FPGA specificed properties are used
+  static_assert(detail::checkValidFPGAPropertySet<Props...>::value,
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
+                "can only be set with BufferLocation together.");
 
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
@@ -246,5 +339,5 @@ public:
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
