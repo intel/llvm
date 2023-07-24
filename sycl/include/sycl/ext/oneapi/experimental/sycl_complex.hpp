@@ -1047,7 +1047,7 @@ public:
       typename = std::enable_if_t<
           sycl::detail::AllSuitableArgTypes<ComplexDataT, ArgTN...>::value &&
           sycl::detail::GetMArrayArgsSize<ArgTN...>::value == NumElements>>
-  constexpr marray(const ArgTN &... Args)
+  constexpr marray(const ArgTN &...Args)
       : marray{
             sycl::detail::MArrayArgArrayCreator<ComplexDataT, ArgTN...>::Create(
                 Args...),
