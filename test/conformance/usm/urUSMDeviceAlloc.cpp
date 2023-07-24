@@ -40,11 +40,11 @@ TEST_P(urUSMDeviceAllocTest, SuccessWithDescriptors) {
 
     ur_usm_device_desc_t usm_device_desc{UR_STRUCTURE_TYPE_USM_DEVICE_DESC,
                                          nullptr,
-                                         /* device flags*/ 0};
+                                         /* device flags */ 0};
 
     ur_usm_desc_t usm_desc{UR_STRUCTURE_TYPE_USM_DESC, &usm_device_desc,
-                           /* common usm flags */ 0,
-                           /* mem advice flags*/ UR_USM_ADVICE_FLAG_DEFAULT};
+                           /* mem advice flags */ UR_USM_ADVICE_FLAG_DEFAULT,
+                           /* alignment */ 0};
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, &usm_desc, nullptr,

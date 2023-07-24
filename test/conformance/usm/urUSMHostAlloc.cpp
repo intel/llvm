@@ -60,11 +60,11 @@ TEST_P(urUSMHostAllocTest, Success) {
 TEST_P(urUSMHostAllocTest, SuccessWithDescriptors) {
 
     ur_usm_host_desc_t usm_host_desc{UR_STRUCTURE_TYPE_USM_HOST_DESC, nullptr,
-                                     /* host flags*/ 0};
+                                     /* host flags */ 0};
 
     ur_usm_desc_t usm_desc{UR_STRUCTURE_TYPE_USM_DESC, &usm_host_desc,
-                           /* common usm flags */ 0,
-                           /* mem advice flags*/ UR_USM_ADVICE_FLAG_DEFAULT};
+                           /* mem advice flags */ UR_USM_ADVICE_FLAG_DEFAULT,
+                           /* alignment */ 0};
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(
