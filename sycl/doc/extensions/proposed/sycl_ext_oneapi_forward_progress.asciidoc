@@ -42,7 +42,7 @@ SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../proposed/sycl_ext_oneapi_kernel_properties.asciidoc[
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties]
 
 [NOTE]
