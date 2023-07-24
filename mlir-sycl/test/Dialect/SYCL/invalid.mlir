@@ -625,3 +625,64 @@ func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
 func.func @f0() {
   func.return
 }
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op '@f0' expects CGF function to have internal linkage}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+llvm.func @f0(%arg0: !llvm.ptr, %arg1: !llvm.ptr) {
+  llvm.return
+}
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op '@f0' expects CGF function type to be (!llvm.ptr, !llvm.ptr) -> ()}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+llvm.func internal @f0(%arg0: !llvm.ptr, %arg1: i64) {
+  llvm.return
+}
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op '@f0' expects CGF function type to be (!llvm.ptr, !llvm.ptr) -> ()}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+llvm.func internal @f0(%arg0: !llvm.ptr) {
+  llvm.return
+}
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op '@f0' expects CGF function type to be (!llvm.ptr, !llvm.ptr) -> ()}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+llvm.func internal @f0(%arg0: !llvm.ptr, %arg1: !llvm.ptr) -> i64 {
+  %0 = llvm.mlir.constant(0 : i64) : i64
+  llvm.return %0 : i64
+}
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op '@f0' expects CGF function type to be (!llvm.ptr, !llvm.ptr) -> ()}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+llvm.func internal @f0(%arg0: !llvm.ptr, ...) {
+  llvm.return
+}

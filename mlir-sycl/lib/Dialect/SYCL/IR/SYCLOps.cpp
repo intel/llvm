@@ -606,6 +606,24 @@ SYCLHostSubmitOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   if (!cgf)
     return emitOpError("'")
            << symbol << "' does not reference a valid CGF function";
+  if (cgf.getLinkage() != LLVM::Linkage::Internal)
+    return emitOpError("'")
+           << symbol << "' expects CGF function to have internal linkage";
+  constexpr auto hasValidCGFSignature = [](LLVM::LLVMFuncOp cgf) {
+    if (cgf.isVarArg())
+      return false;
+    ArrayRef<Type> resultTypes = cgf.getResultTypes();
+    ArrayRef<Type> argumentTypes = cgf.getArgumentTypes();
+    return resultTypes.size() == 1 && isa<LLVM::LLVMVoidType>(resultTypes[0]) &&
+           argumentTypes.size() == 2 &&
+           llvm::all_of(argumentTypes, [](Type type) {
+             return isa<LLVM::LLVMPointerType>(type);
+           });
+  };
+  if (!hasValidCGFSignature(cgf))
+    return emitOpError("'")
+           << symbol
+           << "' expects CGF function type to be (!llvm.ptr, !llvm.ptr) -> ()";
   return success();
 }
 

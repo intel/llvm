@@ -149,7 +149,9 @@ func.func @schedule_kernel_range_with_offset(%range: !llvm.ptr, %offset: !llvm.p
   func.return
 }
 
-llvm.func @cgf()
+llvm.func internal @cgf(%arg0: !llvm.ptr, %arg1: !llvm.ptr) {
+  llvm.return
+}
 
 // CHECK-LABEL:   func.func @submit_kernel(
 // CHECK-SAME:                             %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: !llvm.ptr, %[[VAL_3:.*]]: !llvm.ptr) {
