@@ -25,7 +25,7 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 class multi_ptr;
@@ -823,5 +823,5 @@ inline sycl::sub_group this_sub_group() {
 } // namespace experimental
 } // namespace ext::oneapi
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

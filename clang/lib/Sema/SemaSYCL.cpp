@@ -5185,7 +5185,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "\n";
 
   O << "namespace sycl {\n";
-  O << "__SYCL_INLINE_VER_NAMESPACE(_V1) {\n";
+  O << "inline namespace _V1 {\n";
   O << "namespace detail {\n";
 
   // Generate declaration of variable of type __sycl_device_global_registration
@@ -5348,7 +5348,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "\n";
   O << "} // namespace detail\n";
-  O << "} // __SYCL_INLINE_VER_NAMESPACE(_V1)\n";
+  O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
   O << "\n";
 }
@@ -5660,7 +5660,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     } else {
       EmittedFirstSpecConstant = true;
       OS << "namespace sycl {\n";
-      OS << "__SYCL_INLINE_VER_NAMESPACE(_V1) {\n";
+      OS << "inline namespace _V1 {\n";
       OS << "namespace detail {\n";
       OS << "template<>\n";
       OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
@@ -5678,7 +5678,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       OS << "\";\n";
       OS << "}\n";
       OS << "} // namespace detail\n";
-      OS << "} // __SYCL_INLINE_VER_NAMESPACE(_V1)\n";
+      OS << "} // namespace _V1\n";
       OS << "} // namespace sycl\n";
     }
   }
