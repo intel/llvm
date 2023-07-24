@@ -1508,9 +1508,8 @@ public:
 
     // There should be exactly one store to the marked pointer.
     Value annotatedPtr = op.getVal();
-    auto [store, lambdaObj] =
-        getUniqueAssignment(annotatedPtr, /*allowMemcpy=*/false);
-    if (!store)
+    auto [store, lambdaObj] = getUniqueAssignment(annotatedPtr);
+    if (!store || !isa<LLVM::StoreOp>(store))
       return failure();
 
     auto alloca = dyn_cast_or_null<LLVM::AllocaOp>(lambdaObj.getDefiningOp());
@@ -1527,7 +1526,10 @@ public:
     // Look for unique assignments that represent the capturing of kernel args.
     // Assuming the no-op `getelementptr %lambdaObj[0, 0]` was folded, the
     // first capture is actually a store to the pointer.
-    if (auto [captureOp, capturedVal] = getUniqueAssignment(lambdaObj);
+    // Note that `lambdaObj` is stored into `annotatedPtr` (this is how we found
+    // it in the first place), hence we have to specifically allow that here.
+    if (auto [captureOp, capturedVal] =
+            getUniqueAssignment(lambdaObj, annotatedPtr);
         captureOp) {
       capturedVal = tryToBroaden(capturedVal, captureTypes[0]);
       rewriter.setInsertionPointAfter(captureOp);
@@ -1571,10 +1573,10 @@ private:
   /// stored value/copied-from pointer; otherwise return `nullptr` and an emtpy
   /// value.
   static std::tuple<Operation *, Value>
-  getUniqueAssignment(Value ptr, bool allowMemcpy = true) {
+  getUniqueAssignment(Value ptr, Value allowStoreTo = Value()) {
     Operation *op = nullptr;
     Value value;
-    for (auto *user : ptr.getUsers())
+    for (auto *user : ptr.getUsers()) {
       if (auto v = TypeSwitch<Operation *, Value>(user)
                        .Case<LLVM::StoreOp>([&](auto st) {
                          return st.getAddr() == ptr ? st.getValue() : Value();
@@ -1589,7 +1591,29 @@ private:
 
         op = user;
         value = v;
+      } else {
+        // Marker intrinsics, and reading from the pointer are unproblematic.
+        // (We already know that `ptr` is not the memcpy's `dst` operand.)
+        if (isa<LLVM::LifetimeStartOp, LLVM::LifetimeEndOp, LLVM::VarAnnotation,
+                LLVM::LoadOp, LLVM::MemcpyOp>(user))
+          continue;
+
+        // GEPs with only constant indices have a non-zero offset to `ptr`
+        // (otherwise they would've been folded away).
+        if (auto gep = dyn_cast<LLVM::GEPOp>(user);
+            gep && cast<LLVM::GEPOp>(user).getDynamicIndices().empty())
+          continue;
+
+        // Storing `ptr` somewhere else is only allowed if specifically
+        // requested by the caller.
+        if (auto st = dyn_cast<LLVM::StoreOp>(user);
+            st && st.getAddr() == allowStoreTo)
+          continue;
+
+        // Unexpected user; conservatively assume that assignment is not unique.
+        return {nullptr, Value()};
       }
+    }
 
     return {op, value};
   }
