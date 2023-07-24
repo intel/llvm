@@ -26,6 +26,11 @@ on:
           if inputs.target_devices contains 'ext_oneapi_hip'
         type: string
         required: False
+      tests_selector:
+        description: |
+          Two possible options: "e2e" and "cts".
+        type: string
+        default: "e2e"
 
       ref:
         type: string
@@ -92,12 +97,22 @@ on:
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
           - 'ext_intel_esimd_emulator:gpu'
+      tests_selector:
+        type: choice
+        options:
+          - e2e
+          - cts
 
       env:
         description: |
-          Suggested variables: LIT_FILTER, LIT_FILTER_OUT. LIT_OPTS won't work
-          as we redefine it as part of this workflow.
-        default: '{"LIT_FILTER":""}'
+          Suggested variables: for E2E tests - LIT_FILTER, LIT_FILTER_OUT.
+          LIT_OPTS won't work as we redefine it as part of this workflow.
+
+          For SYCL CTS - CTS_TEST_ARGS that will be passed as an argument to the
+          test_all executable.
+
+          Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
+        default: '{}'
 
       install_drivers:
         type: choice
@@ -106,7 +121,7 @@ on:
           - true
 
 jobs:
-  lin_e2e_only:
+  run:
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
@@ -126,12 +141,27 @@ jobs:
           devops
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
-    - uses: ./devops/actions/cached_checkout
+    - name: Checkout E2E tests
+      if: inputs.tests_selector == 'e2e'
+      uses: ./devops/actions/cached_checkout
       with:
         path: llvm
         ref: ${{ inputs.ref || github.sha }}
         merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
+    - name: Checkout SYCL CTS tests
+      if: inputs.tests_selector == 'cts'
+      uses: ./devops/actions/cached_checkout
+      with:
+        path: khronos_sycl_cts
+        repository: 'KhronosGroup/SYCL-CTS'
+        ref: 'SYCL-2020'
+        default_branch: 'SYCL-2020'
+        cache_path: "/__w/repo_cache/"
+    - name: SYCL CTS GIT submodules init
+      if: inputs.tests_selector == 'cts'
+      run: |
+        git -C khronos_sycl_cts submodule update --init
     - name: Install drivers
       if: inputs.install_drivers == 'true'
       run: |
@@ -179,12 +209,16 @@ jobs:
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
     - run: SYCL_PI_TRACE=-1 sycl-ls
-    - name: Deduce CMake options
+
+    - name: Deduce E2E CMake options
+      if: inputs.tests_selector == 'e2e'
       id: cmake_opts
       shell: bash
+      env:
+        CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
       run: |
-        if [ -n "${{ inputs.extra_cmake_args }}" ]; then
-          echo 'opts=${{ inputs.extra_cmake_args }}' >> $GITHUB_OUTPUT
+        if [ -n "$CMAKE_EXTRA_ARGS" ]; then
+          echo 'opts=$CMAKE_EXTRA_ARGS' >> $GITHUB_OUTPUT
         else
           if [ "${{ contains(inputs.target_devices, 'ext_oneapi_hip')  }}" == "true" ]; then
             echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
@@ -192,12 +226,34 @@ jobs:
             echo 'opts=' >> $GITHUB_OUTPUT
           fi
         fi
-    - run: echo ${{ steps.cmake_opts.outputs.opts }}
-    - name: Configure
+    - name: Configure E2E tests
+      if: inputs.tests_selector == 'e2e'
       run: |
         cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.target_devices }}" -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
     - name: SYCL End-to-end tests
+      if: inputs.tests_selector == 'e2e'
       env:
         LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests
       run: |
         ninja -C build-e2e check-sycl-e2e
+
+    - name: Build SYCL CTS tests
+      if: inputs.tests_selector == 'cts'
+      env:
+        CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
+      run: |
+        cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
+        -DSYCL_IMPLEMENTATION=DPCPP \
+        -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$PWD/devops/cts_exclude_filter" \
+        -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
+        -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
+        -DDPCPP_INSTALL_DIR="$$(dirname (which clang++))/.." \
+        $CMAKE_EXTRA_ARGS
+        ninja -C build-cts
+    - name: Run SYCL CTS tests
+      if: inputs.tests_selector == 'cts'
+      env:
+        ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
+      run: |
+        ./build-cts/bin/test_all --list-devices
+        ./build-cts/bin/test_all $CTS_TEST_ARGS
