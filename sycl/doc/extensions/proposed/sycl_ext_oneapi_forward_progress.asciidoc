@@ -177,7 +177,12 @@ combination of the forward progress guarantees provided by the work-item
 threads of execution and the forward progress guarantees provided by the
 sub-group, work-group and root-group threads of execution. Often, correct
 execution of a kernel requires knowledge of the forward progress guarantees
-of a certain subset of these threads of execution.
+of a certain subset of these threads of execution. For example, kernels using
+atomic operations to coordinate sub-groups in the same work-group only require
+the threads of execution associated with sub-groups to provide concurrent or
+parallel forward progress guarantees---there is no requirement for the
+work-item, work-group or root-group threads of execution to provide any
+specific forward progress guarantees.
 
 To facilitate reasoning about work-item coordination, the forward progress
 guarantees of threads of execution in SYCL can be qualified by a _coordination
@@ -199,6 +204,7 @@ work-item scope.
 Qualifying a thread of execution's forward progress guarantees with a coordination
 scope can be thought of as a shorthand for combining the forward progress
 guarantees provided by each thread of execution in the hierarchy.
+
 For example, consider a hypothetical implementation that creates a separate
 `std::thread` (providing concurrent forward progress guarantees) to execute
 each sub-group, but which permits an unbounded number of work-groups executed
@@ -211,6 +217,28 @@ are weakened to reflect that the creation of a sub-group depends upon a
 specific work-group (task) being scheduled and making progress.
 ====
 
+[NOTE]
+====
+Choosing a coordination scope is similar to choosing a memory scope for atomic
+operations, in that it describes the potential set of threads of execution
+that a thread _may_ attempt to coordinate with, and must be chosen to reflect
+a kernel's dynamic communication pattern rather than static properties of its
+source code.
+
+For example, consider a kernel using locks/mutexes. Attempting to acquire a
+lock is a blocking operation, and so if two threads of execution providing
+weakly parallel forward progress guarantees attempt to acquire the lock
+simultaneously this will result in a deadlock. To correctly avoid a deadlock,
+the developer must correctly identify the coordination scope: if any work-item
+may try to acquire the lock, then work-items require stronger forward progress
+guarantees at root-group coordination scope; if each work-group has its own
+private data structure(s), and only work-items within the same work-group may
+try to acquire the same lock, then work-items require stronger forward progress
+guarantees only at work-group coordination scope.
+
+For performance reasons, a coordination scope will typically be the narrowest
+scope containing all threads that may coordinate with one another.
+====
 
 === Forward progress guarantees
 
