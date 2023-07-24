@@ -21,7 +21,7 @@
 #include <cstdint>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_memory
@@ -36,19 +36,6 @@ namespace ext::intel::esimd {
 /// @defgroup sycl_esimd_memory_slm Shared local memory access functions.
 
 /// @} sycl_esimd_memory
-
-/// @cond ESIMD_DETAIL
-
-namespace detail {
-// Type used in internal functions to designate SLM access by
-// providing dummy accessor of this type. Used to make it possible to delegate
-// implemenations of SLM memory accesses to general surface-based memory
-// accesses and thus reuse validity checks etc.
-struct LocalAccessorMarker {};
-
-} // namespace detail
-
-/// @endcond ESIMD_DETAIL
 
 /// @addtogroup sycl_esimd_memory
 /// @{
@@ -275,40 +262,30 @@ scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
   scatter<Tx, N>(p, simd<Toffset, N>(offset), vals, mask);
 }
 
-/// Loads a contiguous block of memory from given memory address and returns
-/// the loaded data as a vector. Actual code generated depends on the
-/// alignment parameter.
+/// Loads a contiguous block of memory from the given memory address \p addr
+/// and returns the loaded data as a vector.
+/// The generated code depends on the combination {T, N, Flags}.
+/// Providing flags specifying the alignment of 16-bytes or more produces more
+/// efficient code. If the alignment is smaller than 16-bytes, then less
+/// efficient gather is generated. If the loaded vector is too long
+/// for 1 flat-load GPU instruction, then a series of flat-loads and/or gathers
+/// may be generated.
 /// @tparam Tx Element type.
-/// @tparam N Number of elements to load, <code>N * sizeof(Tx)</code> must be
-///    1, 2, 4 or 8 owords long.
-/// @tparam Flags The alignment specifier type tag. Auto-deduced from the
-///    \c Flags parameter. If it is less than \c 16, then slower unaligned
-///    access is generated, otherwise the access is aligned.
+/// @tparam N Number of elements to load.
+/// @tparam Flags The alignment specifier type tag.
 /// @param addr The address to load from.
 /// @param Flags Specifies the alignment.
 /// @return A vector of loaded elements.
 ///
-template <typename Tx, int N, typename Flags = vector_aligned_tag,
-          class T = detail::__raw_t<Tx>,
-          typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-__ESIMD_API simd<Tx, N> block_load(const Tx *addr, Flags = {}) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= detail::OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % detail::OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
-                "block size must be at most 8 owords");
-
-  uintptr_t Addr = reinterpret_cast<uintptr_t>(addr);
-  if constexpr (Flags::template alignment<simd<T, N>> >=
-                detail::OperandSize::OWORD) {
-    return __esimd_svm_block_ld<T, N>(Addr);
-  } else {
-    return __esimd_svm_block_ld_unaligned<T, N>(Addr);
-  }
+template <typename Tx, int N,
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
+__ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>, simd<Tx, N>>
+block_load(const Tx *addr, Flags = {}) {
+  using T = typename detail::__raw_t<Tx>;
+  using VecT = typename simd<T, N>::raw_vector_type;
+  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
+  return __esimd_svm_block_ld<T, N, Align>(
+      reinterpret_cast<const VecT *>(addr));
 }
 
 /// Loads a contiguous block of memory from given accessor and offset and
@@ -365,28 +342,29 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
 #endif
 }
 
-/// Stores elements of a vector to a contiguous block of memory at given
-/// address. The address must be at least \c 16 bytes-aligned.
+/// Stores elements of the vector \p vals to a contiguous block of memory
+/// at the given address \p addr.
+/// The generated code depends on the combination {T, N, Flags}.
+/// Providing flags specifying the alignment of 16-bytes or more produces more
+/// efficient code. If the alignment is smaller than 16-bytes, then less
+/// efficient scatter is generated. If the stored vector is too long
+/// for 1 flat-store GPU instruction, then a series of flat-store and/or
+/// scatters may be generated.
 /// @tparam Tx Element type.
-/// @tparam N Number of elements to store, <code>N * sizeof(Tx)</code> must be
-///    1, 2, 4 or 8 owords long.
-/// @param p The memory address to store at.
+/// @tparam N Number of elements to store.
+/// @tparam Flags The alignment specifier type tag.
+/// @param addr The memory address to store at.
 /// @param vals The vector to store.
-///
-template <typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API void block_store(Tx *p, simd<Tx, N> vals) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= detail::OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % detail::OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
-                "block size must be at most 8 owords");
-
-  uintptr_t Addr = reinterpret_cast<uintptr_t>(p);
-  __esimd_svm_block_st<T, N>(Addr, vals.data());
+/// @param Flags Specifies the alignment.
+template <typename Tx, int N,
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
+__ESIMD_API __ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>>
+block_store(Tx *addr, simd<Tx, N> vals, Flags = {}) {
+  using T = typename detail::__raw_t<Tx>;
+  using VecT = typename simd<T, N>::raw_vector_type;
+  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
+  __esimd_svm_block_st<T, N, Align>(reinterpret_cast<VecT *>(addr),
+                                    vals.data());
 }
 
 /// Stores elements of a vector to a contiguous block of memory represented by
@@ -1842,52 +1820,50 @@ slm_scatter_rgba(simd<uint32_t, N> offsets,
       mask.data(), si, global_offset, offsets.data(), vals.data());
 }
 
-/// Loads a contiguous block of memory from the SLM at given offset and
-/// returns the loaded data as a vector.
+/// Loads a contiguous block of SLM memory referenced by the given byte-offset
+/// \p offset, then returns the loaded data as a simd object.
+/// The generated code depends on the combination {T, N, Flags}.
+/// Providing flags specifying the alignment of 16-bytes or more produces more
+/// efficient code. If the alignment is smaller than 16-bytes, then less
+/// efficient gather is generated. If the loaded vector is too long
+/// for 1 flat-load GPU instruction, then a series of flat-loads and/or gathers
+/// may be generated.
 /// @tparam T Element type.
-/// @tparam N Number of elements to load, <code>N * sizeof(Tx)</code> must be
-///    1, 2, 4 or 8 owords long.
-/// @param offset The offset to load from in bytes. Must be oword-aligned.
+/// @tparam N Number of elements to load.
+/// @tparam Flags The alignment specifier type tag.
+/// @param offset The byte-offset to load from.
+/// @param Flags Specifies the alignment.
 /// @return A vector of loaded elements.
 ///
-template <typename T, int N>
-__ESIMD_API simd<T, N> slm_block_load(uint32_t offset) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= detail::OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % detail::OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 16 * detail::OperandSize::OWORD,
-                "block size must be at most 16 owords");
-
-  const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
-  return __esimd_oword_ld<detail::__raw_t<T>, N>(si, offset >> 4);
+template <typename T, int N,
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
+__ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>, simd<T, N>>
+slm_block_load(uint32_t offset, Flags = {}) {
+  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
+  return __esimd_slm_block_ld<detail::__raw_t<T>, N, Align>(offset);
 }
 
-/// Stores elements of a vector to a contiguous block of SLM at given
-/// offset.
+/// Stores elements of the vector \p vals to a contiguous block of SLM memory
+/// at the given byte-offset \p offset.
+/// The generated code depends on the combination {T, N, Flags}.
+/// Providing flags specifying the alignment of 16-bytes or more produces more
+/// efficient code. If the alignment is smaller than 16-bytes, then less
+/// efficient scatter is generated. If the stored vector is too long
+/// for 1 flat-store GPU instruction, then a series of flat-store and/or
+/// scatters may be generated.
 /// @tparam T Element type.
-/// @tparam N Number of elements to store, <code>N * sizeof(Tx)</code> must be
-///    1, 2, 4 or 8 owords long.
-/// @param offset The offset in bytes to store at. Must be oword-aligned.
+/// @tparam N Number of elements to store.
+/// @tparam Flags The alignment specifier type tag.
+/// @param offset The byte-offset to store at.
 /// @param vals The vector to store.
+/// @param Flags Specifies the alignment.
 ///
-template <typename T, int N>
-__ESIMD_API void slm_block_store(uint32_t offset, simd<T, N> vals) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= detail::OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % detail::OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
-                "block size must be at most 8 owords");
-  const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
-  // offset in genx.oword.st is in owords
-  __esimd_oword_st<detail::__raw_t<T>, N>(si, offset >> 4, vals.data());
+template <typename T, int N,
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
+__ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>>
+slm_block_store(uint32_t offset, simd<T, N> vals, Flags = {}) {
+  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
+  __esimd_slm_block_st<detail::__raw_t<T>, N, Align>(offset, vals.data());
 }
 
 /// Atomic update operation performed on SLM. No source operands version.
@@ -1962,7 +1938,7 @@ __ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
 
   if constexpr (Width < RoundedWidth) {
     constexpr unsigned int n1 = RoundedWidth / sizeof(T);
-    simd<T, m *n1> temp =
+    simd<T, m * n1> temp =
         __esimd_media_ld<T, m, n1, Mod, SurfIndTy, (int)plane, BlockWidth>(
             si, x, y);
     return temp.template select<m, 1, N, 1>(0, 0);
@@ -2014,49 +1990,59 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
   }
 }
 
-/// Variant of block_load that uses local accessor as a parameter
-/// Loads a contiguous block of memory from given accessor and offset and
-/// returns the loaded data as a vector. Actual code generated depends on
-/// the alignment parameter.
+/// Loads a contiguous block of SLM memory referenced by the given
+/// local-accessor \p acc and byte-offset \p offset, then returns the loaded
+/// data as a simd object.
+/// The generated code depends on the combination {T, N, Flags}.
+/// Providing flags specifying the alignment of 16-bytes or more produces more
+/// efficient code. If the alignment is smaller than 16-bytes, then less
+/// efficient gather is generated. If the loaded vector is too long
+/// for 1 flat-load GPU instruction, then a series of flat-loads and/or gathers
+/// may be generated.
 /// @tparam Tx Element type.
-/// @tparam N Number of elements to load, <code>N * sizeof(Tx)</code> must
-/// be 1, 2, 4 or 8 owords long.
+/// @tparam N Number of elements to load.
 /// @tparam AccessorTy Accessor type (auto-deduced).
-/// @tparam Flags The alignment specifier type tag. Auto-deduced from the
-///    \c Flags parameter. If it is less than \c 16, then slower unaligned
-///    access is generated, otherwise the access is aligned.
-/// @param acc The accessor.
+/// @tparam Flags The alignment specifier type tag.
+/// @param acc The local accessor.
 /// @param offset The offset to load from in bytes.
+/// @param Flags Specifies the alignment.
 /// @return A vector of loaded elements.
 ///
 template <typename Tx, int N, typename AccessorTy,
-          typename = std::enable_if_t<
-              sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>>
-__ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset) {
-  return slm_block_load<Tx, N>(offset +
-                               __ESIMD_DNS::localAccessorToOffset(acc));
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
+__ESIMD_API std::enable_if_t<
+    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+        is_simd_flag_type_v<Flags>,
+    simd<Tx, N>>
+block_load(AccessorTy acc, uint32_t offset, Flags = {}) {
+  return slm_block_load<Tx, N, Flags>(offset +
+                                      __ESIMD_DNS::localAccessorToOffset(acc));
 }
 
-/// Variant of block_store that uses local accessor as a parameter
-/// Stores elements of a vector to a contiguous block of memory represented
-/// by an accessor and an offset within this accessor.
+/// Stores elements of the vector \p vals to a contiguous block of SLM memory
+/// represented by the given local accessor and the byte-offset \p offset.
+/// The generated code depends on the combination {T, N, Flags}.
+/// Providing flags specifying the alignment of 16-bytes or more produces more
+/// efficient code. If the alignment is smaller than 16-bytes, then less
+/// efficient scatter is generated. If the stored vector is too long
+/// for 1 flat-store GPU instruction, then a series of flat-store and/or
+/// scatters may be generated.
 /// @tparam Tx Element type.
-/// @tparam N Number of elements to store, <code>N * sizeof(Tx)</code> must
-/// be
-///    1, 2, 4 or 8 owords long.
+/// @tparam N Number of elements to store.
 /// @tparam AccessorTy Accessor type (auto-deduced).
-/// @param acc The accessor to store to.
-/// @param offset The offset to store at. It is in bytes and must be a
-/// multiple
-///   of \c 16.
+/// @param acc The local accessor to store to.
+/// @param offset The byte-offset to store at.
 /// @param vals The vector to store.
+/// @param Flags Specifies the alignment.
 ///
-template <typename Tx, int N, typename AccessorTy>
+template <typename Tx, int N, typename AccessorTy,
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
 __ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
-block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals) {
-  slm_block_store<Tx, N>(offset + __ESIMD_DNS::localAccessorToOffset(acc),
-                         vals);
+    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    is_simd_flag_type_v<Flags>>
+block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals, Flags = {}) {
+  slm_block_store<Tx, N, Flags>(
+      offset + __ESIMD_DNS::localAccessorToOffset(acc), vals);
 }
 
 /// Variant of gather that uses local accessor as a parameter
@@ -2489,5 +2475,5 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc,
 /// @endcond EXCLUDE
 
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

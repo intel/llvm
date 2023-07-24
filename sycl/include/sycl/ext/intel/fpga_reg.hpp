@@ -12,7 +12,7 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel {
 
 // Returns a registered copy of the input
@@ -42,7 +42,7 @@ template <typename _T>
 
 } // namespace ext::intel
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 // Keep it consistent with FPGA attributes like intelfpga::memory()

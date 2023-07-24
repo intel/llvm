@@ -15,7 +15,7 @@ on:
         required: True
       image_options:
         type: string
-        required: False
+        required: True
 
       target_devices:
         type: string
@@ -54,10 +54,56 @@ on:
       reset_gpu:
         type: string
         required: False
+      install_drivers:
+        type: string
+        required: False
       env:
         type: string
         default: '{}'
         required: False
+
+  workflow_dispatch:
+    inputs:
+      runner:
+        type: choice
+        options:
+          - '["Linux", "gen12"]'
+          - '["amdgpu"]'
+      image:
+        description: |
+          Use option ending with ":build" for AMDGPU, ":latest" for the rest.
+        type: choice
+        options:
+          - 'ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest'
+          - 'ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build'
+      image_options:
+        description: |
+          Use option with "--device=/dev/kfd" for AMDGPU, without it for the rest.
+        type: choice
+        options:
+          - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN'
+      target_devices:
+        type: choice
+        options:
+          - 'opencl:cpu'
+          - 'opencl:gpu'
+          - 'opencl:acc'
+          - 'ext_oneapi_level_zero:gpu'
+          - 'ext_oneapi_hip:gpu'
+          - 'ext_intel_esimd_emulator:gpu'
+
+      env:
+        description: |
+          Suggested variables: LIT_FILTER, LIT_FILTER_OUT. LIT_OPTS won't work
+          as we redefine it as part of this workflow.
+        default: '{"LIT_FILTER":""}'
+
+      install_drivers:
+        type: choice
+        options:
+          - false
+          - true
 
 jobs:
   lin_e2e_only:
@@ -77,21 +123,28 @@ jobs:
       with:
         ref: ${{ inputs.ref }}
         sparse-checkout: |
-          devops/actions
+          devops
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - uses: ./devops/actions/cached_checkout
       with:
         path: llvm
-        ref: ${{ inputs.ref }}
+        ref: ${{ inputs.ref || github.sha }}
         merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
     - name: Install drivers
-      if: env.compute_runtime_tag != ''
+      if: inputs.install_drivers == 'true'
+      run: |
+        # TODO install into image
+        sudo apt install -yq jq
+        sudo cp devops/scripts/get_release.py /opt/
+        sudo -E devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
+    - name: Install drivers (deprecated CI interface)
+      if: env.compute_runtime_tag != '' && inputs.install_drivers != 'true'
       run: |
         if [ -e /opt/install_drivers.sh ]; then
           # TODO pack this script into container
-          sudo cp llvm/devops/scripts/get_release.py /opt/
+          sudo cp devops/scripts/get_release.py /opt/
           sudo -E /opt/install_drivers.sh --all
         fi
     - name: Source OneAPI TBB vars.sh

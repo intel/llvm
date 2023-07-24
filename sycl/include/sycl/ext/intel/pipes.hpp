@@ -13,7 +13,7 @@
 #include <sycl/stl.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel {
 
 template <class _name, class _dataT, int32_t _min_capacity = 0> class pipe {
@@ -227,5 +227,5 @@ private:
 
 } // namespace ext::intel
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
