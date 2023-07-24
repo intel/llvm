@@ -30,7 +30,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class queue;
@@ -61,7 +61,6 @@ public:
     BarrierWaitlist = 6,
     Fill = 7,
     UpdateHost = 8,
-    RunOnHostIntel = 9,
     CopyUSM = 10,
     FillUSM = 11,
     PrefetchUSM = 12,
@@ -190,8 +189,7 @@ public:
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
-    assert((getType() == RunOnHostIntel || getType() == Kernel) &&
-           "Wrong type of exec kernel CG.");
+    assert(getType() == Kernel && "Wrong type of exec kernel CG.");
   }
 
   CGExecKernel(const CGExecKernel &CGExec) = default;
@@ -499,6 +497,17 @@ public:
   size_t getOffset() { return MOffset; }
 };
 
+/// "Execute command-buffer" command group class.
+class CGExecCommandBuffer : public CG {
+public:
+  sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+
+  CGExecCommandBuffer(sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+                      CG::StorageInitHelper CGData)
+      : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
+        MCommandBuffer(CommandBuffer) {}
+};
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

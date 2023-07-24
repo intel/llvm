@@ -2068,15 +2068,24 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_LValueBitCast:
   case CK_ObjCObjectLValueCast: {
     Address Addr = EmitLValue(E).getAddress(CGF);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Addr = Addr.withElementType(CGF.ConvertTypeForMem(DestTy));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Addr = Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(DestTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     LValue LV = CGF.MakeAddrLValue(Addr, DestTy);
     return EmitLoadOfLValue(LV, CE->getExprLoc());
   }
 
   case CK_LValueToRValueBitCast: {
     LValue SourceLVal = CGF.EmitLValue(E);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Address Addr = SourceLVal.getAddress(CGF).withElementType(
+        CGF.ConvertTypeForMem(DestTy));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Address Addr = Builder.CreateElementBitCast(SourceLVal.getAddress(CGF),
                                                 CGF.ConvertTypeForMem(DestTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     LValue DestLV = CGF.MakeAddrLValue(Addr, DestTy);
     DestLV.setTBAAInfo(TBAAAccessInfo::getMayAliasInfo());
     return EmitLoadOfLValue(DestLV, CE->getExprLoc());
@@ -5172,7 +5181,11 @@ LValue CodeGenFunction::EmitObjCIsaExpr(const ObjCIsaExpr *E) {
   }
 
   // Cast the address to Class*.
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Addr = Addr.withElementType(ConvertType(E->getType()));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Addr = Builder.CreateElementBitCast(Addr, ConvertType(E->getType()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   return MakeAddrLValue(Addr, E->getType());
 }
 

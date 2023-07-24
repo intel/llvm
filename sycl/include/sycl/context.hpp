@@ -8,26 +8,21 @@
 
 #pragma once
 
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
+#include <sycl/async_handler.hpp>
+#include <sycl/backend_types.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/exception_list.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
 
 // 4.6.2 Context class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declarations
 class device;
 class platform;
+
 namespace detail {
 class context_impl;
 }
@@ -243,7 +238,7 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

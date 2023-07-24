@@ -27,12 +27,12 @@
 #include <stdexcept>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class Builder;
 
 // Implements a barrier accross work items within a work group.
-static inline void workGroupBarrier() {
+inline void workGroupBarrier() {
 #ifdef __SYCL_DEVICE_ONLY__
   constexpr uint32_t flags =
       static_cast<uint32_t>(
@@ -711,5 +711,5 @@ template <int Dims> group<Dims> this_group() {
 #endif
 }
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

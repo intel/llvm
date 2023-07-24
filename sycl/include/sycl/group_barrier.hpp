@@ -19,7 +19,7 @@
 #include <sycl/sub_group.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename Group>
 std::enable_if_t<is_group_v<Group>>
@@ -37,5 +37,5 @@ group_barrier(Group G, memory_scope FenceScope = Group::fence_scope) {
 #endif
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

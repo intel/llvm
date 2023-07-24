@@ -733,7 +733,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 
   try {
     ur_program_handle_t_ *UrProgram =
-        new ur_program_handle_t_(ur_program_handle_t_::Exe, Context, ZeModule);
+        new ur_program_handle_t_(ur_program_handle_t_::Exe, Context, ZeModule,
+                                 Properties->isNativeHandleOwned);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -747,13 +748,10 @@ ur_program_handle_t_::~ur_program_handle_t_() {
   // According to Level Zero Specification, all kernels and build logs
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
-  // printf("ZeBuildLog %lx\n", (unsigned long int)ZeBuildLog);
   if (ZeBuildLog) {
     ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLog));
   }
 
-  // printf("ZeModule %lx OwnZeModule %d\n", (unsigned long int)ZeModule,
-  // OwnZeModule);
   if (ZeModule && OwnZeModule) {
     ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
   }

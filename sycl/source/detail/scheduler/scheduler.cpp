@@ -22,7 +22,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
@@ -87,8 +87,10 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
 }
 
-EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
-                              const QueueImplPtr &Queue) {
+EventImplPtr Scheduler::addCG(
+    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
   EventImplPtr NewEvent = nullptr;
   const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
@@ -132,7 +134,9 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     }
     default:
       auto Result = MGraphBuilder.addCG(std::move(CommandGroup),
-                                        std::move(Queue), AuxiliaryCmds);
+                                        std::move(Queue), AuxiliaryCmds,
+                                        CommandBuffer, std::move(Dependencies));
+
       NewCmd = Result.NewCmd;
       NewEvent = Result.NewEvent;
       ShouldEnqueue = Result.ShouldEnqueue;
@@ -616,5 +620,5 @@ KernelFusionCommand *Scheduler::isPartOfActiveFusion(Command *Cmd) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

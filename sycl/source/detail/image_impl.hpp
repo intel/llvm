@@ -22,7 +22,7 @@
 #include <sycl/stl.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // forward declarations
 enum class image_channel_order : unsigned int;
@@ -278,6 +278,18 @@ public:
     }
   }
 
+  void sampledImageConstructorNotification(const detail::code_location &CodeLoc,
+                                           void *UserObj, const void *HostObj,
+                                           uint32_t Dim, size_t Range[3],
+                                           image_format Format,
+                                           const image_sampler &Sampler);
+  void sampledImageDestructorNotification(void *UserObj);
+
+  void unsampledImageConstructorNotification(
+      const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
+      uint32_t Dim, size_t Range[3], image_format Format);
+  void unsampledImageDestructorNotification(void *UserObj);
+
 private:
   std::vector<device> getDevices(const ContextImplPtr Context);
 
@@ -338,5 +350,5 @@ private:
   std::optional<image_sampler> MSampler = std::nullopt;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

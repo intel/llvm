@@ -16,7 +16,7 @@
 #include <sycl/accessor.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 // Checks that given type is a SYCL accessor type. Sets its static field
@@ -44,8 +44,8 @@ using accessor_mode_cap_val_t = bool;
 
 // Denotes an accessor's capability - whether it can read or write.
 struct accessor_mode_cap {
-  static inline constexpr accessor_mode_cap_val_t can_read = false;
-  static inline constexpr accessor_mode_cap_val_t can_write = true;
+  static constexpr accessor_mode_cap_val_t can_read = false;
+  static constexpr accessor_mode_cap_val_t can_write = true;
 };
 
 template <sycl::access::mode Mode, accessor_mode_cap_val_t Cap>
@@ -86,7 +86,7 @@ __ESIMD_API uint32_t localAccessorToOffset(local_accessor<T, Dimensions> acc) {
 }
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

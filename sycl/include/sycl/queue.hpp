@@ -9,31 +9,11 @@
 #pragma once
 
 #include <sycl/detail/assert_happened.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/service_kernel_names.hpp>
-#include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
-#include <sycl/event.hpp>
-#include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/ext/oneapi/device_global/device_global.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/handler.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
-
-// Explicitly request format macros
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS 1
-#endif
-#include <cinttypes>
-#include <type_traits>
-#include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
 // Here we simplify the KernelFunc param is simplified to be
@@ -56,11 +36,12 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 class context;
 class device;
+class event;
 class queue;
 
 template <backend BackendName, class SyclObjectT>
@@ -71,10 +52,20 @@ namespace detail {
 class queue_impl;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-static event submitAssertCapture(queue &, event &, queue *,
+inline event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
 } // namespace detail
+
+namespace ext {
+namespace oneapi {
+namespace experimental {
+// State of a queue with regards to graph recording,
+// returned by info::queue::state
+enum class queue_state { executing, recording };
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
@@ -282,6 +273,9 @@ public:
 
   /// \return SYCL device this queue was constructed with.
   device get_device() const;
+
+  /// \return State the queue is currently in.
+  ext::oneapi::experimental::queue_state ext_oneapi_get_state() const;
 
   /// \return true if this queue is a SYCL host queue.
   __SYCL2020_DEPRECATED(
@@ -2269,8 +2263,29 @@ private:
                                const std::vector<event> &DepEvents);
 };
 
-namespace detail {
+} // namespace _V1
+} // namespace sycl
+
+namespace std {
+template <> struct hash<sycl::queue> {
+  size_t operator()(const sycl::queue &Q) const {
+    return std::hash<std::shared_ptr<sycl::detail::queue_impl>>()(
+        sycl::detail::getSyclObjImpl(Q));
+  }
+};
+} // namespace std
+
 #if __SYCL_USE_FALLBACK_ASSERT
+// Explicitly request format macros
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS 1
+#endif
+#include <cinttypes>
+
+namespace sycl {
+inline namespace _V1 {
+
+namespace detail {
 #define __SYCL_ASSERT_START 1
 /**
  * Submit copy task for assert failure flag and host-task to check the flag
@@ -2350,19 +2365,10 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
   return CheckerEv;
 }
 #undef __SYCL_ASSERT_START
-#endif // __SYCL_USE_FALLBACK_ASSERT
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
-
-namespace std {
-template <> struct hash<sycl::queue> {
-  size_t operator()(const sycl::queue &Q) const {
-    return std::hash<std::shared_ptr<sycl::detail::queue_impl>>()(
-        sycl::detail::getSyclObjImpl(Q));
-  }
-};
-} // namespace std
+#endif // __SYCL_USE_FALLBACK_ASSERT
 
 #undef __SYCL_USE_FALLBACK_ASSERT

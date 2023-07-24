@@ -23,7 +23,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 class context;
 class event;
 template <int Dims, bool WithOffset> class item;
@@ -252,5 +252,5 @@ template <size_t count, class F> void loop(F &&f) {
 }
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

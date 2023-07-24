@@ -100,18 +100,18 @@
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.  The same graph should be generated when no -fsycl-targets is used
-/// The same phase graph will be used with -fsycl-use-bitcode
+/// The same phase graph will be used with -fsycl-device-obj=llvmir
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
 // RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-use-bitcode -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-obj=spirv -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-use-bitcode -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fsycl-device-obj=spirv -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-use-bitcode -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-obj=llvmir -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fsycl-use-bitcode -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fsycl-device-obj=llvmir -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASES: 1: append-footer, {0}, c++, (host-sycl)
@@ -298,10 +298,10 @@
 /// ###########################################################################
 
 /// Check -fsycl-is-device and emitting to .spv when compiling for the device
-/// when using -fno-sycl-use-bitcode
-// RUN:   %clang -### -fno-sycl-use-bitcode -fsycl -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
+/// when using -fsycl-device-obj=spirv
+// RUN:   %clang -### -fsycl-device-obj=spirv -fsycl -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE-NO-BITCODE %s
-// RUN:   %clang_cl -### -fno-sycl-use-bitcode -fsycl -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl-device-obj=spirv -fsycl -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE-NO-BITCODE %s
 
 // CHK-FSYCL-IS-DEVICE-NO-BITCODE: clang{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc" {{.*}}.c
@@ -644,3 +644,30 @@
 // RUN: %clang -### -fsycl  %s 2>&1 | FileCheck -check-prefix FSYCL-CHECK %s
 // RUN: %clang_cl -### -fsycl  %s 2>&1 | FileCheck -check-prefix FSYCL-CHECK %s
 // FSYCL-CHECK: warning: treating 'c' input as 'c++' when -fsycl is used [-Wexpected-file-type]
+
+/// ###########################################################################
+
+/// Verify --offload-new-driver option phases
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 --offload-new-driver -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=OFFLOAD-NEW-DRIVER %s
+// OFFLOAD-NEW-DRIVER: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// OFFLOAD-NEW-DRIVER: 1: append-footer, {0}, c++, (host-sycl)
+// OFFLOAD-NEW-DRIVER: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// OFFLOAD-NEW-DRIVER: 3: compiler, {2}, ir, (host-sycl)
+// OFFLOAD-NEW-DRIVER: 4: input, "[[INPUT]]", c++, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 6: compiler, {5}, ir, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 7: backend, {6}, assembler, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 8: assembler, {7}, object, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 9: offload, "device-sycl (nvptx64-nvidia-cuda)" {8}, object
+// OFFLOAD-NEW-DRIVER: 10: input, "[[INPUT]]", c++, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 11: preprocessor, {10}, c++-cpp-output, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 12: compiler, {11}, ir, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 13: backend, {12}, assembler, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 14: assembler, {13}, object, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 15: offload, "device-sycl (spir64-unknown-unknown)" {14}, object
+// OFFLOAD-NEW-DRIVER: 16: clang-offload-packager, {9, 15}, image, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 17: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (x86_64-unknown-linux-gnu)" {16}, ir
+// OFFLOAD-NEW-DRIVER: 18: backend, {17}, assembler, (host-sycl)
+// OFFLOAD-NEW-DRIVER: 19: assembler, {18}, object, (host-sycl)
+// OFFLOAD-NEW-DRIVER: 20: clang-linker-wrapper, {19}, image, (host-sycl)

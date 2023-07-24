@@ -16,7 +16,7 @@
 #include <cstddef>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 ///
 // Explicit USM
 ///
@@ -296,5 +296,23 @@ T *aligned_alloc(
                           Kind, PropList, CodeLoc);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+// Device copy enhancement APIs, prepare_for and release_from USM.
+
+namespace ext::oneapi::experimental {
+
+__SYCL_EXPORT void prepare_for_device_copy(const void *Ptr, size_t Size,
+                                           const context &Context);
+
+__SYCL_EXPORT void prepare_for_device_copy(const void *Ptr, size_t Size,
+                                           const queue &Queue);
+
+__SYCL_EXPORT void release_from_device_copy(const void *Ptr,
+                                            const context &Context);
+
+__SYCL_EXPORT void release_from_device_copy(const void *Ptr,
+                                            const queue &Queue);
+
+} // namespace ext::oneapi::experimental
+
+} // namespace _V1
 } // namespace sycl
