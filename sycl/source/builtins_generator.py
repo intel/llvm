@@ -80,16 +80,39 @@ class TemplatedScalar(TemplatedType):
   def __hash__(self):
     return hash(("scalar", frozenset(self.valid_types)))
 
-class MultiPtr:
+class MultiPtr(TemplatedType):
   """
-  A class representing a sycl::multi_ptr type.
-  element_type - The type pointed to by the multi_ptr.
+  A class representing a templated sycl::multi_ptr type.
+  element_type - The type pointed to by the multi_ptr. If both this and
+    parent_idx is set, this will instead refer to the element type of the type
+    pointed to by the multi_ptr.
+  parent_idx - The index of the parent argument.
   """
-  def __init__(self, element_type):
+  def __init__(self, element_type=None, parent_idx=None):
     self.element_type = element_type
+    self.parent_idx = parent_idx
 
-  def __str__(self):
-    return f'multi_ptr<{self.element_type}, Space, IsDecorated>'
+  def get_pointed_to_type(self):
+    if self.parent_idx is not None and self.element_type is not None:
+      return f'detail::change_elements_t<{self.element_type}, T{self.parent_idx}>'
+    parent_type = f'T{self.parent_idx}' if self.parent_idx is not None else self.element_type
+    return f'detail::simplify_if_swizzle_t<{parent_type}>'
+
+  def get_requirements(self, type_name):
+    """
+    Gets the constexpr requirements of an multi_ptr type argument:
+    1. The argument must be a multi_ptr.
+    2. The address space is "writeable".
+    3. The type pointed to by the multi_ptr must be the same as the element
+         type.
+    """
+    result = [f'detail::is_multi_ptr_v<{type_name}>',
+              f'detail::has_writeable_addr_space_v<{type_name}>',
+              f'detail::is_valid_elem_type_v<{type_name}, {self.get_pointed_to_type()}>']
+    return result
+
+  def __hash__(self):
+    return hash(("multi_ptr", self.element_type))
 
 class RawPtr:
   """
@@ -156,7 +179,7 @@ class InstantiatedTemplatedReturnType:
   def __str__(self):
     if isinstance(self.templated_type, Vec):
       # Vectors need conversion as their related type may be a swizzle.
-      return f'detail::get_vec_t<{self.related_arg_type}>'
+      return f'detail::simplify_if_swizzle_t<{self.related_arg_type}>'
     return str(self.related_arg_type)
 
 class InstantiatedElementType:
@@ -293,17 +316,10 @@ intptr = [MultiPtr("int"), RawPtr("int")]
 floatptr = [MultiPtr("float"), RawPtr("float")]
 doubleptr = [MultiPtr("double"), RawPtr("double")]
 halfptr = [MultiPtr("half"), RawPtr("half")]
-vfloatnptr = [MultiPtr(Vec(["float"])), RawPtr(Vec(["float"]))]
-vdoublenptr = [MultiPtr(Vec(["double"])), RawPtr(Vec(["double"]))]
-vhalfnptr = [MultiPtr(Vec(["half"])), RawPtr(Vec(["half"]))]
-vgenfloatptr = [MultiPtr(Vec(["float", "double", "half"])),
-                RawPtr(Vec(["float", "double", "half"]))]
-mfloatnptr = [MultiPtr(Marray(["float"]))]
-mdoublenptr = [MultiPtr(Marray(["double"]))]
-mhalfnptr = [MultiPtr(Marray(["half"]))]
-mgenfloatptr = [MultiPtr(Marray(["float", "double", "half"]))]
-mintnptr = [MultiPtr(Marray(["int"]))]
-vint32ptr = [MultiPtr(Vec(["int32_t"])), RawPtr(Vec(["int32_t"]))]
+rawvgenfloatptr0 = [RawPtr(Vec(["float", "double", "half"]))]
+ptr0 = [MultiPtr(parent_idx=0)]
+intnptr0 = [MultiPtr("int", parent_idx=0)]
+vint32ptr0 = [MultiPtr("int32_t", parent_idx=0), RawPtr(Vec(["int32_t"]))]
 
 # To help resolve template arguments, these are given the index of their parent
 # argument.
@@ -379,10 +395,10 @@ builtin_types = {
   "floatptr" : floatptr,
   "doubleptr" : doubleptr,
   "halfptr" : halfptr,
-  "vgenfloatptr" : vgenfloatptr,
-  "mgenfloatptr" : mgenfloatptr,
-  "mintnptr" : mintnptr,
-  "vint32nptr" : vint32ptr,
+  "rawvgenfloatptr0" : rawvgenfloatptr0,
+  "ptr0" : ptr0,
+  "intnptr0" : intnptr0,
+  "vint32nptr0" : vint32ptr0,
   "elementtype0" : elementtype0,
   "unsignedtype0" : unsignedtype0,
   "samesizesignedint0" : samesizesignedint0,
@@ -433,6 +449,10 @@ def is_vec_arg(arg_type):
   """Returns true if the argument type is a templated vector."""
   return isinstance(arg_type, InstantiatedTemplatedArg) and isinstance(arg_type.templated_type, Vec)
 
+def is_multi_ptr_arg(arg_type):
+  """Returns true if the argument type is a templated multi_ptr."""
+  return isinstance(arg_type, InstantiatedTemplatedArg) and isinstance(arg_type.templated_type, MultiPtr)
+
 def convert_arg_name(arg_type, arg_name):
   """
   Converts an argument name to a valid argument to be passed to another
@@ -440,7 +460,7 @@ def convert_arg_name(arg_type, arg_name):
   the associated vector type, needed for swizzles.
   """
   if is_vec_arg(arg_type):
-    return f'detail::get_vec_t<{arg_type}>({arg_name})'
+    return f'detail::simplify_if_swizzle_t<{arg_type}>({arg_name})'
   return arg_name
 
 def get_invoke_args(arg_types, arg_names, convert_args=[]):
@@ -456,7 +476,7 @@ def get_invoke_args(arg_types, arg_names, convert_args=[]):
       # If the conversion is to a vector template argument, it could also be
       # a swizzle. Since we cannot convert most types to swizzles, we make
       # sure to make the conversion to the corresponding vector type instead.
-      conv = f'detail::get_vec_t<{conv}>'
+      conv = f'detail::simplify_if_swizzle_t<{conv}>'
     result[arg_idx] = f'{conv}({result[arg_idx]})'
   return result
 
@@ -509,8 +529,9 @@ class DefCommon:
     The variable I must be defined in the scope where the generated arguments
     are used and indicate the index of the used element.
     """
-    if isinstance(arg_type, MultiPtr):
-      return f'address_space_cast<Space, IsDecorated, detail::get_elem_type_t<{arg_type.element_type}>>(&(*{arg_name})[I])'
+    if is_multi_ptr_arg(arg_type):
+      pointed_to_type = arg_type.templated_type.get_pointed_to_type()
+      return f'address_space_cast<{arg_type}::address_space, detail::get_multi_ptr_decoration_v<{arg_type}>, detail::get_elem_type_t<{pointed_to_type}>>(&(*{arg_name})[I])'
     if is_marray_arg(arg_type):
       return str(arg_name) + '[I]'
     return str(arg_name)
@@ -577,7 +598,7 @@ class DefCommon:
     if first_marray_type.templated_type.valid_sizes:
       return self.get_marray_vec_cast_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type)
     # If there is a pointer argument, we need to use the simple loop solution.
-    if self.marray_use_loop or any([isinstance(arg_type, MultiPtr) for arg_type in arg_types]):
+    if self.marray_use_loop or any([is_multi_ptr_arg(arg_type) for arg_type in arg_types]):
       return self.get_marray_loop_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type)
     # Otherwise, we vectorize the body.
     return self.get_marray_vectorized_invoke_body(namespaced_builtin_name, return_type, arg_types, arg_names, first_marray_type)
@@ -676,8 +697,8 @@ def get_custom_any_all_vec_invoke(invoke_name):
   Creates a function for generating the custom body for either `any` or `all`
   scalar and vector builtins.
   """
-  return (lambda _, arg_types, arg_names: f"""  using VecT = detail::get_vec_t<{arg_types[0]}>;
-  return detail::rel_sign_bit_test_ret_t<detail::get_vec_t<VecT>>(
+  return (lambda _, arg_types, arg_names: f"""  using VecT = detail::simplify_if_swizzle_t<{arg_types[0]}>;
+  return detail::rel_sign_bit_test_ret_t<detail::simplify_if_swizzle_t<VecT>>(
       __sycl_std::__invoke_{invoke_name}<detail::rel_sign_bit_test_ret_t<VecT>>(
           detail::rel_sign_bit_test_arg_t<VecT>({get_invoke_args(arg_types, arg_names)[0]})));""")
 
@@ -729,13 +750,14 @@ sycl_builtins = {# Math functions
                           Def("vgenfloat", ["vgenfloat", "elementtype0"], convert_args=[(1,0)]),
                           Def("mgenfloat", ["mgenfloat", "elementtype0"])],
                  "fmod": [Def("genfloat", ["genfloat", "genfloat"])],
-                 "fract": [Def("vgenfloat", ["vgenfloat", "vgenfloatptr"]),
-                           Def("mgenfloat", ["mgenfloat", "mgenfloatptr"]),
+                 "fract": [Def("vgenfloat", ["vgenfloat", "rawvgenfloatptr0"]),
+                           Def("vgenfloat", ["vgenfloat", "ptr0"]),
+                           Def("mgenfloat", ["mgenfloat", "ptr0"]),
                            Def("float", ["float", "floatptr"]),
                            Def("double", ["double", "doubleptr"]),
                            Def("half", ["half", "halfptr"])],
-                 "frexp": [Def("vgenfloat", ["vgenfloat", "vint32nptr"]),
-                           Def("mgenfloat", ["mgenfloat", "mintnptr"], marray_use_loop=True),
+                 "frexp": [Def("vgenfloat", ["vgenfloat", "vint32nptr0"]),
+                           Def("mgenfloat", ["mgenfloat", "intnptr0"], marray_use_loop=True),
                            Def("float", ["float", "intptr"]),
                            Def("double", ["double", "intptr"]),
                            Def("half", ["half", "intptr"])],
@@ -753,8 +775,8 @@ sycl_builtins = {# Math functions
                            Def("double", ["double", "int"]),
                            Def("half", ["half", "int"])],
                  "lgamma": [Def("genfloat", ["genfloat"])],
-                 "lgamma_r": [Def("vgenfloat", ["vgenfloat", "vint32nptr"]),
-                              Def("mgenfloat", ["mgenfloat", "mintnptr"]),
+                 "lgamma_r": [Def("vgenfloat", ["vgenfloat", "vint32nptr0"]),
+                              Def("mgenfloat", ["mgenfloat", "intnptr0"]),
                               Def("float", ["float", "intptr"]),
                               Def("double", ["double", "intptr"]),
                               Def("half", ["half", "intptr"])],
@@ -766,8 +788,9 @@ sycl_builtins = {# Math functions
                  "mad": [Def("genfloat", ["genfloat", "genfloat", "genfloat"])],
                  "maxmag": [Def("genfloat", ["genfloat", "genfloat"])],
                  "minmag": [Def("genfloat", ["genfloat", "genfloat"])],
-                 "modf": [Def("vgenfloat", ["vgenfloat", "vgenfloatptr"]),
-                          Def("mgenfloat", ["mgenfloat", "mgenfloatptr"]),
+                 "modf": [Def("vgenfloat", ["vgenfloat", "rawvgenfloatptr0"]),
+                          Def("vgenfloat", ["vgenfloat", "ptr0"]),
+                          Def("mgenfloat", ["mgenfloat", "ptr0"]),
                           Def("float", ["float", "floatptr"]),
                           Def("double", ["double", "doubleptr"]),
                           Def("half", ["half", "halfptr"])],
@@ -790,8 +813,8 @@ sycl_builtins = {# Math functions
                           Def("half", ["half", "int"])],
                  "powr": [Def("genfloat", ["genfloat", "genfloat"], fast_math_invoke_name="native_powr")],
                  "remainder": [Def("genfloat", ["genfloat", "genfloat"])],
-                 "remquo": [Def("vgenfloat", ["vgenfloat", "vgenfloat", "vint32nptr"]),
-                            Def("mgenfloat", ["mgenfloat", "mgenfloat", "mintnptr"], marray_use_loop=True),
+                 "remquo": [Def("vgenfloat", ["vgenfloat", "vgenfloat", "vint32nptr0"]),
+                            Def("mgenfloat", ["mgenfloat", "mgenfloat", "intnptr0"], marray_use_loop=True),
                             Def("float", ["float", "float", "intptr"]),
                             Def("double", ["double", "double", "intptr"]),
                             Def("half", ["half", "half", "intptr"])],
@@ -804,8 +827,9 @@ sycl_builtins = {# Math functions
                  "round": [Def("genfloat", ["genfloat"])],
                  "rsqrt": [Def("genfloat", ["genfloat"], fast_math_invoke_name="native_rsqrt")],
                  "sin": [Def("genfloat", ["genfloat"], fast_math_invoke_name="native_sin")],
-                 "sincos": [Def("vgenfloat", ["vgenfloat", "vgenfloatptr"]),
-                            Def("mgenfloat", ["mgenfloat", "mgenfloatptr"]),
+                 "sincos": [Def("vgenfloat", ["vgenfloat", "rawvgenfloatptr0"]),
+                            Def("vgenfloat", ["vgenfloat", "ptr0"]),
+                            Def("mgenfloat", ["mgenfloat", "ptr0"]),
                             Def("float", ["float", "floatptr"]),
                             Def("double", ["double", "doubleptr"]),
                             Def("half", ["half", "halfptr"])],
@@ -1085,9 +1109,6 @@ def instantiate_arg(idx, arg):
   if isinstance(arg, TemplatedType):
     # Instantiate the template type by giving it a name based on its index.
     return InstantiatedTemplatedArg(f'T{idx}', arg)
-  if isinstance(arg, MultiPtr):
-    # Instantiate the pointed-to type.
-    return MultiPtr(instantiate_arg(idx, arg.element_type))
   if isinstance(arg, RawPtr):
     # Instantiate the pointed-to type.
     return RawPtr(instantiate_arg(idx, arg.element_type))
@@ -1102,13 +1123,10 @@ def instantiate_arg(idx, arg):
 def instantiate_return_type(return_type, instantiated_args):
   """Instantiates a return type by its type."""
   if isinstance(return_type, TemplatedType):
-    # Instantiate the tempalte type by giving it the first template argument
+    # Instantiate the template type by giving it the first template argument
     # in the function.
     first_templated = find_first_template_arg(instantiated_args)
     return InstantiatedTemplatedReturnType(str(first_templated), return_type)
-  if isinstance(return_type, MultiPtr):
-    # Instantiate the pointed-to type.
-    return MultiPtr(instantiate_return_type(return_type.element_type, instantiated_args))
   if isinstance(return_type, RawPtr):
     # Instantiate the pointed-to type.
     return RawPtr(instantiate_return_type(return_type.element_type, instantiated_args))
@@ -1180,7 +1198,7 @@ def get_all_template_args(arg_types):
   for arg_type in arg_types:
     if isinstance(arg_type, InstantiatedTemplatedArg):
       result.append(arg_type)
-    if isinstance(arg_type, MultiPtr) or isinstance(arg_type, RawPtr):
+    if isinstance(arg_type, RawPtr):
       result += get_all_template_args([arg_type.element_type])
   return result
 
@@ -1227,13 +1245,7 @@ def get_template_args(arg_types):
   template arguments.
   """
   temp_args = get_all_template_args(arg_types)
-  result = [f'typename {temp_arg.template_name}' for temp_arg in temp_args]
-  for t in arg_types:
-    if isinstance(t, MultiPtr):
-      result.append('access::address_space Space')
-      result.append('access::decorated IsDecorated')
-      break
-  return result
+  return [f'typename {temp_arg.template_name}' for temp_arg in temp_args]
 
 def get_deprecation(builtin, return_type, arg_types):
   """Gets the deprecation statement for a given builtin."""

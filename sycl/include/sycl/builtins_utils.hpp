@@ -130,6 +130,10 @@ struct is_valid_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                           Ts...>
     : std::bool_constant<check_type_in_v<typename VecT::element_type, Ts...>> {
 };
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress, typename... Ts>
+struct is_valid_elem_type<multi_ptr<ElementType, Space, DecorateAddress>, Ts...>
+    : std::bool_constant<check_type_in_v<ElementType, Ts...>> {};
 
 template <typename T>
 struct num_elements : std::integral_constant<size_t, 1> {};
@@ -152,20 +156,20 @@ constexpr bool is_valid_elem_type_v = is_valid_elem_type<T, Ts...>::value;
 template <typename T, int... Ns>
 constexpr bool is_valid_size_v = is_valid_size<T, Ns...>::value;
 
-// Utility for getting a vector type. This is the identity for a vector type
-// and the vector type that a swizzle can be converted to.
-template <typename T> struct get_vec;
-template <typename T, int N> struct get_vec<vec<T, N>> {
-  using type = vec<T, N>;
+// Utility for converting a swizzle to a vector or preserve the type if it isn't
+// a swizzle.
+template <typename T> struct simplify_if_swizzle {
+  using type = T;
 };
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
-struct get_vec<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                         OperationCurrentT, Indexes...>> {
+struct simplify_if_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                     OperationCurrentT, Indexes...>> {
   using type = vec<typename VecT::element_type, sizeof...(Indexes)>;
 };
 
-template <typename T> using get_vec_t = typename get_vec<T>::type;
+template <typename T>
+using simplify_if_swizzle_t = typename simplify_if_swizzle<T>::type;
 
 // Checks if the type of the operation is the same. For scalars and marray that
 // requires the types to be exact matches. For vector and swizzles it requires
@@ -176,7 +180,7 @@ template <typename T1, typename T2>
 struct is_same_op<
     T1, T2,
     std::enable_if_t<is_vec_or_swizzle_v<T1> && is_vec_or_swizzle_v<T2>>>
-    : std::is_same<get_vec_t<T1>, get_vec_t<T2>> {};
+    : std::is_same<simplify_if_swizzle_t<T1>, simplify_if_swizzle_t<T2>> {};
 
 template <typename T1, typename T2>
 constexpr bool is_same_op_v = is_same_op<T1, T2>::value;
@@ -302,10 +306,13 @@ struct change_elements<NewElemT,
           sizeof...(Indexes)>;
 };
 
+template <typename NewElemT, typename T>
+using change_elements_t = typename change_elements<NewElemT, T>::type;
+
 template <typename T>
-using int_elements_t = typename change_elements<int, T>::type;
+using int_elements_t = change_elements_t<int, T>;
 template <typename T>
-using bool_elements_t = typename change_elements<bool, T>::type;
+using bool_elements_t = change_elements_t<bool, T>;
 
 // For upsampling we look for an integer of double the size of the specified
 // type.
@@ -347,6 +354,30 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> X) {
     Marray[I] = X[I];
   return Marray;
 }
+
+template <typename T> struct get_multi_ptr_decoration;
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+struct get_multi_ptr_decoration<
+    multi_ptr<ElementType, Space, DecorateAddress>> {
+  static constexpr access::decorated value = DecorateAddress;
+};
+
+template <typename T>
+constexpr access::decorated get_multi_ptr_decoration_v =
+    get_multi_ptr_decoration<T>::value;
+
+template <typename T> struct has_writeable_addr_space : std::false_type {};
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+struct has_writeable_addr_space<multi_ptr<ElementType, Space, DecorateAddress>>
+    : std::bool_constant<Space == access::address_space::global_space ||
+                         Space == access::address_space::local_space ||
+                         Space == access::address_space::private_space ||
+                         Space == access::address_space::generic_space> {};
+
+template <typename T>
+constexpr bool has_writeable_addr_space_v = has_writeable_addr_space<T>::value;
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
