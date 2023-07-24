@@ -34,6 +34,7 @@ option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" OFF)
 option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
 option(UR_BUILD_TOOLS "build ur tools" ON)
+option(UMF_ENABLE_POOL_TRACKING "Build UMF with pool tracking" OFF)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

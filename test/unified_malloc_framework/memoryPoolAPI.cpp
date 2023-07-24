@@ -148,6 +148,7 @@ INSTANTIATE_TEST_SUITE_P(
             .second;
     }));
 
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(umfMultiPoolTest);
 INSTANTIATE_TEST_SUITE_P(
     mallocMultiPoolTest, umfMultiPoolTest, ::testing::Values([] {
         return umf::poolMakeUnique<umf_test::proxy_pool, 1>(
