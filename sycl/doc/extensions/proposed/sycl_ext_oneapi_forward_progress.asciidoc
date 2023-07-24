@@ -412,6 +412,14 @@ forward progress guarantees uses a compatible launch configuration, using the
 `ext_oneapi_get_info` function and descriptors from the `info::kernel`
 namespace.
 
+[NOTE]
+====
+The values returned by `ext_oneapi_get_info` account for _all_ properties
+attached to a kernel---not only those related to forward progress guarantees---
+as well as the usage of features like group algorithms and work-group local
+memory. Developers should assume that the values will differ across kernels.
+====
+
 [source,c++]
 ----
 namespace sycl {
