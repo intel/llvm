@@ -175,7 +175,8 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
     sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext), &NativeEvent,CodeLoc);
+                            getOrWaitEvents(DepEvents, MContext), &NativeEvent,
+                            CodeLoc);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
