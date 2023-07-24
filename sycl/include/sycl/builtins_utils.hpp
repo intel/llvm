@@ -309,10 +309,8 @@ struct change_elements<NewElemT,
 template <typename NewElemT, typename T>
 using change_elements_t = typename change_elements<NewElemT, T>::type;
 
-template <typename T>
-using int_elements_t = change_elements_t<int, T>;
-template <typename T>
-using bool_elements_t = change_elements_t<bool, T>;
+template <typename T> using int_elements_t = change_elements_t<int, T>;
+template <typename T> using bool_elements_t = change_elements_t<bool, T>;
 
 // For upsampling we look for an integer of double the size of the specified
 // type.
