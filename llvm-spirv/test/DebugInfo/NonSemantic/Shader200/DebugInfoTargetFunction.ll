@@ -11,11 +11,30 @@
 ; CHECK-SPIRV-DAG: String [[#Func:]] "foo_wrapper"
 ; CHECK-SPIRV-DAG: String [[#TargetFunc:]] "_Z3foov"
 
+; CHECK-SPIRV-DAG: TypeInt [[#TyInt32Id:]] 32 0
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant1Id:]] 1{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant2Id:]] 2{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant4Id:]] 4{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant5Id:]] 5{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant6Id:]] 6{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant8Id:]] 8{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TyInt32Id]] [[#Constant9Id:]] 9{{[[:space:]]}}
+
 ; CHECK-SPIRV-DAG: ExtInst [[#]] [[#DebugNone:]] [[#]] DebugInfoNone
 ; CHECK-SPIRV-DAG: ExtInst [[#]] [[#]] [[#]] DebugFunction [[#Func]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#DebugNone]] [[#TargetFunc]]
 
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Constant4Id]] [[#Constant4Id]] [[#Constant5Id]] [[#Constant6Id]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Constant5Id]] [[#Constant5Id]] [[#Constant1Id]] [[#Constant2Id]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Constant8Id]] [[#Constant8Id]] [[#Constant5Id]] [[#Constant6Id]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Constant9Id]] [[#Constant9Id]] [[#Constant1Id]] [[#Constant2Id]]
+
 ; CHECK-LLVM: define spir_func void @_Z11foo_wrapperv() {{.*}} !dbg ![[#DbgSubProg:]] {
-; CHECK-LLVM: ![[#DbgSubProg]] = distinct !DISubprogram(name: "foo_wrapper", linkageName: "_Z11foo_wrapperv", scope: null, file: ![[#]], line: 3, type: ![[#]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: ![[#]], templateParams: ![[#]], retainedNodes: ![[#]], targetFuncName: "_Z3foov")
+; CHECK-LLVM: ![[#Scope_foo_wrapper:]] = distinct !DISubprogram(name: "foo_wrapper", linkageName: "_Z11foo_wrapperv", scope: null, file: ![[#]], line: 3, type: ![[#]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: ![[#]], templateParams: ![[#]], targetFuncName: "_Z3foov")
+; CHECK-LLVM: !DILocation(line: 4, column: 5, scope: ![[#Scope_foo_wrapper]]
+; CHECK-LLVM: !DILocation(line: 5, column: 1, scope: ![[#Scope_foo_wrapper]]
+; CHECK-LLVM: ![[#Scope_boo:]] = distinct !DISubprogram(name: "boo", linkageName: "_Z3boov"
+; CHECK-LLVM: !DILocation(line: 8, column: 5, scope: ![[#Scope_boo]]
+; CHECK-LLVM: !DILocation(line: 9, column: 1, scope: ![[#Scope_boo]]
 
 ; ModuleID = 'example.bc'
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024"

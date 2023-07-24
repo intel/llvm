@@ -535,9 +535,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-  (void)SrcOffset;
-  (void)DstOffset;
-
   auto SrcBuffer = ur_cast<ur_mem_handle_t>(SrcMem);
   auto DstBuffer = ur_cast<ur_mem_handle_t>(DstMem);
 
@@ -553,8 +550,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
                                  CommandBuffer->Device));
 
   return enqueueCommandBufferMemCopyHelper(
-      UR_COMMAND_MEM_BUFFER_COPY, CommandBuffer, ZeHandleDst, ZeHandleSrc, Size,
-      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      UR_COMMAND_MEM_BUFFER_COPY, CommandBuffer, ZeHandleDst + DstOffset,
+      ZeHandleSrc + SrcOffset, Size, NumSyncPointsInWaitList, SyncPointWaitList,
+      SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(

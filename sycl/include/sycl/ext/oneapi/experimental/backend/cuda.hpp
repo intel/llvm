@@ -15,7 +15,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::cuda {
 
 // Implementation of ext_oneapi_cuda::make<device>
@@ -99,5 +99,5 @@ inline queue make_queue<backend::ext_oneapi_cuda>(
                             /*Backend*/ backend::ext_oneapi_cuda);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

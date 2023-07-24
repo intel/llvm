@@ -11,12 +11,14 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/property_list.hpp>
 
+#include <mutex>
 #include <unordered_map>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 enum class addressing_mode : unsigned int;
 enum class filtering_mode : unsigned int;
@@ -71,5 +73,5 @@ private:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -18,7 +18,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename To, typename From>
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
@@ -45,17 +45,5 @@ constexpr
 
 #endif // __cpp_lib_bit_cast
 }
-
-namespace detail {
-template <typename To, typename From>
-__SYCL2020_DEPRECATED("use 'sycl::bit_cast' instead")
-#if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
-constexpr
-#endif
-    To bit_cast(const From &from) noexcept {
-  return sycl::bit_cast<To>(from);
-}
-} // namespace detail
-
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

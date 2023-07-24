@@ -21,13 +21,25 @@ private:
 
   static constexpr uint32_t MaxWorkItemDimensions = 3u;
   size_t MaxWorkItemSizes[MaxWorkItemDimensions];
-  int MaxWorkGroupSize;
+  size_t MaxWorkGroupSize{0};
+  int MaxBlockDimY{0};
+  int MaxBlockDimZ{0};
+  int MaxRegsPerBlock{0};
 
 public:
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
                       ur_platform_handle_t platform)
       : CuDevice(cuDevice), CuContext(cuContext), EvBase(evBase), RefCount{1},
-        Platform(platform) {}
+        Platform(platform) {
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxBlockDimY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y, cuDevice));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxBlockDimZ, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z, cuDevice));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
+        cuDevice));
+  }
 
   ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
 
@@ -53,7 +65,13 @@ public:
     memcpy(RetMaxWorkItemSizes, MaxWorkItemSizes, RetSize);
   };
 
-  int getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
+  size_t getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
+
+  size_t getMaxBlockDimY() const noexcept { return MaxBlockDimY; };
+
+  size_t getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
+
+  size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);
