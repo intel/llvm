@@ -32,6 +32,8 @@
 #include <llvm/ADT/STLExtras.h>
 #include <type_traits>
 
+#define DEBUG_TYPE "sycl-raise-host"
+
 namespace mlir {
 namespace polygeist {
 #define GEN_PASS_DEF_SYCLRAISEHOSTCONSTRUCTS
@@ -1534,6 +1536,175 @@ private:
     Value value;
   };
 };
+
+/// This pattern detects stores (or memcpy ops) to specific elements in a kernel
+/// lambda object, and raises them to individual `sycl.host.set_captured` ops.
+/// The lambda object is found through an `llvm.intr.var.annotation` with the
+/// tag `kernel`.
+///
+/// Note: This pattern is intended to operate only on the compiler-generated
+/// lambda capturing code, which is idiomatic and can be reasonably expected to
+/// be alias-free. Hence, instead of employing DFA and alias analysis, the
+/// approach for finding assignments-of-interest is detecting GEPs of the form
+/// `<lambda obj>[0, <capture idx>]`.
+class RaiseSetCaptured : public OpHostRaisePattern<LLVM::VarAnnotation> {
+public:
+  using OpHostRaisePattern<LLVM::VarAnnotation>::OpHostRaisePattern;
+
+  LogicalResult matchAndRewrite(LLVM::VarAnnotation op,
+                                PatternRewriter &rewriter) const final {
+    // The annotation must be inside a handler function.
+    auto enclosingFunc = op->getParentOfType<LLVM::LLVMFuncOp>();
+    if (!enclosingFunc || !getHandler(enclosingFunc))
+      return failure();
+
+    // It must be a "kernel" annotation.
+    FailureOr<StringRef> failureOrAnnotationStr = getAnnotation(op);
+    if (failed(failureOrAnnotationStr) || *failureOrAnnotationStr != "kernel")
+      return failure();
+
+    // There should be exactly one store to the marked pointer.
+    Value annotatedPtr = op.getVal();
+    auto [store, lambdaObj] = getUniqueAssignment(annotatedPtr);
+    if (!store || !isa<LLVM::StoreOp>(store))
+      return failure();
+
+    auto alloca = dyn_cast_or_null<LLVM::AllocaOp>(lambdaObj.getDefiningOp());
+    if (!alloca || !alloca.getElemType().has_value())
+      return failure();
+
+    auto lambdaClassTy =
+        dyn_cast<LLVM::LLVMStructType>(alloca.getElemType().value());
+    if (!lambdaClassTy)
+      return failure();
+
+    auto captureTypes = lambdaClassTy.getBody();
+
+    // Look for unique assignments that represent the capturing of kernel args.
+    // Assuming the no-op `getelementptr %lambdaObj[0, 0]` was folded, the
+    // first capture is actually a store to the pointer.
+    // Note that `lambdaObj` is stored into `annotatedPtr` (this is how we found
+    // it in the first place), hence we have to specifically allow that here.
+    if (auto [captureOp, capturedVal] =
+            getUniqueAssignment(lambdaObj, annotatedPtr);
+        captureOp) {
+      capturedVal = tryToBroaden(capturedVal, captureTypes[0]);
+      rewriter.setInsertionPointAfter(captureOp);
+      rewriter.create<sycl::SYCLHostSetCaptured>(captureOp->getLoc(), lambdaObj,
+                                                 rewriter.getI64IntegerAttr(0),
+                                                 capturedVal);
+    }
+
+    // All other captures are unique assignments to GEPs with two constant
+    // indices `[0, <capture #>]` to the lambda object.
+    for (auto *user : lambdaObj.getUsers()) {
+      auto gep = dyn_cast<LLVM::GEPOp>(user);
+      if (!gep || !gep.getElemType().has_value() ||
+          gep.getElemType().value() != lambdaClassTy ||
+          !gep.getDynamicIndices().empty())
+        continue;
+
+      auto indices = gep.getRawConstantIndices();
+      if (indices.size() != 2 || indices[0] != 0)
+        continue;
+      unsigned captureIdx = indices[1];
+
+      auto [captureOp, capturedVal] = getUniqueAssignment(gep);
+      if (!captureOp)
+        continue;
+
+      capturedVal = tryToBroaden(capturedVal, captureTypes[captureIdx]);
+      rewriter.setInsertionPointAfter(captureOp);
+      rewriter.create<sycl::SYCLHostSetCaptured>(
+          captureOp->getLoc(), lambdaObj,
+          rewriter.getI64IntegerAttr(captureIdx), capturedVal);
+    }
+
+    // Finally erase the annotation op.
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  /// If there is exactly one store or memcpy to \p ptr, return it and the
+  /// stored value/copied-from pointer; otherwise return `nullptr` and an emtpy
+  /// value.
+  static std::tuple<Operation *, Value>
+  getUniqueAssignment(Value ptr, Value allowStoreTo = Value()) {
+    Operation *op = nullptr;
+    Value value;
+    for (auto *user : ptr.getUsers()) {
+      if (auto v = TypeSwitch<Operation *, Value>(user)
+                       .Case<LLVM::StoreOp>([&](auto st) {
+                         return st.getAddr() == ptr ? st.getValue() : Value();
+                       })
+                       .Case<LLVM::MemcpyOp>([&](auto mc) {
+                         return mc.getDst() == ptr ? mc.getSrc() : Value();
+                       })
+                       .Default(Value())) {
+        if (op)
+          // Assignment is not unique.
+          return {nullptr, Value()};
+
+        op = user;
+        value = v;
+      } else {
+        // Marker intrinsics, and reading from the pointer are unproblematic.
+        // (We already know that `ptr` is not the memcpy's `dst` operand.)
+        if (isa<LLVM::LifetimeStartOp, LLVM::LifetimeEndOp, LLVM::VarAnnotation,
+                LLVM::LoadOp, LLVM::MemcpyOp>(user))
+          continue;
+
+        // GEPs with only constant indices have a non-zero offset to `ptr`
+        // (otherwise they would've been folded away).
+        if (auto gep = dyn_cast<LLVM::GEPOp>(user);
+            gep && cast<LLVM::GEPOp>(user).getDynamicIndices().empty()) {
+          assert(llvm::any_of(gep.getRawConstantIndices(),
+                              [](auto idx) { return idx > 0; }));
+          continue;
+        }
+
+        // Storing `ptr` somewhere else is only allowed if specifically
+        // requested by the caller.
+        if (auto st = dyn_cast<LLVM::StoreOp>(user);
+            st && st.getAddr() == allowStoreTo)
+          continue;
+
+        // Unexpected user; conservatively assume that assignment is not unique.
+        return {nullptr, Value()};
+      }
+    }
+
+    return {op, value};
+  }
+
+  // Use the \p expected type as domain knowledge to try to broaden an
+  // \p assigned value to an entity of interest (e.g. an accessor).
+  Value tryToBroaden(Value assigned, Type expected) const {
+    if (isClassType(expected, accessorTypeTag.getTypeName())) {
+      // The getelementpointer[0, <capture #>] we have matched earlier might not
+      // address the entire accessor, but rather the first member in the
+      // accessor class (think: getelementpointer[0, <capture #>, 0...]).
+      // Check whether the assigned value is a load from an alloca with the
+      // expected type (i.e. representing an accessor), and if so, return that
+      // address instead.
+      if (auto load = dyn_cast_or_null<LLVM::LoadOp>(assigned.getDefiningOp()))
+        if (auto alloca = dyn_cast_or_null<LLVM::AllocaOp>(
+                load.getAddr().getDefiningOp()))
+          if (auto elemTy = alloca.getElemType();
+              elemTy.has_value() && elemTy.value() == expected)
+            return load.getAddr();
+
+      LLVM_DEBUG(llvm::dbgs()
+                 << "tryToBroaden: Could not infer captured accessor\n");
+    }
+
+    // No special handling, just return the argument as-is.
+    return assigned;
+  }
+
+  AccessorTypeTag accessorTypeTag;
+};
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -1563,7 +1734,8 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
                                                                  /*benefit=*/3);
   rewritePatterns.add<RaiseNDRangeConstructor>(context,
                                                /*benefit=*/2);
-  rewritePatterns.add<RaiseSetNDRange>(context, /*benefit=*/1);
+  rewritePatterns.add<RaiseSetNDRange, RaiseSetCaptured>(context,
+                                                         /*benefit=*/1);
 
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
