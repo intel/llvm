@@ -1482,8 +1482,8 @@ private:
 
 /// This pattern detects stores (or memcpy ops) to specific elements in a kernel
 /// lambda object, and raises them to individual `sycl.host.set_captured` ops.
-/// The lambda object is found through an `llvm.var.annotation` with the tag
-/// `kernel`.
+/// The lambda object is found through an `llvm.intr.var.annotation` with the
+/// tag `kernel`.
 ///
 /// Note: This pattern is intended to operate only on the compiler-generated
 /// lambda capturing code, which is idiomatic and can be reasonably expected to
