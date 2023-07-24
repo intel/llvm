@@ -14,15 +14,25 @@ namespace exp_ext = sycl::ext::oneapi::experimental;
 // Make tests less verbose by using sycl namespace.
 using namespace sycl;
 
-// Macro for wrapping depends on calls when add_node is used so they are not
-// used in the explicit API
+// Helper functions for wrapping depends_on calls when add_node is used so they
+// are not used in the explicit API
+template <typename T> inline void depends_on_helper(sycl::handler &CGH, T Dep) {
 #ifdef GRAPH_E2E_RECORD_REPLAY
-#define DEPENDS_ON(CGH, EVENTS) CGH->depends_on(EVENTS)
-#else
-#define DEPENDS_ON(CGH, EVENTS)                                                \
-  do {                                                                         \
-  } while (0)
+  CGH.depends_on(Dep);
 #endif
+  (void)CGH;
+  (void)Dep;
+}
+
+template <typename T>
+inline void depends_on_helper(sycl::handler &CGH,
+                              std::initializer_list<T> DepList) {
+#ifdef GRAPH_E2E_RECORD_REPLAY
+  CGH.depends_on(DepList);
+#endif
+  (void)CGH;
+  (void)DepList;
+}
 
 // We have 4 versions of the same kernel sequence for testing a combination
 // of graph construction API against memory model. Each submits the same pattern

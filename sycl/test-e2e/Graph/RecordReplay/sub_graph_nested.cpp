@@ -6,6 +6,6 @@
 //
 // CHECK-NOT: LEAK
 
-#define GRAPH_E2E_EXPLICIT
+#define GRAPH_E2E_RECORD_REPLAY
 
-#include "../Inputs/usm_fill.cpp"
+#include "../Inputs/sub_graph_nested.cpp"
