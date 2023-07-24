@@ -130,6 +130,24 @@ static bool functionNameMatches(const llvm::ItaniumPartialDemangler &demangler,
          static_cast<StringRef>(*demangled) == targetName;
 }
 
+/// Returns whether the name of the function demangled by \p demangler is a
+/// constructor.
+static bool isConstructor(const llvm::ItaniumPartialDemangler &demangler) {
+  if (!demangler.isCtorOrDtor())
+    return false;
+
+  FailureOr<DemangleResult> demangled =
+      DemangleResult::get([&](char *buf, std::size_t *size) {
+        return demangler.finishDemangle(buf, size);
+      });
+  if (failed(demangled))
+    // Demangling failed
+    return false;
+
+  bool isDestructor = static_cast<StringRef>(*demangled).contains('~');
+  return !isDestructor;
+}
+
 /// Calls `partialDemangle` on \p demangler using the name of the function
 /// referenced by \p ref.
 static LogicalResult partialDemangle(llvm::ItaniumPartialDemangler &demangler,
@@ -422,8 +440,8 @@ public:
       // Constructor should not return anything.
       return failure();
 
-    if (!isConstructor(constructor))
-      // Invoke is not a constructor call.
+    if (!tag.isCandidate(constructor))
+      // Not handled by the tag.
       return failure();
 
     auto constructedType = tag.getTypeFromConstructor(constructor);
@@ -443,27 +461,6 @@ public:
   }
 
 private:
-  bool isConstructor(ConstructorOp call) const {
-    CallInterfaceCallable callableOp = call.getCallableForCallee();
-    StringRef funcName = callableOp.get<SymbolRefAttr>().getLeafReference();
-
-    llvm::ItaniumPartialDemangler Demangler;
-    Demangler.partialDemangle(funcName.data());
-    if (!Demangler.isCtorOrDtor())
-      return false;
-
-    FailureOr<DemangleResult> demangled =
-        DemangleResult::get([&](char *buf, std::size_t *size) {
-          return Demangler.finishDemangle(buf, size);
-        });
-    if (failed(demangled))
-      // Demangling failed
-      return false;
-
-    bool isDestructor = static_cast<StringRef>(*demangled).contains('~');
-    return !isDestructor;
-  }
-
   TypeTag tag;
 };
 
@@ -484,11 +481,28 @@ public:
   }
 };
 
+template <typename TypeTag>
+class RaiseCallConstructorBasePattern
+    : public RaiseConstructorBasePattern<
+          RaiseCallConstructorBasePattern<TypeTag>, LLVM::CallOp, TypeTag,
+          false> {
+public:
+  using RaiseConstructorBasePattern<RaiseCallConstructorBasePattern<TypeTag>,
+                                    LLVM::CallOp, TypeTag,
+                                    false>::RaiseConstructorBasePattern;
+};
+
 class BufferTypeTag {
 public:
   BufferTypeTag() : regex{"class.sycl::_V1::buffer(\\.[0-9]+])?"} {}
 
   const llvm::Regex &getTypeName() const { return regex; }
+
+  bool isCandidate(CallOpInterface constructor) const {
+    llvm::ItaniumPartialDemangler demangler;
+    return succeeded(partialDemangle(demangler, constructor)) &&
+           isConstructor(demangler);
+  }
 
   mlir::Type getTypeFromConstructor(CallOpInterface constructor) const {
     CallInterfaceCallable callableOp = constructor.getCallableForCallee();
@@ -541,6 +555,12 @@ public:
   AccessorTypeTag() : regex{"class.sycl::_V1::accessor(\\.[0-9]+])?"} {}
 
   const llvm::Regex &getTypeName() const { return regex; }
+
+  bool isCandidate(CallOpInterface constructor) const {
+    llvm::ItaniumPartialDemangler demangler;
+    return succeeded(partialDemangle(demangler, constructor)) &&
+           isConstructor(demangler);
+  }
 
   mlir::Type getTypeFromConstructor(CallOpInterface constructor) const {
     CallInterfaceCallable callableOp = constructor.getCallableForCallee();
@@ -617,6 +637,43 @@ struct AccessorInvokeConstructorPattern
     : public RaiseInvokeConstructorBasePattern<AccessorTypeTag> {
   using RaiseInvokeConstructorBasePattern<
       AccessorTypeTag>::RaiseInvokeConstructorBasePattern;
+};
+
+// `sycl::buffer::get_access` thinly wraps the construction of an accessor
+// object, hence the same patterns as for the actual constructor invocation
+// apply here as well.
+class GetAccessTypeTag : public AccessorTypeTag {
+public:
+  bool isCandidate(CallOpInterface constructor) const {
+    llvm::ItaniumPartialDemangler demangler;
+    if (failed(partialDemangle(demangler, constructor)))
+      return false;
+
+    FailureOr<DemangleResult> demangled =
+        DemangleResult::get([&](char *buf, std::size_t *size) {
+          return demangler.getFunctionDeclContextName(buf, size);
+        });
+    if (failed(demangled))
+      return false;
+
+    StringRef declContext = static_cast<StringRef>(*demangled);
+    // Can't use `isMemberFunction` because `sycl::buffer` is a template.
+    return declContext.startswith("sycl::_V1::buffer") &&
+           functionNameMatches(demangler, "get_access");
+  }
+};
+
+// Read-only `get_access` requests result in an `llvm.call`.
+struct GetAccessCallPattern
+    : public RaiseCallConstructorBasePattern<GetAccessTypeTag> {
+  using RaiseCallConstructorBasePattern<
+      GetAccessTypeTag>::RaiseCallConstructorBasePattern;
+};
+
+struct GetAccessInvokePattern
+    : public RaiseInvokeConstructorBasePattern<GetAccessTypeTag> {
+  using RaiseInvokeConstructorBasePattern<
+      GetAccessTypeTag>::RaiseInvokeConstructorBasePattern;
 };
 
 template <typename TypeTag>
@@ -1489,8 +1546,8 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
 
   RewritePatternSet rewritePatterns{context};
   rewritePatterns
-      .add<BufferInvokeConstructorPattern, AccessorInvokeConstructorPattern>(
-          context);
+      .add<BufferInvokeConstructorPattern, AccessorInvokeConstructorPattern,
+           GetAccessCallPattern, GetAccessInvokePattern>(context);
 
   // RaiseKernelName should be prioritized, as RaiseSetKernel depends on that.
   rewritePatterns.add<RaiseKernelName>(context, /*benefit=*/2);
