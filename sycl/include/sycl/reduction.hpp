@@ -11,6 +11,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/atomic_ref.hpp>
+#include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/tuple.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
@@ -19,14 +20,14 @@
 #include <sycl/kernel.hpp>
 #include <sycl/known_identity.hpp>
 #include <sycl/properties/reduction_properties.hpp>
-#include <sycl/reduction_forward.hpp>
+#include <sycl/sycl_span.hpp>
 #include <sycl/usm.hpp>
 
 #include <optional>
 #include <tuple>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /// Base non-template class which is a base class for all reduction
@@ -960,11 +961,9 @@ public:
       for (int i = 0; i < num_elements; ++i) {
         (*RWReduVal)[i] = decltype(MIdentityContainer)::getIdentity();
       }
-      CGH.addReduction(RWReduVal);
       auto Buf = std::make_shared<buffer<T, 1>>(RWReduVal.get()->data(),
                                                 range<1>(num_elements));
       Buf->set_final_data();
-      CGH.addReduction(Buf);
       accessor Mem{*Buf, CGH};
       Func(Mem);
 
@@ -975,6 +974,10 @@ public:
         // so use the old-style API.
         auto Mem =
             Buf->template get_access<access::mode::read_write>(CopyHandler);
+        // Since this CG is dependent on the one associated with CGH,
+        // registering the auxiliary resources here is enough.
+        CopyHandler.addReduction(RWReduVal);
+        CopyHandler.addReduction(Buf);
         if constexpr (is_usm) {
           // Can't capture whole reduction, copy into distinct variables.
           bool IsUpdateOfUserVar = !initializeToIdentity();
@@ -1356,7 +1359,7 @@ struct NDRangeReduction<
 };
 
 /// Computes the greatest power-of-two less than or equal to N.
-static inline size_t GreatestPowerOfTwo(size_t N) {
+inline size_t GreatestPowerOfTwo(size_t N) {
   if (N == 0)
     return 0;
 
@@ -2882,5 +2885,5 @@ auto reduction(span<T, Extent> Span, const T &Identity,
   return detail::make_reduction<BinaryOperation, 1, Extent, true>(
       Span.data(), Identity, Combiner, InitializeToIdentity);
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

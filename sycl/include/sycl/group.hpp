@@ -27,12 +27,12 @@
 #include <stdexcept>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class Builder;
 
 // Implements a barrier accross work items within a work group.
-static inline void workGroupBarrier() {
+inline void workGroupBarrier() {
 #ifdef __SYCL_DEVICE_ONLY__
   constexpr uint32_t flags =
       static_cast<uint32_t>(
@@ -526,9 +526,11 @@ public:
   /// Permitted types for DestDataT are all scalar and vector types. SrcDataT
   /// must be either the same as DestDataT or const DestDataT.
   template <typename DestDataT, typename SrcDataT>
-  device_event async_work_group_copy(decorated_local_ptr<DestDataT> dest,
-                                     decorated_global_ptr<SrcDataT> src,
-                                     size_t numElements) const {
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_local_ptr<DestDataT> dest,
+                        decorated_global_ptr<SrcDataT> src,
+                        size_t numElements) const {
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
@@ -539,9 +541,11 @@ public:
   /// Permitted types for DestDataT are all scalar and vector types. SrcDataT
   /// must be either the same as DestDataT or const DestDataT.
   template <typename DestDataT, typename SrcDataT>
-  device_event async_work_group_copy(decorated_global_ptr<DestDataT> dest,
-                                     decorated_local_ptr<SrcDataT> src,
-                                     size_t numElements) const {
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_global_ptr<DestDataT> dest,
+                        decorated_local_ptr<SrcDataT> src,
+                        size_t numElements) const {
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
@@ -707,5 +711,5 @@ template <int Dims> group<Dims> this_group() {
 #endif
 }
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

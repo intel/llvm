@@ -436,10 +436,13 @@ class ZeUSMImportExtension {
                                                  void *) = nullptr;
 
 public:
-  // Whether user has requested Import/Release, and platform supports it.
+  // Whether platform supports Import/Release.
+  bool Supported;
+
+  // Whether user has requested Import/Release for buffers.
   bool Enabled;
 
-  ZeUSMImportExtension() : Enabled{false} {}
+  ZeUSMImportExtension() : Supported{false}, Enabled{false} {}
 
   void setZeUSMImport(ur_platform_handle_t_ *Platform);
   void doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
@@ -451,7 +454,7 @@ public:
 extern ZeUSMImportExtension ZeUSMImport;
 
 // This will count the calls to Level-Zero
-extern std::map<const char *, int> *ZeCallCount;
+extern std::map<std::string, int> *ZeCallCount;
 
 // Some opencl extensions we know are supported by all Level Zero devices.
 constexpr char ZE_SUPPORTED_EXTENSIONS[] =

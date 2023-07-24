@@ -90,7 +90,7 @@ bool setEnvVar(const char *name, const char *value) {
 ZeUSMImportExtension ZeUSMImport;
 
 // This will count the calls to Level-Zero
-std::map<const char *, int> *ZeCallCount = nullptr;
+std::map<std::string, int> *ZeCallCount = nullptr;
 
 inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {

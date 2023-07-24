@@ -13,7 +13,7 @@
 #include <sycl/properties/property_traits.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace property::image {
 class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
 };
@@ -82,5 +82,5 @@ struct is_property_of<property::image::context_bound,
                       unsampled_image<Dimensions, AllocatorT>>
     : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

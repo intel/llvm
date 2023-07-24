@@ -45,7 +45,7 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 // TODO each backend can have its own custom errc enumeration
@@ -204,7 +204,6 @@ get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
 }
 #endif
 
-// Native handle of an accessor should be accessed through interop_handler
 template <backend BackendName, typename DataT, int Dimensions,
           access::mode AccessMode, access::target AccessTarget,
           access::placeholder IsPlaceholder>
@@ -364,5 +363,5 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
           false, State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

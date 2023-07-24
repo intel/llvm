@@ -26,7 +26,7 @@
 #include <sycl/sub_group.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // ---- linear_id_to_id
@@ -61,8 +61,7 @@ template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 template <>
-inline size_t
-get_local_linear_range<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
+inline size_t get_local_linear_range<sycl::sub_group>(sycl::sub_group g) {
   return g.get_local_range()[0];
 }
 
@@ -84,8 +83,8 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-inline ext::oneapi::sub_group::linear_id_type
-get_local_linear_id<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
+inline sycl::sub_group::linear_id_type
+get_local_linear_id<sycl::sub_group>(sycl::sub_group g) {
   return g.get_local_id()[0];
 }
 
@@ -1078,5 +1077,5 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   return joint_inclusive_scan(g, first, last, result, binary_op, init);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

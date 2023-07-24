@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include "sycl/half_type.hpp"
-#include <sycl/detail/defines.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/half_type.hpp>
 
@@ -186,12 +184,12 @@ struct ConstantPipeStorage {
 };
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 // Arbitrary precision integer type
 template <int Bits> using ap_int = _BitInt(Bits);
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif // __SYCL_DEVICE_ONLY__
 

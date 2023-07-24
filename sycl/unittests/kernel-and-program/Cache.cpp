@@ -39,7 +39,7 @@ public:
 
 namespace sycl {
 const static specialization_id<int> SpecConst1{42};
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<CacheTestKernel> : public unittest::MockKernelInfoBase {
@@ -53,7 +53,7 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
   return "SC1";
 }
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateDefaultImage() {

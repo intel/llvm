@@ -20,14 +20,10 @@
 
 // Forward declarations
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
 
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace gtl {
 // floating point types
@@ -591,5 +587,5 @@ using nonlocal_address_space_list =
                        access::address_space::ext_intel_global_host_space>;
 } // namespace gvl
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
