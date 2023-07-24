@@ -27,7 +27,7 @@
 #include <cstdint>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 // simd and simd_view_impl forward declarations
@@ -391,5 +391,5 @@ using computation_type_t =
 template <int N> using mask_type_t = detail::simd_mask_storage_t<N>;
 
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

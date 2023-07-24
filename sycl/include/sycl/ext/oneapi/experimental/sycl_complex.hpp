@@ -1,8 +1,7 @@
-// -*- C++ -*-
-//===----------------------------------------------------------------------===//
+//===- sycl_complex.hpp ---------------------------------------------------===//
 //
-// Adapted from the LLVM Project, under the Apache License v2.0 with LLVM
-// Exceptions. See https://llvm.org/LICENSE.txt for license information.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -20,7 +19,7 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -1004,7 +1003,7 @@ constexpr complex<float> operator""if(unsigned long long __im) {
 } // namespace oneapi
 } // namespace ext
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef _SYCL_EXT_CPLX_INLINE_VISIBILITY

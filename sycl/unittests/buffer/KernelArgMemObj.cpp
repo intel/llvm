@@ -15,7 +15,7 @@
 class TestKernelWithMemObj;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<TestKernelWithMemObj> : public unittest::MockKernelInfoBase {
@@ -30,7 +30,7 @@ struct KernelInfo<TestKernelWithMemObj> : public unittest::MockKernelInfoBase {
   static constexpr uint32_t getKernelSize() { return 32; }
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateImage() {

@@ -36,7 +36,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 class context;
@@ -2263,7 +2263,7 @@ private:
                                const std::vector<event> &DepEvents);
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {
@@ -2283,7 +2283,7 @@ template <> struct hash<sycl::queue> {
 #include <cinttypes>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 #define __SYCL_ASSERT_START 1
@@ -2367,7 +2367,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 #undef __SYCL_ASSERT_START
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif // __SYCL_USE_FALLBACK_ASSERT
 

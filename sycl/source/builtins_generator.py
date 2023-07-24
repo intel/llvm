@@ -1333,7 +1333,7 @@ def generate_file(directory, file_name, extra_includes, generated_builtins):
 #define __NOEXC /*noexcept*/
 
 namespace sycl {{
-__SYCL_INLINE_VER_NAMESPACE(_V1) {{
+inline namespace _V1 {{
 """)
 
     for (namespace, builtins) in generated_builtins:
@@ -1344,7 +1344,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {{
         f.write(f'}} // namespace {namespace}\n')
 
     f.write("""
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef __NOEXC

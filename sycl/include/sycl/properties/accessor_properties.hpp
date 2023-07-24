@@ -15,7 +15,7 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace property {
 
 class no_init : public detail::DataLessProperty<detail::NoInit> {};
@@ -220,5 +220,5 @@ template <>
 struct IsCompileTimePropertyInstance<
     ext::oneapi::property::no_offset::instance<>> : std::true_type {};
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

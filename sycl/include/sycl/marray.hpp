@@ -19,7 +19,7 @@
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename DataT, std::size_t N> class marray;
 
@@ -404,5 +404,5 @@ __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH(16)
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

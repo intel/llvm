@@ -84,6 +84,7 @@
 #include "llvm/Option/OptSpecifier.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ExitCodes.h"
@@ -103,9 +104,9 @@
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
+#include <optional>
 #include <regex>
 #include <sstream>
-#include <optional>
 #include <utility>
 #if LLVM_ON_UNIX
 #include <unistd.h> // getpid
@@ -1309,6 +1310,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       }
     }
   }
+  // Define macros associated with `any_device_has/all_devices_have` according
+  // to the aspects defined in the DeviceConfigFile for the SYCL targets.
+  populateSYCLDeviceTraitsMacrosArgs(C.getInputArgs(), UniqueSYCLTriplesVec);
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
   // going to create will depend on both.
@@ -3525,11 +3529,10 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
     // ignored by the driver and sent directly to the linker. When performing
     // offload, we should evaluate them at the driver level.
     if (A->getOption().matches(options::OPT__SLASH_link)) {
-      for (const std::string &Value : A->getValues()) {
+      for (StringRef Value : A->getValues()) {
         // Add any libpath values.
-        StringRef OptCheck(Value);
-        if (OptCheck.startswith_insensitive("-libpath:") ||
-            OptCheck.startswith_insensitive("/libpath:"))
+        if (Value.starts_with_insensitive("-libpath:") ||
+            Value.starts_with_insensitive("/libpath:"))
           LibPaths.emplace_back(Value.substr(std::string("-libpath:").size()));
         if (addLibArg(Value))
           continue;
@@ -3550,7 +3553,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
       // Without this history, we do not know that <dir> was assocated with
       // -rpath and is processed incorrectly.
       static std::string PrevArg;
-      for (const std::string &Value : A->getValues()) {
+      for (StringRef Value : A->getValues()) {
         auto addKnownValues = [&](const StringRef &V) {
           // Only add named static libs objects and --whole-archive options.
           if (optionMatches("-whole-archive", V.str()) ||
@@ -3587,7 +3590,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
           // Found a response file, we want to expand contents to try and
           // discover more libraries and options.
           SmallVector<const char *, 20> ExpandArgs;
-          ExpandArgs.push_back(Value.c_str());
+          ExpandArgs.push_back(Value.data());
 
           llvm::BumpPtrAllocator A;
           llvm::StringSaver S(A);
@@ -9705,9 +9708,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
   return *TC;
 }
 
-const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
-                  const llvm::Triple &Target, const ToolChain &HostTC,
-                  const Action::OffloadKind &TargetDeviceOffloadKind) const {
+const ToolChain &Driver::getOffloadingDeviceToolChain(
+    const ArgList &Args, const llvm::Triple &Target, const ToolChain &HostTC,
+    const Action::OffloadKind &TargetDeviceOffloadKind) const {
   // Use device / host triples offload kind as the key into the ToolChains map
   // because the device ToolChain we create depends on both.
   auto &TC = ToolChains[Target.str() + "/" + HostTC.getTriple().str() +
@@ -9717,53 +9720,53 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
     // the normal getToolChain call, as it seems a reasonable way to categorize
     // things.
     switch (TargetDeviceOffloadKind) {
-      case Action::OFK_Cuda:
-        TC = std::make_unique<toolchains::CudaToolChain>(
+    case Action::OFK_Cuda:
+      TC = std::make_unique<toolchains::CudaToolChain>(
           *this, Target, HostTC, Args, TargetDeviceOffloadKind);
-        break;
-      case Action::OFK_HIP: {
-        if (Target.getArch() == llvm::Triple::amdgcn &&
-            Target.getVendor() == llvm::Triple::AMD &&
-            Target.getOS() == llvm::Triple::AMDHSA)
-          TC = std::make_unique<toolchains::HIPAMDToolChain>(
-              *this, Target, HostTC, Args, TargetDeviceOffloadKind);
-        else if (Target.getArch() == llvm::Triple::spirv64 &&
-                 Target.getVendor() == llvm::Triple::UnknownVendor &&
-                 Target.getOS() == llvm::Triple::UnknownOS)
-          TC = std::make_unique<toolchains::HIPSPVToolChain>(*this, Target,
-                                                             HostTC, Args);
-        break;
-      }
-      case Action::OFK_OpenMP:
-        // omp + nvptx
-        TC = std::make_unique<toolchains::CudaToolChain>(
+      break;
+    case Action::OFK_HIP: {
+      if (Target.getArch() == llvm::Triple::amdgcn &&
+          Target.getVendor() == llvm::Triple::AMD &&
+          Target.getOS() == llvm::Triple::AMDHSA)
+        TC = std::make_unique<toolchains::HIPAMDToolChain>(
+            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+      else if (Target.getArch() == llvm::Triple::spirv64 &&
+               Target.getVendor() == llvm::Triple::UnknownVendor &&
+               Target.getOS() == llvm::Triple::UnknownOS)
+        TC = std::make_unique<toolchains::HIPSPVToolChain>(*this, Target,
+                                                           HostTC, Args);
+      break;
+    }
+    case Action::OFK_OpenMP:
+      // omp + nvptx
+      TC = std::make_unique<toolchains::CudaToolChain>(
           *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+      break;
+    case Action::OFK_SYCL:
+      switch (Target.getArch()) {
+      case llvm::Triple::spir:
+      case llvm::Triple::spir64:
+        TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target, HostTC,
+                                                         Args);
         break;
-      case Action::OFK_SYCL:
-        switch (Target.getArch()) {
-          case llvm::Triple::spir:
-          case llvm::Triple::spir64:
-            TC = std::make_unique<toolchains::SYCLToolChain>(
-              *this, Target, HostTC, Args);
-            break;
-          case llvm::Triple::nvptx:
-          case llvm::Triple::nvptx64:
-            TC = std::make_unique<toolchains::CudaToolChain>(
-              *this, Target, HostTC, Args, TargetDeviceOffloadKind);
-            break;
-          case llvm::Triple::amdgcn:
-            TC = std::make_unique<toolchains::HIPAMDToolChain>(
-                *this, Target, HostTC, Args, TargetDeviceOffloadKind);
-            break;
-          default:
-            if (isSYCLNativeCPU(Args)) {
+      case llvm::Triple::nvptx:
+      case llvm::Triple::nvptx64:
+        TC = std::make_unique<toolchains::CudaToolChain>(
+            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+        break;
+      case llvm::Triple::amdgcn:
+        TC = std::make_unique<toolchains::HIPAMDToolChain>(
+            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+        break;
+      default:
+        if (isSYCLNativeCPU(Args)) {
           TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target,
                                                            HostTC, Args);
-            }
-          break;
         }
+        break;
+      }
       break;
-      default:
+    default:
       break;
     }
   }
@@ -10040,4 +10043,90 @@ llvm::Error driver::expandResponseFiles(SmallVectorImpl<const char *> &Args,
   }
 
   return llvm::Error::success();
+}
+
+void Driver::populateSYCLDeviceTraitsMacrosArgs(
+    const llvm::opt::ArgList &Args,
+    const llvm::SmallVector<llvm::Triple, 4> &UniqueSYCLTriplesVec) {
+  const auto &TargetTable = DeviceConfigFile::TargetTable;
+  std::map<StringRef, unsigned int> AllDevicesHave;
+  std::map<StringRef, bool> AnyDeviceHas;
+  bool AnyDeviceHasAnyAspect = false;
+  unsigned int ValidTargets = 0;
+  for (const auto &TargetTriple : UniqueSYCLTriplesVec) {
+    // Try and find the whole triple, if there's no match, remove parts of the
+    // triple from the end to find partial matches.
+    auto TargetTripleStr = TargetTriple.getTriple();
+    bool Found = false;
+    bool EmptyTriple = false;
+    auto TripleIt = TargetTable.end();
+    while (!Found && !EmptyTriple) {
+      TripleIt = TargetTable.find(TargetTripleStr);
+      Found = (TripleIt != TargetTable.end());
+      if (!Found) {
+        auto Pos = TargetTripleStr.find_last_of('-');
+        EmptyTriple = (Pos == std::string::npos);
+        TargetTripleStr =
+            EmptyTriple ? TargetTripleStr : TargetTripleStr.substr(0, Pos);
+      }
+    }
+    if (Found) {
+      assert(TripleIt != TargetTable.end());
+      const auto &TargetInfo = (*TripleIt).second;
+      ++ValidTargets;
+      const auto &AspectList = TargetInfo.aspects;
+      const auto &MaySupportOtherAspects = TargetInfo.maySupportOtherAspects;
+      if (!AnyDeviceHasAnyAspect)
+        AnyDeviceHasAnyAspect = MaySupportOtherAspects;
+      for (const auto &aspect : AspectList) {
+        // If target has an entry in the config file, the set of aspects
+        // supported by all devices supporting the target is 'AspectList'. If
+        // there's no entry, such set is empty.
+        const auto &AspectIt = AllDevicesHave.find(aspect);
+        if (AspectIt != AllDevicesHave.end())
+          ++AllDevicesHave[aspect];
+        else
+          AllDevicesHave[aspect] = 1;
+        // If target has an entry in the config file AND
+        // 'MaySupportOtherAspects' is false, the set of aspects supported by
+        // any device supporting the target is 'AspectList'. If there's no
+        // entry OR 'MaySupportOtherAspects' is true, such set contains all
+        // the aspects.
+        AnyDeviceHas[aspect] = true;
+      }
+    }
+  }
+
+  if (ValidTargets == 0) {
+    // If there's no entry for the target in the device config file, the set
+    // of aspects supported by any device supporting the target contains all
+    // the aspects.
+    AnyDeviceHasAnyAspect = true;
+  }
+
+  if (AnyDeviceHasAnyAspect) {
+    // There exists some target that supports any given aspect.
+    SmallString<64> MacroAnyDeviceAnyAspect(
+        "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1");
+    SYCLDeviceTraitsMacrosArgs.push_back(
+        Args.MakeArgString(MacroAnyDeviceAnyAspect));
+  } else {
+    // Some of the aspects are not supported at all by any of the targets.
+    // Thus, we need to define individual macros for each supported aspect.
+    for (const auto &[TargetKey, SupportedTarget] : AnyDeviceHas) {
+      assert(SupportedTarget);
+      SmallString<64> MacroAnyDevice("-D__SYCL_ANY_DEVICE_HAS_");
+      MacroAnyDevice += TargetKey;
+      MacroAnyDevice += "__=1";
+      SYCLDeviceTraitsMacrosArgs.push_back(Args.MakeArgString(MacroAnyDevice));
+    }
+  }
+  for (const auto &[TargetKey, SupportedTargets] : AllDevicesHave) {
+    if (SupportedTargets != ValidTargets)
+      continue;
+    SmallString<64> MacroAllDevices("-D__SYCL_ALL_DEVICES_HAVE_");
+    MacroAllDevices += TargetKey;
+    MacroAllDevices += "__=1";
+    SYCLDeviceTraitsMacrosArgs.push_back(Args.MakeArgString(MacroAllDevices));
+  }
 }

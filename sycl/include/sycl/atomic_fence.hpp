@@ -17,7 +17,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 inline void atomic_fence(memory_order order, memory_scope scope) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -31,5 +31,5 @@ inline void atomic_fence(memory_order order, memory_scope scope) {
 #endif
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

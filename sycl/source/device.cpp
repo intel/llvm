@@ -18,7 +18,7 @@
 #include <algorithm>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
@@ -259,5 +259,5 @@ bool device::ext_oneapi_architecture_is(
   return impl->extOneapiArchitectureIs(arch);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

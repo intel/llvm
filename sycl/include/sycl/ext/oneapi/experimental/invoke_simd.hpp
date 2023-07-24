@@ -64,7 +64,7 @@ __builtin_invoke_simd(HelperFunc helper, UserSimdFuncAndSpmdArgs... args)
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace ext::oneapi::experimental {
 
@@ -479,5 +479,5 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
 }
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
