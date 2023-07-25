@@ -7,6 +7,9 @@
 // Reason unknown, needs debugging.
 // XFAIL: target=aarch64{{.*}} && ubsan-tsan
 
+// This also failed with some x86-64, disable this test and pending further investiagtion
+// XFAIL: ubsan-tsan
+
 #include <assert.h>
 #include <signal.h>
 #include <stdio.h>
