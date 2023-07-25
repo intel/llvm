@@ -23,11 +23,12 @@
 // CHK-FPGA-LINK: file-table-tform{{.*}} "-replace=Code,Code" "-o" "[[TABLEOUT2:.+\.table]]" "[[OUTPUT2]]" "[[OUTPUT4]]"
 // CHK-FPGA-LINK: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" {{.*}} "-kind=sycl" "-batch" "[[TABLEOUT2]]"
 // CHK-FPGA-LINK: llc{{.*}} "-o" "[[OBJOUTDEV:.+\.o]]" "[[WRAPOUT]]"
+// CHK-FPGA-IMAGE: clang-offload-bundler{{.*}} "-type=o" "-targets=host-fpga_aocx-intel-unknown" "-output=[[BUNDLEROUT:.+\.o]]" "-input=[[OBJOUTDEV]]"
 // CHK-FPGA-EARLY: clang-offload-wrapper{{.*}} "-host" "x86_64-unknown-linux-gnu" "-o" "[[WRAPOUTHOST:.+\.bc]]" "-kind=host"
 // CHK-FPGA-EARLY-NOT: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-O2"
 // CHK-FPGA-EARLY: "-o" "[[OBJOUT:.+\.o]]" {{.*}} "[[WRAPOUTHOST]]"
 // CHK-FPGA-EARLY: llvm-ar{{.*}} "cqL" "libfoo.a" "[[OBJOUT]]" "[[OBJOUTDEV]]"
-// CHK-FPGA-IMAGE: llvm-ar{{.*}} "cqL" "libfoo.a" "[[INPUT]]" "[[OBJOUTDEV]]"
+// CHK-FPGA-IMAGE: llvm-ar{{.*}} "cqL" "libfoo.a" "[[INPUT]]" "[[BUNDLEROUT]]"
 
 /// -fintelfpga -fsycl-link clang-cl specific
 // RUN:  touch %t.obj
@@ -65,11 +66,12 @@
 // CHK-FPGA-LINK-LIB: clang-offload-bundler{{.*}} "-type=aocr" "-targets=sycl-fpga_aocr_emu-intel-unknown" "-input=[[INPUT:.+\.a]]" "-output=[[OUTPUT2:.+\.aocr]]" "-unbundle"
 // CHK-FPGA-LINK-LIB-IMAGE: llvm-foreach{{.*}} "--out-ext=aocx" "--in-file-list=[[OUTPUT2]]" "--in-replace=[[OUTPUT2]]" "--out-file-list=[[OUTPUT3:.+\.aocx]]" "--out-replace=[[OUTPUT3]]" "--" "{{.*}}opencl-aot{{.*}} "-device=fpga_fast_emu" "-spv=[[OUTPUT2]]" "-ir=[[OUTPUT3]]" "--bo=-g"
 // CHK-FPGA-LINK-LIB-IMAGE: file-table-tform{{.*}} "-rename=0,Code" "-o" "[[OUTPUT4:.+\.txt]]" "[[OUTPUT3]]"
-// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-wrapper{{.*}} "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch" "[[OUTPUT4]]"
+// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-wrapper{{.*}} "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=spir64_fpga" "-kind=sycl" "-batch" "[[OUTPUT4]]"
 // CHK-FPGA-LINK-LIB-EARLY: llvm-foreach{{.*}} "--out-ext=aocr" "--in-file-list=[[OUTPUT2]]" "--in-replace=[[OUTPUT2]]" "--out-file-list=[[OUTPUT3:.+\.aocr]]" "--out-replace=[[OUTPUT3]]" "--" "{{.*}}opencl-aot{{.*}} "-device=fpga_fast_emu" "-spv=[[OUTPUT2]]" "-ir=[[OUTPUT3]]" "--bo=-g"
 // CHK-FPGA-LINK-LIB-EARLY: file-table-tform{{.*}} "-rename=0,Code" "-o" "[[OUTPUT4:.+\.txt]]" "[[OUTPUT3]]"
 // CHK-FPGA-LINK-LIB-EARLY: clang-offload-wrapper{{.*}} "-host=x86_64-unknown-linux-gnu" "-target=fpga_aocr_emu-intel-unknown" "-kind=sycl" "-batch" "[[OUTPUT4]]"
 // CHK-FPGA-LINK-LIB: llc{{.*}} "-filetype=obj" "-o" "[[OUTPUT5:.+\.o]]"
+// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-bundler{{.*}} "-targets=host-fpga_aocx-intel-unknown"
 // CHK-FPGA-LINK-LIB: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-x86_64-unknown-linux-gnu" "-input=[[INPUT]]" "-output=[[OUTPUT1:.+\.txt]]" "-unbundle"
 // CHK-FPGA-LINK-LIB-IMAGE: llvm-ar{{.*}} "cqL" {{.*}} "@[[OUTPUT1]]"
 
@@ -109,9 +111,10 @@
 // RUN:  echo "Dummy AOCX image" > %t.aocx
 // RUN:  echo "void foo() {}" > %t.c
 // RUN:  %clang -c -o %t.o %t.c
-// RUN:  clang-offload-wrapper -o %t-aocx.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=fpga_aocx-intel-unknown %t.aocx
+// RUN:  clang-offload-wrapper -o %t-aocx.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=spir64_fpga %t.aocx
 // RUN:  llc -filetype=obj -o %t-aocx.o %t-aocx.bc
-// RUN:  llvm-ar crv %t_aocx.a %t.o %t-aocx.o
+// RUN:  clang-offload-bundler -type=o -targets=host-fpga_aocx-intel-unknown -input=%t-aocx.o -output=%t-aocxb.o
+// RUN:  llvm-ar crv %t_aocx.a %t.o %t-aocxb.o
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t_aocx.a -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-PHASES %s
 // RUN:  %clang_cl -fsycl -fintelfpga %t_aocx.a -ccc-print-phases 2>&1 \
@@ -119,9 +122,7 @@
 // CHK-FPGA-AOCX-PHASES: 0: input, "{{.*}}", fpga_aocx, (host-sycl)
 // CHK-FPGA-AOCX-PHASES: 1: linker, {0}, image, (host-sycl)
 // CHK-FPGA-AOCX-PHASES: 2: clang-offload-unbundler, {0}, fpga_aocx
-// CHK-FPGA-AOCX-PHASES: 3: file-table-tform, {2}, tempfilelist, (device-sycl)
-// CHK-FPGA-AOCX-PHASES: 4: clang-offload-wrapper, {3}, object, (device-sycl)
-// CHK-FPGA-AOCX-PHASES: 5: offload, "host-sycl ({{.*}}x86_64{{.*}})" {1}, "device-sycl (spir64_fpga-unknown-unknown)" {4}, image
+// CHK-FPGA-AOCX-PHASES: 3: offload, "host-sycl ({{.*}}x86_64{{.*}})" {1}, "{{.*}}(spir64_fpga-unknown-unknown)" {2}, image
 
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t_aocx.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX,CHK-FPGA-AOCX-LIN %s

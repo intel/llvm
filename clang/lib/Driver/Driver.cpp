@@ -3330,8 +3330,11 @@ static bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
 
   // Checking uses -check-section option with the input file, no output
   // file and the target triple being looked for.
+  SmallString<16> Kind("sycl-");
+  if (Type == types::TY_FPGA_AOCX)
+    Kind = "host-";
   const char *Targets =
-      C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
+      C.getArgs().MakeArgString(Twine("-targets=") + Kind + TT.str());
   const char *Inputs = C.getArgs().MakeArgString(Twine("-input=") + Object);
   // Always use -type=ao for aocx/aocr bundle checking.  The 'bundles' are
   // actually archives.
@@ -5512,8 +5515,19 @@ class OffloadingActionBuilder final {
               auto *DeviceWrappingAction =
                   C.MakeAction<OffloadWrapperJobAction>(RenameAction,
                                                         types::TY_Object);
-              DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
+              // For FPGA with -fsycl-link=image, we need to bundle the output
+              Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ);
+              if (A && A->getValue() == StringRef("image")) {
+                ActionList BundlingActions;
+                BundlingActions.push_back(DeviceWrappingAction);
+                auto *DeviceBundlingAction =
+                    C.MakeAction<OffloadBundlingJobAction>(BundlingActions);
+                DA.add(*DeviceBundlingAction, *TC, nullptr, Action::OFK_SYCL);
+              } else
+                DA.add(*DeviceWrappingAction, *TC, nullptr, Action::OFK_SYCL);
             } else if (Input->getType() == types::TY_FPGA_AOCX)
+              // AOCX binaries are essentially just passed along to the link
+              // step of the host compile.
               DA.add(*Input, *TC, nullptr, Action::OFK_SYCL);
             else
               llvm_unreachable("Unexpected FPGA input type.");

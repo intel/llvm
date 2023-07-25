@@ -635,7 +635,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       if (II.getType() == types::TY_Tempfilelist ||
           (IsAOCXFile && II.getType() == types::TY_Object)) {
         // Take the unbundled list file and pass it in with '@'.
-        const char * ArgFile =
+        const char *ArgFile =
             C.getArgs().MakeArgString("@" + StringRef(II.getFilename()));
         auto CurInput = InputInfo(types::TY_Object, ArgFile, ArgFile);
         UpdatedInputs.push_back(CurInput);

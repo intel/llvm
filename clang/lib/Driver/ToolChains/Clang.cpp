@@ -9018,7 +9018,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_link_EQ)) {
       llvm::Triple Triple = CurTC->getTriple();
       IsFPGAImage = (A->getValue() == StringRef("image")) && Triple.isSPIR() &&
-          (Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga);
+                    (Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga);
     }
     if (Inputs.size() == 1 && IsFPGAImage) {
       Triples += Action::GetOffloadKindName(CurKind);
