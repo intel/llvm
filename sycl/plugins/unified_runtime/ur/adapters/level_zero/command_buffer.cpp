@@ -469,6 +469,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
   // If there are any pending arguments set them now.
   for (auto &Arg : Kernel->PendingArguments) {
+    // if the argument has access_mode_t::unknown, then this is a
+    // regular pointer
+    if (Arg.AccessMode == ur_mem_handle_t_::access_mode_t::unknown) {
+      ZE2UR_CALL(zeKernelSetArgumentValue,
+                 (Kernel->ZeKernel, Arg.Index, Arg.Size, Arg.ArgValue));
+      continue;
+    }
+
     // The ArgValue may be a NULL pointer in which case a NULL value is used for
     // the kernel argument declared as a pointer to global or constant memory.
     char **ZeHandlePtr = nullptr;
