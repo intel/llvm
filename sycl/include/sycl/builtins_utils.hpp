@@ -114,6 +114,7 @@ template <size_t N, size_t... Ns> constexpr bool CheckSizeIn() {
 //       as MSVC thinks function definitions are the same otherwise.
 template <size_t... Ns> constexpr bool check_size_in_v = CheckSizeIn<Ns...>();
 
+// Utility trait for checking if T's element type is in Ts.
 template <typename T, typename... Ts>
 struct is_valid_elem_type : std::false_type {};
 template <typename T, size_t N, typename... Ts>
@@ -135,6 +136,10 @@ template <typename ElementType, access::address_space Space,
 struct is_valid_elem_type<multi_ptr<ElementType, Space, DecorateAddress>, Ts...>
     : std::bool_constant<check_type_in_v<ElementType, Ts...>> {};
 
+template <typename T, typename... Ts>
+constexpr bool is_valid_elem_type_v = is_valid_elem_type<T, Ts...>::value;
+
+// Utility trait for getting the number of elements in T.
 template <typename T>
 struct num_elements : std::integral_constant<size_t, 1> {};
 template <typename T, size_t N>
@@ -147,12 +152,11 @@ struct num_elements<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                               OperationCurrentT, Indexes...>>
     : std::integral_constant<size_t, sizeof...(Indexes)> {};
 
+// Utilty trait for checking that the number of elements in T is in Ns.
 template <typename T, size_t... Ns>
 struct is_valid_size
     : std::bool_constant<check_size_in_v<num_elements<T>::value, Ns...>> {};
 
-template <typename T, typename... Ts>
-constexpr bool is_valid_elem_type_v = is_valid_elem_type<T, Ts...>::value;
 template <typename T, int... Ns>
 constexpr bool is_valid_size_v = is_valid_size<T, Ns...>::value;
 
@@ -185,6 +189,9 @@ struct is_same_op<
 template <typename T1, typename T2>
 constexpr bool is_same_op_v = is_same_op<T1, T2>::value;
 
+// Constexpr function for checking that all types are the same, considering
+// swizzles and vectors the same if they have the same number of elements and
+// the same element type.
 template <typename T, typename... Ts> constexpr bool CheckAllSameOpType() {
   constexpr bool SameType[] = {
       is_same_op_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
@@ -200,6 +207,7 @@ template <typename T, typename... Ts> constexpr bool CheckAllSameOpType() {
 template <typename... Ts>
 constexpr bool check_all_same_op_type_v = CheckAllSameOpType<Ts...>();
 
+// Common utility for selecting a type based on the specified size.
 template <size_t Size, typename T8, typename T16, typename T32, typename T64>
 using select_scalar_by_size_t = std::conditional_t<
     Size == 1, T8,
@@ -208,19 +216,10 @@ using select_scalar_by_size_t = std::conditional_t<
         std::conditional_t<Size == 4, T32,
                            std::conditional_t<Size == 8, T64, void>>>>;
 
+// Utility traits for getting a signed integer type with the specified size.
 template <size_t Size> struct get_signed_int_by_size {
   using type = select_scalar_by_size_t<Size, int8_t, int16_t, int32_t, int64_t>;
 };
-
-template <size_t Size> struct get_unsigned_int_by_size {
-  using type =
-      select_scalar_by_size_t<Size, uint8_t, uint16_t, uint32_t, uint64_t>;
-};
-
-template <size_t Size> struct get_float_by_size {
-  using type = select_scalar_by_size_t<Size, void, half, float, double>;
-};
-
 template <typename T> struct same_size_signed_int {
   using type = typename get_signed_int_by_size<sizeof(T)>::type;
 };
@@ -243,6 +242,11 @@ struct same_size_signed_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
 template <typename T>
 using same_size_signed_int_t = typename same_size_signed_int<T>::type;
 
+// Utility traits for getting a unsigned integer type with the specified size.
+template <size_t Size> struct get_unsigned_int_by_size {
+  using type =
+      select_scalar_by_size_t<Size, uint8_t, uint16_t, uint32_t, uint64_t>;
+};
 template <typename T> struct same_size_unsigned_int {
   using type = typename get_unsigned_int_by_size<sizeof(T)>::type;
 };
@@ -262,6 +266,10 @@ struct same_size_unsigned_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
           sizeof...(Indexes)>;
 };
 
+// Utility traits for getting a floating point type with the specified size.
+template <size_t Size> struct get_float_by_size {
+  using type = select_scalar_by_size_t<Size, void, half, float, double>;
+};
 template <typename T> struct same_size_float {
   using type = typename get_float_by_size<sizeof(T)>::type;
 };
@@ -283,6 +291,8 @@ struct same_size_float<SwizzleOp<VecT, OperationLeftT, OperationRightT,
 template <typename T>
 using same_size_float_t = typename same_size_float<T>::type;
 
+// Utility trait for changing the element type of a type T. If T is a scalar,
+// the new type replaces T completely.
 template <typename NewElemT, typename T> struct change_elements {
   using type = NewElemT;
 };
@@ -312,8 +322,9 @@ using change_elements_t = typename change_elements<NewElemT, T>::type;
 template <typename T> using int_elements_t = change_elements_t<int, T>;
 template <typename T> using bool_elements_t = change_elements_t<bool, T>;
 
-// For upsampling we look for an integer of double the size of the specified
-// type.
+// Utility trait for getting an upsampled integer type.
+// NOTE: For upsampling we look for an integer of double the size of the
+// specified type.
 template <typename T> struct upsampled_int {
   using type =
       std::conditional_t<std::is_unsigned_v<T>,
@@ -337,6 +348,7 @@ struct upsampled_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
 
 template <typename T> using upsampled_int_t = typename upsampled_int<T>::type;
 
+// Utility functions for converting to/from vec/marray.
 template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> X, size_t Start) {
   return {X[Start], X[Start + 1]};
 }
@@ -353,6 +365,7 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> X) {
   return Marray;
 }
 
+// Utility trait for getting the decoration of a multi_ptr.
 template <typename T> struct get_multi_ptr_decoration;
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
@@ -365,6 +378,8 @@ template <typename T>
 constexpr access::decorated get_multi_ptr_decoration_v =
     get_multi_ptr_decoration<T>::value;
 
+// Utility trait for checking if a multi_ptr has a "writable" address space,
+// i.e. global, local, private or generic.
 template <typename T> struct has_writeable_addr_space : std::false_type {};
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
