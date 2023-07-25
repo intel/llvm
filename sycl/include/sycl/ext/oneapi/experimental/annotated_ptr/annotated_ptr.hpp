@@ -88,7 +88,7 @@ struct PropertiesFilter {
       PropertiesAreAllowed<Props, AllowedPropTuple>::allowed, std::tuple<Props>,
       std::tuple<>>::type...>;
 };
-
+} // namespace
 template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
@@ -128,7 +128,7 @@ public:
     return Obj;
   }
 
-  T operator=(const annotated_ref &Ref) const { return *this = *Ref; }
+  T operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
 
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
@@ -141,11 +141,11 @@ public:
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
 
-  friend class annotated_ptr<T, detail::properties_t<Props...>>;
+  template<class T2, class P2>
+  friend class annotated_ptr;
 };
 
 #undef PROPAGATE_OP
-} // namespace
 
 #ifdef __cpp_deduction_guides
 template <typename T, typename... Args>
