@@ -2019,6 +2019,7 @@ block_load(AccessorTy acc, uint32_t offset, Flags = {}) {
                                       __ESIMD_DNS::localAccessorToOffset(acc));
 }
 
+/// Variant of block_store that uses local accessor as a parameter.
 /// Stores elements of the vector \p vals to a contiguous block of SLM memory
 /// represented by the given local accessor and the byte-offset \p offset.
 /// The generated code depends on the combination {T, N, Flags}.
