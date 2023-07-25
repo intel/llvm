@@ -11,8 +11,8 @@
 #include <sycl/ext/intel/pipes.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <class name, class dataT, int32_t min_capacity = 0>
 using pipe = ext::intel::pipe<name, dataT, min_capacity>;
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

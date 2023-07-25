@@ -19,7 +19,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 void populate_pi_structs(const image_descriptor &desc, pi_image_desc &piDesc,
@@ -40,9 +40,9 @@ void populate_pi_structs(const image_descriptor &desc, pi_image_desc &piDesc,
 
   piFormat = {};
   piFormat.image_channel_data_type =
-      sycl::_V1::detail::convertChannelType(desc.channel_type);
+      sycl::detail::convertChannelType(desc.channel_type);
   piFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(desc.channel_order);
+      sycl::detail::convertChannelOrder(desc.channel_order);
 }
 
 detail::image_mem_impl::image_mem_impl(const image_descriptor &desc,
@@ -746,5 +746,5 @@ get_image_num_channels(const image_mem_handle memHandle,
 }
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

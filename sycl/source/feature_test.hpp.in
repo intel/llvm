@@ -16,7 +16,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 #ifdef __clang__
 #ifndef __has_extension
@@ -104,5 +104,5 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 #include "detail/plugins/esimd_emulator/features.hpp"
 #endif
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
