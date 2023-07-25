@@ -38,9 +38,9 @@ void matrix_elem_wise_ops(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
 
   queue q;
   q.submit([&](handler &cgh) {
-     accessor accC{bufC, cgh, read_write};
-     accessor accA{bufA, cgh, read_write};
-     accessor accB{bufB, cgh, read_write};
+     accessor accC{bufC, cgh};
+     accessor accA{bufA, cgh};
+     accessor accB{bufB, cgh};
 
      cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
@@ -53,7 +53,7 @@ void matrix_elem_wise_ops(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
+           sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T2, use::a, TM, TK, layout::row_major> sub_a;
            // For B, we assume B has been already VNNIed.
            joint_matrix<sub_group, T2, use::b, TK, TN,
