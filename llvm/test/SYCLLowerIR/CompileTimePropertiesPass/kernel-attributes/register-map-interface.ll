@@ -1,16 +1,16 @@
 ; Check conversion of sycl-register-map-interface attribute
 ; RUN: opt -passes="compile-time-properties" %s -S -o - | FileCheck %s --check-prefix CHECK-IR
 
-; CHECK-IR-DAG: @pStreaming() #0 {{.*}}!ip_interface [[REGISTER_MAP:![0-9]+]] {
+; CHECK-IR-DAG: @pRegisterMap() #0 {{.*}}!ip_interface [[REGISTER_MAP:![0-9]+]] {
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @pStreaming() #0 {
+define weak_odr dso_local spir_kernel void @pRegisterMap() #0 {
 entry:
   ret void
 }
 
-; CHECK-IR-DAG: @pStallFreeStreaming() #1 {{.*}}!ip_interface [[STALL_FREE_REGISTER_MAP:![0-9]+]] {
+; CHECK-IR-DAG: @pWaitRegisterMap() #1 {{.*}}!ip_interface [[WAIT_REGISTER_MAP:![0-9]+]] {
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @pStallFreeStreaming() #1 {
+define weak_odr dso_local spir_kernel void @pWaitRegisterMap() #1 {
 entry:
   ret void
 }
@@ -31,4 +31,4 @@ attributes #1 = { convergent norecurse "frame-pointer"="all" "sycl-register-map-
 
 ; Confirm the decorations for the functions
 ; CHECK-IR-DAG: [[REGISTER_MAP]] = !{!"csr"}
-; CHECK-IR-DAG: [[STALL_FREE_REGISTER_MAP]] = !{!"csr", !"stall_free_return"}
+; CHECK-IR-DAG: [[WAIT_REGISTER_MAP]] = !{!"csr", !"wait_for_done_write"}
