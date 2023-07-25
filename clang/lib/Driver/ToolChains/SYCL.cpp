@@ -914,7 +914,8 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
-      bool IsGenTriple = getTriple().isSPIR() &&
+      bool IsGenTriple =
+          getTriple().isSPIR() &&
           getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen;
       if (Device != GenDevice)
         continue;
