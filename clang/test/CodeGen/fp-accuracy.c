@@ -188,9 +188,9 @@ double rsqrt(double);
 // CHECK-F3: call double @llvm.fpbuiltin.tan.f64(double %conv72) #[[ATTR_F3_LOW:[0-9]+]]
 // CHECK-F3: call double @llvm.fpbuiltin.tanh.f64(double %conv74) #[[ATTR_F3_HIGH]]
 
-// CHECK-F3: attributes #[[ATTR_F3_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0f"
-// CHECK-F3: attributes #[[ATTR_F3_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0f"
-// CHECK-F3: attributes #[[ATTR_F3_LOW]] = {{.*}}"fpbuiltin-max-error"="67108864.0f"
+// CHECK-F3: attributes #[[ATTR_F3_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
+// CHECK-F3: attributes #[[ATTR_F3_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
+// CHECK-F3: attributes #[[ATTR_F3_LOW]] = {{.*}}"fpbuiltin-max-error"="67108864.0"
 //
 // CHECK-SPIR-LABEL: define dso_local spir_func void @f1
 // CHECK-SPIR: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR_SYCL1:[0-9]+]]
@@ -305,24 +305,24 @@ void f1(float a, float b) {
 // CHECK-SPIR-LABEL: define dso_local spir_func void @f3
 // CHECK-SPIR: call spir_func float @fake_exp10(float {{.*}})
 
-// CHECK: attributes #[[ATTR_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0f"
+// CHECK: attributes #[[ATTR_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
 
-// CHECK-F1: attributes #[[ATTR_F1_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0f"
-// CHECK-F1: attributes #[[ATTR_F1_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0f"
-// CHECK-F1: attributes #[[ATTR_F1_LOW]] = {{.*}}"fpbuiltin-max-error"="67108864.0f"
+// CHECK-F1: attributes #[[ATTR_F1_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
+// CHECK-F1: attributes #[[ATTR_F1_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
+// CHECK-F1: attributes #[[ATTR_F1_LOW]] = {{.*}}"fpbuiltin-max-error"="67108864.0"
 
-// CHECK-F2: attributes #[[ATTR_F2_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0f"
-// CHECK-F2: attributes #[[ATTR_F2_CUDA]] = {{.*}}"fpbuiltin-max-error"="2.0f"
-// CHECK-F2: attributes #[[ATTR_F2_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0f"
+// CHECK-F2: attributes #[[ATTR_F2_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
+// CHECK-F2: attributes #[[ATTR_F2_CUDA]] = {{.*}}"fpbuiltin-max-error"="2.0"
+// CHECK-F2: attributes #[[ATTR_F2_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
 
-// CHECK-SPIR: attributes #[[ATTR_SYCL1]] = {{.*}}"fpbuiltin-max-error"="4.0f"
-// CHECK-SPIR: attributes #[[ATTR_SYCL2]] = {{.*}}"fpbuiltin-max-error"="5.0f"
-// CHECK-SPIR: attributes #[[ATTR_SYCL3]] = {{.*}}"fpbuiltin-max-error"="6.0f"
-// CHECK-SPIR: attributes #[[ATTR_SYCL4]] = {{.*}}"fpbuiltin-max-error"="16.0f"
-// CHECK-SPIR: attributes #[[ATTR_SYCL5]] = {{.*}}"fpbuiltin-max-error"="3.0f"
-// CHECK-SPIR: attributes #[[ATTR_SYCL6]] = {{.*}}"fpbuiltin-max-error"="0.0f"
-// CHECK-SPIR: attributes #[[ATTR_SYCL7]] = {{.*}}"fpbuiltin-max-error"="2.5f"
-// CHECK-SPIR: attributes #[[ATTR_SYCL8]] = {{.*}}"fpbuiltin-max-error"="2.0f"
+// CHECK-SPIR: attributes #[[ATTR_SYCL1]] = {{.*}}"fpbuiltin-max-error"="4.0"
+// CHECK-SPIR: attributes #[[ATTR_SYCL2]] = {{.*}}"fpbuiltin-max-error"="5.0"
+// CHECK-SPIR: attributes #[[ATTR_SYCL3]] = {{.*}}"fpbuiltin-max-error"="6.0"
+// CHECK-SPIR: attributes #[[ATTR_SYCL4]] = {{.*}}"fpbuiltin-max-error"="16.0"
+// CHECK-SPIR: attributes #[[ATTR_SYCL5]] = {{.*}}"fpbuiltin-max-error"="3.0"
+// CHECK-SPIR: attributes #[[ATTR_SYCL6]] = {{.*}}"fpbuiltin-max-error"="0.0"
+// CHECK-SPIR: attributes #[[ATTR_SYCL7]] = {{.*}}"fpbuiltin-max-error"="2.5"
+// CHECK-SPIR: attributes #[[ATTR_SYCL8]] = {{.*}}"fpbuiltin-max-error"="2.0"
 
 // CHECK-DEFAULT-LABEL: define dso_local void @f1
 // CHECK-DEFAULT: call double @acos(double noundef {{.*}})
