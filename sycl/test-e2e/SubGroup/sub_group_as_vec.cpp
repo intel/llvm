@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
 #endif
       cgh.parallel_for<class test>(
           sycl::nd_range<1>(N, 32), [=](sycl::nd_item<1> it) {
-            sycl::ext::oneapi::sub_group sg = it.get_sub_group();
+            sycl::sub_group sg = it.get_sub_group();
             if (!it.get_local_id(0)) {
               int end = it.get_global_id(0) + it.get_local_range()[0];
               for (int i = it.get_global_id(0); i < end; i++) {

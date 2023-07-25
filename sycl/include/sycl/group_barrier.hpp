@@ -14,11 +14,12 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/group.hpp>
 #include <sycl/sub_group.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename Group>
 std::enable_if_t<is_group_v<Group>>
@@ -31,10 +32,10 @@ group_barrier(Group G, memory_scope FenceScope = Group::fence_scope) {
 #else
   (void)G;
   (void)FenceScope;
-  throw sycl::runtime_error("Barriers are not supported on host device",
-                            PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Barriers are not supported on host device");
 #endif
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

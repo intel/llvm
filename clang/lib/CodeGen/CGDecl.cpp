@@ -296,7 +296,12 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   if (AS != ExpectedAS) {
     Addr = getTargetCodeGenInfo().performAddrSpaceCast(
         *this, GV, AS, ExpectedAS,
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        llvm::PointerType::get(getLLVMContext(),
+                               getContext().getTargetAddressSpace(ExpectedAS)));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
         LTy->getPointerTo(getContext().getTargetAddressSpace(ExpectedAS)));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   setStaticLocalDeclAddress(&D, Addr);
@@ -758,8 +763,13 @@ static bool tryEmitARCCopyWeakInit(CodeGenFunction &CGF,
       // Handle a formal type change to avoid asserting.
       auto srcAddr = srcLV.getAddress(CGF);
       if (needsCast) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        srcAddr =
+            srcAddr.withElementType(destLV.getAddress(CGF).getElementType());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
         srcAddr = CGF.Builder.CreateElementBitCast(
             srcAddr, destLV.getAddress(CGF).getElementType());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       }
 
       // If it was an l-value, use objc_copyWeak.
@@ -1204,7 +1214,11 @@ static Address createUnnamedGlobalForMemcpyFrom(CodeGenModule &CGM,
                                                 llvm::Constant *Constant,
                                                 CharUnits Align) {
   Address SrcPtr = CGM.createUnnamedGlobalFrom(D, Constant, Align);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return SrcPtr.withElementType(CGM.Int8Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   return Builder.CreateElementBitCast(SrcPtr, CGM.Int8Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
@@ -1238,7 +1252,11 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
     bool valueAlreadyCorrect =
         constant->isNullValue() || isa<llvm::UndefValue>(constant);
     if (!valueAlreadyCorrect) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      Loc = Loc.withElementType(Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
       Loc = Builder.CreateElementBitCast(Loc, Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       emitStoresForInitAfterBZero(CGM, constant, Loc, isVolatile, Builder,
                                   IsAutoInit);
     }
@@ -1441,9 +1459,6 @@ void CodeGenFunction::EmitAndRegisterVariableArrayDimensions(
     else {
       // Create an artificial VarDecl to generate debug info for.
       IdentifierInfo *NameIdent = VLAExprNames[NameIdx++];
-      assert(cast<llvm::PointerType>(VlaSize.NumElts->getType())
-                 ->isOpaqueOrPointeeTypeMatches(SizeTy) &&
-             "Number of VLA elements must be SizeTy");
       auto QT = getContext().getIntTypeForBitwidth(
           SizeTy->getScalarSizeInBits(), false);
       auto *ArtificialDecl = VarDecl::Create(
@@ -1846,7 +1861,11 @@ void CodeGenFunction::emitZeroOrPatternForAutoVarInit(QualType type,
       SizeVal = Builder.CreateNUWMul(SizeVal, CGM.getSize(EltSize));
     llvm::Value *BaseSizeInChars =
         llvm::ConstantInt::get(IntPtrTy, EltSize.getQuantity());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Address Begin = Loc.withElementType(Int8Ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Address Begin = Builder.CreateElementBitCast(Loc, Int8Ty, "vla.begin");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Value *End = Builder.CreateInBoundsGEP(
         Begin.getElementType(), Begin.getPointer(), SizeVal, "vla.end");
     llvm::BasicBlock *OriginBB = Builder.GetInsertBlock();
@@ -1977,7 +1996,11 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
     return EmitStoreThroughLValue(RValue::get(constant), lv, true);
   }
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  emitStoresForConstant(CGM, D, Loc.withElementType(CGM.Int8Ty),
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   emitStoresForConstant(CGM, D, Builder.CreateElementBitCast(Loc, CGM.Int8Ty),
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                         type.isVolatileQualified(), Builder, constant,
                         /*IsAutoInit=*/false);
 }
@@ -2538,10 +2561,14 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
 
   // If we already have a pointer to the argument, reuse the input pointer.
   if (Arg.isIndirect()) {
-    // If we have a prettier pointer type at this point, bitcast to that.
     DeclPtr = Arg.getIndirectAddress();
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    DeclPtr = DeclPtr.withElementType(ConvertTypeForMem(Ty));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    // If we have a prettier pointer type at this point, bitcast to that.
     DeclPtr = Builder.CreateElementBitCast(DeclPtr, ConvertTypeForMem(Ty),
                                            D.getName());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     // Indirect argument is in alloca address space, which may be different
     // from the default address space.
     auto AllocaAS = CGM.getASTAllocaAddressSpace();
@@ -2555,7 +2582,11 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
       assert(getContext().getTargetAddressSpace(SrcLangAS) ==
              CGM.getDataLayout().getAllocaAddrSpace());
       auto DestAS = getContext().getTargetAddressSpace(DestLangAS);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      auto *T = llvm::PointerType::get(getLLVMContext(), DestAS);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
       auto *T = DeclPtr.getElementType()->getPointerTo(DestAS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       DeclPtr =
           DeclPtr.withPointer(getTargetHooks().performAddrSpaceCast(
                                   *this, V, SrcLangAS, DestLangAS, T, true),

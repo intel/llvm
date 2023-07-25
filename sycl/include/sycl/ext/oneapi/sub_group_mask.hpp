@@ -10,12 +10,15 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
 #include <sycl/detail/helpers.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/id.hpp>
 #include <sycl/marray.hpp>
 
+#include <climits>
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class Builder;
 
@@ -40,7 +43,7 @@ namespace ext::oneapi {
 // need to forward declare sub_group_mask first
 struct sub_group_mask;
 template <typename Group>
-std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>, sub_group_mask>
+std::enable_if_t<sycl::detail::is_sub_group<Group>::value, sub_group_mask>
 group_ballot(Group g, bool predicate = true);
 
 struct sub_group_mask {
@@ -293,7 +296,7 @@ private:
 };
 
 template <typename Group>
-std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>, sub_group_mask>
+std::enable_if_t<sycl::detail::is_sub_group<Group>::value, sub_group_mask>
 group_ballot(Group g, bool predicate) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
@@ -314,5 +317,5 @@ group_ballot(Group g, bool predicate) {
 #undef BITS_TYPE
 
 } // namespace ext::oneapi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

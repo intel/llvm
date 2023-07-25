@@ -20,7 +20,7 @@
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 template <typename T, typename Group>
 std::enable_if_t<
@@ -54,7 +54,7 @@ std::enable_if_t<
   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
       __sycl_allocateLocalMemory(sizeof(T), alignof(T));
   if (g.get_local_linear_id() == 0)
-    new (AllocatedMem) T(std::forward<Args>(args)...);
+    new (AllocatedMem) T{std::forward<Args>(args)...};
   sycl::detail::workGroupBarrier();
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
@@ -67,5 +67,5 @@ std::enable_if_t<
 #endif
 }
 } // namespace ext::oneapi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

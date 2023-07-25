@@ -276,7 +276,7 @@ public:
         E, AddressSpace, Alignment, MachineMemOperand::MONone, Fast);
   }
 
-  bool hasBranchDivergence() { return false; }
+  bool hasBranchDivergence(const Function *F = nullptr) { return false; }
 
   bool isSourceOfDivergence(const Value *V) { return false; }
 
@@ -284,6 +284,10 @@ public:
 
   bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const {
     return false;
+  }
+
+  bool addrspacesMayAlias(unsigned AS0, unsigned AS1) const {
+    return true;
   }
 
   unsigned getFlatAddressSpace() {
