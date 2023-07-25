@@ -124,7 +124,7 @@ Such use cases arise often with SYCL extensions that are built to utilize
 
 .Examples using properties_type
 ```c++
-using namespace namespace experimental::oneapi::ext::sycl;
+using namespace sycl::ext::oneapi::experimental;
 
 // buffer_location and awidth are compile time constant properties
 annotated_arg<int *, properties_type<buffer_location<1>, awidth<32>> a;
