@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "sycl_complex_marray_test_cases.hpp"
