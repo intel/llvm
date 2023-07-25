@@ -93,7 +93,7 @@ convenience and it is defined as follows:
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-template <auto... Props> using properties_set = decltype(properties{Props...});
+template <auto... Props> using properties_type = decltype(properties{Props...});
 
 } // namespace experimental::oneapi::ext::sycl
 ```
