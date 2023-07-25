@@ -11,7 +11,6 @@
 //
 // TODO: Enable the test when GPU driver is ready/fixed.
 // XFAIL: opencl || windows || gpu-intel-pvc
-// TODO: add support for local_accessors to esimd_emulator.
 // UNSUPPORTED: esimd_emulator
 // This test verifies usage of block_load/block_store for local_accessor.
 
