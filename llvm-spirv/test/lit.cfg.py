@@ -80,9 +80,3 @@ llvm_config.with_system_environment('LD_LIBRARY_PATH')
 if using_spirv_tools:
     llvm_config.with_environment('LD_LIBRARY_PATH', config.spirv_tools_lib_dir, append_path=True)
 llvm_config.with_environment('LD_LIBRARY_PATH', config.llvm_spirv_lib_dir, append_path=True)
-
-llvm_config.feature_config(
-    [
-        ("--cxxflags", {r"-DSPIRV_ENABLE_OPAQUE_POINTERS=1\b": "opaque-ptr-mode"}),
-    ]
-)
