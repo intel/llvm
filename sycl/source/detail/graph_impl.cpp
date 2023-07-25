@@ -528,7 +528,14 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               ->call_nocheck<
                   sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
                   CommandBuffer, Queue->getHandleRef(), 0, nullptr, OutEvent);
-      if (Res != pi_result::PI_SUCCESS) {
+      if (Res == pi_result::PI_ERROR_INVALID_QUEUE_PROPERTIES) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Graphs cannot be submitted to a queue which uses "
+            "immediate command lists. Use "
+            "sycl::ext::intel::property::queue::no_immediate_"
+            "command_list to disable them.");
+      } else if (Res != pi_result::PI_SUCCESS) {
         throw sycl::exception(
             errc::event,
             "Failed to enqueue event for command buffer submission");
