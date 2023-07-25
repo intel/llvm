@@ -42,17 +42,12 @@ SYCL specification refer to that revision.
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
-
-[NOTE]
-====
-This extension is not currently implemented in {dpcpp}.
-====
-
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
 
 == Overview
 
@@ -82,370 +77,256 @@ supports.
 |Description
 
 |1
-|Initial version of this extension.
+|The APIs of this experimental extension are not versioned, so the feature-test macro always has this value.
 |===
 
 === Complex Class
 
-The core of this extension in the complex math class. This class contains a real
+The core of this extension is the complex math class. This class contains a real
 and imaginary component and enables mathematical operations between complex
-numbers and decimals. The complex class interface and operations are shown
-below.
+numbers and decimals. The complex class interface and operations (shown below)
+are available in both host code and device code. Some operations, however, are
+available only in host code as noted below.
 
 The complex type is trivially copyable and type trait `is_device_copyable`
 should resolve to `std::true_type`.
 
-```C++
-namespace sycl {
-namespace ext {
-namespace oneapi {
-
-    template <typename T>
-    class complex {
-        public:
-            complex(const T&, const T&);
-            complex(const complex&)
-            complex(const std::complex<T>&)
-
-            operator std::complex();
-
-            T real();
-            T imag();
-
-            void real(T _re);
-            void imag(T _im);
-
-            /*Complex operators*/
-
-            // operator=
-            template<typename X>
-            complex& operator+=(const complex<X>&);
-
-            // operator+=
-            template<typename X>
-            complex& operator+=(const complex<X>&);
-
-            // operator-=
-            template<typename X>
-            complex& operator-=(const complex<X>&);
-
-            // operator*=
-            template<typename X>
-            complex& operator*=(const complex<X>&);
-
-            // operator/=
-            template<typename X>
-            complex& operator/=(const complex<X>&);
-
-            /*Scalar operators*/
-
-            // operator=
-            complex& operator=(const T&);
-
-            // operator+=
-            complex& operator+=(const T&);
-
-            // operator-=
-            complex& operator-=(const T&);
-
-            // operator*=
-            complex& operator*=(const T&);
-
-            // operator/=
-            complex& operator/=(const T &);
-    }
-
-    /*Complex operators*/
-
-    // operator+
-    template<typename T>
-    complex<T> operator+(const complex<T>&, const complex<T>&);
-
-    // operator-
-    template<typename T>
-    complex<T> operator-(const complex<T>&, const complex<T>&);
-
-    // operator*
-    template<typename T>
-    complex<T> operator*(const complex<T>&, const complex<T>&);
-
-    // operator/
-    template<typename T>
-    complex<T> operator/(const complex<T>&, const complex<T>&);
-
-    // operator==
-    template<typename T>
-    bool operator==(const complex<T>&, const complex<T>&);
-
-    // operator!=
-    template<typename T>
-    bool operator!=(const complex<T>&, const complex<T>&);
-
-    /*Scalar operators*/
-
-    // operator+
-    template<typename T>
-    complex<T> operator+(const complex<T>&, const T&);
-    template<typename T>
-    complex<T> operator+(const T&, const complex<T>&);
-
-    // operator-
-    template<typename T>
-    complex<T> operator/(const complex<T>&, const T&);
-    template<typename T>
-    complex<T> operator/(const T>&, const complex<T>&);
-
-    // operator==
-    template<typename T>
-    bool operator==(const complex<T>&, const T&);
-    template<typename T>
-    bool operator==(const T&, const complex<T>&);
-
-    // operator!=
-    template<typename T>
-    bool operator!=(const complex<T>&, const T&);
-    template<typename T>
-    bool operator!=(const T&, const complex<T>&);
-
-    /*Stream operator*/
-
-    // operator<<
-    template<typename T>
-    const sycl::stream& operator<<(sycl::stream&, const complex<T>&);
-
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
-```
-
-The class `sycl::oneapi::complex` class, has specializations
-of `T`; `float`, `double`, and `sycl::half` defined.
-
-```C++
-namespace sycl {
-namespace ext {
-namespace oneapi {
-
-    template<> class complex<double>;
-    template<> class complex<float>;
-    template<> class complex<sycl::half>;
-
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
-```
-
-The `sycl::oneapi::ext::complex` specializations can be generalised similar
-to existing SYCL arithmetic types. The generic type `gencomplex` is defined as
-types `complex<double>`, `complex<float>`, `complex<sycl::half>`.
-
-The table belows shows the operators defined by the SYCL complex interface
-along with a description of its operation.
+The `T` template parameter must be one of the types float, double, or
+sycl::half.
 
 Note: When performing operations between complex numbers and decimals,
 the decimal is treated as a complex number with a real component equal to
 the decimal and an imaginary component equal to 0.
 
+```C++
+namespace sycl::ext::oneapi::experimental {
 
-[%header,cols="5,5"]
-|===
-|Function
-|Description
+    template <typename T>
+    class complex {
+        public:
+            using value_type = T;
 
-|`gencomplex& operator+=(const gencomplex& x);`
-|Adds and assigns complex number x.
-|`gencomplex& operator+=(const genfloat& x);`
-|Adds and assigns scaler number x.
-|`gencomplex& operator-=(const gencomplex& x);`
-|Subtracts and assigns complex number x.
-|`gencomplex& operator-=(const genfloat& x);`
-|Subtracts and assigns scaler number x.
-|`gencomplex& operator*=(const gencomplex& x);`
-|Multiplies and assigns complex number x.
-|`gencomplex& operator*=(const genfloat& x);`
-|Multiplies and assigns scaler number x.
-|`gencomplex& operator/=(const gencomplex& x);`
-|Divides and assigns complex number x.
-|`gencomplex& operator/=(const genfloat& x);`
-|Divides and assigns scaler number x.
-|`gencomplex operator+(const gencomplex& x, const gencomplex& y);`
-|Adds complex numbers x and y and returns the value.
-|`gencomplex operator+(const gencomplex& x, const genfloat& y);`
-|Adds complex number x and decimal y and returns the value.
-|`gencomplex operator+(const genfloat& x, const gencomplex& y);`
-|Adds decimal x and complex number y and returns the value.
-|`gencomplex operator-(const gencomplex& x, const gencomplex& y);`
-|Subtracts complex values x and y and returns the value.
-|`gencomplex operator-(const gencomplex& x, const genfloat& y);`
-|Subtracts complex number x and decimal y and returns the value.
-|`gencomplex operator-(const genfloat& x, const gencomplex& y);`
-|Subtracts decimal x and complex number y and returns the value.
-|`gencomplex operator*(const gencomplex& x, const gencomplex& y);`
-|Multiplies complex numbers x and y and returns the value.
-|`gencomplex operator*(const gencomplex& x, const genfloat& y);`
-|Multiplies complex number x and decimal y and returns the value.
-|`gencomplex operator*(const genfloat& x, const gencomplex& y);`
-|Multiplies decimal x and complex number y and returns the value.
-|`gencomplex operator/(const gencomplex& x, const gencomplex& y);`
-|Divides complex numbers x and y and returns the value.
-|`gencomplex operator/(const gencomplex& x, const genfloat& y);`
-|Divides complex number x and decimal y and returns the value.
-|`gencomplex operator/(const genfloat& x, const gencomplex& y);`
-|Divides decimal x and complex number y and returns the value.
-|`gencomplex operator==(const gencomplex& x, const gencomplex& y);`
-|Compares complex numbers x and y and returns true if they are the same, otherwise false.
-|`gencomplex operator==(const gencomplex& x, const genfloat& y);`
-|Compares complex number x and decimal y and returns true if they are the same, otherwise false.
-|`gencomplex operator==(const genfloat& x, const gencomplex& y);`
-|Compares decimal x and complex number y and returns true if they are the same, otherwise false.
-|`gencomplex operator!=(const gencomplex& x, const gencomplex& y);`
-|Compares complex numbers x and y and returns true if they are different, otherwise false.
-|`gencomplex operator!=(const gencomplex& x, const genfloat& y);`
-|Compares complex number x and decimal y and returns true if they are different, otherwise false.
-|`gencomplex operator!=(const genfloat& x, const gencomplex& y);`
-|Compares decimal x and complex number y and returns true if they are different, otherwise false.
-|`const sycl::stream& operator<<(sycl::stream& x, const gencomplex& y);`
-|Streams the complex number y in the format "(real,imaginary)" into `sycl::stream` x and return the result.
-|===
+            /// Constructs the complex number from real and imaginary parts.
+            constexpr complex(value_type __re = value_type(), value_type __im = value_type());
 
+            /// Converting constructor. Constructs the object from a complex number of a different type.
+            template <typename X>
+            constexpr complex(const complex<X> &);
+
+            /// Converting constructor. Constructs the object from a std::complex number.
+            template <class X>
+            constexpr complex(const std::complex<X> &);
+
+            /// Constructs a std::complex number from a sycl::complex.
+            template <class X>
+            constexpr operator std::complex<X>() const;
+
+            /// Returns the real part.
+            constexpr value_type real() const;
+            /// Returns the imaginary part.
+            constexpr value_type imag() const;
+
+            /// Sets the real part from value.
+            void real(value_type value);
+            /// Sets the imaginary part from value.
+            void imag(value_type value);
+
+            /// Assigns x to the real part of the complex number. Imaginary part is set to zero.
+            complex<value_type> &operator=(value_type x);
+            /// Adds and assigns real number y to complex number z.
+            friend complex<value_type> &operator+=(complex<value_type> &z, value_type y);
+            /// Subtracts and assigns real number y to complex number z.
+            friend complex<value_type> &operator-=(complex<value_type> &z, value_type y);
+            /// Multiplies and assigns real number y to complex number z.
+            friend complex<value_type> &operator*=(complex<value_type> &z, value_type y);
+            /// Divides and assigns real number y to complex number z.
+            friend complex<value_type> &operator/=(complex<value_type> &z, value_type y);
+
+            /// Assigns cx.real() and cx.imag() to the real and the imaginary parts of the complex number respectively.
+            complex<value_type> &operator=(const complex<value_type> &cx);
+            /// Adds and assigns complex number w to complex number z.
+            template <class X> friend complex<value_type> &operator+=(complex<value_type> &z, const complex<X> &w);
+            /// Subtracts and assigns complex number w to complex number z.
+            template <class X> friend complex<value_type> &operator-=(complex<value_type> &z, const complex<X> &w);
+            /// Multiplies and assigns complex number w to complex number z.
+            template <class X> friend complex<value_type> &operator*=(complex<value_type> &z, const complex<X> &w);
+            /// Divides and assigns complex number w to complex number z.
+            template <class X> friend complex<value_type> &operator/=(complex<value_type> &z, const complex<X> &w);
+
+            /// Adds complex numbers z and w and returns the value.
+            friend complex<value_type> operator+(const complex<value_type> &z, const complex<value_type> &w);
+            /// Adds complex number z and real y and returns the value.
+            friend complex<value_type> operator+(const complex<value_type> &z, value_type y);
+            /// Adds real x and complex number w and returns the value.
+            friend complex<value_type> operator+(value_type x, const complex<value_type> &w);
+            /// Returns the value of its argument.
+            friend complex<value_type> operator+(const complex<value_type> &);
+
+            /// Subtracts complex numbers z and w and returns the value.
+            friend complex<value_type> operator-(const complex<value_type> &z, const complex<value_type> &w);
+            /// Subtracts complex number z and real y and returns the value.
+            friend complex<value_type> operator-(const complex<value_type> &z, value_type y);
+            /// Subtracts real x and complex number w and returns the value.
+            friend complex<value_type> operator-(value_type x, const complex<value_type> &w);
+            /// Negates the argument.
+            friend complex<value_type> operator-(const complex<value_type> &);
+
+            /// Multiplies complex numbers z and w and returns the value.
+            friend complex<value_type> operator*(const complex<value_type> &z, const complex<value_type> &w);
+            /// Multiplies complex number z and real y and returns the value.
+            friend complex<value_type> operator*(const complex<value_type> &z, value_type y);
+            /// Multiplies real x and complex number w and returns the value.
+            friend complex<value_type> operator*(value_type x, const complex<value_type> &w);
+
+            /// Divides complex numbers z and w and returns the value.
+            friend complex<value_type> operator/(const complex<value_type> &z, const complex<value_type> &w);
+            /// Divides complex number z and real y and returns the value.
+            friend complex<value_type> operator/(const complex<value_type> &z, value_type y);
+            /// Divides real x and complex number w and returns the value.
+            friend complex<value_type> operator/(value_type x, const complex<value_type> &w);
+
+            /// Compares complex numbers z and w and returns true if they are the same, otherwise false.
+            friend constexpr bool operator==(const complex<value_type> &z, const complex<value_type> &w);
+            /// Compares complex number z and real y and returns true if they are the same, otherwise false.
+            friend constexpr bool operator==(const complex<value_type> &z, value_type y);
+            /// Compares real x and complex number w and returns true if they are the same, otherwise false.
+            friend constexpr bool operator==(value_type x, const complex<value_type> &w);
+
+            /// Compares complex numbers z and w and returns true if they are different, otherwise false.
+            friend constexpr bool operator!=(const complex<value_type> &z, const complex<value_type> &w);
+            ///Compares complex number z and real y and returns true if they are different, otherwise false.
+            friend constexpr bool operator!=(const complex<value_type> &z, value_type y);
+            /// Compares real x and complex number w and returns true if they are different, otherwise false.
+            friend constexpr bool operator!=(value_type x, const complex<value_type> &w);
+
+            /// Reads a complex number from is.
+            /// Not allowed in device code.
+            template <class C, class T> friend std::basic_istream<C, T> &operator>>(std::basic_istream<C, T> &is, complex<value_type> &);
+            /// Writes to os the complex number z in the form (real,imaginary).
+            /// Not allowed in device code.
+            template <class C, class T> friend std::basic_ostream<C, T> &operator<<(std::basic_ostream<C, T> &os, const complex<value_type> &);
+            /// Streams the complex number z in the format "(real,imaginary)" into `sycl::stream` x and return the result.
+            friend const sycl::stream &operator<<(const sycl::stream &x, const complex<value_type> &z);
+
+} // namespace sycl::ext::oneapi::experimental
+```
 
 === Mathematical operations
 
-This proposal adds `sycl::ext::oneapi` namespace math functions accepting
-`gencomplex` for the SYCL math functions, `abs`, `acos`, `asin`, `atan`,
-`acosh`, `asinh`, `atanh`, `arg`, `conj`, `cos`, `cosh`, `exp`, `log`, `log10`,
-`norm`, `polar`, `pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
-Each math function should follow the C++ standard for handling NaN's and Inf
-values.
+This proposal adds to the `sycl::ext::oneapi::experimental` namespace, math
+functions accepting the complex types `complex<sycl::half>`, `complex<float>`,
+`complex<double>` as well as the scalar types `sycl::half`, `float` and `double`
+for the SYCL math functions, `abs`, `acos`, `asin`, `atan`, `acosh`, `asinh`,
+`atanh`, `arg`, `conj`, `cos`, `cosh`, `exp`, `log`, `log10`, `norm`, `polar`,
+`pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
+
+These functions are available in both host and device code, and each math
+function should follow the C++ standard for handling NaN's and Inf values.
+
+Note: In the case of the `pow` function, additional overloads have been added
+to ensure that for their first argument `base` and second argument `exponent`:
+
+* If `base` and/or `exponent` has type `complex<double>` or `double`,
+  then `pow(base, exponent)` has the same effect as
+  `pow(complex<double>(base), complex<double>(exponent))`.
+
+* Otherwise, if `base` and/or `exponent` has type `complex<float>` or `float`,
+  then `pow(base, exponent)` has the same effect as
+  `pow(complex<float>(base), complex<float>(exponent))`.
+
+* Otherwise, if `base` and/or `exponent` has type `complex<sycl::half>` or `sycl::half`,
+  then `pow(base, exponent)` has the same effect as
+  `pow(complex<sycl::half>(base), complex<sycl::half>(exponent))`.
 
 ```C++
-namespace sycl {
-namespace ext {
-namespace oneapi {
+namespace sycl::ext::oneapi::experimental {
 
-    genfloat abs(const gencomplex& x);
+    /// VALUES:
+    /// Returns the real component of the complex number z.
+    template <class T> constexpr T real(const complex<T> &);
+    /// Returns the real component of the number y, treated as complex numbers with zero imaginary component.
+    template <class T> constexpr T real(T);
+    /// Returns the imaginary component of the complex number z.
+    template <class T> constexpr T imag(const complex<T> &);
+    /// Returns the imaginary component of the number y, treated as complex numbers with zero imaginary component.
+    template <class T> constexpr T imag(T);
 
-    gencomplex acos(const gencomplex& x);
+    /// Compute the magnitude of complex number x.
+    template <class T> T abs(const complex<T> &);
+    /// Compute phase angle in radians of complex number x.
+    template <class T> T arg(const complex<T> &);
+    /// Compute phase angle in radians of complex number x, treated as complex number with positive zero imaginary component.
+    template <class T> T arg(T);
+    /// Compute the squared magnitude of complex number x.
+    template <class T> T norm(const complex<T> &);
+    /// Compute the squared magnitude of number x, treated as complex number with positive zero imaginary component.
+    template <class T> T norm(T);
+    /// Compute the conjugate of complex number x.
+    template <class T> complex<T> conj(const complex<T> &);
+    /// Compute the conjugate of number y, treated as complex number with positive zero imaginary component.
+    template <class T> complex<T> conj(T);
+    /// Compute the projection of complex number x.
+    template <class T> complex<T> proj(const complex<T> &);
+    /// Compute the projection of number y, treated as complex number with positive zero imaginary component.
+    template <class T> complex<T> proj(T);
+    /// Construct a complex number from polar coordinates with mangitude rho and angle theta.
+    template <class T> complex<T> polar(const T &rho, const T &theta = T());
 
-    gencomplex asin(const gencomplex& x);
+    /// TRANSCENDENTALS:
+    /// Compute the natural log of complex number x.
+    template <class T> complex<T> log(const complex<T> &);
+    /// Compute the base-10 log of complex number x.
+    template <class T> complex<T> log10(const complex<T> &);
+    /// Compute the square root of complex number x.
+    template <class T> complex<T> sqrt(const complex<T> &);
+    /// Compute the base-e exponent of complex number x.
+    template <class T> complex<T> exp(const complex<T> &);
 
-    gencomplex atan(const gencomplex& x);
+    /// Compute complex number z raised to the power of complex number y.
+    template <class T> complex<T> pow(const complex<T> &, const complex<T> &);
+    /// Compute complex number z raised to the power of complex number y.
+    template <class T, class U> complex</*Promoted*/> pow(const complex<T> &, const complex<U> &);
+    /// Compute complex number z raised to the power of real number y.
+    template <class T, class U> complex</*Promoted*/> pow(const complex<T> &, const U &);
+    /// Compute real number x raised to the power of complex number y.
+    template <class T, class U> complex</*Promoted*/> pow(const T &, const complex<U> &);
 
-    gencomplex acosh(const gencomplex& x);
+    /// Compute the inverse hyperbolic sine of complex number x.
+    template <class T> complex<T> asinh(const complex<T> &);
+    /// Compute the inverse hyperbolic cosine of complex number x.
+    template <class T> complex<T> acosh(const complex<T> &);
+    /// Compute the inverse hyperbolic tangent of complex number x.
+    template <class T> complex<T> atanh(const complex<T> &);
+    /// Compute the hyperbolic sine of complex number x.
+    template <class T> complex<T> sinh(const complex<T> &);
+    /// Compute the hyperbolic cosine of complex number x.
+    template <class T> complex<T> cosh(const complex<T> &);
+    /// Compute the hyperbolic tangent of complex number x.
+    template <class T> complex<T> tanh(const complex<T> &);
+    /// Compute the inverse sine of complex number x.
+    template <class T> complex<T> asin(const complex<T> &);
+    /// Compute the inverse cosine of complex number x.
+    template <class T> complex<T> acos(const complex<T> &);
+    /// Compute the inverse tangent of complex number x.
+    template <class T> complex<T> atan(const complex<T> &);
+    /// Compute the sine of complex number x.
+    template <class T> complex<T> sin(const complex<T> &);
+    /// Compute the cosine of complex number x.
+    template <class T> complex<T> cos(const complex<T> &);
+    // Compute the tangent of complex number x.
+    template <class T> complex<T> tan(const complex<T> &);
 
-    gencomplex asinh(const gencomplex& x);
-
-    gencomplex atanh(const gencomplex& x);
-
-    genfloat arg(const gencomplex& x);
-
-    gencomplex conj(const gencomplex& x);
-
-    gencomplex cos(const gencomplex& x);
-
-    gencomplex cosh(const gencomplex& x);
-
-    gencomplex exp(const gencomplex& x);
-
-    gencomplex log(const gencomplex& x);
-
-    gencomplex log10(const gencomplex& x);
-
-    genfloat norm(const gencomplex& x);
-
-    gencomplex polar(const genfloat& rho, const genfloat& theta = 0);
-
-    gencomplex pow(const gencomplex& x, const genfloat& y);
-
-    gencomplex pow(const gencomplex& x, const gencomplex& y);
-
-    gencomplex pow(const genfloat& x, const gencomplex& y);
-
-    gencomplex proj(const gencomplex& x);
-
-    gencomplex sin(const gencomplex& x);
-
-    gencomplex sinh(const gencomplex& x);
-
-    gencomplex sqrt(const gencomplex& x);
-
-    gencomplex tan(const gencomplex& x);
-
-    gencomplex tanh(const gencomplex& x);
-
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::oneapi::experimental
 ```
-
-The table below shows each function along with a description of its
-mathematical operation.
-
-[%header,cols="5,5"]
-|===
-|Function
-|Description
-
-|`genfloat abs(const gencomplex& x)`
-|Compute the magnitude of complex number x.
-|`gencomplex acos(const gencomplex& x)`
-|Compute the inverse cosine of complex number x.
-|`gencomplex asin(const gencomplex& x)`
-|Compute the inverse sine of complex number x.
-|`gencomplex atan(const gencomplex& x)`
-|Compute the inverse tangent of complex number x.
-|`gencomplex acosh(const gencomplex& x)`
-|Compute the inverse hyperbolic cosine of complex number x.
-|`gencomplex asinh(const gencomplex& x)`
-|Compute the inverse hyperbolic sine of complex number x.
-|`gencomplex atanh(const gencomplex& x)`
-|Compute the inverse hyperbolic tangent of complex number x.
-|`genfloat arg(const gencomplex& x);`
-|Compute phase angle in radians of complex number x.
-|`gencomplex conj(const gencomplex& x)`
-|Compute the conjugate of complex number x.
-|`gencomplex cos(const gencomplex& x)`
-|Compute the cosine of complex number x.
-|`gencomplex cosh(const gencomplex& x)`
-|Compute the hyperbolic cosine of complex number x.
-|`gencomplex exp(const gencomplex& x)`
-|Compute the base-e exponent of complex number x.
-|`gencomplex log(const gencomplex& x)`
-|Compute the natural log of complex number x.
-|`gencomplex log10(const gencomplex& x)`
-|Compute the base-10 log of complex number x.
-|`genfloat norm(const gencomplex& x)`
-|Compute the squared magnitude of complex number x.
-|`gencomplex polar(const genfloat& rho, const genfloat& theta = 0)`
-|Construct a complex number from polar coordinates with mangitude rho and angle theta.
-|`gencomplex pow(const gencomplex& x, const genfloat& y)`
-|Compute complex number x raised to the power of decimal number y.
-|`gencomplex pow(const gencomplex& x, const gencomplex& y)`
-|Compute complex number x raised to the power of complex number y.
-|`gencomplex pow(const genfloat& x, const gencomplex& y)`
-|Compute decimal number x raised to the power of complex number y.
-|`gencomplex proj(const gencomplex& x)`
-|Compute the projection of complex number x.
-|`gencomplex sin(const gencomplex& x)`
-|Compute the sine of complex number x.
-|`gencomplex sinh(const gencomplex& x)`
-|Compute the hyperbolic sine of complex number x.
-|`gencomplex sqrt(const gencomplex& x)`
-|Compute the square root of complex number x.
-|`gencomplex tan(const gencomplex& x)`
-|Compute the tangent of complex number x.
-|`gencomplex tanh(const gencomplex& x)`
-|Compute the hyperbolic tangent of complex number x.
-|===
 
 == Implementation notes
 
 The complex mathematical operations can all be defined using SYCL built-ins.
 Therefore, implementing complex with SYCL built-ins would allow any backend
-with SYCL built-ins to support `sycl::ext::oneapi::complex`. The current
-implementation of `std::complex` relies on `libdevice`, which requires
-adjusting and altering the clang driver. This additional work would not be
-necessary for adding complex support with this extension.
+with SYCL built-ins to support `sycl::ext::oneapi::experimental::complex`.
+The current implementation of `std::complex` relies on `libdevice`, which
+requires adjusting and altering the clang driver. This additional work would not
+be necessary for adding complex support with this extension.
 
 == Issues
 
