@@ -20,7 +20,7 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-@entry_test_alloca.lm = internal unnamed_addr addrspace(3) constant [16 x <2 x float>] undef, align 8
+@entry_test_alloca.lm = external unnamed_addr addrspace(3) constant [16 x <2 x float>], align 8
 
 define spir_kernel void @test(<2 x float> addrspace(1)* nocapture readonly %in, <2 x float> addrspace(1)* nocapture %out, i32 %offset) local_unnamed_addr {
 entry:
