@@ -1063,8 +1063,9 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
     getSyclObjImpl(Context)->getPlugin()->call<PiApiKind::piextDeviceSelectBinary>(
         getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
         (pi_uint32)RawImgs.size(), &ImgInd);
-    std::advance(It, ImgInd);
-    Img = It->second;
+    std::cout << "ImgInd = " << ImgInd << std::endl;
+    std::advance(ItBegin, ImgInd);
+    Img = ItBegin->second;
   }
   else if (auto [ItBegin, ItEnd] = m_ServiceKernels.equal_range(KernelName); ItBegin != ItEnd)
   {
@@ -1079,8 +1080,8 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
     getSyclObjImpl(Context)->getPlugin()->call<PiApiKind::piextDeviceSelectBinary>(
         getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
         (pi_uint32)RawImgs.size(), &ImgInd);
-    std::advance(It, ImgInd);
-    Img = It->second;
+    std::advance(ItBegin, ImgInd);
+    Img = ItBegin->second;
   }
   else
     assert(false && "No kernel id found for the given kernel name");
@@ -1539,6 +1540,8 @@ const KernelArgMask *
 ProgramManager::getEliminatedKernelArgMask(pi::PiProgram NativePrg,
                                            const std::string &KernelName) {
   // Bail out if there are no eliminated kernel arg masks in our images
+  std::cout << "getEliminatedKernelArgMask KernelName = " << KernelName << std::endl;
+  std::cout << "m_EliminatedKernelArgMasks.empty() = " << m_EliminatedKernelArgMasks.empty() << std::endl;
   if (m_EliminatedKernelArgMasks.empty())
     return nullptr;
 
@@ -1546,8 +1549,17 @@ ProgramManager::getEliminatedKernelArgMask(pi::PiProgram NativePrg,
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     auto ImgIt = NativePrograms.find(NativePrg);
     if (ImgIt != NativePrograms.end()) {
+      std::cout << "ImgIt != NativePrograms.end()" << std::endl;
+      std::cout << "ImgIt->second = " << ImgIt->second << std::endl;
       auto MapIt = m_EliminatedKernelArgMasks.find(ImgIt->second);
+      auto Begin = m_EliminatedKernelArgMasks.begin();
+      while (Begin != m_EliminatedKernelArgMasks.end())
+      {
+        std::cout << "m_EliminatedKernelArgMasks Img = " << Begin->first << std::endl;
+        Begin++;
+      }
       if (MapIt != m_EliminatedKernelArgMasks.end()) {
+        std::cout << "MapIt != m_EliminatedKernelArgMasks.end()" << std::endl;
         auto ArgMaskMapIt = MapIt->second.find(KernelName);
         if (ArgMaskMapIt != MapIt->second.end())
           return &MapIt->second[KernelName];
