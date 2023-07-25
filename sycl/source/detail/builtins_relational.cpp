@@ -458,9 +458,15 @@ __SYCL_EXPORT rel_res_t sycl_host_SignBitSet(s::cl_float x) __NOEXC {
 __SYCL_EXPORT rel_res_t sycl_host_SignBitSet(s::cl_double x) __NOEXC {
   return std::signbit(x);
 }
+#ifndef __GNUC__
+// GCC 11.3.0 (and friends) has an internal compiler error when this function is
+// passed to the macro declaration below. ( MAKE_1V ... 4 ... ) Fortunately, we
+// don't actually need it when compiling the SYCL library itself.
+// TODO: switch to templates instead of these overload expansions.
 __SYCL_EXPORT s::cl_int __vSignBitSet(s::cl_float x) __NOEXC {
   return -static_cast<s::cl_int>(std::signbit(x));
 }
+#endif
 __SYCL_EXPORT s::cl_long __vSignBitSet(s::cl_double x) __NOEXC {
   return -static_cast<s::cl_long>(std::signbit(x));
 }
