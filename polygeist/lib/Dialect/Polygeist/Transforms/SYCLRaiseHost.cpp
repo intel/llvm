@@ -1588,11 +1588,12 @@ public:
     if (auto [captureOp, capturedVal] =
             getUniqueAssignment(lambdaObj, annotatedPtr);
         captureOp) {
-      capturedVal = tryToBroaden(capturedVal, captureTypes[0]);
+      auto [broadenedVal, typeAttr] =
+          tryToBroaden(capturedVal, captureTypes[0]);
       rewriter.setInsertionPointAfter(captureOp);
       rewriter.create<sycl::SYCLHostSetCaptured>(captureOp->getLoc(), lambdaObj,
                                                  rewriter.getI64IntegerAttr(0),
-                                                 capturedVal);
+                                                 broadenedVal, typeAttr);
     }
 
     // All other captures are unique assignments to GEPs with two constant
@@ -1613,11 +1614,12 @@ public:
       if (!captureOp)
         continue;
 
-      capturedVal = tryToBroaden(capturedVal, captureTypes[captureIdx]);
+      auto [broadenedVal, typeAttr] =
+          tryToBroaden(capturedVal, captureTypes[captureIdx]);
       rewriter.setInsertionPointAfter(captureOp);
       rewriter.create<sycl::SYCLHostSetCaptured>(
           captureOp->getLoc(), lambdaObj,
-          rewriter.getI64IntegerAttr(captureIdx), capturedVal);
+          rewriter.getI64IntegerAttr(captureIdx), broadenedVal, typeAttr);
     }
 
     // Finally erase the annotation op.
@@ -1680,7 +1682,8 @@ private:
 
   // Use the \p expected type as domain knowledge to try to broaden an
   // \p assigned value to an entity of interest (e.g. an accessor).
-  Value tryToBroaden(Value assigned, Type expected) const {
+  std::tuple<Value, TypeAttr> tryToBroaden(Value assigned,
+                                           Type expected) const {
     if (isClassType(expected, accessorTypeTag.getTypeName())) {
       // The getelementpointer[0, <capture #>] we have matched earlier might not
       // address the entire accessor, but rather the first member in the
@@ -1693,14 +1696,22 @@ private:
                 load.getAddr().getDefiningOp()))
           if (auto elemTy = alloca.getElemType();
               elemTy.has_value() && elemTy.value() == expected)
-            return load.getAddr();
+            if (auto accessorAlloca =
+                    dyn_cast<LLVM::AllocaOp>(load.getAddr().getDefiningOp()))
+              for (auto *user : accessorAlloca->getUsers())
+                if (auto hostCons =
+                        dyn_cast<sycl::SYCLHostConstructorOp>(user)) {
+                  assert(
+                      isa<sycl::AccessorType>(hostCons.getType().getValue()));
+                  return {accessorAlloca, hostCons.getType()};
+                }
 
       LLVM_DEBUG(llvm::dbgs()
                  << "tryToBroaden: Could not infer captured accessor\n");
     }
 
     // No special handling, just return the argument as-is.
-    return assigned;
+    return {assigned, TypeAttr()};
   }
 
   AccessorTypeTag accessorTypeTag;

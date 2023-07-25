@@ -151,18 +151,27 @@ def SYCLHostSetCaptured : SYCL_HostOp<"set_captured"> {
   let summary = "Marks a value as captured by a kernel function object.";
   let description = [{
     This operation represents that the given `value` was captured in the kernel
-    function object `lambda` at index `index`. The op is created during the 
-    progressive raising towards the `sycl.host.schedule_kernel` op.
+    function object `lambda` at index `index`. If a special SYCL entity is
+    captured (e.g. an acccessor), its type is stored in the `sycl_type`
+    attribute. The op is created during the progressive raising towards the
+    `sycl.host.schedule_kernel` op.
 
     Example:
     ```
-    sycl.host.set_captured %lambda[2] = %accessor : !llvm.ptr, !llvm.ptr
+    sycl.host.set_captured %lambda[1] = %scalar : !llvm.ptr, !llvm.ptr, i32
+    sycl.host.set_captured %lambda[2] = %accessor 
+      : !llvm.ptr, !llvm.ptr, !llvm.ptr (!sycl_accessor_1_f32_rw_gb)
     ```
   }];
-  let arguments = (ins LLVM_AnyPointer:$lambda, I64Attr:$index, AnyType:$value);
+  let arguments = (ins
+    LLVM_AnyPointer:$lambda, I64Attr:$index, AnyType:$value,
+    OptionalAttr<TypeAttr>:$sycl_type
+  );
   let assemblyFormat = [{
-    $lambda `[` $index `]` `=` $value attr-dict `:` type(operands)
+    $lambda `[` $index `]` `=` $value attr-dict 
+      `:` type(operands) (` ` `(` $sycl_type^ `)`)?
   }];
+  let hasVerifier = 1;
 }
 
 def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
