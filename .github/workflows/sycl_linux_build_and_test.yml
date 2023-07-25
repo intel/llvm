@@ -224,8 +224,10 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.lts_matrix) }}
-    uses: ./.github/workflows/linux_single_e2e.yml
+    uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
+      tests_selector: e2e
+
       name: ${{ matrix.name }}
       runner: ${{ toJSON(matrix.runs-on) }}
       image: ${{ matrix.image }}
