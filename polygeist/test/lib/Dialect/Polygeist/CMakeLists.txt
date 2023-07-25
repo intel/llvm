@@ -4,6 +4,7 @@ if(MLIR_INCLUDE_TESTS)
     TestBufferAnalysis.cpp
     TestIDAndRangeAnalysis.cpp
     TestMemoryAccessAnalysis.cpp
+    TestNDRangeAnalysis.cpp
     TestReachingDefinitionsAnalysis.cpp
     TestUniformityAnalysis.cpp
 

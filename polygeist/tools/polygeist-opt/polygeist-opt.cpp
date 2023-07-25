@@ -18,9 +18,9 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
+#include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
-#include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -54,6 +54,7 @@ void registerTestAccessorAnalysisPass();
 void registerTestBufferAnalysisPass();
 void registerTestIDAndRangeAnalysisPass();
 void registerTestMemoryAccessAnalysisPass();
+void registerTestNDRangeAnalysisPass();
 void registerTestReachingDefinitionAnalysisPass();
 void registerTestUniformityAnalysisPass();
 } // namespace test
@@ -65,6 +66,7 @@ void registerTestPasses() {
   mlir::test::registerTestBufferAnalysisPass();
   mlir::test::registerTestIDAndRangeAnalysisPass();
   mlir::test::registerTestMemoryAccessAnalysisPass();
+  mlir::test::registerTestNDRangeAnalysisPass();
   mlir::test::registerTestReachingDefinitionAnalysisPass();
   mlir::test::registerTestUniformityAnalysisPass();
 }

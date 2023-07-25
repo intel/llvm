@@ -40,7 +40,7 @@ struct TestIDAndRangeAnalysisPass
                 op, operand);
         if (idResult) {
           llvm::errs().indent(2) << "id:\n";
-          llvm::errs() << *idResult;
+          llvm::errs().indent(4) << *idResult << "\n";
         }
         auto rangeResult =
             IDRangeAnalysis
@@ -48,7 +48,7 @@ struct TestIDAndRangeAnalysisPass
                     op, operand);
         if (rangeResult) {
           llvm::errs().indent(2) << "range:\n";
-          llvm::errs() << *rangeResult;
+          llvm::errs().indent(4) << *rangeResult << "\n";
         }
       }
       return WalkResult::advance();

@@ -4,6 +4,7 @@ add_mlir_dialect_library(MLIRPolygeistAnalysis
   SYCLAccessorAnalysis.cpp
   SYCLBufferAnalysis.cpp
   SYCLIDAndRangeAnalysis.cpp
+  SYCLNDRangeAnalysis.cpp
   UniformityAnalysis.cpp
   
   ADDITIONAL_HEADER_DIRS
