@@ -108,6 +108,7 @@ List of options provided by CMake:
 | UR_FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |
 | UR_DEVELOPER_MODE | Treat warnings as errors and enables additional checks | ON/OFF | OFF |
 | UR_USE_ASAN | Enable AddressSanitizer | ON/OFF | OFF |
+| UR_USE_TSAN | Enable ThreadSanitizer | ON/OFF | OFF |
 | UR_USE_UBSAN | Enable UndefinedBehavior Sanitizer | ON/OFF | OFF |
 | UR_USE_MSAN | Enable MemorySanitizer (clang only) | ON/OFF | OFF |
 | UR_ENABLE_TRACING | Enable XPTI-based tracing layer | ON/OFF | OFF |

@@ -30,6 +30,7 @@ option(UR_FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
 option(UR_USE_ASAN "enable AddressSanitizer" OFF)
 option(UR_USE_UBSAN "enable UndefinedBehaviorSanitizer" OFF)
 option(UR_USE_MSAN "enable MemorySanitizer" OFF)
+option(UR_USE_TSAN "enable ThreadSanitizer" OFF)
 option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" OFF)
 option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
@@ -114,6 +115,10 @@ endif()
 
 if(UR_USE_UBSAN)
     add_sanitizer_flag(undefined)
+endif()
+
+if(UR_USE_TSAN)
+    add_sanitizer_flag(thread)
 endif()
 
 if(UR_USE_MSAN)
