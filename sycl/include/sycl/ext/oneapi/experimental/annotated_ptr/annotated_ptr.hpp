@@ -141,8 +141,7 @@ public:
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
 
-  template<class T2, class P2>
-  friend class annotated_ptr;
+  template <class T2, class P2> friend class annotated_ptr;
 };
 
 #undef PROPAGATE_OP
