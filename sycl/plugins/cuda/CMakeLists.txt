@@ -4,7 +4,7 @@ message(STATUS "Including the PI API CUDA backend.")
  # we only require the CUDA driver API to be used
  # CUDA_CUDA_LIBRARY variable defines the path to libcuda.so, the CUDA Driver API library.
 
-find_package(CUDA 10.1 REQUIRED)
+find_package(CUDA 11.5 REQUIRED)
 
 # Make imported library global to use it within the project.
 add_library(cudadrv SHARED IMPORTED GLOBAL)

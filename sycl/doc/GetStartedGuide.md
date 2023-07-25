@@ -173,7 +173,7 @@ the CUDA backend has Windows support; windows subsystem for
 linux (WSL) is not needed to build and run the CUDA backend.
 
 Enabling this flag requires an installation of at least
-[CUDA 10.2](https://developer.nvidia.com/cuda-10.2-download-archive) on
+[CUDA 11.5](https://developer.nvidia.com/cuda-11-5-0-download-archive) on
 the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 or

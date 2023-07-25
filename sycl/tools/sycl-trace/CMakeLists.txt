@@ -99,7 +99,7 @@ add_dependencies(sycl_pi_trace_collector pi-pretty-printers)
 
 if(SYCL_BUILD_PI_CUDA)
 
-  find_package(CUDA 10.1 REQUIRED)
+  find_package(CUDA 11.5 REQUIRED)
 
   target_compile_definitions(cuda_trace_collector
     PRIVATE
