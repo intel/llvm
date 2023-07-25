@@ -11,6 +11,23 @@
 
 include "mlir/Pass/PassBase.td"
 
+def ConstantPropagationPass : Pass<"sycl-cpp", "gpu::GPUFuncOp"> {
+  let summary = "SYCL host-device constant propagation";
+  let description = [{
+    This pass implements SYCL host-device constant propagation. In order to do
+    so, it tracks constant values, e.g., those defined by `arith.constant`,
+    passed as an argument to `sycl.host.schedule_kernel`, drops them in host
+    side and replaces the corresponding `gpu.func` argument with the constant
+    value, also dropping the argument in device side.
+  }];
+  let constructor = "mlir::sycl::createCPP()";
+
+  let statistics = [
+    Statistic<"NumPropagatedConstants", "num-propagated-constants",
+              "Number of propagated constants">
+  ];
+}
+
 def InlinePass : Pass<"inliner"> {
   let summary = "Inline function calls";
   let description = [{
