@@ -107,9 +107,6 @@ class ModuleDesc {
   EntryPointGroup EntryPoints;
   bool IsTopLevel = false;
 
-  // Name of the original device image from which this MD was generated from.
-  std::optional<std::string> OriginalImageName;
-
 public:
   struct Properties {
     bool IsSpecConstantDefault = false;
@@ -190,8 +187,7 @@ public:
   bool isSpecConstantDefault() const;
   void setSpecConstantDefault(bool Value);
 
-  void setOriginalImageName(const std::string &Name);
-  const std::optional<std::string> &tryGetOriginalImageName() const;
+  friend ModuleDesc CloneModuleDesc(const ModuleDesc &MD);
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
@@ -199,7 +195,7 @@ public:
 #endif // NDEBUG
 };
 
-ModuleDesc CreateModuleDescWithDefaultSpecConstants(std::unique_ptr<Module> M);
+ModuleDesc CloneModuleDesc(const ModuleDesc &MD);
 
 // Module split support interface.
 // It gets a module (in a form of module descriptor, to get additional info) and

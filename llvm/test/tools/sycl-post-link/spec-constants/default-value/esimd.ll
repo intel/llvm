@@ -10,10 +10,10 @@
 ; CHECK-TABLE: [[PATH]]_esimd_1.bc|[[PATH]]_esimd_1.prop|[[PATH]]_esimd_1.sym
 ; CHECK-TABLE: [[PATH]]_1.bc|[[PATH]]_1.prop|[[PATH]]_1.sym
 
-; CHECK-PROP: defaultSpecConstants=1|1
+; CHECK-PROP: specConstsReplacedWithDefault=1|1
 
 ; CHECK-ESIMD-PROP: isEsimdImage=1|1
-; CHECK-ESIMD-PROP: defaultSpecConstants=1|1
+; CHECK-ESIMD-PROP: specConstsReplacedWithDefault=1|1
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

@@ -570,17 +570,10 @@ void ModuleDesc::setSpecConstantDefault(bool Value) {
   Props.IsSpecConstantDefault = Value;
 }
 
-void ModuleDesc::setOriginalImageName(const std::string &Name) {
-  OriginalImageName = Name;
-}
-
-const std::optional<std::string> &ModuleDesc::tryGetOriginalImageName() const {
-  return OriginalImageName;
-}
-
-ModuleDesc CreateModuleDescWithDefaultSpecConstants(std::unique_ptr<Module> M) {
-  ModuleDesc NewMD(std::move(M));
-  NewMD.setSpecConstantDefault(true);
+ModuleDesc CloneModuleDesc(const ModuleDesc &MD) {
+  std::unique_ptr<Module> NewModule = CloneModule(MD.getModule());
+  ModuleDesc NewMD(std::move(NewModule));
+  NewMD.EntryPoints.Props = MD.EntryPoints.Props;
   return NewMD;
 }
 
@@ -649,16 +642,6 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
       Functions.insert(F);
     }
   });
-}
-
-void EntryPointGroup::rebuild(const Module &M) {
-  std::vector<std::string> Names;
-  for (const Function &F : M.functions()) {
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
-
-    Functions.insert(const_cast<Function *>(&F));
-  }
 }
 
 namespace {

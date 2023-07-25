@@ -613,6 +613,47 @@ Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
 
 } // namespace
 
+/// Function replaces Call instructions of Spec Constants with simple 'store'
+/// instructions.
+/// Function returns true if Module is changed somehow and false otherwise.
+static bool replaceSpecConstsWithDefaultValues(Module &M) {
+  std::vector<Function *> SpecConstDeclarations;
+  std::vector<CallInst *> CIs;
+  for (Function &F : M.functions()) {
+    if (!F.isDeclaration())
+      continue;
+
+    if (!F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
+        !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+      continue;
+
+    SpecConstDeclarations.push_back(&F);
+    for (User *U : F.users())
+      if (auto *CI = dyn_cast<CallInst>(U))
+        CIs.push_back(CI);
+  }
+
+  for (CallInst *CI : CIs) {
+    Value *Dst = CI->getArgOperand(0);
+    Value *Src = CI->getArgOperand(2);
+    Value *StripSrc = Src->stripPointerCasts();
+    GlobalVariable *GV = cast<GlobalVariable>(StripSrc);
+    Constant *InitializerValue = GV->getInitializer();
+
+    IRBuilder B(CI);
+    Value *EV = B.CreateExtractValue(InitializerValue, {0});
+    B.CreateStore(EV, Dst);
+    CI->removeFromParent();
+    CI->deleteValue();
+  }
+
+  for (Function *F : SpecConstDeclarations)
+    F->removeFromParent();
+
+  // The exact criteria that Module has been modified.
+  return !SpecConstDeclarations.empty();
+}
+
 PreservedAnalyses SpecConstantsPass::run(Module &M,
                                          ModuleAnalysisManager &MAM) {
   ID NextID = {0, false};
@@ -622,12 +663,17 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   MapVector<StringRef, MDNode *> SCMetadata;
   SmallVector<MDNode *, 4> DefaultsMetadata;
 
+
+  bool IRModified = false;
+  if (Mode == HandlingMode::default_values) {
+    IRModified |= replaceSpecConstsWithDefaultValues(M);
+    return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
+  }
+
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
   // intrinsic to find its calls and lower them depending on the SetValAtRT
   // setting (see below).
-  bool IRModified = false;
-
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
@@ -686,7 +732,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
       bool IsNewSpecConstant = false;
       unsigned Padding = 0;
-      if (SetValAtRT) {
+      if (Mode == HandlingMode::native) {
         // 2. Spec constant value will be set at run time - then add the literal
         // to a "spec const string literal ID" -> "vector of integer IDs" map,
         // making the integer IDs unique if this is a new literal
@@ -920,26 +966,7 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
   return true;
 }
 
-void replaceSpecConstsWithDefaultValue(const Module &M,
-                                       const std::vector<CallInst *> &CIs) {
-  const DataLayout &DL = M.getDataLayout();
-  for (CallInst *CI : CIs) {
-    Value *Dst = CI->getArgOperand(0);
-    Value *Src = CI->getArgOperand(2);
-    Align DstAlign = DL.getABITypeAlign(Dst->getType());
-    Align SrcAlign = DL.getABITypeAlign(Src->getType());
-    Type *StructureType =
-        Src->stripPointerCasts()->getType()->getContainedType(0);
-    uint64_t SpecConstSize = DL.getTypeAllocSize(StructureType);
-
-    IRBuilder B(CI);
-    B.CreateMemCpy(Dst, DstAlign, Src, SrcAlign, SpecConstSize);
-    CI->removeFromParent();
-    CI->deleteValue();
-  }
-}
-
-static bool checkModuleContainsSpecConsts(const Module &M) {
+bool llvm::checkModuleContainsSpecConsts(const Module &M) {
   for (const Function &F : M.functions()) {
     if (F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
         F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
@@ -947,36 +974,4 @@ static bool checkModuleContainsSpecConsts(const Module &M) {
   }
 
   return false;
-}
-
-/// Function generates a copy of Module and replaces all spec constant uses
-/// memcpy intrinsic.
-/// If the module doesn't contain spec constants then nullptr is returned.
-std::unique_ptr<Module>
-llvm::generateDeviceImageWithDefaultSpecConstants(const Module &M) {
-  if (!checkModuleContainsSpecConsts(M))
-    return nullptr;
-
-  std::unique_ptr<Module> M2 = CloneModule(M);
-  std::vector<Function *> SpecConstDeclarations;
-  std::vector<CallInst *> CIs;
-  for (Function &F : M2->functions()) {
-    if (!F.isDeclaration())
-      continue;
-
-    if (!F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
-        !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
-      continue;
-
-    SpecConstDeclarations.push_back(&F);
-    for (User *U : F.users())
-      if (auto *CI = dyn_cast<CallInst>(U))
-        CIs.push_back(CI);
-  }
-
-  replaceSpecConstsWithDefaultValue(*M2, CIs);
-  for (Function *F : SpecConstDeclarations)
-    F->removeFromParent();
-
-  return std::move(M2);
 }

@@ -10,17 +10,16 @@
 ; CHECK-TABLE: [[PATH]]_0.ll|[[PATH]]_0.prop|[[PATH]]_0.sym
 ; CHECK-TABLE: [[PATH]]_1.ll|[[PATH]]_1.prop|[[PATH]]_1.sym
 
-; CHECK-PROP0-NOT: defaultSpecConstants=1|1
-; CHECK-PROP0-NOT: originalImage
+; CHECK-PROP0-NOT: specConstsReplacedWithDefault=1|1
 
-; CHECK-PROP1: defaultSpecConstants=1|1
+; CHECK-PROP1: specConstsReplacedWithDefault=1|1
 
 ; CHECK-IR0: call i32 @_Z20__spirv_SpecConstantii
 ; CHECK-IR0: call %struct.B @_Z29__spirv_SpecConstantCompositeiii_Rstruct.B
 ; CHECK-IR0: call %struct.A @_Z29__spirv_SpecConstantCompositeistruct.B_Rstruct.A
 
 ; CHECK-IR1-NOT: SpecConstant
-; CHECK-IR1: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 8 %1, i8 addrspace(4)* align 8 addrspacecast (i8 addrspace(1)* bitcast (%"class.sycl::_V1::specialization_id" addrspace(1)* @_ZL1c to i8 addrspace(1)*) to i8 addrspace(4)*), i64 16, i1 false)
+; CHECK-IR1: store %struct.A { i32 3, %struct.B { i32 3, i32 2, i32 1 } }, %struct.A addrspace(4)* %a.ascast.i, align 4
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

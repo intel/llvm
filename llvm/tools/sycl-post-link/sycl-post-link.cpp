@@ -548,14 +548,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.add(PropSetRegTy::SYCL_HOST_PIPES, HostPipePropertyMap);
   }
 
-  if (MD.isSpecConstantDefault()) {
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"defaultSpecConstants", 1});
-    const std::optional<std::string> &OriginalImageName =
-        MD.tryGetOriginalImageName();
-    assert(OriginalImageName.has_value() && "Original image name must be set");
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
-        {"originalImage", StringRef(*OriginalImageName)});
-  }
+  if (MD.isSpecConstantDefault())
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"specConstsReplacedWithDefault", 1});
 
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, Suff);
@@ -715,7 +709,7 @@ bool processSpecConstants(module_split::ModuleDesc &MD) {
   ModulePassManager RunSpecConst;
   ModuleAnalysisManager MAM;
   bool SetSpecConstAtRT = (SpecConstLower == SC_USE_RT_VAL);
-  SpecConstantsPass SCP(SetSpecConstAtRT);
+  SpecConstantsPass SCP(SetSpecConstAtRT ? SpecConstantsPass::HandlingMode::native : SpecConstantsPass::HandlingMode::emulation);
   // Register required analysis
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   RunSpecConst.addPass(std::move(SCP));
@@ -724,6 +718,29 @@ bool processSpecConstants(module_split::ModuleDesc &MD) {
   PreservedAnalyses Res = RunSpecConst.run(MD.getModule(), MAM);
   MD.Props.SpecConstsMet = !Res.areAllPreserved();
   return MD.Props.SpecConstsMet;
+}
+
+/// Function generates the copy of the given ModuleDesc where all uses of
+/// Specialization Constants are replaced by corresponding default values.
+/// If the Module in MD doesn't contain specialization constants then
+/// std::nullopt is returned.
+std::optional<module_split::ModuleDesc> processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
+  std::optional<module_split::ModuleDesc> NewModuleDesc;
+  if (!checkModuleContainsSpecConsts(MD.getModule()))
+    return NewModuleDesc;
+
+  NewModuleDesc = CloneModuleDesc(MD);
+  NewModuleDesc->setSpecConstantDefault(true);
+
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  SpecConstantsPass SCP(SpecConstantsPass::HandlingMode::default_values);
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  MPM.addPass(std::move(SCP));
+
+  PreservedAnalyses Res = MPM.run(NewModuleDesc->getModule(), MAM);
+  NewModuleDesc->Props.SpecConstsMet = !Res.areAllPreserved();
+  return std::move(NewModuleDesc);
 }
 
 constexpr int MAX_COLUMNS_IN_FILE_TABLE = 3;
@@ -874,7 +891,6 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
 
   for (auto &MD : Result) {
     DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 3);
-    Modified |= processSpecConstants(MD);
     if (LowerEsimd && MD.isESIMD())
       Modified |= lowerEsimdConstructs(MD);
   }
@@ -904,35 +920,6 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   }
 
   return Result;
-}
-
-/// Function generates a copy of ModuleDesc where all uses of specialization
-/// constants are replaced by default values. New module then is splitted by
-/// esimd.
-/// If module doesn't contain spec constants then empty vector is returned.
-SmallVector<module_split::ModuleDesc, 2>
-generateModuleDescWithDefaultSpecConstants(const module_split::ModuleDesc &MD,
-                                           bool &Modified,
-                                           bool &SplitOccurred) {
-  std::unique_ptr<Module> GeneratedDevImage =
-      generateDeviceImageWithDefaultSpecConstants(MD.getModule());
-  SmallVector<module_split::ModuleDesc, 2> Res;
-  if (!GeneratedDevImage)
-    return Res;
-
-  // TODO: generated dev images are being kept in RAM which is bad.
-  module_split::ModuleDesc MD2 =
-      module_split::CreateModuleDescWithDefaultSpecConstants(
-          std::move(GeneratedDevImage));
-  Res = handleESIMD(std::move(MD2), Modified, SplitOccurred);
-  return Res;
-}
-
-std::string getDeviceImageName(const module_split::ModuleDesc &MD, unsigned ID,
-                               const std::string &OutIRFileName) {
-  StringRef Suffix = getModuleSuffix(MD);
-  StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
-  return makeResultFileName(FileExt, ID, Suffix);
 }
 
 std::unique_ptr<util::SimpleTable>
@@ -1016,14 +1003,25 @@ processInputModule(std::unique_ptr<Module> M) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
-    SmallVector<module_split::ModuleDesc, 2> MMsWithDefaultSpecConsts;
-    if (GenerateDeviceImageWithDefaultSpecConsts)
-      MMsWithDefaultSpecConsts = generateModuleDescWithDefaultSpecConstants(
-          MDesc, Modified, SplitOccurred);
 
     SmallVector<module_split::ModuleDesc, 2> MMs =
         handleESIMD(std::move(MDesc), Modified, SplitOccurred);
     assert(MMs.size() && "at least one module is expected after ESIMD split");
+
+    SmallVector<module_split::ModuleDesc, 2> MMsWithDefaultSpecConsts;
+    for (size_t i = 0; i != MMs.size(); ++i) {
+      if (GenerateDeviceImageWithDefaultSpecConsts) {
+        std::optional<module_split::ModuleDesc> NewMD = processSpecConstantsWithDefaultValues(MMs[i]);
+        if (NewMD)
+          MMsWithDefaultSpecConsts.push_back(std::move(*NewMD));
+      }
+
+      Modified |= processSpecConstants(MMs[i]);
+      outs() << "MODULE:\n" << MMs[i].getModule() << "\n";
+    }
+
+    /*for (auto &MD : MMsWithDefaultSpecConsts)
+      MMs.push_back(std::move(MD));*/
 
     if (IROutputOnly) {
       if (SplitOccurred) {
@@ -1053,8 +1051,6 @@ processInputModule(std::unique_ptr<Module> M) {
     if (!MMsWithDefaultSpecConsts.empty()) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
         module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
-        IrMD.setOriginalImageName(
-            getDeviceImageName(MMs[i], ID - 1, OutIRFileName));
         IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
         addTableRow(*Table, T);
       }
