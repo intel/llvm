@@ -216,4 +216,24 @@ There are restrictions on how the application can create objects of type
 
 * The `fpga_datapath` variable can only have accesses from a single kernel. This can happen when `device_global` is templated on a `fpga_datapath` type. 
 
-* The `fpga_datapath` variable cannot be templated on a `fpga_mem` object, as this is a conflict of requirements on how the variable should be implemented, on or off the datapath. Diagnostic is required.
+* The `fpga_datapath` and `fpga_mem` are tempate classes that have conflicting requirements on how a variable should be implemented, on or off the datapath. In situations where an object of one of these classes is templated on another, the most specific template will used by the compiler, and the rest will be ignored.
+[source,c++]
+----
+using namespace sycl::ext::intel;
+using namespace sycl::ext::intel::experimental;
+
+// 10 integers will be implemented on the datapath
+// `fpga_mem` is ignored.
+fpga_mem<fpga_datapath<int[10]>> dm1;
+
+class foo {
+  fpga_mem<int[5]> a;
+  fpga_datapath<int[4]> b;
+  int[3] c;
+}
+
+// 5 integers of `a` will be implemented in a memory off the datapath
+// 4 integers of `b` will be implemented on the datapath
+// 3 integers of `c` will be implemented in a memory off the datapath
+fpga_mem<foo> dm1;
+----
