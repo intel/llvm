@@ -16,7 +16,7 @@
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel {
 namespace experimental::esimd {
 
@@ -729,7 +729,7 @@ lsc_gather(AccessorTy acc,
            __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L3H>(
-      reinterpret_cast<T *>(acc.get_pointer()), offsets, pred);
+      reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -803,7 +803,8 @@ lsc_gather(AccessorTy acc,
            __ESIMD_NS::simd<T, N * NElts> old_values) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L3H>(
-      reinterpret_cast<T *>(acc.get_pointer()), offsets, pred, old_values);
+      reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred,
+      old_values);
 
 #else
   detail::check_lsc_vector_size<NElts>();
@@ -3670,5 +3671,5 @@ public:
 
 } // namespace esimd
 } // namespace ext::intel
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

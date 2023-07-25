@@ -32,6 +32,10 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
+    * native_cpu - allows to run SYCL applications with no need of an 
+    additional backend (note that this feature is WIP and experimental, and 
+    currently overrides all the other specified SYCL targets when enabled.)
+
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
@@ -346,11 +350,17 @@ and not recommended to use in production environment.
 
     Compile only device part of the code and ignore host part.
 
-**`-f[no-]sycl-use-bitcode`** [EXPERIMENTAL]
+**`-f[no-]sycl-use-bitcode`** [DEPRECATED]
 
     Emit SYCL device code in LLVM-IR bitcode format. When disabled, SPIR-V is
     emitted.
     Enabled by default.
+
+**`-fsycl-device-obj=<arg>`** [EXPERIMENTAL]
+
+    Specify format of device code stored in the resulting object. The <arg> can
+    be one of the following:  "spirv" - SPIR-V is emitted, "llvmir" - LLVM-IR
+    bitcode format is emitted (default).
 
 **`-fsycl-help[=backend]`**
 

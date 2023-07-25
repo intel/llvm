@@ -26,7 +26,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 static const PluginPtr &getPlugin(backend Backend) {
@@ -58,6 +58,8 @@ backend convertBackend(pi_platform_backend PiBackend) {
     return backend::ext_oneapi_hip;
   case PI_EXT_PLATFORM_BACKEND_ESIMD:
     return backend::ext_intel_esimd_emulator;
+  case PI_EXT_PLATFORM_BACKEND_NATIVE_CPU:
+    return backend::ext_native_cpu;
   }
   throw sycl::runtime_error{"convertBackend: Unsupported backend",
                             PI_ERROR_INVALID_OPERATION};
@@ -297,5 +299,5 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

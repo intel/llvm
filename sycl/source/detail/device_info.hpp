@@ -27,7 +27,7 @@
 #include <thread>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 inline std::vector<info::fp_config> read_fp_bitfield(pi_device_fp_config bits) {
@@ -604,7 +604,6 @@ struct get_device_info_impl<
           {0x03000000, oneapi_exp_arch::intel_gpu_tgllp},
           {0x03004000, oneapi_exp_arch::intel_gpu_rkl},
           {0x03008000, oneapi_exp_arch::intel_gpu_adl_s},
-          {0x03008000, oneapi_exp_arch::intel_gpu_rpl_s},
           {0x0300c000, oneapi_exp_arch::intel_gpu_adl_p},
           {0x03010000, oneapi_exp_arch::intel_gpu_adl_n},
           {0x03028000, oneapi_exp_arch::intel_gpu_dg1},
@@ -885,10 +884,46 @@ struct get_device_info_impl<
   }
 };
 
+// Specialization for graph extension support
+template <>
+struct get_device_info_impl<
+    ext::oneapi::experimental::info::graph_support_level,
+    ext::oneapi::experimental::info::device::graph_support> {
+  static ext::oneapi::experimental::info::graph_support_level
+  get(const DeviceImplPtr &Dev) {
+    size_t ResultSize = 0;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
+        &ResultSize);
+    if (ResultSize == 0)
+      return ext::oneapi::experimental::info::graph_support_level::unsupported;
+
+    std::unique_ptr<char[]> Result(new char[ResultSize]);
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, ResultSize,
+        Result.get(), nullptr);
+
+    std::string_view ExtensionsString(Result.get());
+    bool CmdBufferSupport =
+        ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
+    return CmdBufferSupport
+               ? ext::oneapi::experimental::info::graph_support_level::native
+               : ext::oneapi::experimental::info::graph_support_level::
+                     unsupported;
+  }
+};
+
 template <typename Param>
 typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
   static_assert(is_device_info_desc<Param>::value,
                 "Invalid device information descriptor");
+  if (std::is_same<Param,
+                   sycl::_V1::ext::intel::info::device::free_memory>::value) {
+    if (!Dev->has(aspect::ext_intel_free_memory))
+      throw invalid_object_error(
+          "The device does not have the ext_intel_free_memory aspect",
+          PI_ERROR_INVALID_DEVICE);
+  }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }
 
@@ -1779,6 +1814,13 @@ inline uint32_t get_device_info_host<
                       PI_ERROR_INVALID_DEVICE);
 }
 
+template <>
+inline ext::oneapi::experimental::info::graph_support_level
+get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
+  // No support for graphs on the host device.
+  return ext::oneapi::experimental::info::graph_support_level::unsupported;
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

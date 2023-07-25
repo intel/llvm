@@ -21,7 +21,7 @@ void foo() {
 }
 
 // CHECK-HEADER: namespace sycl {
-// CHECK-HEADER-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
+// CHECK-HEADER-NEXT: inline namespace _V1 {
 // CHECK-HEADER-NEXT: namespace detail {
 // CHECK-HEADER-NEXT: namespace {
 // CHECK-HEADER-NEXT: class __sycl_host_pipe_registration {
@@ -31,7 +31,7 @@ void foo() {
 // CHECK-HEADER-NEXT: __sycl_host_pipe_registration __sycl_host_pipe_registrar;
 // CHECK-HEADER-NEXT: } // namespace
 // CHECK-HEADER: } // namespace detail
-// CHECK-HEADER: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
+// CHECK-HEADER: } // namespace _V1
 // CHECK-HEADER: } // namespace sycl
 
 // CHECK-FOOTER: #include <sycl/detail/defines_elementary.hpp>

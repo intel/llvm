@@ -51,6 +51,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
 #include <sycl/multi_ptr.hpp>
@@ -72,7 +73,7 @@
 // 4.10.2: SYCL vector types
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 struct elem {
@@ -310,12 +311,13 @@ std::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     int OldRoundingDirection = std::fegetround();
     int Err = std::fesetround(FE_TONEAREST);
     if (Err)
-      throw runtime_error("Unable to set rounding mode to FE_TONEAREST",
-                          PI_ERROR_UNKNOWN);
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Unable to set rounding mode to FE_TONEAREST");
     R Result = std::rint(Value);
     Err = std::fesetround(OldRoundingDirection);
     if (Err)
-      throw runtime_error("Unable to restore rounding mode.", PI_ERROR_UNKNOWN);
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Unable to restore rounding mode.");
     return Result;
   }
     // Round toward zero.
@@ -2148,11 +2150,6 @@ __SYCL_RELLOGOP(&&)
 __SYCL_RELLOGOP(||)
 #undef __SYCL_RELLOGOP
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
-
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Vectors of size 1 are handled separately and therefore 1 is not included in
@@ -2433,7 +2430,7 @@ struct CheckDeviceCopyable<
 #endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_ALIGNED_VAR
