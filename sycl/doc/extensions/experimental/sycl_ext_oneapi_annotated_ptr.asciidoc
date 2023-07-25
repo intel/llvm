@@ -572,11 +572,17 @@ applying the annotations when the object is stored to memory.
 a|
 [source,c++]
 ----
-T operator=(const annotated_ref&);
+T operator=(const annotated_ref& other);
 ----
-|
-Writes an object of type `T` to the location referenced by this wrapper,
-applying the annotations when the object is stored to memory.
+a|
+Equivalent to:
+```c++
+tmp T = other;   // Reads from memory
+                 // with annotations
+*this = T;       // Writes to memory
+                 // with annotations
+return T;
+```
 Does not rebind the reference!
 
 // --- ROW BREAK ---
@@ -585,12 +591,20 @@ a|
 ----
 T operatorOP(const T &);
 ----
-|
+a|
 Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
 
 Compound assignment operators. Return result by value.
-Available if the corresponding non-compound operator is available for `T`.
-
+Available only if the corresponding non-compound operator is available for `T`.
+Equivalent to:
+```c++
+T tmp = *this;     // Reads from memory
+                   // with annotations
+tmp = tmp OP val;
+*this = tmp;       // Writes to memory
+                   // with annotations
+return tmp;
+```
 |===
 
 === Properties
