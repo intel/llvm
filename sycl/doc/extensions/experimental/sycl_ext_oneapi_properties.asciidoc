@@ -247,6 +247,7 @@ template<typename... Ts>
 inline constexpr boo_key::value_t<Ts...> boo;
 
 } // namespace experimental::oneapi::ext::sycl
+```
 
 === Property traits
 
@@ -255,7 +256,8 @@ All runtime and compile-time-constant properties must have a specialization of
 `std::true_type`, and they must have a specialization of `is_property_key_of`
 and `is_property_value_of`
 that inherits from `std::true_type` for each SYCL runtime class that the
-property can be applied to. All have a base case which inherits from `std::false_type`.
+property can be applied to. All have a base case which inherits from
+`std::false_type`.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
