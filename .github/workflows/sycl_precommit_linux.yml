@@ -5,6 +5,7 @@ on:
     branches:
     - sycl
     - sycl-devops-pr/**
+    - llvmspirv_pulldown
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
@@ -28,6 +29,7 @@ jobs:
   lint:
     needs: [detect_changes]
     if: |
+      github.event.pull_request.head.repo.full_name == 'intel/llvm' ||
       !contains(needs.detect_changes.outputs.filters, 'ci')
     runs-on: [Linux, build]
     container:
@@ -61,6 +63,7 @@ jobs:
   test_matrix:
     needs: [detect_changes]
     if: |
+      github.event.pull_request.head.repo.full_name == 'intel/llvm' ||
       !contains(needs.detect_changes.outputs.filters, 'ci')
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
@@ -76,8 +79,8 @@ jobs:
     if: |
       always()
       && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
-      && contains(needs.detect_changes.outputs.filters, 'test_build')
-      && !contains(needs.detect_changes.outputs.filters, 'ci')
+      && (github.event.pull_request.head.repo.full_name == 'intel/llvm'
+          || !contains(needs.detect_changes.outputs.filters, 'ci'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
     with:
@@ -89,15 +92,4 @@ jobs:
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
-      check_filters: ${{ needs.detect_changes.outputs.filters }}
-
-  linux_e2e_on_nightly:
-    name: Linux SYCL E2E on Nightly
-    needs: [detect_changes]
-    if: |
-      !contains(needs.detect_changes.outputs.filters, 'test_build')
-      && !contains(needs.detect_changes.outputs.filters, 'ci')
-    uses: ./.github/workflows/linux_matrix_e2e_on_nightly.yml
-    secrets: inherit
-    with:
-      ref: ${{ github.event.pull_request.head.sha }}
+      changes: ${{ needs.detect_changes.outputs.filters }}

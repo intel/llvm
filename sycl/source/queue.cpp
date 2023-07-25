@@ -20,7 +20,7 @@
 #include <algorithm>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
@@ -268,5 +268,5 @@ bool queue::ext_codeplay_supports_fusion() const {
       ext::codeplay::experimental::property::queue::enable_fusion>();
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

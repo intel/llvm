@@ -16,7 +16,7 @@
 #include <sycl/platform.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 platform::platform() : platform(default_selector_v) {}
 
@@ -95,5 +95,5 @@ context platform::ext_oneapi_get_default_context() const {
   return detail::createSyclObjFromImpl<context>(It->second);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

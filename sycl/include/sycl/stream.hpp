@@ -16,7 +16,7 @@
 #include <sycl/handler.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -224,7 +224,7 @@ inline unsigned append(char *Dst, const char *Src) {
   return Len;
 }
 
-static inline unsigned F2I32(float Val) {
+inline unsigned F2I32(float Val) {
   union {
     float FVal;
     unsigned I32Val;
@@ -233,7 +233,7 @@ static inline unsigned F2I32(float Val) {
   return Internal.I32Val;
 }
 
-static inline unsigned long long D2I64(double Val) {
+inline unsigned long long D2I64(double Val) {
   union {
     double DVal;
     unsigned long long I64Val;
@@ -1264,7 +1264,7 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
   return Out;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 namespace std {
 template <> struct hash<sycl::stream> {

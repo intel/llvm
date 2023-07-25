@@ -13,7 +13,7 @@
 #include <detail/xpti_registry.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 AccessorImplHost::~AccessorImplHost() {
@@ -55,11 +55,10 @@ void constructorNotification(void *BufferObj, void *AccessorObj,
       BufferObj, AccessorObj, (uint32_t)Target, (uint32_t)Mode, CodeLoc);
 }
 
-void unsampledImageConstructorNotification(void *ImageObj, void *AccessorObj,
-                                           std::optional<image_target> Target,
-                                           access::mode Mode, const void *Type,
-                                           uint32_t ElemSize,
-                                           const code_location &CodeLoc) {
+void unsampledImageConstructorNotification(
+    void *ImageObj, void *AccessorObj,
+    const std::optional<image_target> &Target, access::mode Mode,
+    const void *Type, uint32_t ElemSize, const code_location &CodeLoc) {
   if (Target)
     XPTIRegistry::unsampledImageAccessorNotification(
         ImageObj, AccessorObj, (uint32_t)*Target, (uint32_t)Mode, Type,
@@ -69,10 +68,10 @@ void unsampledImageConstructorNotification(void *ImageObj, void *AccessorObj,
         ImageObj, AccessorObj, (uint32_t)Mode, Type, ElemSize, CodeLoc);
 }
 
-void sampledImageConstructorNotification(void *ImageObj, void *AccessorObj,
-                                         std::optional<image_target> Target,
-                                         const void *Type, uint32_t ElemSize,
-                                         const code_location &CodeLoc) {
+void sampledImageConstructorNotification(
+    void *ImageObj, void *AccessorObj,
+    const std::optional<image_target> &Target, const void *Type,
+    uint32_t ElemSize, const code_location &CodeLoc) {
   if (Target)
     XPTIRegistry::sampledImageAccessorNotification(
         ImageObj, AccessorObj, (uint32_t)*Target, Type, ElemSize, CodeLoc);
@@ -82,5 +81,5 @@ void sampledImageConstructorNotification(void *ImageObj, void *AccessorObj,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

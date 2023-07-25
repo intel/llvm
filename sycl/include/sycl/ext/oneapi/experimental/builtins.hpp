@@ -27,7 +27,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 // Provides functionality to print data from kernels in a C way:
@@ -179,7 +179,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
 } // namespace native
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_CONSTANT_AS

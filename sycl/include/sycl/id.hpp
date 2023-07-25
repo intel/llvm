@@ -15,7 +15,7 @@
 #include <sycl/range.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declarations
 namespace detail {
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -374,5 +374,5 @@ template <int Dims> id<Dims> this_id() {
 #endif
 }
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

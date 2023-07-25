@@ -11,7 +11,7 @@
 #include <sycl/backend.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <>
 inline backend_return_t<backend::ext_oneapi_hip, device>
@@ -44,5 +44,5 @@ inline device make_device<backend::ext_oneapi_hip>(
                         "Native device has an invalid ordinal.");
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
