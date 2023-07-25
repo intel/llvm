@@ -12,9 +12,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc || gpu-intel-gen12
-// TODO: add support for local_accessors to esimd_emulator.
+// UNSUPPORTED: gpu
 // UNSUPPORTED: esimd_emulator
 
 #define USE_DWORD_ATOMICS
