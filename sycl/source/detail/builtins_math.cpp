@@ -784,7 +784,10 @@ __SYCL_EXPORT s::cl_double sycl_host_modf(s::cl_double x,
 }
 __SYCL_EXPORT s::cl_half sycl_host_modf(s::cl_half x,
                                         s::cl_half *iptr) __NOEXC {
-  return std::modf(x, reinterpret_cast<s::cl_float *>(iptr));
+  float ptr_val_float = *iptr;
+  auto ret = std::modf(x, &ptr_val_float);
+  *iptr = ptr_val_float;
+  return ret;
 }
 MAKE_1V_2P(sycl_host_modf, s::cl_float, s::cl_float, s::cl_float)
 MAKE_1V_2P(sycl_host_modf, s::cl_double, s::cl_double, s::cl_double)
