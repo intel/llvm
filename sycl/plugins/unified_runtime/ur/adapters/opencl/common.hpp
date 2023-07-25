@@ -8,6 +8,8 @@
 #pragma once
 
 #include <climits>
+#include <map>
+#include <mutex>
 #include <regex>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/defines.hpp>

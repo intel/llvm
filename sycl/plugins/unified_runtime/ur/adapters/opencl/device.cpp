@@ -303,6 +303,8 @@ static cl_int mapURDeviceInfoToCL(ur_device_info_t URPropName) {
     return CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL;
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
     return CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL;
+  case UR_DEVICE_INFO_IP_VERSION:
+    return CL_DEVICE_IP_VERSION_INTEL;
   default:
     return -1;
   }
@@ -845,7 +847,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_EXTENSIONS:
   case UR_DEVICE_INFO_BUILT_IN_KERNELS:
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES:
-  case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
+  case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
+  case UR_DEVICE_INFO_IP_VERSION: {
     /* We can just use the OpenCL outputs because the sizes of OpenCL types
      * are the same as UR.
      * | CL                 | UR                     | Size |

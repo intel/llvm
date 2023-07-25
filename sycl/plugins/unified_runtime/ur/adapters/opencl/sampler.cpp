@@ -1,6 +1,12 @@
-#include "cassert"
+//===--------- sampler.cpp - OpenCL Adapter --------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===-----------------------------------------------------------------===//
+
 #include "common.hpp"
-#include <unordered_map>
 
 namespace {
 
@@ -19,7 +25,7 @@ cl_sampler_info ur2CLSamplerInfo(ur_sampler_info_t URInfo) {
 #undef CASE
 
   default:
-    assert(0 && "Unhandled: ur_sampler_info_t");
+    cl_adapter::die("Unhandled: ur_sampler_info_t");
   }
 }
 
@@ -40,8 +46,7 @@ cl_addressing_mode ur2CLAddressingMode(ur_sampler_addressing_mode_t Mode) {
 #undef CASE
 
   default:
-    assert(0 && "Unhandled: ur_sampler_addressing_mode_t");
-    break;
+    cl_adapter::die("Unhandled: ur_sampler_addressing_mode_t");
   }
 }
 
@@ -58,8 +63,7 @@ cl_filter_mode ur2CLFilterMode(ur_sampler_filter_mode_t Mode) {
 #undef CASE
 
   default:
-    assert(0 && "Unhandled: ur_sampler_filter_mode_t");
-    break;
+    cl_adapter::die("Unhandled: ur_sampler_filter_mode_t");
   }
 }
 
@@ -80,8 +84,7 @@ ur_sampler_addressing_mode_t cl2URAddressingMode(cl_addressing_mode Mode) {
 #undef CASE
 
   default:
-    assert(0 && "Unhandled: cl_addressing_mode");
-    break;
+    cl_adapter::die("Unhandled: cl_addressing_mode");
   }
 }
 
@@ -97,8 +100,7 @@ ur_sampler_filter_mode_t cl2URFilterMode(cl_filter_mode Mode) {
 #undef CASE
 
   default:
-    assert(0 && "Unhandled: cl_filter_mode");
-    break;
+    cl_adapter::die("Unhandled: cl_filter_mode");
   }
 }
 

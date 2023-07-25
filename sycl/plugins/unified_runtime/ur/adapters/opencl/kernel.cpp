@@ -352,7 +352,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   cl_int RetErr = clSetKernelArg(
       cl_adapter::cast<cl_kernel>(hKernel), cl_adapter::cast<cl_uint>(argIndex),
-      sizeof(hArgValue), cl_adapter::cast<const cl_mem *>(hArgValue));
+      sizeof(hArgValue), cl_adapter::cast<const cl_mem *>(&hArgValue));
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }

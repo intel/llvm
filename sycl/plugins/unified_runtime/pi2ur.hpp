@@ -2104,8 +2104,6 @@ inline pi_result
 piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
                                   pi_context Context, pi_program Program,
                                   bool OwnNativeHandle, pi_kernel *Kernel) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(Program, PI_ERROR_INVALID_PROGRAM);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
 
