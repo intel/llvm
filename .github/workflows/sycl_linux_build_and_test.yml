@@ -73,7 +73,7 @@ on:
         type: string
         required: false
         default: 'SYCL-2020'
-      check_filters:
+      changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
@@ -136,35 +136,35 @@ jobs:
       id: build
       run: cmake --build $GITHUB_WORKSPACE/build
     - name: check-llvm
-      if: always() && !cancelled() && contains(inputs.check_filters, 'llvm')
+      if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
-      if: always() && !cancelled() && contains(inputs.check_filters, 'clang')
+      if: always() && !cancelled() && contains(inputs.changes, 'clang')
       run: |
         # Can we move this to Dockerfile? Hopefully, noop on Windows.
         export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
-      if: always() && !cancelled() && contains(inputs.check_filters, 'sycl')
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-llvm-spirv
-      if: always() && !cancelled() && contains(inputs.check_filters, 'llvm_spirv')
+      if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
     - name: check-xptifw
-      if: always() && !cancelled() && contains(inputs.check_filters, 'xptifw')
+      if: always() && !cancelled() && contains(inputs.changes, 'xptifw')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-xptifw
     - name: check-libclc
-      if: always() && !cancelled() && contains(inputs.check_filters, 'libclc')
+      if: always() && !cancelled() && contains(inputs.changes, 'libclc')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libclc
     - name: check-libdevice
-      if: always() && !cancelled() && contains(inputs.check_filters, 'libdevice')
+      if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
     - name: Install
@@ -224,8 +224,10 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.lts_matrix) }}
-    uses: ./.github/workflows/linux_single_e2e.yml
+    uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
+      tests_selector: e2e
+
       name: ${{ matrix.name }}
       runner: ${{ toJSON(matrix.runs-on) }}
       image: ${{ matrix.image }}

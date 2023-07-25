@@ -2045,11 +2045,13 @@ pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMImport(const void *ptr, size_t size, pi_context context) {
+pi_result piextUSMImport(const void *, size_t, pi_context) {
   return PI_SUCCESS;
 }
 
 pi_result piextUSMRelease(const void *ptr, pi_context context) {
+  (void)ptr;
+  (void)context;
   return PI_SUCCESS;
 }
 
@@ -2223,6 +2225,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   if (PluginInit == nullptr) {
     return PI_ERROR_INVALID_VALUE;
   }
+
+  std::cout
+      << "WARNING: The ESIMD Emulator is deprecated and will be removed in the "
+         "future.\n";
 
   // Check that the major version matches in PiVersion and SupportedVersion
   _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);

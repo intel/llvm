@@ -17,10 +17,11 @@
 // 4.6.1 Device selection class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class device;
+class context;
 enum class aspect;
 
 namespace ext::oneapi {
@@ -168,5 +169,5 @@ detail::DSelectorInvocableType aspect_selector() {
   return aspect_selector({AspectList...}, {});
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

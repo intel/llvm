@@ -4321,6 +4321,8 @@ public:
                                  ReturnValueSlot ReturnValue);
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
 
+  RValue EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E);
+
   llvm::CallInst *
   EmitFPBuiltinIndirectCall(llvm::FunctionType *IRFuncTy,
                             const SmallVectorImpl<llvm::Value *> &IRArgs,
@@ -4588,6 +4590,11 @@ public:
   EmitSYCLAnnotationCall(llvm::Function *AnnotationFn,
                          llvm::Value *AnnotatedVal, SourceLocation Location,
                          const SYCLAddIRAnnotationsMemberAttr *Attr);
+
+  llvm::Value *EmitSYCLAnnotationCall(
+      llvm::Function *AnnotationFn, llvm::Value *AnnotatedVal,
+      SourceLocation Location,
+      llvm::SmallVectorImpl<std::pair<std::string, std::string>> &Pair);
 
   /// Emit sycl field annotations for given field & value. Returns the
   /// annotation result.
