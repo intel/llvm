@@ -648,7 +648,7 @@ using f = decltype(P8.get_property<foo_types_key>());
 using t1 = f::first_t;
 using t2 = f::second_t;
 using t3 = f::third_t;
-static_assert(std::is_same_v<t1, float);
+static_assert(std::is_same_v<t1, float>);
 static_assert(std::is_same_v<t2, int>);
 static_assert(std::is_same_v<t3, bool>);
 ```
