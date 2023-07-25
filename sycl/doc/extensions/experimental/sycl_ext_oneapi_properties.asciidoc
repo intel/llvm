@@ -87,56 +87,6 @@ static_assert(std::is_same_v<decltype(P3), decltype(P4)>); // The order properti
 
 ```
 
-The alias `sycl::ext::oneapi::experimental::properties_t` is defined for
-convenience and it is defined as follows:
-
-```c++
-namespace sycl::ext::oneapi::experimental {
-
-template <auto... Props> using properties_t = decltype(properties{Props...});
-
-} // namespace experimental::oneapi::ext::sycl
-```
-
-Use this alias in situations where you need to get the type of a `properties`
-object that consists of 1 or more compile time constant properties. For example
-consider the following toy examples:
-
-.Examples using decltype
-```c++
-
-// buffer_location and awidth are some compile time constant properties
-annotated_arg<int *, decltype(properties{buffer_location<1>, awidth<32>})> a;
-
-// protocol_avalon_mm and uses_ready<false> are some compile time constant
-// properties
-using Pipe = pipe<..., decltype(properties{protocol_avalon_mm,
-                                           uses_ready<false>})>;
-
-// device_image_scope and host_access_read_write are some compile time constant
-// properties
-device_global<int, decltype(properties{device_image_scope,
-                                       host_access_read_write})> global_obj;
-```
-
-Such use cases arise often with SYCL extensions that are built to utilize
-`properties`. The above can be simplified to:
-
-.Examples using properties_t
-```c++
-using namespace sycl::ext::oneapi::experimental;
-
-// buffer_location and awidth are compile time constant properties
-annotated_arg<int *, properties_t<buffer_location<1>, awidth<32>> a;
-
-using Pipe = pipe<..., properties_t<protocol_avalon, uses_ready<false>>>;
-
-// device_image_scope and host_access_read_write are some compile time constant
-// properties
-device_global<int, properties_t<device_image_scope, host_access_read_write>>
-  global_obj;
-```
-
 === Goals
 
 The goals of this extension are:
@@ -547,13 +497,45 @@ inline constexpr bool is_property_list_v;
 |===
 --
 
-
 === Type of `properties`
 
-The details of the `properties` template argument(s) are unspecified. In particular the sorting order of properties is unspecified.
+The details of the `properties` template argument(s) are unspecified. In
+particular the sorting order of properties is unspecified.
 
-The type of the property list can be written with `properties_t` or with
-`decltype`.
+The type of the property list can be written with with `decltype`.
+
+The following example shows how `decltype` is used to create a property list
+type containing the compile-time constant properties `bar` and `baz`:
+
+```c++
+using P1 = decltype(properties(baz<1>, bar));
+using P2 = decltype(properties(bar, baz<1>));
+// Succeeds, since the order of properties does not matter
+static_assert(std::is_same<P1, P2>::value);
+static_assert(P1::get_property<baz_key>().value == 1);
+```
+
+An empty property list can be created as follows:
+
+```c++
+using empty_property_list = decltype(properties());
+```
+
+
+=== `properties_t` : Getting type of `properties` with C++20 support
+
+The alias `sycl::ext::oneapi::experimental::properties_t` is supported only when
+C++20 features are enabled. It is defined as follows:
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+template <auto... Props> using properties_t = decltype(properties{Props...});
+
+} // namespace experimental::oneapi::ext::sycl
+
+Use this alias in situations where you need to get the type of a `properties`
+object that consists of 1 or more compile time constant properties.
 
 The following example shows how `properties_t` is used to create a property list
 type containing the compile-time constant properties `bar` and `baz`:
@@ -572,6 +554,11 @@ An empty property list can be created as follows:
 using empty_property_list = properties_t<>;
 ```
 
+It is equivalent to using `decltype` directly:
+```c++
+static_assert(std::is_same_v<properties_t<sub_group_size<8>>,
+                             decltype(properties(sub_group_size<8>))>);
+```
 
 === Querying Properties in Device Code
 
