@@ -87,6 +87,7 @@ jobs:
         tag_name: nightly-${{ steps.tag.outputs.TAG }}
         prerelease: true
         body: "Nightly release ${{ steps.tag.outputs.TAG }}"
+        target_commitish: ${{ github.sha }}
 
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
