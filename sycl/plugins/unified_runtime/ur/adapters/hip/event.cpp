@@ -314,13 +314,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
 }
 
 /// Created a UR event object from a HIP event handle.
-/// TODO: Implement this.
-/// NOTE: The created UR object takes ownership of the native handle.
+/// NOTE: The created UR object doesn't take ownership of the native handle.
 ///
 /// \param[in] hNativeEvent The native handle to create UR event object from.
 /// \param[out] phEvent Set to the UR event object created from native handle.
-///
-/// \return UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
     const ur_event_native_properties_t *pProperties,
