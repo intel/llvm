@@ -1,4 +1,5 @@
-//=dword_local_acessor_atomic_smoke_scalar_off.cpp-DPC++ ESIMD on-device test=//
+//=dword_local_accessor_atomic_smoke_cmpxchg_scalar_off.cpp-DPC++ ESIMD
+// on-device test=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

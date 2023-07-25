@@ -1,4 +1,4 @@
-//==local_acessor_atomic_smoke_scalar_off.cpp - DPC++ ESIMD on-device test=//
+//==local_accessor_atomic_smoke_cmpxchg.cpp - DPC++ ESIMD on-device test=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,7 +20,6 @@
 // and have higher probablity to hit kernel execution time limit, so they are
 // separated.
 
-#define USE_DWORD_ATOMICS
 #define CMPXCHG_TEST
 
 #include "local_accessor_atomic_smoke.cpp"
