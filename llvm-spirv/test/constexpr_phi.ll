@@ -20,13 +20,13 @@
 ; CHECK-SPIRV: Label [[#L2]]
 ; CHECK-SPIRV: Branch [[#L3]]
 ; CHECK-SPIRV: Label [[#L3]]
-; CHECK-NEXT-SPIRV: Phi [[#]] [[#]]
-  ; CHECK-SAME-SPIRV: [[#Compos0]] [[#L1]]
-  ; CHECK-SAME-SPIRV: [[#Compos1]] [[#L2]]
+; CHECK-SPIRV-NEXT: Phi [[#]] [[#]]
+; CHECK-SPIRV-SAME: [[#Compos0]] [[#L2]]
+; CHECK-SPIRV-SAME: [[#Compos1]] [[#L1]]
 
 ; CHECK-LLVM: br label %[[#L:]]
 ; CHECK-LLVM: [[#L]]:
-; CHECK-NEXT-LLVM:   %[[#]] = phi <2 x i64> [ %[[#]], %[[#]] ], [ %[[#]], %[[#]] ]
+; CHECK-LLVM-NEXT:   %[[#]] = phi <2 x i64>
 
 
 target triple = "spir-unknown-unknown"
