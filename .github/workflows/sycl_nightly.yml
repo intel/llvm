@@ -27,6 +27,12 @@ jobs:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
 
+      # We use the build for the release, override its name and prefer
+      # widespread gzip compression.
+      artifact_archive_name: sycl_linux.tar.gz
+      artifact_compress_command: gzip
+      artifact_decompress_command: gunzip
+
   ubuntu2204_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
@@ -47,6 +53,40 @@ jobs:
     with:
       retention-days: 90
       lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
+
+      # We use the build for the release, override its name.
+      artifact_archive_name: sycl_windows.tar.gz
+
+  nightly_release:
+    name: Nightly Release
+    if: ${{ github.ref_name == 'sycl' }}
+    needs: [ubuntu2204_build_test, windows_default]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: sycl_linux_default
+    - uses: actions/download-artifact@v3
+      with:
+        name: sycl_windows_default
+    - name: Compute tag
+      id: tag
+      run: |
+        if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
+          echo "TAG=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+        else
+          # TODO: Use date of the commit?
+          echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Upload binaries to release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          sycl_linux.tar.gz
+          sycl_windows.tar.gz
+        tag_name: nightly-${{ steps.tag.outputs.TAG }}
+        prerelease: true
+        body: "Nightly release ${{ steps.tag.outputs.TAG }}"
 
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
