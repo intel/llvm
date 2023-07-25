@@ -220,7 +220,7 @@ void TagNode::Render(llvm::raw_ostream &OS, int IndentationLevel) {
 }
 
 template <typename Derived, typename Base,
-          typename = std::enable_if<std::is_base_of<Derived, Base>::value>>
+          typename = std::enable_if_t<std::is_base_of<Derived, Base>::value>>
 static void AppendVector(std::vector<Derived> &&New,
                          std::vector<Base> &Original) {
   std::move(New.begin(), New.end(), std::back_inserter(Original));
@@ -564,7 +564,7 @@ genInfoFile(StringRef Title, StringRef InfoPath,
 }
 
 template <typename T,
-          typename = std::enable_if<std::is_base_of<T, Info>::value>>
+          typename = std::enable_if_t<std::is_base_of<T, Info>::value>>
 static Index genInfoIndexItem(const std::vector<T> &Infos, StringRef Title) {
   Index Idx(Title, Title);
   for (const auto &C : Infos)

@@ -120,7 +120,7 @@ struct is_genfloat
                                        std::is_same_v<_Tp, sycl::half>> {};
 
 template <class _Tp>
-class complex<_Tp, typename std::enable_if<is_genfloat<_Tp>::value>::type> {
+class complex<_Tp, typename std::enable_if_t<is_genfloat<_Tp>::value>> {
 public:
   typedef _Tp value_type;
 
@@ -137,13 +137,13 @@ public:
   _SYCL_EXT_CPLX_INLINE_VISIBILITY constexpr complex(const complex<_Xp> &__c)
       : __re_(__c.real()), __im_(__c.imag()) {}
 
-  template <class _Xp, class = std::enable_if<is_genfloat<_Xp>::value>>
+  template <class _Xp, class = std::enable_if_t<is_genfloat<_Xp>::value>>
   _SYCL_EXT_CPLX_INLINE_VISIBILITY constexpr complex(
       const std::complex<_Xp> &__c)
       : __re_(static_cast<value_type>(__c.real())),
         __im_(static_cast<value_type>(__c.imag())) {}
 
-  template <class _Xp, class = std::enable_if<is_genfloat<_Xp>::value>>
+  template <class _Xp, class = std::enable_if_t<is_genfloat<_Xp>::value>>
   _SYCL_EXT_CPLX_INLINE_VISIBILITY constexpr
   operator std::complex<_Xp>() const {
     return std::complex<_Xp>(static_cast<_Xp>(__re_), static_cast<_Xp>(__im_));
@@ -498,7 +498,7 @@ template <class _Tp> struct __libcpp_complex_overload_traits<_Tp, false, true> {
 
 // real
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY constexpr _Tp
 real(const complex<_Tp> &__c) {
   return __c.real();
@@ -513,7 +513,7 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY constexpr
 
 // imag
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY constexpr _Tp
 imag(const complex<_Tp> &__c) {
   return __c.imag();
@@ -528,7 +528,7 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY constexpr
 
 // abs
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY _Tp
 abs(const complex<_Tp> &__c) {
   return sycl::hypot(__c.real(), __c.imag());
@@ -536,7 +536,7 @@ abs(const complex<_Tp> &__c) {
 
 // arg
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY _Tp
 arg(const complex<_Tp> &__c) {
   return sycl::atan2(__c.imag(), __c.real());
@@ -554,7 +554,7 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
 
 // norm
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY _Tp
 norm(const complex<_Tp> &__c) {
   if (sycl::isinf(__c.real()))
@@ -576,7 +576,7 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
 
 // conj
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 conj(const complex<_Tp> &__c) {
   return complex<_Tp>(__c.real(), -__c.imag());
@@ -594,7 +594,7 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
 
 // proj
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 proj(const complex<_Tp> &__c) {
   complex<_Tp> __r = __c;
@@ -621,7 +621,7 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
 
 // polar
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 polar(const _Tp &__rho, const _Tp &__theta = _Tp()) {
   if (sycl::isnan(__rho) || sycl::signbit(__rho))
@@ -647,7 +647,7 @@ polar(const _Tp &__rho, const _Tp &__theta = _Tp()) {
 
 // log
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 log(const complex<_Tp> &__x) {
   return complex<_Tp>(sycl::log(abs(__x)), arg(__x));
@@ -655,7 +655,7 @@ log(const complex<_Tp> &__x) {
 
 // log10
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 log10(const complex<_Tp> &__x) {
   return log(__x) / sycl::log(_Tp(10));
@@ -663,7 +663,7 @@ log10(const complex<_Tp> &__x) {
 
 // sqrt
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 sqrt(const complex<_Tp> &__x) {
   if (sycl::isinf(__x.imag()))
@@ -681,7 +681,7 @@ sqrt(const complex<_Tp> &__x) {
 
 // exp
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 exp(const complex<_Tp> &__x) {
   _Tp __i = __x.imag();
@@ -705,14 +705,14 @@ exp(const complex<_Tp> &__x) {
 
 // pow
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 pow(const complex<_Tp> &__x, const complex<_Tp> &__y) {
   return exp(__y * log(__x));
 }
 
 template <class _Tp, class _Up,
-          class = std::enable_if<is_gencomplex<_Tp>::value>>
+          class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     complex<typename cplx::detail::__promote<_Tp, _Up>::type>
     pow(const complex<_Tp> &__x, const complex<_Up> &__y) {
@@ -721,21 +721,23 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
 }
 
 template <class _Tp, class _Up,
-          class = std::enable_if<is_gencomplex<_Tp>::value>>
-__DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if<
-    is_genfloat<_Up>::value,
-    complex<typename cplx::detail::__promote<_Tp, _Up>::type>>::type
-pow(const complex<_Tp> &__x, const _Up &__y) {
+          class = std::enable_if_t<is_gencomplex<_Tp>::value>>
+__DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
+    typename std::enable_if_t<
+        is_genfloat<_Up>::value,
+        complex<typename cplx::detail::__promote<_Tp, _Up>::type>>::type
+    pow(const complex<_Tp> &__x, const _Up &__y) {
   typedef complex<typename cplx::detail::__promote<_Tp, _Up>::type> result_type;
   return pow(result_type(__x), result_type(__y));
 }
 
 template <class _Tp, class _Up,
-          class = std::enable_if<is_gencomplex<_Tp>::value>>
-__DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if<
-    is_genfloat<_Up>::value,
-    complex<typename cplx::detail::__promote<_Tp, _Up>::type>>::type
-pow(const _Tp &__x, const complex<_Up> &__y) {
+          class = std::enable_if_t<is_gencomplex<_Tp>::value>>
+__DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
+    typename std::enable_if_t<
+        is_genfloat<_Up>::value,
+        complex<typename cplx::detail::__promote<_Tp, _Up>::type>>::type
+    pow(const _Tp &__x, const complex<_Up> &__y) {
   typedef complex<typename cplx::detail::__promote<_Tp, _Up>::type> result_type;
   return pow(result_type(__x), result_type(__y));
 }
@@ -743,7 +745,7 @@ pow(const _Tp &__x, const complex<_Up> &__y) {
 namespace cplx::detail {
 // __sqr, computes pow(x, 2)
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp> __sqr(const complex<_Tp> &__x) {
   return complex<_Tp>((__x.real() - __x.imag()) * (__x.real() + __x.imag()),
                       _Tp(2) * __x.real() * __x.imag());
@@ -752,7 +754,7 @@ _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp> __sqr(const complex<_Tp> &__x) {
 
 // asinh
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 asinh(const complex<_Tp> &__x) {
   const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
@@ -781,7 +783,7 @@ asinh(const complex<_Tp> &__x) {
 
 // acosh
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 acosh(const complex<_Tp> &__x) {
   const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
@@ -815,7 +817,7 @@ acosh(const complex<_Tp> &__x) {
 
 // atanh
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 atanh(const complex<_Tp> &__x) {
   const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
@@ -846,7 +848,7 @@ atanh(const complex<_Tp> &__x) {
 
 // sinh
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 sinh(const complex<_Tp> &__x) {
   if (sycl::isinf(__x.real()) && !sycl::isfinite(__x.imag()))
@@ -861,7 +863,7 @@ sinh(const complex<_Tp> &__x) {
 
 // cosh
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 cosh(const complex<_Tp> &__x) {
   if (sycl::isinf(__x.real()) && !sycl::isfinite(__x.imag()))
@@ -878,7 +880,7 @@ cosh(const complex<_Tp> &__x) {
 
 // tanh
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 tanh(const complex<_Tp> &__x) {
   if (sycl::isinf(__x.real())) {
@@ -901,7 +903,7 @@ tanh(const complex<_Tp> &__x) {
 
 // asin
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 asin(const complex<_Tp> &__x) {
   complex<_Tp> __z = asinh(complex<_Tp>(-__x.imag(), __x.real()));
@@ -910,7 +912,7 @@ asin(const complex<_Tp> &__x) {
 
 // acos
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 acos(const complex<_Tp> &__x) {
   const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
@@ -945,7 +947,7 @@ acos(const complex<_Tp> &__x) {
 
 // atan
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 atan(const complex<_Tp> &__x) {
   complex<_Tp> __z = atanh(complex<_Tp>(-__x.imag(), __x.real()));
@@ -954,7 +956,7 @@ atan(const complex<_Tp> &__x) {
 
 // sin
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 sin(const complex<_Tp> &__x) {
   complex<_Tp> __z = sinh(complex<_Tp>(-__x.imag(), __x.real()));
@@ -963,7 +965,7 @@ sin(const complex<_Tp> &__x) {
 
 // cos
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 cos(const complex<_Tp> &__x) {
   return cosh(complex<_Tp>(-__x.imag(), __x.real()));
@@ -971,7 +973,7 @@ cos(const complex<_Tp> &__x) {
 
 // tan
 
-template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
+template <class _Tp, class = std::enable_if_t<is_gencomplex<_Tp>::value>>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp>
 tan(const complex<_Tp> &__x) {
   complex<_Tp> __z = tanh(complex<_Tp>(-__x.imag(), __x.real()));
