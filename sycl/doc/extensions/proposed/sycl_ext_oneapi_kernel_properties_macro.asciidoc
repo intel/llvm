@@ -319,8 +319,33 @@ Due to these issues this option was discarded.
 
 1. Name of the macro.
 2. Style of the macro.
-3. Do we recommend using `macro();` syntax or `macro() void operator()() {...}`
-syntax.
+3. What do we recommend as BKM among these two methods and why:
+This is to help novice users. Not for language experts who understand macros
+well.
+
+.Use the macro as applying it to the operator
+```c++
+struct MyKernel {
+  __kernel_properties(property1, property2) void operator()() const { ... }
+};
+```
+
+- Writing this way is akin to applying attributes to operator()()
+- But users may mistakenly put it after void or in another position - it only
+works when it is prepended to the operator()() definition/declaration.
+
+
+.Use the macro as if writing a function call
+```c++
+struct MyKernel {
+  __kernel_properties(property1, property2);
+
+  void operator()() const { ... }
+};
+
+```
+- Makes it easier to not wonder where all it can be applied.
+
 
 //. asd
 //+
