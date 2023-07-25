@@ -82,7 +82,7 @@ TEST_F(test, memoryPoolTrace) {
     ASSERT_EQ(providerCalls.size(), provider_call_count);
 
     ret = umfPoolGetLastAllocationError(tracingPool.get());
-    ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
+    ASSERT_EQ(ret, UMF_RESULT_ERROR_NOT_SUPPORTED);
     ASSERT_EQ(poolCalls["get_last_native_error"], 1);
     ASSERT_EQ(poolCalls.size(), ++pool_call_count);
 
