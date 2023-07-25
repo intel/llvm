@@ -207,6 +207,6 @@ void ConstantPropagationPass::runOnOperation() {
   propagateConstantArgs(getConstantArgs(launchPoint), launchPoint);
 }
 
-std::unique_ptr<Pass> sycl::createCPP() {
+std::unique_ptr<Pass> sycl::createConstantPropagationPass() {
   return std::make_unique<ConstantPropagationPass>();
 }

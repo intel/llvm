@@ -1,5 +1,5 @@
 add_mlir_library(MLIRSYCLTransforms
-  CPP.cpp
+  ConstantPropagation.cpp
   Inliner.cpp
 
   ADDITIONAL_HEADER_DIRS

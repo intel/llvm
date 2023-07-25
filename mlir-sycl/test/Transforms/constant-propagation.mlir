@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -pass-pipeline='builtin.module(gpu.module(gpu.func(sycl-cpp)))' %s -mlir-pass-statistics 2>&1 | FileCheck %s
+// RUN: sycl-mlir-opt -pass-pipeline='builtin.module(gpu.module(gpu.func(sycl-constant-propagation)))' %s -mlir-pass-statistics 2>&1 | FileCheck %s
 
 // COM: Check we can detect %c is constant and it's dropped.
 
