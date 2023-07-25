@@ -7,8 +7,6 @@
 // CHECK-NOT: LEAK
 
 // Tests a dotp operation using device USM and an in-order queue.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

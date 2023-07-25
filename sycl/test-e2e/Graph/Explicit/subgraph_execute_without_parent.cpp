@@ -12,8 +12,6 @@
 
 // Tests creating a parent graph with the same sub-graph interleaved with
 // other nodes.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

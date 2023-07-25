@@ -14,6 +14,26 @@ namespace exp_ext = sycl::ext::oneapi::experimental;
 // Make tests less verbose by using sycl namespace.
 using namespace sycl;
 
+// Helper functions for wrapping depends_on calls when add_node is used so they
+// are not used in the explicit API
+template <typename T> inline void depends_on_helper(sycl::handler &CGH, T Dep) {
+#ifdef GRAPH_E2E_RECORD_REPLAY
+  CGH.depends_on(Dep);
+#endif
+  (void)CGH;
+  (void)Dep;
+}
+
+template <typename T>
+inline void depends_on_helper(sycl::handler &CGH,
+                              std::initializer_list<T> DepList) {
+#ifdef GRAPH_E2E_RECORD_REPLAY
+  CGH.depends_on(DepList);
+#endif
+  (void)CGH;
+  (void)DepList;
+}
+
 // We have 4 versions of the same kernel sequence for testing a combination
 // of graph construction API against memory model. Each submits the same pattern
 /// of 4 kernels with a diamond dependency.
@@ -279,8 +299,7 @@ auto add_nodes(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   Graph.end_recording(Queue);
   return ev;
 #else
-#error                                                                         \
-    "Must define GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY to select an API"
+  assert(0 && "Error: Cannot use add_nodes without selecting an API");
 #endif
 }
 
@@ -310,8 +329,7 @@ auto add_nodes(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   Graph.end_recording(Queue);
   return ev;
 #else
-#error                                                                         \
-    "Must define GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY to select an API"
+  assert(0 && "Error: Cannot use add_nodes without selecting an API");
 #endif
 }
 
@@ -343,8 +361,7 @@ auto add_node(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   Graph.end_recording(Queue);
   return ev;
 #else
-#error                                                                         \
-    "Must define GRAPH_E2E_EXPLICIT or GRAPH_E2E_RECORD_REPLAY to select an API"
+  assert(0 && "Error: Cannot use add_node without selecting an API");
 #endif
 }
 

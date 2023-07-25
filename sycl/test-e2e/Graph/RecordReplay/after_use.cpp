@@ -8,8 +8,6 @@
 
 // This test attempts recording a set of kernels after they have already been
 // executed once before.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 

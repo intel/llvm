@@ -1,8 +1,4 @@
 // REQUIRES: level_zero, gpu
-//
-// A non-zero exit code is returned on Windows
-// XFAIL: windows
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using ZE_DEBUG
@@ -12,8 +8,6 @@
 
 // Tests obtaining a finalized, executable graph from a graph which is
 // currently being recorded to without end_recording() being called.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 
@@ -22,7 +16,7 @@ int main() {
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   {
-    queue MyQueue;
+    queue MyQueue(Queue.get_context(), Queue.get_device());
     Graph.begin_recording(MyQueue);
   }
 

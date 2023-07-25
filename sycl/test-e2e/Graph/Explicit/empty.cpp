@@ -8,8 +8,6 @@
 
 // Tests the explicit API interface for adding empty nodes, and that
 // no_cycle_check is accepted as a command_graph construction property.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 
