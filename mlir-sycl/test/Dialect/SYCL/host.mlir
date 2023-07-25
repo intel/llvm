@@ -148,3 +148,30 @@ func.func @schedule_kernel_range_with_offset(%range: !llvm.ptr, %offset: !llvm.p
   sycl.host.schedule_kernel @kernels::@k0[range %range, offset %offset](%arg0, %arg1) : (!llvm.ptr, !llvm.ptr, i32, i32) -> ()
   func.return
 }
+
+llvm.func internal @cgf(%arg0: !llvm.ptr, %arg1: !llvm.ptr) {
+  llvm.return
+}
+
+// CHECK-LABEL:   func.func @submit_kernel(
+// CHECK-SAME:                             %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: !llvm.ptr, %[[VAL_3:.*]]: !llvm.ptr) {
+// CHECK:           sycl.host.submit %[[VAL_1]]({{\[}}%[[VAL_2]], %[[VAL_3]]]@cgf) -> %[[VAL_0]] : !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr
+// CHECK:           return
+// CHECK:         }
+func.func @submit_kernel(%event: !llvm.ptr, %queue: !llvm.ptr,
+                         %arg0: !llvm.ptr, %arg1 : !llvm.ptr) {
+  sycl.host.submit %queue([%arg0, %arg1]@cgf) -> %event
+    : !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+// CHECK-LABEL:   func.func @submit_kernel_no_args(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                                     %[[VAL_1:.*]]: !llvm.ptr) {
+// CHECK:           sycl.host.submit %[[VAL_1]](@cgf) -> %[[VAL_0]] : !llvm.ptr, !llvm.ptr
+// CHECK:           return
+// CHECK:         }
+func.func @submit_kernel_no_args(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  sycl.host.submit %queue(@cgf) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}

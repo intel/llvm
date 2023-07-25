@@ -228,4 +228,30 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
   let hasVerifier = 1;
 }
 
+def SYCLHostSubmitOp : SYCL_HostOp<"submit",
+    [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "Submits a SYCL kernel.";
+  let description = [{
+    This operation represents the submission of a SYCL kernel
+    (`sycl::queue::submit`). In addition to the function implementing the CGF,
+    this operation receives the values captured (by reference) by this.
+
+    Example:
+    ```
+    sycl.host.submit %queue([%buff_a, %buff_b]@cgf_impl) -> %event
+      : !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr
+    ```
+  }];
+
+  let arguments = (ins
+    FlatSymbolRefAttr:$c_g_f_name,
+    Arg<LLVM_AnyPointer, "The queue", [MemWrite]>:$queue,
+    Arg<LLVM_AnyPointer, "The event", [MemWrite]>:$event,
+    Variadic<AnyType>:$args);
+  let assemblyFormat = [{
+    $queue `(` (`[` $args^ `]`)? `` $c_g_f_name `)` `->` $event
+      attr-dict `:` type(operands)
+  }];
+}
+
 #endif // SYCL_HOST_OPS

@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -595,6 +596,45 @@ LogicalResult SYCLHostScheduleKernel::verify() {
     return success();
   }
   return verifyNdRange(*this, range, offset, ndRange);
+}
+
+LogicalResult
+SYCLHostSubmitOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  FlatSymbolRefAttr symbol = getCGFNameAttr();
+  auto cgf =
+      symbolTable.lookupNearestSymbolFrom<LLVM::LLVMFuncOp>(*this, symbol);
+  if (!cgf)
+    return emitOpError("'")
+           << symbol << "' does not reference a valid CGF function";
+  if (LLVM::Linkage linkage = cgf.getLinkage();
+      linkage != LLVM::Linkage::Internal) {
+    auto diag = emitOpError()
+                << "expects CGF function to have internal linkage";
+    diag.attachNote() << "got: '" << stringifyEnum(linkage) << "'";
+    return diag;
+  }
+
+  if (cgf.isVarArg())
+    return emitOpError("expects CGF function to not have variadic arguments");
+
+  constexpr unsigned numInputs = 2;
+  LLVM::LLVMFunctionType fnType = cgf.getFunctionType();
+  if (fnType.getNumParams() != numInputs)
+    return emitOpError("incorrect number of operands for CGF");
+
+  for (unsigned i = 0; i < numInputs; ++i) {
+    Type type = fnType.getParamType(i);
+    if (!isa<LLVM::LLVMPointerType>(type))
+      return emitOpError("expecting CGF's operand type '!llvm.ptr', but got ")
+             << type << " for operand number " << i;
+  }
+
+  if (Type returnType = fnType.getReturnType();
+      !isa<LLVM::LLVMVoidType>(returnType))
+    return emitOpError("expecting CGF's result type '!llvm.void', but got ")
+           << returnType;
+
+  return success();
 }
 
 #define GET_OP_CLASSES

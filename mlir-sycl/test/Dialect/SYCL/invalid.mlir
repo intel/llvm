@@ -613,3 +613,77 @@ gpu.module @kernels {
     gpu.return
   }
 }
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op '@f0' does not reference a valid CGF function}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+func.func @f0() {
+  func.return
+}
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op expects CGF function to have internal linkage}}
+  // expected-note @below {{got: 'external'}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+llvm.func @f0(%arg0: !llvm.ptr, %arg1: !llvm.ptr) {
+  llvm.return
+}
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op expects CGF function to not have variadic arguments}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+llvm.func internal @f0(%arg0: !llvm.ptr, ...) {
+  llvm.return
+}
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op incorrect number of operands for CGF}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+llvm.func internal @f0(%arg1: i64) {
+  llvm.return
+}
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op expecting CGF's operand type '!llvm.ptr', but got 'i64' for operand number 0}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+llvm.func internal @f0(%arg0: i64, %arg1: !llvm.ptr) {
+  llvm.return
+}
+
+// -----
+
+func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.submit' op expecting CGF's result type '!llvm.void', but got 'i64'}}
+  sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr
+  func.return
+}
+
+llvm.func internal @f0(%arg0: !llvm.ptr, %arg1: !llvm.ptr) -> i64 {
+  %0 = llvm.mlir.constant(0 : i64) : i64
+  llvm.return %0 : i64
+}
