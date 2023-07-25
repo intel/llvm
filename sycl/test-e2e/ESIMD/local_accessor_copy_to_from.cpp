@@ -8,7 +8,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
 // UNSUPPORTED: gpu
 // UNSUPPORTED: esimd_emulator
 // The test checks functionality of the gather/scatter local
@@ -28,14 +27,14 @@ constexpr uint32_t LocalRange = 16;
 constexpr uint32_t GlobalRange = LocalRange * 2; // 2 groups.
 
 template <typename T, unsigned VL> bool test(queue q) {
-  constexpr size_t size = VL * LocalRange;
+  constexpr size_t Size = VL * LocalRange;
   std::cout << "Running case: T=" << esimd_test::type_name<T>() << " VL=" << VL
             << std::endl;
 
   // The test is going to use (LocalRange * VL) elements of T type.
   auto Dev = q.get_device();
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
-  if (DeviceSLMSize < size * sizeof(T)) {
+  if (DeviceSLMSize < Size * sizeof(T)) {
     // Report an error - the test needs a fix.
     std::cerr << "Error: Test needs more SLM memory than device has!"
               << std::endl;
@@ -52,8 +51,8 @@ template <typename T, unsigned VL> bool test(queue q) {
     buffer<T, 1> buf(A, range<1>(GlobalRange * VL));
     nd_range<1> NDRange{range<1>{GlobalRange}, range<1>{LocalRange}};
     q.submit([&](handler &CGH) {
-       auto LocalAcc = local_accessor<T, 1>(size, CGH);
-       auto acc = buf.template get_access<access::mode::read_write>(CGH);
+       auto LocalAcc = local_accessor<T, 1>(Size, CGH);
+       auto Acc = buf.template get_access<access::mode::read_write>(CGH);
        CGH.parallel_for(NDRange, [=](nd_item<1> Item) SYCL_ESIMD_KERNEL {
          uint32_t GID = Item.get_global_id(0);
          uint32_t LID = Item.get_local_id(0);
@@ -67,7 +66,7 @@ template <typename T, unsigned VL> bool test(queue q) {
            for (int LID = 0; LID < LocalRange; LID++) {
              simd<T, VL> ValuesFromSLM;
              ValuesFromSLM.copy_from(LocalAcc, LID * VL * sizeof(T));
-             ValuesFromSLM.copy_to(acc, (GID + LID) * VL * sizeof(T));
+             ValuesFromSLM.copy_to(Acc, (GID + LID) * VL * sizeof(T));
            } // end for (int LID = 0; LID < LocalRange; LID++)
          }   // end if (LID == 0)
        });

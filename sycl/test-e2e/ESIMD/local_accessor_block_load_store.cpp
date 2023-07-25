@@ -11,7 +11,6 @@
 // https://github.com/intel/llvm/issues/10369
 // UNSUPPORTED: gpu
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
 // UNSUPPORTED: esimd_emulator
 // This test verifies usage of block_load/block_store for local_accessor.
 

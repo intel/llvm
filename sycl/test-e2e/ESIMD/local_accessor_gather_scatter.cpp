@@ -11,7 +11,6 @@
 // https://github.com/intel/llvm/issues/10369
 // UNSUPPORTED: gpu
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
 // UNSUPPORTED: esimd_emulator
 // The test checks functionality of the gather/scatter local
 // accessor-based ESIMD intrinsics.
