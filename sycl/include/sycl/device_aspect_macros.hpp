@@ -218,6 +218,61 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_intel_legacy_image__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images__
+// __SYCL_ASPECT(ext_oneapi_bindless_images, 42)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_shared_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_shared_usm, 43)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_shared_usm__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_1d_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_1d_usm, 44)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_1d_usm__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_2d_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_2d_usm, 45)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_2d_usm__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_memory_import__
+//__SYCL_ASPECT(ext_oneapi_interop_memory_import, 46)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_memory_import__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_memory_export__
+//__SYCL_ASPECT(ext_oneapi_interop_memory_export, 47)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_memory_export__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_semaphore_import__
+//__SYCL_ASPECT(ext_oneapi_interop_semaphore_import, 48)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_semaphore_import__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_semaphore_export__
+//__SYCL_ASPECT(ext_oneapi_interop_semaphore_export, 49)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_semaphore_export__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap__
+//__SYCL_ASPECT(ext_oneapi_mipmap, 50)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap_anisotropy__
+//__SYCL_ASPECT(ext_oneapi_mipmap_anisotropy, 51)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap_anisotropy__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap_level_reference__
+//__SYCL_ASPECT(ext_oneapi_mipmap_level_reference, 52)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap_level_reference__ 0
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_host__
 // __SYCL_ASPECT(host, 0)
 #define __SYCL_ANY_DEVICE_HAS_host__ 0
@@ -426,4 +481,59 @@
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_legacy_image__
 // __SYCL_ASPECT(ext_intel_legacy_image, 41)
 #define __SYCL_ANY_DEVICE_HAS_ext_intel_legacy_image__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images__
+// __SYCL_ASPECT(ext_oneapi_bindless_images, 42)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_shared_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_shared_usm, 43)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_shared_usm__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_1d_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_1d_usm, 44)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_1d_usm__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_2d_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_2d_usm, 45)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_2d_usm__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_memory_import__
+//__SYCL_ASPECT(ext_oneapi_interop_memory_import, 46)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_memory_import__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_memory_export__
+//__SYCL_ASPECT(ext_oneapi_interop_memory_export, 47)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_memory_export__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_semaphore_import__
+//__SYCL_ASPECT(ext_oneapi_interop_semaphore_import, 48)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_semaphore_import__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_semaphore_export__
+//__SYCL_ASPECT(ext_oneapi_interop_semaphore_export, 49)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_semaphore_export__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap__
+//__SYCL_ASPECT(ext_oneapi_mipmap, 50)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap_anisotropy__
+//__SYCL_ASPECT(ext_oneapi_mipmap_anisotropy, 51)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap_anisotropy__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap_level_reference__
+//__SYCL_ASPECT(ext_oneapi_mipmap_level_reference, 52)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap_level_reference__ 0
 #endif

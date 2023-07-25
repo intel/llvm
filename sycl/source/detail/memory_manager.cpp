@@ -1432,6 +1432,37 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
       OutSyncPoint);
 }
 
+void MemoryManager::copy_image_bindless(
+    void *Src, QueueImplPtr Queue, void *Dst,
+    const sycl::detail::pi::PiMemImageDesc &Desc,
+    const sycl::detail::pi::PiMemImageFormat &Format,
+    const sycl::detail::pi::PiImageCopyFlags Flags,
+    sycl::detail::pi::PiImageOffset SrcOffset,
+    sycl::detail::pi::PiImageOffset DstOffset,
+    sycl::detail::pi::PiImageRegion HostExtent,
+    sycl::detail::pi::PiImageRegion CopyExtent,
+    const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
+    sycl::detail::pi::PiEvent *OutEvent) {
+
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in copy_image_bindless.");
+  assert((Flags == (sycl::detail::pi::PiImageCopyFlags)
+                       ext::oneapi::experimental::image_copy_flags::HtoD ||
+          Flags == (sycl::detail::pi::PiImageCopyFlags)
+                       ext::oneapi::experimental::image_copy_flags::DtoH) &&
+         "Invalid flags passed to copy_image_bindless.");
+  if (!Dst || !Src)
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "NULL pointer argument in bindless image copy operation.");
+
+  const detail::PluginPtr &Plugin = Queue->getPlugin();
+  Plugin->call<PiApiKind::piextMemImageCopy>(
+      Queue->getHandleRef(), Dst, Src, &Format, &Desc, Flags, &SrcOffset,
+      &DstOffset, &CopyExtent, &HostExtent, DepEvents.size(), DepEvents.data(),
+      OutEvent);
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

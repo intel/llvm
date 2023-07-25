@@ -73,6 +73,9 @@ public:
     CopyFromDeviceGlobal = 20,
     ReadWriteHostPipe = 21,
     ExecCommandBuffer = 22,
+    CopyImage = 23,
+    SemaphoreWait = 24,
+    SemaphoreSignal = 25,
   };
 
   struct StorageInitHelper {
@@ -495,6 +498,77 @@ public:
   bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
+};
+/// "Copy Image" command group class.
+class CGCopyImage : public CG {
+  void *MSrc;
+  void *MDst;
+  sycl::detail::pi::PiMemImageDesc MImageDesc;
+  sycl::detail::pi::PiMemImageFormat MImageFormat;
+  sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
+  sycl::detail::pi::PiImageOffset MSrcOffset;
+  sycl::detail::pi::PiImageOffset MDstOffset;
+  sycl::detail::pi::PiImageRegion MHostExtent;
+  sycl::detail::pi::PiImageRegion MCopyExtent;
+
+public:
+  CGCopyImage(void *Src, void *Dst, sycl::detail::pi::PiMemImageDesc ImageDesc,
+              sycl::detail::pi::PiMemImageFormat ImageFormat,
+              sycl::detail::pi::PiImageCopyFlags ImageCopyFlags,
+              sycl::detail::pi::PiImageOffset SrcOffset,
+              sycl::detail::pi::PiImageOffset DstOffset,
+              sycl::detail::pi::PiImageRegion HostExtent,
+              sycl::detail::pi::PiImageRegion CopyExtent,
+              CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(CopyImage, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
+        MImageDesc(ImageDesc), MImageFormat(ImageFormat),
+        MImageCopyFlags(ImageCopyFlags), MSrcOffset(SrcOffset),
+        MDstOffset(DstOffset), MHostExtent(HostExtent),
+        MCopyExtent(CopyExtent) {}
+
+  void *getSrc() const { return MSrc; }
+  void *getDst() const { return MDst; }
+  sycl::detail::pi::PiMemImageDesc getDesc() const { return MImageDesc; }
+  sycl::detail::pi::PiMemImageFormat getFormat() const { return MImageFormat; }
+  sycl::detail::pi::PiImageCopyFlags getCopyFlags() const {
+    return MImageCopyFlags;
+  }
+  sycl::detail::pi::PiImageOffset getSrcOffset() const { return MSrcOffset; }
+  sycl::detail::pi::PiImageOffset getDstOffset() const { return MDstOffset; }
+  sycl::detail::pi::PiImageRegion getHostExtent() const { return MHostExtent; }
+  sycl::detail::pi::PiImageRegion getCopyExtent() const { return MCopyExtent; }
+};
+
+/// "Semaphore Wait" command group class.
+class CGSemaphoreWait : public CG {
+  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+
+public:
+  CGSemaphoreWait(
+      sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
+      CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
+        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+
+  sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
+    return MInteropSemaphoreHandle;
+  }
+};
+
+/// "Semaphore Signal" command group class.
+class CGSemaphoreSignal : public CG {
+  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+
+public:
+  CGSemaphoreSignal(
+      sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
+      CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
+        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+
+  sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
+    return MInteropSemaphoreHandle;
+  }
 };
 
 /// "Execute command-buffer" command group class.
