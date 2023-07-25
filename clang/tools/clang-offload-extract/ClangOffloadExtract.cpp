@@ -28,7 +28,11 @@
 #include "llvm/Support/raw_ostream.h"
 
 #define IMAGE_INFO_SECTION_NAME ".tgtimg"
-#define IMAGE_SECTION_NAME "__CLANG_OFFLOAD_BUNDLE__"
+#define IMAGE_SECTION_NAME_PREFIX "__CLANG_OFFLOAD_BUNDLE__"
+// Windows truncates the names of sections to 8 bytes
+#define IMAGE_SECTION_NAME_PREFIX_COFF "__CLANG_"
+
+#define DEBUG_TYPE "clang-offload-extract"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -140,27 +144,26 @@ linked fat binary, and store them in separate files.
   // * Create an array all the sections that have
   //   IMAGE_SECTION_NAME in the section name:
   auto OffloadSections = SmallVector<SectionRef>();
-  // * Locate the section IMAGE_INFO_SECTION_NAME
-  //   and extract the index for all the embedded
-  //   binaries:
+  // * Locate the section that starts with IMAGE_INFO_SECTION_NAME_PREFIX
+  //   and extract the index for all the embedded binaries:
   auto OffloadIndex = SmallVector<SectionRef>();
   for (const auto &Section : Binary->sections()) {
     Expected<StringRef> InfoSecNameOrErr = Section.getName();
     if (auto E = InfoSecNameOrErr.takeError()) {
       reportError(std::move(E), "Input File: '" + Input + "'\n");
     }
+    LLVM_DEBUG(dbgs() << "Section: " << *InfoSecNameOrErr << "\n");
 
     // We have a valid section name
-    if (InfoSecNameOrErr->find(IMAGE_SECTION_NAME) != std::string::npos) {
+    std::string SectionNameToCompare = isa<COFFObjectFile>(Binary) ? 
+                                  IMAGE_SECTION_NAME_PREFIX_COFF : 
+                                  IMAGE_SECTION_NAME_PREFIX;
+    if (InfoSecNameOrErr->find(SectionNameToCompare) != std::string::npos) {
       // This section contains embedded binaries
       OffloadSections.push_back(Section);
     } else if (*InfoSecNameOrErr == IMAGE_INFO_SECTION_NAME) {
       // This section is the index
       OffloadIndex.push_back(Section);
-      // Assuming:
-      // * There is only one index section
-      // * This index section is after any offload sections
-      break;
     }
   }
 
@@ -253,7 +256,9 @@ linked fat binary, and store them in separate files.
     // user and the image number which is appended to the prefix
     std::string FileName = FileNameStem + "." + std::to_string(FileNum++);
     std::string OffloadName = ImgSecNameOrErr->data();
-    std::string OffloadPrefix = IMAGE_SECTION_NAME;
+    std::string OffloadPrefix = isa<COFFObjectFile>(Binary) ? 
+                                  IMAGE_SECTION_NAME_PREFIX_COFF : 
+                                  IMAGE_SECTION_NAME_PREFIX;
     OffloadName.erase(0, OffloadPrefix.length());
 
     // Tell user that we are saving an image.
