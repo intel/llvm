@@ -116,7 +116,6 @@ chrono compare
 chrono concepts
 chrono cstddef
 chrono cstdint
-chrono cstdlib
 chrono cstring
 chrono ctime
 chrono limits
@@ -302,7 +301,6 @@ format array
 format cmath
 format cstddef
 format cstdint
-format cstdlib
 format initializer_list
 format limits
 format locale
@@ -637,11 +635,22 @@ ostream string
 ostream type_traits
 ostream typeinfo
 ostream version
+print array
+print cerrno
+print cmath
 print cstddef
 print cstdint
+print cstdio
+print cstdlib
 print initializer_list
 print limits
+print locale
+print new
+print optional
+print stdexcept
+print string
 print string_view
+print tuple
 print version
 queue compare
 queue concepts
@@ -858,7 +867,6 @@ thread chrono
 thread compare
 thread cstddef
 thread cstdint
-thread cstdlib
 thread cstring
 thread ctime
 thread functional

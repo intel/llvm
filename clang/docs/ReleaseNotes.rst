@@ -269,7 +269,7 @@ Modified Compiler Flags
 
 - ``-ffat-lto-objects`` can now be used to emit object files with both object
   code and LLVM bitcode. Previously this flag was ignored for GCC compatibility.
-  (`See patch <https://reviews.llvm.org/D146777>`_).
+  (`See related patch <https://reviews.llvm.org/D146777>`_).
 
 Removed Compiler Flags
 -------------------------
@@ -633,6 +633,8 @@ Bug Fixes in This Version
   that construct (`#62133 <https://github.com/llvm/llvm-project/issues/38717>_`).
 - Fix crash caused by PseudoObjectExprBitfields: NumSubExprs overflow.
   (`#63169 <https://github.com/llvm/llvm-project/issues/63169>_`)
+- Fix crash when casting an object to an array type.
+  (`#63758 <https://github.com/llvm/llvm-project/issues/63758>_`)
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

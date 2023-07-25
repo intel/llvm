@@ -32,6 +32,7 @@
 #include <__iterator/iterator_traits.h> // iter_value_t
 #include <__memory/addressof.h>
 #include <__type_traits/common_type.h>
+#include <__type_traits/is_constant_evaluated.h>
 #include <__type_traits/is_trivially_copyable.h>
 #include <__variant/monostate.h>
 #include <cstdint>
@@ -119,42 +120,47 @@ __substitute_arg_id(basic_format_arg<_Context> __format_arg) {
 /// explicitly.
 // TODO FMT Use an ABI tag for this struct.
 struct __fields {
-  uint8_t __sign_ : 1 {false};
-  uint8_t __alternate_form_ : 1 {false};
-  uint8_t __zero_padding_ : 1 {false};
-  uint8_t __precision_ : 1 {false};
-  uint8_t __locale_specific_form_ : 1 {false};
-  uint8_t __type_ : 1 {false};
+  uint16_t __sign_                 : 1 {false};
+  uint16_t __alternate_form_       : 1 {false};
+  uint16_t __zero_padding_         : 1 {false};
+  uint16_t __precision_            : 1 {false};
+  uint16_t __locale_specific_form_ : 1 {false};
+  uint16_t __type_                 : 1 {false};
   // Determines the valid values for fill.
   //
   // Originally the fill could be any character except { and }. Range-based
   // formatters use the colon to mark the beginning of the
   // underlying-format-spec. To avoid parsing ambiguities these formatter
   // specializations prohibit the use of the colon as a fill character.
-  uint8_t __use_range_fill_ : 1 {false};
+  uint16_t __use_range_fill_ : 1 {false};
+  uint16_t __clear_brackets_ : 1 {false};
+  uint16_t __consume_all_    : 1 {false};
 };
 
 // By not placing this constant in the formatter class it's not duplicated for
 // char and wchar_t.
+inline constexpr __fields __fields_bool{.__locale_specific_form_ = true, .__type_ = true, .__consume_all_ = true};
 inline constexpr __fields __fields_integral{
     .__sign_                 = true,
     .__alternate_form_       = true,
     .__zero_padding_         = true,
     .__locale_specific_form_ = true,
-    .__type_                 = true};
+    .__type_                 = true,
+    .__consume_all_          = true};
 inline constexpr __fields __fields_floating_point{
     .__sign_                 = true,
     .__alternate_form_       = true,
     .__zero_padding_         = true,
     .__precision_            = true,
     .__locale_specific_form_ = true,
-    .__type_                 = true};
-inline constexpr __fields __fields_string{.__precision_ = true, .__type_ = true};
-inline constexpr __fields __fields_pointer{.__zero_padding_ = true, .__type_ = true};
+    .__type_                 = true,
+    .__consume_all_          = true};
+inline constexpr __fields __fields_string{.__precision_ = true, .__type_ = true, .__consume_all_ = true};
+inline constexpr __fields __fields_pointer{.__zero_padding_ = true, .__type_ = true, .__consume_all_ = true};
 
 #  if _LIBCPP_STD_VER >= 23
-inline constexpr __fields __fields_tuple{.__use_range_fill_ = true};
-inline constexpr __fields __fields_range{.__use_range_fill_ = true};
+inline constexpr __fields __fields_tuple{.__use_range_fill_ = true, .__clear_brackets_ = true};
+inline constexpr __fields __fields_range{.__use_range_fill_ = true, .__clear_brackets_ = true};
 inline constexpr __fields __fields_fill_align_width{};
 #  endif
 
@@ -302,6 +308,19 @@ static_assert(is_trivially_copyable_v<__parsed_specifications<wchar_t>>);
 template <class _CharT>
 class _LIBCPP_TEMPLATE_VIS __parser {
 public:
+  // Parses the format specification.
+  //
+  // Depending on whether the parsing is done compile-time or run-time
+  // the method slightly differs.
+  // - Only parses a field when it is in the __fields. Accepting all
+  //   fields and then validating the valid ones has a performance impact.
+  //   This is faster but gives slighly worse error messages.
+  // - At compile-time when a field is not accepted the parser will still
+  //   parse it and give an error when it's present. This gives a more
+  //   accurate error.
+  // The idea is that most times the format instead of the vformat
+  // functions are used. In that case the error will be detected during
+  // compilation and there is no need to pay for the run-time overhead.
   template <class _ParseContext>
   _LIBCPP_HIDE_FROM_ABI constexpr typename _ParseContext::iterator __parse(_ParseContext& __ctx, __fields __fields) {
     auto __begin = __ctx.begin();
@@ -312,33 +331,59 @@ public:
     if (__parse_fill_align(__begin, __end, __fields.__use_range_fill_) && __begin == __end)
       return __begin;
 
-    if (__fields.__sign_ && __parse_sign(__begin) && __begin == __end)
-      return __begin;
+    if (__fields.__sign_) {
+      if (__parse_sign(__begin) && __begin == __end)
+        return __begin;
+    } else if (std::is_constant_evaluated() && __parse_sign(__begin)) {
+      std::__throw_format_error("The format specification does not allow the sign option");
+    }
 
-    if (__fields.__alternate_form_ && __parse_alternate_form(__begin) && __begin == __end)
-      return __begin;
+    if (__fields.__alternate_form_) {
+      if (__parse_alternate_form(__begin) && __begin == __end)
+        return __begin;
+    } else if (std::is_constant_evaluated() && __parse_alternate_form(__begin)) {
+      std::__throw_format_error("The format specifier does not allow the alternate form option");
+    }
 
-    if (__fields.__zero_padding_ && __parse_zero_padding(__begin) && __begin == __end)
-      return __begin;
+    if (__fields.__zero_padding_) {
+      if (__parse_zero_padding(__begin) && __begin == __end)
+        return __begin;
+    } else if (std::is_constant_evaluated() && __parse_zero_padding(__begin)) {
+      std::__throw_format_error("The format specifier does not allow the zero-padding option");
+    }
 
     if (__parse_width(__begin, __end, __ctx) && __begin == __end)
       return __begin;
 
-    if (__fields.__precision_ && __parse_precision(__begin, __end, __ctx) && __begin == __end)
-      return __begin;
+    if (__fields.__precision_) {
+      if (__parse_precision(__begin, __end, __ctx) && __begin == __end)
+        return __begin;
+    } else if (std::is_constant_evaluated() && __parse_precision(__begin, __end, __ctx)) {
+      std::__throw_format_error("The format specifier does not allow the precision option");
+    }
 
-    if (__fields.__locale_specific_form_ && __parse_locale_specific_form(__begin) && __begin == __end)
-      return __begin;
+    if (__fields.__locale_specific_form_) {
+      if (__parse_locale_specific_form(__begin) && __begin == __end)
+        return __begin;
+    } else if (std::is_constant_evaluated() && __parse_locale_specific_form(__begin)) {
+      std::__throw_format_error("The format specifier does not allow the locale-specific form option");
+    }
 
-    if (__fields.__type_) {
+    if (__fields.__clear_brackets_) {
+      if (__parse_clear_brackets(__begin) && __begin == __end)
+        return __begin;
+    } else if (std::is_constant_evaluated() && __parse_clear_brackets(__begin)) {
+      std::__throw_format_error("The format specifier does not allow the n option");
+    }
+
+    if (__fields.__type_)
       __parse_type(__begin);
 
-      // When __type_ is false the calling parser is expected to do additional
-      // parsing. In that case that parser should do the end of format string
-      // validation.
-      if (__begin != __end && *__begin != _CharT('}'))
-        std::__throw_format_error("The format-spec should consume the input or end with a '}'");
-    }
+    if (!__fields.__consume_all_)
+      return __begin;
+
+    if (__begin != __end && *__begin != _CharT('}'))
+      std::__throw_format_error("The format-spec should consume the input or end with a '}'");
 
     return __begin;
   }
@@ -377,7 +422,7 @@ public:
   __sign __sign_ : 2 {__sign::__default};
   bool __alternate_form_ : 1 {false};
   bool __locale_specific_form_ : 1 {false};
-  bool __reserved_0_ : 1 {false};
+  bool __clear_brackets_       : 1 {false};
   __type __type_{__type::__default};
 
   // These flags are only used for formatting chrono. Since the struct has
@@ -392,8 +437,8 @@ public:
 
   bool __month_name_ : 1 {false};
 
-  uint8_t __reserved_1_ : 2 {0};
-  uint8_t __reserved_2_ : 6 {0};
+  uint8_t __reserved_0_ : 2 {0};
+  uint8_t __reserved_1_ : 6 {0};
   // These two flags are only used internally and not part of the
   // __parsed_specifications. Therefore put them at the end.
   bool __width_as_arg_ : 1 {false};
@@ -620,6 +665,16 @@ private:
       return false;
 
     __locale_specific_form_ = true;
+    ++__begin;
+    return true;
+  }
+
+  template <contiguous_iterator _Iterator>
+  _LIBCPP_HIDE_FROM_ABI constexpr bool __parse_clear_brackets(_Iterator& __begin) {
+    if (*__begin != _CharT('n'))
+      return false;
+
+    __clear_brackets_ = true;
     ++__begin;
     return true;
   }
