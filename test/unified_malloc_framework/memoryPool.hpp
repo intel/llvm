@@ -117,7 +117,7 @@ TEST_P(umfMultiPoolTest, memoryTracking) {
         ASSERT_EQ(pool, expectedPool);
     }
 
-    for (auto p : ptrs) {
+    for (auto &p : ptrs) {
         umfFree(std::get<0>(p));
     }
 }
