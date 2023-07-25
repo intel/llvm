@@ -87,10 +87,15 @@ static_assert(std::is_same_v<decltype(P3), decltype(P4)>); // The order properti
 
 ```
 
-The `properties_type` alias is defined as follows:
+The alias `sycl::ext::oneapi::experimental::properties_type` is defined for
+convenience and it is defined as follows:
 
 ```c++
+namespace sycl::ext::oneapi::experimental {
+
 template <auto... Props> using properties_set = decltype(properties{Props...});
+
+} // namespace experimental::oneapi::ext::sycl
 ```
 
 Use this alias in situations where you need to get the type of a `properties`
@@ -105,14 +110,13 @@ annotated_arg<int *, decltype(properties{buffer_location<1>, awidth<32>})> a;
 
 // protocol_avalon_mm and uses_ready<false> are some compile time constant
 // properties
-using Pipe = pipe<class PipeID, int, decltype(properties{protocol_avalon_mm,
-                                                         uses_ready<false>})>;
+using Pipe = pipe<..., decltype(properties{protocol_avalon_mm,
+                                           uses_ready<false>})>;
 
 // device_image_scope and host_access_read_write are some compile time constant
 // properties
 device_global<int, decltype(properties{device_image_scope,
-                                       host_access_read_write})>
-    global_obj;
+                                       host_access_read_write})> global_obj;
 ```
 
 Such use cases arise often with SYCL extensions that are built to utilize
@@ -120,11 +124,12 @@ Such use cases arise often with SYCL extensions that are built to utilize
 
 .Examples using properties_type
 ```c++
+using namespace namespace experimental::oneapi::ext::sycl;
+
 // buffer_location and awidth are compile time constant properties
 annotated_arg<int *, properties_type<buffer_location<1>, awidth<32>> a;
 
-using Pipe = pipe<class PipeID, int, properties_type<protocol_avalon,
-                                                     uses_ready<false>>>;
+using Pipe = pipe<..., properties_type<protocol_avalon, uses_ready<false>>>;
 
 // device_image_scope and host_access_read_write are some compile time constant
 // properties
