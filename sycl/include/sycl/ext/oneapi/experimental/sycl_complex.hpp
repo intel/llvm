@@ -1056,7 +1056,7 @@ public:
   constexpr marray(marray<value_type, NumElements> &&rhs) = default;
 
   // Available only when: NumElements == 1
-  template <typename = typename std::enable_if<NumElements == 1>>
+  template <std::size_t N = NumElements, typename = std::enable_if_t<N == 1, value_type>>
   operator value_type() const {
     return MData[0];
   }
@@ -1318,15 +1318,13 @@ namespace experimental {
 
 // Math marray overloads
 
-#define MATH_OP_ONE_PARAM(math_func, rtn_type, arg_type)                       \
-  template <typename T, std::size_t NumElements,                               \
-            typename = std::enable_if<is_genfloat<T>::value ||                 \
-                                      is_gencomplex<T>::value>>                \
-  _SYCL_EXT_CPLX_INLINE_VISIBILITY sycl::marray<rtn_type, NumElements>         \
-  math_func(const sycl::marray<arg_type, NumElements> &x) {                    \
+#define MATH_OP_ONE_PARAM(math_func, rtn_type, arg_type) \
+  template <typename T, std::size_t NumElements> \
+  _SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if_t<is_genfloat<T>::value || is_gencomplex<T>::value, sycl::marray<rtn_type, NumElements>> \
+  math_func(const sycl::marray<arg_type, NumElements> &x) { \
     sycl::marray<rtn_type, NumElements> rtn;                                   \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
-      rtn[i] = sycl::ext::oneapi::experimental::math_func(x[i]);               \
+      rtn[i] = math_func(x[i]);               \
     }                                                                          \
     return rtn;                                                                \
   }
@@ -1356,39 +1354,30 @@ MATH_OP_ONE_PARAM(tanh, complex<T>, complex<T>);
 
 #undef MATH_OP_ONE_PARAM
 
-#define MATH_OP_TWO_PARAM(math_func, rtn_type, arg_type1, arg_type2)           \
-  template <typename T, std::size_t NumElements,                               \
-            typename = std::enable_if<is_genfloat<T>::value ||                 \
-                                      is_gencomplex<T>::value>>                \
-  _SYCL_EXT_CPLX_INLINE_VISIBILITY sycl::marray<rtn_type, NumElements>         \
-  math_func(const sycl::marray<arg_type1, NumElements> &x,                     \
-            const sycl::marray<arg_type2, NumElements> &y) {                   \
+#define MATH_OP_TWO_PARAM(math_func, rtn_type, arg_type1, arg_type2)                                                          \
+  template <typename T, std::size_t NumElements> \
+  _SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if_t<is_genfloat<T>::value || is_gencomplex<T>::value, sycl::marray<rtn_type, NumElements>> \
+  math_func(const sycl::marray<arg_type1, NumElements> &x, const sycl::marray<arg_type2, NumElements> &y) {                   \
     sycl::marray<rtn_type, NumElements> rtn;                                   \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
-      rtn[i] = sycl::ext::oneapi::experimental::math_func(x[i], y[i]);         \
+      rtn[i] = math_func(x[i], y[i]);         \
     }                                                                          \
     return rtn;                                                                \
   }                                                                            \
                                                                                \
-  template <typename T, std::size_t NumElements,                               \
-            typename = std::enable_if<is_genfloat<T>::value ||                 \
-                                      is_gencomplex<T>::value>>                \
-  _SYCL_EXT_CPLX_INLINE_VISIBILITY sycl::marray<rtn_type, NumElements>         \
-  math_func(const sycl::marray<arg_type1, NumElements> &x,                     \
-            const arg_type2 &y) {                                              \
+  template <typename T, std::size_t NumElements> \
+   _SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if_t<is_genfloat<T>::value || is_gencomplex<T>::value, sycl::marray<rtn_type, NumElements>> \
+  math_func(const sycl::marray<arg_type1, NumElements> &x, const arg_type2 &y) {                    \
     sycl::marray<rtn_type, NumElements> rtn;                                   \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
-      rtn[i] = sycl::ext::oneapi::experimental::math_func(x[i], y);            \
+      rtn[i] = math_func(x[i], y);            \
     }                                                                          \
     return rtn;                                                                \
   }                                                                            \
                                                                                \
-  template <typename T, std::size_t NumElements,                               \
-            typename = std::enable_if<is_genfloat<T>::value ||                 \
-                                      is_gencomplex<T>::value>>                \
-  _SYCL_EXT_CPLX_INLINE_VISIBILITY sycl::marray<rtn_type, NumElements>         \
-  math_func(const arg_type1 &x,                                                \
-            const sycl::marray<arg_type2, NumElements> &y) {                   \
+  template <typename T, std::size_t NumElements> \
+  _SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if_t<is_genfloat<T>::value || is_gencomplex<T>::value, sycl::marray<rtn_type, NumElements>> \
+  math_func(const arg_type1 &x, const sycl::marray<arg_type2, NumElements> &y) {                   \
     sycl::marray<rtn_type, NumElements> rtn;                                   \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       rtn[i] = math_func(x, y[i]);                                             \
@@ -1404,39 +1393,33 @@ MATH_OP_TWO_PARAM(pow, complex<T>, T, complex<T>);
 
 // Special definition as polar requires default argument
 
-template <typename T, std::size_t NumElements,
-          typename = std::enable_if<is_genfloat<T>::value>>
-_SYCL_EXT_CPLX_INLINE_VISIBILITY
-    sycl::marray<sycl::ext::oneapi::experimental::complex<T>, NumElements>
-    polar(const sycl::marray<T, NumElements> &rho,
-          const sycl::marray<T, NumElements> &theta) {
-  sycl::marray<sycl::ext::oneapi::experimental::complex<T>, NumElements> rtn;
+template <typename T, std::size_t NumElements>
+_SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if_t<is_genfloat<T>::value, sycl::marray<complex<T>, NumElements>>
+polar(const sycl::marray<T, NumElements> &rho, const sycl::marray<T, NumElements> &theta) {
+  sycl::marray<complex<T>, NumElements> rtn;
   for (std::size_t i = 0; i < NumElements; ++i) {
-    rtn[i] = sycl::ext::oneapi::experimental::polar(rho[i], theta[i]);
+    rtn[i] = polar(rho[i], theta[i]);
   }
   return rtn;
 }
 
-template <typename T, std::size_t NumElements,
-          typename = std::enable_if<is_genfloat<T>::value>>
-_SYCL_EXT_CPLX_INLINE_VISIBILITY
-    sycl::marray<sycl::ext::oneapi::experimental::complex<T>, NumElements>
-    polar(const sycl::marray<T, NumElements> &rho, const T &theta = 0) {
-  sycl::marray<sycl::ext::oneapi::experimental::complex<T>, NumElements> rtn;
+template <typename T, std::size_t NumElements>
+_SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if_t<is_genfloat<T>::value, sycl::marray<complex<T>, NumElements>>
+polar(const sycl::marray<T, NumElements> &rho, const T &theta = 0) {
+  sycl::marray<complex<T>, NumElements> rtn;
   for (std::size_t i = 0; i < NumElements; ++i) {
-    rtn[i] = sycl::ext::oneapi::experimental::polar(rho[i], theta);
+    rtn[i] = polar(rho[i], theta);
   }
   return rtn;
 }
 
-template <typename T, std::size_t NumElements,
-          typename = std::enable_if<is_genfloat<T>::value>>
-_SYCL_EXT_CPLX_INLINE_VISIBILITY
-    sycl::marray<sycl::ext::oneapi::experimental::complex<T>, NumElements>
-    polar(const T &rho, const sycl::marray<T, NumElements> &theta) {
-  sycl::marray<sycl::ext::oneapi::experimental::complex<T>, NumElements> rtn;
+
+template <typename T, std::size_t NumElements>
+_SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if_t<is_genfloat<T>::value, sycl::marray<complex<T>, NumElements>>
+polar(const T &rho, const sycl::marray<T, NumElements> &theta) {
+  sycl::marray<complex<T>, NumElements> rtn;
   for (std::size_t i = 0; i < NumElements; ++i) {
-    rtn[i] = sycl::ext::oneapi::experimental::polar(rho, theta[i]);
+    rtn[i] = polar(rho, theta[i]);
   }
   return rtn;
 }
