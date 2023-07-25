@@ -663,7 +663,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   MapVector<StringRef, MDNode *> SCMetadata;
   SmallVector<MDNode *, 4> DefaultsMetadata;
 
-
   bool IRModified = false;
   if (Mode == HandlingMode::default_values) {
     IRModified |= replaceSpecConstsWithDefaultValues(M);

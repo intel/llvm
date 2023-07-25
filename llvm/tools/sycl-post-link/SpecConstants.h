@@ -57,11 +57,7 @@ public:
   //              are passed through kernel parameters.
   // - native: spec constant intrinsics are lowered to spirv intrinsics which
   //           retrieve values.
-  enum class HandlingMode {
-    default_values,
-    emulation,
-    native
-  };
+  enum class HandlingMode { default_values, emulation, native };
 
 public:
   SpecConstantsPass(HandlingMode Mode) : Mode(Mode) {}

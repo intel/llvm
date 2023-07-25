@@ -549,7 +549,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   }
 
   if (MD.isSpecConstantDefault())
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"specConstsReplacedWithDefault", 1});
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
+        {"specConstsReplacedWithDefault", 1});
 
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, Suff);
@@ -709,7 +710,9 @@ bool processSpecConstants(module_split::ModuleDesc &MD) {
   ModulePassManager RunSpecConst;
   ModuleAnalysisManager MAM;
   bool SetSpecConstAtRT = (SpecConstLower == SC_USE_RT_VAL);
-  SpecConstantsPass SCP(SetSpecConstAtRT ? SpecConstantsPass::HandlingMode::native : SpecConstantsPass::HandlingMode::emulation);
+  SpecConstantsPass SCP(SetSpecConstAtRT
+                            ? SpecConstantsPass::HandlingMode::native
+                            : SpecConstantsPass::HandlingMode::emulation);
   // Register required analysis
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   RunSpecConst.addPass(std::move(SCP));
@@ -724,7 +727,8 @@ bool processSpecConstants(module_split::ModuleDesc &MD) {
 /// Specialization Constants are replaced by corresponding default values.
 /// If the Module in MD doesn't contain specialization constants then
 /// std::nullopt is returned.
-std::optional<module_split::ModuleDesc> processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
+std::optional<module_split::ModuleDesc>
+processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
   std::optional<module_split::ModuleDesc> NewModuleDesc;
   if (!checkModuleContainsSpecConsts(MD.getModule()))
     return NewModuleDesc;
@@ -1011,7 +1015,8 @@ processInputModule(std::unique_ptr<Module> M) {
     SmallVector<module_split::ModuleDesc, 2> MMsWithDefaultSpecConsts;
     for (size_t i = 0; i != MMs.size(); ++i) {
       if (GenerateDeviceImageWithDefaultSpecConsts) {
-        std::optional<module_split::ModuleDesc> NewMD = processSpecConstantsWithDefaultValues(MMs[i]);
+        std::optional<module_split::ModuleDesc> NewMD =
+            processSpecConstantsWithDefaultValues(MMs[i]);
         if (NewMD)
           MMsWithDefaultSpecConsts.push_back(std::move(*NewMD));
       }
