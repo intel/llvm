@@ -59,7 +59,7 @@ The handling of runtime properties in `properties` departs from that of `sycl::p
 
 [NOTE]
 ====
-Due to type deduction, users should usually not need to specify the template parameters of `properties` directly. In cases the type is needed, `decltype` should be used.
+Due to type deduction, users should usually not need to specify the template parameters of `properties` directly. In cases where the type is needed, `decltype` should be used.
 ====
 
 A property list that has the compile-time constant property `foo` can be created as follows:
@@ -80,9 +80,56 @@ properties P1{bar};
 properties P2{bar, foo{argv[0]}};
 properties P3{bar, baz};
 properties P4{baz, bar};
+
 static_assert(!std::is_same_v<decltype(P1), decltype(P2)>); // P1 and P2 contain different properties
 static_assert(!std::is_same_v<decltype(P1), decltype(P3)>); // P1 and P3 contain different properties
 static_assert(std::is_same_v<decltype(P3), decltype(P4)>); // The order properties are specified doesn't change the type
+
+```
+
+The `properties_type` alias is defined as follows:
+
+```c++
+template <auto... Props> using properties_set = decltype(properties{Props...});
+```
+
+Use this alias in situations where you need to get the type of a `properties`
+object that consists of 1 or more compile time constant properties. For example
+consider the following toy examples:
+
+.Examples using decltype
+```c++
+
+// buffer_location and awidth are some compile time constant properties
+annotated_arg<int *, decltype(properties{buffer_location<1>, awidth<32>})> a;
+
+// protocol_avalon_mm and uses_ready<false> are some compile time constant
+// properties
+using Pipe = pipe<class PipeID, int, decltype(properties{protocol_avalon_mm,
+                                                         uses_ready<false>})>;
+
+// device_image_scope and host_access_read_write are some compile time constant
+// properties
+device_global<int, decltype(properties{device_image_scope,
+                                       host_access_read_write})>
+    global_obj;
+```
+
+Such use cases arise often with SYCL extensions that are built to utilize
+`properties`. The above can be simplified to:
+
+.Examples using properties_type
+```c++
+// buffer_location and awidth are compile time constant properties
+annotated_arg<int *, properties_type<buffer_location<1>, awidth<32>> a;
+
+using Pipe = pipe<class PipeID, int, properties_type<protocol_avalon,
+                                                     uses_ready<false>>>;
+
+// device_image_scope and host_access_read_write are some compile time constant
+// properties
+device_global<int, properties_type<device_image_scope, host_access_read_write>>
+  global_obj;
 ```
 
 === Goals
@@ -502,8 +549,8 @@ The type of the property list can be written with `decltype`.
 The following example shows how `decltype` is used to create a property list type containing the compile-time constant properties `bar` and `baz`:
 
 ```c++
-using P1 = decltype(properties(baz<1>, bar));
-using P2 = decltype(properties(bar, baz<1>));
+using P1 = properties_type<baz<1>, bar>;
+using P2 = properties_type<bar, baz<1>>;
 static_assert(std::is_same<P1, P2>::value); // Succeeds, since the order of properties does not matter
 static_assert(P1::get_property<baz_key>().value == 1);
 ```
