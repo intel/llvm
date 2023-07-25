@@ -438,6 +438,8 @@ public:
           PI_ERROR_INVALID_VALUE);
   }
 
+  buffer &operator=(buffer<T, dimensions, AllocatorT> &rhs) = delete;
+
   buffer(const buffer &rhs,
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(rhs.impl), Range(rhs.Range),
