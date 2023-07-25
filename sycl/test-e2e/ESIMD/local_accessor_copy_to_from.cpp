@@ -9,90 +9,96 @@
 // RUN: %{run} %t.out
 //
 // TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc || gpu-intel-gen12
-// TODO: add support for local_accessors to esimd_emulator.
+// UNSUPPORTED: gpu
 // UNSUPPORTED: esimd_emulator
 // The test checks functionality of the gather/scatter local
 // accessor-based ESIMD intrinsics.
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
+#include <iostream>
+
 using namespace sycl;
+using namespace sycl::ext::intel::esimd;
+
+constexpr uint32_t LocalRange = 16;
+constexpr uint32_t GlobalRange = LocalRange * 2; // 2 groups.
 
 template <typename T, unsigned VL> bool test(queue q) {
-  constexpr size_t size = VL;
+  constexpr size_t size = VL * LocalRange;
+  std::cout << "Running case: T=" << esimd_test::type_name<T>() << " VL=" << VL
+            << std::endl;
 
-  std::cout << "Testing T=" << typeid(T).name() << " VL=" << VL << "...\n";
-
-  // The test is going to use size elements of T type.
+  // The test is going to use (LocalRange * VL) elements of T type.
   auto Dev = q.get_device();
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
-  if (DeviceSLMSize < size) {
+  if (DeviceSLMSize < size * sizeof(T)) {
     // Report an error - the test needs a fix.
     std::cerr << "Error: Test needs more SLM memory than device has!"
               << std::endl;
     return false;
   }
 
-  T *A = new T[size];
+  T *A = new T[GlobalRange * VL];
 
-  for (unsigned i = 0; i < size; ++i) {
-    A[i] = static_cast<T>(i);
+  for (unsigned i = 0; i < GlobalRange * VL; ++i) {
+    A[i] = static_cast<T>(0);
   }
 
   try {
-    buffer<T, 1> buf(A, range<1>(size));
-    nd_range<1> glob_range{range<1>{1}, range<1>{1}};
+    buffer<T, 1> buf(A, range<1>(GlobalRange * VL));
+    nd_range<1> NDRange{range<1>{GlobalRange}, range<1>{LocalRange}};
+    q.submit([&](handler &CGH) {
+       auto LocalAcc = local_accessor<T, 1>(size, CGH);
+       auto acc = buf.template get_access<access::mode::read_write>(CGH);
+       CGH.parallel_for(NDRange, [=](nd_item<1> Item) SYCL_ESIMD_KERNEL {
+         uint32_t GID = Item.get_global_id(0);
+         uint32_t LID = Item.get_local_id(0);
 
-    q.submit([&](handler &cgh) {
-       auto acc = buf.template get_access<access::mode::read_write>(cgh);
-       auto LocalAcc = local_accessor<T, 1>(size, cgh);
-       cgh.parallel_for(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
-         using namespace sycl::ext::intel::esimd;
-         simd<T, VL> valsIn;
-         simd<T, VL> valsOut;
-         valsIn.copy_from(acc, 0);
-         valsIn += 1;
-         valsIn.copy_to(LocalAcc, 0);
-         valsOut.copy_from(LocalAcc, 0);
-         valsOut.copy_to(acc, 0);
+         simd<T, VL> ValuesToSLM(GID * 100, 1);
+         ValuesToSLM.copy_to(LocalAcc, LID * VL * sizeof(T));
+
+         Item.barrier();
+
+         if (LID == 0) {
+           for (int LID = 0; LID < LocalRange; LID++) {
+             simd<T, VL> ValuesFromSLM;
+             ValuesFromSLM.copy_from(LocalAcc, LID * VL * sizeof(T));
+             ValuesFromSLM.copy_to(acc, (GID + LID) * VL * sizeof(T));
+           } // end for (int LID = 0; LID < LocalRange; LID++)
+         }   // end if (LID == 0)
        });
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     delete[] A;
-    return false; // not success
+    return false;
   }
 
-  int err_cnt = 0;
+  bool Pass = true;
+  for (int I = 0; I < GlobalRange * VL; I++) {
+    int GID = I / VL;
+    int LID = GID % LocalRange;
+    int VecElementIndex = I % VL;
 
-  for (unsigned i = 0; i < size; ++i) {
-    T gold = static_cast<T>(i) + 1;
-
-    if (A[i] != gold) {
-      if (++err_cnt < 35) {
-        std::cout << "failed at index " << i << ": " << A[i] << " != " << gold
-                  << " (gold)\n";
-      }
+    T Expected = GID * 100 + VecElementIndex;
+    T Computed = A[I];
+    if (Computed != Expected) {
+      std::cout << "Error: Out[" << I << "]:" << Computed << " != " << Expected
+                << ":[expected]" << std::endl;
+      Pass = false;
     }
-  }
-  if (err_cnt > 0) {
-    std::cout << "  pass rate: "
-              << ((float)(size - err_cnt) / (float)size) * 100.0f << "% ("
-              << (size - err_cnt) << "/" << size << ")\n";
   }
 
   delete[] A;
 
-  std::cout << (err_cnt > 0 ? "  FAILED\n" : "  Passed\n");
-  return err_cnt > 0 ? false : true;
+  return Pass;
 }
 
-int main(void) {
+int main() {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
   auto dev = q.get_device();
