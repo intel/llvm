@@ -16,9 +16,8 @@ def ConstantPropagationPass : Pass<"sycl-constant-propagation", "gpu::GPUFuncOp"
   let description = [{
     This pass implements SYCL host-device constant propagation. In order to do
     so, it tracks constant values, e.g., those defined by `arith.constant`,
-    passed as an argument to `sycl.host.schedule_kernel`, drops them in host
-    side and replaces the corresponding `gpu.func` argument with the constant
-    value, also dropping the argument in device side.
+    passed as an argument to `sycl.host.schedule_kernel`, and replaces the
+    corresponding `gpu.func` argument with the constant value.
   }];
   let constructor = "mlir::sycl::createConstantPropagationPass()";
 

@@ -10,7 +10,7 @@
 gpu.module @kernels {
 // CHECK-LABEL:     gpu.func @k0(
 // CHECK-SAME:                   %[[VAL_0:.*]]: memref<1xi64>,
-// CHECK-SAME:                   %[[VAL_1:.*]]: i64,
+// CHECK-SAME:                   %[[VAL_1:.*]]: i64, %{{.*}}: i64,
 // CHECK-SAME:                   %[[VAL_2:.*]]: i64) kernel {
 // CHECK-NEXT:        %[[VAL_3:.*]] = llvm.mlir.constant(0 : i64) : i64
 // CHECK-NEXT:        %[[VAL_4:.*]] = arith.addi %[[VAL_1]], %[[VAL_3]] : i64
@@ -30,8 +30,8 @@ gpu.module @kernels {
 // CHECK-SAME:                            %[[VAL_0:.*]]: !llvm.ptr,
 // CHECK-SAME:                            %[[VAL_1:.*]]: i64,
 // CHECK-SAME:                            %[[VAL_2:.*]]: i64) {
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(0 : i64) : i64
-// CHECK-NEXT:      sycl.host.schedule_kernel @kernels::@k0(%[[VAL_0]], %[[VAL_1]], %[[VAL_2]]) : (!llvm.ptr, i64, i64) -> ()
+// CHECK-NEXT:      %[[C:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:      sycl.host.schedule_kernel @kernels::@k0(%[[VAL_0]], %[[VAL_1]], %[[C]], %[[VAL_2]]) : (!llvm.ptr, i64, i64, i64) -> ()
 // CHECK-NEXT:      llvm.return
 // CHECK-NEXT:    }
 llvm.func internal @foo(%res: !llvm.ptr, %x: i64, %y: i64) {

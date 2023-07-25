@@ -1,4 +1,4 @@
-//===- CPP.cpp - Host-device constant propagation pass --------------------===//
+//===- ConstantPropagation.cpp - Host-device constant propagation pass ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -31,17 +31,6 @@ namespace sycl {
 using namespace mlir;
 using namespace mlir::sycl;
 
-static raw_ostream &operator<<(raw_ostream &os, const llvm::BitVector &bv) {
-  os << "{";
-  SmallVector<unsigned> set;
-  for (unsigned i = 0, size = static_cast<unsigned>(bv.size()); i < size; ++i) {
-    if (bv.test(i))
-      set.push_back(i);
-  }
-  llvm::interleaveComma(set, os);
-  return os << "}";
-}
-
 namespace {
 class ConstantPropagationPass
     : public mlir::sycl::impl::ConstantPropagationPassBase<
@@ -56,14 +45,9 @@ private:
   /// Return a range with all of the constant arguments of \p op.
   static auto getConstantArgs(SYCLHostScheduleKernel op);
 
-  /// Propagate constants in \p range to the function launched by \p launch.
+  /// Propagate constants in \p constants to the function launched by \p launch.
   template <typename RangeTy>
   void propagateConstantArgs(RangeTy constants, SYCLHostScheduleKernel launch);
-
-  /// Drop arguments \p constants from \p launch.
-  template <typename RangeTy>
-  void dropConstantArgs(RangeTy constants, Builder &builder,
-                        SYCLHostScheduleKernel launch);
 };
 
 /// Class representing a constant explicit argument, i.e., those kernel
@@ -136,37 +120,6 @@ auto ConstantPropagationPass::getConstantArgs(SYCLHostScheduleKernel op) {
 }
 
 template <typename RangeTy>
-void ConstantPropagationPass::dropConstantArgs(RangeTy constants,
-                                               Builder &builder,
-                                               SYCLHostScheduleKernel launch) {
-  auto funcOp = static_cast<FunctionOpInterface>(getOperation());
-  llvm::BitVector launchIndices(launch->getNumOperands());
-  llvm::BitVector funcIndices(funcOp.getNumArguments());
-  unsigned launchOffset = launchIndices.size() - funcIndices.size();
-  for (const std::unique_ptr<ConstantExplicitArg> &arg : constants) {
-    unsigned index = arg->getIndex();
-    // Some constants may mark more than one argument to be erased.
-    TypeSwitch<ConstantExplicitArg *>(arg.get()).Case<ConstantArithArg>(
-        [&](const auto &) {
-          funcIndices.set(index);
-          launchIndices.set(index + launchOffset);
-        });
-    ++NumPropagatedConstants;
-  }
-
-  LLVM_DEBUG(llvm::dbgs() << "Dropping arguments: " << funcIndices << "\n");
-  funcOp.eraseArguments(funcIndices);
-
-  // We have to update the OperandSegmentSizes attribute as this operation may
-  // receive more than one variadic argument.
-  launch->eraseOperands(launchIndices);
-  std::array<int32_t, 3> operandSegmentSizes{
-      0, 0, static_cast<int32_t>(funcOp.getNumArguments())};
-  launch->setAttr(launch.getOperandSegmentSizesAttrName(),
-                  builder.getDenseI32ArrayAttr(operandSegmentSizes));
-}
-
-template <typename RangeTy>
 void ConstantPropagationPass::propagateConstantArgs(
     RangeTy constants, SYCLHostScheduleKernel launch) {
   Region *region = getOperation().getCallableRegion();
@@ -174,8 +127,8 @@ void ConstantPropagationPass::propagateConstantArgs(
   for (const std::unique_ptr<ConstantExplicitArg> &arg : constants) {
     TypeSwitch<ConstantExplicitArg *>(arg.get()).Case<ConstantArithArg>(
         [&](const auto *arith) { arith->propagate(builder, *region); });
+    ++NumPropagatedConstants;
   }
-  dropConstantArgs<RangeTy>(constants, builder, launch);
 }
 
 void ConstantPropagationPass::runOnOperation() {
