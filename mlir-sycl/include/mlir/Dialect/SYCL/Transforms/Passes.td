@@ -18,6 +18,10 @@ def ConstantPropagationPass : Pass<"sycl-constant-propagation", "gpu::GPUFuncOp"
     so, it tracks constant values, e.g., those defined by `arith.constant`,
     passed as an argument to `sycl.host.schedule_kernel`, and replaces the
     corresponding `gpu.func` argument with the constant value.
+
+    No further change is needed to the `sycl.host.schedule_kernel` operation or
+    the kernel, as the `DAESYCL` pass will remove the kernel arguments that
+    become unused as the result of this pass.
   }];
   let constructor = "mlir::sycl::createConstantPropagationPass()";
 

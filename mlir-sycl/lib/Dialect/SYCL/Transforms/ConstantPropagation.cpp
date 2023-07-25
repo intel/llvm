@@ -26,7 +26,7 @@ namespace sycl {
 } // namespace sycl
 } // namespace mlir
 
-#define DEBUG_TYPE "sycl-cpp"
+#define DEBUG_TYPE "sycl-constant-propagation"
 
 using namespace mlir;
 using namespace mlir::sycl;
@@ -100,6 +100,7 @@ void ConstantArithArg::propagate(OpBuilder builder, Region &region) const {
 }
 
 auto ConstantPropagationPass::getConstantArgs(SYCLHostScheduleKernel op) {
+  LLVM_DEBUG(llvm::dbgs().indent(2) << "Searching for constant arguments\n");
   auto isConstant = m_Constant();
   // Map each argument to a ConstantExplicitArg and filter-out nullptr
   // (non-const) ones.
@@ -108,7 +109,7 @@ auto ConstantPropagationPass::getConstantArgs(SYCLHostScheduleKernel op) {
                       [&](auto iter) -> std::unique_ptr<ConstantExplicitArg> {
                         Value value = iter.value();
                         if (matchPattern(value, isConstant)) {
-                          LLVM_DEBUG(llvm::dbgs()
+                          LLVM_DEBUG(llvm::dbgs().indent(4)
                                      << "Arith constant: " << value
                                      << " at pos " << iter.index() << "\n");
                           return std::make_unique<ConstantArithArg>(
@@ -133,8 +134,12 @@ void ConstantPropagationPass::propagateConstantArgs(
 
 void ConstantPropagationPass::runOnOperation() {
   gpu::GPUFuncOp op = getOperation();
+  LLVM_DEBUG(llvm::dbgs() << "Performing constant propagation on function '"
+                          << static_cast<SymbolOpInterface>(op).getName()
+                          << "'\n");
   if (!op.isKernel() || op.isExternal()) {
-    LLVM_DEBUG(llvm::dbgs() << "Early exit: Function is not a kernel\n");
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Early exit: Function is not a kernel\n");
     return;
   }
 
@@ -146,15 +151,17 @@ void ConstantPropagationPass::runOnOperation() {
   std::optional<SymbolTable::UseRange> uses =
       SymbolTable::getSymbolUses(op, module);
   if (!(uses && isSingleton(*uses))) {
-    LLVM_DEBUG(llvm::dbgs() << "SYCL constant propagation pass expects a "
-                               "single kernel launch point\n");
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "SYCL constant propagation pass expects a "
+                  "single kernel launch point\n");
     return;
   }
 
   auto launchPoint = dyn_cast<SYCLHostScheduleKernel>(uses->begin()->getUser());
   if (!launchPoint) {
-    LLVM_DEBUG(llvm::dbgs() << "SYCL constant propagation pass expects launch "
-                               "point to be 'sycl.host.schedule_kernel'\n");
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "SYCL constant propagation pass expects launch "
+                  "point to be 'sycl.host.schedule_kernel'\n");
   }
 
   propagateConstantArgs(getConstantArgs(launchPoint), launchPoint);
