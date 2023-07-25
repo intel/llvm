@@ -1029,6 +1029,10 @@ macro(add_llvm_executable name)
     target_link_libraries(${name} PRIVATE ${LLVM_PTHREAD_LIB})
   endif()
 
+  if(HAVE_LLVM_LIBC)
+    target_link_libraries(${name} PRIVATE llvmlibc)
+  endif()
+
   llvm_codesign(${name} ENTITLEMENTS ${ARG_ENTITLEMENTS} BUNDLE_PATH ${ARG_BUNDLE_PATH})
 endmacro(add_llvm_executable name)
 
@@ -2354,6 +2358,9 @@ function(llvm_setup_rpath name)
     endif()
     if(LLVM_LINKER_IS_GNULD)
       # $ORIGIN is not interpreted at link time by ld.bfd
+      if(NOT LLVM_LIBRARY_OUTPUT_INTDIR)
+        message(SEND_ERROR "Project does not define LLVM_LIBRARY_OUTPUT_INTDIR and it is required")
+      endif()
       set_property(TARGET ${name} APPEND_STRING PROPERTY
                    LINK_FLAGS " -Wl,-rpath-link,${LLVM_LIBRARY_OUTPUT_INTDIR} ")
     endif()
@@ -2463,5 +2470,15 @@ function(setup_host_tool tool_name setting_name exe_var_name target_var_name)
   if(LLVM_USE_HOST_TOOLS AND NOT ${setting_name})
     build_native_tool(${tool_name} exe_name DEPENDS ${tool_name})
     add_custom_target(${target_var_name} DEPENDS ${exe_name})
+  endif()
+endfunction()
+
+# Adds the unittests folder if gtest is available.
+function(llvm_add_unittests tests_added)
+  if (EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
+    add_subdirectory(unittests)
+    set(${tests_added} ON PARENT_SCOPE)
+  else()
+    message(WARNING "gtest not found, unittests will not be available")
   endif()
 endfunction()

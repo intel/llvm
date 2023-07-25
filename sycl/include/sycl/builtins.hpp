@@ -22,7 +22,7 @@
 
 namespace sycl {
 
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> x, size_t start) {
@@ -2560,7 +2560,7 @@ std::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
 }
 
 #endif // __FAST_MATH__
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #ifdef __SYCL_DEVICE_ONLY__

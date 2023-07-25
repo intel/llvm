@@ -377,7 +377,7 @@ bool test(queue &Q, const std::string &Name,
     }
 
     bool BothFinite = std::isfinite(Test) && std::isfinite(Gold);
-    if (BothFinite && abs(Test - Gold) > delta) {
+    if (BothFinite && std::abs(Test - Gold) > delta) {
       if (++ErrCnt < 10) {
         std::cout << "    failed at index " << I << ", " << Test
                   << " != " << Gold << " (gold)\n";

@@ -15,7 +15,7 @@ int main() {
   sycl::range<1> r(1);
   deviceQueue.submit([&](sycl::handler &h) {
     h.parallel_for<Test1>(r, [=](sycl::id<1> id) { acc[id[0]] = 42; });
-    // CHECK: @_ZTS5Test1_NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
+    // CHECK: @_ZTS5Test1_NativeCPUKernel_NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
     // CHECK: call{{.*}}__dpcpp_nativecpu_global_id(ptr %2)
   });
   sycl::nd_range<2> r2({1, 1}, {
@@ -24,14 +24,14 @@ int main() {
                                });
   deviceQueue.submit([&](sycl::handler &h) {
     h.parallel_for<Test2>(r2, [=](sycl::id<2> id) { acc[id[1]] = 42; });
-    // CHECK: @_ZTS5Test2_NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
+    // CHECK: @_ZTS5Test2_NativeCPUKernel_NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
     // CHECK: call{{.*}}__dpcpp_nativecpu_global_id(ptr %2)
   });
   sycl::nd_range<3> r3({1, 1, 1}, {1, 1, 1});
   deviceQueue.submit([&](sycl::handler &h) {
     h.parallel_for<Test3>(
         r3, [=](sycl::item<3> item) { acc[item[2]] = item.get_range(0); });
-    // CHECK: @_ZTS5Test3_NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
+    // CHECK: @_ZTS5Test3_NativeCPUKernel_NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
     // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_global_range(ptr %2)
     // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_global_id(ptr %2)
   });

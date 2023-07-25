@@ -7132,6 +7132,7 @@ ExpectedStmt ASTNodeImporter::VisitDeclRefExpr(DeclRefExpr *E) {
       E->getValueKind(), ToFoundD, ToResInfo, E->isNonOdrUse());
   if (E->hadMultipleCandidates())
     ToE->setHadMultipleCandidates(true);
+  ToE->setIsImmediateEscalating(E->isImmediateEscalating());
   return ToE;
 }
 
@@ -7949,12 +7950,14 @@ ExpectedStmt ASTNodeImporter::VisitCXXConstructExpr(CXXConstructExpr *E) {
   if (Error Err = ImportContainerChecked(E->arguments(), ToArgs))
     return std::move(Err);
 
-  return CXXConstructExpr::Create(
+  CXXConstructExpr *ToE = CXXConstructExpr::Create(
       Importer.getToContext(), ToType, ToLocation, ToConstructor,
       E->isElidable(), ToArgs, E->hadMultipleCandidates(),
       E->isListInitialization(), E->isStdInitListInitialization(),
       E->requiresZeroInitialization(), E->getConstructionKind(),
       ToParenOrBraceRange);
+  ToE->setIsImmediateEscalating(E->isImmediateEscalating());
+  return ToE;
 }
 
 ExpectedStmt ASTNodeImporter::VisitExprWithCleanups(ExprWithCleanups *E) {

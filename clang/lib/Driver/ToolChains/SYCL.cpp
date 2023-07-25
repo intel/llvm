@@ -137,7 +137,7 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
 static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
-  "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
+  "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
 #if defined(_WIN32)
       "msvc-math",
 #endif
@@ -145,7 +145,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
       "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
       "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
       "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
-      "fallback-imf-bf16"
+      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16"
 };
 
 const char *SYCL::Linker::constructLLVMLinkCommand(

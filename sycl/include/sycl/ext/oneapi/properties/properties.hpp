@@ -18,7 +18,7 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace detail {
@@ -250,5 +250,5 @@ struct is_device_copyable<
     std::enable_if_t<!std::is_trivially_copyable_v<
         ext::oneapi::experimental::properties<PropertiesT>>>>
     : is_device_copyable<PropertiesT> {};
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

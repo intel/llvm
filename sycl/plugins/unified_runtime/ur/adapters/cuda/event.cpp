@@ -119,7 +119,7 @@ ur_result_t ur_event_handle_t_::record() {
   try {
     EventID = Queue->getNextEventID();
     if (EventID == 0) {
-      sycl::detail::ur::die(
+      detail::ur::die(
           "Unrecoverable program state reached in event identifier overflow");
     }
     Result = UR_CHECK_ERROR(cuEventRecord(EvEnd, Stream));
@@ -167,7 +167,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
                                                    size_t propValueSize,
                                                    void *pPropValue,
                                                    size_t *pPropValueSizeRet) {
-  UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   switch (propName) {
@@ -182,7 +181,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
   case UR_EVENT_INFO_CONTEXT:
     return ReturnValue(hEvent->getContext());
   default:
-    sycl::detail::ur::die("Event info request not implemented");
+    detail::ur::die("Event info request not implemented");
   }
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -193,7 +192,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     ur_event_handle_t hEvent, ur_profiling_info_t propName,
     size_t propValueSize, void *pPropValue, size_t *pPropValueSizeRet) {
-  UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   ur_queue_handle_t Queue = hEvent->getQueue();
@@ -213,7 +211,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   default:
     break;
   }
-  sycl::detail::ur::die("Event Profiling info request not implemented");
+  detail::ur::die("Event Profiling info request not implemented");
   return {};
 }
 
@@ -221,16 +219,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
                                                        ur_execution_info_t,
                                                        ur_event_callback_t,
                                                        void *) {
-  sycl::detail::ur::die("Event Callback not implemented in CUDA adapter");
+  detail::ur::die("Event Callback not implemented in CUDA adapter");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   try {
-    UR_ASSERT(phEventWaitList, UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-    UR_ASSERT(numEvents > 0, UR_RESULT_ERROR_INVALID_VALUE);
-
     auto Context = phEventWaitList[0]->getContext();
     ScopedContext Active(Context);
 
@@ -250,24 +245,19 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   const auto RefCount = hEvent->incrementReferenceCount();
 
-  sycl::detail::ur::assertion(
-      RefCount != 0, "Reference count overflow detected in urEventRetain.");
+  detail::ur::assertion(RefCount != 0,
+                        "Reference count overflow detected in urEventRetain.");
 
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
-  UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  sycl::detail::ur::assertion(
-      hEvent->getReferenceCount() != 0,
-      "Reference count overflow detected in urEventRelease.");
+  detail::ur::assertion(hEvent->getReferenceCount() != 0,
+                        "Reference count overflow detected in urEventRelease.");
 
   // decrement ref count. If it is 0, delete the event.
   if (hEvent->decrementReferenceCount() == 0) {

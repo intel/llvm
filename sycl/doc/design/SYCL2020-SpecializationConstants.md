@@ -785,7 +785,7 @@ The integration footer will look like:
 
 ```
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 // Note: we do not declare `get_spec_constant_symbolic_ID` here and assume that
 // it is declared in some other header which was already included.
@@ -814,7 +814,7 @@ inline const char *get_spec_constant_symbolic_ID<id_float>() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 // Detailed description of this header is provided below in corresponding RT section

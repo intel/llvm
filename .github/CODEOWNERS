@@ -120,3 +120,8 @@ sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers
 sycl/source/detail/graph_impl.cpp @intel/sycl-graphs-reviewers
 sycl/source/detail/graph_impl.hpp @intel/sycl-graphs-reviewers
 sycl/unittests/Extensions/CommandGraph.cpp @intel/sycl-graphs-reviewers
+
+# syclcompat library
+sycl/**/syclcompat/ @intel/syclcompat-lib-reviewers
+sycl/cmake/modules/AddSYCLLibraryUnitTest.cmake @intel/syclcompat-lib-reviewers
+sycl/include/syclcompat.hpp @intel/syclcompat-lib-reviewers
