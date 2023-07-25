@@ -32,6 +32,9 @@ inline constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
 // Stream name being used for traces generated from PI calls. This stream
 // contains information about function arguments.
 inline constexpr const char *SYCL_PIDEBUGCALL_STREAM_NAME = "sycl.pi.debug";
+// Stream name being used to emit performance traces for SYCL runtime
+inline constexpr const char *SYCL_PERF_STREAM_NAME = "sycl.perf";
+// Stream used to emit memory lifetime traces
 inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
     "sycl.experimental.mem_alloc";
 
@@ -39,8 +42,11 @@ inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
 extern uint8_t GBufferStreamID;
 extern uint8_t GImageStreamID;
 extern uint8_t GMemAllocStreamID;
+extern uint8_t GSyclPerfStreamID;
+
 extern xpti::trace_event_data_t *GMemAllocEvent;
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
+extern xpti::trace_event_data_t *GSYCLPerfEvent;
 
 #define STR(x) #x
 #define SYCL_VERSION_STR                                                       \
@@ -268,8 +274,73 @@ private:
   // The trace type information for scoped notifications
   uint16_t MTraceType;
 }; // class XPTIScope
+
+class XPTIPerfScope {
+public:
+  using TracePoint = xpti::framework::tracepoint_t;
+  /// @brief Scoped class for XPTI performance stream
+  /// @param TraceType The type of trace event being created, which by default
+  /// is function_begin and can be overridden
+  /// @param StreamID  The stream which will emit these notifications, which by
+  /// default is "sycl.perf"
+  /// @param UserData String value that provides metadata about the
+  /// instrumentation, usually function name derived from __builtin_FUNCTION()
+  XPTIPerfScope(const char *UserData, uint8_t StreamID = GSyclPerfStreamID,
+                uint16_t TraceType = (uint16_t)
+                    xpti::trace_point_type_t::function_begin,
+                xpti::trace_event_data_t *TEvent = GSYCLPerfEvent)
+      : MUserData(UserData), MTraceEvent(TEvent), MStreamID(StreamID),
+        MCorrelationID(0), MScopedNotify(true), MTraceType(TraceType) {
+
+    // Now if tracing is enabled, create trace events and notify
+    if (xptiCheckTraceEnabled(MStreamID, TraceType)) {
+      MCorrelationID = xptiGetUniqueId();
+    }
+  }
+  /// @brief Method that emits begin/end trace notifications
+  /// @return Current class
+  XPTIPerfScope &scopedNotify() {
+    uint16_t TraceType = MTraceType & 0xfffe;
+    if (xptiCheckTraceEnabled(MStreamID, TraceType)) {
+      MScopedNotify = true;
+      xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
+                            MCorrelationID,
+                            static_cast<const void *>(MUserData));
+    }
+    return *this;
+  }
+  ~XPTIPerfScope() {
+    if (xptiCheckTraceEnabled(MStreamID, MTraceType) && MScopedNotify) {
+      MTraceType = MTraceType | 1;
+      // Only notify for a trace type that has a begin/end
+      xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
+                            MCorrelationID,
+                            static_cast<const void *>(MUserData));
+    }
+  }
+
+private:
+  // The const string that indicates the operation
+  const char *MUserData = nullptr;
+  // Trace event created from the TLS data, if it exists
+  xpti::trace_event_data_t *MTraceEvent = nullptr;
+  // The stream on which the notifications occur
+  uint8_t MStreamID;
+  // The correlation ID to track the corresponding function_end call
+  uint64_t MCorrelationID;
+  // If scoped notifcation is requested, this tracks the request
+  bool MScopedNotify;
+  // The trace type information for scoped notifications
+  uint16_t MTraceType;
+}; // XPTIPerfScope
 #endif
 
+#if XPTI_ENABLE_INSTRUMENTATION
+#define XPTI_LW_TRACE()                                                        \
+  XPTIPerfScope LWTace(__builtin_FUNCTION()).scopedNotify();
+#else
+define XPTI_LW_TRACE()
+#endif
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
