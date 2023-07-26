@@ -30,8 +30,6 @@ jobs:
       # We use the build for the release, override its name and prefer
       # widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
-      artifact_compress_command: gzip
-      artifact_decompress_command: gunzip
 
   ubuntu2204_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'
