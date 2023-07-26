@@ -10,14 +10,14 @@
 #include <random>
 
 // Print test names and pass status
-//#define VERBOSE_LV1
+// #define VERBOSE_LV1
 
 // Same as above plus sampler, offset, margin of error, largest error found and
 // results of one mismatch
-//#define VERBOSE_LV2
+// #define VERBOSE_LV2
 
 // Same as above but all mismatches are printed
-//#define VERBOSE_LV3
+// #define VERBOSE_LV3
 
 // Helpers and utilities
 struct util {
