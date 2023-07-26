@@ -879,7 +879,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     return;
   }
 
-  if (!SrcMem || !DstMem) 
+  if (!SrcMem || !DstMem)
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_ERROR_INVALID_VALUE);
 
@@ -1090,9 +1090,9 @@ memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
     AuxDepEventsStorage.push_back(ZIEvent.GetEvent());
   }
 
-  MemoryManager::copy_usm(
-      Src, Queue, NumBytes, reinterpret_cast<char *>(Dest) + Offset,
-      ActualDepEvents, OutEvent);
+  MemoryManager::copy_usm(Src, Queue, NumBytes,
+                          reinterpret_cast<char *>(Dest) + Offset,
+                          ActualDepEvents, OutEvent);
 }
 
 static void memcpyFromDeviceGlobalUSM(
