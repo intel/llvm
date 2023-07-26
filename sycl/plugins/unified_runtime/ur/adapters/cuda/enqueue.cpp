@@ -402,12 +402,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
-      if (LocalSize > Device->getDeviceMaxCapacityLocalMem()) {
+      if (LocalSize >
+          static_cast<uint32_t>(Device->getDeviceMaxCapacityLocalMem())) {
         setErrorMessage("Too much local memory allocated for device",
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
-      if (LocalSize > Device->getDeviceMaxChosenLocalMem()) {
+      if (LocalSize >
+          static_cast<uint32_t>(Device->getDeviceMaxChosenLocalMem())) {
         setErrorMessage(
             "Local memory for kernel exceeds the amount requested using "
             "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value for "
