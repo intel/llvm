@@ -568,7 +568,8 @@ template <typename Type, int NumElements> class vec {
 
   static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
   static constexpr size_t Sz = sizeof(DataT) * AdjustedNum;
-  static constexpr bool IsSizeGreaterThanAlign = (Sz > 64);
+  static constexpr bool IsSizeGreaterThanMaxAlign =
+      (Sz > detail::MaxVecAlignment);
 
   static constexpr bool IsHostHalf =
       std::is_same<DataT, sycl::detail::half_impl::half>::value &&
@@ -580,7 +581,8 @@ template <typename Type, int NumElements> class vec {
   // vector extension. This is for MSVC compatibility, which has a max alignment
   // of 64 for direct params. If we drop MSVC, we can have alignment the same as
   // size and use vector extensions for all sizes.
-  static constexpr bool IsUsingArray = (IsHostHalf || IsSizeGreaterThanAlign);
+  static constexpr bool IsUsingArray =
+      (IsHostHalf || IsSizeGreaterThanMaxAlign);
 
 #ifdef __HAS_EXT_VECTOR_TYPE__
   static constexpr bool NativeVec = NumElements > 1 && !IsUsingArray;
@@ -907,8 +909,7 @@ public:
     if constexpr (!IsUsingArray) {
       m_Data = openclVector;
     } else {
-      detail::loop<NumElements>(
-          [&, this](size_t i) { m_Data[i] = openclVector[i]; });
+      m_Data = bit_cast<DataType>(openclVector);
     }
   }
 
@@ -916,7 +917,7 @@ public:
     if constexpr (!IsUsingArray) {
       return m_Data;
     } else {
-      auto ptr = reinterpret_cast<const VectorDataType *>((&m_Data)->data());
+      auto ptr = bit_cast<const VectorDataType *>((&m_Data)->data());
       return *ptr;
     }
   }
@@ -2201,7 +2202,7 @@ template <typename T, int N> struct VecStorageImpl;
 #define __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, num)                      \
   template <> struct VecStorageImpl<type, num> {                               \
     using DataType = std::array<type, (num == 3) ? 4 : num>;                   \
-    using VectorDataType = std::array<type, (num == 3) ? 4 : num>;             \
+    using VectorDataType = DataType;                                           \
   };
 #endif //__HAS_EXT_VECTOR_TYPE__
 
@@ -2248,16 +2249,14 @@ template <typename T>
 struct VecStorage<T, 1, typename std::enable_if_t<is_sigeninteger<T>::value>> {
   using DataType = select_apply_cl_t<T, std::int8_t, std::int16_t, std::int32_t,
                                      std::int64_t>;
-  using VectorDataType = select_apply_cl_t<T, std::int8_t, std::int16_t,
-                                           std::int32_t, std::int64_t>;
+  using VectorDataType = DataType;
 };
 // Single element unsigned integers
 template <typename T>
 struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger<T>::value>> {
   using DataType = select_apply_cl_t<T, std::uint8_t, std::uint16_t,
                                      std::uint32_t, std::uint64_t>;
-  using VectorDataType = select_apply_cl_t<T, std::uint8_t, std::uint16_t,
-                                           std::uint32_t, std::uint64_t>;
+  using VectorDataType = DataType;
 };
 // Single element floating-point (except half)
 template <typename T>
@@ -2266,8 +2265,7 @@ struct VecStorage<
     typename std::enable_if_t<!is_half<T>::value && is_sgenfloat<T>::value>> {
   using DataType =
       select_apply_cl_t<T, std::false_type, std::false_type, float, double>;
-  using VectorDataType =
-      select_apply_cl_t<T, std::false_type, std::false_type, float, double>;
+  using VectorDataType = DataType;
 };
 // Multiple elements signed/unsigned integers and floating-point (except half)
 template <typename T, int N>
