@@ -1,15 +1,15 @@
 // REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// Extra run to check for leaks in Level Zero using ZE_DEBUG
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
 // Tests a dotp operation using a sycl reduction with device USM being added
 // to the graph using the explicit API.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
+#define GRAPH_E2E_RECORD_REPLAY
 #include "../graph_common.hpp"
 
 int main() {

@@ -1,6 +1,7 @@
 // REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// Extra run to check for leaks in Level Zero using ZE_DEBUG
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
@@ -8,8 +9,6 @@
 // Test submitting the same graph twice with another command in between, this
 // intermediate command depends on the first submission of the graph, and
 // is a dependency of the second submission of the graph.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 int main() {
