@@ -343,10 +343,10 @@ namespace sycl::ext::intel::experimental {
         std::integral_constant<ram_stritching_enum, Ram_stritching>>;
   };
 
-  struct private_copies_key {
+  struct max_private_copies_key {
     template <size_t n>
     using value_t =
-        property_value<private_copies_key, std::integral_constant<n>>;
+        property_value<max_private_copies_key, std::integral_constant<n>>;
   };
 
   struct num_replicates_key {
@@ -386,7 +386,7 @@ namespace sycl::ext::intel::experimental {
       ram_stitching_max_fmax;
 
   template <size_t n>
-  inline constexpr private_copies_key::value_t<n> private_copies;
+  inline constexpr max_private_copies_key::value_t<n> max_private_copies;
 
   template <size_t n>
   inline constexpr num_replicates_key::value_t<n> num_replicates;
@@ -486,10 +486,10 @@ If the size of the data is too big for a single RAM to hold it, multiple RAMs  n
 a|
 [source,c++]
 ----
-private_copies
+max_private_copies
 ----
 a|
-Specifies that the memory has a defined number of independent instances to allow simultaneous iterations of a loop at any given time. Each simultaneous iteration uses a different instance of the variable.
+Specifies that the memory has no more than the specified number of independent instances to allow simultaneous iterations of a loop at any given time. Each simultaneous iteration uses a different instance of the variable.
 
 // --- ROW BREAK ---
 a|
