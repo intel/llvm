@@ -8,8 +8,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
 //
 // UNSUPPORTED: esimd_emulator
 // The test checks functionality of the gather/scatter local

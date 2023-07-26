@@ -8,8 +8,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
 //
 // UNSUPPORTED: esimd_emulator
 // This test verifies usage of block_load/block_store for local_accessor.

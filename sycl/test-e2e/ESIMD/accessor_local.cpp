@@ -4,9 +4,6 @@
 // TODO: GPU driver on Windows requires a fix/update.
 // XFAIL: windows
 
-// Failure on Linux: https://github.com/intel/llvm/issues/10138
-// UNSUPPORTED: linux
-
 // esimd_emulator does not yet support local accessors
 // UNSUPPORTED: esimd_emulator
 
