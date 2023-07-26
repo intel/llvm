@@ -83,7 +83,9 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  hContext->decrementReferenceCount();
+  if (hContext->decrementReferenceCount() == 0) {
+    delete hContext;
+  }
   return UR_RESULT_SUCCESS;
 }
 
