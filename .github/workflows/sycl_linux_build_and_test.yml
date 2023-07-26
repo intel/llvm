@@ -25,10 +25,6 @@ on:
         type: string
         required: false
         default: "default"
-      build_cache_size:
-        type: string
-        required: false
-        default: 8G
       build_configure_extra_args:
         type: string
         required: false
@@ -108,10 +104,6 @@ on:
       #   type: choice
       #   options:
       #     - "default"
-      # build_cache_size:
-      #   type: choice
-      #   options:
-      #     - "8G"
       # build_configure_extra_args:
       #   type: choice
       #   options:
@@ -183,7 +175,7 @@ jobs:
       build_conclusion: ${{ steps.build.conclusion }}
     env:
       CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
-      CCACHE_MAXSIZE: ${{ inputs.build_cache_size }}
+      CCACHE_MAXSIZE: 8G
     steps:
     - uses: actions/checkout@v3
       with:
