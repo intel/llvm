@@ -691,6 +691,26 @@ LogicalResult SYCLHostScheduleKernel::verify() {
   return success();
 }
 
+void SYCLHostScheduleKernel::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  auto *defaultResource = SideEffects::DefaultResource::get();
+  // The nd-range arguments will be read from
+  if (Value range = getRange())
+    effects.emplace_back(MemoryEffects::Read::get(), range, defaultResource);
+  if (Value offset = getOffset())
+    effects.emplace_back(MemoryEffects::Read::get(), offset, defaultResource);
+  // The rest of the arguments will be scalar or have rw access
+  for (Value arg : getArgs()) {
+    if (!isa<LLVM::LLVMPointerType>(arg.getType())) {
+      // TODO: When we have accessor type information, drop write access for
+      // read_only accessors.
+      effects.emplace_back(MemoryEffects::Write::get(), arg, defaultResource);
+      effects.emplace_back(MemoryEffects::Read::get(), arg, defaultResource);
+    }
+  }
+}
+
 LogicalResult
 SYCLHostSubmitOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   FlatSymbolRefAttr symbol = getCGFNameAttr();
