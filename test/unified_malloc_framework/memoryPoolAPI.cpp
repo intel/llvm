@@ -258,6 +258,7 @@ TEST_F(test, getLastFailedMemoryProvider) {
     auto ptr = umfPoolMalloc(pool.get(), allocSize);
     ASSERT_NE(ptr, nullptr);
     ASSERT_EQ(umfGetLastFailedMemoryProvider(), nullptr);
+    umfPoolFree(pool.get(), ptr);
 
     // make provider return an error during allocation
     allocResult = UMF_RESULT_ERROR_UNKNOWN;
@@ -280,6 +281,7 @@ TEST_F(test, getLastFailedMemoryProvider) {
     ASSERT_EQ(std::string_view(
                   umfMemoryProviderGetName(umfGetLastFailedMemoryProvider())),
               "provider2");
+    umfPoolFree(pool.get(), ptr);
 
     // error in another thread should not impact umfGetLastFailedMemoryProvider on this thread
     allocResult = UMF_RESULT_ERROR_UNKNOWN;
