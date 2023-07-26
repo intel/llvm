@@ -243,7 +243,7 @@ TEST_P(umfPoolTest, multiThreadedMallocFreeRandomSizes) {
 
     std::vector<std::thread> threads;
     for (int i = 0; i < NTHREADS; i++) {
-        threads.emplace_back(poolMalloc, rand() % 64 + 1, pool.get());
+        threads.emplace_back(poolMalloc, (rand() % 16) * 8, pool.get());
     }
 
     for (auto &thread : threads) {
