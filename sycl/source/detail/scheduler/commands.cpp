@@ -217,6 +217,7 @@ static std::string commandToName(Command::CommandType Type) {
 
 std::vector<sycl::detail::pi::PiEvent>
 Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
+  XPTI_LW_TRACE();
   std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
   for (auto &EventImpl : EventImpls) {
     if (EventImpl->getHandleRef() == nullptr)
@@ -245,6 +246,7 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
 // completion.
 std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
     const std::vector<EventImplPtr> &EventImpls) const {
+  XPTI_LW_TRACE();
   std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
   for (auto &EventImpl : EventImpls) {
     // Throwaway events created with empty constructor will not have a context
@@ -298,6 +300,7 @@ class DispatchHostTask {
   std::vector<interop_handle::ReqToMem> MReqToMem;
 
   pi_result waitForEvents() const {
+    XPTI_LW_TRACE();
     std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -344,6 +347,7 @@ public:
 
   void operator()() const {
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
+    XPTI_LW_TRACE();
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
@@ -423,6 +427,7 @@ public:
 };
 
 void Command::waitForPreparedHostEvents() const {
+  XPTI_LW_TRACE();
   for (const EventImplPtr &HostEvent : MPreparedHostDepsEvents)
     HostEvent->waitInternal();
 }
@@ -430,7 +435,7 @@ void Command::waitForPreparedHostEvents() const {
 void Command::waitForEvents(QueueImplPtr Queue,
                             std::vector<EventImplPtr> &EventImpls,
                             sycl::detail::pi::PiEvent &Event) {
-
+  XPTI_LW_TRACE();
   if (!EventImpls.empty()) {
     if (Queue->is_host()) {
       // Host queue can wait for events from different contexts, i.e. it may
@@ -491,6 +496,7 @@ Command::Command(
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
+  XPTI_LW_TRACE();
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
   MEvent->setSubmittedQueue(MWorkerQueue);
@@ -526,6 +532,7 @@ void Command::emitInstrumentationDataProxy() {
 void Command::emitEdgeEventForCommandDependence(
     Command *Cmd, void *ObjAddr, bool IsCommand,
     std::optional<access::mode> AccMode) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Bail early if either the source or the target node for the given
   // dependency is undefined or NULL
@@ -576,6 +583,7 @@ void Command::emitEdgeEventForCommandDependence(
 /// this case is an event
 void Command::emitEdgeEventForEventDependence(
     Command *Cmd, sycl::detail::pi::PiEvent &PiEventAddr) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If we have failed to create an event to represent the Command, then we
   // cannot emit an edge event. Bail early!
@@ -634,6 +642,7 @@ void Command::emitEdgeEventForEventDependence(
 
 uint64_t Command::makeTraceEventProlog(void *MAddress) {
   uint64_t CommandInstanceNo = 0;
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID, xpti::trace_node_create))
     return CommandInstanceNo;
@@ -665,6 +674,7 @@ uint64_t Command::makeTraceEventProlog(void *MAddress) {
 }
 
 void Command::makeTraceEventEpilog() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
   if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) && MTraceEvent))
@@ -679,6 +689,7 @@ void Command::makeTraceEventEpilog() {
 
 Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
                                   std::vector<Command *> &ToCleanUp) {
+  XPTI_LW_TRACE();
   const QueueImplPtr &WorkerQueue = getWorkerQueue();
   const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
@@ -731,6 +742,7 @@ bool Command::readyForCleanup() const {
 }
 
 Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
+  XPTI_LW_TRACE();
   Command *ConnectionCmd = nullptr;
 
   if (NewDep.MDepCommand) {
@@ -757,6 +769,7 @@ Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
 
 Command *Command::addDep(EventImplPtr Event,
                          std::vector<Command *> &ToCleanUp) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
@@ -771,6 +784,7 @@ Command *Command::addDep(EventImplPtr Event,
 }
 
 void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_signal;
   if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) &&
@@ -785,6 +799,7 @@ void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
 }
 
 void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!(xptiCheckTraceEnabled(MStreamID, Type) && MTraceEvent))
     return;
@@ -797,6 +812,7 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If command is enqueued from host task thread - it will not have valid
   // submission code location set. So we set it manually to properly trace
@@ -887,6 +903,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 }
 
 void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   assert(MType == CommandType::RELEASE && "Expected release command");
   if (!MTraceEvent)
@@ -964,11 +981,13 @@ AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
     : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
       MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MIsConst(IsConst),
       MRequirement(std::move(Req)), MReleaseCmd(Queue, this) {
+  XPTI_LW_TRACE();
   MRequirement.MAccessMode = access::mode::read_write;
   emitInstrumentationDataProxy();
 }
 
 void AllocaCommandBase::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1001,6 +1020,7 @@ AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
     : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue), std::move(Req),
                         LinkedAllocaCmd, IsConst),
       MInitFromUserData(InitFromUserData) {
+  XPTI_LW_TRACE();
   // Node event must be created before the dependent edge is added to this
   // node, so this call must be before the addDep() call.
   emitInstrumentationDataProxy();
@@ -1014,6 +1034,7 @@ AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
 }
 
 void AllocaCommand::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1026,6 +1047,7 @@ void AllocaCommand::emitInstrumentationData() {
 }
 
 pi_int32 AllocaCommand::enqueueImp() {
+  XPTI_LW_TRACE();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
@@ -1079,6 +1101,7 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                         std::move(Req),
                         /*LinkedAllocaCmd*/ nullptr, /*IsConst*/ false),
       MParentAlloca(ParentAlloca) {
+  XPTI_LW_TRACE();
   // Node event must be created before the dependent edge
   // is added to this node, so this call must be before
   // the addDep() call.
@@ -1090,6 +1113,7 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
 }
 
 void AllocaSubBufCommand::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1121,6 +1145,7 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 }
 
 pi_int32 AllocaSubBufCommand::enqueueImp() {
+  XPTI_LW_TRACE();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
@@ -1159,10 +1184,12 @@ void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
 
 ReleaseCommand::ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
     : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
+  XPTI_LW_TRACE();
   emitInstrumentationDataProxy();
 }
 
 void ReleaseCommand::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1186,6 +1213,7 @@ void ReleaseCommand::emitInstrumentationData() {
 }
 
 pi_int32 ReleaseCommand::enqueueImp() {
+  XPTI_LW_TRACE();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
@@ -1279,10 +1307,12 @@ MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
     : Command(CommandType::MAP_MEM_OBJ, std::move(Queue)),
       MSrcAllocaCmd(SrcAllocaCmd), MSrcReq(std::move(Req)), MDstPtr(DstPtr),
       MMapMode(MapMode) {
+  XPTI_LW_TRACE();
   emitInstrumentationDataProxy();
 }
 
 void MapMemObject::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1305,6 +1335,7 @@ void MapMemObject::emitInstrumentationData() {
 }
 
 pi_int32 MapMemObject::enqueueImp() {
+  XPTI_LW_TRACE();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
@@ -1340,10 +1371,12 @@ UnMapMemObject::UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
                                void **SrcPtr, QueueImplPtr Queue)
     : Command(CommandType::UNMAP_MEM_OBJ, std::move(Queue)),
       MDstAllocaCmd(DstAllocaCmd), MDstReq(std::move(Req)), MSrcPtr(SrcPtr) {
+  XPTI_LW_TRACE();
   emitInstrumentationDataProxy();
 }
 
 void UnMapMemObject::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1387,6 +1420,7 @@ bool UnMapMemObject::producesPiEvent() const {
 }
 
 pi_int32 UnMapMemObject::enqueueImp() {
+  XPTI_LW_TRACE();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
@@ -1426,6 +1460,7 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
       MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)),
       MDstAllocaCmd(DstAllocaCmd) {
+  XPTI_LW_TRACE();
   if (!MSrcQueue->is_host()) {
     MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
   }
@@ -1437,6 +1472,7 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
 }
 
 void MemCpyCommand::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1493,6 +1529,7 @@ bool MemCpyCommand::producesPiEvent() const {
 }
 
 pi_int32 MemCpyCommand::enqueueImp() {
+  XPTI_LW_TRACE();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
@@ -1533,6 +1570,7 @@ void MemCpyCommand::printDot(std::ostream &Stream) const {
 }
 
 AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
+  XPTI_LW_TRACE();
   for (const DepDesc &Dep : MDeps) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
@@ -1555,6 +1593,7 @@ void ExecCGCommand::clearAuxiliaryResources() {
 }
 
 pi_int32 UpdateHostRequirementCommand::enqueueImp() {
+  XPTI_LW_TRACE();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
@@ -1599,6 +1638,7 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
     : Command(CommandType::COPY_MEMORY, std::move(DstQueue)),
       MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
+  XPTI_LW_TRACE();
   if (!MSrcQueue->is_host()) {
     MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
   }
@@ -1610,6 +1650,7 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
 }
 
 void MemCpyCommandHost::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1644,6 +1685,7 @@ const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
 }
 
 pi_int32 MemCpyCommandHost::enqueueImp() {
+  XPTI_LW_TRACE();
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1673,10 +1715,12 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue)
     : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
+  XPTI_LW_TRACE();
   emitInstrumentationDataProxy();
 }
 
 pi_int32 EmptyCommand::enqueueImp() {
+  XPTI_LW_TRACE();
   waitForPreparedHostEvents();
   waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
@@ -1685,6 +1729,7 @@ pi_int32 EmptyCommand::enqueueImp() {
 
 void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
                                   const Requirement *Req) {
+  XPTI_LW_TRACE();
   const Requirement &ReqRef = *Req;
   MRequirements.emplace_back(ReqRef);
   const Requirement *const StoredReq = &MRequirements.back();
@@ -1700,6 +1745,7 @@ void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
 }
 
 void EmptyCommand::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1770,11 +1816,12 @@ UpdateHostRequirementCommand::UpdateHostRequirementCommand(
     void **DstPtr)
     : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {
-
+  XPTI_LW_TRACE();
   emitInstrumentationDataProxy();
 }
 
 void UpdateHostRequirementCommand::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1858,6 +1905,7 @@ ExecCGCommand::ExecCGCommand(
     : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
               Dependencies),
       MCommandGroup(std::move(CommandGroup)) {
+  XPTI_LW_TRACE();
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
@@ -1871,6 +1919,7 @@ std::string instrumentationGetKernelName(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const std::string &FunctionName, const std::string &SyclKernelName,
     void *&Address, std::optional<bool> &FromSource) {
+  XPTI_LW_TRACE();
   std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
     FromSource = true;
@@ -1893,6 +1942,7 @@ void instrumentationAddExtraKernelMetadata(
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
                                   // sorted in this function
 {
+  XPTI_LW_TRACE();
   std::vector<ArgDesc> Args;
 
   auto FilterArgs = [&Args](detail::ArgDesc &Arg, int NextTrueIndex) {
@@ -1957,6 +2007,7 @@ void instrumentationFillCommonData(const std::string &KernelName,
                                    std::optional<bool> &FromSource,
                                    uint64_t &OutInstanceID,
                                    xpti_td *&OutTraceEvent) {
+  XPTI_LW_TRACE();
   //  Get source file, line number information from the CommandGroup object
   //  and create payload using name, address, and source info
   //
@@ -2023,6 +2074,7 @@ void emitKernelInstrumentationData(
     const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
   int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
@@ -2065,6 +2117,7 @@ void emitKernelInstrumentationData(
 }
 
 void ExecCGCommand::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
   if (!xptiCheckTraceEnabled(MStreamID, NotificationTraceType))
@@ -2157,6 +2210,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
 static void adjustNDRangePerKernel(NDRDescT &NDR,
                                    sycl::detail::pi::PiKernel Kernel,
                                    const device_impl &DeviceImpl) {
+  XPTI_LW_TRACE();
   if (NDR.GlobalSize[0] != 0)
     return; // GlobalSize is set - no need to adjust
   // check the prerequisites:
@@ -2208,6 +2262,7 @@ void SetArgBasedOnType(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,
     size_t NextTrueIndex) {
+  XPTI_LW_TRACE();
   switch (Arg.MType) {
   case kernel_param_kind_t::kind_stream:
     break;
@@ -2292,6 +2347,7 @@ static pi_result SetKernelParamsAndLaunch(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     sycl::detail::pi::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+  XPTI_LW_TRACE();
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2337,6 +2393,7 @@ static pi_result SetKernelParamsAndLaunch(
 
 // The function initialize accessors and calls lambda.
 void DispatchNativeKernel(void *Blob) {
+  XPTI_LW_TRACE();
   void **CastedBlob = (void **)Blob;
 
   std::vector<Requirement *> *Reqs =
@@ -2367,6 +2424,7 @@ pi_int32 enqueueImpCommandBufferKernel(
     std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+  XPTI_LW_TRACE();
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   pi_kernel PiKernel = nullptr;
@@ -2445,7 +2503,7 @@ pi_int32 enqueueImpKernel(
     sycl::detail::pi::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig) {
-
+  XPTI_LW_TRACE();
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
   auto DeviceImpl = Queue->getDeviceImplPtr();
@@ -2560,6 +2618,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
                          sycl::detail::pi::PiEvent *OutEvent, bool read) {
+  XPTI_LW_TRACE();
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
@@ -2605,6 +2664,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
 }
 
 pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
+  XPTI_LW_TRACE();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
@@ -2703,6 +2763,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
 }
 
 pi_int32 ExecCGCommand::enqueueImp() {
+  XPTI_LW_TRACE();
   if (MCommandBuffer) {
     return enqueueImpCommandBuffer();
   } else {
@@ -2711,6 +2772,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
 }
 
 pi_int32 ExecCGCommand::enqueueImpQueue() {
+  XPTI_LW_TRACE();
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -3105,6 +3167,7 @@ bool ExecCGCommand::readyForCleanup() const {
 KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue)
     : Command(Command::CommandType::FUSION, Queue),
       MStatus(FusionStatus::ACTIVE) {
+  XPTI_LW_TRACE();
   emitInstrumentationDataProxy();
 }
 
@@ -3123,6 +3186,7 @@ std::vector<ExecCGCommand *> &KernelFusionCommand::getFusionList() {
 bool KernelFusionCommand::producesPiEvent() const { return false; }
 
 pi_int32 KernelFusionCommand::enqueueImp() {
+  XPTI_LW_TRACE();
   waitForPreparedHostEvents();
   waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
@@ -3134,6 +3198,7 @@ void KernelFusionCommand::setFusionStatus(FusionStatus Status) {
 }
 
 void KernelFusionCommand::emitInstrumentationData() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
   if (!xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {

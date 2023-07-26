@@ -72,7 +72,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   }
 
   std::string_view NameView{StreamName};
-  if (NameView == "sycl.pi") {
+  if (NameView == "sycl.pi" || NameView == "sycl.perf") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_function_begin,
                          apiBeginEndCallback);

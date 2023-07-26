@@ -21,6 +21,13 @@
 #include <thread>
 #include <vector>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+// Include the headers necessary for emitting
+// traces using the trace framework
+#include "xpti/xpti_trace_framework.hpp"
+#include <detail/xpti_registry.hpp>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -39,6 +46,7 @@ bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
                                       ReadLockT &GraphReadLock) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Will contain the list of dependencies for the Release Command
   std::set<Command *> DepCommands;
@@ -91,6 +99,7 @@ EventImplPtr Scheduler::addCG(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
+  XPTI_LW_TRACE();
   EventImplPtr NewEvent = nullptr;
   const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
@@ -161,6 +170,7 @@ EventImplPtr Scheduler::addCG(
 void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
                                     std::vector<Command *> &AuxiliaryCmds,
                                     BlockingT Blocking) {
+  XPTI_LW_TRACE();
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
@@ -216,6 +226,7 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
+  XPTI_LW_TRACE();
   std::vector<Command *> AuxiliaryCmds;
   Command *NewCmd = nullptr;
   {
@@ -258,6 +269,7 @@ Scheduler &Scheduler::getInstance() {
 }
 
 void Scheduler::waitForEvent(const EventImplPtr &Event) {
+  XPTI_LW_TRACE();
   ReadLockT Lock = acquireReadLock();
   // It's fine to leave the lock unlocked upon return from waitForEvent as
   // there's no more actions to do here with graph
@@ -269,6 +281,7 @@ void Scheduler::waitForEvent(const EventImplPtr &Event) {
 
 bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
                                    bool StrictLock) {
+  XPTI_LW_TRACE();
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
   if (!Record)
     // No operations were performed on the mem object
@@ -296,6 +309,7 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
+  XPTI_LW_TRACE();
   std::vector<Command *> AuxiliaryCmds;
   EventImplPtr NewCmdEvent = nullptr;
 
@@ -335,6 +349,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
+  XPTI_LW_TRACE();
   Command *const BlockedCmd = Req->MBlockedCmd;
 
   std::vector<Command *> ToCleanUp;
@@ -353,6 +368,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                            ReadLockT &GraphReadLock,
                                            std::vector<Command *> &ToCleanUp) {
+  XPTI_LW_TRACE();
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [&ToCleanUp, &GraphReadLock](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
@@ -372,6 +388,7 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
 void Scheduler::enqueueUnblockedCommands(
     const std::vector<EventImplPtr> &ToEnqueue, ReadLockT &GraphReadLock,
     std::vector<Command *> &ToCleanUp) {
+  XPTI_LW_TRACE();
   for (auto &Event : ToEnqueue) {
     Command *Cmd = static_cast<Command *>(Event->getCommand());
     if (!Cmd)
@@ -386,6 +403,7 @@ void Scheduler::enqueueUnblockedCommands(
 }
 
 Scheduler::Scheduler() {
+  XPTI_LW_TRACE();
   sycl::device HostDevice =
       createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl());
   sycl::context HostContext{HostDevice};
@@ -398,6 +416,7 @@ Scheduler::Scheduler() {
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
 void Scheduler::releaseResources() {
+  XPTI_LW_TRACE();
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,
   //  clean them up now.
@@ -420,6 +439,7 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
+  XPTI_LW_TRACE();
   cleanupAuxiliaryResources(BlockingT::NON_BLOCKING);
   cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
 
@@ -453,6 +473,7 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 }
 
 void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
+  XPTI_LW_TRACE();
   // Completing command's event along with unblocking enqueue readiness of
   // empty command may lead to quick deallocation of MThisCmd by some cleanup
   // process. Thus we'll copy deps prior to completing of event and unblocking
@@ -482,6 +503,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
+  XPTI_LW_TRACE();
   {
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.push_back(MemObj);
@@ -490,11 +512,13 @@ void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
 }
 
 inline bool Scheduler::isDeferredMemObjectsEmpty() {
+  XPTI_LW_TRACE();
   std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
   return MDeferredMemObjRelease.empty();
 }
 
 void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
+  XPTI_LW_TRACE();
   if (isDeferredMemObjectsEmpty())
     return;
   if (Blocking == BlockingT::BLOCKING) {
@@ -544,11 +568,13 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
 
 void Scheduler::registerAuxiliaryResources(
     EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources) {
+  XPTI_LW_TRACE();
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
   MAuxiliaryResources.insert({Event, std::move(Resources)});
 }
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
+  XPTI_LW_TRACE();
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
   for (auto It = MAuxiliaryResources.begin();
        It != MAuxiliaryResources.end();) {
@@ -564,11 +590,13 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
 }
 
 void Scheduler::startFusion(QueueImplPtr Queue) {
+  XPTI_LW_TRACE();
   WriteLockT Lock = acquireWriteLock();
   MGraphBuilder.startFusion(Queue);
 }
 
 void Scheduler::cancelFusion(QueueImplPtr Queue) {
+  XPTI_LW_TRACE();
   std::vector<Command *> ToEnqueue;
   {
     WriteLockT Lock = acquireWriteLock();
@@ -579,6 +607,7 @@ void Scheduler::cancelFusion(QueueImplPtr Queue) {
 
 EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,
                                        const property_list &PropList) {
+  XPTI_LW_TRACE();
   std::vector<Command *> ToEnqueue;
   EventImplPtr FusedEvent;
   {

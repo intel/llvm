@@ -310,8 +310,8 @@ public:
     return *this;
   }
   ~XPTIPerfScope() {
+    MTraceType = MTraceType | 1;
     if (xptiCheckTraceEnabled(MStreamID, MTraceType) && MScopedNotify) {
-      MTraceType = MTraceType | 1;
       // Only notify for a trace type that has a begin/end
       xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
                             MCorrelationID,
@@ -337,7 +337,8 @@ private:
 
 #if XPTI_ENABLE_INSTRUMENTATION
 #define XPTI_LW_TRACE()                                                        \
-  XPTIPerfScope LWTace(__builtin_FUNCTION()).scopedNotify();
+  XPTIPerfScope LWTrace(__builtin_FUNCTION());                                 \
+  LWTrace.scopedNotify();
 #else
 define XPTI_LW_TRACE()
 #endif

@@ -47,6 +47,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 static event
 prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
                 sycl::detail::pi::PiEvent NativeEvent) {
+  XPTI_LW_TRACE();
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
   EventImpl->getHandleRef() = NativeEvent;
   EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
@@ -55,6 +56,7 @@ prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
 }
 
 static event createDiscardedEvent() {
+  XPTI_LW_TRACE();
   EventImplPtr EventImpl =
       std::make_shared<event_impl>(event_impl::HES_Discarded);
   return createSyclObjFromImpl<event>(EventImpl);
@@ -63,6 +65,7 @@ static event createDiscardedEvent() {
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
                          const std::vector<event> &DepEvents) {
+  XPTI_LW_TRACE();
 #if XPTI_ENABLE_INSTRUMENTATION
   // We need a code pointer value and we use the object ptr; if code location
   // information is available, we will have function name and source file
@@ -124,6 +127,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
                          const std::vector<event> &DepEvents) {
+  XPTI_LW_TRACE();
 #if XPTI_ENABLE_INSTRUMENTATION
   // We need a code pointer value and we duse the object ptr; If code location
   // is available, we use the source file information along with the object
@@ -197,6 +201,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
+  XPTI_LW_TRACE();
   if (MHasDiscardEventsSupport) {
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext), nullptr);
@@ -240,6 +245,7 @@ event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
     const std::vector<event> &DepEvents) {
+  XPTI_LW_TRACE();
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
@@ -285,6 +291,7 @@ event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents) {
+  XPTI_LW_TRACE();
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
@@ -327,6 +334,7 @@ event queue_impl::memcpyFromDeviceGlobal(
 }
 
 void queue_impl::addEvent(const event &Event) {
+  XPTI_LW_TRACE();
   EventImplPtr EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
@@ -350,6 +358,7 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
+  XPTI_LW_TRACE();
   assert(is_host() || MEmulateOOO);
   std::lock_guard<std::mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
@@ -386,6 +395,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   (void)Name;
   (void)StreamID;
   (void)IId;
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
@@ -453,6 +463,7 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
   (void)Name;
   (void)StreamID;
   (void)IId;
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
   if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
@@ -468,6 +479,7 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
 
 void queue_impl::wait(const detail::code_location &CodeLoc) {
   (void)CodeLoc;
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;
@@ -530,6 +542,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 }
 
 pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
+  XPTI_LW_TRACE();
   const PluginPtr &Plugin = getPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
     Plugin->call<PiApiKind::piQueueRetain>(MQueues[0]);
@@ -540,6 +553,7 @@ pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
 }
 
 bool queue_impl::ext_oneapi_empty() const {
+  XPTI_LW_TRACE();
   // If we have in-order queue where events are not discarded then just check
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {

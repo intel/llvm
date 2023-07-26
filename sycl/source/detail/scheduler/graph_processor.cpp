@@ -9,6 +9,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <memory>
 #include <vector>
@@ -25,6 +26,7 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
                                              ReadLockT &GraphReadLock,
                                              std::vector<Command *> &ToCleanUp,
                                              bool LockTheLock) {
+  XPTI_LW_TRACE();
   Command *Cmd = getCommand(Event);
   // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
@@ -51,6 +53,7 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   EnqueueResultT &EnqueueResult,
                                                   Command *RootCommand,
                                                   BlockingT Blocking) {
+  XPTI_LW_TRACE();
   if (Cmd == RootCommand || Blocking)
     return true;
   // Async kernel enqueue depending on host task is not compatible with in order
@@ -83,6 +86,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     Command *Cmd, ReadLockT &GraphReadLock, EnqueueResultT &EnqueueResult,
     std::vector<Command *> &ToCleanUp, Command *RootCommand,
     BlockingT Blocking) {
+  XPTI_LW_TRACE();
   if (!Cmd)
     return true;
   if (Cmd->isSuccessfullyEnqueued())

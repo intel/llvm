@@ -114,6 +114,7 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
                                  (MHostQueue ? true : MIsInorder)) {
+    XPTI_LW_TRACE();
     // We enable XPTI tracing events using the TLS mechanism; if the code
     // location data is available, then the tracing data will be rich.
 #if XPTI_ENABLE_INSTRUMENTATION
@@ -375,6 +376,7 @@ public:
                const std::shared_ptr<queue_impl> &SecondQueue,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
+    XPTI_LW_TRACE();
     try {
       return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
@@ -395,6 +397,7 @@ public:
                const std::shared_ptr<queue_impl> &Self,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
+    XPTI_LW_TRACE();
     return submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
   }
 
@@ -410,6 +413,7 @@ public:
 
   /// @param Loc is the code location of the submit call (default argument)
   void wait_and_throw(const detail::code_location &Loc = {}) {
+    XPTI_LW_TRACE();
     wait(Loc);
     throw_asynchronous();
   }
@@ -510,6 +514,7 @@ public:
   /// \param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
   sycl::detail::pi::PiQueue createQueue(QueueOrder Order) {
+    XPTI_LW_TRACE();
     sycl::detail::pi::PiQueue Queue{};
     sycl::detail::pi::PiContext Context = MContext->getHandleRef();
     sycl::detail::pi::PiDevice Device = MDevice->getHandleRef();
@@ -696,6 +701,7 @@ protected:
   template <typename HandlerType = handler>
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
+    XPTI_LW_TRACE();
     if (MIsInorder) {
 
       auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
@@ -741,6 +747,7 @@ protected:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
+    XPTI_LW_TRACE();
     handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
