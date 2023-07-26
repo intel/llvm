@@ -704,7 +704,9 @@ void SYCLHostScheduleKernel::getEffects(
   for (Value arg : getArgs()) {
     if (!isa<LLVM::LLVMPointerType>(arg.getType())) {
       // TODO: When we have accessor type information, drop write access for
-      // read_only accessors.
+      // read_only accessors. We need to have at least a `Write` argument to
+      // avoid incorrect optimizations on this operation, e.g., `cse` removing
+      // it.
       effects.emplace_back(MemoryEffects::Write::get(), arg, defaultResource);
       effects.emplace_back(MemoryEffects::Read::get(), arg, defaultResource);
     }
