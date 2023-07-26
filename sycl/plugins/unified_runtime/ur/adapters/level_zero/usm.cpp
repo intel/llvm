@@ -47,7 +47,10 @@ ur_result_t umf2urResult(umf_result_t umfResult) {
 }
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig() {
-  const char *PoolConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
+  const char *PoolUrConfigVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
+  const char *PoolPiConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
+  const char *PoolConfigVal =
+      PoolUrConfigVal ? PoolUrConfigVal : PoolPiConfigVal;
   if (PoolConfigVal == nullptr) {
     return usm::DisjointPoolAllConfigs();
   }
