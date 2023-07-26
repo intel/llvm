@@ -73,13 +73,6 @@ struct _ur_ze_event_list_t {
   // of elements in the above arrays that are valid.
   uint32_t Length = {0};
 
-  // A mutex is needed for destroying the event list.
-  // Creation is already thread-safe because we only create the list
-  // when an event is initially created.  However, it might be
-  // possible to have multiple threads racing to destroy the list,
-  // so this will be used to make list destruction thread-safe.
-  ur_mutex UrZeEventListMutex;
-
   // Initialize this using the array of events in EventList, and retain
   // all the pi_events in the created data structure.
   // CurQueue is the pi_queue that the command with this event wait
