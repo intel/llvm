@@ -82,8 +82,10 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
             for (int i = 0; i < NumDevices; ++i) {
               hipDevice_t Device;
               Err = UR_CHECK_ERROR(hipDeviceGet(&Device, i));
+              hipCtx_t Context;
+              Err = UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
               PlatformIds[i].Devices.emplace_back(
-                  new ur_device_handle_t_{Device, &PlatformIds[i]});
+                  new ur_device_handle_t_{Device, Context, &PlatformIds[i]});
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
