@@ -113,7 +113,7 @@ public:
   ScopedContext(ur_device_handle_t hDevice) : NeedToRecover{false} {
 
     if (!hDevice) {
-      throw UR_RESULT_ERROR_INVALID_CONTEXT;
+      throw UR_RESULT_ERROR_INVALID_DEVICE;
     }
 
     // FIXME when multi device context are supported in HIP adapter
