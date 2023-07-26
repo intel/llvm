@@ -12,7 +12,7 @@
 #include <sycl/detail/stl_type_traits.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <typename T> using head_t = typename T::head;
@@ -140,5 +140,5 @@ using find_twice_as_large_type_t =
     find_type_t<TypeList, is_type_size_double_of, T>;
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

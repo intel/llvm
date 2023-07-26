@@ -9,7 +9,7 @@
 #pragma once
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 namespace device_global_map {
 
@@ -17,5 +17,5 @@ __SYCL_EXPORT void add(const void *DeviceGlobalPtr, const char *UniqueId);
 
 } // namespace device_global_map
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
