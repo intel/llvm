@@ -3,7 +3,7 @@
 // account direct calls to L0 API.
 // UNSUPPORTED: ze_debug
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 UR_L0_USM_ALLOCATOR_QUERY_PAGE_SIZE=0 ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test for Level Zero buffer interop API.
 // Check the following cases:

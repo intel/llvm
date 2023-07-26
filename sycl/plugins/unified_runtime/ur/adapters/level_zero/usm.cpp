@@ -621,10 +621,27 @@ static ur_result_t USMQueryPageSize(ur_context_handle_t Context, void *Ptr,
   return UR_RESULT_SUCCESS;
 }
 
+static bool ShouldQueryPageSize() {
+  const char *QueryPageSizeVal =
+      std::getenv("UR_L0_USM_ALLOCATOR_QUERY_PAGE_SIZE");
+  bool QueryPageSize = true;
+  if (QueryPageSizeVal != nullptr) {
+    QueryPageSize = std::atoi(QueryPageSizeVal);
+  }
+  return QueryPageSize;
+}
+
+const bool QueryPageSize = ShouldQueryPageSize();
+
 umf_result_t USMMemoryProvider::initialize(ur_context_handle_t Ctx,
                                            ur_device_handle_t Dev) {
   Context = Ctx;
   Device = Dev;
+
+  if (!QueryPageSize) {
+    MinPageSize = 0;
+    return UMF_RESULT_SUCCESS;
+  }
 
   // Query L0 for the minimal page size and cache it in 'MinPageSize'
   void *Ptr;
@@ -682,8 +699,11 @@ void USMMemoryProvider::get_last_native_error(const char **ErrMsg,
 umf_result_t USMMemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
   (void)Ptr;
   *PageSize = MinPageSize;
-
-  return UMF_RESULT_SUCCESS;
+  if (MinPageSize) {
+    return UMF_RESULT_SUCCESS;
+  } else {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
 }
 
 ur_result_t USMSharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
