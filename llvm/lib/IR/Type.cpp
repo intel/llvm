@@ -57,11 +57,13 @@ bool Type::isIntegerTy(unsigned Bitwidth) const {
   return isIntegerTy() && cast<IntegerType>(this)->getBitWidth() == Bitwidth;
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 bool Type::isOpaquePointerTy() const {
   if (auto *PTy = dyn_cast<PointerType>(this))
     return PTy->isOpaque();
   return false;
 }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 bool Type::isScalableTy() const {
   if (const auto *STy = dyn_cast<StructType>(this)) {
@@ -832,15 +834,21 @@ PointerType *PointerType::get(LLVMContext &C, unsigned AddressSpace) {
   return Entry;
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 PointerType::PointerType(Type *E, unsigned AddrSpace)
   : Type(E->getContext(), PointerTyID), PointeeTy(E) {
   ContainedTys = &PointeeTy;
   NumContainedTys = 1;
   setSubclassData(AddrSpace);
 }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 PointerType::PointerType(LLVMContext &C, unsigned AddrSpace)
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    : Type(C, PointerTyID) {
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     : Type(C, PointerTyID), PointeeTy(nullptr) {
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   setSubclassData(AddrSpace);
 }
 

@@ -36,6 +36,7 @@
 #include <__type_traits/is_trivially_copyable.h>
 #include <__variant/monostate.h>
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -51,6 +52,17 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 namespace __format_spec {
 
+_LIBCPP_NORETURN _LIBCPP_HIDE_FROM_ABI inline void
+__throw_invalid_option_format_error(const char* __id, const char* __option) {
+  std::__throw_format_error(
+      (string("The format specifier for ") + __id + " does not allow the " + __option + " option").c_str());
+}
+
+_LIBCPP_NORETURN _LIBCPP_HIDE_FROM_ABI inline void __throw_invalid_type_format_error(const char* __id) {
+  std::__throw_format_error(
+      (string("The type option contains an invalid value for ") + __id + " formatting argument").c_str());
+}
+
 template <contiguous_iterator _Iterator, class _ParseContext>
 _LIBCPP_HIDE_FROM_ABI constexpr __format::__parse_number_result<_Iterator>
 __parse_arg_id(_Iterator __begin, _Iterator __end, _ParseContext& __ctx) {
@@ -58,12 +70,12 @@ __parse_arg_id(_Iterator __begin, _Iterator __end, _ParseContext& __ctx) {
   // This function is a wrapper to call the real parser. But it does the
   // validation for the pre-conditions and post-conditions.
   if (__begin == __end)
-    std::__throw_format_error("End of input while parsing format-spec arg-id");
+    std::__throw_format_error("End of input while parsing an argument index");
 
   __format::__parse_number_result __r = __format::__parse_arg_id(__begin, __end, __ctx);
 
   if (__r.__last == __end || *__r.__last != _CharT('}'))
-    std::__throw_format_error("Invalid arg-id");
+    std::__throw_format_error("The argument index is invalid");
 
   ++__r.__last;
   return __r;
@@ -84,7 +96,7 @@ __substitute_arg_id(basic_format_arg<_Context> __format_arg) {
       [](auto __arg) -> uint32_t {
         using _Type = decltype(__arg);
         if constexpr (same_as<_Type, monostate>)
-          std::__throw_format_error("Argument index out of bounds");
+          std::__throw_format_error("The argument index value is too large for the number of arguments supplied");
 
         // [format.string.std]/8
         // If { arg-idopt } is used in a width or precision, the value of the
@@ -100,12 +112,12 @@ __substitute_arg_id(basic_format_arg<_Context> __format_arg) {
                       same_as<_Type, long long> || same_as<_Type, unsigned long long>) {
           if constexpr (signed_integral<_Type>) {
             if (__arg < 0)
-              std::__throw_format_error("A format-spec arg-id replacement shouldn't have a negative value");
+              std::__throw_format_error("An argument index may not have a negative value");
           }
 
           using _CT = common_type_t<_Type, decltype(__format::__number_max)>;
           if (static_cast<_CT>(__arg) > static_cast<_CT>(__format::__number_max))
-            std::__throw_format_error("A format-spec arg-id replacement exceeds the maximum supported value");
+            std::__throw_format_error("The value of the argument index exceeds its maximum value");
 
           return __arg;
         } else
@@ -186,7 +198,7 @@ enum class _LIBCPP_ENUM_VIS __sign : uint8_t {
 };
 
 enum class _LIBCPP_ENUM_VIS __type : uint8_t {
-  __default,
+  __default = 0,
   __string,
   __binary_lower_case,
   __binary_upper_case,
@@ -207,6 +219,25 @@ enum class _LIBCPP_ENUM_VIS __type : uint8_t {
   __general_upper_case,
   __debug
 };
+
+_LIBCPP_HIDE_FROM_ABI inline constexpr uint32_t __create_type_mask(__type __t) {
+  uint32_t __shift = static_cast<uint32_t>(__t);
+  if (__shift == 0)
+    return 1;
+
+  if (__shift > 31)
+    std::__throw_format_error("The type does not fit in the mask");
+
+  return 1 << __shift;
+}
+
+inline constexpr uint32_t __type_mask_integer =
+    __create_type_mask(__type::__binary_lower_case) |      //
+    __create_type_mask(__type::__binary_upper_case) |      //
+    __create_type_mask(__type::__decimal) |                //
+    __create_type_mask(__type::__octal) |                  //
+    __create_type_mask(__type::__hexadecimal_lower_case) | //
+    __create_type_mask(__type::__hexadecimal_upper_case);
 
 struct __std {
   __alignment __alignment_ : 3;
@@ -383,9 +414,84 @@ public:
       return __begin;
 
     if (__begin != __end && *__begin != _CharT('}'))
-      std::__throw_format_error("The format-spec should consume the input or end with a '}'");
+      std::__throw_format_error("The format specifier should consume the input or end with a '}'");
 
     return __begin;
+  }
+
+  // Validates the selected the parsed data.
+  //
+  // The valid fields in the parser may depend on the display type
+  // selected. But the type is the last optional field, so by the time
+  // it's known an option can't be used, it already has been parsed.
+  // This does the validation again.
+  //
+  // For example an integral may have a sign, zero-padding, or alternate
+  // form when the type option is not 'c'. So the generic approach is:
+  //
+  // typename _ParseContext::iterator __result = __parser_.__parse(__ctx, __format_spec::__fields_integral);
+  // if (__parser.__type_ == __format_spec::__type::__char) {
+  //   __parser.__validate((__format_spec::__fields_bool, "an integer");
+  //   ... // more char adjustments
+  // } else {
+  //   ... // validate an integral type.
+  // }
+  //
+  // For some types all valid options need a second validation run, like
+  // boolean types.
+  //
+  // Depending on whether the validation is done at compile-time or
+  // run-time the error differs
+  // - run-time the exception is thrown and contains the type of field
+  //   being validated.
+  // - at compile-time the line with `std::__throw_format_error` is shown
+  //   in the output. In that case it's important for the error to be on one
+  //   line.
+  // Note future versions of C++ may allow better compile-time error
+  // reporting.
+  _LIBCPP_HIDE_FROM_ABI constexpr void
+  __validate(__fields __fields, const char* __id, uint32_t __type_mask = -1) const {
+    if (!__fields.__sign_ && __sign_ != __sign::__default) {
+      if (std::is_constant_evaluated())
+        std::__throw_format_error("The format specifier does not allow the sign option");
+      else
+        __format_spec::__throw_invalid_option_format_error(__id, "sign");
+    }
+
+    if (!__fields.__alternate_form_ && __alternate_form_) {
+      if (std::is_constant_evaluated())
+        std::__throw_format_error("The format specifier does not allow the alternate form option");
+      else
+        __format_spec::__throw_invalid_option_format_error(__id, "alternate form");
+    }
+
+    if (!__fields.__zero_padding_ && __alignment_ == __alignment::__zero_padding) {
+      if (std::is_constant_evaluated())
+        std::__throw_format_error("The format specifier does not allow the zero-padding option");
+      else
+        __format_spec::__throw_invalid_option_format_error(__id, "zero-padding");
+    }
+
+    if (!__fields.__precision_ && __precision_ != -1) { // Works both when the precision has a value or an arg-id.
+      if (std::is_constant_evaluated())
+        std::__throw_format_error("The format specifier does not allow the precision option");
+      else
+        __format_spec::__throw_invalid_option_format_error(__id, "precision");
+    }
+
+    if (!__fields.__locale_specific_form_ && __locale_specific_form_) {
+      if (std::is_constant_evaluated())
+        std::__throw_format_error("The format specifier does not allow the locale-specific form option");
+      else
+        __format_spec::__throw_invalid_option_format_error(__id, "locale-specific form");
+    }
+
+    if ((__create_type_mask(__type_) & __type_mask) == 0) {
+      if (std::is_constant_evaluated())
+        std::__throw_format_error("The format specifier uses an invalid value for the type option");
+      else
+        __format_spec::__throw_invalid_type_format_error(__id);
+    }
   }
 
   /// \returns the `__parsed_specifications` with the resolved dynamic sizes..
@@ -474,9 +580,9 @@ private:
     // The forbidden fill characters all code points formed from a single code unit, thus the
     // check can be omitted when more code units are used.
     if (__use_range_fill && (__fill == _CharT('{') || __fill == _CharT('}') || __fill == _CharT(':')))
-      std::__throw_format_error("The format-spec range-fill field contains an invalid character");
+      std::__throw_format_error("The fill option contains an invalid value");
     else if (__fill == _CharT('{') || __fill == _CharT('}'))
-      std::__throw_format_error("The format-spec fill field contains an invalid character");
+      std::__throw_format_error("The fill option contains an invalid value");
   }
 
 #  ifndef _LIBCPP_HAS_NO_UNICODE
@@ -493,7 +599,7 @@ private:
     __unicode::__code_point_view<_CharT> __view{__begin, __end};
     __unicode::__consume_result __consumed = __view.__consume();
     if (__consumed.__status != __unicode::__consume_result::__ok)
-      std::__throw_format_error("The format-spec contains malformed Unicode characters");
+      std::__throw_format_error("The format specifier contains malformed Unicode characters");
 
     if (__view.__position() < __end && __parse_alignment(*__view.__position())) {
       ptrdiff_t __code_units = __view.__position() - __begin;
@@ -524,7 +630,7 @@ private:
                                  "undefined behavior by evaluating data not in the input");
     if (__begin + 1 != __end && __parse_alignment(*(__begin + 1))) {
       if (!__unicode::__is_scalar_value(*__begin))
-        std::__throw_format_error("The fill character contains an invalid value");
+        std::__throw_format_error("The fill option contains an invalid value");
 
       __validate_fill_character(*__begin, __use_range_fill);
 
@@ -611,7 +717,7 @@ private:
   template <contiguous_iterator _Iterator>
   _LIBCPP_HIDE_FROM_ABI constexpr bool __parse_width(_Iterator& __begin, _Iterator __end, auto& __ctx) {
     if (*__begin == _CharT('0'))
-      std::__throw_format_error("A format-spec width field shouldn't have a leading zero");
+      std::__throw_format_error("The width option should not have a leading zero");
 
     if (*__begin == _CharT('{')) {
       __format::__parse_number_result __r = __format_spec::__parse_arg_id(++__begin, __end, __ctx);
@@ -639,7 +745,7 @@ private:
 
     ++__begin;
     if (__begin == __end)
-      std::__throw_format_error("End of input while parsing format-spec precision");
+      std::__throw_format_error("End of input while parsing format specifier precision");
 
     if (*__begin == _CharT('{')) {
       __format::__parse_number_result __arg_id = __format_spec::__parse_arg_id(++__begin, __end, __ctx);
@@ -650,7 +756,7 @@ private:
     }
 
     if (*__begin < _CharT('0') || *__begin > _CharT('9'))
-      std::__throw_format_error("The format-spec precision field doesn't contain a value or arg-id");
+      std::__throw_format_error("The precision option does not contain a value or an argument index");
 
     __format::__parse_number_result __r = __format::__parse_number(__begin, __end);
     __precision_ = __r.__value;
@@ -783,36 +889,28 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_string(__format_spec
     break;
 
   default:
-    std::__throw_format_error("The format-spec type has a type not supported for a string argument");
+    std::__throw_format_error("The type option contains an invalid value for a string formatting argument");
   }
 }
 
 template <class _CharT>
-_LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_bool_string(__parser<_CharT>& __parser) {
-  if (__parser.__sign_ != __sign::__default)
-    std::__throw_format_error("A sign field isn't allowed in this format-spec");
-
-  if (__parser.__alternate_form_)
-    std::__throw_format_error("An alternate form field isn't allowed in this format-spec");
-
-  if (__parser.__alignment_ == __alignment::__zero_padding)
-    std::__throw_format_error("A zero-padding field isn't allowed in this format-spec");
-
+_LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_bool_string(__parser<_CharT>& __parser, const char* __id) {
+  __parser.__validate(__format_spec::__fields_bool, __id);
   if (__parser.__alignment_ == __alignment::__default)
     __parser.__alignment_ = __alignment::__left;
 }
 
 template <class _CharT>
-_LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_char(__parser<_CharT>& __parser) {
-  __format_spec::__process_display_type_bool_string(__parser);
+_LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_char(__parser<_CharT>& __parser, const char* __id) {
+  __format_spec::__process_display_type_bool_string(__parser, __id);
 }
 
 template <class _CharT>
-_LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_bool(__parser<_CharT>& __parser) {
+_LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_bool(__parser<_CharT>& __parser, const char* __id) {
   switch (__parser.__type_) {
   case __format_spec::__type::__default:
   case __format_spec::__type::__string:
-    __format_spec::__process_display_type_bool_string(__parser);
+    __format_spec::__process_display_type_bool_string(__parser, __id);
     break;
 
   case __format_spec::__type::__binary_lower_case:
@@ -824,17 +922,17 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_bool(__parser<_CharT>& __p
     break;
 
   default:
-    std::__throw_format_error("The format-spec type has a type not supported for a bool argument");
+    __format_spec::__throw_invalid_type_format_error(__id);
   }
 }
 
 template <class _CharT>
-_LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_char(__parser<_CharT>& __parser) {
+_LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_char(__parser<_CharT>& __parser, const char* __id) {
   switch (__parser.__type_) {
   case __format_spec::__type::__default:
   case __format_spec::__type::__char:
   case __format_spec::__type::__debug:
-    __format_spec::__process_display_type_char(__parser);
+    __format_spec::__process_display_type_char(__parser, __id);
     break;
 
   case __format_spec::__type::__binary_lower_case:
@@ -846,12 +944,12 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_char(__parser<_CharT>& __p
     break;
 
   default:
-    std::__throw_format_error("The format-spec type has a type not supported for a char argument");
+    __format_spec::__throw_invalid_type_format_error(__id);
   }
 }
 
 template <class _CharT>
-_LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_integer(__parser<_CharT>& __parser) {
+_LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_integer(__parser<_CharT>& __parser, const char* __id) {
   switch (__parser.__type_) {
   case __format_spec::__type::__default:
   case __format_spec::__type::__binary_lower_case:
@@ -863,16 +961,16 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_integer(__parser<_CharT>& 
     break;
 
   case __format_spec::__type::__char:
-    __format_spec::__process_display_type_char(__parser);
+    __format_spec::__process_display_type_char(__parser, __id);
     break;
 
   default:
-    std::__throw_format_error("The format-spec type has a type not supported for an integer argument");
+    __format_spec::__throw_invalid_type_format_error(__id);
   }
 }
 
 template <class _CharT>
-_LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_floating_point(__parser<_CharT>& __parser) {
+_LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_floating_point(__parser<_CharT>& __parser, const char* __id) {
   switch (__parser.__type_) {
   case __format_spec::__type::__default:
   case __format_spec::__type::__hexfloat_lower_case:
@@ -891,11 +989,11 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_floating_point(__parser<_C
     break;
 
   default:
-    std::__throw_format_error("The format-spec type has a type not supported for a floating-point argument");
+    __format_spec::__throw_invalid_type_format_error(__id);
   }
 }
 
-_LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_pointer(__format_spec::__type __type) {
+_LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_pointer(__format_spec::__type __type, const char* __id) {
   switch (__type) {
   case __format_spec::__type::__default:
   case __format_spec::__type::__pointer_lower_case:
@@ -903,7 +1001,7 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_pointer(__format_spe
     break;
 
   default:
-    std::__throw_format_error("The format-spec type has a type not supported for a pointer argument");
+    __format_spec::__throw_invalid_type_format_error(__id);
   }
 }
 
