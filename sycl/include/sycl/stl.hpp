@@ -15,7 +15,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 #if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
 // SYCL library is designed such a way that STL objects cross DLL boundary,
@@ -45,5 +45,5 @@ std::unique_ptr<T> make_unique_ptr(ArgsT &&...Args) {
   return std::unique_ptr<T>(new T(std::forward<ArgsT>(Args)...));
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
