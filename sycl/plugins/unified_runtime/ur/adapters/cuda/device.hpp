@@ -25,6 +25,8 @@ private:
   int MaxBlockDimY{0};
   int MaxBlockDimZ{0};
   int MaxRegsPerBlock{0};
+  int DeviceMaxCapacityLocalMem{0};
+  int DeviceMaxChosenLocalMem{0};
 
 public:
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
@@ -39,9 +41,29 @@ public:
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
         cuDevice));
-  }
 
-  ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
+    // Set local mem max size if env var is present
+    static const char *LocalMemSizePtr =
+        std::getenv("SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE");
+
+    if (LocalMemSizePtr) {
+      cuDeviceGetAttribute(
+          &DeviceMaxCapacityLocalMem,
+          CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN, cuDevice);
+      DeviceMaxChosenLocalMem = std::atoi(LocalMemSizePtr);
+      if (DeviceMaxChosenLocalMem < 0) {
+        setErrorMessage("Invalid value specified for "
+                        "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
+                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+    }
+  }
+};
+
+~ur_device_handle_t_() {
+  cuDevicePrimaryCtxRelease(CuDevice);
+}
 
   native_type get() const noexcept { return CuDevice; };
 
@@ -72,6 +94,14 @@ public:
   size_t getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
+
+  int getDeviceMaxCapacityLocalMem() const noexcept {
+    return DeviceMaxLocalMem;
+  };
+
+  int getDeviceMaxChosenLocalMem() const noexcept {
+    return DeviceChosenMaxLocalMem;
+  };
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);
