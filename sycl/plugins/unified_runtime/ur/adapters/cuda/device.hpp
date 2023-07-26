@@ -88,13 +88,9 @@ public:
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
 
-  int getMaxCapacityLocalMem() const noexcept {
-    return MaxCapacityLocalMem;
-  };
+  int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
 
-  int getMaxChosenLocalMem() const noexcept {
-    return MaxChosenLocalMem;
-  };
+  int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
 
   bool maxLocalMemSizeChosen() { return MaxLocalMemSizeChosen; };
 };
