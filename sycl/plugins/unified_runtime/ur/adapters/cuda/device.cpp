@@ -543,7 +543,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
     return ReturnValue(
-        static_cast<uint64_t>(hDevice->getDeviceChosenMaxLocalMem));
+        static_cast<uint64_t>(hDevice->getDeviceMaxChosenLocalMem()));
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int ECCEnabled = 0;

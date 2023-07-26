@@ -393,24 +393,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       RetImplEvent->start();
     }
 
-    // Set up local memory requirements for kernel.
-    auto Device = hQueue->getContext()->getDevice();
-    if (LocalSize > Device->getDeviceMaxCapacityLocalMem()) {
-      setErrorMessage("Too much local memory allocated for device",
-                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    if (hQueue->getContext()->getDevice()->getDeviceMaxChosenLocalMem()) {
+      // Set up local memory requirements for kernel.
+      auto Device = hQueue->getContext()->getDevice();
+      if (Device->getDeviceMaxChosenLocalMem() < 0) {
+        setErrorMessage("Invalid value specified for "
+                        "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
+                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+      if (LocalSize > Device->getDeviceMaxCapacityLocalMem()) {
+        setErrorMessage("Too much local memory allocated for device",
+                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+      if (LocalSize > Device->getDeviceMaxChosenLocalMem()) {
+        setErrorMessage(
+            "Local memory for kernel exceeds the amount requested using "
+            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value for "
+            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
+            UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+      UR_CHECK_ERROR(cuFuncSetAttribute(
+          CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
+          Device->getDeviceMaxChosenLocalMem()));
     }
-    if (LocalSize > Device->getDeviceMaxChosenLocalMem()) {
-      setErrorMessage(
-          "Local memory for kernel exceeds the amount requested using "
-          "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value for "
-          "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
-          UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-    }
-    UR_CHECK_ERROR(cuFuncSetAttribute(
-        CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
-        Device->getDeviceMaxChosenLocalMem()));
 
     Result = UR_CHECK_ERROR(cuLaunchKernel(
         CuFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],

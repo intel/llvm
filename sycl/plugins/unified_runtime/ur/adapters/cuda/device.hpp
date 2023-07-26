@@ -51,19 +51,10 @@ public:
           &DeviceMaxCapacityLocalMem,
           CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN, cuDevice);
       DeviceMaxChosenLocalMem = std::atoi(LocalMemSizePtr);
-      if (DeviceMaxChosenLocalMem < 0) {
-        setErrorMessage("Invalid value specified for "
-                        "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
-                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-      }
     }
-  }
-};
+  };
 
-~ur_device_handle_t_() {
-  cuDevicePrimaryCtxRelease(CuDevice);
-}
+  ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
 
   native_type get() const noexcept { return CuDevice; };
 
@@ -96,11 +87,11 @@ public:
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
 
   int getDeviceMaxCapacityLocalMem() const noexcept {
-    return DeviceMaxLocalMem;
+    return DeviceMaxCapacityLocalMem;
   };
 
   int getDeviceMaxChosenLocalMem() const noexcept {
-    return DeviceChosenMaxLocalMem;
+    return DeviceMaxChosenLocalMem;
   };
 };
 
