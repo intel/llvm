@@ -574,6 +574,20 @@ func.func @set_nd_range_unexpected_offset(%handler: !llvm.ptr, %nd_range: !llvm.
 
 // -----
 
+func.func @set_captured_scalar_type_attribute(%lambda: !llvm.ptr, %value: i32) {
+  // expected-error @below {{'sycl.host.set_captured' op does not expect a type attribute for a non-pointer value}}
+  sycl.host.set_captured %lambda[2] = %value : !llvm.ptr, i32 (i32)
+}
+
+// -----
+
+func.func @set_captured_non_sycl_type_attribute(%lambda: !llvm.ptr, %value: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.set_captured' op expects the type attribute to reference a SYCL type}}
+  sycl.host.set_captured %lambda[2] = %value : !llvm.ptr, !llvm.ptr (i32)
+}
+
+// -----
+
 func.func @f(%handler: !llvm.ptr) {
   // expected-error @below {{'sycl.host.schedule_kernel' op '@kernels::@k0' does not reference a valid kernel}}
   sycl.host.schedule_kernel @kernels::@k0 : () -> ()

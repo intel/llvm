@@ -577,6 +577,18 @@ LogicalResult SYCLHostHandlerSetNDRange::verify() {
   return verifyNdRange(*this, getRange(), getOffset(), getNdRange());
 }
 
+LogicalResult SYCLHostSetCaptured::verify() {
+  if (auto syclType = getSyclType()) {
+    if (!isa<LLVM::LLVMPointerType>(getValue().getType()))
+      return emitOpError(
+          "does not expect a type attribute for a non-pointer value");
+    if (!isSYCLType(syclType.value()))
+      return emitOpError("expects the type attribute to reference a SYCL type");
+  }
+
+  return success();
+}
+
 LogicalResult
 SYCLHostScheduleKernel::verifySymbolUses(SymbolTableCollection &symbolTable) {
   return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
