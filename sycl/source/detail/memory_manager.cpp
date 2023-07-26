@@ -862,24 +862,11 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                  pi::cast<sycl::detail::pi::PiMem>(Mem), MappedPtr,
                  DepEvents.size(), DepEvents.data(), &OutEvent);
 }
-void report(const code_location &CodeLoc) {
-  std::cout << "Exception caught at ";
-  if (CodeLoc.fileName())
-    std::cout << "File: " << CodeLoc.fileName();
-  if (CodeLoc.functionName())
-    std::cout << " | Function: " << CodeLoc.functionName();
-  if (CodeLoc.lineNumber())
-    std::cout << " | Line: " << CodeLoc.lineNumber();
-  if (CodeLoc.columnNumber())
-    std::cout << " | Column: " << CodeLoc.columnNumber();
-  std::cout << '\n';
-}
 
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                             sycl::detail::pi::PiEvent *OutEvent,
-                             const code_location &CodeLoc) {
+                             sycl::detail::pi::PiEvent *OutEvent) {
   assert(!SrcQueue->getContextImplPtr()->is_host() &&
          "Host queue not supported in fill_usm.");
 
@@ -892,11 +879,9 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     return;
   }
 
-  if (!SrcMem || !DstMem) {
-    report(CodeLoc);
+  if (!SrcMem || !DstMem) 
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_ERROR_INVALID_VALUE);
-  }
 
   const PluginPtr &Plugin = SrcQueue->getPlugin();
   Plugin->call<PiApiKind::piextUSMEnqueueMemcpy>(
@@ -1107,7 +1092,7 @@ memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
 
   MemoryManager::copy_usm(
       Src, Queue, NumBytes, reinterpret_cast<char *>(Dest) + Offset,
-      ActualDepEvents, OutEvent, detail::code_location::current());
+      ActualDepEvents, OutEvent);
 }
 
 static void memcpyFromDeviceGlobalUSM(
@@ -1139,8 +1124,7 @@ static void memcpyFromDeviceGlobalUSM(
   }
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
-                          NumBytes, Dest, ActualDepEvents, OutEvent,
-                          detail::code_location::current());
+                          NumBytes, Dest, ActualDepEvents, OutEvent);
 }
 
 static sycl::detail::pi::PiProgram

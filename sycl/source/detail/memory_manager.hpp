@@ -141,8 +141,7 @@ public:
   static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
                        void *DstMem,
                        std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                       sycl::detail::pi::PiEvent *OutEvent,
-                       const code_location &CodeLoc);
+                       sycl::detail::pi::PiEvent *OutEvent);
 
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
                        int Pattern,
