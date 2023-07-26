@@ -43,12 +43,18 @@ inline int ur_getpid(void) { return static_cast<int>(getpid()); }
 #endif
 
 /* define for running with memory sanitizer */
+#if CLANG_HAS_FEATURE(thread_sanitizer) || defined(__SANITIZE_THREAD__)
+#define SANITIZER_THREAD
+#endif
+
+/* define for running with memory sanitizer */
 #if CLANG_HAS_FEATURE(memory_sanitizer)
 #define SANITIZER_MEMORY
 #endif
 
 /* define for running with any sanitizer runtime */
-#if defined(SANITIZER_MEMORY) || defined(SANITIZER_ADDRESS)
+#if defined(SANITIZER_MEMORY) || defined(SANITIZER_ADDRESS) ||                 \
+    defined(SANITIZER_THREAD)
 #define SANITIZER_ANY
 #endif
 ///////////////////////////////////////////////////////////////////////////////
