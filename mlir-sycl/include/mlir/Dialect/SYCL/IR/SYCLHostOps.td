@@ -208,6 +208,7 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
     Optional<LLVM_AnyPointer>:$range,
     Optional<LLVM_AnyPointer>:$offset,
     Variadic<AnyType>:$args,
+    TypeArrayAttr:$sycl_types,
     UnitAttr:$nd_range);
   let builders = [
     OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
@@ -219,20 +220,25 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
                    "::mlir::Value":$range,
                    "::mlir::ValueRange":$args,
                    "bool":$nd_range), [{
+      ::llvm::SmallVector<::mlir::Type> noneTypes(args.size(), $_builder.getNoneType());
+      auto syclTypes = $_builder.getTypeArrayAttr(noneTypes);
       auto ndRangeAttr = nd_range ? $_builder.getUnitAttr() : UnitAttr();
       build($_builder, $_state, kernel_name, range,
-            /*offset=*/Value(), args, ndRangeAttr);
+            /*offset=*/Value(), args, syclTypes, ndRangeAttr);
     }]>,
     OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
                    "::mlir::Value":$range,
                    "::mlir::Value":$offset,
                    "::mlir::ValueRange":$args), [{
-      build($_builder, $_state, kernel_name, range, offset, args);
+      ::llvm::SmallVector<::mlir::Type> noneTypes(args.size(), $_builder.getNoneType());
+      auto syclTypes = $_builder.getTypeArrayAttr(noneTypes);
+      build($_builder, $_state, kernel_name, range, offset, args, syclTypes);
     }]>
   ];
   let assemblyFormat = [{
-    $kernel_name (`[` (`nd_range` $nd_range^):(```range`)? $range^ (`,` `offset` $offset^)? `]`)? `` (`(` $args^ `)`)?
-      attr-dict `:` functional-type(operands, results)
+    $kernel_name (`[` (`nd_range` $nd_range^):(```range`)? $range^ (`,` `offset` $offset^)? `]`)? ``
+    custom<ArgsWithSYCLTypes>($args, $sycl_types)
+    attr-dict `:` functional-type(operands, results)
   }];
   let hasVerifier = 1;
 }

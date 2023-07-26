@@ -577,16 +577,83 @@ LogicalResult SYCLHostHandlerSetNDRange::verify() {
   return verifyNdRange(*this, getRange(), getOffset(), getNdRange());
 }
 
-LogicalResult SYCLHostSetCaptured::verify() {
-  if (auto syclType = getSyclType()) {
-    if (!isa<LLVM::LLVMPointerType>(getValue().getType()))
-      return emitOpError(
-          "does not expect a type attribute for a non-pointer value");
-    if (!isSYCLType(syclType.value()))
-      return emitOpError("expects the type attribute to reference a SYCL type");
-  }
+static LogicalResult verifySYCLTypeAttribute(Operation *op, Value value,
+                                             Type type) {
+  if (!isa<LLVM::LLVMPointerType>(value.getType()))
+    return op->emitOpError(
+        "does not expect a type attribute for a non-pointer value");
+  if (!isSYCLType(type))
+    return op->emitOpError(
+        "expects the type attribute to reference a SYCL type");
 
   return success();
+}
+
+LogicalResult SYCLHostSetCaptured::verify() {
+  if (auto syclType = getSyclType())
+    return verifySYCLTypeAttribute(*this, getValue(), syclType.value());
+  return success();
+}
+
+static mlir::ParseResult
+parseArgsWithSYCLTypes(mlir::OpAsmParser &parser,
+                       SmallVectorImpl<OpAsmParser::UnresolvedOperand> &args,
+                       ArrayAttr &syclTypes) {
+  auto &builder = parser.getBuilder();
+  SmallVector<Type> types;
+
+  if (parser.parseOptionalLParen()) {
+    // no argument list
+    syclTypes = builder.getTypeArrayAttr(types);
+    return success();
+  }
+
+  auto parseOperandAndOptionalType = [&]() -> ParseResult {
+    OpAsmParser::UnresolvedOperand operand;
+    if (parser.parseOperand(operand))
+      return failure();
+
+    args.push_back(operand);
+
+    Type type = builder.getNoneType();
+    if (parser.parseOptionalLParen()) {
+      // no type attribute
+      types.push_back(type);
+      return success();
+    }
+
+    if (parser.parseType(type) || parser.parseRParen())
+      return failure();
+
+    types.push_back(type);
+    return success();
+  };
+
+  if (parser.parseCommaSeparatedList(parseOperandAndOptionalType) ||
+      parser.parseRParen())
+    return failure();
+
+  syclTypes = builder.getTypeArrayAttr(types);
+  return success();
+}
+
+static void printArgsWithSYCLTypes(mlir::OpAsmPrinter &printer,
+                                   sycl::SYCLHostScheduleKernel op,
+                                   OperandRange args, ArrayAttr syclTypes) {
+  if (args.empty())
+    return;
+  printer << '(';
+  llvm::interleaveComma(llvm::zip(args, syclTypes.getAsRange<TypeAttr>()),
+                        printer, [&](auto it) {
+                          printer.printOperand(std::get<0>(it));
+                          TypeAttr attr = std::get<1>(it);
+                          if (!isa<NoneType>(attr.getValue())) {
+                            printer << " (";
+                            printer.printType(attr.getValue());
+                            printer << ')';
+                          }
+                        });
+  printer << ')';
 }
 
 LogicalResult
@@ -605,9 +672,24 @@ LogicalResult SYCLHostScheduleKernel::verify() {
     if (ndRange)
       return emitOpError(
           "expects nd_range to be unset when a range is not present");
-    return success();
   }
-  return verifyNdRange(*this, range, offset, ndRange);
+
+  if (failed(verifyNdRange(*this, range, offset, ndRange)))
+    return failure();
+
+  if (getArgs().size() != getSyclTypes().size())
+    return emitOpError("has inconsistent SYCL type attributes");
+
+  for (auto it :
+       llvm::zip(getArgs(), getSyclTypes().getAsValueRange<TypeAttr>())) {
+    Value arg = std::get<0>(it);
+    Type syclType = std::get<1>(it);
+    if (!isa<NoneType>(syclType) &&
+        failed(verifySYCLTypeAttribute(*this, arg, syclType)))
+      return failure();
+  }
+
+  return success();
 }
 
 LogicalResult

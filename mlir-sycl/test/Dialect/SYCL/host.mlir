@@ -91,63 +91,66 @@ func.func @set_captured(%lambda: !llvm.ptr, %scalar_arg: i16, %struct_arg: !llvm
 }
 
 // CHECK-LABEL:   func.func @schedule_kernel_single_task(
-// CHECK-SAME:                                         %[[VAL_0:.*]]: i32,
-// CHECK-SAME:                                         %[[VAL_1:.*]]: i32) {
+// CHECK-SAME:                                           %[[VAL_0:.*]]: i32, %[[VAL_1:.*]]: i32, %[[VAL_2:.*]]: !llvm.ptr) {
 // CHECK:           sycl.host.schedule_kernel @kernels::@k0 : () -> ()
 // CHECK:           sycl.host.schedule_kernel @kernels::@k0(%[[VAL_0]]) : (i32) -> ()
 // CHECK:           sycl.host.schedule_kernel @kernels::@k0(%[[VAL_0]], %[[VAL_1]]) : (i32, i32) -> ()
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0(%[[VAL_0]], %[[VAL_1]], %[[VAL_2]] (!sycl_accessor_2_i32_r_gb)) : (i32, i32, !llvm.ptr) -> ()
 // CHECK:           return
 // CHECK:         }
-func.func @schedule_kernel_single_task(%arg0 : i32, %arg1 : i32) {
+func.func @schedule_kernel_single_task(%arg0: i32, %arg1: i32, %arg2: !llvm.ptr) {
   sycl.host.schedule_kernel @kernels::@k0 : () -> ()
   sycl.host.schedule_kernel @kernels::@k0(%arg0) : (i32) -> ()
   sycl.host.schedule_kernel @kernels::@k0(%arg0, %arg1) : (i32, i32) -> ()
+  sycl.host.schedule_kernel @kernels::@k0(%arg0, %arg1, %arg2 (!sycl_accessor_2_i32_r_gb)) : (i32, i32, !llvm.ptr) -> ()
   func.return
 }
 
 // CHECK-LABEL:   func.func @schedule_kernel_nd_range(
-// CHECK-SAME:                                      %[[VAL_0:.*]]: !llvm.ptr,
-// CHECK-SAME:                                      %[[VAL_1:.*]]: i32,
-// CHECK-SAME:                                      %[[VAL_2:.*]]: i32) {
-// CHECK:           sycl.host.schedule_kernel @kernels::@k0{{\[}}nd_range %[[VAL_0]]] : (!llvm.ptr) -> ()
-// CHECK:           sycl.host.schedule_kernel @kernels::@k0{{\[}}nd_range %[[VAL_0]]](%[[VAL_1]]) : (!llvm.ptr, i32) -> ()
-// CHECK:           sycl.host.schedule_kernel @kernels::@k0{{\[}}nd_range %[[VAL_0]]](%[[VAL_1]], %[[VAL_2]]) : (!llvm.ptr, i32, i32) -> ()
+// CHECK-SAME:                                        %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: i32, %[[VAL_2:.*]]: i32, %[[VAL_3:.*]]: !llvm.ptr) {
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[nd_range %[[VAL_0]]] : (!llvm.ptr) -> ()
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[nd_range %[[VAL_0]]](%[[VAL_1]]) : (!llvm.ptr, i32) -> ()
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[nd_range %[[VAL_0]]](%[[VAL_1]], %[[VAL_2]]) : (!llvm.ptr, i32, i32) -> ()
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[nd_range %[[VAL_0]]](%[[VAL_1]], %[[VAL_2]], %[[VAL_3]] (!sycl_accessor_2_i32_r_gb)) : (!llvm.ptr, i32, i32, !llvm.ptr) -> ()
 // CHECK:           return
 // CHECK:         }
-func.func @schedule_kernel_nd_range(%nd_range: !llvm.ptr, %arg0 : i32, %arg1 : i32) {
+func.func @schedule_kernel_nd_range(%nd_range: !llvm.ptr, %arg0: i32, %arg1: i32, %arg2: !llvm.ptr) {
   sycl.host.schedule_kernel @kernels::@k0[nd_range %nd_range] : (!llvm.ptr) -> ()
   sycl.host.schedule_kernel @kernels::@k0[nd_range %nd_range](%arg0) : (!llvm.ptr, i32) -> ()
   sycl.host.schedule_kernel @kernels::@k0[nd_range %nd_range](%arg0, %arg1) : (!llvm.ptr, i32, i32) -> ()
+  sycl.host.schedule_kernel @kernels::@k0[nd_range %nd_range](%arg0, %arg1, %arg2 (!sycl_accessor_2_i32_r_gb)) : (!llvm.ptr, i32, i32, !llvm.ptr) -> ()
   func.return
 }
 
 // CHECK-LABEL:   func.func @schedule_kernel_range(
-// CHECK-SAME:                                   %[[VAL_0:.*]]: !llvm.ptr,
-// CHECK-SAME:                                   %[[VAL_1:.*]]: i32,
-// CHECK-SAME:                                   %[[VAL_2:.*]]: i32) {
-// CHECK:           sycl.host.schedule_kernel @kernels::@k0{{\[}}range %[[VAL_0]]] : (!llvm.ptr) -> ()
-// CHECK:           sycl.host.schedule_kernel @kernels::@k0{{\[}}range %[[VAL_0]]](%[[VAL_1]]) : (!llvm.ptr, i32) -> ()
-// CHECK:           sycl.host.schedule_kernel @kernels::@k0{{\[}}range %[[VAL_0]]](%[[VAL_1]], %[[VAL_2]]) : (!llvm.ptr, i32, i32) -> ()
+// CHECK-SAME:                                     %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: i32, %[[VAL_2:.*]]: i32, %[[VAL_3:.*]]: !llvm.ptr) {
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[range %[[VAL_0]]] : (!llvm.ptr) -> ()
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[range %[[VAL_0]]](%[[VAL_1]]) : (!llvm.ptr, i32) -> ()
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[range %[[VAL_0]]](%[[VAL_1]], %[[VAL_2]]) : (!llvm.ptr, i32, i32) -> ()
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[range %[[VAL_0]]](%[[VAL_1]], %[[VAL_2]], %[[VAL_3]] (!sycl_accessor_2_i32_r_gb)) : (!llvm.ptr, i32, i32, !llvm.ptr) -> ()
 // CHECK:           return
 // CHECK:         }
-func.func @schedule_kernel_range(%range: !llvm.ptr, %arg0 : i32, %arg1 : i32) {
+func.func @schedule_kernel_range(%range: !llvm.ptr, %arg0: i32, %arg1: i32, %arg2: !llvm.ptr) {
   sycl.host.schedule_kernel @kernels::@k0[range %range] : (!llvm.ptr) -> ()
   sycl.host.schedule_kernel @kernels::@k0[range %range](%arg0) : (!llvm.ptr, i32) -> ()
   sycl.host.schedule_kernel @kernels::@k0[range %range](%arg0, %arg1) : (!llvm.ptr, i32, i32) -> ()
+  sycl.host.schedule_kernel @kernels::@k0[range %range](%arg0, %arg1, %arg2 (!sycl_accessor_2_i32_r_gb)) : (!llvm.ptr, i32, i32, !llvm.ptr) -> ()
   func.return
 }
 
 // CHECK-LABEL:   func.func @schedule_kernel_range_with_offset(
-// CHECK-SAME:                                               %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: i32, %[[VAL_3:.*]]: i32) {
-// CHECK:           sycl.host.schedule_kernel @kernels::@k0{{\[}}range %[[VAL_0]], offset %[[VAL_1]]] : (!llvm.ptr, !llvm.ptr) -> ()
-// CHECK:           sycl.host.schedule_kernel @kernels::@k0{{\[}}range %[[VAL_0]], offset %[[VAL_1]]](%[[VAL_2]]) : (!llvm.ptr, !llvm.ptr, i32) -> ()
-// CHECK:           sycl.host.schedule_kernel @kernels::@k0{{\[}}range %[[VAL_0]], offset %[[VAL_1]]](%[[VAL_2]], %[[VAL_3]]) : (!llvm.ptr, !llvm.ptr, i32, i32) -> ()
+// CHECK-SAME:                                                 %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: i32, %[[VAL_3:.*]]: i32, %[[VAL_4:.*]]: !llvm.ptr) {
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[range %[[VAL_0]], offset %[[VAL_1]]] : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[range %[[VAL_0]], offset %[[VAL_1]]](%[[VAL_2]]) : (!llvm.ptr, !llvm.ptr, i32) -> ()
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[range %[[VAL_0]], offset %[[VAL_1]]](%[[VAL_2]], %[[VAL_3]]) : (!llvm.ptr, !llvm.ptr, i32, i32) -> ()
+// CHECK:           sycl.host.schedule_kernel @kernels::@k0[range %[[VAL_0]], offset %[[VAL_1]]](%[[VAL_2]], %[[VAL_3]], %[[VAL_4]] (!sycl_accessor_2_i32_r_gb)) : (!llvm.ptr, !llvm.ptr, i32, i32, !llvm.ptr) -> ()
 // CHECK:           return
 // CHECK:         }
-func.func @schedule_kernel_range_with_offset(%range: !llvm.ptr, %offset: !llvm.ptr, %arg0 : i32, %arg1 : i32) {
+func.func @schedule_kernel_range_with_offset(%range: !llvm.ptr, %offset: !llvm.ptr, %arg0: i32, %arg1: i32, %arg2: !llvm.ptr) {
   sycl.host.schedule_kernel @kernels::@k0[range %range, offset %offset] : (!llvm.ptr, !llvm.ptr) -> ()
   sycl.host.schedule_kernel @kernels::@k0[range %range, offset %offset](%arg0) : (!llvm.ptr, !llvm.ptr, i32) -> ()
   sycl.host.schedule_kernel @kernels::@k0[range %range, offset %offset](%arg0, %arg1) : (!llvm.ptr, !llvm.ptr, i32, i32) -> ()
+  sycl.host.schedule_kernel @kernels::@k0[range %range, offset %offset](%arg0, %arg1, %arg2 (!sycl_accessor_2_i32_r_gb)) : (!llvm.ptr, !llvm.ptr, i32, i32, !llvm.ptr) -> ()
   func.return
 }
 
