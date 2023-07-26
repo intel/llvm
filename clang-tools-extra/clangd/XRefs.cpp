@@ -1334,7 +1334,7 @@ maybeFindIncludeReferences(ParsedAST &AST, Position Pos,
   auto ReferencedInclude = convertIncludes(SM, Inc);
   include_cleaner::walkUsed(
       AST.getLocalTopLevelDecls(), collectMacroReferences(AST),
-      AST.getPragmaIncludes(), SM,
+      AST.getPragmaIncludes().get(), SM,
       [&](const include_cleaner::SymbolReference &Ref,
           llvm::ArrayRef<include_cleaner::Header> Providers) {
         if (Ref.RT != include_cleaner::RefType::Explicit)
@@ -1367,9 +1367,6 @@ maybeFindIncludeReferences(ParsedAST &AST, Position Pos,
       rangeTillEOL(SM.getBufferData(SM.getMainFileID()), Inc.HashOffset);
   Result.Loc.uri = URIMainFile;
   Results.References.push_back(std::move(Result));
-
-  if (Results.References.empty())
-    return std::nullopt;
   return Results;
 }
 } // namespace

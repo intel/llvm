@@ -641,10 +641,11 @@ inline ElementCount VectorType::getElementCount() const {
 
 /// Class to represent pointers.
 class PointerType : public Type {
-  explicit PointerType(Type *ElType, unsigned AddrSpace);
   explicit PointerType(LLVMContext &C, unsigned AddrSpace);
 
 #ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+  explicit PointerType(Type *ElType, unsigned AddrSpace);
+
   Type *PointeeTy;
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
