@@ -500,7 +500,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   LaunchEvent->CommandData = (void *)Kernel;
   // Increment the reference count of the Kernel and indicate that the Kernel
   // is in use. Once the event has been signalled, the code in
-  // CleanupCompletedEvent(Event) will do a piReleaseKernel to update the
+  // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
   // reference count on the kernel, using the kernel saved in CommandData.
   UR_CALL(urKernelRetain(Kernel));
 
@@ -678,7 +678,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
   ZeQueueDesc.ordinal = QueueGroupOrdinal;
   CommandListPtr = CommandBuffer->CommandListMap.insert(
-      std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
+      std::pair<ze_command_list_handle_t, ur_command_list_info_t>(
           CommandBuffer->ZeCommandList,
           {ZeFence, false, false, ZeCommandQueue, ZeQueueDesc}));
 
