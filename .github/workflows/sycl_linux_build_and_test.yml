@@ -89,6 +89,113 @@ on:
         type: string
         default: 3
 
+  workflow_dispatch:
+    inputs:
+      cc:
+        type: choice
+        options:
+          - gcc
+          - clang
+      cxx:
+        type: choice
+        options:
+          - g++
+          - clang++
+      # build_image:
+      #   type: choice
+      #   options:
+      #     - "ghcr.io/intel/llvm/ubuntu2204_build_nightly:latest"
+      # build_ref:
+      #   type: choice
+      #   options:
+      #     - ""
+      # build_cache_root:
+      #   description: |
+      #     Please select "/__w/llvm" if using clang/clang++.
+      #   type: choice
+      #   options:
+      #     - "/__w/"
+      #     - "/__w/llvm"
+      # build_cache_suffix:
+      #   type: choice
+      #   options:
+      #     - "default"
+      # build_cache_size:
+      #   type: choice
+      #   options:
+      #     - "8G"
+      # build_configure_extra_args:
+      #   type: choice
+      #   options:
+      #     - "--hip --cuda --enable-esimd-emulator"
+      # build_artifact_suffix:
+      #   type: choice
+      #   options:
+      #     - "default"
+
+      # artifact_archive_name:
+      #   type: choice
+      #   options:
+      #     - llvm_sycl.tar.zst
+      # artifact_compress_command:
+      #   type: choice
+      #   options:
+      #     - zstd -9
+      # artifact_decompress_command:
+      #   type: choice
+      #   options:
+      #     - zstd
+
+      # lts_matrix:
+      #   type: choice
+      #   options:
+      #     - "[]"
+      # lts_aws_matrix:
+      #   type: choice
+      #   options:
+      #     - "[]"
+      # lts_cmake_extra_args:
+      #   type: choice
+      #   options:
+      #     - ""
+      # lts_ref:
+      #   type: choice
+      #   options:
+      #     - "intel"
+
+      # cts_matrix:
+      #   type: choice
+      #   options:
+      #     - "[]"
+      # cts_cmake_extra_args:
+      #   type: choice
+      #   options:
+      #     - ""
+      # cts_ref:
+      #   type: choice
+      #   options:
+      #     - "SYCL-2020"
+
+      # changes:
+      #   description: 'Filter matches for the changed files in the PR'
+      #   type: choice
+      #   options:
+      #     - "[]"
+      #     - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+
+      # merge_ref:
+      #   description: |
+      #     Commit-ish to merge post-checkout if non-empty. Must be reachable from
+      #     the default_branch input paramter.
+      #   type: choice
+      #   options:
+      #     - "FETCH_HEAD"
+
+      # retention-days:
+      #   type: choice
+      #   options:
+      #     - 3
+
 jobs:
   build:
     name: Build + LIT
