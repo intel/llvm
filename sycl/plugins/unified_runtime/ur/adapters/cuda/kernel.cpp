@@ -13,10 +13,6 @@
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                ur_kernel_handle_t *phKernel) {
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phKernel, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pKernelName, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_kernel_handle_t_> Kernel{nullptr};
 
@@ -64,8 +60,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                      ur_kernel_group_info_t propName, size_t propSize,
                      void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -73,24 +67,24 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     size_t GlobalWorkSize[3] = {0, 0, 0};
 
     int MaxBlockDimX{0}, MaxBlockDimY{0}, MaxBlockDimZ{0};
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&MaxBlockDimX, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
                              hDevice->get()) == CUDA_SUCCESS);
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&MaxBlockDimY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
                              hDevice->get()) == CUDA_SUCCESS);
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&MaxBlockDimZ, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
                              hDevice->get()) == CUDA_SUCCESS);
 
     int MaxGridDimX{0}, MaxGridDimY{0}, MaxGridDimZ{0};
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&MaxGridDimX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
                              hDevice->get()) == CUDA_SUCCESS);
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&MaxGridDimY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
                              hDevice->get()) == CUDA_SUCCESS);
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&MaxGridDimZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
                              hDevice->get()) == CUDA_SUCCESS);
 
@@ -101,7 +95,7 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   }
   case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
     int MaxThreads = 0;
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuFuncGetAttribute(&MaxThreads, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                            hKernel->get()) == CUDA_SUCCESS);
     return ReturnValue(size_t(MaxThreads));
@@ -122,7 +116,7 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
     // OpenCL LOCAL == CUDA SHARED
     int Bytes = 0;
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuFuncGetAttribute(&Bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
                            hKernel->get()) == CUDA_SUCCESS);
     return ReturnValue(uint64_t(Bytes));
@@ -130,17 +124,17 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
     // Work groups should be multiples of the warp size
     int WarpSize = 0;
-    sycl::detail::ur::assertion(
-        cuDeviceGetAttribute(&WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                             hDevice->get()) == CUDA_SUCCESS);
+    detail::ur::assertion(cuDeviceGetAttribute(&WarpSize,
+                                               CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                                               hDevice->get()) == CUDA_SUCCESS);
     return ReturnValue(static_cast<size_t>(WarpSize));
   }
   case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
     // OpenCL PRIVATE == CUDA LOCAL
     int Bytes = 0;
-    sycl::detail::ur::assertion(
-        cuFuncGetAttribute(&Bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                           hKernel->get()) == CUDA_SUCCESS);
+    detail::ur::assertion(cuFuncGetAttribute(&Bytes,
+                                             CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+                                             hKernel->get()) == CUDA_SUCCESS);
     return ReturnValue(uint64_t(Bytes));
   }
   default:
@@ -151,7 +145,6 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hKernel->getReferenceCount() > 0u, UR_RESULT_ERROR_INVALID_KERNEL);
 
   hKernel->incrementReferenceCount();
@@ -160,8 +153,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   UR_ASSERT(hKernel->getReferenceCount() != 0, UR_RESULT_ERROR_INVALID_KERNEL);
@@ -191,7 +182,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     const ur_kernel_arg_value_properties_t *pProperties,
     const void *pArgValue) {
   std::ignore = pProperties;
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -212,8 +202,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                                     size_t propSize,
                                                     void *pKernelInfo,
                                                     size_t *pPropSizeRet) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   UrReturnHelper ReturnValue(propSize, pKernelInfo, pPropSizeRet);
 
   switch (propName) {
@@ -231,9 +219,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue("");
   case UR_KERNEL_INFO_NUM_REGS: {
     int NumRegs = 0;
-    sycl::detail::ur::assertion(
-        cuFuncGetAttribute(&NumRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
-                           hKernel->get()) == CUDA_SUCCESS);
+    detail::ur::assertion(cuFuncGetAttribute(&NumRegs,
+                                             CU_FUNC_ATTRIBUTE_NUM_REGS,
+                                             hKernel->get()) == CUDA_SUCCESS);
     return ReturnValue(static_cast<uint32_t>(NumRegs));
   }
   default:
@@ -247,22 +235,20 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                         ur_kernel_sub_group_info_t propName, size_t propSize,
                         void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   switch (propName) {
   case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE: {
     // Sub-group size is equivalent to warp size
     int WarpSize = 0;
-    sycl::detail::ur::assertion(
-        cuDeviceGetAttribute(&WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                             hDevice->get()) == CUDA_SUCCESS);
+    detail::ur::assertion(cuDeviceGetAttribute(&WarpSize,
+                                               CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                                               hDevice->get()) == CUDA_SUCCESS);
     return ReturnValue(static_cast<uint32_t>(WarpSize));
   }
   case UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder
     int MaxThreads = 0;
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuFuncGetAttribute(&MaxThreads, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                            hKernel->get()) == CUDA_SUCCESS);
     int WarpSize = 0;
@@ -304,9 +290,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *Properties,
                      ur_mem_handle_t hArgValue) {
-
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   std::ignore = Properties;
 
   // Below sets kernel arg when zero-sized buffers are handled.
@@ -348,10 +331,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName, size_t propSize,
     const ur_kernel_exec_info_properties_t *pProperties,
     const void *pPropValue) {
+  std::ignore = hKernel;
   std::ignore = propSize;
+  std::ignore = pPropValue;
   std::ignore = pProperties;
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pPropValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
   switch (propName) {
   case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS:
   case UR_KERNEL_EXEC_INFO_USM_PTRS:
@@ -379,7 +363,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
                       const ur_kernel_arg_sampler_properties_t *pProperties,
                       ur_sampler_handle_t hArgValue) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   std::ignore = pProperties;
 
   ur_result_t Result = UR_RESULT_SUCCESS;

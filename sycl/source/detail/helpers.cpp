@@ -9,6 +9,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <sycl/detail/helpers.hpp>
 
+#include <detail/buffer_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -17,7 +18,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 namespace detail {
 std::vector<sycl::detail::pi::PiEvent>
@@ -63,6 +64,10 @@ void waitEvents(std::vector<sycl::event> DepEvents) {
   }
 }
 
+void markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
+  BufImpl->markAsInternal();
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

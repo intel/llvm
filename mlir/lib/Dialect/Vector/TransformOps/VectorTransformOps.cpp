@@ -27,6 +27,11 @@ using namespace mlir::transform;
 // Apply...PatternsOp
 //===----------------------------------------------------------------------===//
 
+void transform::ApplyCastAwayVectorLeadingOneDimPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  vector::populateCastAwayVectorLeadingOneDimPatterns(patterns);
+}
+
 void transform::ApplyRankReducingSubviewPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   vector::populateVectorTransferDropUnitDimsPatterns(patterns);
@@ -131,6 +136,11 @@ void transform::ApplyTransferToScfPatternsOp::populatePatterns(
           .enableFullUnroll(getFullUnroll())
           .setTargetRank(getMaxTransferRank());
   populateVectorToSCFConversionPatterns(patterns, vectorTransferToSCFOptions);
+}
+
+void transform::ApplyFoldTensorSliceIntoTransferPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  populateVectorTransferTensorSliceTransforms(patterns);
 }
 
 //===----------------------------------------------------------------------===//

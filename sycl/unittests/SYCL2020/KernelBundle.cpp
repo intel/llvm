@@ -21,7 +21,7 @@ class TestKernelExeOnly;
 class TestKernelWithAspects;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
@@ -39,7 +39,7 @@ struct KernelInfo<TestKernelWithAspects> : public unittest::MockKernelInfoBase {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage
@@ -514,7 +514,7 @@ pi_result redefinedDevicePartitionAfter(
 TEST(KernelBundle, DescendentDevice) {
   // Mock a non-OpenCL plugin since use of descendent devices of context members
   // is not supported there yet.
-  sycl::unittest::PiMock Mock(sycl::backend::level_zero);
+  sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_level_zero);
 
   sycl::platform Plt = Mock.getPlatform();
 

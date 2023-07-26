@@ -77,7 +77,7 @@ int test_io_nb_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_host_access();
   if (readHostBuffer[0] != InputData) {
     std::cout << "Read from a file mismatches " << readHostBuffer[0]
               << " Vs expected " << InputData << std::endl;
@@ -102,7 +102,7 @@ int test_io_bl_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_host_access();
   if (readHostBuffer[0] != InputData) {
     std::cout << "Read from a file mismatches " << readHostBuffer[0]
               << " Vs expected " << InputData << std::endl;

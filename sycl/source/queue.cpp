@@ -20,7 +20,7 @@
 #include <algorithm>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
@@ -75,6 +75,12 @@ cl_command_queue queue::get() const { return impl->get(); }
 context queue::get_context() const { return impl->get_context(); }
 
 device queue::get_device() const { return impl->get_device(); }
+
+ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
+  return impl->getCommandGraph()
+             ? ext::oneapi::experimental::queue_state::recording
+             : ext::oneapi::experimental::queue_state::executing;
+}
 
 bool queue::is_host() const {
   bool IsHost = impl->is_host();
@@ -262,5 +268,5 @@ bool queue::ext_codeplay_supports_fusion() const {
       ext::codeplay::experimental::property::queue::enable_fusion>();
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

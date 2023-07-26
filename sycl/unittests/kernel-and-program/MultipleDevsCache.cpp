@@ -24,7 +24,7 @@ using namespace sycl;
 class MultipleDevsCacheTestKernel;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<MultipleDevsCacheTestKernel>
@@ -35,7 +35,7 @@ struct KernelInfo<MultipleDevsCacheTestKernel>
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateDefaultImage() {

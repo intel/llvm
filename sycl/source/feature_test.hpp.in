@@ -16,7 +16,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 #ifdef __clang__
 #ifndef __has_extension
@@ -40,6 +40,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 #define SYCL_EXT_ONEAPI_QUEUE_PRIORITY 1
 #define SYCL_EXT_ONEAPI_ENQUEUE_BARRIER 1
 #define SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES 1
+#define SYCL_EXT_ONEAPI_BINDLESS_IMAGES 1
 #define SYCL_EXT_ONEAPI_GROUP_ALGORITHMS 1
 #define SYCL_EXT_ONEAPI_GROUP_SORT 1
 #define SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY 1
@@ -76,13 +77,16 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 #define SYCL_EXT_ONEAPI_KERNEL_ARG_PROPERTIES 1
 #define SYCL_EXT_ONEAPI_ANNOTATED_ARG 1
 #define SYCL_EXT_ONEAPI_ANNOTATED_PTR 1
+#define SYCL_EXT_ONEAPI_COPY_OPTIMIZE 1
 #cmakedefine01 SYCL_ENABLE_KERNEL_FUSION
 #if SYCL_ENABLE_KERNEL_FUSION
 #define SYCL_EXT_CODEPLAY_KERNEL_FUSION 1
 #endif
 #define SYCL_EXT_INTEL_CACHE_CONFIG 1
+#define SYCL_EXT_ONEAPI_GRAPH 1
 #define SYCL_EXT_CODEPLAY_MAX_REGISTERS_PER_WORK_GROUP_QUERY 1
 #define SYCL_EXT_ONEAPI_DEVICE_GLOBAL 1
+#define SYCL_EXT_INTEL_QUEUE_IMMEDIATE_COMMAND_LIST 1
 
 #ifndef __has_include
 #define __has_include(x) 0
@@ -100,5 +104,5 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 #include "detail/plugins/esimd_emulator/features.hpp"
 #endif
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/impl_utils.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Common CRTP base class supplying a common definition of owner-before ordering
@@ -53,5 +53,5 @@ public:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

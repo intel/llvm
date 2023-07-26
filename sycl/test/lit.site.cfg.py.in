@@ -2,6 +2,7 @@
 
 import sys
 
+config.llvm_main_include_dir = "@LLVM_MAIN_INCLUDE_DIR@"
 config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
 config.sycl_tools_dir = lit_config.params.get('SYCL_TOOLS_DIR', "@LLVM_TOOLS_DIR@")

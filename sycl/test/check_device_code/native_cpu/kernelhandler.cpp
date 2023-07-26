@@ -27,12 +27,7 @@ int main() {
 //CHECK-HC-NEXT: #include <sycl/detail/native_cpu.hpp>
 //CHECK-HC-NEXT: #include <sycl/detail/pi.h>
 //CHECK-HC-NEXT: extern "C" void __sycl_register_lib(pi_device_binaries desc);
-//CHECK-HC:extern "C" void _ZTS5Test1_NativeCPUKernel(void *, void *, __nativecpu_state *);
-//CHECK-HC:inline static void _ZTS5Test1_NativeCPUKernelsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
-//CHECK-HC-NEXT:  void* arg0 = MArgs[0].getPtr();
-//CHECK-HC-NEXT:  void* arg3 = MArgs[3].getPtr();
-//CHECK-HC-NEXT:  _ZTS5Test1_NativeCPUKernel(arg0, arg3, state);
-//CHECK-HC-NEXT:};
+//CHECK-HC:extern "C" void _ZTS5Test1_NativeCPUKernelsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state);
 
 // check that we are emitting the call to __sycl_register_lib
 //CHECK-HC: static _pi_offload_entry_struct _pi_offload_entry_struct_ZTS5Test1_NativeCPUKernel{(void*)&_ZTS5Test1_NativeCPUKernelsubhandler, const_cast<char*>("_ZTS5Test1_NativeCPUKernel"), 1, 0, 0 };

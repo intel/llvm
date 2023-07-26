@@ -5,11 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// https://github.com/intel/llvm/issues/10369
+// UNSUPPORTED: gpu
+//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc
-// TODO: add support for local_accessors to esimd_emulator.
 // UNSUPPORTED: esimd_emulator
 // The test checks functionality of the gather_rgba/scatter_rgba local
 // accessor-based ESIMD intrinsics.

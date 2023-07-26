@@ -21,7 +21,7 @@
 #include <limits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <typename T> using is_floatn = is_contained<T, gtl::vector_float_list>;
@@ -786,5 +786,5 @@ template <typename... Args> inline void check_vector_size() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

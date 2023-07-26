@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/os_util.hpp>
-#include <sycl/exception.hpp>
 
 #include <cassert>
+#include <limits>
 
 #if defined(__SYCL_RT_OS_LINUX)
 
@@ -43,7 +43,7 @@
 #endif // __SYCL_RT_OS
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -275,5 +275,5 @@ int OSUtil::makeDir(const char *Dir) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
