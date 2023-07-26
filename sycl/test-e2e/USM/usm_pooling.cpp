@@ -103,39 +103,70 @@ int main(int argc, char *argv[]) {
 
 // CHECK-NOPOOL: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
 // CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
+// CHECK-NOPOOL-NEXT:  ZE <--- [[API]](
 // CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
+// CHECK-NOPOOL-NEXT:  ZE <--- [[API]](
 // CHECK-NOPOOL-NEXT:  ZE ---> zeMemFree
+// CHECK-NOPOOL-NEXT:  ZE <--- zeMemFree
 // CHECK-NOPOOL-NEXT:  ZE ---> zeMemFree
+// CHECK-NOPOOL-NEXT:  ZE <--- zeMemFree
 // CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
+// CHECK-NOPOOL-NEXT:  ZE <--- [[API]](
 // CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
+// CHECK-NOPOOL-NEXT:  ZE <--- [[API]](
 // CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
+// CHECK-NOPOOL-NEXT:  ZE <--- [[API]](
 
 // CHECK-12345: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
 // CHECK-12345-NEXT:  ZE ---> [[API]](
+// CHECK-12345-NEXT:  ZE <--- [[API]](
 // CHECK-12345-NEXT:  ZE ---> [[API]](
+// CHECK-12345-NEXT:  ZE <--- [[API]](
 // CHECK-12345-NEXT:  ZE ---> zeMemGetAllocProperties
+// CHECK-12345-NEXT:  ZE <--- zeMemGetAllocProperties
 // CHECK-12345-NEXT:  ZE ---> zeMemFree
+// CHECK-12345-NEXT:  ZE <--- zeMemFree
 // CHECK-12345-NEXT:  ZE ---> zeMemGetAllocProperties
+// CHECK-12345-NEXT:  ZE <--- zeMemGetAllocProperties
 // CHECK-12345-NEXT:  ZE ---> zeMemFree
+// CHECK-12345-NEXT:  ZE <--- zeMemFree
 // CHECK-12345-NEXT:  ZE ---> [[API]](
+// CHECK-12345-NEXT:  ZE <--- [[API]](
 // CHECK-12345-NEXT:  ZE ---> [[API]](
+// CHECK-12345-NEXT:  ZE <--- [[API]](
 // CHECK-12345-NEXT:  ZE ---> [[API]](
+// CHECK-12345-NEXT:  ZE <--- [[API]](
 
 // CHECK-1245: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
 // CHECK-1245-NEXT:  ZE ---> [[API]](
+// CHECK-1245-NEXT:  ZE <--- [[API]](
 // CHECK-1245-NEXT:  ZE ---> [[API]](
+// CHECK-1245-NEXT:  ZE <--- [[API]](
 // CHECK-1245-NEXT:  ZE ---> zeMemGetAllocProperties
+// CHECK-1245-NEXT:  ZE <--- zeMemGetAllocProperties
 // CHECK-1245-NEXT:  ZE ---> zeMemGetAllocProperties
+// CHECK-1245-NEXT:  ZE <--- zeMemGetAllocProperties
 // CHECK-1245-NEXT:  ZE ---> zeMemFree
+// CHECK-1245-NEXT:  ZE <--- zeMemFree
 // CHECK-1245-NEXT:  ZE ---> [[API]](
+// CHECK-1245-NEXT:  ZE <--- [[API]](
 // CHECK-1245-NEXT:  ZE ---> [[API]](
+// CHECK-1245-NEXT:  ZE <--- [[API]](
 
 // CHECK-15: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
 // CHECK-15-NEXT:  ZE ---> [[API]](
+// CHECK-15-NEXT:  ZE <--- [[API]](
 // CHECK-15-NEXT:  ZE ---> zeMemGetAllocProperties
+// CHECK-15-NEXT:  ZE <--- zeMemGetAllocProperties
 // CHECK-15-NEXT:  ZE ---> zeMemGetAllocProperties
+// CHECK-15-NEXT:  ZE <--- zeMemGetAllocProperties
 // CHECK-15-NEXT:  ZE ---> [[API]](
+// CHECK-15-NEXT:  ZE <--- [[API]](
 // CHECK-15-NEXT:  ZE ---> zeMemGetAllocProperties
+// CHECK-15-NEXT:  ZE <--- zeMemGetAllocProperties
 // CHECK-15-NEXT:  ZE ---> zeMemGetAllocProperties
+// CHECK-15-NEXT:  ZE <--- zeMemGetAllocProperties
 // CHECK-15-NEXT:  ZE ---> zeMemGetAllocProperties
+// CHECK-15-NEXT:  ZE <--- zeMemGetAllocProperties
 // CHECK-15-NEXT:  ZE ---> zeMemFree
+// CHECK-15-NEXT:  ZE <--- zeMemFree

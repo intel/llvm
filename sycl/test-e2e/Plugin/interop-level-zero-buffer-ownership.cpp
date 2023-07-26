@@ -17,8 +17,11 @@
 
 // Keep ownership
 // CHECK: zeMemFree
+// CHECK: zeMemFree
 
 // Transfer ownership
+// CHECK: zeMemFree
+// CHECK: zeMemFree
 // CHECK: zeMemFree
 // CHECK: zeMemFree
 

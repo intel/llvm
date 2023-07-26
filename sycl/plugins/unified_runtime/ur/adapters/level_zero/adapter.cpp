@@ -9,6 +9,32 @@
 #include "adapter.hpp"
 #include "ur_level_zero.hpp"
 
+////////////////////////////////////////////////////
+/// L0-Adapter-specific environment variables
+
+/// UR_L0_DEBUG
+/// Enables extra debug capabilities in the L0 adapter.
+/// Mask accepting following values:
+/// UR_L0_DEBUG_NONE = 0x0, default
+/// UR_L0_DEBUG_BASIC = 0x1, prints UR and ZE calls made
+/// UR_L0_DEBUG_VALIDATION = 0x2, enables validation
+///   layer in L0 loader.
+/// UR_L0_DEBUG_CALL_COUNT = 0x4, enables memory leak detection
+int UrL0Debug;
+static const int UrL0DebugReadEnvVar = [] {
+  const char *ZeDebugMode = std::getenv("ZE_DEBUG");
+  const char *UrL0DebugMode = std::getenv("UR_L0_DEBUG");
+  uint32_t DebugMode = 0;
+  if (UrL0DebugMode) {
+    DebugMode = std::atoi(UrL0DebugMode);
+  } else if (ZeDebugMode) {
+    DebugMode = std::atoi(ZeDebugMode);
+  }
+  return DebugMode;
+}();
+
+////////////////////////////////////////////////////
+
 ur_adapter_handle_t_ Adapter{};
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -18,6 +44,9 @@ urInit(ur_device_init_flags_t
                         ///< ::ur_device_init_flag_t.
        ur_loader_config_handle_t) {
   std::ignore = DeviceFlags;
+
+  // read variables from environment once
+  UrL0Debug = UrL0DebugReadEnvVar;
 
   return UR_RESULT_SUCCESS;
 }
