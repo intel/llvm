@@ -538,7 +538,23 @@ __SYCL_EXPORT s::cl_double sycl_host_nextafter(s::cl_double x,
 }
 __SYCL_EXPORT s::cl_half sycl_host_nextafter(s::cl_half x,
                                              s::cl_half y) __NOEXC {
-  return std::nextafter(x, y);
+  if (std::isnan(d::cast_if_host_half(x)))
+    return x;
+  if (std::isnan(d::cast_if_host_half(y)) || x == y)
+    return y;
+
+  uint16_t x_bits = s::bit_cast<uint16_t>(x);
+  uint16_t x_sign = x_bits & 0x8000;
+  int16_t movement = (x > y ? -1 : 1) * (x_sign ? -1 : 1);
+  if (x_bits == x_sign && movement == -1) {
+    // Special case where we underflow in the decrement, in which case we turn
+    // it around and flip the sign. The overflow case does not need special
+    // handling.
+    movement = 1;
+    x_bits ^= 0x8000;
+  }
+  x_bits += movement;
+  return s::bit_cast<s::cl_half>(x_bits);
 }
 MAKE_1V_2V(sycl_host_nextafter, s::cl_float, s::cl_float, s::cl_float)
 MAKE_1V_2V(sycl_host_nextafter, s::cl_double, s::cl_double, s::cl_double)
