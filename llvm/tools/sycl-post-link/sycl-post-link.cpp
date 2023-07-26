@@ -454,12 +454,11 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
   }
-  bool HasRegAllocMode = false;
   {
     StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
     uint32_t RegAllocModeVal;
 
-    HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
+    bool HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
       if (!F->hasFnAttribute(RegAllocModeAttr))
         return false;
       const auto &Attr = F->getFnAttribute(RegAllocModeAttr);
@@ -484,9 +483,6 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       return true;
     });
     if (HasGRFSize) {
-      if (HasRegAllocMode)
-        error("Unsupported use of both register_alloc_mode and "
-              "grf_size");
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({GRFSizeAttr, GRFSizeVal});
     }
   }
