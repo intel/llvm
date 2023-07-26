@@ -155,9 +155,9 @@ linked fat binary, and store them in separate files.
     LLVM_DEBUG(dbgs() << "Section: " << *InfoSecNameOrErr << "\n");
 
     // We have a valid section name
-    std::string SectionNameToCompare = isa<COFFObjectFile>(Binary) ? 
-                                  IMAGE_SECTION_NAME_PREFIX_COFF : 
-                                  IMAGE_SECTION_NAME_PREFIX;
+    std::string SectionNameToCompare = isa<COFFObjectFile>(Binary)
+                                           ? IMAGE_SECTION_NAME_PREFIX_COFF
+                                           : IMAGE_SECTION_NAME_PREFIX;
     if (InfoSecNameOrErr->find(SectionNameToCompare) != std::string::npos) {
       // This section contains embedded binaries
       OffloadSections.push_back(Section);
@@ -256,9 +256,9 @@ linked fat binary, and store them in separate files.
     // user and the image number which is appended to the prefix
     std::string FileName = FileNameStem + "." + std::to_string(FileNum++);
     std::string OffloadName = ImgSecNameOrErr->data();
-    std::string OffloadPrefix = isa<COFFObjectFile>(Binary) ? 
-                                  IMAGE_SECTION_NAME_PREFIX_COFF : 
-                                  IMAGE_SECTION_NAME_PREFIX;
+    std::string OffloadPrefix = isa<COFFObjectFile>(Binary)
+                                    ? IMAGE_SECTION_NAME_PREFIX_COFF
+                                    : IMAGE_SECTION_NAME_PREFIX;
     OffloadName.erase(0, OffloadPrefix.length());
 
     // Tell user that we are saving an image.
