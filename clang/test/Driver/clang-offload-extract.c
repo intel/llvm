@@ -1,4 +1,4 @@
-// REQUIRES: x86-registered-target 
+// REQUIRES: x86-registered-target
 
 //
 // Check help message.
