@@ -2,7 +2,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Tests calling finalize() more than once on the same command_graph.
+// Tests the ability to finalize and submit a command graph which doesn't
+// contain any nodes.
 
 #include "graph_common.hpp"
 
@@ -11,11 +12,12 @@ int main() {
 
   ext::oneapi::experimental::command_graph Graph{Queue.get_context(),
                                                  Queue.get_device()};
-  auto GraphExec = Graph.finalize();
 
   std::error_code ErrorCode = make_error_code(sycl::errc::success);
   try {
-    auto GraphExec2 = Graph.finalize();
+    auto GraphExec = Graph.finalize();
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+    Queue.wait_and_throw();
   } catch (const sycl::exception &e) {
     ErrorCode = e.code();
   }
