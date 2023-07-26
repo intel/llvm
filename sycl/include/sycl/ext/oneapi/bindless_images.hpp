@@ -619,8 +619,8 @@ template <typename CoordT> constexpr size_t coord_size() {
  *             another
  */
 template <typename DataT, typename CoordT>
-DataT read_image(const unsampled_image_handle &imageHandle,
-                 const CoordT &coords) {
+DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]]) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
@@ -655,8 +655,8 @@ DataT read_image(const unsampled_image_handle &imageHandle,
  *             another
  */
 template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &imageHandle,
-                 const CoordT &coords) {
+DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]]) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
@@ -686,8 +686,9 @@ DataT read_image(const sampled_image_handle &imageHandle,
  *  @return  Mipmap image data with LOD filtering
  */
 template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
-                 const float level) {
+DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]],
+                 const float level [[maybe_unused]]) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
@@ -718,8 +719,10 @@ DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
  *  @return  Mipmap image data with anisotropic filtering
  */
 template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
-                 const CoordT &dX, const CoordT &dY) {
+DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]],
+                 const CoordT &dX [[maybe_unused]],
+                 const CoordT &dY [[maybe_unused]]) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate and gradient to have 1, 2, or 4 "
@@ -748,8 +751,9 @@ DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
  *  @param   coords The coordinates at which to write image data
  */
 template <typename DataT, typename CoordT>
-void write_image(const unsampled_image_handle &imageHandle,
-                 const CoordT &Coords, const DataT &Color) {
+void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &Coords [[maybe_unused]],
+                 const DataT &Color [[maybe_unused]]) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
