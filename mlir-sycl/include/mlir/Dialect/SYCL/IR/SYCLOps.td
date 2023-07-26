@@ -175,27 +175,21 @@ class SYCL3DRangeGridOp<string mnemonic, list<Trait> traits = []>
 def SYCLNumWorkItemsOp : SYCL3DRangeGridOp<"num_work_items"> {
   let summary = "Retrieve the number of work-items.";
   let description = [{
-    This operation returns the number of work-items in the index space. If the
-    optional argument is passed, the number of work-items in the given dimension
-    is returned.
+    This operation returns the number of work-items in the index space.
   }];
 }
 
 def SYCLGlobalIDOp : SYCL3DIDGridOp<"global_id", [ResultsNonUniform]> {
   let summary = "Retrieve the global ID of the item.";
   let description = [{
-    This operation returns the global ID of the item in the index space. If the
-    optional argument is passed, the global ID of the item in the given
-    dimension is returned.
+    This operation returns the global ID of the item in the index space.
   }];
 }
 
 def SYCLLocalIDOp : SYCL3DIDGridOp<"local_id", [ResultsNonUniform]> {
   let summary = "Retrieve the local ID of the item.";
   let description = [{
-    This operation returns the local ID of the item within the work-group. If
-    the optional argument is passed, the local ID of the item in the given
-    dimension is returned.
+    This operation returns the local ID of the item within the work-group.
   }];
 }
 
@@ -203,9 +197,7 @@ def SYCLGlobalOffsetOp : SYCL3DIDGridOp<"global_offset">,
                        Deprecated<"deprecated in SYCL 2020"> {
   let summary = "Retrieve the global offset of the item.";
   let description = [{
-    This operation returns the global offset of the item in the index space. If
-    the optional argument is passed, the global offset of the item in the given
-    dimension is returned.
+    This operation returns the global offset of the item in the index space.
 
     Note that this is deprecated in SYCL 2020.
   }];
@@ -214,26 +206,21 @@ def SYCLGlobalOffsetOp : SYCL3DIDGridOp<"global_offset">,
 def SYCLNumWorkGroupsOp : SYCL3DRangeGridOp<"num_work_groups"> {
   let summary = "Retrieve the number of work-groups.";
   let description = [{
-    This operation returns the number of work-groups in the index space. If the
-    optional argument is passed, the number of work-groups in the given
-    dimension is returned.
+    This operation returns the number of work-groups in the index space.
   }];
 }
 
 def SYCLWorkGroupSizeOp : SYCL3DRangeGridOp<"work_group_size"> {
   let summary = "Retrieve the number of work-items in a work-group.";
   let description = [{
-    This operation returns the number of work-items per work-group. If the
-    optional argument is passed, the number of work-items per work-group in the
-    given dimension is returned.
+    This operation returns the number of work-items per work-group.
   }];
 }
 
 def SYCLWorkGroupIDOp : SYCL3DIDGridOp<"work_group_id", [ResultsNonUniform]> {
   let summary = "Retrieve the ID of the work-group.";
   let description = [{
-    This operation returns the ID of the work-group. If the optional argument is
-    passed, the ID of the work-group in the given dimension is returned.
+    This operation returns the ID of the work-group.
   }];
 }
 
