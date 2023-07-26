@@ -79,12 +79,14 @@ func.func @set_nd_range_range_with_offset(%handler: !llvm.ptr, %range: !llvm.ptr
 }
 
 // CHECK-LABEL:   func.func @set_captured(
-// CHECK-SAME:                            %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr, %[[VAL_2:.*]]: i16) {
-// CHECK:           sycl.host.set_captured %[[VAL_0]][0] = %[[VAL_1]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_2_i32_r_gb)
-// CHECK:           sycl.host.set_captured %[[VAL_0]][1] = %[[VAL_2]] : !llvm.ptr, i16
-func.func @set_captured(%lambda: !llvm.ptr, %ptr_arg: !llvm.ptr, %scalar_arg: i16) {
-  sycl.host.set_captured %lambda[0] = %ptr_arg : !llvm.ptr,  !llvm.ptr (!sycl_accessor_2_i32_r_gb)
-  sycl.host.set_captured %lambda[1] = %scalar_arg : !llvm.ptr, i16
+// CHECK-SAME:                            %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: i16, %[[VAL_2:.*]]: !llvm.ptr, %[[VAL_3:.*]]: !llvm.ptr) {
+// CHECK:           sycl.host.set_captured %[[VAL_0]][0] = %[[VAL_1]] : !llvm.ptr, i16
+// CHECK:           sycl.host.set_captured %[[VAL_0]][1] = %[[VAL_2]] : !llvm.ptr, !llvm.ptr
+// CHECK:           sycl.host.set_captured %[[VAL_0]][2] = %[[VAL_3]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_2_i32_r_gb)
+func.func @set_captured(%lambda: !llvm.ptr, %scalar_arg: i16, %struct_arg: !llvm.ptr, %accessor_arg: !llvm.ptr) {
+  sycl.host.set_captured %lambda[0] = %scalar_arg : !llvm.ptr, i16
+  sycl.host.set_captured %lambda[1] = %struct_arg : !llvm.ptr, !llvm.ptr
+  sycl.host.set_captured %lambda[2] = %accessor_arg : !llvm.ptr,  !llvm.ptr (!sycl_accessor_2_i32_r_gb)
   func.return
 }
 
