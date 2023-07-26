@@ -64,7 +64,7 @@ TEST_F(test, freeErrorPropagation) {
     void *ptr = umfPoolMalloc(pool.get(), size);
 
     freeReturn = UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
-    auto freeRet = umfFree(ptr);
+    auto freeRet = umfPoolFree(pool.get(), ptr);
 
     EXPECT_EQ(freeRet, freeReturn);
 }
@@ -72,5 +72,6 @@ TEST_F(test, freeErrorPropagation) {
 INSTANTIATE_TEST_SUITE_P(disjointPoolTests, umfPoolTest,
                          ::testing::Values(makePool));
 
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(umfMultiPoolTest);
 INSTANTIATE_TEST_SUITE_P(disjointMultiPoolTests, umfMultiPoolTest,
                          ::testing::Values(makePool));

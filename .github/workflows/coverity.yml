@@ -26,7 +26,7 @@ jobs:
   linux:
     name: Coverity
     runs-on: ubuntu-latest
-  
+
     steps:
       - name: Clone the git repo
         uses: actions/checkout@v3
@@ -35,12 +35,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y doxygen
-       
+
       - name: Install pip packages
         run: pip install -r third_party/requirements.txt
 
       - name: Configure CMake
-        run: cmake -B $WORKDIR/build -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -DUR_FORMAT_CPP_STYLE=ON
+        run: cmake -B $WORKDIR/build -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -DUR_FORMAT_CPP_STYLE=ON -DUMF_ENABLE_POOL_TRACKING=ON
 
       - name: Generate source from spec, check for uncommitted diff
         run: |

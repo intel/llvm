@@ -28,6 +28,9 @@ function(add_umf_test name)
         COMMAND ${TEST_TARGET_NAME}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(umf-${name} PROPERTIES LABELS "umf")
+    if (UMF_ENABLE_POOL_TRACKING)
+        target_compile_definitions(${TEST_TARGET_NAME} PRIVATE UMF_ENABLE_POOL_TRACKING_TESTS=1)
+    endif()
 endfunction()
 
 add_subdirectory(umf_pools)

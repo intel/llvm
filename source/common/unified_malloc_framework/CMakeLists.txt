@@ -22,6 +22,12 @@ else()
         ${UMF_SOURCES})
 endif()
 
+if (UMF_ENABLE_POOL_TRACKING)
+    target_sources(unified_malloc_framework PRIVATE src/memory_pool_tracking.c)
+else()
+    target_sources(unified_malloc_framework PRIVATE src/memory_pool_default.c)
+endif()
+
 add_library(${PROJECT_NAME}::unified_malloc_framework ALIAS unified_malloc_framework)
 
 target_include_directories(unified_malloc_framework PUBLIC include)
