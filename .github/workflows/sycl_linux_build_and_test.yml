@@ -53,14 +53,6 @@ on:
         type: string
         required: false
         default: "[]"
-      lts_cmake_extra_args:
-        type: string
-        required: false
-        default: ""
-      lts_ref:
-        type: string
-        required: false
-        default: 'intel'
       cts_matrix:
         type: string
         required: false
@@ -69,10 +61,6 @@ on:
         type: string
         required: false
         default: ""
-      cts_ref:
-        type: string
-        required: false
-        default: 'SYCL-2020'
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -154,14 +142,6 @@ on:
       #   type: choice
       #   options:
       #     - "[]"
-      # lts_cmake_extra_args:
-      #   type: choice
-      #   options:
-      #     - ""
-      # lts_ref:
-      #   type: choice
-      #   options:
-      #     - "intel"
 
       # cts_matrix:
       #   type: choice
@@ -171,10 +151,6 @@ on:
       #   type: choice
       #   options:
       #     - ""
-      # cts_ref:
-      #   type: choice
-      #   options:
-      #     - "SYCL-2020"
 
       # changes:
       #   description: 'Filter matches for the changed files in the PR'
@@ -339,7 +315,7 @@ jobs:
       runner: ${{ toJSON(matrix.runs-on) }}
       image: ${{ matrix.image }}
       image_options: ${{ matrix.container_options }}
-      extra_cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+      extra_cmake_args: ${{ matrix.cmake_args }}
       target_devices: ${{ matrix.targets }}
       ref: ${{ inputs.build_ref || github.sha }}
       merge_ref: ${{ inputs.merge_ref }}
@@ -394,7 +370,6 @@ jobs:
     - uses: ./llvm/devops/actions/khronos_cts_test
       name: Run Khronos SYCL CTS
       with:
-        test_ref: ${{ inputs.cts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: ${{ inputs.artifact_archive_name }}
         decompress_command: ${{ inputs.artifact_decompress_command }}
