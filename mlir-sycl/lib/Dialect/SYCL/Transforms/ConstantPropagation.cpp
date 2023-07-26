@@ -79,7 +79,10 @@ public:
   }
 
   /// Propagate the constant this argument represents.
-  void propagate(OpBuilder builder, Region &region) const;
+  void propagate(OpBuilder builder, Region &region) const {
+    Value toReplace = region.getArgument(getIndex());
+    toReplace.replaceAllUsesWith(builder.clone(*definingOp)->getResult(0));
+  }
 
   static bool classof(const ConstantExplicitArg *c) {
     return c->getKind() == ConstantExplicitArg::Kind::ConstantArithArg;
@@ -93,11 +96,6 @@ private:
 //===----------------------------------------------------------------------===//
 // ConstantPropagationPass
 //===----------------------------------------------------------------------===//
-
-void ConstantArithArg::propagate(OpBuilder builder, Region &region) const {
-  Value toReplace = region.getArgument(getIndex());
-  toReplace.replaceAllUsesWith(builder.clone(*definingOp)->getResult(0));
-}
 
 auto ConstantPropagationPass::getConstantArgs(SYCLHostScheduleKernel op) {
   LLVM_DEBUG(llvm::dbgs().indent(2) << "Searching for constant arguments\n");
