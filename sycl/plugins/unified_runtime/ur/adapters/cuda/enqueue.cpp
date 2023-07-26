@@ -393,23 +393,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       RetImplEvent->start();
     }
 
-    if (hQueue->getContext()->getDevice()->getDeviceMaxChosenLocalMem()) {
+    if (hQueue->getContext()->getDevice()->maxLocalMemSizeChosen()) {
       // Set up local memory requirements for kernel.
       auto Device = hQueue->getContext()->getDevice();
-      if (Device->getDeviceMaxChosenLocalMem() < 0) {
+      if (Device->getMaxChosenLocalMem() < 0) {
         setErrorMessage("Invalid value specified for "
                         "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
-      if (LocalSize >
-          static_cast<uint32_t>(Device->getDeviceMaxCapacityLocalMem())) {
+      if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
         setErrorMessage("Too much local memory allocated for device",
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
-      if (LocalSize >
-          static_cast<uint32_t>(Device->getDeviceMaxChosenLocalMem())) {
+      if (LocalSize > static_cast<uint32_t>(Device->getMaxChosenLocalMem())) {
         setErrorMessage(
             "Local memory for kernel exceeds the amount requested using "
             "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value for "
@@ -419,7 +417,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       }
       UR_CHECK_ERROR(cuFuncSetAttribute(
           CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
-          Device->getDeviceMaxChosenLocalMem()));
+          Device->getMaxChosenLocalMem()));
     }
 
     Result = UR_CHECK_ERROR(cuLaunchKernel(

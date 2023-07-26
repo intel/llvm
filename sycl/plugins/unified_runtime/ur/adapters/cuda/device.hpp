@@ -25,8 +25,9 @@ private:
   int MaxBlockDimY{0};
   int MaxBlockDimZ{0};
   int MaxRegsPerBlock{0};
-  int DeviceMaxCapacityLocalMem{0};
-  int DeviceMaxChosenLocalMem{0};
+  int MaxCapacityLocalMem{0};
+  int MaxChosenLocalMem{0};
+  bool MaxLocalMemSizeChosen{false};
 
 public:
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
@@ -48,9 +49,10 @@ public:
 
     if (LocalMemSizePtr) {
       cuDeviceGetAttribute(
-          &DeviceMaxCapacityLocalMem,
+          &MaxCapacityLocalMem,
           CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN, cuDevice);
-      DeviceMaxChosenLocalMem = std::atoi(LocalMemSizePtr);
+      MaxChosenLocalMem = std::atoi(LocalMemSizePtr);
+      MaxLocalMemSizeChosen = true;
     }
   };
 
@@ -86,13 +88,15 @@ public:
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
 
-  int getDeviceMaxCapacityLocalMem() const noexcept {
-    return DeviceMaxCapacityLocalMem;
+  int getMaxCapacityLocalMem() const noexcept {
+    return MaxCapacityLocalMem;
   };
 
-  int getDeviceMaxChosenLocalMem() const noexcept {
-    return DeviceMaxChosenLocalMem;
+  int getMaxChosenLocalMem() const noexcept {
+    return MaxChosenLocalMem;
   };
+
+  bool maxLocalMemSizeChosen() { return MaxLocalMemSizeChosen; };
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);
