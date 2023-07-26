@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/backend_types.hpp>
-#include <sycl/detail/common.hpp>
 
 namespace sycl {
 inline namespace _V1 {
