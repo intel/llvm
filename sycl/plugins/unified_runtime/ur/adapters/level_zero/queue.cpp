@@ -1468,11 +1468,12 @@ ur_event_handle_t ur_queue_handle_t_::getEventFromQueueCache(bool HostVisible) {
 
 // This helper function creates a ur_event_handle_t and associate a
 // ur_queue_handle_t. Note that the caller of this function must have acquired
-// lock on the Queue that is passed in. \param Queue ur_queue_handle_t to
-// associate with a new event. \param Event a pointer to hold the newly created
-// ur_event_handle_t \param CommandType various command type determined by the
-// caller \param CommandList is the command list where the event is added \param
-// IsInternal tells if the event is internal, i.e. visible in the L0
+// lock on the Queue that is passed in.
+// \param Queue ur_queue_handle_t to associate with a new event.
+// \param Event a pointer to hold the newly created ur_event_handle_t
+// \param CommandType various command type determined by the caller
+// \param CommandList is the command list where the event is added
+// \param IsInternal tells if the event is internal, i.e. visible in the L0
 //        plugin only.
 // \param HostVisible tells if the event must be created in the
 //        host-visible pool. If not set then this function will decide.

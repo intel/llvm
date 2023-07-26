@@ -308,10 +308,10 @@ struct ur_queue_handle_t_ : _ur_object {
   // # Create new ur_event_handle_t using ze_event2 and append to the cache.
   //
   // # Get ur_event_handle_t from the beginning of the cache because there are
-  // two events # there. So it is guaranteed that we do round-robin between two
-  // events - # event from the last command is appended to the cache. Operation3
-  // = zeCommandListAppendMemoryCopy (signal ze_event1) # The same ze_event1 is
-  // used for Operation1 and Operation3.
+  // two events there. So it is guaranteed that we do round-robin between two
+  // # events - event from the last command is appended to the cache.
+  // Operation3 = zeCommandListAppendMemoryCopy (signal ze_event1)
+  // # The same ze_event1 is used for Operation1 and Operation3.
   //
   // When we switch to a different command list we need to signal new event and
   // wait for it in the new command list using barrier.
@@ -517,11 +517,12 @@ struct ur_queue_handle_t_ : _ur_object {
 
 // This helper function creates a ur_event_handle_t and associate a
 // ur_queue_handle_t. Note that the caller of this function must have acquired
-// lock on the Queue that is passed in. \param Queue ur_queue_handle_t to
-// associate with a new event. \param Event a pointer to hold the newly created
-// ur_event_handle_t \param CommandType various command type determined by the
-// caller \param CommandList is the command list where the event is added \param
-// IsInternal tells if the event is internal, i.e. visible in the L0
+// lock on the Queue that is passed in.
+// \param Queue ur_queue_handle_t to associate with a new event.
+// \param Event a pointer to hold the newly created ur_event_handle_t
+// \param CommandType various command type determined by the caller
+// \param CommandList is the command list where the event is added
+// \param IsInternal tells if the event is internal, i.e. visible in the L0
 //        plugin only.
 // \param ForceHostVisible tells if the event must be created in
 //        the host-visible pool
