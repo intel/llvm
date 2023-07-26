@@ -56,6 +56,7 @@ enum umf_result_t umfPoolCreate(const struct umf_memory_pool_ops_t *ops,
     return UMF_RESULT_SUCCESS;
 
 err_pool_init:
+    free(pool->providers);
 err_providers_alloc:
     free(pool);
 
@@ -64,6 +65,7 @@ err_providers_alloc:
 
 void umfPoolDestroy(umf_memory_pool_handle_t hPool) {
     hPool->ops.finalize(hPool->pool_priv);
+    free(hPool->providers);
     free(hPool);
 }
 

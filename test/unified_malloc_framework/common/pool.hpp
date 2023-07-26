@@ -32,41 +32,42 @@ auto wrapPoolUnique(umf_memory_pool_handle_t hPool) {
 }
 
 bool isReallocSupported(umf_memory_pool_handle_t hPool) {
-    static constexpr size_t allocSize = 1;
+    static constexpr size_t allocSize = 8;
     bool supported;
     auto *ptr = umfPoolMalloc(hPool, allocSize);
     auto *new_ptr = umfPoolRealloc(hPool, ptr, allocSize * 2);
 
     if (new_ptr) {
         supported = true;
+        umfPoolFree(hPool, new_ptr);
     } else if (umfPoolGetLastAllocationError(hPool) ==
                UMF_RESULT_ERROR_NOT_SUPPORTED) {
+        umfPoolFree(hPool, ptr);
         supported = false;
     } else {
+        umfPoolFree(hPool, new_ptr);
         throw std::runtime_error("realloc failed with unexpected error");
     }
-
-    umfPoolFree(hPool, new_ptr);
 
     return supported;
 }
 
 bool isCallocSupported(umf_memory_pool_handle_t hPool) {
-    static constexpr size_t num = 1;
+    static constexpr size_t num = 8;
     static constexpr size_t size = sizeof(int);
     bool supported;
     auto *ptr = umfPoolCalloc(hPool, num, size);
 
     if (ptr) {
         supported = true;
+        umfPoolFree(hPool, ptr);
     } else if (umfPoolGetLastAllocationError(hPool) ==
                UMF_RESULT_ERROR_NOT_SUPPORTED) {
         supported = false;
     } else {
+        umfPoolFree(hPool, ptr);
         throw std::runtime_error("calloc failed with unexpected error");
     }
-
-    umfPoolFree(hPool, ptr);
 
     return supported;
 }
