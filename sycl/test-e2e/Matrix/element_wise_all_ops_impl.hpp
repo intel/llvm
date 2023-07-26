@@ -1,7 +1,6 @@
 
 #define TM 8
 #define TN SG_SZ
-#define TK 16
 
 static float make_fp32(bfloat16 x) {
   unsigned int y = *((int *)&x);
@@ -34,7 +33,7 @@ void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
              std::numeric_limits<float>::epsilon());
     }
 }
-template <typename T, size_t M, size_t N>
+template <typename T, size_t M, size_t N, size_t TK>
 void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                        const float ref) {
   buffer<T, 2> bufA(A.get_data(), range<2>(M, N));
@@ -74,7 +73,7 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
   assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
 }
 
-template <typename T, size_t M, size_t N>
+template <typename T, size_t M, size_t N, size_t TK>
 void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                        const float ref) {
   buffer<T, 2> bufA(A.get_data(), range<2>(M, N));
@@ -113,7 +112,7 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
   assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
 }
 
-template <typename T, size_t M, size_t N>
+template <typename T, size_t M, size_t N, size_t TK>
 void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                        const float ref) {
   buffer<T, 2> bufA(A.get_data(), range<2>(M, N));
@@ -152,7 +151,7 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
   assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
 }
 
-template <typename T, size_t M, size_t N>
+template <typename T, size_t M, size_t N, size_t TK>
 void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                        const float ref) {
   buffer<T, 2> bufA(A.get_data(), range<2>(M, N));
@@ -191,7 +190,7 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
   assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
 }
 
-template <typename T, size_t M, size_t N>
+template <typename T, size_t M, size_t N, size_t TK>
 void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                          const float ref) {
   buffer<T, 2> bufA(A.get_data(), range<2>(M, N));
@@ -278,7 +277,7 @@ void matrix_ops_ref(float *D, int M, int N) {
     }
 }
 
-template <typename T, typename Tref> int test_ewops() {
+template <typename T, typename Tref, size_t TK> int test_ewops() {
 
   big_matrix<Tref, MATRIX_M, MATRIX_N> MD((Tref *)&D);
   big_matrix<T, MATRIX_M, MATRIX_N> MA((T *)&A);
@@ -288,17 +287,17 @@ template <typename T, typename Tref> int test_ewops() {
   queue q;
   nd_range<2> r({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ});
 
-  matrix_verify_add<T, MATRIX_M, MATRIX_N>(q, MA, r, 7.0);
-  matrix_verify_sub<T, MATRIX_M, MATRIX_N>(q, MA, r, 3.0);
-  matrix_verify_mul<T, MATRIX_M, MATRIX_N>(q, MA, r, 15.0);
-  matrix_verify_div<T, MATRIX_M, MATRIX_N>(q, MA, r, 2.0);
-  matrix_verify_logic<T, MATRIX_M, MATRIX_N>(q, MA, r, 7.0);
+  matrix_verify_add<T, MATRIX_M, MATRIX_N, TK>(q, MA, r, 7.0);
+  matrix_verify_sub<T, MATRIX_M, MATRIX_N, TK>(q, MA, r, 3.0);
+  matrix_verify_mul<T, MATRIX_M, MATRIX_N, TK>(q, MA, r, 15.0);
+  matrix_verify_div<T, MATRIX_M, MATRIX_N, TK>(q, MA, r, 2.0);
+  matrix_verify_logic<T, MATRIX_M, MATRIX_N, TK>(q, MA, r, 7.0);
 
   return 0;
 }
 
 int main() {
-  test_ewops<bfloat16, float>();
-  test_ewops<float, float>();
+  test_ewops<bfloat16, float, 16>();
+  test_ewops<float, float, 8>();
   return 0;
 }
