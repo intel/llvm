@@ -49,7 +49,9 @@
 #include <sycl/marray.hpp>
 #include <sycl/multi_ptr.hpp>
 
-#if !defined(__HAS_EXT_VECTOR_TYPE__)
+// When ext_vector_type is not available, we rely on cl_* types from CL/cl.h
+// to represent vec storage.
+#if !defined(__HAS_EXT_VECTOR_TYPE__) || !defined(__SYCL_DEVICE_ONLY__)
 #include <sycl/detail/cl.h>
 #endif
 
@@ -584,7 +586,7 @@ template <typename Type, int NumElements> class vec {
   static constexpr bool IsUsingArray =
       (IsHostHalf || IsSizeGreaterThanMaxAlign);
 
-#ifdef __HAS_EXT_VECTOR_TYPE__
+#if  defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
   static constexpr bool NativeVec = NumElements > 1 && !IsUsingArray;
 #else
   static constexpr bool NativeVec = false;
@@ -2188,23 +2190,13 @@ template <typename T, int N> struct VecStorageImpl {
   using VectorDataType = T __attribute__((ext_vector_type(N)));
 };
 #else // __SYCL_DEVICE_ONLY__
-// When ext_vector_type is not available, we rely on cl_* types from CL/cl.h
-// to represent vec storage.
-#ifdef __HAS_EXT_VECTOR_TYPE__
+
 template <typename T, int N> struct VecStorageImpl;
 #define __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, num)                      \
   template <> struct VecStorageImpl<type, num> {                               \
     using DataType = std::array<type, (num == 3) ? 4 : num>;                   \
-    using VectorDataType = type __attribute__((ext_vector_type(num)));         \
+    using VectorDataType = ::cl_##cl_type##num;                                 \
   };
-#else //__HAS_EXT_VECTOR_TYPE__
-template <typename T, int N> struct VecStorageImpl;
-#define __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, num)                      \
-  template <> struct VecStorageImpl<type, num> {                               \
-    using DataType = std::array<type, (num == 3) ? 4 : num>;                   \
-    using VectorDataType = DataType;                                           \
-  };
-#endif //__HAS_EXT_VECTOR_TYPE__
 
 #define __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(type, cl_type)                  \
   __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 2)                              \
