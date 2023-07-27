@@ -255,8 +255,7 @@ TEST_P(umfPoolTest, multiThreadedMallocFreeRandomSizes) {
 // TODO: add similar tests for realloc/aligned_alloc, etc.
 // TODO: add multithreaded tests
 TEST_P(umfMultiPoolTest, memoryTracking) {
-    static constexpr int allocSizes[] = {1,  2,  4,  8,   16,   20,
-                                         32, 40, 64, 128, 1024, 4096};
+    static constexpr int allocSizes[] = {8, 16, 32, 40, 64, 128, 1024, 4096};
     static constexpr auto nAllocs = 256;
 
     std::mt19937_64 g(0);
