@@ -25,7 +25,7 @@
 #include <sycl/queue.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
@@ -153,5 +153,5 @@ inline PiDevice
     cast(cl_device_id) = delete; // Use piextCreateDeviceWithNativeHandle
 } // namespace pi
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

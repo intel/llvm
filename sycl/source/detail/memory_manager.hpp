@@ -19,7 +19,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 class queue_impl;
@@ -227,7 +227,19 @@ public:
       sycl::detail::pi::PiExtCommandBuffer CommandBuffer, size_t Len,
       void *DstMem, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
       sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
+  static void
+  copy_image_bindless(void *Src, QueueImplPtr Queue, void *Dst,
+                      const sycl::detail::pi::PiMemImageDesc &Desc,
+                      const sycl::detail::pi::PiMemImageFormat &Format,
+                      const sycl::detail::pi::PiImageCopyFlags Flags,
+                      sycl::detail::pi::PiImageOffset SrcOffset,
+                      sycl::detail::pi::PiImageOffset DstOffset,
+                      sycl::detail::pi::PiImageRegion CopyExtent,
+                      sycl::detail::pi::PiImageRegion HostExtent,
+                      const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
+                      sycl::detail::pi::PiEvent *OutEvent);
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

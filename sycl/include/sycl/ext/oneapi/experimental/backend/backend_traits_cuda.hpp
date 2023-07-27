@@ -31,7 +31,7 @@ typedef struct CUevent_st *CUevent;
 typedef struct CUmod_st *CUmodule;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
@@ -124,5 +124,5 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_cuda> {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

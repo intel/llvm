@@ -193,7 +193,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
   try {
     std::unique_ptr<ur_queue_handle_t_> QueueImpl(hQueue);
 
-    ScopedContext Active(hQueue->getContext());
+    ScopedContext Active(hQueue->getContext()->getDevice());
 
     hQueue->forEachStream([](hipStream_t S) {
       UR_CHECK_ERROR(hipStreamSynchronize(S));
@@ -214,7 +214,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 
   try {
 
-    ScopedContext Active(hQueue->getContext());
+    ScopedContext Active(hQueue->getContext()->getDevice());
 
     hQueue->syncStreams<true>([&Result](hipStream_t S) {
       Result = UR_CHECK_ERROR(hipStreamSynchronize(S));
@@ -245,7 +245,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
                        ur_native_handle_t *phNativeQueue) {
-  ScopedContext Active(hQueue->getContext());
+  ScopedContext Active(hQueue->getContext()->getDevice());
   *phNativeQueue =
       reinterpret_cast<ur_native_handle_t>(hQueue->getNextComputeStream());
   return UR_RESULT_SUCCESS;

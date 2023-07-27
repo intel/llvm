@@ -308,6 +308,8 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
         return PI_EXT_PLATFORM_BACKEND_CUDA;
       case UR_PLATFORM_BACKEND_HIP:
         return PI_EXT_PLATFORM_BACKEND_HIP;
+      case UR_PLATFORM_BACKEND_NATIVE_CPU:
+        return PI_EXT_PLATFORM_BACKEND_NATIVE_CPU;
       default:
         die("UR_PLATFORM_INFO_BACKEND: unhandled value");
       }

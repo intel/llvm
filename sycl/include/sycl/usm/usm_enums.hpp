@@ -8,11 +8,11 @@
 #pragma once
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace usm {
 
 enum class alloc { host = 0, device = 1, shared = 2, unknown = 3 };
 
 } // namespace usm
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
