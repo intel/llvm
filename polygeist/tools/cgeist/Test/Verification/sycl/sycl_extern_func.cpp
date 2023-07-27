@@ -43,5 +43,5 @@ void host_single_task() {
 }
 
 // Keep at the end of the file.
-// CHECK-LLVM: attributes #[[FUNCATTRS0]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp" }
-// CHECK-LLVM: attributes #[[FUNCATTRS1]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp" "uniform-work-group-size"="true" }
+// CHECK-LLVM: attributes #[[FUNCATTRS0]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp" "sycl-optlevel"="0" }
+// CHECK-LLVM: attributes #[[FUNCATTRS1]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp" "sycl-optlevel"="0" "uniform-work-group-size"="true" }

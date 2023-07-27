@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <clang/Basic/DiagnosticIDs.h>
+#include <clang/CodeGen/BackendUtil.h>
 #include <clang/Driver/Driver.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/CompilerInvocation.h>
@@ -58,6 +59,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/LLVMRemarkStreamer.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/Support/FileSystem.h"
@@ -65,6 +67,8 @@
 #include "llvm/Support/LLVMDriver.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/Support/Signals.h"
+#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/TargetParser/Host.h"
 
@@ -864,8 +868,11 @@ static void runOptimizationPipeline(llvm::Module &Module, Options &options) {
   }
 }
 
+static bool isStdout(StringRef Filename) { return Filename == "-"; }
+
 // Lower the MLIR in the given module, compile the generated LLVM IR.
 static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                                   clang::CompilerInstance *Clang,
                                    StringRef ModuleId, mlir::MLIRContext &Ctx,
                                    llvm::DataLayout &DL, llvm::Triple &Triple,
                                    Options &options, const char *Argv0) {
@@ -878,19 +885,43 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
 
   bool EmitBC = EmitLLVM && !EmitAssembly;
   bool EmitMLIR = EmitAssembly && !EmitLLVM;
-  if (EmitMLIR) {
-    if (Output == "-") {
-      // Write the MLIR to stdout.
-      LLVM_DEBUG(llvm::dbgs() << "*** MLIR Produced ***\n");
-      Module->print(llvm::outs());
-    } else {
-      // Write the MLIR to a file.
-      std::error_code EC;
-      llvm::raw_fd_ostream out(Output, EC);
-      Module->print(out);
-      LLVM_DEBUG(llvm::dbgs()
-                 << "*** Dumped MLIR in file '" << Output << "' ***\n");
+  std::error_code EC;
+  SmallString<128> TmpResultPath;
+  llvm::StringRef IRFileName = Output;
+  std::unique_ptr<llvm::raw_fd_ostream> OS;
+  clang::BackendAction BA = clang::Backend_EmitNothing;
+  if (EmitBC) {
+    BA = clang::Backend_EmitBC;
+    OS.reset(new llvm::raw_fd_ostream(Output, EC, llvm::sys::fs::OF_None));
+  } else if (EmitLLVM || EmitMLIR) {
+    BA = clang::Backend_EmitLL;
+    OS.reset(
+        new llvm::raw_fd_ostream(Output, EC, llvm::sys::fs::OF_TextWithCRLF));
+  } else {
+    BA = clang::Backend_EmitLL;
+    int FD;
+    EC = llvm::sys::fs::createUniqueFile("/tmp/intermediate%%%%%%%.ll", FD,
+                                         TmpResultPath,
+                                         llvm::sys::fs::OF_Delete);
+    if (!EC) {
+      OS.reset(new llvm::raw_fd_ostream(FD, /*shouldclose=*/true));
+      IRFileName = TmpResultPath;
     }
+  }
+  if (EC) {
+    llvm::errs() << EC.message() << '\n';
+    return failure();
+  }
+  if (!isStdout(IRFileName))
+    llvm::sys::RemoveFileOnSignal(IRFileName);
+  auto cleanUpOpenFile = [&]() {
+    if (isStdout(IRFileName))
+      return;
+    llvm::sys::fs::remove(IRFileName);
+    llvm::sys::DontRemoveFileOnSignal(IRFileName);
+  };
+  if (EmitMLIR) {
+    Module->print(*OS);
   } else {
     // Generate LLVM IR.
     llvm::LLVMContext LLVMCtx;
@@ -900,64 +931,70 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
     if (!LLVMModule) {
       Module->dump();
       llvm::errs() << "Failed to emit LLVM IR\n";
+      cleanUpOpenFile();
       return failure();
     }
 
     LLVMModule->setDataLayout(DL);
     LLVMModule->setTargetTriple(Triple.getTriple());
+
     LLVM_DEBUG(llvm::dbgs()
                << "*** Translated MLIR to LLVM IR successfully ***\n");
 
-    if (EmitBC || EmitLLVM) {
-      // Not needed when emitting binary for now; will be handled by the driver.
-      runOptimizationPipeline(*LLVMModule, options);
+    clang::IntrusiveRefCntPtr<clang::DiagnosticIDs> DiagID(
+        new clang::DiagnosticIDs());
+    auto *DiagsBuffer = new clang::TextDiagnosticBuffer();
+    clang::DiagnosticsEngine Diags(DiagID, new clang::DiagnosticOptions(),
+                                   DiagsBuffer);
+
+    llvm::Expected<std::unique_ptr<llvm::ToolOutputFile>> OptRecordFileOrErr =
+        llvm::setupLLVMOptimizationRemarks(
+            LLVMCtx, Clang->getCodeGenOpts().OptRecordFile,
+            Clang->getCodeGenOpts().OptRecordPasses,
+            Clang->getCodeGenOpts().OptRecordFormat,
+            Clang->getCodeGenOpts().DiagnosticsWithHotness,
+            Clang->getCodeGenOpts().DiagnosticsHotnessThreshold);
+
+    if (llvm::Error E = OptRecordFileOrErr.takeError()) {
+      llvm::handleAllErrors(
+          std::move(E),
+          [&](const llvm::LLVMRemarkSetupFileError &E) {
+            Diags.Report(clang::diag::err_cannot_open_file)
+                << Clang->getCodeGenOpts().OptRecordFile << E.message();
+          },
+          [&](const llvm::LLVMRemarkSetupPatternError &E) {
+            Diags.Report(clang::diag::err_drv_optimization_remark_pattern)
+                << E.message() << Clang->getCodeGenOpts().OptRecordPasses;
+          },
+          [&](const llvm::LLVMRemarkSetupFormatError &E) {
+            Diags.Report(clang::diag::err_drv_optimization_remark_format)
+                << Clang->getCodeGenOpts().OptRecordFormat;
+          });
+      return failure();
     }
+    std::unique_ptr<llvm::ToolOutputFile> OptRecordFile =
+        std::move(*OptRecordFileOrErr);
 
-    if (EmitBC) {
-      assert(Output != "-" && "Expecting output file");
-      // Write the LLVM BC to a file.
-      std::error_code EC;
-      llvm::raw_fd_ostream Out(Output, EC);
-      WriteBitcodeToFile(*LLVMModule, Out);
-      LLVM_DEBUG(llvm::dbgs()
-                 << "*** Dumped LLVM BC in file '" << Output << "' ***\n");
-    } else if (EmitLLVM) {
-      if (Output == "-") {
-        // Write the LLVM IR to stdout.
-        LLVM_DEBUG(llvm::dbgs() << "*** LLVM IR Produced ***\n");
-        llvm::outs() << *LLVMModule << "\n";
-      } else {
-        // Write the LLVM IR to a file.
-        std::error_code EC;
-        llvm::raw_fd_ostream Out(Output, EC);
-        Out << *LLVMModule << "\n";
-        LLVM_DEBUG(llvm::dbgs()
-                   << "*** Dumped LLVM IR in file '" << Output << "' ***\n");
-      }
-    } else {
-      // Compile the LLVM IR.
-      auto TmpFile =
-          llvm::sys::fs::TempFile::create("/tmp/intermediate%%%%%%%.ll");
-      if (!TmpFile) {
-        llvm::errs() << "Failed to create " << TmpFile->TmpName << "\n";
-        return failure();
-      }
-      llvm::raw_fd_ostream Out(TmpFile->FD, /*shouldClose*/ false);
-      Out << *LLVMModule << "\n";
-      Out.flush();
+    EmitBackendOutput(
+        Diags, Clang->getHeaderSearchOpts(), Clang->getCodeGenOpts(),
+        Clang->getTargetOpts(), Clang->getLangOpts(),
+        Clang->getTarget().getDataLayoutString(), LLVMModule.get(), BA,
+        Clang->getFileManager().getVirtualFileSystemPtr(), std::move(OS));
 
-      if (mlir::failed(emitBinary(Argv0, TmpFile->TmpName.c_str(),
+    if (!EmitBC && !EmitLLVM) {
+      if (mlir::failed(emitBinary(Argv0, IRFileName.data(),
                                   options.getLinkOpts(), LinkOMP))) {
         llvm::errs() << "Compilation failed\n";
+        cleanUpOpenFile();
         return failure();
       }
-
-      if (TmpFile->discard()) {
-        llvm::errs() << "Failed to erase " << TmpFile->TmpName << "\n";
-        return failure();
-      }
+      llvm::sys::fs::remove(IRFileName);
     }
+    if (OptRecordFile)
+      OptRecordFile->keep();
   }
+  if (!isStdout(IRFileName))
+    llvm::sys::DontRemoveFileOnSignal(IRFileName);
 
   return success();
 }
@@ -1147,6 +1184,7 @@ static bool
 processInputFiles(const llvm::cl::list<std::string> &InputFiles,
                   const llvm::cl::list<std::string> &InputCommandArgs,
                   mlir::MLIRContext &Ctx, mlir::OwningOpRef<ModuleOp> &Module,
+                  std::unique_ptr<clang::CompilerInstance> &Clang,
                   llvm::DataLayout &DL, llvm::Triple &Triple, const char *Argv0,
                   const CgeistOptions &options) {
   assert(!InputFiles.empty() && "inputFiles should not be empty");
@@ -1187,8 +1225,8 @@ processInputFiles(const llvm::cl::list<std::string> &InputFiles,
 
   // Generate MLIR for the C/C++ files.
   std::string Fn = (!options.getSYCLIsDevice()) ? Cfunction.getValue() : "";
-  return parseMLIR(Argv0, Files, Fn, IncludeDirs, Defines, Module, Triple, DL,
-                   Commands);
+  return parseMLIR(Argv0, Files, Fn, IncludeDirs, Defines, Module, Clang,
+                   Triple, DL, Commands);
 }
 
 template <typename T> static void filterFunctions(T Module) {
@@ -1324,8 +1362,9 @@ int main(int argc, char **argv) {
 
   llvm::DataLayout DL("");
   llvm::Triple Triple;
-  if (!processInputFiles(InputFileNames, InputCommandArgs, Ctx, Module, DL,
-                         Triple, argv[0], options.getCgeistOpts())) {
+  std::unique_ptr<clang::CompilerInstance> Clang;
+  if (!processInputFiles(InputFileNames, InputCommandArgs, Ctx, Module, Clang,
+                         DL, Triple, argv[0], options.getCgeistOpts())) {
     return -1;
   }
 
@@ -1363,7 +1402,7 @@ int main(int argc, char **argv) {
 
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
   if (mlir::failed(compileModule(
-          Module,
+          Module, Clang.get(),
           InputFileNames.size() == 1 ? InputFileNames[0] : "LLVMDialectModule",
           Ctx, DL, Triple, options, argv[0])))
     return -1;

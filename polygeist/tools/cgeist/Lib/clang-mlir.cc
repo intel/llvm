@@ -2712,8 +2712,9 @@ MLIRScanner::getMangledFuncName(const clang::FunctionDecl &FD,
 static bool parseMLIR(const char *Argv0, std::vector<std::string> Filenames,
                       std::string Fn, std::vector<std::string> IncludeDirs,
                       std::vector<std::string> Defines,
-                      OwningOpRef<ModuleOp> &Module, llvm::Triple &Triple,
-                      llvm::DataLayout &DL,
+                      OwningOpRef<ModuleOp> &Module,
+                      std::unique_ptr<clang::CompilerInstance> &Clang,
+                      llvm::Triple &Triple, llvm::DataLayout &DL,
                       std::vector<std::string> InputCommandArgs) {
   clang::IntrusiveRefCntPtr<clang::DiagnosticIDs> DiagID(
       new clang::DiagnosticIDs());
@@ -2804,8 +2805,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> Filenames,
                  Filenames.size() == 1 ? Filenames[0] : "LLVMDialectModule");
 
   for (const llvm::opt::ArgStringList *Args : CommandList) {
-    std::unique_ptr<clang::CompilerInstance> Clang(
-        new clang::CompilerInstance());
+    Clang.reset(new clang::CompilerInstance());
 
     Success = clang::CompilerInvocation::CreateFromArgs(Clang->getInvocation(),
                                                         *Args, Diags);
