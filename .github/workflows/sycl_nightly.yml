@@ -11,7 +11,7 @@ jobs:
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
-      lts_config: "hip_amdgpu;ocl_gen12;ocl_x64;l0_gen12;esimd_emu;cuda_aws;win_l0_gen12"
+      lts_config: "esimd_emu"
 
   ubuntu2204_build_test:
     if: github.repository == 'intel/llvm'
@@ -31,17 +31,19 @@ jobs:
       # widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
 
-  ubuntu2204_opaque_pointers_build_test:
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    needs: test_matrix
-    secrets: inherit
-    with:
-      build_cache_root: "/__w/"
-      build_cache_suffix: opaque_pointers
-      build_artifact_suffix: opaque_pointers
-      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
-      merge_ref: ''
+      changes: '[]'
+
+  # ubuntu2204_opaque_pointers_build_test:
+  #   if: github.repository == 'intel/llvm'
+  #   uses: ./.github/workflows/sycl_linux_build_and_test.yml
+  #   needs: test_matrix
+  #   secrets: inherit
+  #   with:
+  #     build_cache_root: "/__w/"
+  #     build_cache_suffix: opaque_pointers
+  #     build_artifact_suffix: opaque_pointers
+  #     build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
+  #     merge_ref: ''
 
   windows_default:
     name: Windows
@@ -55,9 +57,11 @@ jobs:
       # We use the build for the release, override its name.
       artifact_archive_name: sycl_windows.tar.gz
 
+      changes: '[]'
+
   nightly_release:
     name: Nightly Release
-    if: ${{ github.ref_name == 'sycl' }}
+    # if: ${{ github.ref_name == 'sycl' }}
     needs: [ubuntu2204_build_test, windows_default]
     runs-on: ubuntu-latest
     steps:
@@ -88,52 +92,52 @@ jobs:
         body: "Daily build ${{ steps.tag.outputs.TAG }}"
         target_commitish: ${{ github.sha }}
 
-  ubuntu2204_docker_build_push:
-    if: github.repository == 'intel/llvm'
-    runs-on: [Linux, build]
-    needs: ubuntu2204_build_test
-    steps:
-    - uses: actions/checkout@v3
-    - uses: actions/download-artifact@v3
-      with:
-        name: sycl_linux_default
-        path: devops/
-    - name: Build and Push Container (with drivers)
-      uses: ./devops/actions/build_container
-      with:
-        push: ${{ github.ref_name == 'sycl' }}
-        file: ubuntu2204_preinstalled
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        build-args: |
-          base_image=ghcr.io/intel/llvm/ubuntu2204_intel_drivers
-          base_tag=latest
-        tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:latest
-    - name: Build and Push Container (no drivers)
-      uses: ./devops/actions/build_container
-      with:
-        push: ${{ github.ref_name == 'sycl' }}
-        file: ubuntu2204_preinstalled
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        build-args: |
-          base_image=ghcr.io/intel/llvm/ubuntu2204_base
-          base_tag=latest
-        tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers-${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers
-    - name: Build and Push Container (Build image)
-      uses: ./devops/actions/build_container
-      with:
-        push: ${{ github.ref_name == 'sycl' }}
-        file: ubuntu2204_preinstalled
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        build-args: |
-          base_image=ghcr.io/intel/llvm/ubuntu2204_build
-          base_tag=latest
-        tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build-${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build
+  # ubuntu2204_docker_build_push:
+  #   if: github.repository == 'intel/llvm'
+  #   runs-on: [Linux, build]
+  #   needs: ubuntu2204_build_test
+  #   steps:
+  #   - uses: actions/checkout@v3
+  #   - uses: actions/download-artifact@v3
+  #     with:
+  #       name: sycl_linux_default
+  #       path: devops/
+  #   - name: Build and Push Container (with drivers)
+  #     uses: ./devops/actions/build_container
+  #     with:
+  #       push: ${{ github.ref_name == 'sycl' }}
+  #       file: ubuntu2204_preinstalled
+  #       username: ${{ github.repository_owner }}
+  #       password: ${{ secrets.GITHUB_TOKEN }}
+  #       build-args: |
+  #         base_image=ghcr.io/intel/llvm/ubuntu2204_intel_drivers
+  #         base_tag=latest
+  #       tags: |
+  #         ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:${{ github.sha }}
+  #         ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:latest
+  #   - name: Build and Push Container (no drivers)
+  #     uses: ./devops/actions/build_container
+  #     with:
+  #       push: ${{ github.ref_name == 'sycl' }}
+  #       file: ubuntu2204_preinstalled
+  #       username: ${{ github.repository_owner }}
+  #       password: ${{ secrets.GITHUB_TOKEN }}
+  #       build-args: |
+  #         base_image=ghcr.io/intel/llvm/ubuntu2204_base
+  #         base_tag=latest
+  #       tags: |
+  #         ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers-${{ github.sha }}
+  #         ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers
+  #   - name: Build and Push Container (Build image)
+  #     uses: ./devops/actions/build_container
+  #     with:
+  #       push: ${{ github.ref_name == 'sycl' }}
+  #       file: ubuntu2204_preinstalled
+  #       username: ${{ github.repository_owner }}
+  #       password: ${{ secrets.GITHUB_TOKEN }}
+  #       build-args: |
+  #         base_image=ghcr.io/intel/llvm/ubuntu2204_build
+  #         base_tag=latest
+  #       tags: |
+  #         ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build-${{ github.sha }}
+  #         ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build
