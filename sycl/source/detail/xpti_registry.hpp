@@ -167,7 +167,7 @@ private:
 /// @brief Helper class to enable XPTI implementation
 /// @details This class simplifies the instrumentation and encapsulates the
 /// verbose call sequences
-#if XPTI_ENABLE_INSTRUMENTATION
+#ifdef XPTI_ENABLE_INSTRUMENTATION
 class XPTIScope {
 public:
   using TracePoint = xpti::framework::tracepoint_t;
@@ -335,7 +335,7 @@ private:
 }; // XPTIPerfScope
 #endif
 
-#if XPTI_ENABLE_INSTRUMENTATION
+#ifdef XPTI_ENABLE_INSTRUMENTATION
 #define XPTI_LW_TRACE()                                                        \
   XPTIPerfScope LWTrace(__builtin_FUNCTION());                                 \
   LWTrace.scopedNotify();
