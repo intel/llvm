@@ -169,7 +169,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
         },
         Self, {});
   }
-  if (!Src || !Dest) {
+  if ((!Src || !Dest) && Count != 0) {
     report(CodeLoc);
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_ERROR_INVALID_VALUE);
