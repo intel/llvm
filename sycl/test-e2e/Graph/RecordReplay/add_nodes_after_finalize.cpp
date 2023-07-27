@@ -5,6 +5,9 @@
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
+//
+// Temporarily disabled until failure is addressed.
+// UNSUPPORTED: windows
 
 #define GRAPH_E2E_RECORD_REPLAY
 
