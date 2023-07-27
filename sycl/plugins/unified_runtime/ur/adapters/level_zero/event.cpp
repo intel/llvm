@@ -1222,41 +1222,21 @@ ur_result_t _ur_ze_event_list_t::insert(_ur_ze_event_list_t &Other) {
 
 ur_result_t _ur_ze_event_list_t::collectEventsForReleaseAndDestroyPiZeEventList(
     std::list<ur_event_handle_t> &EventsToBeReleased) {
-  // acquire a lock before reading the length and list fields.
-  // Acquire the lock, copy the needed data locally, and reset
-  // the fields, then release the lock.
-  // Only then do we do the actual actions to release and destroy,
-  // holding the lock for the minimum time necessary.
-  uint32_t LocLength = 0;
-  ze_event_handle_t *LocZeEventList = nullptr;
-  ur_event_handle_t *LocPiEventList = nullptr;
-
-  {
-    // acquire the lock and copy fields locally
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock<ur_mutex> lock(this->UrZeEventListMutex);
-
-    LocLength = Length;
-    LocZeEventList = ZeEventList;
-    LocPiEventList = UrEventList;
-
-    Length = 0;
-    ZeEventList = nullptr;
-    UrEventList = nullptr;
-
-    // release lock by ending scope.
-  }
-
-  for (uint32_t I = 0; I < LocLength; I++) {
+  // event wait lists are owned by events, this function is called with owning
+  // event lock taken, hence it is thread safe
+  for (uint32_t I = 0; I < Length; I++) {
     // Add the event to be released to the list
-    EventsToBeReleased.push_back(LocPiEventList[I]);
+    EventsToBeReleased.push_back(UrEventList[I]);
   }
+  Length = 0;
 
-  if (LocZeEventList != nullptr) {
-    delete[] LocZeEventList;
+  if (ZeEventList != nullptr) {
+    delete[] ZeEventList;
+    ZeEventList = nullptr;
   }
-  if (LocPiEventList != nullptr) {
-    delete[] LocPiEventList;
+  if (UrEventList != nullptr) {
+    delete[] UrEventList;
+    UrEventList = nullptr;
   }
 
   return UR_RESULT_SUCCESS;
