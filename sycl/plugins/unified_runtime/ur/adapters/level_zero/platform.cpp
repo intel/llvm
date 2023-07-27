@@ -26,11 +26,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urTearDown(
   std::ignore = Params;
   // reclaim ur_platform_handle_t objects here since we don't have
   // urPlatformRelease.
-  for (ur_platform_handle_t Platform : *UrPlatformsCache) {
+  for (ur_platform_handle_t Platform : *URPlatformsCache) {
     delete Platform;
   }
-  delete UrPlatformsCache;
-  delete UrPlatformsCacheMutex;
+  delete URPlatformsCache;
+  delete URPlatformsCacheMutex;
 
   bool LeakFound = false;
 
@@ -189,15 +189,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   // 2. performance; we can save time by immediately return from cache.
   //
 
-  const std::lock_guard<SpinLock> Lock{*UrPlatformsCacheMutex};
-  if (!UrPlatformCachePopulated) {
+  const std::lock_guard<SpinLock> Lock{*URPlatformsCacheMutex};
+  if (!URPlatformCachePopulated) {
     try {
       // Level Zero does not have concept of Platforms, but Level Zero driver is
       // the closest match.
       uint32_t ZeDriverCount = 0;
       ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, nullptr));
       if (ZeDriverCount == 0) {
-        UrPlatformCachePopulated = true;
+        URPlatformCachePopulated = true;
       } else {
         std::vector<ze_driver_handle_t> ZeDrivers;
         ZeDrivers.resize(ZeDriverCount);
@@ -206,11 +206,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
         for (uint32_t I = 0; I < ZeDriverCount; ++I) {
           auto Platform = new ur_platform_handle_t_(ZeDrivers[I]);
           // Save a copy in the cache for future uses.
-          UrPlatformsCache->push_back(Platform);
+          URPlatformsCache->push_back(Platform);
 
           UR_CALL(Platform->initialize());
         }
-        UrPlatformCachePopulated = true;
+        URPlatformCachePopulated = true;
       }
     } catch (const std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -221,16 +221,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
 
   // Populate returned platforms from the cache.
   if (Platforms) {
-    UR_ASSERT(NumEntries <= UrPlatformsCache->size(),
+    UR_ASSERT(NumEntries <= URPlatformsCache->size(),
               UR_RESULT_ERROR_INVALID_PLATFORM);
-    std::copy_n(UrPlatformsCache->begin(), NumEntries, Platforms);
+    std::copy_n(URPlatformsCache->begin(), NumEntries, Platforms);
   }
 
   if (NumPlatforms) {
     if (*NumPlatforms == 0)
-      *NumPlatforms = UrPlatformsCache->size();
+      *NumPlatforms = URPlatformsCache->size();
     else
-      *NumPlatforms = std::min(UrPlatformsCache->size(), (size_t)NumEntries);
+      *NumPlatforms = std::min(URPlatformsCache->size(), (size_t)NumEntries);
   }
 
   return UR_RESULT_SUCCESS;
@@ -425,14 +425,14 @@ ur_platform_handle_t_::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   // mapping from L0 device handle to PI device assumed in this function. Until
   // Level-Zero adds unique ze_device_handle_t for sub-sub-devices, here we
   // filter out PI sub-sub-devices.
-  std::shared_lock<ur_shared_mutex> Lock(UrDevicesCacheMutex);
-  auto it = std::find_if(UrDevicesCache.begin(), UrDevicesCache.end(),
+  std::shared_lock<ur_shared_mutex> Lock(URDevicesCacheMutex);
+  auto it = std::find_if(URDevicesCache.begin(), URDevicesCache.end(),
                          [&](std::unique_ptr<ur_device_handle_t_> &D) {
                            return D.get()->ZeDevice == ZeDevice &&
                                   (D.get()->RootDevice == nullptr ||
                                    D.get()->RootDevice->RootDevice == nullptr);
                          });
-  if (it != UrDevicesCache.end()) {
+  if (it != URDevicesCache.end()) {
     return (*it).get();
   }
   return nullptr;
@@ -440,7 +440,7 @@ ur_platform_handle_t_::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
 // Check the device cache and load it if necessary.
 ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
-  std::scoped_lock<ur_shared_mutex> Lock(UrDevicesCacheMutex);
+  std::scoped_lock<ur_shared_mutex> Lock(URDevicesCacheMutex);
 
   if (DeviceCachePopulated) {
     return UR_RESULT_SUCCESS;
@@ -519,28 +519,28 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
           for (uint32_t J = 0; J < Ordinals.size(); ++J) {
             for (uint32_t K = 0;
                  K < QueueGroupProperties[Ordinals[J]].numQueues; ++K) {
-              std::unique_ptr<ur_device_handle_t_> UrSubSubDevice(
+              std::unique_ptr<ur_device_handle_t_> URSubSubDevice(
                   new ur_device_handle_t_(ZeSubdevices[I],
                                           (ur_platform_handle_t)this,
                                           UrSubDevice.get()));
-              UR_CALL(UrSubSubDevice->initialize(Ordinals[J], K));
+              UR_CALL(URSubSubDevice->initialize(Ordinals[J], K));
 
               // save pointers to sub-sub-devices for quick retrieval in the
               // future.
-              UrSubDevice->SubDevices.push_back(UrSubSubDevice.get());
-              UrDevicesCache.push_back(std::move(UrSubSubDevice));
+              UrSubDevice->SubDevices.push_back(URSubSubDevice.get());
+              URDevicesCache.push_back(std::move(URSubSubDevice));
             }
           }
         }
 
         // save pointers to sub-devices for quick retrieval in the future.
         Device->SubDevices.push_back(UrSubDevice.get());
-        UrDevicesCache.push_back(std::move(UrSubDevice));
+        URDevicesCache.push_back(std::move(UrSubDevice));
       }
       delete[] ZeSubdevices;
 
       // Save the root device in the cache for future uses.
-      UrDevicesCache.push_back(std::move(Device));
+      URDevicesCache.push_back(std::move(Device));
     }
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;

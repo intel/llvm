@@ -1235,9 +1235,9 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
     // Create new ur_event_handle_t but with the same ze_event_handle_t. We are
     // going to use this ur_event_handle_t for the next command with discarded
     // event.
-    ur_event_handle_t_ *UrEvent;
+    ur_event_handle_t_ *UREvent;
     try {
-      UrEvent = new ur_event_handle_t_(
+      UREvent = new ur_event_handle_t_(
           LastCommandEvent->ZeEvent, LastCommandEvent->ZeEventPool,
           reinterpret_cast<ur_context_handle_t>(Context),
           UR_EXT_COMMAND_TYPE_USER, true);
@@ -1248,9 +1248,9 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
     }
 
     if (LastCommandEvent->isHostVisible())
-      UrEvent->HostVisibleEvent = reinterpret_cast<ur_event_handle_t>(UrEvent);
+      UREvent->HostVisibleEvent = reinterpret_cast<ur_event_handle_t>(UREvent);
 
-    UR_CALL(addEventToQueueCache(reinterpret_cast<ur_event_handle_t>(UrEvent)));
+    UR_CALL(addEventToQueueCache(reinterpret_cast<ur_event_handle_t>(UREvent)));
   }
 
   return UR_RESULT_SUCCESS;

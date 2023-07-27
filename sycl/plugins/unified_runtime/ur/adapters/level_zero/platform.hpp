@@ -33,8 +33,8 @@ struct ur_platform_handle_t_ : public _ur_platform {
   bool ZeDriverModuleProgramExtensionFound{false};
 
   // Cache UR devices for reuse
-  std::vector<std::unique_ptr<ur_device_handle_t_>> UrDevicesCache;
-  ur_shared_mutex UrDevicesCacheMutex;
+  std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;
+  ur_shared_mutex URDevicesCacheMutex;
   bool DeviceCachePopulated = false;
 
   // Check the device cache and load it if necessary.

@@ -690,9 +690,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   }
 
   auto ZeEvent = ur_cast<ze_event_handle_t>(NativeEvent);
-  ur_event_handle_t_ *UrEvent{};
+  ur_event_handle_t_ *UREvent{};
   try {
-    UrEvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
+    UREvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
                                      Context, UR_EXT_COMMAND_TYPE_USER,
                                      Properties->isNativeHandleOwned);
 
@@ -704,16 +704,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
   // Assume native event is host-visible, or otherwise we'd
   // need to create a host-visible proxy for it.
-  UrEvent->HostVisibleEvent = reinterpret_cast<ur_event_handle_t>(UrEvent);
+  UREvent->HostVisibleEvent = reinterpret_cast<ur_event_handle_t>(UREvent);
 
   // Unlike regular events managed by SYCL RT we don't have to wait for interop
   // events completion, and not need to do the their `cleanup()`. This in
   // particular guarantees that the extra `urEventRelease` is not called on
   // them. That release is needed to match the `urEventRetain` of regular events
   // made for waiting for event completion, but not this interop event.
-  UrEvent->CleanedUp = true;
+  UREvent->CleanedUp = true;
 
-  *Event = reinterpret_cast<ur_event_handle_t>(UrEvent);
+  *Event = reinterpret_cast<ur_event_handle_t>(UREvent);
 
   return UR_RESULT_SUCCESS;
 }
