@@ -57,6 +57,8 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/usm_allocator.hpp"
     "../unified_runtime/ur/adapters/cuda/adapter.cpp"
     "../unified_runtime/ur/adapters/cuda/adapter.hpp"
+    "../unified_runtime/ur/adapters/cuda/command_buffer.cpp"
+    "../unified_runtime/ur/adapters/cuda/command_buffer.hpp"
     "../unified_runtime/ur/adapters/cuda/common.cpp"
     "../unified_runtime/ur/adapters/cuda/common.hpp"
     "../unified_runtime/ur/adapters/cuda/context.cpp"
@@ -83,8 +85,6 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/tracing.cpp"
     "../unified_runtime/ur/adapters/cuda/ur_interface_loader.cpp"
     "../unified_runtime/ur/adapters/cuda/usm.cpp"
-    "../unified_runtime/ur/adapters/cuda/command_buffer.hpp"
-    "../unified_runtime/ur/adapters/cuda/command_buffer.cpp"
     "../unified_runtime/ur/adapters/cuda/usm_p2p.cpp"
     # --- 
     "${sycl_inc_dir}/sycl/detail/pi.h"
