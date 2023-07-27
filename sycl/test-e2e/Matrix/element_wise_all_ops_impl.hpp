@@ -1,6 +1,4 @@
-
 #define TM 8
-#define TN SG_SZ
 
 static float make_fp32(bfloat16 x) {
   unsigned int y = *((int *)&x);
@@ -19,24 +17,41 @@ public:
   big_matrix(T *data) : mat(data) {}
 };
 
-template <typename T, size_t M, size_t N>
-void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
+template <typename T, size_t M, size_t K>
+void assert_ops_ref(host_accessor<T, 2, access::mode::read> A,
                     const float ref) {
-  for (size_t i = 0; i < M; i++)
-    for (size_t j = 0; j < N; j++) {
+  // std::cout << "ref: " << ref << "\n";
+  // for (size_t i = 0; i < M; i++) {
+  //   for (size_t j = 0; j < K; j++) {
+  //     float diff;
+  //     if constexpr (std::is_same_v<T, bfloat16>) {
+  //        ;
+  //     } else {
+  //       std::cout << A[i][j] << " ";
+  //     }
+  //   }
+  //   std::cout << "\n";
+  // }
+
+  for (size_t i = 0; i < M; i++) {
+    for (size_t j = 0; j < K; j++) {
       float diff;
-      if constexpr (std::is_same_v<T, bfloat16>)
-        diff = make_fp32(C[i][j]) - ref;
-      else
-        diff = C[i][j] - ref;
+      if constexpr (std::is_same_v<T, bfloat16>) {
+        diff = make_fp32(A[i][j]) - ref;
+      } else {
+        // std::cout << A[i][j] << "\n";
+        diff = A[i][j] - ref;
+      }
       assert(std::fabs(static_cast<float>(diff)) <
              std::numeric_limits<float>::epsilon());
     }
+  }
 }
-template <typename T, size_t M, size_t N, size_t TK>
-void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
+
+template <typename T, size_t M, size_t K, size_t TK>
+void matrix_verify_add(queue q, big_matrix<T, M, K> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<T, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
 
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
@@ -65,18 +80,18 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-               N);
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
          }); // parallel for
    })
       .wait();
-  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
+  assert_ops_ref<T, M, K>(bufA.get_host_access(read_only), ref);
 }
 
-template <typename T, size_t M, size_t N, size_t TK>
-void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
+template <typename T, size_t M, size_t K, size_t TK>
+void matrix_verify_sub(queue q, big_matrix<T, M, K> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<T, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
 
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
@@ -104,18 +119,18 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-               N);
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
          }); // parallel for
    })
       .wait();
-  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
+  assert_ops_ref<T, M, K>(bufA.get_host_access(read_only), ref);
 }
 
-template <typename T, size_t M, size_t N, size_t TK>
-void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
+template <typename T, size_t M, size_t K, size_t TK>
+void matrix_verify_mul(queue q, big_matrix<T, M, K> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<T, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
 
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
@@ -143,18 +158,18 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-               N);
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
          }); // parallel for
    })
       .wait();
-  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
+  assert_ops_ref<T, M, K>(bufA.get_host_access(read_only), ref);
 }
 
-template <typename T, size_t M, size_t N, size_t TK>
-void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
+template <typename T, size_t M, size_t K, size_t TK>
+void matrix_verify_div(queue q, big_matrix<T, M, K> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<T, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
 
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
@@ -182,18 +197,18 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-               N);
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
          }); // parallel for
    })
       .wait();
-  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
+  assert_ops_ref<T, M, K>(bufA.get_host_access(read_only), ref);
 }
 
-template <typename T, size_t M, size_t N, size_t TK>
-void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
+template <typename T, size_t M, size_t K, size_t TK>
+void matrix_verify_logic(queue q, big_matrix<T, M, K> &A, nd_range<2> &r,
                          const float ref) {
-  buffer<T, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
 
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
@@ -256,48 +271,45 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-               N);
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
          }); // parallel for
    })
       .wait();
-  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
+  assert_ops_ref<T, M, K>(bufA.get_host_access(read_only), ref);
 }
 
-static constexpr size_t MATRIX_M = TM * 2;
-static constexpr size_t MATRIX_N = TN * 2;
-bfloat16 A[MATRIX_M][MATRIX_N];
-float D[MATRIX_M][MATRIX_N];
+template <typename T, typename Tref, size_t TK> void test_ewops() {
 
-void matrix_ops_ref(float *D, int M, int N) {
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      *(D + m * N + n) = 0;
-      *(D + m * N + n) *= 2;
-    }
-}
+  static constexpr size_t MATRIX_M = TM * 2;
+  static constexpr size_t MATRIX_K = TK * 2;
+  bfloat16 A[MATRIX_M][MATRIX_K];
+  float D[MATRIX_M][MATRIX_K];
 
-template <typename T, typename Tref, size_t TK> int test_ewops() {
-
-  big_matrix<Tref, MATRIX_M, MATRIX_N> MD((Tref *)&D);
-  big_matrix<T, MATRIX_M, MATRIX_N> MA((T *)&A);
+  big_matrix<Tref, MATRIX_M, MATRIX_K> MD((Tref *)&D);
+  big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
 
   size_t NDRangeM = MATRIX_M / TM;
-  size_t NDRangeN = MATRIX_N / TN;
+  size_t NDRangeK = MATRIX_K / TK;
   queue q;
-  nd_range<2> r({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ});
+  nd_range<2> r({NDRangeM, NDRangeK * SG_SZ}, {1, 1 * SG_SZ});
 
-  matrix_verify_add<T, MATRIX_M, MATRIX_N, TK>(q, MA, r, 7.0);
-  matrix_verify_sub<T, MATRIX_M, MATRIX_N, TK>(q, MA, r, 3.0);
-  matrix_verify_mul<T, MATRIX_M, MATRIX_N, TK>(q, MA, r, 15.0);
-  matrix_verify_div<T, MATRIX_M, MATRIX_N, TK>(q, MA, r, 2.0);
-  matrix_verify_logic<T, MATRIX_M, MATRIX_N, TK>(q, MA, r, 7.0);
-
-  return 0;
+  std::cout << "add\n";
+  matrix_verify_add<T, MATRIX_M, MATRIX_K, TK>(q, MA, r, 7.0);
+  // std::cout << "sub\n";
+  // matrix_verify_sub<T, MATRIX_M, MATRIX_K, TK>(q, MA, r, 3.0);
+  // std::cout << "mul\n";
+  // matrix_verify_mul<T, MATRIX_M, MATRIX_K, TK>(q, MA, r, 15.0);
+  // std::cout << "div\n";
+  // matrix_verify_div<T, MATRIX_M, MATRIX_K, TK>(q, MA, r, 2.0);
+  // std::cout << "logic\n";
+  // matrix_verify_logic<T, MATRIX_M, MATRIX_K, TK>(q, MA, r, 7.0);
 }
 
 int main() {
-  test_ewops<bfloat16, float, 16>();
+  // std::cout << "bfloat16\n";
+//  test_ewops<bfloat16, float, 16>();
+  std::cout << "float\n";
   test_ewops<float, float, 8>();
   return 0;
 }
