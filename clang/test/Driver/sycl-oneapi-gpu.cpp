@@ -391,3 +391,17 @@
 // CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "dg1" "-DDG1"
 // CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "skl" "-DSKL"
 // CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "skl" "-DSKL2"
+
+/// Check that ocloc backend option settings only occur for the expected
+/// toolchains when mixing intel_gpu and non-spir64_gen targets
+// RUN: %clangxx -fsycl-targets=intel_gpu_dg1,spir64_x86_64,intel_gpu_skl \
+// RUN:   -fsycl -Xsycl-target-backend=spir64_x86_64 "-DCPU" \
+// RUN:   -Xsycl-target-backend=intel_gpu_dg1 "-DDG1" \
+// RUN:   -Xsycl-target-backend=intel_gpu_skl "-DSKL2" \
+// RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
+// RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_BEOPTS_MIX
+// CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "dg1" "-DDG1"
+// CHECK_TOOLS_BEOPTS_MIX: opencl-aot{{.*}} "-DCPU"
+// CHECK_TOOLS_BEOPTS_MIX-NOT: "-DDG1"
+// CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "skl" "-DSKL2"

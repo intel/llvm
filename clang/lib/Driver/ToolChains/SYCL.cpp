@@ -914,12 +914,15 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
-      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
-          GenDevice.empty())
-        // Provided triple does not match current tool chain.
+      bool IsGenTriple =
+          getTriple().isSPIR() &&
+          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen;
+      if (Device != GenDevice)
         continue;
-      if (Device != GenDevice && getTriple().isSPIR() &&
-          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
+          (!IsGenTriple || (IsGenTriple && GenDevice.empty())))
+        // Triples do not match, but only skip when we know we are not comparing
+        // against intel_gpu_* and non-spir64_gen
         continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
