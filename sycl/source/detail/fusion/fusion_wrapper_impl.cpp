@@ -11,7 +11,7 @@
 #include <detail/scheduler/scheduler.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 fusion_wrapper_impl::fusion_wrapper_impl(
@@ -41,5 +41,5 @@ event fusion_wrapper_impl::complete_fusion(const property_list &PropList) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

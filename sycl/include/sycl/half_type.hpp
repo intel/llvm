@@ -33,7 +33,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail::half_impl {
 class half;
 }
@@ -576,7 +576,7 @@ inline float cast_if_host_half(half_impl::half val) {
 
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 // Partial specialization of some functions in namespace `std`

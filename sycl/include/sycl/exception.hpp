@@ -15,12 +15,11 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/pi.h>
-#include <sycl/stl.hpp>
 
 #include <exception>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 class context;
@@ -325,7 +324,7 @@ public:
       : device_error(make_error_code(errc::feature_not_supported), Msg, Err) {}
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {
