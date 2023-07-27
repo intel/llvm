@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
@@ -77,14 +78,30 @@ struct PropertyMetaInfo<
 template <typename Properties>
 struct ConflictingProperties<sycl::ext::intel::experimental::grf_size_key,
                              Properties>
-    : ContainsProperty<sycl::ext::intel::experimental::grf_size_automatic_key,
-                       Properties> {};
+    : std::bool_constant<
+          ContainsProperty<
+              sycl::ext::intel::experimental::grf_size_automatic_key,
+              Properties>::value ||
+          ContainsProperty<sycl::detail::register_alloc_mode_key,
+                           Properties>::value> {};
 
 template <typename Properties>
 struct ConflictingProperties<
     sycl::ext::intel::experimental::grf_size_automatic_key, Properties>
-    : ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
-                       Properties> {};
+    : std::bool_constant<
+          ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
+                           Properties>::value ||
+          ContainsProperty<sycl::detail::register_alloc_mode_key,
+                           Properties>::value> {};
+
+template <typename Properties>
+struct ConflictingProperties<sycl::detail::register_alloc_mode_key, Properties>
+    : std::bool_constant<
+          ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
+                           Properties>::value ||
+          ContainsProperty<
+              sycl::ext::intel::experimental::grf_size_automatic_key,
+              Properties>::value> {};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental

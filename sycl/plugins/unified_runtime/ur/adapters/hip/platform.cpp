@@ -82,8 +82,10 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
             for (int i = 0; i < NumDevices; ++i) {
               hipDevice_t Device;
               Err = UR_CHECK_ERROR(hipDeviceGet(&Device, i));
+              hipCtx_t Context;
+              Err = UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
               PlatformIds[i].Devices.emplace_back(
-                  new ur_device_handle_t_{Device, &PlatformIds[i]});
+                  new ur_device_handle_t_{Device, Context, &PlatformIds[i]});
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
@@ -133,6 +135,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
+    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
+  std::ignore = hPlatform;
+  std::ignore = phNativePlatform;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
+    ur_native_handle_t hNativePlatform,
+    const ur_platform_native_properties_t *pProperties,
+    ur_platform_handle_t *phPlatform) {
+  std::ignore = hNativePlatform;
+  std::ignore = pProperties;
+  std::ignore = phPlatform;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 // Get CUDA plugin specific backend option.
