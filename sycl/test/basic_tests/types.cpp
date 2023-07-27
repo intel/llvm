@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only -D__NO_EXT_VECTOR_TYPE_ON_HOST__
+
 //==--------------- types.cpp - SYCL types test ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

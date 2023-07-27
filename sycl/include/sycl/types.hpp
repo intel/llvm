@@ -12,13 +12,6 @@
 
 #include <sycl/detail/generic_type_traits.hpp>
 
-// Define __NO_EXT_VECTOR_TYPE_ON_HOST__ to avoid using ext_vector_type
-// extension even if the host compiler supports it. The same can be
-// accomplished by -D__NO_EXT_VECTOR_TYPE_ON_HOST__ command line option.
-#ifndef __NO_EXT_VECTOR_TYPE_ON_HOST__
-// #define __NO_EXT_VECTOR_TYPE_ON_HOST__
-#endif
-
 // Check if Clang's ext_vector_type attribute is available. Host compiler
 // may not be Clang, and Clang may not be built with the extension.
 #ifdef __clang__
@@ -586,7 +579,7 @@ template <typename Type, int NumElements> class vec {
   static constexpr bool IsUsingArray =
       (IsHostHalf || IsSizeGreaterThanMaxAlign);
 
-#if  defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
+#if defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
   static constexpr bool NativeVec = NumElements > 1 && !IsUsingArray;
 #else
   static constexpr bool NativeVec = false;
@@ -2195,7 +2188,7 @@ template <typename T, int N> struct VecStorageImpl;
 #define __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, num)                      \
   template <> struct VecStorageImpl<type, num> {                               \
     using DataType = std::array<type, (num == 3) ? 4 : num>;                   \
-    using VectorDataType = ::cl_##cl_type##num;                                 \
+    using VectorDataType = ::cl_##cl_type##num;                                \
   };
 
 #define __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(type, cl_type)                  \
