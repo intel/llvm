@@ -73,7 +73,7 @@
 // 4.10.2: SYCL vector types
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 struct elem {
@@ -2150,11 +2150,6 @@ __SYCL_RELLOGOP(&&)
 __SYCL_RELLOGOP(||)
 #undef __SYCL_RELLOGOP
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
-
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Vectors of size 1 are handled separately and therefore 1 is not included in
@@ -2435,7 +2430,7 @@ struct CheckDeviceCopyable<
 #endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_ALIGNED_VAR
