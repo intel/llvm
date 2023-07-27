@@ -74,20 +74,23 @@ on:
         options:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
+          - 'aws_cuda'
       image:
         description: |
-          Use option ending with ":build" for AMDGPU, ":latest" for the rest.
+          Use option ending with ":build" for AMDGPU/CUDA, ":latest" for the rest.
         type: choice
         options:
-          - 'ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest'
           - 'ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build'
+          - 'ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest'
       image_options:
         description: |
-          Use option with "--device=/dev/kfd" for AMDGPU, without it for the rest.
+          Please select the option with "--device=/dev/kfd" for AMDGPU and with
+          "--gpus all" for CUDA.
         type: choice
         options:
           - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
           - '-u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --gpus all'
       target_devices:
         type: choice
         options:
@@ -96,6 +99,7 @@ on:
           - 'opencl:acc'
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
+          - 'ext_oneapi_cuda:gpu'
           - 'ext_intel_esimd_emulator:gpu'
       tests_selector:
         type: choice
@@ -112,7 +116,7 @@ on:
           test_all executable.
 
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
-        default: '{}'
+        default: '{"LIT_FILTER":"Basic"}'
 
       install_drivers:
         type: choice
@@ -121,9 +125,39 @@ on:
           - true
 
 jobs:
+  aws-start:
+    if: ${{ inputs.runner == 'aws_cuda' }}
+    runs-on: ubuntu-20.04
+    environment: aws
+    outputs:
+      label: ${{ steps.aws_action_arg.outputs.LABEL }}
+      arg: ${{ steps.aws_action_arg.outputs.ARG }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          sparse-checkout: devops/actions/aws-ec2
+      - run: npm install ./devops/actions/aws-ec2
+      - id: aws_action_arg
+        run: |
+          LABEL=aws_cuda-${{ inputs.tests_selector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          echo LABEL="$LABEL" >> $GITHUB_OUTPUT
+          echo ARG="[{\"runs-on\":\"$LABEL\",\"aws-ami\":\"ami-01cb0573cb039ab24\",\"aws-type\":[\"g5.2xlarge\",\"g5.4xlarge\"],\"aws-disk\":\"/dev/sda1:64\",\"aws-spot\":\"false\"}]" >> $GITHUB_OUTPUT
+      - uses: ./devops/actions/aws-ec2
+        with:
+          mode: start
+          runs-on-list: ${{ steps.aws_action_arg.outputs.ARG }}
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+
   run:
+    needs: [aws-start]
+    if: |
+      always() && !cancelled()
+      && (needs.aws-start.result == 'success'
+          || needs.aws-start.result == 'skipped')
     name: ${{ inputs.name }}
-    runs-on: ${{ fromJSON(inputs.runner) }}
+    runs-on: ${{ needs.aws-start.outputs.label || fromJSON(inputs.runner) }}
     container:
       image: ${{ inputs.image }}
       options: ${{ inputs.image_options }}
@@ -257,3 +291,23 @@ jobs:
       run: |
         ./build-cts/bin/test_all --list-devices
         ./build-cts/bin/test_all $CTS_TEST_ARGS
+
+  aws-stop:
+    needs: [aws-start, run]
+    if: ${{ always() && inputs.runner == 'aws_cuda' }}
+    runs-on: ubuntu-20.04
+    environment: aws
+    outputs:
+      label: ${{ steps.aws_action_arg.outputs.LABEL }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          sparse-checkout: devops/actions/aws-ec2
+      - run: npm install ./devops/actions/aws-ec2
+      - uses: ./devops/actions/aws-ec2
+        with:
+          mode: stop
+          runs-on-list: ${{ needs.aws-start.outputs.arg }}
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
