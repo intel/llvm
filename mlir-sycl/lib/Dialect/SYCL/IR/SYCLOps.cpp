@@ -708,8 +708,6 @@ void SYCLHostScheduleKernel::getEffects(
       effects.emplace_back(MemoryEffects::Read::get(), arg, defaultResource);
     }
   }
-  // We assume the kernel always writes to global memory.
-  effects.emplace_back(MemoryEffects::Write::get(), defaultResource);
 }
 
 LogicalResult
