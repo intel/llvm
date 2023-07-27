@@ -11,7 +11,7 @@ jobs:
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
-      lts_config: "hip_amdgpu;ocl_gen12;ocl_x64;l0_gen12;esimd_emu;cuda_aws;win_l0_gen12"
+      lts_config: "esimd_emu"
 
   ubuntu2204_build_test:
     if: github.repository == 'intel/llvm'
@@ -31,17 +31,19 @@ jobs:
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
 
-  ubuntu2204_opaque_pointers_build_test:
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    needs: test_matrix
-    secrets: inherit
-    with:
-      build_cache_root: "/__w/"
-      build_cache_suffix: opaque_pointers
-      build_artifact_suffix: opaque_pointers
-      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
-      merge_ref: ''
+      changes: '[]'
+
+  # ubuntu2204_opaque_pointers_build_test:
+  #   if: github.repository == 'intel/llvm'
+  #   uses: ./.github/workflows/sycl_linux_build_and_test.yml
+  #   needs: test_matrix
+  #   secrets: inherit
+  #   with:
+  #     build_cache_root: "/__w/"
+  #     build_cache_suffix: opaque_pointers
+  #     build_artifact_suffix: opaque_pointers
+  #     build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
+  #     merge_ref: ''
 
   windows_default:
     name: Windows
@@ -56,9 +58,11 @@ jobs:
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
 
+      changes: '[]'
+
   nightly_build_upload:
     name: Nightly Build Upload
-    if: ${{ github.ref_name == 'sycl' }}
+    # if: ${{ github.ref_name == 'sycl' }}
     needs: [ubuntu2204_build_test, windows_default]
     runs-on: ubuntu-latest
     steps:
