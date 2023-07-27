@@ -126,11 +126,10 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
   using ElemT3 = __ESIMD_DNS::__raw_t<T3>;
 
   constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  return __esimd_raw_sends2_constexpr<modifier, execSize, numSrc0, numSrc1,
-                                      numDst, sfid, ElemT1, n1, ElemT2, n2,
-                                      ElemT3, n3, N>(
-      mask.data(), exDesc, msgDesc, msgSrc0.data(), msgSrc1.data(),
-      msgDst.data());
+
+  return __esimd_raw_sends2<ElemT1, n1, ElemT2, n2, ElemT3, n3, N>(
+      modifier, execSize, mask.data(), numSrc0, numSrc1, numDst, sfid, exDesc,
+      msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
 }
 
 /// Raw send.
@@ -206,9 +205,9 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
   using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
 
   constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  return __esimd_raw_send2_constexpr<modifier, execSize, numSrc0, numDst, sfid,
-                                     ElemT1, n1, ElemT2, n2, N>(
-      mask.data(), exDesc, msgDesc, msgSrc0.data(), msgDst.data());
+  return __esimd_raw_send2<ElemT1, n1, ElemT2, n2, N>(
+      modifier, execSize, mask.data(), numSrc0, numDst, sfid, exDesc, msgDesc,
+      msgSrc0.data(), msgDst.data());
 }
 
 /// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
@@ -283,9 +282,9 @@ __ESIMD_API void raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0,
   using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
 
   constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_sends2_noresult_constexpr<modifier, execSize, numSrc0, numSrc1,
-                                        sfid, ElemT1, n1, ElemT2, n2, N>(
-      mask.data(), exDesc, msgDesc, msgSrc0.data(), msgSrc1.data());
+  __esimd_raw_sends2_noresult<ElemT1, n1, ElemT2, n2, N>(
+      modifier, execSize, mask.data(), numSrc0, numSrc1, sfid, exDesc, msgDesc,
+      msgSrc0.data(), msgSrc1.data());
 }
 
 /// Raw send. Generates a \c send or \c sendc instruction for the message
@@ -343,9 +342,9 @@ __ESIMD_API void raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
   using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
   constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_send2_noresult_constexpr<modifier, execSize, numSrc0, sfid,
-                                       ElemT1, n1, N>(mask.data(), exDesc,
-                                                      msgDesc, msgSrc0.data());
+  __esimd_raw_send2_noresult<ElemT1, n1, N>(modifier, execSize, mask.data(),
+                                            numSrc0, sfid, exDesc, msgDesc,
+                                            msgSrc0.data());
 }
 
 /// @} sycl_esimd_raw_send
