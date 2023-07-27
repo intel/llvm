@@ -156,5 +156,6 @@ jobs:
       name: Run SYCL End-to-End tests
       with:
         sycl_artifact: sycl_windows_default
+        sycl_archive: ${{ inputs.artifact_archive_name }}
         targets: ${{ matrix.targets }}
         cmake_args: '${{ matrix.cmake_args }}'
