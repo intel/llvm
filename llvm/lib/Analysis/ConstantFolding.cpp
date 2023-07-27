@@ -235,7 +235,8 @@ Constant *FoldBitCast(Constant *C, Type *DestTy, const DataLayout &DL) {
         ShiftAmt += isLittleEndian ? SrcBitSize : -SrcBitSize;
 
         // Mix it in.
-        Elt = ConstantExpr::getOr(Elt, Src);
+        Elt = ConstantFoldBinaryOpOperands(Instruction::Or, Elt, Src, DL);
+        assert(Elt && "Constant folding cannot fail on plain integers");
       }
       Result.push_back(Elt);
     }
@@ -1980,7 +1981,7 @@ static Constant *constantFoldCanonicalize(const Type *Ty, const CallBase *CI,
     if (DenormMode == DenormalMode::getIEEE())
       return nullptr;
 
-    if (DenormMode == DenormalMode::getDynamic())
+    if (DenormMode.Input == DenormalMode::Dynamic)
       return nullptr;
 
     // If we know if either input or output is flushed, we can fold.

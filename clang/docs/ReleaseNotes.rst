@@ -277,6 +277,9 @@ New Compiler Flags
 Deprecated Compiler Flags
 -------------------------
 
+- ``-fdouble-square-bracket-attributes`` has been deprecated. It is ignored now
+  and will be removed in Clang 18.
+
 Modified Compiler Flags
 -----------------------
 
@@ -405,6 +408,10 @@ Improvements to Clang's diagnostics
   (`#57081: <https://github.com/llvm/llvm-project/issues/57081>`_)
 - Clang no longer emits inappropriate notes about the loss of ``__unaligned`` qualifier
   on overload resolution, when the actual reason for the failure is loss of other qualifiers.
+- The note emitted when an ``operator==`` was defaulted as deleted used to refer to
+  the lack of a data member's "three-way comparison operator". It now refers correctly
+  to the data member's ``operator==``.
+  (`#63960: <https://github.com/llvm/llvm-project/issues/63960>`_)
 - Clang's notes about unconvertible types in overload resolution failure now covers
   the source range of parameter declaration of the candidate function declaration.
 
@@ -662,6 +669,13 @@ Bug Fixes in This Version
 - Correcly diagnose jumps into statement expressions.
   This ensures the behavior of Clang is consistent with GCC.
   (`#63682 <https://github.com/llvm/llvm-project/issues/63682>`_)
+- Invalidate BlockDecl with implicit return type, in case any of the return
+  value exprs is invalid. Propagating the error info up by replacing BlockExpr
+  with a RecoveryExpr. This fixes:
+  (`#63863 <https://github.com/llvm/llvm-project/issues/63863>_`)
+- Invalidate BlockDecl with invalid ParmVarDecl. Remove redundant dump of
+  BlockDecl's ParmVarDecl
+  (`#64005 <https://github.com/llvm/llvm-project/issues/64005>_`)
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -891,6 +905,9 @@ RISC-V Support
 - The rules for ordering of extensions in ``-march`` strings were relaxed. A
   canonical ordering is no longer enforced on ``z*``, ``s*``, and ``x*``
   prefixed extensions.
+- An ABI mismatch between GCC and Clang related to the handling of empty
+  structs in C++ parameter passing under the hard floating point calling
+  conventions was fixed.
 
 CUDA/HIP Language Changes
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -994,9 +1011,72 @@ libclang
 
 Static Analyzer
 ---------------
+
 - Fix incorrect alignment attribute on the this parameter of certain
   non-complete destructors when using the Microsoft ABI.
   (`#60465 <https://github.com/llvm/llvm-project/issues/60465>`_)
+
+- Removed the deprecated
+  ``consider-single-element-arrays-as-flexible-array-members`` analyzer option.
+  Any use of this flag will result in an error.
+  Use `-fstrict-flex-arrays=<n>
+  <https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-fstrict-flex-arrays>`_
+
+- Better modeling of lifetime-extended memory regions. As a result, the
+  ``MoveChecker`` raises more true-positive reports.
+
+- Fixed some bugs (including crashes) around the handling of constant global
+  arrays and their initializer expressions.
+
+- The ``CStringChecker`` will invalidate less if the copy operation is
+  inferable to be bounded. For example, if the arguments of ``strcpy`` are
+  known to be of certain lengths and that are in-bounds.
+
+   .. code-block:: c++
+
+    struct {
+      void *ptr;
+      char arr[4];
+    } x;
+    x.ptr = malloc(1);
+    // extent of 'arr' is 4, and writing "hi\n" (4 characters),
+    // thus no buffer overflow can happen
+    strcpy(x.arr, "hi\n");
+    free(x.ptr); // no longer reports memory leak here
+
+  Similarly, functions like ``strsep`` now won't invalidate the object
+  containing the destination buffer, because it can never overflow.
+  Note that, ``std::copy`` is still not modeled, and as such, it will still
+  invalidate the enclosing object on call.
+  (`#55019 <https://github.com/llvm/llvm-project/issues/55019>`_)
+
+- Implement ``BufferOverlap`` check for ``sprint``/``snprintf``
+  The ``CStringChecker`` checks for buffer overlaps for ``sprintf`` and
+  ``snprintf``.
+
+- Objective-C support was improved around checking ``_Nonnull`` and
+  ``_Nullable`` including block pointers and literal objects.
+
+- Let the ``StreamChecker`` detect ``NULL`` streams instead of by
+  ``StdCLibraryFunctions``.
+  ``StreamChecker`` improved on the ``fseek`` modeling for the ``SEEK_SET``,
+  ``SEEK_END``, ``SEEK_CUR`` arguments.
+
+- ``StdCLibraryFunctionArgs`` was merged into the ``StdCLibraryFunctions``.
+  The diagnostics of the ``StdCLibraryFunctions`` was improved.
+
+- ``QTimer::singleShot`` now doesn't raise false-positives for memory leaks by
+  the ``MallocChecker``.
+  (`#39713 <https://github.com/llvm/llvm-project/issues/39713>`_)
+
+- Fixed the infamous unsigned index false-positives in the
+  ``ArrayBoundCheckerV2`` checker.
+  (`#44493 <https://github.com/llvm/llvm-project/issues/44493>`_)
+
+- Now, taint propagations are tracked further back until the real taint source.
+  This improves all taint-related diagnostics.
+
+- Fixed a null-pointer dereference crash inside the ``MoveChecker``.
 
 .. _release-notes-sanitizers:
 
