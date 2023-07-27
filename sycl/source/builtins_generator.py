@@ -17,7 +17,7 @@ class TemplatedType:
 
 class Vec(TemplatedType):
   """Class representing a sycl::vec type in SYCL builtins."""
-  def __init__(self, valid_types, valid_sizes = {1,2,3,4,8,16}):
+  def __init__(self, valid_types, valid_sizes = {1, 2, 3, 4, 8, 16}):
     super().__init__(valid_types, valid_sizes)
 
   def get_requirements(self, type_name):
@@ -239,15 +239,15 @@ vgenfloat = [Vec(["float", "double", "half"])]
 sgenfloat = ["float", "double", "half"]
 mgenfloat = [Marray(["float", "double", "half"])]
 
-vgeofloat = [Vec(["float"], {1,2,3,4})]
-vgeodouble = [Vec(["double"], {1,2,3,4})]
-vgeohalf = [Vec(["half"], {1,2,3,4})]
-mgeofloat = [Marray(["float"], {1,2,3,4})]
-mgeodouble = [Marray(["double"], {1,2,3,4})]
-mgeohalf = [Marray(["half"], {1,2,3,4})]
-gengeofloat = ["float", Vec(["float"], {1,2,3,4}), Marray(["float"], {1,2,3,4})]
-gengeodouble = ["double", Vec(["double"], {1,2,3,4}), Marray(["double"], {1,2,3,4})]
-gengeohalf = ["half", Vec(["half"], {1,2,3,4}), Marray(["half"], {1,2,3,4})]
+vgeofloat = [Vec(["float"], {1, 2, 3, 4})]
+vgeodouble = [Vec(["double"], {1, 2, 3, 4})]
+vgeohalf = [Vec(["half"], {1, 2, 3, 4})]
+mgeofloat = [Marray(["float"], {1, 2, 3, 4})]
+mgeodouble = [Marray(["double"], {1, 2, 3, 4})]
+mgeohalf = [Marray(["half"], {1, 2, 3, 4})]
+gengeofloat = ["float", Vec(["float"], {1, 2, 3, 4}), Marray(["float"], {1, 2, 3, 4})]
+gengeodouble = ["double", Vec(["double"], {1, 2, 3, 4}), Marray(["double"], {1, 2, 3, 4})]
+gengeohalf = ["half", Vec(["half"], {1, 2, 3, 4}), Marray(["half"], {1, 2, 3, 4})]
 
 vint8n = [Vec(["int8_t", "char", "signed char"])] # Fundamental integer types non-standard. Deprecated.
 vint16n = [Vec(["int16_t", "short"])] # Fundamental integer types non-standard. Deprecated.
@@ -513,7 +513,7 @@ class DefCommon:
 
   def require_size_alias(self, alternative_name, marray_type):
     """
-    Requires that a size alias is specified in the function boy. This returns
+    Requires that a size alias is specified in the function body. This returns
     the size alias name and any needed initialization of it. If the size alias
     hasn't been explicitly requested in the definition, one will be generated
     using the alternative_name.
@@ -1286,7 +1286,7 @@ def generate_builtin(builtin_name, namespace, builtin, return_type, arg_types):
 
 def generate_builtins(builtins, namespace):
   """
-  Generates all buitlins for the builtin definitions specified. Returns the
+  Generates all builtins for the builtin definitions specified. Returns the
   resulting builtin function definitions in three different lists: scalar,
   vector and marray builtins.
   """

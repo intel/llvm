@@ -72,6 +72,7 @@ constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
 // select(sgentype a, sgentype b, igentype c). This type trait makes the
 // proper conversion for argument c from bool to igentype, based on sgentype
 // == T.
+// TODO: Consider unifying this with select_cl_scalar_integral_signed_t.
 template <typename T>
 using get_select_opencl_builtin_c_arg_type = typename std::conditional_t<
     sizeof(T) == 1, char,

@@ -132,7 +132,7 @@ public:
 
   // Available only when: NumElements == 1
   template <std::size_t Size = NumElements,
-            typename = typename std::enable_if_t<Size == 1>>
+            typename = std::enable_if_t<Size == 1>>
   operator Type() const {
     return MData[0];
   }
