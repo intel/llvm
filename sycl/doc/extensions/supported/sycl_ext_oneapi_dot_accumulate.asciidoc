@@ -85,12 +85,12 @@ namespace sycl::ext::oneapi {
 int32_t dot_acc(vec<int8_t,4>  a, vec<int8_t,4>  b, int32_t c);
 int32_t dot_acc(vec<int8_t,4>  a, vec<uint8_t,4> b, int32_t c);
 int32_t dot_acc(vec<uint8_t,4> a, vec<int8_t,4>  b, int32_t c);
-int32_t dot_acc(vec<uint8_t,4> a, vec<uint8_t,4> b, int32_t c);
+uint32_t dot_acc(vec<uint8_t,4> a, vec<uint8_t,4> b, uint32_t c);
 
-int32_t doc_acc_4x8packed(int32_t a, int32_t b, int32_t c);
-int32_t doc_acc_4x8packed(int32_t a, uint32_t b, int32_t c);
-int32_t doc_acc_4x8packed(uint32_t a, int32_t b, int32_t c);
-int32_t doc_acc_4x8packed(uint32_t a, uint32_t b, int32_t c);
+int32_t doc_acc_4x8packed_ss(uint32_t a, uint32_t b, int32_t c);
+int32_t doc_acc_4x8packed_su(uint32_t a, uint32_t b, int32_t c);
+int32_t doc_acc_4x8packed_us(uint32_t a, uint32_t b, int32_t c);
+uint32_t doc_acc_4x8packed_uu(uint32_t a, uint32_t b, uint32_t c);
 
 } // namespace sycl::ext::oneapi
 ----
@@ -111,50 +111,70 @@ int32_t dot_acc(vec<int8_t,4>  a,
 int32_t dot_acc(vec<uint8_t,4> a,
                 vec<int8_t,4>  b,
                 int32_t c)
-int32_t dot_acc(vec<uint8_t,4> a,
-                vec<uint8_t,4> b,
-                int32_t c)
+uint32_t dot_acc(vec<uint8_t,4> a,
+                 vec<uint8_t,4> b,
+                 uint32_t c)
 ----
 
-|Performs a four-component integer dot product accumulate operation. +
-{blank}
-The value that is returned is equivalent to +
-{blank}
-`dot(a, b) + c`
+|Performs a four-component integer dot product accumulate operation.  The value
+that is returned is equivalent to `dot(a, b) + c`, where `dot` computes the
+dot product of two vectors.
 
 |[source,c]
 ----
-int32_t doc_acc_4x8packed(int32_t a,
-                          int32_t b,
-                          int32_t c)
-int32_t doc_acc_4x8packed(int32_t a,
-                          uint32_t b,
-                          int32_t c)
-int32_t doc_acc_4x8packed(uint32_t a,
-                          int32_t b,
-                          int32_t c)
-int32_t doc_acc_4x8packed(uint32_t a,
-                          uint32_t b,
-                          int32_t c);
+int32_t doc_acc_4x8packed_ss(uint32_t a,
+                             uint32_t b,
+                             int32_t c)
 ----
 
 |Performs a four-component integer dot product accumulate operation, where
-`a` and `b` are 32-bit integers that represent a vector of 4 8-bit elements.
-When the type of `a` or `b` is `int32_t`, it is interpreted as `vec<int8_t,4>`.
-When the type of `a` or `b` is `uint32_t`, it is interpreted as
-`vec<uint8_t,4>`.  In each case, the least significant byte is element 0, and
-the most significant byte is element 3.
+`a` and `b` are both interpreted as `vec<int8_t,4>`.
 
+|[source,c]
+----
+int32_t doc_acc_4x8packed_su(uint32_t a,
+                             uint32_t b,
+                             int32_t c)
+----
+
+|Performs a four-component integer dot product accumulate operation, where
+`a` is interpreted as `vec<int8_t,4>` and `b` is interpreted as
+`vec<uint8_t,4>`.
+
+|[source,c]
+----
+int32_t doc_acc_4x8packed_us(uint32_t a,
+                             uint32_t b,
+                             int32_t c)
+----
+
+|Performs a four-component integer dot product accumulate operation, where
+`a` is interpreted as `vec<uint8_t,4>` and `b` is interpreted as
+`vec<int8_t,4>`.
+
+|[source,c]
+----
+uint32_t doc_acc_4x8packed_uu(uint32_t a,
+                              uint32_t b,
+                              uint32_t c);
+----
+
+|Performs a four-component integer dot product accumulate operation, where
+`a` and `b` are both interpreted as `vec<uint8_t,4>`.
 |====
+
+For all the "packed" overloads, the least significant byte of the integer is
+element 0, and the most significant byte is element 3.
 
 === Deprecated functions
 
-The following functions are deprecated.  They have the same effect as the
-`doc_acc_4x8packed` overloads described above.
+The following functions are deprecated.
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi {
+
+int32_t dot_acc(vec<uint8_t,4> a, vec<uint8_t,4> b, int32_t c);
 
 int32_t dot_acc(int32_t a, int32_t b, int32_t c);
 int32_t dot_acc(int32_t a, uint32_t b, int32_t c);
@@ -164,15 +184,63 @@ int32_t dot_acc(uint32_t a, uint32_t b, int32_t c);
 } // namespace sycl::ext::oneapi
 ----
 
+[cols="4a,4",options="header"]
+|====
+| *Function*
+| *Description*
 
-== Issues
+|[source,c]
+----
+int32_t dot_acc(vec<uint8_t,4> a,
+                vec<uint8_t,4> b,
+                int32_t c)
+----
 
-* The overloads that take two unsigned vectors have a signed `c` and return a
-  signed result.  This is inconsistent with the SPIR-V primitives and the
-  OpenCL C APIs, both of which return an unsigned value in this case and expect
-  an unsigned `c`.  I think we could implement the APIs as they are using the
-  SPIR-V primitives, but the extra unsigned-to-signed conversions might
-  generate less efficient code (I haven't checked).  Is there a compelling
-  reason to keep these APIs as they are now?  If not, we could deprecate them
-  and introduce overloads that take an  unsigned `c` and return an unsigned
-  value.
+|Performs a four-component integer dot product accumulate operation, where the
+elements of `a` and `b` are unsigned while `c` is signed.  Use the version
+taking an unsigned `c` instead.
+
+|[source,c]
+----
+int32_t dot_acc(int32_t a,
+                int32_t b,
+                int32_t c)
+----
+
+|Performs a four-component integer dot product accumulate operation, where
+`a` and `b` are both interpreted as `vec<int8_t,4>`.  Use
+`doc_acc_4x8packed_ss` instead.
+
+|[source,c]
+----
+int32_t dot_acc(int32_t a,
+                uint32_t b,
+                int32_t c)
+----
+
+|Performs a four-component integer dot product accumulate operation, where
+`a` is interpreted as `vec<int8_t,4>` and `b` is interpreted as
+`vec<uint8_t,4>`.  Use `doc_acc_4x8packed_su` instead.
+
+|[source,c]
+----
+int32_t dot_acc(uint32_t a,
+                int32_t b,
+                int32_t c)
+----
+
+|Performs a four-component integer dot product accumulate operation, where
+`a` is interpreted as `vec<uint8_t,4>` and `b` is interpreted as
+`vec<int8_t,4>`.  Use `doc_acc_4x8packed_us` instead.
+
+|[source,c]
+----
+int32_t dot_acc(uint32_t a,
+                uint32_t b,
+                int32_t c)
+----
+
+|Performs a four-component integer dot product accumulate operation, where
+`a` and `b` are both interpreted as `vec<uint8_t,4>`.  Use
+`doc_acc_4x8packed_uu` instead.
+|====
