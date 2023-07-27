@@ -340,7 +340,7 @@ private:
   XPTIPerfScope LWTrace(__builtin_FUNCTION());                                 \
   LWTrace.scopedNotify();
 #else
-define XPTI_LW_TRACE()
+#define XPTI_LW_TRACE()
 #endif
 } // namespace detail
 } // namespace _V1
