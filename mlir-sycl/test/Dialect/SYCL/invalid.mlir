@@ -646,7 +646,7 @@ gpu.module @kernels {
 
 func.func @schedule_kernel_scalar_type_attribute(%arg0: i32) {
   // expected-error @below {{'sycl.host.schedule_kernel' op does not expect a type attribute for a non-pointer value}}
-  sycl.host.schedule_kernel @kernels::@k0(%arg0 (i32)) : (i32) -> ()
+  sycl.host.schedule_kernel @kernels::@k0(%arg0: i32) : (i32) -> ()
   func.return
 }
 
@@ -660,7 +660,7 @@ gpu.module @kernels {
 
 func.func @schedule_kernel_non_sycl_type_attribute(%arg0: !llvm.ptr) {
   // expected-error @below {{'sycl.host.schedule_kernel' op expects the type attribute to reference a SYCL type}}
-  sycl.host.schedule_kernel @kernels::@k0(%arg0 (i32)) : (!llvm.ptr) -> ()
+  sycl.host.schedule_kernel @kernels::@k0(%arg0: i32) : (!llvm.ptr) -> ()
   func.return
 }
 

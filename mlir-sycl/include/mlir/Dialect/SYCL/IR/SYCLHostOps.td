@@ -191,6 +191,9 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
     case, an `id` pointer can be optionally given as the `offset`. In the former
     case, the `nd_range` attribute must be set.
 
+    Pointer arguments can be annotated with the SYCL type of the entity they
+    refer to, e.g. an accessor.
+
     Note that due to the current focus on host-device optimizations for
     individual launches, this operation currently does not model the queue or
     the command-group handler associated with the launch, nor does it observe or
@@ -198,8 +201,8 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
 
     Example:
     ```
-    sycl.host.schedule_kernel @kernels::@k0[range %1](%2, %3)
-      : (!llvm.ptr, !llvm.ptr, i32) -> ()
+    sycl.host.schedule_kernel @kernels::@k0[range %1]
+      (%2: !sycl_accessor_1_f32_rw_gb, %3) : (!llvm.ptr, !llvm.ptr, i32) -> ()
     ```
   }];
 

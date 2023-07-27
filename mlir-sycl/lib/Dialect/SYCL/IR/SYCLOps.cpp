@@ -616,13 +616,13 @@ parseArgsWithSYCLTypes(mlir::OpAsmParser &parser,
     args.push_back(operand);
 
     Type type = builder.getNoneType();
-    if (parser.parseOptionalLParen()) {
+    if (parser.parseOptionalColon()) {
       // no type attribute
       types.push_back(type);
       return success();
     }
 
-    if (parser.parseType(type) || parser.parseRParen())
+    if (parser.parseType(type))
       return failure();
 
     types.push_back(type);
@@ -648,9 +648,8 @@ static void printArgsWithSYCLTypes(mlir::OpAsmPrinter &printer,
                           printer.printOperand(std::get<0>(it));
                           TypeAttr attr = std::get<1>(it);
                           if (!isa<NoneType>(attr.getValue())) {
-                            printer << " (";
+                            printer << ": ";
                             printer.printType(attr.getValue());
-                            printer << ')';
                           }
                         });
   printer << ')';
