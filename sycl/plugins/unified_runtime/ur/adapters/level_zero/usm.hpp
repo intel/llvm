@@ -9,6 +9,8 @@
 
 #include "common.hpp"
 
+extern int UseLargeAllocations;
+
 struct ur_usm_pool_handle_t_ : _ur_object {
   bool zeroInit;
 

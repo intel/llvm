@@ -640,9 +640,13 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 
   ZeStruct<ze_relaxed_allocation_limits_exp_desc_t> RelaxedDesc;
   if (Size > Device->ZeDeviceProperties->maxMemAllocSize) {
-    // Tell Level-Zero to accept Size > maxMemAllocSize
-    RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
-    ZeDesc.pNext = &RelaxedDesc;
+    // Tell Level-Zero to accept Size > maxMemAllocSize if
+    // UseLargeAllocations is set. If not set, just rely
+    // on L0 returning proper error code if no support is available.
+    if (UseLargeAllocations) {
+      RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
+      ZeDesc.pNext = &RelaxedDesc;
+    }
   }
 
   ZE2UR_CALL(zeMemAllocDevice, (Context->ZeContext, &ZeDesc, Size, Alignment,

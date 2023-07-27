@@ -137,7 +137,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
                             : ZE_MODULE_FORMAT_NATIVE;
   ZeModuleDesc.inputSize = Program->CodeLength;
   ZeModuleDesc.pInputModule = Program->Code.get();
-  ZeModuleDesc.pBuildFlags = Options;
+
+  // if UseLargeAllocations set, then pass
+  // ze-opt-greater-than-4GB-buffer-required to disable
+  // stateful optimizations and be able to use larger than
+  // 4GB allocations when needed.
+  std::string ZeBuildOptions = Options;
+  if (UseLargeAllocations) {
+    ZeBuildOptions += " -ze-opt-greater-than-4GB-buffer-required";
+  }
+
+  ZeModuleDesc.pBuildFlags = ZeBuildOptions.c_str();
   ZeModuleDesc.pConstants = Shim.ze();
 
   ze_device_handle_t ZeDevice = Context->Devices[0]->ZeDevice;

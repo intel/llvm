@@ -9,6 +9,26 @@
 #include "platform.hpp"
 #include "ur_level_zero.hpp"
 
+/////////////////////////////////////////////////////
+/// L0-Adapter-specific environment variables
+
+/// UR_L0_USE_LARGE_ALLOCATIONS
+/// When set to 1, L0 backend allows for the allocation larger than 4GB,
+/// disabling stateful optimizations in the L0 GPU driver to ensure correctness.
+/// When set to 0, performance may improve by enabling back stateful
+/// optimizations, with the caveat that larger than 4GB allocations cannot be
+/// used. This only applies to GPUs previous to PVC. Default value is 1.
+static const int UseLargeAllocationsReadEnvVar = [] {
+  const char *UrRet = std::getenv("UR_L0_USE_LARGE_ALLOCATIONS");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USE_LARGE_ALLOCATIONS");
+  const char *UseLargeAllocationsSettingStr =
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
+  if (!UseLargeAllocationsSettingStr)
+    return 1; // By default, allow large allocations
+  return std::stoi(UseLargeAllocationsSettingStr);
+}();
+int UseLargeAllocations;
+
 UR_APIEXPORT ur_result_t UR_APICALL urInit(
     ur_device_init_flags_t
         DeviceFlags ///< [in] device initialization flags.
@@ -16,6 +36,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urInit(
                     ///< ::ur_device_init_flag_t.
 ) {
   std::ignore = DeviceFlags;
+
+  // read variables from environment once
+  UseLargeAllocations = UseLargeAllocationsReadEnvVar;
 
   return UR_RESULT_SUCCESS;
 }
