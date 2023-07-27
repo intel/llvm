@@ -23113,14 +23113,16 @@ SDValue X86TargetLowering::LowerTRUNCATE(SDValue Op, SelectionDAG &DAG) const {
       return DAG.getNode(ISD::CONCAT_VECTORS, DL, VT, Lo, Hi);
     }
 
-    // Pre-AVX512 see if we can make use of PACKSS/PACKUS.
-    if (!Subtarget.hasAVX512()) {
+    // Pre-AVX512 (or prefer-256bit) see if we can make use of PACKSS/PACKUS.
+    if (!Subtarget.hasAVX512() ||
+        (InVT.is512BitVector() && VT.is256BitVector()))
       if (SDValue SignPack =
               LowerTruncateVecPackWithSignBits(VT, In, DL, Subtarget, DAG))
         return SignPack;
 
+    // Pre-AVX512 see if we can make use of PACKSS/PACKUS.
+    if (!Subtarget.hasAVX512())
       return LowerTruncateVecPack(VT, In, DL, Subtarget, DAG);
-    }
 
     // Otherwise let default legalization handle it.
     return SDValue();
@@ -39937,10 +39939,11 @@ static bool matchBinaryShuffle(MVT MaskVT, ArrayRef<int> Mask,
   }
   // TODO: Can we handle this inside matchShuffleWithPACK?
   if (MaskVT == MVT::v4i32 && Subtarget.hasSSE2() &&
-      isTargetShuffleEquivalent(MaskVT, Mask, {0, 2, 4, 6}, DAG)) {
-    if (V1.getScalarValueSizeInBits() == 64 &&
-        V2.getScalarValueSizeInBits() == 64 &&
-        DAG.ComputeNumSignBits(V1) == 64 && DAG.ComputeNumSignBits(V2) == 64) {
+      isTargetShuffleEquivalent(MaskVT, Mask, {0, 2, 4, 6}, DAG) &&
+      V1.getScalarValueSizeInBits() == 64 &&
+      V2.getScalarValueSizeInBits() == 64) {
+    // Use PACKSSWD if the signbits extend to the lowest 16-bits.
+    if (DAG.ComputeNumSignBits(V1) > 48 && DAG.ComputeNumSignBits(V2) > 48) {
       SrcVT = MVT::v4i32;
       DstVT = MVT::v8i16;
       Shuffle = X86ISD::PACKSS;
