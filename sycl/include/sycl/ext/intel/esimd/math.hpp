@@ -1145,7 +1145,7 @@ __ESIMD_API uint32_t addc(uint32_t &carry, uint32_t src0, uint32_t src1) {
   return Res[0];
 }
 
-// Performs substraction with borrow of 2 unsigned 32-bit vectors.
+/// Performs substraction with borrow of 2 unsigned 32-bit vectors.
 /// @tparam N size of the vectors
 /// @param borrow vector that is going to hold resulting borrow flag
 /// @param src0 first term
@@ -1164,7 +1164,7 @@ subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
   return Result.second;
 }
 
-// Performs substraction with borrow of unsigned 32-bit vector and scalar.
+/// Performs substraction with borrow of unsigned 32-bit vector and scalar.
 /// @tparam N size of the vectors
 /// @param borrow vector that is going to hold resulting borrow flag
 /// @param src0 first term
@@ -1179,7 +1179,7 @@ subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
   return subb(borrow, src0, Src1V);
 }
 
-// Performs substraction with borrow of unsigned 32-bit scalar and vector.
+/// Performs substraction with borrow of unsigned 32-bit scalar and vector.
 /// @tparam N size of the vectors
 /// @param borrow vector that is going to hold resulting borrow flag
 /// @param src0 first term
@@ -1194,7 +1194,7 @@ subb(__ESIMD_NS::simd<uint32_t, N> &borrow, uint32_t src0,
   return subb(borrow, Src0V, src1);
 }
 
-// Performs substraction with borrow of 2 unsigned 32-bit scalars.
+/// Performs substraction with borrow of 2 unsigned 32-bit scalars.
 /// @tparam N size of the vectors
 /// @param borrow scalar that is going to hold resulting borrow flag
 /// @param src0 first term
