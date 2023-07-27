@@ -497,7 +497,8 @@ imul(T &rmd, T0 src0, T1 src1) {
 }
 
 template <int N>
-__SYCL_DEPRECATED("the function moved out of experimental namespace")
+__SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::addc(carry, src0, src1);")
 __ESIMD_API __ESIMD_NS::simd<uint32_t, N> addc(
     __ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
     __ESIMD_NS::simd<uint32_t, N> src1) {
@@ -505,7 +506,8 @@ __ESIMD_API __ESIMD_NS::simd<uint32_t, N> addc(
 }
 
 template <int N>
-__SYCL_DEPRECATED("the function moved out of experimental namespace")
+__SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::addc(carry, src0, src1);")
 __ESIMD_API __ESIMD_NS::simd<uint32_t, N> addc(
     __ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
     uint32_t src1) {
@@ -513,20 +515,23 @@ __ESIMD_API __ESIMD_NS::simd<uint32_t, N> addc(
 }
 
 template <int N>
-__SYCL_DEPRECATED("the function moved out of experimental namespace")
+__SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::addc(carry, src0, src1);")
 __ESIMD_API __ESIMD_NS::simd<uint32_t, N> addc(
     __ESIMD_NS::simd<uint32_t, N> &carry, uint32_t src0,
     __ESIMD_NS::simd<uint32_t, N> src1) {
   return __ESIMD_NS::addc(carry, src0, src1);
 }
 
-__SYCL_DEPRECATED("the function moved out of experimental namespace")
+__SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::addc(carry, src0, src1);")
 __ESIMD_API uint32_t addc(uint32_t &carry, uint32_t src0, uint32_t src1) {
   return __ESIMD_NS::addc(carry, src0, src1);
 }
 
 template <int N>
-__SYCL_DEPRECATED("the function moved out of experimental namespace")
+__SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::subb(borrow, src0, src1);")
 __ESIMD_API __ESIMD_NS::simd<uint32_t, N> subb(
     __ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
     __ESIMD_NS::simd<uint32_t, N> src1) {
@@ -534,7 +539,8 @@ __ESIMD_API __ESIMD_NS::simd<uint32_t, N> subb(
 }
 
 template <int N>
-__SYCL_DEPRECATED("the function moved out of experimental namespace")
+__SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::subb(borrow, src0, src1);")
 __ESIMD_API __ESIMD_NS::simd<uint32_t, N> subb(
     __ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
     uint32_t src1) {
@@ -542,14 +548,16 @@ __ESIMD_API __ESIMD_NS::simd<uint32_t, N> subb(
 }
 
 template <int N>
-__SYCL_DEPRECATED("the function moved out of experimental namespace")
+__SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::subb(borrow, src0, src1);")
 __ESIMD_API __ESIMD_NS::simd<uint32_t, N> subb(
     __ESIMD_NS::simd<uint32_t, N> &borrow, uint32_t src0,
     __ESIMD_NS::simd<uint32_t, N> src1) {
   return __ESIMD_NS::subb(borrow, src0, src1);
 }
 
-__SYCL_DEPRECATED("the function moved out of experimental namespace")
+__SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::subb(borrow, src0, src1);")
 __ESIMD_API uint32_t subb(uint32_t &borrow, uint32_t src0, uint32_t src1) {
   return __ESIMD_NS::subb(borrow, src0, src1);
 }
