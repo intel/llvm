@@ -700,17 +700,17 @@ void SYCLHostScheduleKernel::getEffects(
     effects.emplace_back(MemoryEffects::Read::get(), range, defaultResource);
   if (Value offset = getOffset())
     effects.emplace_back(MemoryEffects::Read::get(), offset, defaultResource);
-  // The rest of the arguments will be scalar or have rw access
+  // The rest of the arguments will be scalar, accessors (read-only) or have
+  // read-write access mode.
   for (Value arg : getArgs()) {
-    if (!isa<LLVM::LLVMPointerType>(arg.getType())) {
-      // TODO: When we have accessor type information, drop write access for
-      // read_only accessors. We need to have at least a `Write` argument to
-      // avoid incorrect optimizations on this operation, e.g., `cse` removing
-      // it.
+    if (isa<LLVM::LLVMPointerType>(arg.getType())) {
+      // TODO: Do not add write effect if the argument is an accessor.
       effects.emplace_back(MemoryEffects::Write::get(), arg, defaultResource);
       effects.emplace_back(MemoryEffects::Read::get(), arg, defaultResource);
     }
   }
+  // We assume the kernel always writes to global memory.
+  effects.emplace_back(MemoryEffects::Write::get(), defaultResource);
 }
 
 LogicalResult
