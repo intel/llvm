@@ -166,6 +166,13 @@ Changes to the AMDGPU Backend
 * llvm.exp2.f32 and llvm.exp.f32 are now lowered accurately. Use
   llvm.amdgcn.exp2.f32 to access the old behavior for llvm.exp2.f32.
 
+* Implemented new 1ulp IEEE lowering strategy for float reciprocal
+  which saves 2 instructions. This is used by default for OpenCL on
+  gfx9+. With ``contract`` flags, this will fold into a 1 ulp rsqrt.
+
+* Implemented new 2ulp IEEE lowering strategy for float
+  reciprocal. This is used by default for OpenCL on gfx9+.
+
 Changes to the ARM Backend
 --------------------------
 

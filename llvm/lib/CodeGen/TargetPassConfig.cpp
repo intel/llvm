@@ -1279,6 +1279,8 @@ void TargetPassConfig::addMachinePasses() {
     addPass(createMachineFunctionSplitterPass());
   }
 
+  addPostBBSections();
+
   if (!DisableCFIFixup && TM->Options.EnableCFIFixup)
     addPass(createCFIFixup());
 

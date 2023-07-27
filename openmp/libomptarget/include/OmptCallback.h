@@ -33,6 +33,10 @@
       ompt_callback_##CallbackName##_fn(__VA_ARGS__);                          \
   } while (0)
 
+/// Function type def used for maintaining unique target region, target
+/// operations ids
+typedef uint64_t (*IdInterfaceTy)();
+
 namespace llvm {
 namespace omp {
 namespace target {
@@ -76,6 +80,9 @@ void finalizeLibrary(ompt_data_t *tool_data);
 /// This function will connect the \p initializeLibrary and \p finalizeLibrary
 /// functions to their respective higher layer.
 void connectLibrary();
+
+/// OMPT initialization status; false if initializeLibrary has not been executed
+extern bool Initialized;
 
 } // namespace ompt
 } // namespace target
