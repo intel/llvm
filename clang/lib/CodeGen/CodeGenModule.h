@@ -1599,6 +1599,20 @@ public:
                                    llvm::AttributeList &AttrList,
                                    llvm::Metadata *&MDs, unsigned ID,
                                    const llvm::Type *FuncType);
+  /// Emit the IR encoding to attach the CUDA launch bounds attribute to \p F.
+  void handleCUDALaunchBoundsAttr(llvm::Function *F,
+                                  const CUDALaunchBoundsAttr *A);
+
+  /// Emit the IR encoding to attach the AMD GPU flat-work-group-size attribute
+  /// to \p F. Alternatively, the work group size can be taken from a \p
+  /// ReqdWGS.
+  void handleAMDGPUFlatWorkGroupSizeAttr(
+      llvm::Function *F, const AMDGPUFlatWorkGroupSizeAttr *A,
+      const ReqdWorkGroupSizeAttr *ReqdWGS = nullptr);
+
+  /// Emit the IR encoding to attach the AMD GPU waves-per-eu attribute to \p F.
+  void handleAMDGPUWavesPerEUAttr(llvm::Function *F,
+                                  const AMDGPUWavesPerEUAttr *A);
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(
