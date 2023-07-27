@@ -167,14 +167,20 @@ namespace Intrinsic {
       return Argument_Info >> 3;
     }
     ArgKind getArgumentKind() const {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       assert(Kind == Argument || Kind == ExtendArgument ||
              Kind == TruncArgument || Kind == HalfVecArgument ||
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
              Kind == PtrToArgument ||
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
              Kind == SameVecWidthArgument ||
              Kind == VecElementArgument || Kind == Subdivide2Argument ||
              Kind == Subdivide4Argument || Kind == VecOfBitcastsToInt);
+#else
+      assert(Kind == Argument || Kind == ExtendArgument ||
+             Kind == TruncArgument || Kind == HalfVecArgument ||
+             Kind == SameVecWidthArgument ||
+             Kind == VecElementArgument || Kind == Subdivide2Argument ||
+             Kind == Subdivide4Argument || Kind == VecOfBitcastsToInt);
+#endif
       return (ArgKind)(Argument_Info & 7);
     }
 
