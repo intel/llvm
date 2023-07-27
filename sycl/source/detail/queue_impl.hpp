@@ -18,6 +18,7 @@
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
+#include <detail/xpti_registry.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/assert_happened.hpp>
 #include <sycl/detail/cuda_definitions.hpp>
@@ -35,11 +36,6 @@
 #include "detail/graph_impl.hpp"
 
 #include <utility>
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti/xpti_trace_framework.hpp"
-#include <detail/xpti_registry.hpp>
-#endif
 
 namespace sycl {
 inline namespace _V1 {
