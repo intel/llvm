@@ -13,9 +13,7 @@ int main() {
     sycl::queue q;
     {
       try {
-        q.submit([&](sycl::handler &cgh) {
-          cgh.require(acc);
-        });
+        q.submit([&](sycl::handler &cgh) { cgh.require(acc); });
         q.wait_and_throw();
       } catch (sycl::exception &e) {
         assert("Unexpected exception");
