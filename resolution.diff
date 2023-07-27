@@ -1,0 +1,177 @@
+diff --git a/clang/lib/CodeGen/CGCXXABI.h b/clang/lib/CodeGen/CGCXXABI.h
+index 35ecc94325d7..efc43f931907 100644
+--- a/clang/lib/CodeGen/CGCXXABI.h
++++ b/clang/lib/CodeGen/CGCXXABI.h
+@@ -299,8 +299,6 @@ public:
+   virtual llvm::Value *emitDynamicCastToVoid(CodeGenFunction &CGF,
+                                              Address Value,
+                                              QualType SrcRecordTy) = 0;
+-
+-<<<<<<< HEAD
+ #else
+   virtual llvm::Value *
+   EmitDynamicCastCall(CodeGenFunction &CGF, Address Value,
+@@ -312,7 +310,7 @@ public:
+                                              QualType SrcRecordTy,
+                                              QualType DestTy) = 0;
+ #endif // INTEL_SYCL_OPAQUEPOINTER_READY
+-=======
++
+   /// Emit a dynamic_cast from SrcRecordTy to DestRecordTy. The cast fails if
+   /// the dynamic type of Value is not exactly DestRecordTy.
+   virtual llvm::Value *emitExactDynamicCast(CodeGenFunction &CGF, Address Value,
+@@ -321,7 +319,6 @@ public:
+                                             QualType DestRecordTy,
+                                             llvm::BasicBlock *CastSuccess,
+                                             llvm::BasicBlock *CastFail) = 0;
+->>>>>>> 9d525bf94b255df89587db955b5fa2d3c03c2c3e
+ 
+   virtual bool EmitBadCastCall(CodeGenFunction &CGF) = 0;
+ 
+diff --git a/clang/lib/CodeGen/CGExprCXX.cpp b/clang/lib/CodeGen/CGExprCXX.cpp
+index 877dcaf9d5f0..8408b571655d 100644
+--- a/clang/lib/CodeGen/CGExprCXX.cpp
++++ b/clang/lib/CodeGen/CGExprCXX.cpp
+@@ -2340,12 +2340,8 @@ llvm::Value *CodeGenFunction::EmitDynamicCast(Address ThisAddr,
+   }
+ 
+   llvm::Value *Value;
+-<<<<<<< HEAD
+-  if (isDynamicCastToVoid) {
+-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+-=======
+   if (IsDynamicCastToVoid) {
+->>>>>>> 9d525bf94b255df89587db955b5fa2d3c03c2c3e
++#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+     Value = CGM.getCXXABI().emitDynamicCastToVoid(*this, ThisAddr, SrcRecordTy);
+   } else if (IsExact) {
+     // If the destination type is effectively final, this pointer points to the
+@@ -2357,20 +2353,20 @@ llvm::Value *CodeGenFunction::EmitDynamicCast(Address ThisAddr,
+            "destination type must be a record type!");
+     Value = CGM.getCXXABI().emitDynamicCastCall(*this, ThisAddr, SrcRecordTy,
+                                                 DestTy, DestRecordTy, CastEnd);
+-<<<<<<< HEAD
+-
+ #else
+     Value = CGM.getCXXABI().EmitDynamicCastToVoid(*this, ThisAddr, SrcRecordTy,
+                                                   DestTy);
++  } else if (IsExact) {
++    // If the destination type is effectively final, this pointer points to the
++    // right type if and only if its vptr has the right value.
++    Value = CGM.getCXXABI().emitExactDynamicCast(
++        *this, ThisAddr, SrcRecordTy, DestTy, DestRecordTy, CastEnd, CastNull);
+   } else {
+     assert(DestRecordTy->isRecordType() &&
+            "destination type must be a record type!");
+     Value = CGM.getCXXABI().EmitDynamicCastCall(*this, ThisAddr, SrcRecordTy,
+                                                 DestTy, DestRecordTy, CastEnd);
+ #endif // INTEL_SYCL_OPAQUEPOINTER_READY
+-    CastNotNull = Builder.GetInsertBlock();
+-=======
+->>>>>>> 9d525bf94b255df89587db955b5fa2d3c03c2c3e
+   }
+   CastNotNull = Builder.GetInsertBlock();
+ 
+diff --git a/clang/lib/CodeGen/ItaniumCXXABI.cpp b/clang/lib/CodeGen/ItaniumCXXABI.cpp
+index 85d1a3c311d9..e328487db9fa 100644
+--- a/clang/lib/CodeGen/ItaniumCXXABI.cpp
++++ b/clang/lib/CodeGen/ItaniumCXXABI.cpp
+@@ -188,9 +188,6 @@ public:
+   bool shouldDynamicCastCallBeNullChecked(bool SrcIsPtr,
+                                           QualType SrcRecordTy) override;
+ 
+-<<<<<<< HEAD
+-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+-=======
+   /// Determine whether we know that all instances of type RecordTy will have
+   /// the same vtable pointer values, that is distinct from all other vtable
+   /// pointers. While this is required by the Itanium ABI, it doesn't happen in
+@@ -230,18 +227,12 @@ public:
+     return hasUniqueVTablePointer(DestRecordTy);
+   }
+ 
+->>>>>>> 9d525bf94b255df89587db955b5fa2d3c03c2c3e
++#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+   llvm::Value *emitDynamicCastCall(CodeGenFunction &CGF, Address Value,
+                                    QualType SrcRecordTy, QualType DestTy,
+                                    QualType DestRecordTy,
+                                    llvm::BasicBlock *CastEnd) override;
+ 
+-  llvm::Value *emitExactDynamicCast(CodeGenFunction &CGF, Address ThisAddr,
+-                                    QualType SrcRecordTy, QualType DestTy,
+-                                    QualType DestRecordTy,
+-                                    llvm::BasicBlock *CastSuccess,
+-                                    llvm::BasicBlock *CastFail) override;
+-
+   llvm::Value *emitDynamicCastToVoid(CodeGenFunction &CGF, Address Value,
+                                      QualType SrcRecordTy) override;
+ 
+@@ -256,6 +247,12 @@ public:
+                                      QualType DestTy) override;
+ #endif //INTEL_SYCL_OPAQUEPOINTER_READY
+ 
++  llvm::Value *emitExactDynamicCast(CodeGenFunction &CGF, Address ThisAddr,
++                                    QualType SrcRecordTy, QualType DestTy,
++                                    QualType DestRecordTy,
++                                    llvm::BasicBlock *CastSuccess,
++                                    llvm::BasicBlock *CastFail) override;
++
+   bool EmitBadCastCall(CodeGenFunction &CGF) override;
+ 
+   llvm::Value *
+@@ -1558,9 +1555,6 @@ llvm::Value *ItaniumCXXABI::EmitDynamicCastCall(
+   return Value;
+ }
+ 
+-<<<<<<< HEAD
+-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+-=======
+ llvm::Value *ItaniumCXXABI::emitExactDynamicCast(
+     CodeGenFunction &CGF, Address ThisAddr, QualType SrcRecordTy,
+     QualType DestTy, QualType DestRecordTy, llvm::BasicBlock *CastSuccess,
+@@ -1606,8 +1600,13 @@ llvm::Value *ItaniumCXXABI::emitExactDynamicCast(
+       // object and see if it's a DestDecl. Note that the most-derived object
+       // must be at least as aligned as this base class subobject, and must
+       // have a vptr at offset 0.
++#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+       ThisAddr = Address(emitDynamicCastToVoid(CGF, ThisAddr, SrcRecordTy),
+                          CGF.VoidPtrTy, ThisAddr.getAlignment());
++#else // INTEL_SYCL_OPAQUEPOINTER_READY
++      ThisAddr = Address(EmitDynamicCastToVoid(CGF, ThisAddr, SrcRecordTy, DestRecordTy),
++                         CGF.VoidPtrTy, ThisAddr.getAlignment());
++#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+       SrcDecl = DestDecl;
+       Offset = CharUnits::Zero();
+       break;
+@@ -1639,7 +1638,7 @@ llvm::Value *ItaniumCXXABI::emitExactDynamicCast(
+   return Result;
+ }
+ 
+->>>>>>> 9d525bf94b255df89587db955b5fa2d3c03c2c3e
++#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+ llvm::Value *ItaniumCXXABI::emitDynamicCastToVoid(CodeGenFunction &CGF,
+                                                   Address ThisAddr,
+                                                   QualType SrcRecordTy) {
+diff --git a/clang/lib/CodeGen/MicrosoftCXXABI.cpp b/clang/lib/CodeGen/MicrosoftCXXABI.cpp
+index 440748ff8e49..bb342aa36c41 100644
+--- a/clang/lib/CodeGen/MicrosoftCXXABI.cpp
++++ b/clang/lib/CodeGen/MicrosoftCXXABI.cpp
+@@ -153,9 +153,6 @@ public:
+   bool shouldDynamicCastCallBeNullChecked(bool SrcIsPtr,
+                                           QualType SrcRecordTy) override;
+ 
+-<<<<<<< HEAD
+-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+-=======
+   bool shouldEmitExactDynamicCast(QualType DestRecordTy) override {
+     // TODO: Add support for exact dynamic_casts.
+     return false;
+@@ -168,7 +165,7 @@ public:
+     llvm_unreachable("unsupported");
+   }
+ 
+->>>>>>> 9d525bf94b255df89587db955b5fa2d3c03c2c3e
++#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+   llvm::Value *emitDynamicCastCall(CodeGenFunction &CGF, Address Value,
+                                    QualType SrcRecordTy, QualType DestTy,
+                                    QualType DestRecordTy,
