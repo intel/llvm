@@ -25,10 +25,6 @@ on:
         type: string
         required: false
         default: "default"
-      build_cache_size:
-        type: string
-        required: false
-        default: 8G
       build_configure_extra_args:
         type: string
         required: false
@@ -39,12 +35,6 @@ on:
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.zst
-      artifact_compress_command:
-        type: string
-        default: zstd -9
-      artifact_decompress_command:
-        type: string
-        default: zstd
       lts_matrix:
         type: string
         required: false
@@ -53,14 +43,6 @@ on:
         type: string
         required: false
         default: "[]"
-      lts_cmake_extra_args:
-        type: string
-        required: false
-        default: ""
-      lts_ref:
-        type: string
-        required: false
-        default: 'intel'
       cts_matrix:
         type: string
         required: false
@@ -69,10 +51,6 @@ on:
         type: string
         required: false
         default: ""
-      cts_ref:
-        type: string
-        required: false
-        default: 'SYCL-2020'
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -89,6 +67,84 @@ on:
         type: string
         default: 3
 
+  workflow_dispatch:
+    inputs:
+      cc:
+        type: choice
+        options:
+          - gcc
+          - clang
+      cxx:
+        type: choice
+        options:
+          - g++
+          - clang++
+      # build_image:
+      #   type: choice
+      #   options:
+      #     - "ghcr.io/intel/llvm/ubuntu2204_build_nightly:latest"
+      # build_ref:
+      #   type: choice
+      #   options:
+      #     - ""
+      # build_cache_root:
+      #   description: |
+      #     Please select "/__w/llvm" if using clang/clang++.
+      #   type: choice
+      #   options:
+      #     - "/__w/"
+      #     - "/__w/llvm"
+      # build_cache_suffix:
+      #   type: choice
+      #   options:
+      #     - "default"
+      # build_configure_extra_args:
+      #   type: choice
+      #   options:
+      #     - "--hip --cuda --enable-esimd-emulator"
+      # build_artifact_suffix:
+      #   type: choice
+      #   options:
+      #     - "default"
+
+      # lts_matrix:
+      #   type: choice
+      #   options:
+      #     - "[]"
+      # lts_aws_matrix:
+      #   type: choice
+      #   options:
+      #     - "[]"
+
+      # cts_matrix:
+      #   type: choice
+      #   options:
+      #     - "[]"
+      # cts_cmake_extra_args:
+      #   type: choice
+      #   options:
+      #     - ""
+
+      # changes:
+      #   description: 'Filter matches for the changed files in the PR'
+      #   type: choice
+      #   options:
+      #     - "[]"
+      #     - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+
+      # merge_ref:
+      #   description: |
+      #     Commit-ish to merge post-checkout if non-empty. Must be reachable from
+      #     the default_branch input paramter.
+      #   type: choice
+      #   options:
+      #     - "FETCH_HEAD"
+
+      # retention-days:
+      #   type: choice
+      #   options:
+      #     - 3
+
 jobs:
   build:
     name: Build + LIT
@@ -98,10 +154,31 @@ jobs:
       options: -u 1001:1001
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
+      artifact_archive_name: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+      artifact_decompress_command: ${{ steps.artifact_info.outputs.DECOMPRESS }}
     env:
       CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
-      CCACHE_MAXSIZE: ${{ inputs.build_cache_size }}
+      CCACHE_MAXSIZE: 8G
     steps:
+    - name: Deduce artifact archive params
+      # To reduce number of inputs parameters that is limited for manual triggers.
+      id: artifact_info
+      run: |
+        NAME="${{inputs.artifact_archive_name}}"
+        if [ -z "$NAME" ]; then
+          NAME=llvm_sycl.tar.zst
+        fi
+        echo ARCHIVE_NAME="$NAME" >> $GITHUB_OUTPUT
+        if [ "${NAME}" != "${NAME%.tar.gz}" ]; then
+          echo COMPRESS="gzip" >> $GITHUB_OUTPUT
+          echo DECOMPRESS="gunzip" >> $GITHUB_OUTPUT
+        elif [ "${NAME}" != "${NAME%.tar.zst}" ]; then
+          echo COMPRESS="zstd -9" >> $GITHUB_OUTPUT
+          echo DECOMPRESS="zstd" >> $GITHUB_OUTPUT
+        else
+          echo "Unsupported extension"
+          exit 1
+        fi
     - uses: actions/checkout@v3
       with:
         sparse-checkout: |
@@ -196,13 +273,13 @@ jobs:
 
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      run: tar -I '${{ inputs.artifact_compress_command }}' -cf ${{ inputs.artifact_archive_name }} -C $GITHUB_WORKSPACE/build/install .
+      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/build/install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
-        path: ${{ inputs.artifact_archive_name }}
+        path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         retention-days: ${{ inputs.retention-days }}
 
   aws-start:
@@ -224,21 +301,23 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.lts_matrix) }}
-    uses: ./.github/workflows/linux_single_e2e.yml
+    uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
+      tests_selector: e2e
+
       name: ${{ matrix.name }}
       runner: ${{ toJSON(matrix.runs-on) }}
       image: ${{ matrix.image }}
       image_options: ${{ matrix.container_options }}
-      extra_cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+      extra_cmake_args: ${{ matrix.cmake_args }}
       target_devices: ${{ matrix.targets }}
       ref: ${{ inputs.build_ref || github.sha }}
       merge_ref: ${{ inputs.merge_ref }}
       reset_gpu: ${{ contains(matrix.runs-on, 'gen12') && contains(matrix.runs-on, 'Linux') }}
 
       sycl_toolchain_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-      sycl_toolchain_archive: ${{ inputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ inputs.artifact_decompress_command }}
+      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
 
       env: ${{ toJSON(matrix.env) }}
 
@@ -285,10 +364,9 @@ jobs:
     - uses: ./llvm/devops/actions/khronos_cts_test
       name: Run Khronos SYCL CTS
       with:
-        test_ref: ${{ inputs.cts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-        sycl_archive: ${{ inputs.artifact_archive_name }}
-        decompress_command: ${{ inputs.artifact_decompress_command }}
+        sycl_archive: ${{ needs.build.outputs.artifact_archive_name }}
+        decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
         sycl_device_filter: ${{ matrix.sycl_device_filter }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.cts_cmake_extra_args }}'
 
