@@ -248,6 +248,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     SOURCES
       "ur/ur.cpp"
       "ur/ur.hpp"
+      "ur/adapters/native_cpu/adapter.cpp"
       "ur/adapters/native_cpu/common.cpp"
       "ur/adapters/native_cpu/common.hpp"
       "ur/adapters/native_cpu/context.cpp"
@@ -267,7 +268,6 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/queue.cpp"
       "ur/adapters/native_cpu/queue.hpp"
       "ur/adapters/native_cpu/sampler.cpp"
-      "ur/adapters/native_cpu/runtime.cpp"
       "ur/adapters/native_cpu/ur_interface_loader.cpp"
       "ur/adapters/native_cpu/usm.cpp"
       "ur/adapters/native_cpu/usm_p2p.cpp"
