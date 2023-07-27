@@ -192,7 +192,10 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
     case, the `nd_range` attribute must be set.
 
     Pointer arguments can be annotated with the SYCL type of the entity they
-    refer to, e.g. an accessor.
+    refer to, e.g. an accessor. Internally, this information is stored in the
+    `sycl_types` type array attribute, sized to match the number of arguments.
+    If no such type annotation is available for an argument, the `None` type
+    shall be used as a placeholder.
 
     Note that due to the current focus on host-device optimizations for
     individual launches, this operation currently does not model the queue or
