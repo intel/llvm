@@ -30,11 +30,6 @@ template <int> class group;
 template <int> class nd_range;
 using sycl::sub_group;
 
-} // namespace _V1
-} // namespace sycl
-
-namespace sycl {
-inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
