@@ -62,4 +62,3 @@ define spir_func void @func3() {
 ; CHECK: ![[#ID1]] = !{i32 1, i32 -1}
 ; CHECK: ![[#ID2]] = !{i32 1, i32 -1, i32 2, i32 -2}
 ; CHECK: ![[#ID3]] = !{i32 2, i32 -2}
-
