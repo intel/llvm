@@ -1107,11 +1107,12 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVFunction *BF, Function *F) {
   for (const auto &MD : AllMD) {
     std::string MDName = MDNames[MD.first].str();
 
-    // spirv.Decorations and spirv.ParameterDecorations are handled
-    // elsewhere for both forward and reverse translation and are complicated
-    // to support here, so just skip them.
+    // spirv.Decorations, spirv.ParameterDecorations and debug information are
+    // handled elsewhere for both forward and reverse translation and are
+    // complicated to support here, so just skip them.
     if (MDName == SPIRV_MD_DECORATIONS ||
-        MDName == SPIRV_MD_PARAMETER_DECORATIONS)
+        MDName == SPIRV_MD_PARAMETER_DECORATIONS ||
+        MD.first == LLVMContext::MD_dbg)
       continue;
 
     // Format for metadata is:
