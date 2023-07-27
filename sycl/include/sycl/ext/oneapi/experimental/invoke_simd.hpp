@@ -396,6 +396,7 @@ template <class Callable> constexpr void verify_callable() {
     static_assert(
         !callable_has_ref_arg,
         "invoke_simd does not support callables with reference arguments");
+#ifndef __INVOKE_SIMD_ENABLE_STRUCTS
     constexpr bool callable_has_struct_ret = has_struct_ret(obj);
     static_assert(
         !callable_has_struct_ret,
@@ -404,6 +405,7 @@ template <class Callable> constexpr void verify_callable() {
     static_assert(
         !callable_has_struct_arg,
         "invoke_simd does not support callables with structure arguments");
+#endif
 #ifdef __SYCL_DEVICE_ONLY__
     constexpr bool callable_has_uniform_non_trivially_copyable_ret =
         has_non_trivially_copyable_uniform_ret(obj);
