@@ -613,6 +613,75 @@ Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
 
 } // namespace
 
+/// Function replaces scalar Specialization Constants with the corresponding
+/// default value.
+///
+/// Example:
+///   %"spec_id" = type { i32 }
+///   @value = internal addrspace(1) constant %"spec_id" { i32 123 }, align 4
+///
+///   define spir_func void @func() {
+///   entry:
+///     %scalar = call spir_func i32 @_Z37__sycl_getScalar2020SpecConstant(%1,
+///     @value, %2) %scalar2 = add i32 %scalar, 1
+///   }
+///
+/// Becomes:
+///   define spir_func @func() {
+///   entry:
+///     %scalar2 = add i32 123, 1
+///   }
+static void replaceScalarSpecConstWithDefaultValue(CallInst *CI) {
+  Value *Src = CI->getArgOperand(1);
+  Value *StripSrc = Src->stripPointerCasts();
+  GlobalVariable *GV = cast<GlobalVariable>(StripSrc);
+  Constant *InitializerValue = GV->getInitializer();
+  IRBuilder B(CI);
+  Value *EV = B.CreateExtractValue(InitializerValue, {0});
+  CI->replaceAllUsesWith(EV);
+  CI->removeFromParent();
+  CI->deleteValue();
+}
+
+/// Function replaces a composite Specialization Constant with the 'store'
+/// instruction.
+///
+/// Example:
+///  %"spec_id" = type { %A }
+///  %A = type { i32 }
+///  @value = constant %"spec_id" { %A { i32 1 } }, align 4
+///
+///  define spir_func void @func() {
+///  entry:
+///    %a.i = alloca %A, align 4
+///    %a.ascast.i = addrspacecast %A* %a.i to %A addrspace(4)*
+///    call spir_func void @getCompositeSpecConst(%a.ascast.i, %2, @value, %3)
+///  }
+///
+///  Becomes:
+///   define spir_func void @func() {
+///   entry:
+///     %a.i = alloca %struct.A, align 4
+///     %a.ascast.i = addrspacecast %A* %a.i to %A addrspace(4)*
+///     store %A { i32 1 }, %A addrspace(4)* %a.ascast.i
+///   }
+static void replaceCompositeSpecConstWithDefaultValue(CallInst *CI) {
+  Value *Dst = CI->getArgOperand(0);
+  Value *Src = CI->getArgOperand(2);
+  Value *StripSrc = Src->stripPointerCasts();
+  GlobalVariable *GV = cast<GlobalVariable>(StripSrc);
+  Constant *InitializerValue = GV->getInitializer();
+
+  IRBuilder B(CI);
+  Value *EV = B.CreateExtractValue(InitializerValue, {0});
+  Type *PointerType =
+      PointerType::get(EV->getType(), Dst->getType()->getPointerAddressSpace());
+  Value *Bitcast = B.CreateBitCast(Dst, PointerType);
+  Value *S = B.CreateStore(EV, Bitcast);
+  CI->removeFromParent();
+  CI->deleteValue();
+}
+
 /// Function replaces Call instructions of Spec Constants with simple 'store'
 /// instructions.
 /// Function returns true if Module is changed somehow and false otherwise.
@@ -634,17 +703,11 @@ static bool replaceSpecConstsWithDefaultValues(Module &M) {
   }
 
   for (CallInst *CI : CIs) {
-    Value *Dst = CI->getArgOperand(0);
-    Value *Src = CI->getArgOperand(2);
-    Value *StripSrc = Src->stripPointerCasts();
-    GlobalVariable *GV = cast<GlobalVariable>(StripSrc);
-    Constant *InitializerValue = GV->getInitializer();
-
-    IRBuilder B(CI);
-    Value *EV = B.CreateExtractValue(InitializerValue, {0});
-    B.CreateStore(EV, Dst);
-    CI->removeFromParent();
-    CI->deleteValue();
+    if (CI->getCalledFunction()->getName().startswith(
+            SYCL_GET_SCALAR_2020_SPEC_CONST_VAL))
+      replaceScalarSpecConstWithDefaultValue(CI);
+    else
+      replaceCompositeSpecConstWithDefaultValue(CI);
   }
 
   for (Function *F : SpecConstDeclarations)

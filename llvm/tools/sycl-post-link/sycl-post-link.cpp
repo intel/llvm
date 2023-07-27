@@ -1022,7 +1022,6 @@ processInputModule(std::unique_ptr<Module> M) {
       }
 
       Modified |= processSpecConstants(MMs[i]);
-      outs() << "MODULE:\n" << MMs[i].getModule() << "\n";
     }
 
     /*for (auto &MD : MMsWithDefaultSpecConsts)
