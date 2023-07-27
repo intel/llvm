@@ -329,8 +329,7 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   // A pointer to image or pipe type in LLVM is translated to a SPIRV
   // (non-pointer) image or pipe type.
   if (T->isPointerTy()) {
-    auto *ET = T->isOpaquePointerTy() ? Type::getInt8Ty(T->getContext())
-                                      : T->getNonOpaquePointerElementType();
+    auto *ET = Type::getInt8Ty(T->getContext());
     auto AddrSpc = T->getPointerAddressSpace();
     return transPointerType(ET, AddrSpc);
   }
@@ -379,7 +378,7 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
             ConstantInt::get(getSizetType(), T->getArrayNumElements(), false),
             nullptr)));
     mapType(T, TransType);
-    if (ElTy->isOpaquePointerTy()) {
+    if (ElTy->isPointerTy()) {
       mapType(
           ArrayType::get(TypedPointerType::get(Type::getInt8Ty(*Ctx),
                                                ElTy->getPointerAddressSpace()),
@@ -717,9 +716,7 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(StringRef STName,
 
 SPIRVType *LLVMToSPIRVBase::transScavengedType(Value *V) {
   if (auto *F = dyn_cast<Function>(V)) {
-    FunctionType *FnTy = F->getType()->isOpaquePointerTy()
-                             ? Scavenger->getFunctionType(F)
-                             : F->getFunctionType();
+    FunctionType *FnTy = Scavenger->getFunctionType(F);
     SPIRVType *RT = transType(FnTy->getReturnType());
     std::vector<SPIRVType *> PT;
     for (Argument &Arg : F->args()) {
@@ -1824,11 +1821,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       assert(BV);
       return mapValue(V, BV);
     } else if (ConstantExpr *ConstUE = dyn_cast_or_null<ConstantExpr>(Init)) {
-      Value *SpecialInit = unwrapSpecialTypeInitializer(ConstUE);
-      if (auto *SpecialGV = dyn_cast_or_null<GlobalValue>(SpecialInit)) {
-        Init = SpecialGV;
-        Ty = Scavenger->getScavengedType(SpecialGV);
-      }
       BVarInit = transValue(Init, nullptr);
     } else if (ST && isa<UndefValue>(Init)) {
       // Undef initializer for LLVM structure be can translated to
@@ -1983,9 +1975,9 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
   if (isa<Constant>(V)) {
     auto BV = transConstant(V);
     assert(BV);
-    // Don't store opaque pointer constants in the map--we might reuse the wrong
-    // type for (e.g.) a null value if we do so.
-    if (V->getType()->isOpaquePointerTy())
+    // Don't store pointer constants in the map -- they are opaque and thus we
+    // might reuse the wrong type (Example: a null value) if we do so.
+    if (V->getType()->isPointerTy())
       return BV;
     return mapValue(V, BV);
   }
@@ -2231,8 +2223,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
   }
 
   if (UnaryInstruction *U = dyn_cast<UnaryInstruction>(V)) {
-    if (auto *Init = unwrapSpecialTypeInitializer(U))
-      return mapValue(V, transValue(Init, BB));
     auto UI = transUnaryInst(U, BB);
     return mapValue(V, UI ? UI : transValue(U->getOperand(0), BB));
   }
@@ -2844,12 +2834,6 @@ SPIRVValue *LLVMToSPIRVBase::oclTransSpvcCastSampler(CallInst *CI,
   auto FT = F->getFunctionType();
   auto RT = FT->getReturnType();
   assert(FT->getNumParams() == 1);
-  if (RT->isPointerTy() && !RT->isOpaquePointerTy()) {
-    StructType *ST = dyn_cast<StructType>(RT->getNonOpaquePointerElementType());
-    (void)ST;
-    assert(isSPIRVStructType(ST, kSPIRVTypeName::Sampler) ||
-           (ST->isOpaque() && ST->getName() == kSPR2TypeName::Sampler));
-  }
   assert(FT->getParamType(0)->isIntegerTy() && "Invalid sampler type");
   auto Arg = CI->getArgOperand(0);
 
@@ -2988,7 +2972,7 @@ void processOptionalAnnotationInfo(Constant *Const,
 void processAnnotationString(IntrinsicInst *II, std::string &AnnotationString) {
   auto *StrVal = II->getArgOperand(1);
   auto *StrValTy = StrVal->getType();
-  if (StrValTy->isOpaquePointerTy()) {
+  if (StrValTy->isPointerTy()) {
     StringRef StrRef;
     if (getConstantStringInfo(dyn_cast<Constant>(StrVal), StrRef))
       AnnotationString += StrRef.str();
