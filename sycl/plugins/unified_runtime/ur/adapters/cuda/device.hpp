@@ -25,6 +25,9 @@ private:
   int MaxBlockDimY{0};
   int MaxBlockDimZ{0};
   int MaxRegsPerBlock{0};
+  int MaxCapacityLocalMem{0};
+  int MaxChosenLocalMem{0};
+  bool MaxLocalMemSizeChosen{false};
 
 public:
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
@@ -39,7 +42,19 @@ public:
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
         cuDevice));
-  }
+
+    // Set local mem max size if env var is present
+    static const char *LocalMemSizePtr =
+        std::getenv("SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE");
+
+    if (LocalMemSizePtr) {
+      cuDeviceGetAttribute(
+          &MaxCapacityLocalMem,
+          CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN, cuDevice);
+      MaxChosenLocalMem = std::atoi(LocalMemSizePtr);
+      MaxLocalMemSizeChosen = true;
+    }
+  };
 
   ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
 
@@ -72,6 +87,12 @@ public:
   size_t getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
+
+  int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
+
+  int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
+
+  bool maxLocalMemSizeChosen() { return MaxLocalMemSizeChosen; };
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);
