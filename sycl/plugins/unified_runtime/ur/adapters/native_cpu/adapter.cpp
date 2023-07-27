@@ -22,21 +22,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
-             uint32_t *pNumAdapters) {
-  Adapter.RefCount++;
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
+    uint32_t, ur_adapter_handle_t *phAdapters, uint32_t *pNumAdapters) {
+  if (phAdapters) {
+    Adapter.RefCount++;
+    *phAdapters = &Adapter;
+  }
+  if (pNumAdapters) {
+    *pNumAdapters = 1;
+  }
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterRelease(ur_adapter_handle_t hAdapter) {
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
   Adapter.RefCount--;
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterRetain(ur_adapter_handle_t hAdapter) {
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
   Adapter.RefCount++;
   return UR_RESULT_SUCCESS;
 }
