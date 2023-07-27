@@ -6,7 +6,6 @@ FROM $base_image:$base_tag
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 RUN mkdir -p /opt/sycl
 ADD sycl_linux.tar.gz /tmp
-RUN tar -I 'gunzip' -xf /tmp/sycl_linux.tar.gz -C /opt/sycl && rm /tmp/sycl_linux.tar.gz
 
 ENV PATH /opt/sycl/bin:$PATH
 ENV LD_LIBRARY_PATH /opt/sycl/lib:$LD_LIBRARY_PATH
