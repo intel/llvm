@@ -27,8 +27,8 @@ jobs:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
 
-      # We use the build for the release, override its name and prefer
-      # widespread gzip compression.
+      # We upload the build for people to download/use, override its name and
+      # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
 
   ubuntu2204_opaque_pointers_build_test:
@@ -52,11 +52,12 @@ jobs:
       retention-days: 90
       lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
 
-      # We use the build for the release, override its name.
+      # We upload both Linux/Windows build via Github's "Releases"
+      # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
 
-  nightly_release:
-    name: Nightly Release
+  nightly_build_upload:
+    name: Nightly Build Upload
     if: ${{ github.ref_name == 'sycl' }}
     needs: [ubuntu2204_build_test, windows_default]
     runs-on: ubuntu-latest
@@ -76,7 +77,7 @@ jobs:
           # TODO: Use date of the commit?
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
-    - name: Upload binaries to release
+    - name: Upload binaries
       uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
       with:
         files: |
