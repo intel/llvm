@@ -1437,7 +1437,7 @@ address_space_cast(ElementType *pointer) {
 template <
     typename ElementType, access::address_space Space,
     access::decorated DecorateAddress = access::decorated::legacy,
-    typename = std::enable_if<DecorateAddress == access::decorated::legacy>>
+    typename = std::enable_if_t<DecorateAddress == access::decorated::legacy>>
 __SYCL2020_DEPRECATED("make_ptr is deprecated since SYCL 2020. Please use "
                       "address_space_cast instead.")
 multi_ptr<ElementType, Space, DecorateAddress> make_ptr(
@@ -1449,7 +1449,7 @@ multi_ptr<ElementType, Space, DecorateAddress> make_ptr(
 template <
     typename ElementType, access::address_space Space,
     access::decorated DecorateAddress,
-    typename = std::enable_if<DecorateAddress != access::decorated::legacy>>
+    typename = std::enable_if_t<DecorateAddress != access::decorated::legacy>>
 __SYCL2020_DEPRECATED("make_ptr is deprecated since SYCL 2020. Please use "
                       "address_space_cast instead.")
 multi_ptr<ElementType, Space, DecorateAddress> make_ptr(
