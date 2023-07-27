@@ -542,13 +542,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // OpenCL's "local memory" maps most closely to CUDA's "shared memory".
     // CUDA has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    int LocalMemSize = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&LocalMemSize,
-                             CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
-                             hDevice->get()) == CUDA_SUCCESS);
-    detail::ur::assertion(LocalMemSize >= 0);
-    return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    if (hDevice->maxLocalMemSizeChosen()) {
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
+    } else {
+      int LocalMemSize = 0;
+      detail::ur::assertion(
+          cuDeviceGetAttribute(&LocalMemSize,
+                               CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
+                               hDevice->get()) == CUDA_SUCCESS);
+      detail::ur::assertion(LocalMemSize >= 0);
+      return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    }
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int ECCEnabled = 0;
