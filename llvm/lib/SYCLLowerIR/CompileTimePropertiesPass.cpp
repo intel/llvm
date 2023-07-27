@@ -251,25 +251,29 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, MD));
   }
 
-  auto getIpInterface = [](const char *Name, LLVMContext &Ctx,
-                           const Attribute &Attr) {
+  if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
-    //   !N = !{!"<name>"} or
-    //   !N = !{!"<name>", !"stall_free_return"}
+    //   !N = !{!"streaming"} or
+    //   !N = !{!"streaming", !"stall_free_return"}
     SmallVector<Metadata *, 2> MD;
-    MD.push_back(MDString::get(Ctx, Name));
+    MD.push_back(MDString::get(Ctx, "streaming"));
     if (getAttributeAsInteger<uint32_t>(Attr))
       MD.push_back(MDString::get(Ctx, "stall_free_return"));
-    return MDNode::get(Ctx, MD);
-  };
-
-  if (AttrKindStr == "sycl-streaming-interface")
-    return std::pair<std::string, MDNode *>(
-        "ip_interface", getIpInterface("streaming", Ctx, Attr));
-
-  if (AttrKindStr == "sycl-register-map-interface")
     return std::pair<std::string, MDNode *>("ip_interface",
-                                            getIpInterface("csr", Ctx, Attr));
+                                            MDNode::get(Ctx, MD));
+  }
+
+  if (AttrKindStr == "sycl-register-map-interface") {
+    // generate either:
+    //   !N = !{!"csr"} or
+    //   !N = !{!"csr", !"wait_for_done_write"}
+    SmallVector<Metadata *, 2> MD;
+    MD.push_back(MDString::get(Ctx, "csr"));
+    if (getAttributeAsInteger<uint32_t>(Attr))
+      MD.push_back(MDString::get(Ctx, "wait_for_done_write"));
+    return std::pair<std::string, MDNode *>("ip_interface",
+                                            MDNode::get(Ctx, MD));
+  }
 
   if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
        AttrKindStr == SYCL_GRF_SIZE_ATTR) &&
@@ -391,7 +395,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     if (isHostPipeVariable(GV)) {
       auto VarName = getGlobalVariableUniqueId(GV);
       MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
-                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE, 
+                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE,
                                               VarName));
     }
 
