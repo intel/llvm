@@ -78,7 +78,7 @@ static const bool UseMemcpy2DOperations = [] {
       UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!UseMemcpy2DOperationsFlag)
     return false;
-  return std::stoi(UseMemcpy2DOperationsFlag) > 0;
+  return std::atoi(UseMemcpy2DOperationsFlag) > 0;
 }();
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(

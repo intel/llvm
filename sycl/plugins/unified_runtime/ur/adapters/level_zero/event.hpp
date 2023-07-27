@@ -40,7 +40,7 @@ const bool DisableEventsCaching = [] {
       UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!DisableEventsCachingFlag)
     return false;
-  return std::stoi(DisableEventsCachingFlag) != 0;
+  return std::atoi(DisableEventsCachingFlag) != 0;
 }();
 
 // This is an experimental option that allows reset and reuse of uncompleted
@@ -52,7 +52,7 @@ const bool ReuseDiscardedEvents = [] {
       UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!ReuseDiscardedEventsFlag)
     return true;
-  return std::stoi(ReuseDiscardedEventsFlag) > 0;
+  return std::atoi(ReuseDiscardedEventsFlag) > 0;
 }();
 
 const bool FilterEventWaitList = [] {
