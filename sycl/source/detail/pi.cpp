@@ -83,6 +83,7 @@ bool XPTIInitDone = false;
 // Implementation of the SYCL PI API call tracing methods that use XPTI
 // framework to emit these traces that will be used by tools.
 uint64_t emitFunctionBeginTrace(const char *FName) {
+  XPTI_LW_TRACE();
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // The function_begin and function_end trace point types are defined to
@@ -128,6 +129,7 @@ uint64_t emitFunctionBeginTrace(const char *FName) {
 }
 
 void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType =
       (uint16_t)xpti::trace_point_type_t::function_end;
@@ -146,6 +148,7 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
                                         unsigned char *ArgsData,
                                         pi_plugin Plugin) {
+  XPTI_LW_TRACE();
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType =
@@ -178,6 +181,7 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
 void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FuncName, unsigned char *ArgsData,
                                   pi_result Result, pi_plugin Plugin) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType =
       (uint16_t)xpti::trace_point_type_t::function_with_args_end;
@@ -287,6 +291,7 @@ std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
 std::vector<std::pair<std::string, backend>> findPlugins() {
+  XPTI_LW_TRACE();
   std::vector<std::pair<std::string, backend>> PluginNames;
 
   // TODO: Based on final design discussions, change the location where the
@@ -405,6 +410,7 @@ int unloadPlugin(void *Library) { return unloadOsPluginLibrary(Library); }
 // Currently, we bind to a singe plugin.
 bool bindPlugin(void *Library,
                 const std::shared_ptr<PiPlugin> &PluginInformation) {
+  XPTI_LW_TRACE();
 
   decltype(::piPluginInit) *PluginInitializeFunction =
       (decltype(&::piPluginInit))(getOsLibraryFuncAddress(Library,
@@ -430,6 +436,7 @@ bool trace(TraceLevel Level) {
 
 // Initializes all available Plugins.
 std::vector<PluginPtr> &initialize() {
+  XPTI_LW_TRACE();
   static std::once_flag PluginsInitDone;
   // std::call_once is blocking all other threads if a thread is already
   // creating a vector of plugins. So, no additional lock is needed.
@@ -440,6 +447,7 @@ std::vector<PluginPtr> &initialize() {
 }
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins) {
+  XPTI_LW_TRACE();
   std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
@@ -594,6 +602,7 @@ void assertion(bool Condition, const char *Message) {
 template <typename ResT>
 static ResT readELFValue(const unsigned char *Data, size_t NumBytes,
                          bool IsBigEndian) {
+  XPTI_LW_TRACE();
   assert(NumBytes <= sizeof(ResT));
   ResT Result = 0;
   if (IsBigEndian) {
@@ -610,6 +619,7 @@ static ResT readELFValue(const unsigned char *Data, size_t NumBytes,
 static bool checkELFSectionPresent(const std::string &ExpectedSectionName,
                                    const unsigned char *ImgData,
                                    size_t ImgSize) {
+  XPTI_LW_TRACE();
   // Check for 64bit and big-endian.
   bool Is64bit = ImgData[4] == 2;
   bool IsBigEndian = ImgData[5] == 2;
@@ -681,6 +691,7 @@ static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
 
 sycl::detail::pi::PiDeviceBinaryType
 getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
+  XPTI_LW_TRACE();
   // Top-level magic numbers for the recognized binary image formats.
   struct {
     sycl::detail::pi::PiDeviceBinaryType Fmt;
