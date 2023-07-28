@@ -28,10 +28,9 @@
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -342,14 +341,15 @@ void saveModuleIR(Module &M, StringRef OutFilename) {
   raw_fd_ostream Out{OutFilename, EC, sys::fs::OF_None};
   checkError(EC, "error opening the file '" + OutFilename + "'");
 
-  // TODO: Use the new PassManager instead?
-  legacy::PassManager PrintModule;
-
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  PassBuilder PB;
+  PB.registerModuleAnalyses(MAM);
   if (OutputAssembly)
-    PrintModule.add(createPrintModulePass(Out, ""));
+    MPM.addPass(PrintModulePass(Out));
   else if (Force || !CheckBitcodeOutputToConsole(Out))
-    PrintModule.add(createBitcodeWriterPass(Out));
-  PrintModule.run(M);
+    MPM.addPass(BitcodeWriterPass(Out));
+  MPM.run(M, MAM);
 }
 
 std::string saveModuleIR(Module &M, int I, StringRef Suff) {
@@ -460,12 +460,11 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
   }
-  bool HasRegAllocMode = false;
   {
     StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
     uint32_t RegAllocModeVal;
 
-    HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
+    bool HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
       if (!F->hasFnAttribute(RegAllocModeAttr))
         return false;
       const auto &Attr = F->getFnAttribute(RegAllocModeAttr);
@@ -490,9 +489,6 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       return true;
     });
     if (HasGRFSize) {
-      if (HasRegAllocMode)
-        error("Unsupported use of both register_alloc_mode and "
-              "grf_size");
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({GRFSizeAttr, GRFSizeVal});
     }
   }

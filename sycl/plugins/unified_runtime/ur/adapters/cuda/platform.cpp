@@ -73,7 +73,8 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
     std::call_once(
         InitFlag,
         [](ur_result_t &Result) {
-          if (cuInit(0) != CUDA_SUCCESS) {
+          Result = UR_CHECK_ERROR(cuInit(0));
+          if (Result != UR_RESULT_SUCCESS) {
             NumPlatforms = 0;
             return;
           }
@@ -168,6 +169,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
   std::ignore = hDriver;
   *pVersion = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
+    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
+  std::ignore = hPlatform;
+  std::ignore = phNativePlatform;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
+    ur_native_handle_t hNativePlatform,
+    const ur_platform_native_properties_t *pProperties,
+    ur_platform_handle_t *phPlatform) {
+  std::ignore = hNativePlatform;
+  std::ignore = pProperties;
+  std::ignore = phPlatform;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {

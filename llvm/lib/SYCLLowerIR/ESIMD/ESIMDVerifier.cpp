@@ -50,7 +50,7 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::multi_ptr<.+>::.+",
     "^sycl::_V1::nd_item<.+>::.+",
     "^sycl::_V1::group<.+>::.+",
-    "^sycl::_V1::sub_group<.+>::.+",
+    "^sycl::_V1::sub_group::.+",
     "^sycl::_V1::range<.+>::.+",
     "^sycl::_V1::kernel_handler::.+",
     "^sycl::_V1::cos",
