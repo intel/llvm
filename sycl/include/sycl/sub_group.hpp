@@ -145,7 +145,7 @@ struct sub_group {
     return __spirv_SubgroupLocalInvocationId();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -154,7 +154,7 @@ struct sub_group {
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -163,7 +163,7 @@ struct sub_group {
     return __spirv_SubgroupSize();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -172,7 +172,7 @@ struct sub_group {
     return __spirv_SubgroupMaxSize();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -181,7 +181,7 @@ struct sub_group {
     return __spirv_SubgroupId();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -190,7 +190,7 @@ struct sub_group {
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -199,7 +199,7 @@ struct sub_group {
     return __spirv_NumSubgroups();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -217,7 +217,7 @@ struct sub_group {
     (void)x;
     (void)local_id;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -228,7 +228,7 @@ struct sub_group {
     (void)x;
     (void)delta;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -239,7 +239,7 @@ struct sub_group {
     (void)x;
     (void)delta;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -250,7 +250,7 @@ struct sub_group {
     (void)x;
     (void)value;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -293,7 +293,7 @@ struct sub_group {
   T load(CVT *src) const {
     (void)src;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
   }
 #endif //__SYCL_DEVICE_ONLY__
 
@@ -313,7 +313,7 @@ struct sub_group {
 #else
     (void)src;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -329,7 +329,7 @@ struct sub_group {
 #else
     (void)src;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 #ifdef __SYCL_DEVICE_ONLY__
@@ -410,7 +410,7 @@ struct sub_group {
   load(const multi_ptr<CVT, Space, IsDecorated> src) const {
     (void)src;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
   }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -431,7 +431,7 @@ struct sub_group {
 #else
     (void)src;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -476,7 +476,7 @@ struct sub_group {
     (void)dst;
     (void)x;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
   }
 #endif //__SYCL_DEVICE_ONLY__
 
@@ -495,7 +495,7 @@ struct sub_group {
     (void)dst;
     (void)x;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -510,7 +510,7 @@ struct sub_group {
     (void)dst;
     (void)x;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -576,7 +576,7 @@ struct sub_group {
     (void)dst;
     (void)x;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
   }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -593,7 +593,7 @@ struct sub_group {
     (void)dst;
     (void)x;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -608,7 +608,7 @@ struct sub_group {
             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -622,7 +622,7 @@ struct sub_group {
 #else
     (void)accessSpace;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -637,7 +637,7 @@ struct sub_group {
     (void)x;
     (void)local_id;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -652,7 +652,7 @@ struct sub_group {
     (void)x;
     (void)op;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -667,7 +667,7 @@ struct sub_group {
     (void)init;
     (void)op;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -682,7 +682,7 @@ struct sub_group {
     (void)x;
     (void)op;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -705,7 +705,7 @@ struct sub_group {
     (void)init;
     (void)op;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -720,7 +720,7 @@ struct sub_group {
     (void)x;
     (void)op;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -739,7 +739,7 @@ struct sub_group {
     (void)op;
     (void)init;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -748,7 +748,7 @@ struct sub_group {
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -757,7 +757,7 @@ struct sub_group {
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -766,7 +766,7 @@ struct sub_group {
     return get_local_linear_id() == 0;
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -778,7 +778,7 @@ struct sub_group {
     std::ignore = lhs;
     std::ignore = rhs;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -789,7 +789,7 @@ struct sub_group {
     std::ignore = lhs;
     std::ignore = rhs;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host device.");
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -808,7 +808,7 @@ inline sycl::sub_group this_sub_group() {
   return sycl::sub_group();
 #else
   throw sycl::exception(make_error_code(errc::feature_not_supported),
-                        "Sub-groups are not supported on host device.");
+                        "Sub-groups are not supported on host.");
 #endif
 }
 namespace experimental {
