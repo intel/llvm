@@ -13,30 +13,21 @@ int main() {
   float *X = malloc_device<float>(N, Queue);
 
   auto S1 = add_node(SubGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] *= 2.0f;
-    });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 2.0f; });
   });
 
   add_node(
       SubGraph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, S1);
-        CGH.parallel_for(N, [=](id<1> it) {
-          const size_t i = it[0];
-          X[i] += 0.5f;
-        });
+        CGH.parallel_for(N, [=](id<1> it) { X[it] += 0.5f; });
       },
       S1);
 
   auto ExecSubGraph = SubGraph.finalize();
 
   auto P1 = add_node(Graph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] = 1.0f;
-    });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] = 1.0f; });
   });
 
   auto P2 = add_node(
@@ -51,10 +42,7 @@ int main() {
       Graph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, P2);
-        CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-          const size_t i = it[0];
-          X[i] *= -1.0f;
-        });
+        CGH.parallel_for(range<1>{N}, [=](id<1> it) { X[it] *= -1.0f; });
       },
       P2);
 

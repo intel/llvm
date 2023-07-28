@@ -18,25 +18,20 @@ int main() {
 
   auto NodeI = add_node(Graph, Queue, [&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] = 1.0f;
-      Y[i] = 2.0f;
-      Z[i] = 3.0f;
+      X[it] = 1.0f;
+      Y[it] = 2.0f;
+      Z[it] = 3.0f;
     });
   });
 
   auto NodeA = add_node(SubGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] = Alpha * X[i] + Beta * Y[i];
-    });
+    CGH.parallel_for(range<1>{N},
+                     [=](id<1> it) { X[it] = Alpha * X[it] + Beta * Y[it]; });
   });
 
   auto NodeB = add_node(SubGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-      const size_t i = it[0];
-      Z[i] = Gamma * Z[i] + Beta * Y[i];
-    });
+    CGH.parallel_for(range<1>{N},
+                     [=](id<1> it) { Z[it] = Gamma * Z[it] + Beta * Y[it]; });
   });
 
   auto SubGraphExec = SubGraph.finalize();
@@ -54,10 +49,7 @@ int main() {
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeSub);
         CGH.parallel_for(range<1>{N}, reduction(Dotp, 0.0f, std::plus()),
-                         [=](id<1> it, auto &Sum) {
-                           const size_t i = it[0];
-                           Sum += X[i] * Z[i];
-                         });
+                         [=](id<1> it, auto &Sum) { Sum += X[it] * Z[it]; });
       },
       NodeSub);
 

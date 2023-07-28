@@ -27,25 +27,20 @@ int main() {
 
   auto InitEvent = Queue.submit([&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] = 1.0f;
-      Y[i] = 2.0f;
-      Z[i] = 3.0f;
+      X[it] = 1.0f;
+      Y[it] = 2.0f;
+      Z[it] = 3.0f;
     });
   });
 
   auto EventA = Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] = Alpha * X[i] + Beta * Y[i];
-    });
+    CGH.parallel_for(range<1>{N},
+                     [=](id<1> it) { X[it] = Alpha * X[it] + Beta * Y[it]; });
   });
 
   auto EventB = Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-      const size_t i = it[0];
-      Z[i] = Gamma * Z[i] + Beta * Y[i];
-    });
+    CGH.parallel_for(range<1>{N},
+                     [=](id<1> it) { Z[it] = Gamma * Z[it] + Beta * Y[it]; });
   });
 
   Queue.submit([&](handler &CGH) {

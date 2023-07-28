@@ -28,8 +28,7 @@ int main() {
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeI);
         CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-          const size_t i = it[0];
-          X[i] = Alpha * X[i] + Beta * Y[i];
+          X[it] = Alpha * X[it] + Beta * Y[it];
         });
       },
       NodeI);
@@ -39,8 +38,7 @@ int main() {
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeI);
         CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-          const size_t i = it[0];
-          Z[i] = Gamma * Z[i] + Beta * Y[i];
+          Z[it] = Gamma * Z[it] + Beta * Y[it];
         });
       },
       NodeI);
@@ -50,10 +48,7 @@ int main() {
       [&](handler &CGH) {
         depends_on_helper(CGH, {NodeA, NodeB});
         CGH.parallel_for(range<1>{N}, reduction(Dotp, 0.0f, std::plus()),
-                         [=](id<1> it, auto &Sum) {
-                           const size_t i = it[0];
-                           Sum += X[i] * Z[i];
-                         });
+                         [=](id<1> it, auto &Sum) { Sum += X[it] * Z[it]; });
       },
       NodeA, NodeB);
 

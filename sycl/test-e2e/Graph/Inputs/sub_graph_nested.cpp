@@ -38,20 +38,14 @@ int main() {
 
   // XSubSubGraph is a multiply-add operation on USM allocation X
   auto XSS1 = add_node(XSubSubGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] *= 2.0f;
-    });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 2.0f; });
   });
 
   add_node(
       XSubSubGraph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, XSS1);
-        CGH.parallel_for(N, [=](id<1> it) {
-          const size_t i = it[0];
-          X[i] += 0.5f;
-        });
+        CGH.parallel_for(N, [=](id<1> it) { X[it] += 0.5f; });
       },
       XSS1);
 
@@ -59,20 +53,14 @@ int main() {
 
   // YSubSubGraph is a multiply-add operation on USM allocation Y
   auto YSS1 = add_node(YSubSubGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      Y[i] *= 3.0f;
-    });
+    CGH.parallel_for(N, [=](id<1> it) { Y[it] *= 3.0f; });
   });
 
   add_node(
       YSubSubGraph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, YSS1);
-        CGH.parallel_for(N, [=](id<1> it) {
-          const size_t i = it[0];
-          Y[i] += 0.14f;
-        });
+        CGH.parallel_for(N, [=](id<1> it) { Y[it] += 0.14f; });
       },
       YSS1);
 
@@ -82,9 +70,8 @@ int main() {
   // the results
   auto S1 = add_node(SubGraph, Queue, [&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] = static_cast<float>(i);
-      Y[i] = static_cast<float>(i);
+      X[it] = static_cast<float>(it);
+      Y[it] = static_cast<float>(it);
     });
   });
 
@@ -109,9 +96,8 @@ int main() {
       [&](handler &CGH) {
         depends_on_helper(CGH, {S2, S3});
         CGH.parallel_for(N, [=](id<1> it) {
-          const size_t i = it[0];
-          X[i] = -X[i];
-          Y[i] = -Y[i];
+          X[it] = -X[it];
+          Y[it] = -Y[it];
         });
       },
       S2, S3);
@@ -121,10 +107,8 @@ int main() {
   // Parent Graph initializes Z allocation, adds the sub-graph,then
   // does a multiply add with X & Y allocation results.
   auto G1 = add_node(Graph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-      const size_t i = it[0];
-      Z[i] = static_cast<float>(i);
-    });
+    CGH.parallel_for(range<1>{N},
+                     [=](id<1> it) { Z[it] = static_cast<float>(it); });
   });
 
   auto G2 = add_node(Graph, Queue,
@@ -134,10 +118,8 @@ int main() {
       Graph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, {G1, G2});
-        CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-          const size_t i = it[0];
-          Z[i] = Z[i] * X[i] - Y[i];
-        });
+        CGH.parallel_for(range<1>{N},
+                         [=](id<1> it) { Z[it] = Z[it] * X[it] - Y[it]; });
       },
       G1, G2);
 

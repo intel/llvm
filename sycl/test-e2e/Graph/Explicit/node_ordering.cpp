@@ -21,24 +21,15 @@ int main() {
   float *X = malloc_device<float>(N, Queue);
 
   auto Init = Graph.add([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
-      size_t i = idx;
-      X[i] = 2.0f;
-    });
+    CGH.parallel_for(range<1>{N}, [=](id<1> idx) { X[idx] = 2.0f; });
   });
 
   auto Add = Graph.add([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
-      size_t i = idx;
-      X[i] += 2.0f;
-    });
+    CGH.parallel_for(range<1>{N}, [=](id<1> idx) { X[idx] += 2.0f; });
   });
 
   auto Mult = Graph.add([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
-      size_t i = idx;
-      X[i] *= 3.0f;
-    });
+    CGH.parallel_for(range<1>{N}, [=](id<1> idx) { X[idx] *= 3.0f; });
   });
 
   Graph.make_edge(Init, Mult);
