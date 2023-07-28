@@ -24,10 +24,10 @@ struct ur_program_handle_t_ {
   std::atomic_uint32_t _refCount;
 
   struct _compare {
-    bool operator()(char const* a, char const* b) const {
+    bool operator()(char const *a, char const *b) const {
       return std::strcmp(a, b) < 0;
     }
   };
 
-  std::map<const char*, const unsigned char*, _compare> _kernels;
+  std::map<const char *, const unsigned char *, _compare> _kernels;
 };

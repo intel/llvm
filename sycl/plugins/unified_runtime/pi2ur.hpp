@@ -1339,7 +1339,7 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
                     __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
-      "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
+          "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
     else
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_UNKNOWN;

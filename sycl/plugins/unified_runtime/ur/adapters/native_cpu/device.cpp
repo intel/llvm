@@ -328,7 +328,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   std::ignore = NumBinaries;
   std::ignore = pSelectedBinary;
 
-  #define UR_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
+#define UR_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
   // look for a binary with type "native_cpu"
   // Todo: error checking
   // Todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU in upstream
