@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out -fno-sycl-id-queries-fit-in-int -DNO_RANGE_GREATER_THAN_UINT32_MAX
-// RUN: %{run} %t.out 
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 
@@ -14,8 +14,7 @@ void throws_kernel_not_supported(const char *test_name, FunctorT f) {
   } catch (const sycl::exception &e) {
     if (e.code() != errc::kernel_not_supported) {
       std::cout << "fail: " << test_name << "\n"
-                << "Caught wrong exception with error code "
-                << e.code() << "\n"
+                << "Caught wrong exception with error code " << e.code() << "\n"
                 << e.what() << "\n";
       ++n_fail;
       return;
@@ -33,33 +32,34 @@ void throws_kernel_not_supported(const char *test_name, FunctorT f) {
 }
 
 int main(int argc, char *argv[]) {
-  throws_kernel_not_supported("nd_range<1>", []{
+  throws_kernel_not_supported("nd_range<1>", [] {
     constexpr uint32_t N = 4294967295;
     q.parallel_for<class K0>(nd_range<1>(N, N),
                              [=](auto) [[sycl::reqd_work_group_size(N)]] {});
   });
-  
-  throws_kernel_not_supported("nd_range<2>", []{
+
+  throws_kernel_not_supported("nd_range<2>", [] {
     constexpr uint32_t N = 4294967295;
     q.parallel_for<class K1>(nd_range<2>({N, N}, {N, N}),
                              [=](auto) [[sycl::reqd_work_group_size(N, N)]] {});
   });
 
-  throws_kernel_not_supported("nd_range<3>", []{
+  throws_kernel_not_supported("nd_range<3>", [] {
     constexpr uint32_t N = 4294967295;
     q.parallel_for<class K2>(nd_range<3>({N, N, N}, {N, N, N}),
-                             [=](auto) [[sycl::reqd_work_group_size(N, N, N)]] {});
+                             [=](auto)
+                                 [[sycl::reqd_work_group_size(N, N, N)]] {});
   });
 
   // TODO: Due to truncation issues, this test cannot pass yet.
   // Enable this test once fixed.
 #ifndef NO_RANGE_GREATER_THAN_UINT32_MAX
- throws_kernel_not_supported("uint32_max+2", []{
-   constexpr uint64_t N = 4294967297;
-   q.parallel_for<class K3>(nd_range<1>(N, N),
-                            [=](auto) [[sycl::reqd_work_group_size(N)]] {});
- });
+  throws_kernel_not_supported("uint32_max+2", [] {
+    constexpr uint64_t N = 4294967297;
+    q.parallel_for<class K3>(nd_range<1>(N, N),
+                             [=](auto) [[sycl::reqd_work_group_size(N)]] {});
+  });
 #endif
-  
+
   return n_fail;
 }

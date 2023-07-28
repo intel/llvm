@@ -13,16 +13,15 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/PropertySetIO.h"
 
+#include <iostream>
 #include <set>
 #include <vector>
-#include <iostream>
 
 using namespace llvm;
 
 auto ExtractIntegerFromMDNodeOperand(const MDOperand &operand) {
-    Constant *C =
-        cast<ConstantAsMetadata>(operand.get())->getValue();
-    return C->getUniqueInteger().getSExtValue();
+  Constant *C = cast<ConstantAsMetadata>(operand.get())->getValue();
+  return C->getUniqueInteger().getSExtValue();
 }
 
 void llvm::getSYCLDeviceRequirements(
@@ -59,11 +58,12 @@ void llvm::getSYCLDeviceRequirements(
   }
 
   std::optional<llvm::SmallVector<int64_t, 3>> ReqdWorkGroupSize;
-  for (const Function &F: MD.getModule()) {
+  for (const Function &F : MD.getModule()) {
     if (const MDNode *MDN = F.getMetadata("reqd_work_group_size")) {
       llvm::SmallVector<int64_t, 3> NewReqdWorkGroupSize;
       for (const auto &operand : MDN->operands())
-        NewReqdWorkGroupSize.push_back(ExtractIntegerFromMDNodeOperand(operand));
+        NewReqdWorkGroupSize.push_back(
+            ExtractIntegerFromMDNodeOperand(operand));
       if (!ReqdWorkGroupSize)
         ReqdWorkGroupSize = NewReqdWorkGroupSize;
       else if (!std::equal(ReqdWorkGroupSize->begin(), ReqdWorkGroupSize->end(),
@@ -74,8 +74,8 @@ void llvm::getSYCLDeviceRequirements(
   }
 
   if (ReqdWorkGroupSize)
-    Requirements["reqd_work_group_size"] =
-      std::vector<uint32_t>(ReqdWorkGroupSize->begin(), ReqdWorkGroupSize->end());
+    Requirements["reqd_work_group_size"] = std::vector<uint32_t>(
+        ReqdWorkGroupSize->begin(), ReqdWorkGroupSize->end());
 
   // There should only be at most one function with
   // intel_reqd_sub_group_size metadata when considering the entry
