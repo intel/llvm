@@ -92,6 +92,8 @@ add_sycl_plugin(hip
     "../unified_runtime/pi2ur.cpp"
     "../unified_runtime/ur/ur.hpp"
     "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/adapters/hip/adapter.cpp"
+    "../unified_runtime/ur/adapters/hip/adapter.hpp"
     "../unified_runtime/ur/adapters/hip/command_buffer.cpp"
     "../unified_runtime/ur/adapters/hip/command_buffer.hpp"
     "../unified_runtime/ur/adapters/hip/common.cpp"

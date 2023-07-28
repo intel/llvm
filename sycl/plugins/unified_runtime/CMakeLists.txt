@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 3c6f02c7a76a0448a83932d93c2dbeff25af70aa)
+  set(UNIFIED_RUNTIME_TAG 974a7d64dd1a26ede1ff27919b3b8713b848c376)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -86,6 +86,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_interface_loader.cpp"
+    "ur/adapters/level_zero/adapter.hpp"
     "ur/adapters/level_zero/command_buffer.hpp"
     "ur/adapters/level_zero/common.hpp"
     "ur/adapters/level_zero/context.hpp"
@@ -100,6 +101,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/queue.hpp"
     "ur/adapters/level_zero/sampler.hpp"
     "ur/adapters/level_zero/usm.hpp"
+    "ur/adapters/level_zero/adapter.cpp"
     "ur/adapters/level_zero/command_buffer.cpp"
     "ur/adapters/level_zero/common.cpp"
     "ur/adapters/level_zero/context.cpp"
@@ -135,6 +137,8 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/ur.cpp"
       "ur/usm_allocator.cpp"
       "ur/usm_allocator.hpp"
+      "ur/adapters/cuda/adapter.cpp"
+      "ur/adapters/cuda/adapter.hpp"
       "ur/adapters/cuda/command_buffer.cpp"
       "ur/adapters/cuda/command_buffer.hpp"
       "ur/adapters/cuda/common.cpp"
@@ -186,6 +190,8 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/ur.cpp"
       "ur/usm_allocator.cpp"
       "ur/usm_allocator.hpp"
+      "ur/adapters/hip/adapter.cpp"
+      "ur/adapters/hip/adapter.hpp"
       "ur/adapters/hip/command_buffer.cpp"
       "ur/adapters/hip/command_buffer.hpp"
       "ur/adapters/hip/common.cpp"
@@ -243,6 +249,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     SOURCES
       "ur/ur.cpp"
       "ur/ur.hpp"
+      "ur/adapters/native_cpu/adapter.cpp"
       "ur/adapters/native_cpu/common.cpp"
       "ur/adapters/native_cpu/common.hpp"
       "ur/adapters/native_cpu/context.cpp"
@@ -262,7 +269,6 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/queue.cpp"
       "ur/adapters/native_cpu/queue.hpp"
       "ur/adapters/native_cpu/sampler.cpp"
-      "ur/adapters/native_cpu/runtime.cpp"
       "ur/adapters/native_cpu/ur_interface_loader.cpp"
       "ur/adapters/native_cpu/usm.cpp"
       "ur/adapters/native_cpu/usm_p2p.cpp"

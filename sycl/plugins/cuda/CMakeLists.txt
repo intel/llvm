@@ -55,6 +55,8 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/ur.cpp"
     "../unified_runtime/ur/usm_allocator.cpp"
     "../unified_runtime/ur/usm_allocator.hpp"
+    "../unified_runtime/ur/adapters/cuda/adapter.cpp"
+    "../unified_runtime/ur/adapters/cuda/adapter.hpp"
     "../unified_runtime/ur/adapters/cuda/command_buffer.cpp"
     "../unified_runtime/ur/adapters/cuda/command_buffer.hpp"
     "../unified_runtime/ur/adapters/cuda/common.cpp"

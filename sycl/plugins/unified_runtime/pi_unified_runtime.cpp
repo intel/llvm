@@ -17,12 +17,34 @@ static void DieUnsupported() {
   die("Unified Runtime: functionality is not supported");
 }
 
+// Adapters may be released by piTearDown being called, or the global dtors
+// being called first. Handle releasing the adapters exactly once.
+static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) {
+  static std::once_flag ReleaseFlag{};
+  std::call_once(ReleaseFlag, [&]() {
+    for (auto Adapter : Vec) {
+      urAdapterRelease(Adapter);
+    }
+    urTearDown(nullptr);
+  });
+}
+
+struct AdapterHolder {
+  ~AdapterHolder() { releaseAdapters(Vec); }
+  std::vector<ur_adapter_handle_t> Vec{};
+} Adapters;
+
 // All PI API interfaces are C interfaces
 extern "C" {
 __SYCL_EXPORT pi_result piPlatformsGet(pi_uint32 NumEntries,
                                        pi_platform *Platforms,
                                        pi_uint32 *NumPlatforms) {
-  return pi2ur::piPlatformsGet(NumEntries, Platforms, NumPlatforms);
+  // Get all the platforms from all available adapters
+  urPlatformGet(Adapters.Vec.data(), static_cast<uint32_t>(Adapters.Vec.size()),
+                NumEntries, reinterpret_cast<ur_platform_handle_t *>(Platforms),
+                NumPlatforms);
+
+  return PI_SUCCESS;
 }
 
 __SYCL_EXPORT pi_result piPlatformGetInfo(pi_platform Platform,
@@ -1122,6 +1144,12 @@ __SYCL_EXPORT pi_result piextPeerAccessGetInfo(
                                        ParamValueSizeRet);
 }
 
+__SYCL_EXPORT pi_result piTearDown(void *) {
+  releaseAdapters(Adapters.Vec);
+  urTearDown(nullptr);
+  return PI_SUCCESS;
+}
+
 __SYCL_EXPORT pi_result piextMemImageAllocate(pi_context Context,
                                               pi_device Device,
                                               pi_image_format *ImageFormat,
@@ -1257,11 +1285,6 @@ __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
 }
 
 // This interface is not in Unified Runtime currently
-__SYCL_EXPORT pi_result piTearDown(void *PluginParameter) {
-  return pi2ur::piTearDown(PluginParameter);
-}
-
-// This interface is not in Unified Runtime currently
 __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   PI_ASSERT(PluginInit, PI_ERROR_INVALID_VALUE);
 
@@ -1278,6 +1301,15 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
             PI_ERROR_INVALID_VALUE);
 
   strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
+
+  // Initialize UR and discover adapters
+  HANDLE_ERRORS(urInit(0, nullptr));
+  uint32_t NumAdapters;
+  HANDLE_ERRORS(urAdapterGet(0, nullptr, &NumAdapters));
+  if (NumAdapters > 0) {
+    Adapters.Vec.resize(NumAdapters);
+    HANDLE_ERRORS(urAdapterGet(NumAdapters, Adapters.Vec.data(), nullptr));
+  }
 
   // Bind interfaces that are already supported and "die" for unsupported ones
 #define _PI_API(api)                                                           \
