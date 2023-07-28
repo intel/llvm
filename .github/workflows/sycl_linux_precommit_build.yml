@@ -60,4 +60,5 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      changes: ${{ needs.detect_changes.outputs.filters }}
+      # changes: ${{ needs.detect_changes.outputs.filters }}
+      changes: '[]'
