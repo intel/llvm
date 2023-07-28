@@ -446,7 +446,7 @@ template <> struct is_property_key<work_item_progress_key> : std::true_type {};
 |The `work_item_progress` property adds the requirement that the kernel must be
  launched with the specified forward progress guarantees for threads of execution
  created at `execution_scope::work_item` scope, with the specified coordination
- scope. `CoordinationScope` must be broader than `execution-scope::work_item`.
+ scope. `CoordinationScope` must be broader than `execution_scope::work_item`.
 
 |===
 
