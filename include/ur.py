@@ -642,6 +642,10 @@ UR_DEVICE_BINARY_TARGET_NVPTX64 = "nvptx64"
 UR_DEVICE_BINARY_TARGET_AMDGCN = "amdgcn"
 
 ###############################################################################
+## @brief Native CPU target
+UR_DEVICE_BINARY_TARGET_NATIVE_CPU = "native_cpu"
+
+###############################################################################
 ## @brief Device Binary Type
 class ur_device_binary_t(Structure):
     _fields_ = [
