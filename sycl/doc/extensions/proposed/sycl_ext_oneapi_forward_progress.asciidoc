@@ -200,6 +200,10 @@ scope_. This extension defines the following coordination scopes:
 - Each individual work-item thread of execution is the sole member of its own
   work-item scope.
 
+The forward progress guarantee of a thread of execution at scope `S`, relative
+to coordination scope `C`, is the weakest of the forward progress guarantees
+provided by threads of execution at all scopes between `S` and `C` inclusive.
+
 [NOTE]
 ====
 Qualifying a thread of execution's forward progress guarantees with a coordination
