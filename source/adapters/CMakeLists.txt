@@ -19,7 +19,7 @@ function(add_ur_adapter name)
         set(TARGET_LIBNAME lib${name}_${PROJECT_VERSION_MAJOR}.0)
         string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
 
-        set(ADAPTER_VERSION_SCRIPT ${name}.map)
+        set(ADAPTER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/${name}.map)
 
         configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.map.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
         target_link_options(${name} PRIVATE "-Wl,--version-script=${ADAPTER_VERSION_SCRIPT}")
