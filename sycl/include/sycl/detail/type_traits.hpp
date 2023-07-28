@@ -19,7 +19,7 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <class T> struct is_fixed_size_group : std::false_type {};
 
@@ -479,5 +479,5 @@ template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -2226,6 +2226,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
     return PI_ERROR_INVALID_VALUE;
   }
 
+  std::cout
+      << "WARNING: The ESIMD Emulator is deprecated and will be removed in the "
+         "future.\n";
+
   // Check that the major version matches in PiVersion and SupportedVersion
   _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
 

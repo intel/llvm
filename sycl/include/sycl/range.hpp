@@ -14,7 +14,7 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <int Dimensions> class id;
 
 /// Defines the iteration domain of either a single work-group in a parallel
@@ -240,5 +240,5 @@ inline std::array<size_t, 3> rangeToArray(const range<1> &r) {
 }
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

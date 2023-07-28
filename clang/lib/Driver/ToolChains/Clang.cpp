@@ -5374,6 +5374,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
                      options::OPT_fno_sycl_esimd_force_stateless_mem, false))
       CmdArgs.push_back("-fsycl-esimd-force-stateless-mem");
+
+    const auto DeviceTraitsMacrosArgs = D.getDeviceTraitsMacrosArgs();
+    for (const auto &Arg : DeviceTraitsMacrosArgs) {
+      CmdArgs.push_back(Arg);
+    }
   }
 
   if (IsOpenMPDevice) {

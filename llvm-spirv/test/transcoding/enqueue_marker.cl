@@ -3,9 +3,9 @@
 // RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
-// RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
 // RUN: llvm-dis -opaque-pointers=0 %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
-// RUN: llvm-spirv -r -spirv-target-env="SPV-IR" %t.spv -o %t.rev.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers=0 -spirv-target-env="SPV-IR" %t.spv -o %t.rev.bc
 // RUN: llvm-dis -opaque-pointers=0 %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 // Check that SPIR-V friendly IR is correctly recognized

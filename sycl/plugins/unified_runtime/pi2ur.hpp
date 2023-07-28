@@ -308,6 +308,8 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
         return PI_EXT_PLATFORM_BACKEND_CUDA;
       case UR_PLATFORM_BACKEND_HIP:
         return PI_EXT_PLATFORM_BACKEND_HIP;
+      case UR_PLATFORM_BACKEND_NATIVE_CPU:
+        return PI_EXT_PLATFORM_BACKEND_NATIVE_CPU;
       default:
         die("UR_PLATFORM_INFO_BACKEND: unhandled value");
       }
@@ -1334,6 +1336,10 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
                     __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_AMDGCN;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+      "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
     else
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_UNKNOWN;
