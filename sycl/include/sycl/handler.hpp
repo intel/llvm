@@ -1601,9 +1601,6 @@ public:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
-    if (Acc.empty())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "require() cannot be called on empty accessors");
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
