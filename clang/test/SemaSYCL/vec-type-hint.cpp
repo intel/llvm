@@ -4,7 +4,6 @@
 
 // opencl-no-diagnostics
 // sycl-2017-no-diagnostics
-
 // __attribute__((vec_type_hint)) is deprecated without replacement in SYCL
 // 2020 mode, but is allowed in SYCL 2017 and OpenCL modes.
-KERNEL __attribute__((vec_type_hint(int))) void foo() {} // sycl-2020-warning {{attribute 'vec_type_hint' is deprecated}}
+KERNEL __attribute__((vec_type_hint(int))) void foo() {} // sycl-2020-warning {{attribute 'vec_type_hint' is deprecated; attribute ignored}}
