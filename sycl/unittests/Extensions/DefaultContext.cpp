@@ -18,8 +18,13 @@
 inline constexpr auto EnableDefaultContextsName =
     "SYCL_ENABLE_DEFAULT_CONTEXTS";
 
-void test_contexts_are_equal(const sycl::platform &Plt1,
-                             const sycl::platform &Plt2) {
+void test_contexts_are_equal() {
+  sycl::unittest::PiMock Mock1;
+  sycl::platform Plt1 = Mock1.getPlatform();
+
+  sycl::unittest::PiMock Mock2;
+  sycl::platform Plt2 = Mock2.getPlatform();
+
   const sycl::device Dev1 = Plt1.get_devices()[0];
   const sycl::device Dev2 = Plt2.get_devices()[0];
 
@@ -32,7 +37,10 @@ void test_contexts_are_equal(const sycl::platform &Plt1,
             Dev2.get_platform().ext_oneapi_get_default_context());
 }
 
-void test_default_context_disabled(const sycl::platform &Plt) {
+void test_default_context_disabled() {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
   bool catchException = false;
   try {
     (void)Plt.ext_oneapi_get_default_context();
@@ -50,13 +58,7 @@ TEST(DefaultContextTest, DefaultContextTest) {
   ScopedEnvVar var(EnableDefaultContextsName, "1",
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  sycl::unittest::PiMock Mock1;
-  sycl::platform Plt1 = Mock1.getPlatform();
-
-  sycl::unittest::PiMock Mock2;
-  sycl::platform Plt2 = Mock2.getPlatform();
-
-  test_contexts_are_equal(Plt1, Plt2);
+  test_contexts_are_equal();
 }
 
 TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
@@ -65,34 +67,13 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
   ScopedEnvVar var(EnableDefaultContextsName, "0",
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  test_default_context_disabled(Plt);
+  test_default_context_disabled();
 }
 
 TEST(DefaultContextTest, DefaultContextCanBeDisabledEnabled) {
-  using namespace sycl::detail;
-  using namespace sycl::unittest;
-  {
-    detail::enable_ext_oneapi_default_context(false);
-    sycl::unittest::PiMock Mock;
-    sycl::platform Plt = Mock.getPlatform();
+  sycl::detail::enable_ext_oneapi_default_context(false);
+  test_default_context_disabled();
 
-    test_default_context_disabled(Plt);
-  }
-
-  {
-    sycl::unittest::PiMock Mock1;
-    sycl::platform Plt1 = Mock1.getPlatform();
-
-    sycl::unittest::PiMock Mock2;
-    sycl::platform Plt2 = Mock2.getPlatform();
-
-    // Since the platforms were gotten by the same way (same selector)
-    // it should be sufficient to enable the extension for one of them
-    detail::enable_ext_oneapi_default_context(true);
-
-    test_contexts_are_equal(Plt1, Plt2);
-  }
+  sycl::detail::enable_ext_oneapi_default_context(true);
+  test_contexts_are_equal();
 }
