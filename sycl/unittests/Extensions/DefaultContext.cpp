@@ -18,18 +18,8 @@
 inline constexpr auto EnableDefaultContextsName =
     "SYCL_ENABLE_DEFAULT_CONTEXTS";
 
-TEST(DefaultContextTest, DefaultContextTest) {
-  using namespace sycl::detail;
-  using namespace sycl::unittest;
-  ScopedEnvVar var(EnableDefaultContextsName, "1",
-                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
-
-  sycl::unittest::PiMock Mock1;
-  sycl::platform Plt1 = Mock1.getPlatform();
-
-  sycl::unittest::PiMock Mock2;
-  sycl::platform Plt2 = Mock2.getPlatform();
-
+void test_contexts_are_equal(const sycl::platform &Plt1,
+                             const sycl::platform &Plt2) {
   const sycl::device Dev1 = Plt1.get_devices()[0];
   const sycl::device Dev2 = Plt2.get_devices()[0];
 
@@ -42,15 +32,7 @@ TEST(DefaultContextTest, DefaultContextTest) {
             Dev2.get_platform().ext_oneapi_get_default_context());
 }
 
-TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
-  using namespace sycl::detail;
-  using namespace sycl::unittest;
-  ScopedEnvVar var(EnableDefaultContextsName, "0",
-                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
+void test_default_context_disabled(const sycl::platform &Plt) {
   bool catchException = false;
   try {
     (void)Plt.ext_oneapi_get_default_context();
@@ -60,4 +42,57 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
 
   ASSERT_TRUE(catchException)
       << "ext_oneapi_get_default_context did not throw and exception";
+}
+
+TEST(DefaultContextTest, DefaultContextTest) {
+  using namespace sycl::detail;
+  using namespace sycl::unittest;
+  ScopedEnvVar var(EnableDefaultContextsName, "1",
+                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
+
+  sycl::unittest::PiMock Mock1;
+  sycl::platform Plt1 = Mock1.getPlatform();
+
+  sycl::unittest::PiMock Mock2;
+  sycl::platform Plt2 = Mock2.getPlatform();
+
+  test_contexts_are_equal(Plt1, Plt2);
+}
+
+TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
+  using namespace sycl::detail;
+  using namespace sycl::unittest;
+  ScopedEnvVar var(EnableDefaultContextsName, "0",
+                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  test_default_context_disabled(Plt);
+}
+
+TEST(DefaultContextTest, DefaultContextCanBeDisabledEnabled) {
+  using namespace sycl::detail;
+  using namespace sycl::unittest;
+  {
+    sycl::unittest::PiMock Mock;
+    sycl::platform Plt = Mock.getPlatform();
+    Plt.detail_enable_ext_oneapi_default_context(false);
+
+    test_default_context_disabled(Plt);
+  }
+
+  {
+    sycl::unittest::PiMock Mock1;
+    sycl::platform Plt1 = Mock1.getPlatform();
+
+    sycl::unittest::PiMock Mock2;
+    sycl::platform Plt2 = Mock2.getPlatform();
+
+    // Since the platforms were gotten by the same way (same selector)
+    // it should be sufficient to enable the extension for one of them
+    Plt1.detail_enable_ext_oneapi_default_context(true);
+
+    test_contexts_are_equal(Plt1, Plt2);
+  }
 }

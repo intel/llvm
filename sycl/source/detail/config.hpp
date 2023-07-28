@@ -328,13 +328,19 @@ public:
 
   static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
 
+  static void reset_with_value(const char *Val) {
+    (void)getCachedValue(/*ResetCache=*/true, Val);
+  }
+
   static const char *getName() { return BaseT::MConfigName; }
 
 private:
-  static const char *getCachedValue(bool ResetCache = false) {
+  static const char *getCachedValue(bool ResetCache = false,
+                                    const char *Val = nullptr) {
     static const char *ValStr = BaseT::getRawValue();
-    if (ResetCache)
-      ValStr = BaseT::getRawValue();
+    if (ResetCache) {
+      ValStr = (Val != nullptr) ? Val : BaseT::getRawValue();
+    }
     return ValStr;
   }
 };

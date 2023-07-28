@@ -167,6 +167,8 @@ public:
   /// \return the default context
   context ext_oneapi_get_default_context() const;
 
+  void detail_enable_ext_oneapi_default_context(bool Val) const;
+
 private:
   pi_native_handle getNative() const;
 
