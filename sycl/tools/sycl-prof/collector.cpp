@@ -31,16 +31,20 @@ unsigned long process_id() { return static_cast<unsigned long>(getpid()); }
 using tick_t = uint64_t;
 
 #if defined(__linux__)
-#include <sched.h>
+#include <time.h>
 // https://stackoverflow.com/questions/42189976/calculate-system-time-using-rdtsc
 // Discussion describes how clock_gettime() costs about 4 ns per call
 struct rdtsc_t {
   inline uint64_t get_clock() {
     struct timespec ts;
-    int status = clock_gettime(CLOCK_REALTIME, &ts);
-    return (static_cast<uint64_t>(1000000000UL) *
-                static_cast<uint64_t>(ts.tv_sec) +
-            static_cast<uint64_t>(ts.tv_nsec));
+    // Other possible options include CLOCK_PROCESS_CPUTIME_ID, CLOCK_MONOTONIC
+    int status = clock_gettime(CLOCK_MONOTONIC, &ts);
+    if (status == 0) {
+      return (static_cast<uint64_t>(1000000000UL) *
+                  static_cast<uint64_t>(ts.tv_sec) +
+              static_cast<uint64_t>(ts.tv_nsec));
+    } else
+      return 0;
   }
 };
 #else
