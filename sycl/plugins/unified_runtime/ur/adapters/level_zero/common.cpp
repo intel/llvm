@@ -142,7 +142,7 @@ inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
 }
 
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
-                           const char *ZeArgs, bool TraceError) {
+                           const char *ZeArgs) {
   if (!UrL0Debug) {
     return ZeResult;
   }
@@ -153,9 +153,6 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
 
   const char *ErrorString = "Unknown";
   zeParseError(ZeResult, ErrorString);
-  if (ZeResult && TraceError) {
-    urPrint("Error (%s) in %s\n", ErrorString, ZeName);
-  }
 
   urPrint("ZE <--- %s(%s)\n", ZeName, ErrorString);
 

@@ -232,7 +232,7 @@ public:
 
   // The non-static version just calls static one.
   ze_result_t doCall(ze_result_t ZeResult, const char *ZeName,
-                     const char *ZeArgs, bool TraceError = true);
+                     const char *ZeArgs);
 };
 
 // This function will ensure compatibility with both Linux and Windows for
@@ -299,20 +299,20 @@ ur_result_t ze2urResult(ze_result_t ZeResult);
 #define ZE2UR_CALL(ZeName, ZeArgs)                                             \
   {                                                                            \
     urPrint("ZE ---> %s%s\n", #ZeName, #ZeArgs);                               \
-    if (auto Result = ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, true))  \
+    if (auto Result = ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs))        \
       return ze2urResult(Result);                                              \
   }
 
 #define ZE_CALL(ZeName, ZeArgs, ZeResult)                                      \
   {                                                                            \
     urPrint("ZE ---> %s%s\n", #ZeName, #ZeArgs);                               \
-    ZeResult = ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, true);         \
+    ZeResult = ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs);               \
   }
 
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   {                                                                            \
     urPrint("ZE ---> %s%s\n", #ZeName, #ZeArgs);                               \
-    ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, true);                    \
+    ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs);                          \
   }
 
 // This wrapper around std::atomic is created to limit operations with reference
