@@ -700,13 +700,18 @@ void SYCLHostScheduleKernel::getEffects(
     effects.emplace_back(MemoryEffects::Read::get(), range, defaultResource);
   if (Value offset = getOffset())
     effects.emplace_back(MemoryEffects::Read::get(), offset, defaultResource);
-  // The rest of the arguments will be scalar or have read-write access mode.
-  for (Value arg : getArgs()) {
-    if (isa<LLVM::LLVMPointerType>(arg.getType())) {
-      // TODO: Do not add write effect if the argument is an accessor.
-      effects.emplace_back(MemoryEffects::Write::get(), arg, defaultResource);
-      effects.emplace_back(MemoryEffects::Read::get(), arg, defaultResource);
-    }
+  // The rest of the arguments will be scalar, accessors with read access or
+  // have read-write access mode.
+  for (auto iter :
+       llvm::zip(getArgs(), getSyclTypes().getAsValueRange<TypeAttr>())) {
+    auto [value, type] = iter;
+    if (!isa<LLVM::LLVMPointerType>(value.getType()))
+      // Scalars
+      continue;
+    effects.emplace_back(MemoryEffects::Read::get(), value, defaultResource);
+    if (!llvm::isa_and_nonnull<AccessorType>(type))
+      // Not sycl::accessor
+      effects.emplace_back(MemoryEffects::Write::get(), value, defaultResource);
   }
 }
 
