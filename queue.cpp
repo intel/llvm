@@ -1352,11 +1352,7 @@ ur_result_t CleanupEventListFromResetCmdList(
   for (auto &Event : EventListToCleanup) {
     // We don't need to synchronize the events since the fence associated with
     // the command list was synchronized.
-    {
-      std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
-      Event->Completed = true;
-    }
-    UR_CALL(CleanupCompletedEvent(Event, QueueLocked));
+    UR_CALL(CleanupCompletedEvent(Event, QueueLocked, true));
     // This event was removed from the command list, so decrement ref count
     // (it was incremented when they were added to the command list).
     UR_CALL(urEventReleaseInternal(Event));
