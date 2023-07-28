@@ -15,19 +15,19 @@
 
 #include <set>
 #include <vector>
+#include <iostream>
 
 using namespace llvm;
+
+auto ExtractIntegerFromMDNodeOperand(const MDOperand &operand) {
+    Constant *C =
+        cast<ConstantAsMetadata>(operand.get())->getValue();
+    return C->getUniqueInteger().getSExtValue();
+}
 
 void llvm::getSYCLDeviceRequirements(
     const module_split::ModuleDesc &MD,
     std::map<StringRef, util::PropertyValue> &Requirements) {
-  auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                             unsigned OpNo) -> int32_t {
-    Constant *C =
-        cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
-    return static_cast<int32_t>(C->getUniqueInteger().getSExtValue());
-  };
-
   // { LLVM-IR metadata name , [SYCL/Device requirements] property name }, see:
   // https://github.com/intel/llvm/blob/sycl/sycl/doc/design/OptionalDeviceFeatures.md#create-the-sycldevice-requirements-property-set
   // Scan the module and if the metadata is present fill the corresponing
@@ -38,13 +38,13 @@ void llvm::getSYCLDeviceRequirements(
       {"reqd_work_group_size", "reqd_work_group_size"}};
 
   for (const auto &[MDName, MappedName] : ReqdMDs) {
-    std::set<uint32_t> Values;
+    std::set<int64_t> Values;
     for (const Function &F : MD.getModule()) {
       if (const MDNode *MDN = F.getMetadata(MDName)) {
-        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+        for (const auto &operand : MDN->operands()) {
           // Don't put internal aspects (with negative integer value) into the
           // requirements, they are used only for device image splitting.
-          auto Val = ExtractIntegerFromMDNodeOperand(MDN, I);
+          auto Val = ExtractIntegerFromMDNodeOperand(operand);
           if (Val >= 0)
             Values.insert(Val);
         }
@@ -58,6 +58,25 @@ void llvm::getSYCLDeviceRequirements(
         std::vector<uint32_t>(Values.begin(), Values.end());
   }
 
+  std::optional<llvm::SmallVector<int64_t, 3>> ReqdWorkGroupSize;
+  for (const Function &F: MD.getModule()) {
+    if (const MDNode *MDN = F.getMetadata("reqd_work_group_size")) {
+      llvm::SmallVector<int64_t, 3> NewReqdWorkGroupSize;
+      for (const auto &operand : MDN->operands())
+        NewReqdWorkGroupSize.push_back(ExtractIntegerFromMDNodeOperand(operand));
+      if (!ReqdWorkGroupSize)
+        ReqdWorkGroupSize = NewReqdWorkGroupSize;
+      else if (!std::equal(ReqdWorkGroupSize->begin(), ReqdWorkGroupSize->end(),
+                           NewReqdWorkGroupSize.begin())) {
+        // two functions in the module have different required work group sizes
+      }
+    }
+  }
+
+  if (ReqdWorkGroupSize)
+    Requirements["reqd_work_group_size"] =
+      std::vector<uint32_t>(ReqdWorkGroupSize->begin(), ReqdWorkGroupSize->end());
+
   // There should only be at most one function with
   // intel_reqd_sub_group_size metadata when considering the entry
   // points of a module, but not necessarily when considering all the
@@ -69,7 +88,7 @@ void llvm::getSYCLDeviceRequirements(
   for (const Function *F : MD.entries()) {
     if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
       assert(MDN->getNumOperands() == 1);
-      auto MDValue = ExtractIntegerFromMDNodeOperand(MDN, 0);
+      auto MDValue = ExtractIntegerFromMDNodeOperand(MDN->getOperand(0));
       assert(MDValue >= 0);
       if (!SubGroupSize)
         SubGroupSize = MDValue;
