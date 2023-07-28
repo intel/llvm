@@ -22,14 +22,14 @@ void llvm::getSYCLDeviceRequirements(
     const module_split::ModuleDesc &MD,
     std::map<StringRef, util::PropertyValue> &Requirements) {
   auto ExtractSignedIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                             unsigned OpNo) -> int64_t {
+                                                   unsigned OpNo) -> int64_t {
     Constant *C =
         cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
     return static_cast<int64_t>(C->getUniqueInteger().getSExtValue());
   };
 
-  auto ExtractUnsignedIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                             unsigned OpNo) -> uint64_t {
+  auto ExtractUnsignedIntegerFromMDNodeOperand =
+      [=](const MDNode *N, unsigned OpNo) -> uint64_t {
     Constant *C =
         cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
     return static_cast<uint64_t>(C->getUniqueInteger().getZExtValue());
@@ -54,7 +54,7 @@ void llvm::getSYCLDeviceRequirements(
             // requirements, they are used only for device image splitting.
             auto Val = ExtractSignedIntegerFromMDNodeOperand(MDN, I);
             if (Val >= 0)
-                Values.insert(Val);
+              Values.insert(Val);
           } else {
             Values.insert(ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
           }
