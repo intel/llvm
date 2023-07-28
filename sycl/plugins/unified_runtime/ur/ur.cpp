@@ -22,7 +22,7 @@ bool PrintTrace = [] {
 }();
 
 // Apparatus for maintaining immutable cache of platforms.
-std::vector<ur_platform_handle_t> *PiPlatformsCache =
+std::vector<ur_platform_handle_t> *URPlatformsCache =
     new std::vector<ur_platform_handle_t>;
-SpinLock *PiPlatformsCacheMutex = new SpinLock;
-bool PiPlatformCachePopulated = false;
+SpinLock *URPlatformsCacheMutex = new SpinLock;
+bool URPlatformCachePopulated = false;
