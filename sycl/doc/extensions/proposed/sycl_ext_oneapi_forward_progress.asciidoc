@@ -168,7 +168,8 @@ graph TD;
 Blocking with forward progress guarantee delegation ensures that the forward
 progress guarantees provided by at least one thread of execution in a group
 are at least as strong as the forward progress guarantees provided by that
-group.
+group. However, it is unspecified which thread(s) of execution will be
+strengthened and for how many steps.
 ====
 
 Safe coordination of work-items via memory requires careful attention to this
