@@ -399,17 +399,11 @@ auto add_empty_node(
 }
 
 // Values for dotp tests
-const float Alpha = 1.0f;
-const float Beta = 2.0f;
-const float Gamma = 3.0f;
+constexpr float Alpha = 1.0f;
+constexpr float Beta = 2.0f;
+constexpr float Gamma = 3.0f;
 
 // Reference function for dotp
 float dotp_reference_result(size_t N) {
-  float Sum = 0.0f;
-
-  for (size_t i = 0; i < N; ++i) {
-    Sum += (Alpha * 1.0f + Beta * 2.0f) * (Gamma * 3.0f + Beta * 2.0f);
-  }
-
-  return Sum;
+  return N * (Alpha * 1.0f + Beta * 2.0f) * (Gamma * 3.0f + Beta * 2.0f);
 }

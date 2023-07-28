@@ -4,7 +4,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{gpu_selector_v};
+  queue Queue;
 
   auto MyProperties = property_list{exp_ext::property::graph::no_cycle_check()};
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(),

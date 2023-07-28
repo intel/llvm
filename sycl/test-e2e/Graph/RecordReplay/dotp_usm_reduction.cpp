@@ -14,7 +14,7 @@
 
 int main() {
 
-  queue Queue{gpu_selector_v};
+  queue Queue;
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
@@ -29,10 +29,9 @@ int main() {
 
   auto InitEvent = Queue.submit([&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] = 1.0f;
-      Y[i] = 2.0f;
-      Z[i] = 3.0f;
+      X[it] = 1.0f;
+      Y[it] = 2.0f;
+      Z[it] = 3.0f;
     });
   });
 

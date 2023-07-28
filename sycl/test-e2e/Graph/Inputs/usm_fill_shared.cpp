@@ -4,7 +4,7 @@
 
 int main() {
 
-  queue Queue{gpu_selector_v};
+  queue Queue;
 
   if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {
     return 0;

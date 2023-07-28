@@ -4,7 +4,7 @@
 
 int main() {
 
-  queue Queue{gpu_selector_v};
+  queue Queue;
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 

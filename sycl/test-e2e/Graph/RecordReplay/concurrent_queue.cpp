@@ -23,10 +23,7 @@ int main() {
     exp_ext::command_graph GraphB{Queue.get_context(), Queue.get_device()};
     GraphB.begin_recording(Queue);
   } catch (sycl::exception &E) {
-    auto StdErrc = E.code().value();
-    if (StdErrc == static_cast<int>(errc::invalid)) {
-      Success = true;
-    }
+    Success = E.code() == errc::invalid;
   }
 
   GraphA.end_recording();
