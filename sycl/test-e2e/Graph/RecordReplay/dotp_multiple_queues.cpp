@@ -13,7 +13,7 @@
 int main() {
 
   property_list properties{property::queue::in_order()};
-  queue QueueA{gpu_selector_v, properties};
+  queue QueueA{properties};
   queue QueueB{QueueA.get_context(), QueueA.get_device(), properties};
 
   exp_ext::command_graph Graph{QueueA.get_context(), QueueA.get_device()};
