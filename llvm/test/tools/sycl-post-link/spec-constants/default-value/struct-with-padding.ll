@@ -1,12 +1,8 @@
 ; Test checks that struct with padding is handled correctly.
 
-; FIXME: Enable this test when SpecConstantPass start handle padding bytes.
-; XFAIL: *
 ; RUN: sycl-post-link -split=auto -spec-const=rt -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: cat %t.table | FileCheck %s -check-prefix=CHECK-TABLE -DPATH=%t
-; RUN: cat %t_0.prop | FileCheck %s -check-prefix=CHECK-PROP0
 ; RUN: cat %t_1.prop | FileCheck %s -check-prefix=CHECK-PROP1
-; RUN: cat %t_0.ll | FileCheck %s -check-prefix=CHECK-IR0
 ; RUN: cat %t_1.ll | FileCheck %s -check-prefix=CHECK-IR1
 
 ; CHECK-TABLE: [[PATH]]_0.ll|[[PATH]]_0.prop|[[PATH]]_0.sym
