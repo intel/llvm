@@ -15,6 +15,7 @@
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/vector_traits.hpp>
 
+#include <cstdint> // for uint16_t
 #include <functional>
 #include <limits>
 
