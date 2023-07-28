@@ -1699,8 +1699,7 @@ __SYCL_DEPRECATED(
 __ESIMD_API std::enable_if_t<std::is_integral_v<T>, __ESIMD_NS::simd<T, N>> bfn(
     __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
     __ESIMD_NS::simd<T, N> src2) {
-  return __ESIMD_NS::bfn<static_cast<__ESIMD_NS::bfn_t>(FuncControl)>(
-      src0, src1, src2);
+  return __ESIMD_NS::bfn<FuncControl>(src0, src1, src2);
 }
 
 /// Performs binary function computation with three scalar operands.
@@ -1716,8 +1715,7 @@ __SYCL_DEPRECATED(
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
                                  std::is_integral_v<T>,
                              T> bfn(T src0, T src1, T src2) {
-  return __ESIMD_NS::bfn<static_cast<__ESIMD_NS::bfn_t>(FuncControl)>(
-      src0, src1, src2);
+  return __ESIMD_NS::bfn<FuncControl>(src0, src1, src2);
 }
 
 /// @} sycl_esimd_logical
