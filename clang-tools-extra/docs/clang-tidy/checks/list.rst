@@ -103,6 +103,7 @@ Clang-Tidy Checks
    `bugprone-misplaced-pointer-arithmetic-in-alloc <bugprone/misplaced-pointer-arithmetic-in-alloc.html>`_, "Yes"
    `bugprone-misplaced-widening-cast <bugprone/misplaced-widening-cast.html>`_,
    `bugprone-move-forwarding-reference <bugprone/move-forwarding-reference.html>`_, "Yes"
+   `bugprone-multi-level-implicit-pointer-conversion <bugprone/multi-level-implicit-pointer-conversion.html>`_,
    `bugprone-multiple-new-in-one-expression <bugprone/multiple-new-in-one-expression.html>`_,
    `bugprone-multiple-statement-macro <bugprone/multiple-statement-macro.html>`_,
    `bugprone-no-escape <bugprone/no-escape.html>`_,
@@ -323,6 +324,7 @@ Clang-Tidy Checks
    `openmp-exception-escape <openmp/exception-escape.html>`_,
    `openmp-use-default-none <openmp/use-default-none.html>`_,
    `performance-avoid-endl <performance/avoid-endl.html>`_, "Yes"
+   `performance-enum-size <performance/enum-size.html>`_,
    `performance-faster-string-find <performance/faster-string-find.html>`_, "Yes"
    `performance-for-range-copy <performance/for-range-copy.html>`_, "Yes"
    `performance-implicit-conversion-in-loop <performance/implicit-conversion-in-loop.html>`_,

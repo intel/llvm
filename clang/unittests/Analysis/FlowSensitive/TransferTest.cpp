@@ -310,6 +310,28 @@ TEST(TransferTest, StructVarDeclWithInit) {
       });
 }
 
+TEST(TransferTest, StructArrayVarDecl) {
+  std::string Code = R"(
+    struct A {};
+
+    void target() {
+      A Array[2];
+      // [[p]]
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
+
+        const ValueDecl *ArrayDecl = findValueDecl(ASTCtx, "Array");
+
+        // We currently don't create values for arrays.
+        ASSERT_THAT(Env.getValue(*ArrayDecl), IsNull());
+      });
+}
+
 TEST(TransferTest, ClassVarDecl) {
   std::string Code = R"(
     class A {
@@ -2179,6 +2201,39 @@ TEST(TransferTest, CopyConstructorWithParens) {
             cast<IntegerValue>(getFieldValue(FooLoc, *BazDecl, Env));
         const auto *BarBazVal =
             cast<IntegerValue>(getFieldValue(BarLoc, *BazDecl, Env));
+        EXPECT_EQ(FooBazVal, BarBazVal);
+      });
+}
+
+TEST(TransferTest, CopyConstructorWithInitializerListAsSyntacticSugar) {
+  std::string Code = R"(
+  struct A {
+    int Baz;
+  };
+  void target() {
+    A Foo = {3};
+    (void)Foo.Baz;
+    A Bar = {A(Foo)};
+    // [[p]]
+  }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
+
+        const ValueDecl *BazDecl = findValueDecl(ASTCtx, "Baz");
+
+        const auto &FooLoc =
+            getLocForDecl<AggregateStorageLocation>(ASTCtx, Env, "Foo");
+        const auto &BarLoc =
+            getLocForDecl<AggregateStorageLocation>(ASTCtx, Env, "Bar");
+
+        const auto *FooBazVal =
+            cast<IntegerValue>(getFieldValue(&FooLoc, *BazDecl, Env));
+        const auto *BarBazVal =
+            cast<IntegerValue>(getFieldValue(&BarLoc, *BazDecl, Env));
         EXPECT_EQ(FooBazVal, BarBazVal);
       });
 }
@@ -5491,7 +5546,7 @@ TEST(TransferTest, BuiltinFunctionModeled) {
                   ASTCtx));
 
         ASSERT_THAT(ImplicitCast, NotNull());
-        EXPECT_THAT(Env.getValueStrict(*ImplicitCast), IsNull());
+        EXPECT_THAT(Env.getValue(*ImplicitCast), IsNull());
       });
 }
 

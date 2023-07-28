@@ -563,6 +563,19 @@ mlir_c_api_cc_library(
 )
 
 mlir_c_api_cc_library(
+    name = "CAPISCF",
+    srcs = ["lib/CAPI/Dialect/SCF.cpp"],
+    hdrs = ["include/mlir-c/Dialect/SCF.h"],
+    capi_deps = [
+        ":CAPIIR",
+    ],
+    includes = ["include"],
+    deps = [
+        ":SCFDialect",
+    ],
+)
+
+mlir_c_api_cc_library(
     name = "CAPISparseTensor",
     srcs = [
         "lib/CAPI/Dialect/SparseTensor.cpp",
@@ -2178,6 +2191,7 @@ td_library(
     name = "IRDLTdFiles",
     srcs = [
         "include/mlir/Dialect/IRDL/IR/IRDL.td",
+        "include/mlir/Dialect/IRDL/IR/IRDLAttributes.td",
         "include/mlir/Dialect/IRDL/IR/IRDLInterfaces.td",
         "include/mlir/Dialect/IRDL/IR/IRDLOps.td",
         "include/mlir/Dialect/IRDL/IR/IRDLTypes.td",
@@ -2243,6 +2257,42 @@ gentbl_cc_library(
 )
 
 gentbl_cc_library(
+    name = "IRDLAttributesIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            ["-gen-attrdef-decls"],
+            "include/mlir/Dialect/IRDL/IR/IRDLAttributes.h.inc",
+        ),
+        (
+            ["-gen-attrdef-defs"],
+            "include/mlir/Dialect/IRDL/IR/IRDLAttributes.cpp.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/Dialect/IRDL/IR/IRDLAttributes.td",
+    deps = [":IRDLTdFiles"],
+)
+
+gentbl_cc_library(
+    name = "IRDLEnumsIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            ["-gen-enum-decls"],
+            "include/mlir/Dialect/IRDL/IR/IRDLEnums.h.inc",
+        ),
+        (
+            ["-gen-enum-defs"],
+            "include/mlir/Dialect/IRDL/IR/IRDLEnums.cpp.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/Dialect/IRDL/IR/IRDLAttributes.td",
+    deps = [":IRDLTdFiles"],
+)
+
+gentbl_cc_library(
     name = "IRDLOpsIncGen",
     strip_include_prefix = "include",
     tbl_outs = [
@@ -2297,6 +2347,8 @@ cc_library(
     deps = [
         ":Dialect",
         ":IR",
+        ":IRDLAttributesIncGen",
+        ":IRDLEnumsIncGen",
         ":IRDLIncGen",
         ":IRDLInterfacesIncGen",
         ":IRDLOpsIncGen",
@@ -3338,7 +3390,6 @@ cc_library(
         ":GPUToSPIRV",
         ":GPUToVulkanTransforms",
         ":IndexToLLVM",
-        ":LinalgToLLVM",
         ":LinalgToStandard",
         ":MathToFuncs",
         ":MathToLLVM",
@@ -4787,6 +4838,7 @@ cc_library(
         ":TransformDialect",
         ":TransformUtils",
         ":VectorDialect",
+        ":VectorTransforms",
         "//llvm:Support",
     ],
 )
@@ -7879,7 +7931,6 @@ cc_library(
         ":LLVMPassIncGen",
         ":LinalgDialect",
         ":LinalgPassIncGen",
-        ":LinalgToLLVM",
         ":LinalgToStandard",
         ":LinalgTransformOps",
         ":LinalgTransforms",
@@ -9337,39 +9388,6 @@ gentbl_cc_library(
     tblgen = ":mlir-tblgen",
     td_file = "include/mlir/Dialect/Linalg/IR/LinalgDoc.td",
     deps = [":LinalgDocTdFiles"],
-)
-
-cc_library(
-    name = "LinalgToLLVM",
-    srcs = glob([
-        "lib/Conversion/LinalgToLLVM/*.cpp",
-        "lib/Conversion/LinalgToLLVM/*.h",
-    ]),
-    hdrs = glob([
-        "include/mlir/Conversion/LinalgToLLVM/*.h",
-    ]),
-    includes = ["include"],
-    deps = [
-        ":AffineToStandard",
-        ":Analysis",
-        ":ConversionPassIncGen",
-        ":FuncDialect",
-        ":IR",
-        ":LLVMCommonConversion",
-        ":LLVMDialect",
-        ":LinalgDialect",
-        ":LinalgTransforms",
-        ":MemRefToLLVM",
-        ":Pass",
-        ":SCFDialect",
-        ":SCFToControlFlow",
-        ":Support",
-        ":Transforms",
-        ":VectorToLLVM",
-        ":VectorToSCF",
-        "//llvm:Core",
-        "//llvm:Support",
-    ],
 )
 
 cc_library(

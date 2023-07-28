@@ -1127,6 +1127,15 @@ public:
     case CK_ConstructorConversion:
       return Visit(subExpr, destType);
 
+    case CK_ArrayToPointerDecay:
+      if (const auto *S = dyn_cast<StringLiteral>(subExpr))
+        return CGM.GetAddrOfConstantStringFromLiteral(S).getPointer();
+      return nullptr;
+    case CK_NullToPointer:
+      if (llvm::Constant *C = Visit(subExpr, destType))
+        return CGM.EmitNullConstant(destType);
+      return nullptr;
+
     case CK_IntToOCLSampler:
       llvm_unreachable("global sampler variables are not generated");
 
@@ -1164,7 +1173,6 @@ public:
     case CK_CPointerToObjCPointerCast:
     case CK_BlockPointerToObjCPointerCast:
     case CK_AnyPointerToBlockPointerCast:
-    case CK_ArrayToPointerDecay:
     case CK_FunctionToPointerDecay:
     case CK_BaseToDerived:
     case CK_DerivedToBase:
@@ -1183,7 +1191,6 @@ public:
     case CK_IntegralComplexToFloatingComplex:
     case CK_PointerToIntegral:
     case CK_PointerToBoolean:
-    case CK_NullToPointer:
     case CK_IntegralCast:
     case CK_BooleanToSignedIntegral:
     case CK_IntegralToPointer:
@@ -1213,6 +1220,10 @@ public:
 
   llvm::Constant *VisitExprWithCleanups(ExprWithCleanups *E, QualType T) {
     return Visit(E->getSubExpr(), T);
+  }
+
+  llvm::Constant *VisitIntegerLiteral(IntegerLiteral *I, QualType T) {
+    return llvm::ConstantInt::get(CGM.getLLVMContext(), I->getValue());
   }
 
   llvm::Constant *EmitArrayInitialization(InitListExpr *ILE, QualType T) {

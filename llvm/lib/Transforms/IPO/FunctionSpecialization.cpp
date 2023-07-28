@@ -124,9 +124,9 @@ static Cost estimateBasicBlocks(SmallVectorImpl<BasicBlock *> &WorkList,
     if (!Weight)
       continue;
 
-    // These blocks are considered dead as far as the InstCostVisitor is
-    // concerned. They haven't been proven dead yet by the Solver, but
-    // may become if we propagate the constant specialization arguments.
+    // These blocks are considered dead as far as the InstCostVisitor
+    // is concerned. They haven't been proven dead yet by the Solver,
+    // but may become if we propagate the specialization arguments.
     if (!DeadBlocks.insert(BB).second)
       continue;
 
@@ -168,12 +168,18 @@ Cost InstCostVisitor::getBonusFromPendingPHIs() {
   Cost Bonus = 0;
   while (!PendingPHIs.empty()) {
     Instruction *Phi = PendingPHIs.pop_back_val();
-    Bonus += getUserBonus(Phi);
+    // The pending PHIs could have been proven dead by now.
+    if (isBlockExecutable(Phi->getParent()))
+      Bonus += getUserBonus(Phi);
   }
   return Bonus;
 }
 
 Cost InstCostVisitor::getUserBonus(Instruction *User, Value *Use, Constant *C) {
+  // We have already propagated a constant for this user.
+  if (KnownConstants.contains(User))
+    return 0;
+
   // Cache the iterator before visiting.
   LastVisited = Use ? KnownConstants.insert({Use, C}).first
                     : KnownConstants.end();
@@ -203,7 +209,7 @@ Cost InstCostVisitor::getUserBonus(Instruction *User, Value *Use, Constant *C) {
 
   for (auto *U : User->users())
     if (auto *UI = dyn_cast<Instruction>(U))
-      if (UI != User && Solver.isBlockExecutable(UI->getParent()))
+      if (UI != User && isBlockExecutable(UI->getParent()))
         Bonus += getUserBonus(UI, User, C);
 
   return Bonus;
@@ -868,7 +874,7 @@ Cost FunctionSpecializer::getSpecializationBonus(Argument *A, Constant *C,
   Cost TotalCost = 0;
   for (auto *U : A->users())
     if (auto *UI = dyn_cast<Instruction>(U))
-      if (Solver.isBlockExecutable(UI->getParent()))
+      if (Visitor.isBlockExecutable(UI->getParent()))
         TotalCost += Visitor.getUserBonus(UI, A, C);
 
   LLVM_DEBUG(dbgs() << "FnSpecialization:   Accumulated user bonus "

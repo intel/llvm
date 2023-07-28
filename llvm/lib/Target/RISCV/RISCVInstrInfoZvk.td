@@ -214,6 +214,8 @@ defm PseudoVCPOP : VPseudoUnaryV_V;
 defm PseudoVROL : VPseudoVALU_VV_VX;
 defm PseudoVROR : VPseudoVALU_VV_VX_VI<uimm6>;
 
+defm PseudoVWSLL : VPseudoVWALU_VV_VX_VI<uimm5>;
+
 //===----------------------------------------------------------------------===//
 // SDNode patterns
 //===----------------------------------------------------------------------===//
@@ -267,7 +269,20 @@ defm : VPatUnarySDNode_V<ctpop, "PseudoVCPOP">;
 
 defm : VPatBinarySDNode_VV_VX<rotl, "PseudoVROL">;
 
-def NegImm64 : SDNodeXForm<imm, [{
+// Invert the immediate and mask it to SEW for readability.
+def InvRot8Imm : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(0x7 & (64 - N->getZExtValue()), SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+def InvRot16Imm : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(0xf & (64 - N->getZExtValue()), SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+def InvRot32Imm : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(0x1f & (64 - N->getZExtValue()), SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+def InvRot64Imm : SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(0x3f & (64 - N->getZExtValue()), SDLoc(N),
                                    N->getValueType(0));
 }]>;
@@ -282,11 +297,40 @@ foreach vti = AllIntegerVectors in {
               (!cast<Instruction>("PseudoVROR_VI_"#vti.LMul.MX)
                  (vti.Vector (IMPLICIT_DEF)),
                  vti.RegClass:$rs2,
-                 (NegImm64 uimm6:$rs1),
+                 (!cast<SDNodeXForm>("InvRot" # vti.SEW # "Imm") uimm6:$rs1),
                  vti.AVL, vti.Log2SEW, TA_MA)>;
   }
 }
 defm : VPatBinarySDNode_VV_VX_VI<rotr, "PseudoVROR", uimm6>;
+
+foreach vtiToWti = AllWidenableIntVectors in {
+  defvar vti = vtiToWti.Vti;
+  defvar wti = vtiToWti.Wti;
+  let Predicates = !listconcat([HasStdExtZvbb],
+                               GetVTypePredicates<vti>.Predicates,
+                               GetVTypePredicates<wti>.Predicates) in {
+    def : Pat<(shl (wti.Vector (zext_oneuse (vti.Vector vti.RegClass:$rs2))),
+                   (wti.Vector (ext_oneuse (vti.Vector vti.RegClass:$rs1)))),
+              (!cast<Instruction>("PseudoVWSLL_VV_"#vti.LMul.MX)
+                 (wti.Vector (IMPLICIT_DEF)),
+                 vti.RegClass:$rs2, vti.RegClass:$rs1,
+                 vti.AVL, vti.Log2SEW, TA_MA)>;
+
+    def : Pat<(shl (wti.Vector (zext_oneuse (vti.Vector vti.RegClass:$rs2))),
+                   (wti.Vector (Low8BitsSplatPat (XLenVT GPR:$rs1)))),
+              (!cast<Instruction>("PseudoVWSLL_VX_"#vti.LMul.MX)
+                 (wti.Vector (IMPLICIT_DEF)),
+                 vti.RegClass:$rs2, GPR:$rs1,
+                 vti.AVL, vti.Log2SEW, TA_MA)>;
+
+    def : Pat<(shl (wti.Vector (zext_oneuse (vti.Vector vti.RegClass:$rs2))),
+                   (wti.Vector (SplatPat_uimm5 uimm5:$rs1))),
+              (!cast<Instruction>("PseudoVWSLL_VI_"#vti.LMul.MX)
+                 (wti.Vector (IMPLICIT_DEF)),
+                 vti.RegClass:$rs2, uimm5:$rs1,
+                 vti.AVL, vti.Log2SEW, TA_MA)>;
+  }
+}
 
 //===----------------------------------------------------------------------===//
 // VL patterns

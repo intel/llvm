@@ -1552,6 +1552,8 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::vector_reduce_umax:
   // Target intrinsics
   case Intrinsic::amdgcn_perm:
+  case Intrinsic::amdgcn_wave_reduce_umin:
+  case Intrinsic::amdgcn_wave_reduce_umax:
   case Intrinsic::arm_mve_vctp8:
   case Intrinsic::arm_mve_vctp16:
   case Intrinsic::arm_mve_vctp32:
@@ -2843,6 +2845,9 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
         return Constant::getNullValue(Ty);
 
       return ConstantInt::get(Ty, C0->abs());
+    case Intrinsic::amdgcn_wave_reduce_umin:
+    case Intrinsic::amdgcn_wave_reduce_umax:
+      return dyn_cast<Constant>(Operands[0]);
     }
 
     return nullptr;

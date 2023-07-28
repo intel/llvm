@@ -298,6 +298,7 @@ LANGOPT(SYCLAllowVirtualFunctions, 1, 0,
 LANGOPT(SYCLIsNativeCPU      , 1, 0, "Generate code for SYCL NativeCPU")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
+LANGOPT(OffloadUniformBlock, 1, 0, "Assume that kernels are launched with uniform block sizes (default true for CUDA/HIP and false otherwise)")
 
 LANGOPT(SizedDeallocation , 1, 0, "sized deallocation")
 LANGOPT(AlignedAllocation , 1, 0, "aligned allocation")

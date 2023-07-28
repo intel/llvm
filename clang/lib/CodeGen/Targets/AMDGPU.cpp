@@ -403,13 +403,6 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
   if (FD)
     setFunctionDeclAttributes(FD, F, M);
 
-  const bool IsHIPKernel =
-      M.getLangOpts().HIP && FD && FD->hasAttr<CUDAGlobalAttr>();
-
-  // TODO: This should be moved to language specific attributes instead.
-  if (IsHIPKernel)
-    F->addFnAttr("uniform-work-group-size", "true");
-
   // Create !{<func-ref>, metadata !"kernel", i32 1} node for SYCL kernels.
   const bool IsSYCLKernel =
       FD && M.getLangOpts().SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>();
