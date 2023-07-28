@@ -189,16 +189,16 @@ To facilitate reasoning about work-item coordination, the forward progress
 guarantees of threads of execution in SYCL can be qualified by a _coordination
 scope_. This extension defines the following coordination scopes:
 
-- All work-item threads of execution spawned directly or indirectly from the
-ND-range kernel's initial root thread of execution are considered part of the
-same root-group scope.
-- All work-item threads of execution spawned directly or indirectly from the
-same work-group thread of execution are considered part of the same work-group
-scope.
-- All work-item threads of execution spawned from the same sub-group thread of
-execution are considered part of the same sub-group scope.
+- All threads of execution spawned directly or indirectly from the ND-range
+  kernel's initial root thread of execution are considered part of the same
+  root-group scope.
+- All threads of execution spawned directly or indirectly from the same
+  work-group thread of execution are considered part of the same work-group
+  scope.
+- All threads of execution spawned from the same sub-group thread of execution
+  are considered part of the same sub-group scope.
 - Each individual work-item thread of execution is the sole member of its own
-work-item scope.
+  work-item scope.
 
 [NOTE]
 ====
