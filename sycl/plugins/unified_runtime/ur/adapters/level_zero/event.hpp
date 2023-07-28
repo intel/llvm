@@ -65,7 +65,7 @@ struct _ur_ze_event_list_t {
   // List of level zero events for this event list.
   ze_event_handle_t *ZeEventList = {nullptr};
 
-  // List of pi_events for this event list.
+  // List of ur_events for this event list.
   ur_event_handle_t *UrEventList = {nullptr};
 
   // length of both the lists.  The actual allocation of these lists
@@ -74,8 +74,8 @@ struct _ur_ze_event_list_t {
   uint32_t Length = {0};
 
   // Initialize this using the array of events in EventList, and retain
-  // all the pi_events in the created data structure.
-  // CurQueue is the pi_queue that the command with this event wait
+  // all the ur_event_handle_t in the created data structure.
+  // CurQueue is the ur_queue_handle_t that the command with this event wait
   // list is going to be added to.  That is needed to flush command
   // batches for wait events that are in other queues.
   // UseCopyEngine indicates if the next command (the one that this
@@ -88,9 +88,9 @@ struct _ur_ze_event_list_t {
                                            bool UseCopyEngine);
 
   // Add all the events in this object's UrEventList to the end
-  // of the list EventsToBeReleased. Destroy pi_ze_event_list_t data
+  // of the list EventsToBeReleased. Destroy ur_ze_event_list_t data
   // structure fields making it look empty.
-  ur_result_t collectEventsForReleaseAndDestroyPiZeEventList(
+  ur_result_t collectEventsForReleaseAndDestroyUrZeEventList(
       std::list<ur_event_handle_t> &EventsToBeReleased);
 
   // Had to create custom assignment operator because the mutex is
@@ -163,7 +163,7 @@ struct ur_event_handle_t_ : _ur_object {
   // Opaque data to hold any data needed for CommandType.
   void *CommandData;
 
-  // Command list associated with the pi_event.
+  // Command list associated with the ur_event_handle_t
   std::optional<ur_command_list_ptr_t> CommandList;
 
   // List of events that were in the wait list of the command that will
@@ -206,7 +206,7 @@ struct ur_event_handle_t_ : _ur_object {
 
   bool hasExternalRefs() { return RefCountExternal != 0; }
 
-  // Reset _pi_event object.
+  // Reset ur_event_handle_t object.
   ur_result_t reset();
 
   // Tells if this event is with profiling capabilities.

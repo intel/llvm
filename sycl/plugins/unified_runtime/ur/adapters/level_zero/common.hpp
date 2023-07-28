@@ -336,7 +336,7 @@ struct ReferenceCounter {
   // Used when retaining an object.
   void increment() { RefCount++; }
 
-  // Supposed to be used in pi*GetInfo* methods where ref count value is
+  // Supposed to be used in ur*GetInfo* methods where ref count value is
   // requested.
   uint32_t load() { return RefCount.load(); }
 
@@ -376,7 +376,7 @@ struct _ur_object {
   // To get exclusive access to the object in a scope use std::scoped_lock:
   //    std::scoped_lock Lock(Obj->Mutex);
   //
-  // If several pi objects are accessed in a scope then each object's mutex must
+  // If several UR objects are accessed in a scope then each object's mutex must
   // be locked. For example, to get write access to Obj1 and Obj2 and read
   // access to Obj3 in a scope use the following approach:
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);

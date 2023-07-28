@@ -323,12 +323,12 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
 
   // We must delete Context first and then destroy zeContext because
   // Context deallocation requires ZeContext in some member deallocation of
-  // pi_context.
+  // ur_context_handle_t.
   delete Context;
 
-  // Destruction of some members of pi_context uses L0 context
+  // Destruction of some members of ur_context_handle_t uses L0 context
   // and therefore it must be valid at that point.
-  // Technically it should be placed to the destructor of pi_context
+  // Technically it should be placed to the destructor of ur_context_handle_t
   // but this makes API error handling more complex.
   if (DestroyZeContext) {
     auto ZeResult = ZE_CALL_NOCHECK(zeContextDestroy, (DestroyZeContext));
@@ -345,9 +345,9 @@ ur_platform_handle_t ur_context_handle_t_::getPlatform() const {
 }
 
 ur_result_t ur_context_handle_t_::finalize() {
-  // This function is called when pi_context is deallocated, piContextRelease.
-  // There could be some memory that may have not been deallocated.
-  // For example, event and event pool caches would be still alive.
+  // This function is called when ur_context_handle_t is deallocated,
+  // urContextRelease. There could be some memory that may have not been
+  // deallocated. For example, event and event pool caches would be still alive.
 
   if (!DisableEventsCaching) {
     std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
@@ -630,7 +630,7 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
   // the command lists, and later are then added to the command queue.
   // Each command list is paired with an associated fence to track when the
   // command list is available for reuse.
-  ur_result_t pi_result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  ur_result_t ur_result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
 
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
@@ -678,7 +678,7 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
         CommandList =
             Queue->CommandListMap
                 .emplace(ZeCommandList,
-                         pi_command_list_info_t{ZeFence, true, false,
+                         ur_command_list_info_t{ZeFence, true, false,
                                                 ZeCommandQueue, ZeQueueDesc})
                 .first;
       }
@@ -720,9 +720,9 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
 
   // If there are no available command lists nor signalled command lists,
   // then we must create another command list.
-  pi_result = Queue->createCommandList(UseCopyEngine, CommandList);
+  ur_result = Queue->createCommandList(UseCopyEngine, CommandList);
   CommandList->second.ZeFenceInUse = true;
-  return pi_result;
+  return ur_result;
 }
 
 bool ur_context_handle_t_::isValidDevice(ur_device_handle_t Device) const {

@@ -56,9 +56,9 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Command list map so we can use queue::executeCommandList.
   // Command list map is also used to release all the Fences retained by the
   // command_buffer std::unordered_multimap<ze_command_list_handle_t,
-  // pi_command_list_info_t> CommandListMap; CommandListMap is redefined as a
+  // ur_command_list_info_t> CommandListMap; CommandListMap is redefined as a
   // multimap to enable mutiple commands enqueing into the same command_buffer
-  std::unordered_multimap<ze_command_list_handle_t, pi_command_list_info_t>
+  std::unordered_multimap<ze_command_list_handle_t, ur_command_list_info_t>
       CommandListMap;
   // Event which will signals the most recent execution of the command-buffer
   // has finished
