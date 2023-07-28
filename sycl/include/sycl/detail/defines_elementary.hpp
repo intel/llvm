@@ -78,11 +78,6 @@
 #endif
 #endif
 
-// Stringify an argument to pass it in _Pragma directive below.
-#ifndef __SYCL_STRINGIFY
-#define __SYCL_STRINGIFY(x) #x
-#endif // __SYCL_STRINGIFY
-
 #ifdef __clang__
 #define __SYCL_ANNOTATE(str) __attribute__((annotate(#str)))
 #else
