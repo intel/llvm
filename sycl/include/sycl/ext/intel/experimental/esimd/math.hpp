@@ -1682,39 +1682,8 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
 /// on the 3 input operands. It is used as a template argument of the bfn()
 /// function.
 /// Example: d = bfn<~bfn_t::x & ~bfn_t::y & ~bfn_t::z>(s0, s1, s2);
-enum class __SYCL_DEPRECATED(
-    "Please use sycl::ext::intel::esimd::bfn_t") bfn_t : uint8_t {
-  x = 0xAA,
-  y = 0xCC,
-  z = 0xF0
-};
-
-static constexpr bfn_t operator~(bfn_t x) {
-  uint8_t val = static_cast<uint8_t>(x);
-  uint8_t res = ~val;
-  return static_cast<bfn_t>(res);
-}
-
-static constexpr bfn_t operator|(bfn_t x, bfn_t y) {
-  uint8_t arg0 = static_cast<uint8_t>(x);
-  uint8_t arg1 = static_cast<uint8_t>(y);
-  uint8_t res = arg0 | arg1;
-  return static_cast<bfn_t>(res);
-}
-
-static constexpr bfn_t operator&(bfn_t x, bfn_t y) {
-  uint8_t arg0 = static_cast<uint8_t>(x);
-  uint8_t arg1 = static_cast<uint8_t>(y);
-  uint8_t res = arg0 & arg1;
-  return static_cast<bfn_t>(res);
-}
-
-static constexpr bfn_t operator^(bfn_t x, bfn_t y) {
-  uint8_t arg0 = static_cast<uint8_t>(x);
-  uint8_t arg1 = static_cast<uint8_t>(y);
-  uint8_t res = arg0 ^ arg1;
-  return static_cast<bfn_t>(res);
-}
+using bfn_t __SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::bfn_t") =
+    __ESIMD_NS::bfn_t;
 
 /// Performs binary function computation with three vector operands.
 /// @tparam FuncControl boolean function control expressed with bfn_t
