@@ -20,10 +20,7 @@
 // CHECK: zeMemFree
 
 // Transfer ownership
-// CHECK: zeMemFree
-// CHECK: zeMemFree
-// CHECK: zeMemFree
-// CHECK: zeMemFree
+// CHECK-COUNT-4: zeMemFree
 
 // No other calls to zeMemFree
 // CHECK-NOT: zeMemFree

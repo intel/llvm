@@ -143,21 +143,22 @@ inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
 
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
-  if (UrL0Debug) {
-    urPrint("ZE ---> %s%s\n", ZeName, ZeArgs);
-
-    if (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) {
-      ++(*ZeCallCount)[ZeName];
-    }
-
-    if (ZeResult && TraceError) {
-      const char *ErrorString = "Unknown";
-      zeParseError(ZeResult, ErrorString);
-      urPrint("Error (%s) in %s\n", ErrorString, ZeName);
-    }
-
-    urPrint("ZE <--- %s(%s)\n", ZeName, getZeResultString(ZeResult));
+  if (!UrL0Debug) {
+    return ZeResult;
   }
+
+  if (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) {
+    ++(*ZeCallCount)[ZeName];
+  }
+
+  const char *ErrorString = "Unknown";
+  zeParseError(ZeResult, ErrorString);
+  if (ZeResult && TraceError) {
+    urPrint("Error (%s) in %s\n", ErrorString, ZeName);
+  }
+
+  urPrint("ZE <--- %s(%s)\n", ZeName, ErrorString);
+
   return ZeResult;
 }
 

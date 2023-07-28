@@ -1801,8 +1801,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(
     auto Image = static_cast<_ur_image *>(Mem);
     if (Image->OwnNativeHandle) {
       UR_CALL(Mem->getZeHandle(ZeHandleImage, ur_mem_handle_t_::write_only));
-      auto ZeResult = ZE_CALL_NOCHECK(
-          zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)));
+      ze_result_t ZeResult{};
+      ZE_CALL(zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)),
+              ZeResult);
       // Gracefully handle the case that L0 was already unloaded.
       if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
         return ze2urResult(ZeResult);

@@ -1059,10 +1059,12 @@ void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
   // host ptr and the SYCL experimental APIs, prepare_for_device_copy and
   // release_from_device_copy.
   ze_driver_handle_t DriverHandle = Platform->ZeDriver;
-  if (ZE_CALL_NOCHECK(
-          zeDriverGetExtensionFunctionAddress,
+  ze_result_t ZeResult{};
+  ZE_CALL(zeDriverGetExtensionFunctionAddress,
           (DriverHandle, "zexDriverImportExternalPointer",
-           reinterpret_cast<void **>(&zexDriverImportExternalPointer))) == 0) {
+           reinterpret_cast<void **>(&zexDriverImportExternalPointer)),
+          ZeResult);
+  if (ZeResult == 0) {
     ZE_CALL_NOCHECK(
         zeDriverGetExtensionFunctionAddress,
         (DriverHandle, "zexDriverReleaseImportedPointer",

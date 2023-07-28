@@ -794,10 +794,11 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
 
   // Query memory type of the pointer we're freeing to determine the correct
   // way to do it(directly or via an allocator)
-  auto ZeResult =
-      ZE_CALL_NOCHECK(zeMemGetAllocProperties,
-                      (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
-                       &ZeDeviceHandle));
+  ze_result_t ZeResult{};
+  ZE_CALL(
+      zeMemGetAllocProperties,
+      (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties, &ZeDeviceHandle),
+      ZeResult);
 
   // Handle the case that L0 RT was already unloaded
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {

@@ -401,9 +401,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
     if (Event->Completed) {
       Result = UR_EVENT_STATUS_COMPLETE;
     } else if (HostVisibleEvent) {
-      ze_result_t ZeResult;
-      ZeResult =
-          ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
+      ze_result_t ZeResult{};
+      ZE_CALL(zeEventQueryStatus, (HostVisibleEvent->ZeEvent), ZeResult);
       if (ZeResult == ZE_RESULT_SUCCESS) {
         Result = UR_EVENT_STATUS_COMPLETE;
       }
@@ -745,7 +744,8 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
   if (Event->OwnNativeHandle) {
     if (DisableEventsCaching) {
-      auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+      ze_result_t ZeResult{};
+      ZE_CALL(zeEventDestroy, (Event->ZeEvent), ZeResult);
       // Gracefully handle the case that L0 was already unloaded.
       if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
         return ze2urResult(ZeResult);
@@ -1102,8 +1102,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           // Poll of the host-visible events.
           auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
           if (FilterEventWaitList && HostVisibleEvent) {
-            auto Res = ZE_CALL_NOCHECK(zeEventQueryStatus,
-                                       (HostVisibleEvent->ZeEvent));
+            ze_result_t Res{};
+            ZE_CALL(zeEventQueryStatus, (HostVisibleEvent->ZeEvent), Res);
             if (Res == ZE_RESULT_SUCCESS) {
               // Event has already completed, don't put it into the list
               continue;

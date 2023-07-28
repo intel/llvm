@@ -30,8 +30,8 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
   // do this check first because we assume it's faster than the call to
   // zeModuleDynamicLink below.
   ZeStruct<ze_module_properties_t> ZeModuleProps;
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeModuleGetProperties, (ZeModule, &ZeModuleProps));
+  ze_result_t ZeResult{};
+  ZE_CALL(zeModuleGetProperties, (ZeModule, &ZeModuleProps), ZeResult);
   if (ZeResult != ZE_RESULT_SUCCESS)
     return ZeResult;
 
@@ -39,7 +39,9 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
   // As a side effect, this will return the error
   // ZE_RESULT_ERROR_MODULE_LINK_FAILURE if there are any unresolved symbols.
   if (ZeModuleProps.flags & ZE_MODULE_PROPERTY_FLAG_IMPORTS) {
-    return ZE_CALL_NOCHECK(zeModuleDynamicLink, (1, &ZeModule, ZeBuildLog));
+    ze_result_t ZeResult{};
+    ZE_CALL(zeModuleDynamicLink, (1, &ZeModule, ZeBuildLog), ZeResult);
+    return ZeResult;
   }
   return ZE_RESULT_SUCCESS;
 }
@@ -146,9 +148,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   Program->State = ur_program_handle_t_::Exe;
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
-                                       &ZeModule, &Program->ZeBuildLog));
+  ze_result_t ZeResult{};
+  ZE_CALL(zeModuleCreate,
+          (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule, &Program->ZeBuildLog),
+          ZeResult);
   if (ZeResult != ZE_RESULT_SUCCESS) {
     // We adjust pi_program below to avoid attempting to release zeModule when
     // RT calls piProgramRelease().
@@ -339,9 +342,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     ze_context_handle_t ZeContext = Context->ZeContext;
     ze_module_handle_t ZeModule = nullptr;
     ze_module_build_log_handle_t ZeBuildLog = nullptr;
-    ze_result_t ZeResult =
-        ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
-                                         &ZeModule, &ZeBuildLog));
+    ze_result_t ZeResult{};
+    ZE_CALL(zeModuleCreate,
+            (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule, &ZeBuildLog),
+            ZeResult);
 
     // We still create a ur_program_handle_t_ object even if there is a
     // BUILD_FAILURE because we need the object to hold the ZeBuildLog.  There
@@ -448,9 +452,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
   }
 
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeModuleGetFunctionPointer,
-                      (Program->ZeModule, FunctionName, FunctionPointerRet));
+  ze_result_t ZeResult{};
+  ZE_CALL(zeModuleGetFunctionPointer,
+          (Program->ZeModule, FunctionName, FunctionPointerRet), ZeResult);
 
   // zeModuleGetFunctionPointer currently fails for all
   // kernels regardless of if the kernel exist or not

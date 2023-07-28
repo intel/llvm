@@ -54,10 +54,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
 
-  // We must only initialize the driver once, even if urPlatformGet() is called
-  // multiple times.  Declaring the return value as "static" ensures it's only
-  // called once.
-  static ze_result_t ZeResult = ZE_CALL_NOCHECK(zeInit, (0));
+  // Even if zeInit is called multiple times, L0 GPU driver is only initialized
+  // once per process
+  ze_result_t ZeResult{};
+  ZE_CALL(zeInit, (0), ZeResult);
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
