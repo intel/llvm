@@ -480,7 +480,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   case UR_PROFILING_INFO_COMMAND_SUBMIT:
     // Note: No users for this case
     // The "command_submit" time is implemented by recording submission
-    // timestamp with a call to piGetDeviceAndHostTimer before command enqueue.
+    // timestamp with a call to urDeviceGetGlobalTimestamps before command
+    // enqueue.
     //
     return ReturnValue(uint64_t{0});
   default:
@@ -572,7 +573,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
       {
         std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
         if (!Event->hasExternalRefs())
-          die("piEventsWait must not be called for an internal event");
+          die("urEventWait must not be called for an internal event");
 
         if (!Event->Completed) {
           auto HostVisibleEvent = Event->HostVisibleEvent;
@@ -594,7 +595,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
               reinterpret_cast<ur_event_handle_t>(Event));
         else {
           // NOTE: we are cleaning up after the event here to free resources
-          // sooner in case run-time is not calling piEventRelease soon enough.
+          // sooner in case run-time is not calling urEventRelease soon enough.
           CleanupCompletedEvent(reinterpret_cast<ur_event_handle_t>(Event));
           // For the case when we have out-of-order queue or regular command
           // lists its more efficient to check fences so put the queue in the
@@ -679,7 +680,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 ) {
 
   // we dont have urEventCreate, so use this check for now to know that
-  // the call comes from piEventCreate()
+  // the call comes from urEventCreate()
   if (NativeEvent == nullptr) {
     UR_CALL(EventCreate(Context, nullptr, true, Event));
 
@@ -689,9 +690,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   }
 
   auto ZeEvent = ur_cast<ze_event_handle_t>(NativeEvent);
-  ur_event_handle_t_ *UrEvent{};
+  ur_event_handle_t_ *UREvent{};
   try {
-    UrEvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
+    UREvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
                                      Context, UR_EXT_COMMAND_TYPE_USER,
                                      Properties->isNativeHandleOwned);
 
@@ -703,16 +704,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
   // Assume native event is host-visible, or otherwise we'd
   // need to create a host-visible proxy for it.
-  UrEvent->HostVisibleEvent = reinterpret_cast<ur_event_handle_t>(UrEvent);
+  UREvent->HostVisibleEvent = reinterpret_cast<ur_event_handle_t>(UREvent);
 
   // Unlike regular events managed by SYCL RT we don't have to wait for interop
   // events completion, and not need to do the their `cleanup()`. This in
-  // particular guarantees that the extra `piEventRelease` is not called on
-  // them. That release is needed to match the `piEventRetain` of regular events
+  // particular guarantees that the extra `urEventRelease` is not called on
+  // them. That release is needed to match the `urEventRetain` of regular events
   // made for waiting for event completion, but not this interop event.
-  UrEvent->CleanedUp = true;
+  UREvent->CleanedUp = true;
 
-  *Event = reinterpret_cast<ur_event_handle_t>(UrEvent);
+  *Event = reinterpret_cast<ur_event_handle_t>(UREvent);
 
   return UR_RESULT_SUCCESS;
 }
@@ -737,7 +738,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
     return UR_RESULT_SUCCESS;
 
   if (Event->CommandType == UR_COMMAND_MEM_UNMAP && Event->CommandData) {
-    // Free the memory allocated in the piEnqueueMemBufferMap.
+    // Free the memory allocated in the urEnqueueMemBufferMap.
     if (auto Res = ZeMemFreeHelper(Event->Context, Event->CommandData))
       return Res;
     Event->CommandData = nullptr;
@@ -773,9 +774,9 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
 
   // We intentionally incremented the reference counter when an event is
-  // created so that we can avoid pi_queue is released before the associated
-  // pi_event is released. Here we have to decrement it so pi_queue
-  // can be released successfully.
+  // created so that we can avoid ur_queue_handle_t is released before the
+  // associated ur_event_handle_t is released. Here we have to decrement it so
+  // ur_queue_handle_t can be released successfully.
   if (Queue) {
     UR_CALL(urQueueReleaseInternal(Queue));
   }
@@ -839,7 +840,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked) {
 
     // Make a list of all the dependent events that must have signalled
     // because this event was dependent on them.
-    Event->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+    Event->WaitList.collectEventsForReleaseAndDestroyUrZeEventList(
         EventsToBeReleased);
 
     Event->CleanedUp = true;
@@ -847,7 +848,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked) {
 
   auto ReleaseIndirectMem = [](ur_kernel_handle_t Kernel) {
     if (IndirectAccessTrackingEnabled) {
-      // piKernelRelease is called by CleanupCompletedEvent(Event) as soon as
+      // urKernelRelease is called by CleanupCompletedEvent(Event) as soon as
       // kernel execution has finished. This is the place where we need to
       // release memory allocations. If kernel is not in use (not submitted by
       // some other thread) then release referenced memory allocations. As a
@@ -913,7 +914,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked) {
     ur_kernel_handle_t DepEventKernel = nullptr;
     {
       std::scoped_lock<ur_shared_mutex> DepEventLock(DepEvent->Mutex);
-      DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+      DepEvent->WaitList.collectEventsForReleaseAndDestroyUrZeEventList(
           EventsToBeReleased);
       if (IndirectAccessTrackingEnabled) {
         // DepEvent has finished, we can release the associated kernel if there
@@ -1220,7 +1221,7 @@ ur_result_t _ur_ze_event_list_t::insert(_ur_ze_event_list_t &Other) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t _ur_ze_event_list_t::collectEventsForReleaseAndDestroyPiZeEventList(
+ur_result_t _ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
     std::list<ur_event_handle_t> &EventsToBeReleased) {
   // event wait lists are owned by events, this function is called with owning
   // event lock taken, hence it is thread safe
