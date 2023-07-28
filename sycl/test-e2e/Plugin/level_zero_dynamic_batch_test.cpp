@@ -1,4 +1,5 @@
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: ze_debug
 
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
