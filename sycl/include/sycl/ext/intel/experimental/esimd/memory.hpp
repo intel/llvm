@@ -88,13 +88,13 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
       msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
 }
 
-/// Raw sends.  "s" suffix designates "split" variant - i.e. two sources.
+/// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
 ///
 /// @tparam execSize is the execution size.
+/// @tparam sfid is the shared function ID.
 /// @tparam numSrc0 is the number of GRFs for source-0.
 /// @tparam numSrc1 is the number of GRFs for source-1.
 /// @tparam numDst is the number of GRFs for destination.
-/// @tparam sfid is the shared function ID.
 /// @tparam isEOT is the flag that indicates whether this is an EOT message
 /// (optional - default to 0).
 /// @tparam isSendc is the flag that indicates whether sendc should be used
@@ -107,8 +107,8 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 /// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
 /// @return the vector value read from memory.
-template <uint8_t execSize, uint8_t numSrc0, uint8_t numSrc1, uint8_t numDst,
-          uint8_t sfid, uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1,
+template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
+          uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1,
           int n1, typename T2, int n2, typename T3, int n3, int N = 16>
 __ESIMD_API __ESIMD_NS::simd<T1, n1>
 raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
@@ -176,9 +176,9 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 /// Raw send.
 ///
 /// @tparam execSize is the execution size.
+/// @tparam sfid is the shared function ID.
 /// @tparam numSrc0 is the number of GRFs for source-0.
 /// @tparam numDst is the number of GRFs for destination.
-/// @tparam sfid is the shared function ID.
 /// @tparam isEOT is the flag that indicates whether this is an EOT message
 /// (optional - default to 0).
 /// @tparam isSendc is the flag that indicates whether sendc should be used
@@ -190,7 +190,7 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 /// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
 /// @return the vector value read from memory
-template <uint8_t execSize, uint8_t numSrc0, uint8_t numDst, uint8_t sfid,
+template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numDst,
           uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1, int n1,
           typename T2, int n2, int N = 16>
 __ESIMD_API __ESIMD_NS::simd<T1, n1>
@@ -253,9 +253,9 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
 /// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
 ///
 /// @tparam execSize is the execution size.
+/// @tparam sfid is the shared function ID.
 /// @tparam numSrc0 is the number of GRFs for source-0.
 /// @tparam numSrc1 is the number of GRFs for source-1.
-/// @tparam sfid is the shared function ID.
 /// @tparam isEOT is the flag that indicates whether this is an EOT message
 /// (optional - default to 0).
 /// @tparam isSendc is the flag that indicates whether sendc should be used
@@ -266,7 +266,7 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
 /// @param msgDesc is the message descriptor.
 /// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
-template <uint8_t execSize, uint8_t numSrc0, uint8_t numSrc1, uint8_t sfid,
+template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
           uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1, int n1,
           typename T2, int n2, int N = 16>
 __ESIMD_API void raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0,
@@ -334,7 +334,7 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
 /// @param msgDesc is the message descriptor.
 /// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
-template <uint8_t execSize, uint8_t numSrc0, uint8_t sfid, uint8_t isEOT = 0,
+template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t isEOT = 0,
           uint8_t isSendc = 0, typename T1, int n1, int N = 16>
 __ESIMD_API void raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
                           uint32_t msgDesc, __ESIMD_NS::simd_mask<N> mask = 1) {

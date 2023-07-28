@@ -42,7 +42,7 @@ ESIMD_INLINE simd<T, N> dwaligned_block_read(AccessorTy acc,
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numDst = 0x2;
 #ifdef USE_CONSTEXPR_API
-  return experimental::esimd::raw_send<execSize, numSrc0, numDst, sfid>(
+  return experimental::esimd::raw_send<execSize, sfid, numSrc0, numDst>(
       oldDst, src0, exDesc, desc);
 #else
   return experimental::esimd::raw_send(oldDst, src0, exDesc, desc, execSize,
@@ -64,7 +64,7 @@ ESIMD_INLINE void block_write1(AccessorTy acc, unsigned int offset,
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = 0x1;
 #ifdef USE_CONSTEXPR_API
-  return experimental::esimd::raw_sends<execSize, numSrc0, numSrc1, sfid>(
+  return experimental::esimd::raw_sends<execSize, sfid, numSrc0, numSrc1>(
       src0, data, exDesc, desc);
 #else
   return experimental::esimd::raw_sends(src0, data, exDesc, desc, execSize,
@@ -89,7 +89,7 @@ ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
   constexpr uint8_t sfid = 0x0;
   constexpr uint8_t numSrc0 = 0x2;
 #ifdef USE_CONSTEXPR_API
-  return experimental::esimd::raw_send<execSize, numSrc0, sfid>(src0, exDesc,
+  return experimental::esimd::raw_send<execSize, sfid, numSrc0>(src0, exDesc,
                                                                 desc);
 #else
   return experimental::esimd::raw_send(src0, exDesc, desc, execSize, sfid,

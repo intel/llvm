@@ -88,7 +88,7 @@ ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
   constexpr uint8_t isSendc = 0;
 
 #ifdef USE_CONSTEXPR_API
-  experimental::esimd::raw_sends<execSize, numSrc0, numSrc1, numDst, sfid,
+  experimental::esimd::raw_sends<execSize, sfid, numSrc0, numSrc1, numDst,
                                  isEOT, isSendc>(oldDst, vAddr, src0, exDesc,
                                                  desc, pred);
 #else
