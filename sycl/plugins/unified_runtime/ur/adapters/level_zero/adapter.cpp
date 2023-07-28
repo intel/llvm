@@ -23,12 +23,13 @@ urInit(ur_device_init_flags_t
 }
 
 ur_result_t adapterStateTeardown() {
-  // reclaim pi_platform objects here since we don't have piPlatformRelease.
-  for (ur_platform_handle_t Platform : *PiPlatformsCache) {
+  // reclaim ur_platform_handle_t objects here since we don't have
+  // urPlatformRelease.
+  for (ur_platform_handle_t Platform : *URPlatformsCache) {
     delete Platform;
   }
-  delete PiPlatformsCache;
-  delete PiPlatformsCacheMutex;
+  delete URPlatformsCache;
+  delete URPlatformsCacheMutex;
 
   bool LeakFound = false;
 

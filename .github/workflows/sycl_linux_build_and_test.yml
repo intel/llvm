@@ -69,81 +69,47 @@ on:
 
   workflow_dispatch:
     inputs:
+      changes:
+        description: 'Filter matches for the changed files in the PR'
+        type: choice
+        options:
+          - "[]"
+          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+      build_image:
+        type: choice
+        options:
+          - "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
       cc:
         type: choice
         options:
           - gcc
-          - clang
       cxx:
         type: choice
         options:
           - g++
-          - clang++
-      # build_image:
-      #   type: choice
-      #   options:
-      #     - "ghcr.io/intel/llvm/ubuntu2204_build_nightly:latest"
-      # build_ref:
-      #   type: choice
-      #   options:
-      #     - ""
-      # build_cache_root:
-      #   description: |
-      #     Please select "/__w/llvm" if using clang/clang++.
-      #   type: choice
-      #   options:
-      #     - "/__w/"
-      #     - "/__w/llvm"
-      # build_cache_suffix:
-      #   type: choice
-      #   options:
-      #     - "default"
-      # build_configure_extra_args:
-      #   type: choice
-      #   options:
-      #     - "--hip --cuda --enable-esimd-emulator"
-      # build_artifact_suffix:
-      #   type: choice
-      #   options:
-      #     - "default"
+      build_configure_extra_args:
+        type: choice
+        options:
+          - "--hip --cuda --enable-esimd-emulator"
+      # Cache properties need to match CC/CXX/CMake opts. Any additional choices
+      # would need extra care.
+      build_cache_root:
+        type: choice
+        options:
+          - "/__w/"
+      build_cache_suffix:
+        type: choice
+        options:
+          - "default"
 
-      # lts_matrix:
-      #   type: choice
-      #   options:
-      #     - "[]"
-      # lts_aws_matrix:
-      #   type: choice
-      #   options:
-      #     - "[]"
-
-      # cts_matrix:
-      #   type: choice
-      #   options:
-      #     - "[]"
-      # cts_cmake_extra_args:
-      #   type: choice
-      #   options:
-      #     - ""
-
-      # changes:
-      #   description: 'Filter matches for the changed files in the PR'
-      #   type: choice
-      #   options:
-      #     - "[]"
-      #     - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
-
-      # merge_ref:
-      #   description: |
-      #     Commit-ish to merge post-checkout if non-empty. Must be reachable from
-      #     the default_branch input paramter.
-      #   type: choice
-      #   options:
-      #     - "FETCH_HEAD"
-
-      # retention-days:
-      #   type: choice
-      #   options:
-      #     - 3
+      build_artifact_suffix:
+        type: choice
+        options:
+          - "default"
+      retention-days:
+        type: choice
+        options:
+          - 3
 
 jobs:
   build:
@@ -285,7 +251,7 @@ jobs:
   aws-start:
     name: Start AWS
     needs: build
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_aws_matrix != '[]' }}
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_aws_matrix != '[]' && inputs.lts_aws_matrix != '' }}
     uses: ./.github/workflows/aws.yml
     secrets: inherit
     with:
@@ -296,7 +262,7 @@ jobs:
     needs: [build, aws-start]
     # Continue if build was successful. If aws-start is not successful all
     # AWS tasks will fail, but all non-AWS tasks should continue.
-    if: ${{ always() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_matrix != '[]' }}
+    if: ${{ always() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_matrix != '[]' && inputs.lts_matrix != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -323,7 +289,7 @@ jobs:
 
   khronos_sycl_cts:
     needs: build
-    if: ${{ inputs.cts_matrix != '[]' && inputs.check_sycl == 'true' }}
+    if: ${{ inputs.cts_matrix != '[]' && inputs.cts_matrix != '' && inputs.check_sycl == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -375,7 +341,7 @@ jobs:
     needs: [ aws-start, e2e-tests ]
     # Always attempt to shutdown AWS instance, even if AWS start was not
     # successful.
-    if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
+    if: ${{ always() && inputs.lts_aws_matrix != '[]' && inputs.lts_aws_matrix != '' }}
     uses: ./.github/workflows/aws.yml
     secrets: inherit
     with:
