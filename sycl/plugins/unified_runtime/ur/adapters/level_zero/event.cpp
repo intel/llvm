@@ -817,13 +817,16 @@ template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
 // the event, updates the last command event in the queue and cleans up all dep
 // events of the event.
 // If the caller locks queue mutex then it must pass 'true' to QueueLocked.
-ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked) {
+ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
+                                  bool SetEventCompleted) {
   ur_kernel_handle_t AssociatedKernel = nullptr;
   // List of dependent events.
   std::list<ur_event_handle_t> EventsToBeReleased;
   ur_queue_handle_t AssociatedQueue = nullptr;
   {
     std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
+    if (SetEventCompleted)
+      Event->Completed = true;
     // Exit early of event was already cleanedup.
     if (Event->CleanedUp)
       return UR_RESULT_SUCCESS;

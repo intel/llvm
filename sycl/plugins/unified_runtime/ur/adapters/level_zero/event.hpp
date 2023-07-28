@@ -237,7 +237,8 @@ template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle);
 // events of the event.
 // If the caller locks queue mutex then it must pass 'true' to QueueLocked.
 ur_result_t CleanupCompletedEvent(ur_event_handle_t Event,
-                                  bool QueueLocked = false);
+                                  bool QueueLocked = false,
+                                  bool SetEventCompleted = false);
 
 // Get value of device scope events env var setting or default setting
 static const EventsScope DeviceEventsSetting = [] {
