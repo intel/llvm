@@ -37,7 +37,7 @@ template<bool MakeCall>
 class if_device_or_host_helper {
  public:
   template<typename T>
-  void otherwise(T fn) {
+  void otherwise(T &&fn) {
     if constexpr (MakeCall) {
       fn();
     }
@@ -47,7 +47,7 @@ class if_device_or_host_helper {
 } // namespace detail
 
 template<typename T>
-static auto if_device(T fn) {
+static auto if_device(T &&fn) {
 #ifdef __SYCL_DEVICE_ONLY__
   fn();
   return detail::if_device_or_host_helper<false>{};
@@ -57,7 +57,7 @@ static auto if_device(T fn) {
 }
 
 template<typename T>
-static auto if_host(T fn) {
+static auto if_host(T &&fn) {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::if_device_or_host_helper<true>{};
 #else
@@ -92,7 +92,7 @@ namespace detail {
 template<typename T>
 [[clang::noinline]]
 [[__sycl_detail__::add_ir_attributes_function("sycl-call-if-on-device", true)]]
-void call_if_on_device(T fn) {
+void call_if_on_device(T &&fn) {
   fn();
 }
 
@@ -102,14 +102,14 @@ void call_if_on_device(T fn) {
 template<typename T>
 [[clang::noinline]]
 [[__sycl_detail__::add_ir_attributes_function("sycl-call-if-on-host", true)]]
-void call_if_on_host(T fn) {
+void call_if_on_host(T &&fn) {
   fn();
 }
 
 class call_if_on_device_helper {
  public:
   template<typename T>
-  void otherwise(T fn) {
+  void otherwise(T &&fn) {
     call_if_on_device(fn);
   }
 };
@@ -117,7 +117,7 @@ class call_if_on_device_helper {
 class call_if_on_host_helper {
  public:
   template<typename T>
-  void otherwise(T fn) {
+  void otherwise(T &&fn) {
     call_if_on_host(fn);
   }
 };
@@ -125,13 +125,13 @@ class call_if_on_host_helper {
 } // namespace detail
 
 template<typename T>
-static auto if_device(T fn) {
+static auto if_device(T &&fn) {
   detail::call_if_on_device(fn);
   return detail::call_if_on_host_helper{};
 }
 
 template<typename T>
-static auto if_host(T fn) {
+static auto if_host(T &&fn) {
   detail::call_if_on_host(fn);
   return detail::call_if_on_device_helper{};
 }

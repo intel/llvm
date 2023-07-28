@@ -103,10 +103,10 @@ device or host code.
 namespace sycl::ext::oneapi::experimental {
 
 template<typename T>
-/* unspecified */ if_device(T fn);
+/* unspecified */ if_device(T &&fn);
 
 template<typename T>
-/* unspecified */ if_host(T fn);
+/* unspecified */ if_host(T &&fn);
 
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -130,7 +130,7 @@ unspecified type, which provides the following member function:
 class /* unspecified */ {
  public:
   template<typename T>
-  void otherwise(T fn);
+  void otherwise(T &&fn);
 };
 ```
 
