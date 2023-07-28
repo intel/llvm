@@ -75,9 +75,9 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabledEnabled) {
   using namespace sycl::detail;
   using namespace sycl::unittest;
   {
+    detail::enable_ext_oneapi_default_context(false);
     sycl::unittest::PiMock Mock;
     sycl::platform Plt = Mock.getPlatform();
-    Plt.detail_enable_ext_oneapi_default_context(false);
 
     test_default_context_disabled(Plt);
   }
@@ -91,7 +91,7 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabledEnabled) {
 
     // Since the platforms were gotten by the same way (same selector)
     // it should be sufficient to enable the extension for one of them
-    Plt1.detail_enable_ext_oneapi_default_context(true);
+    detail::enable_ext_oneapi_default_context(true);
 
     test_contexts_are_equal(Plt1, Plt2);
   }

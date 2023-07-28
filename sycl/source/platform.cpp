@@ -95,11 +95,14 @@ context platform::ext_oneapi_get_default_context() const {
   return detail::createSyclObjFromImpl<context>(It->second);
 }
 
-void platform::detail_enable_ext_oneapi_default_context(bool Val) const {
+namespace detail {
+
+void enable_ext_oneapi_default_context(bool Val) {
   const char *StringVal = Val ? "1" : "0";
-  detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::reset_with_value(
+  detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::resetWithValue(
       StringVal);
 }
 
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

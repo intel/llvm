@@ -328,7 +328,7 @@ public:
 
   static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
 
-  static void reset_with_value(const char *Val) {
+  static void resetWithValue(const char *Val) {
     (void)getCachedValue(/*ResetCache=*/true, Val);
   }
 
