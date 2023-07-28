@@ -14,7 +14,6 @@ int main() {
   XFLOAT *mdlImag;
   queue q{{property::queue::enable_profiling()}};
   mdlImag = sycl::malloc_device<XFLOAT>(mdlXYZ, q);
-  const char *funcName = "main";
   try {
     q.memcpy(mdlImag, 0, sizeof(XFLOAT));
   } catch (...) {
