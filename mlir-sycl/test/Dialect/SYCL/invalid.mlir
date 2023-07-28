@@ -630,6 +630,48 @@ gpu.module @kernels {
 
 // -----
 
+func.func @schedule_kernel_inconsistent_type_attributes(%arg0: i32) {
+  // expected-error @below {{'sycl.host.schedule_kernel' op has inconsistent SYCL type attributes}}
+  "sycl.host.schedule_kernel"(%arg0) {kernel_name = @kernels::@k0, operand_segment_sizes = array<i32: 0, 0, 1>, sycl_types = [none, none]} : (i32) -> ()
+  func.return
+}
+
+gpu.module @kernels {
+  gpu.func @k0() kernel {
+    gpu.return
+  }
+}
+
+// -----
+
+func.func @schedule_kernel_scalar_type_attribute(%arg0: i32) {
+  // expected-error @below {{'sycl.host.schedule_kernel' op does not expect a type attribute for a non-pointer value}}
+  sycl.host.schedule_kernel @kernels::@k0(%arg0: i32) : (i32) -> ()
+  func.return
+}
+
+gpu.module @kernels {
+  gpu.func @k0() kernel {
+    gpu.return
+  }
+}
+
+// -----
+
+func.func @schedule_kernel_non_sycl_type_attribute(%arg0: !llvm.ptr) {
+  // expected-error @below {{'sycl.host.schedule_kernel' op expects the type attribute to reference a SYCL type}}
+  sycl.host.schedule_kernel @kernels::@k0(%arg0: i32) : (!llvm.ptr) -> ()
+  func.return
+}
+
+gpu.module @kernels {
+  gpu.func @k0() kernel {
+    gpu.return
+  }
+}
+
+// -----
+
 func.func @f(%event: !llvm.ptr, %queue: !llvm.ptr) {
   // expected-error @below {{'sycl.host.submit' op '@f0' does not reference a valid CGF function}}
   sycl.host.submit %queue(@f0) -> %event : !llvm.ptr, !llvm.ptr

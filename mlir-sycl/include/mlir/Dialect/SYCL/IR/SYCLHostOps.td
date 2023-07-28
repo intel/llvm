@@ -191,6 +191,12 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
     case, an `id` pointer can be optionally given as the `offset`. In the former
     case, the `nd_range` attribute must be set.
 
+    Pointer arguments can be annotated with the SYCL type of the entity they
+    refer to, e.g. an accessor. Internally, this information is stored in the
+    `sycl_types` type array attribute, sized to match the number of arguments.
+    If no such type annotation is available for an argument, the `None` type
+    shall be used as a placeholder.
+
     Note that due to the current focus on host-device optimizations for
     individual launches, this operation currently does not model the queue or
     the command-group handler associated with the launch, nor does it observe or
@@ -198,8 +204,8 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
 
     Example:
     ```
-    sycl.host.schedule_kernel @kernels::@k0[range %1](%2, %3)
-      : (!llvm.ptr, !llvm.ptr, i32) -> ()
+    sycl.host.schedule_kernel @kernels::@k0[range %1]
+      (%2: !sycl_accessor_1_f32_rw_gb, %3) : (!llvm.ptr, !llvm.ptr, i32) -> ()
     ```
   }];
 
@@ -208,6 +214,7 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
     Optional<LLVM_AnyPointer>:$range,
     Optional<LLVM_AnyPointer>:$offset,
     Variadic<AnyType>:$args,
+    TypeArrayAttr:$sycl_types,
     UnitAttr:$nd_range);
   let builders = [
     OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
@@ -219,20 +226,25 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
                    "::mlir::Value":$range,
                    "::mlir::ValueRange":$args,
                    "bool":$nd_range), [{
+      ::llvm::SmallVector<::mlir::Type> noneTypes(args.size(), $_builder.getNoneType());
+      auto syclTypes = $_builder.getTypeArrayAttr(noneTypes);
       auto ndRangeAttr = nd_range ? $_builder.getUnitAttr() : UnitAttr();
       build($_builder, $_state, kernel_name, range,
-            /*offset=*/Value(), args, ndRangeAttr);
+            /*offset=*/Value(), args, syclTypes, ndRangeAttr);
     }]>,
     OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
                    "::mlir::Value":$range,
                    "::mlir::Value":$offset,
                    "::mlir::ValueRange":$args), [{
-      build($_builder, $_state, kernel_name, range, offset, args);
+      ::llvm::SmallVector<::mlir::Type> noneTypes(args.size(), $_builder.getNoneType());
+      auto syclTypes = $_builder.getTypeArrayAttr(noneTypes);
+      build($_builder, $_state, kernel_name, range, offset, args, syclTypes);
     }]>
   ];
   let assemblyFormat = [{
-    $kernel_name (`[` (`nd_range` $nd_range^):(```range`)? $range^ (`,` `offset` $offset^)? `]`)? `` (`(` $args^ `)`)?
-      attr-dict `:` functional-type(operands, results)
+    $kernel_name (`[` (`nd_range` $nd_range^):(```range`)? $range^ (`,` `offset` $offset^)? `]`)? ``
+    custom<ArgsWithSYCLTypes>($args, $sycl_types)
+    attr-dict `:` functional-type(operands, results)
   }];
   let hasVerifier = 1;
 }
