@@ -122,8 +122,6 @@ using namespace llvm::opt;
 // triple. This routine transforms the triple specified by user as input to this
 // 'standardized' format to facilitate checks.
 static std::string standardizedTriple(std::string OrigTriple) {
-  if (OrigTriple.back() == '-') // Already standardized
-    return OrigTriple;
   llvm::Triple t = llvm::Triple(OrigTriple);
   return llvm::Triple(t.getArchName(), t.getVendorName(), t.getOSName(),
                       t.getEnvironmentName())
@@ -6036,9 +6034,21 @@ class OffloadingActionBuilder final {
           // use the default FPGA triple to reduce possible match confusion.
           if (Arch.compare(0, 4, "fpga") == 0)
             Arch = C.getDriver().MakeSYCLDeviceTriple("spir64_fpga").str();
+
+          // The last component for the triple may be a GPU arch
+          auto TripleOrGPU = StringRef(Arch).rsplit('-');
+          if (clang::StringToCudaArch(TripleOrGPU.second.str()) !=
+              clang::CudaArch::UNKNOWN) {
+            Arch = standardizedTriple(TripleOrGPU.first.str());
+            Arch += TripleOrGPU.second.str();
+          } else {
+            Arch = standardizedTriple(Arch);
+          }
+
           if (std::find(UniqueSections.begin(), UniqueSections.end(), Arch) ==
-              UniqueSections.end())
-            UniqueSections.push_back(standardizedTriple(Arch));
+              UniqueSections.end()) {
+            UniqueSections.push_back(Arch);
+          }
         }
       }
 
@@ -6047,11 +6057,10 @@ class OffloadingActionBuilder final {
 
       for (auto &SyclTarget : Targets) {
         std::string SectionTriple = SyclTarget.TC->getTriple().str();
+        SectionTriple = standardizedTriple(SectionTriple);
         if (SyclTarget.BoundArch) {
-          SectionTriple += "-";
           SectionTriple += SyclTarget.BoundArch;
         }
-        SectionTriple = standardizedTriple(SectionTriple);
         // If any matching section is found, we are good.
         if (std::find(UniqueSections.begin(), UniqueSections.end(),
                       SectionTriple) != UniqueSections.end())
