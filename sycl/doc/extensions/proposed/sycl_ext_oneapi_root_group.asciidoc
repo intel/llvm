@@ -143,11 +143,26 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== Queries
 
-A `sycl::kernel` can be queried for queue-specific information using
-the `ext_oneapi_get_info` function and descriptors from the
-`info::kernel_queue_specific` namespace.
+=== Launch queries [[launch]]
+
+An implementation's ability to support root-group synchronization may be
+dependent upon: the kernel itself, and the features that it uses; the queue
+(and underlying device) to which the kernel is submitted; and the kernel's
+launch configuration.
+
+It is a user's responsibility to ensure that a kernel requesting root-group
+synchronization uses a compatible launch configuration, using the
+`ext_oneapi_get_info` function and descriptors from the `info::kernel`
+namespace.
+
+[NOTE]
+====
+The values returned by `ext_oneapi_get_info` account for _all_ properties
+attached to a kernel---not only those related to root-group synchronization---
+as well as the usage of features like group algorithms and work-group local
+memory. Developers should assume that the values will differ across kernels.
+====
 
 [source,c++]
 ----
@@ -155,53 +170,111 @@ namespace sycl {
 
 class kernel {
  public:
-  template <typename Param>
-  typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+  template <typename Param, typename... T>
+  typename Param::return_type ext_oneapi_get_info(T... args) const;
 };
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace info {
-namespace kernel_queue_specific {
-
-struct max_num_work_group_sync;
-
-} // namespace kernel_queue_specific
-} // namespace info
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
+}
 ----
-
-NOTE: These queries are queue- and not device-specific because it is
-anticipated that implementations will introduce finer-grained queue
-controls that impact the scheduling of kernels using the root-group.
 
 [source,c++]
 ----
-template <typename Param>
-typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+template <typename Param, typename... T>
+typename Param::return_type ext_oneapi_get_info(T... args) const;
 ----
-_Preconditions_: `Param` must be one of the `info::kernel_queue_specific`
-descriptors defined in this extension, and the type alias `Param::return_type`
-must be defined in accordance with the table below.
+_Constraints_: Available only when the types `+T...+` described by the parameter
+pack match the type list defined by `Param::argument_types`.
+
+_Preconditions_: `Param` must be one of the `info::kernel` descriptors defined
+in this extension, and the type alias `Param::return_type` must be defined in
+accordance with the table below.
 
 _Returns_: Information about the kernel that applies when the kernel is
-submitted to the queue specified by _q_.
+submitted with the configuration described by the parameter pack `+T...+`.
 
-[%header,cols="1,5,5"]
+This extension adds several new queries to this interface, many of which
+already have equivalents in the `kernel_device_specific` or `device`
+namespaces.
+
+NOTE: Redefining these queries is necessary to define `Param::argument_types`.
+If this extension is proposed for a future SYCL standard, such duplication
+could be avoided.
+
+[source, c++]
+----
+namespace ext::oneapi::experimental::info::kernel {
+
+template <uint32_t Dimensions>
+struct max_work_item_sizes;
+
+struct max_work_group_size;
+struct max_num_work_groups;
+
+struct max_sub_group_size;
+struct max_num_sub_groups;
+
+}
+----
+
+[%header,cols="1,5,5,5"]
 |===
 |Kernel Descriptor
+|Argument Types
 |Return Type
 |Description
 
-|`kernel_queue_specific::max_num_work_group_sync`
+|`template <uint32_t Dimensions>
+ max_work_item_sizes`
+|`sycl::queue`
+|`id<Dimensions>`
+|Returns the maximum number of work-items that are permitted in each dimension
+ of a work-group, when the kernel is submitted to the specified queue,
+ accounting for any kernel properties or features. If the kernel can be
+ submitted to the specified queue without an error, the minimum value returned
+ by this query is 1, otherwise it is 0.
+
+|`max_work_group_size`
+|`sycl::queue`
 |`size_t`
-|Return the maximum number of work-groups that can be synchronized by passing
-a `root_group` to group functions and algorithms. Must be at least 1.
+|Returns the maximum number of work-items that are permitted in a work-group,
+when the kernel is submitted to the specified queue, accounting for any
+kernel properties or features. If the kernel can be submitted to the specified
+queue without an error, the minimum value returned by this query is 1,
+otherwise it is 0.
+
+|`max_num_work_groups`
+|`sycl::queue`, `sycl::range`, `size_t`
+|`size_t`
+|Returns the maximum number of work-groups, when the kernel is submitted to the
+specified queue with the specified work-group size and the specified amount of
+dynamic work-group local memory (in bytes), accounting for any kernel
+properties or features. If the kernel can be submitted to the specified queue
+without an error, the minimum value returned by this query is 1, otherwise it
+is 0.
+
+|`max_sub_group_size`
+|`sycl::queue`, `sycl::range`
+|`uint32_t`
+|Returns the maximum sub-group size, when the kernel is submitted to the
+specified queue with the specified work-group size, accounting for any kernel
+properties or features. If the kernel can be submitted to the specified queue
+without an error, the minimum value returned by this query is 1, otherwise it
+is 0.
+
+|`max_num_sub_groups`
+|`sycl::queue`, `sycl::range`
+|`uint32_t`
+|Returns the maximum number of sub-groups per work-group, when the kernel is
+submitted to the specified queue with the specified work-group size, accounting
+for any kernel properties or features. If the kernel can be submitted to the
+specified queue without an error, the minimum value returned by this query is
+1, otherwise it is 0.
+
 |===
+
+NOTE: These queries are queue- and not device-specific because it is
+anticipated that implementations will introduce finer-grained queue
+controls that impact the scheduling of kernels.
 
 NOTE: Requiring all devices to return a value of at least 1 ensures that code
 written to use this extension remains portable. However, the performance of

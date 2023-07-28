@@ -493,7 +493,7 @@ template <uint32_t Dimensions>
 struct max_work_item_sizes;
 
 struct max_work_group_size;
-struct max_num_work_groups; // also defined in sycl_ext_oneapi_root_group
+struct max_num_work_groups;
 
 struct max_sub_group_size;
 struct max_num_sub_groups;
