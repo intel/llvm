@@ -1675,10 +1675,6 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
 
 /// @} sycl_esimd_math
 
-/// @defgroup sycl_esimd_systolic_array_api Systolic Array APIs.
-/// APIs below are used to implement dot product accumulate systolic functions
-/// @ingroup sycl_esimd
-
 /// @addtogroup sycl_esimd_logical
 /// @{
 
@@ -1686,7 +1682,12 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
 /// on the 3 input operands. It is used as a template argument of the bfn()
 /// function.
 /// Example: d = bfn<~bfn_t::x & ~bfn_t::y & ~bfn_t::z>(s0, s1, s2);
-enum class bfn_t : uint8_t { x = 0xAA, y = 0xCC, z = 0xF0 };
+enum class __SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::bfn_t") bfn_t : uint8_t {
+  x = 0xAA,
+  y = 0xCC,
+  z = 0xF0
+};
 
 static constexpr bfn_t operator~(bfn_t x) {
   uint8_t val = static_cast<uint8_t>(x);
@@ -1724,38 +1725,13 @@ static constexpr bfn_t operator^(bfn_t x, bfn_t y) {
 /// @param s1 Second boolean function argument.
 /// @param s2 Third boolean function argument.
 template <bfn_t FuncControl, typename T, int N>
-__ESIMD_API std::enable_if_t<std::is_integral_v<T>, __ESIMD_NS::simd<T, N>>
-bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
+__SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::bfn<FuncControl>(src0, src1, src2);")
+__ESIMD_API std::enable_if_t<std::is_integral_v<T>, __ESIMD_NS::simd<T, N>> bfn(
+    __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
     __ESIMD_NS::simd<T, N> src2) {
-  if constexpr ((sizeof(T) == 8) || ((sizeof(T) == 1) && (N % 4 == 0)) ||
-                ((sizeof(T) == 2) && (N % 2 == 0))) {
-    // Bitcast Nx8-byte vectors to 2xN vectors of 4-byte integers.
-    // Bitcast Nx1-byte vectors to N/4 vectors of 4-byte integers.
-    // Bitcast Nx2-byte vectors to N/2 vectors of 4-byte integers.
-    auto Result = __ESIMD_ENS::bfn<FuncControl>(
-        src0.template bit_cast_view<int32_t>().read(),
-        src1.template bit_cast_view<int32_t>().read(),
-        src2.template bit_cast_view<int32_t>().read());
-    return Result.template bit_cast_view<T>();
-  } else if constexpr (sizeof(T) == 2 || sizeof(T) == 4) {
-    constexpr uint8_t FC = static_cast<uint8_t>(FuncControl);
-    return __esimd_bfn<FC, T, N>(src0.data(), src1.data(), src2.data());
-  } else if constexpr (N % 2 == 0) {
-    // Bitcast Nx1-byte vectors (N is even) to N/2 vectors of 2-byte integers.
-    auto Result = __ESIMD_ENS::bfn<FuncControl>(
-        src0.template bit_cast_view<int16_t>().read(),
-        src1.template bit_cast_view<int16_t>().read(),
-        src2.template bit_cast_view<int16_t>().read());
-    return Result.template bit_cast_view<T>();
-  } else {
-    // Odd number of 1-byte elements.
-    __ESIMD_NS::simd<T, N + 1> Src0, Src1, Src2;
-    Src0.template select<N, 1>() = src0;
-    Src1.template select<N, 1>() = src1;
-    Src2.template select<N, 1>() = src2;
-    auto Result = __ESIMD_ENS::bfn<FuncControl>(Src0, Src1, Src2);
-    return Result.template select<N, 1>();
-  }
+  return __ESIMD_NS::bfn<static_cast<__ESIMD_NS::bfn_t>(FuncControl)>(
+      src0, src1, src2);
 }
 
 /// Performs binary function computation with three scalar operands.
@@ -1766,15 +1742,13 @@ bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
 /// @param s1 Second boolean function argument.
 /// @param s2 Third boolean function argument.
 template <bfn_t FuncControl, typename T>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::is_esimd_scalar<T>::value && std::is_integral_v<T>, T>
-bfn(T src0, T src1, T src2) {
-  __ESIMD_NS::simd<T, 1> Src0 = src0;
-  __ESIMD_NS::simd<T, 1> Src1 = src1;
-  __ESIMD_NS::simd<T, 1> Src2 = src2;
-  __ESIMD_NS::simd<T, 1> Result =
-      esimd::bfn<FuncControl, T, 1>(Src0, Src1, Src2);
-  return Result[0];
+__SYCL_DEPRECATED(
+    "Please use sycl::ext::intel::esimd::bfn<FuncControl>(src0, src1, src2);")
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
+                                 std::is_integral_v<T>,
+                             T> bfn(T src0, T src1, T src2) {
+  return __ESIMD_NS::bfn<static_cast<__ESIMD_NS::bfn_t>(FuncControl)>(
+      src0, src1, src2);
 }
 
 /// @} sycl_esimd_logical
