@@ -299,29 +299,26 @@ and has additional values that are not required here (e.g. `system`).
 New device queries are introduced to allow developers to reason about the
 progress guarantees that can be provided by each device.
 
-The results of these queries represent the strongest forward progress
-guarantees that a device can satisfy, and therefore the strongest forward
-progress guarantees that can be requested by a kernel's <<properties,
-properties>>.
-
-The queries are expressed in terms of a _target_ execution scope and a
-_coordination scope_, as described previously. The _coordination_ scope
-must be broader than the _target_ execution scope.
+The results of these queries represent the forward progress guarantees that a
+device can satisfy for each execution scope, and therefore the forward progress
+guarantees that can be requested by a kernel's <<properties,
+properties>>. These queries (and their results) must be interpreted relative to
+a coordination scope, as described previously.
 
 [NOTE]
 ====
 Note that these queries cannot be used to reason about the thread of execution
 associated with the root-group, because it is currently the top of the
-hierarchy; when the target execution scope is `root_group`, it is not currently
-possible to specify a broader coordination scope.
+hierarchy and it is therefore not possible to specify a broader coordination
+scope.
 ====
 
 [NOTE]
 ====
-Explicitly specifying both the target and coordination scope ensures that the
-interpretation of forward progress queries is fixed and independent of the
-number of execution scopes in the hierarchy. This extension therefore does
-not prevent SYCL or other extensions from introducing new execution scopes.
+Explicitly specifying the coordination scope ensures that the interpretation of
+forward progress queries is fixed and independent of the number of execution
+scopes in the hierarchy. This extension therefore does not prevent SYCL or
+other extensions from introducing new execution scopes.
 ====
 
 
@@ -331,13 +328,33 @@ not prevent SYCL or other extensions from introducing new execution scopes.
 |Return Type
 |Description
 
-|`template <execution_scope Scope, execution_scope CoordinationScope>
- info::device::ext_oneapi_forward_progress_guarantee`
-|`forward_progress_guarantee`
-|Return the strongest forward progress guarantee that this device can support
- for threads of execution with the specified combination of scope and
- coordination scope. Specializations of `forward_progress_guarantee` are only
- available when `CoordinationScope` is broader than `Scope`.
+|`template <execution_scope CoordinationScope>
+ info::device::ext_oneapi_work_group_progress_capabilities`
+|`std::vector<forward_progress_guarantee>`
+|Return the set of forward progress guarantees that can be requested by
+ the `work_group_progress` kernel property, for the specified value of
+ `CoordinationScope`. Specializations of
+ `ext_oneapi_work_group_progress_capabilities` are only available for
+ `execution_scope::root_group`.
+
+|`template <execution_scope CoordinationScope>
+ info::device::ext_oneapi_sub_group_progress_capabilities`
+|`std::vector<forward_progress_guarantee>`
+|Return the set of forward progress guarantees that can be requested by
+ the `sub_group_progress` kernel property, for the specified value of
+ `CoordinationScope`. Specializations of
+ `ext_oneapi_sub_group_progress_capabilities` are only available for
+ `execution_scope::root_group` and `execution_scope::work_group`.
+
+|`template <execution_scope CoordinationScope>
+ info::device::ext_oneapi_work_item_progress_capabilities`
+|`std::vector<forward_progress_guarantee>`
+|Return the set of forward progress guarantees that can be requested by
+ the `work_item_progress` kernel property, for the specified value of
+ `CoordinationScope`. Specializations of
+ `ext_oneapi_work_item_progress_capabilities` are only available for
+ `execution_scope::root_group`, `execution_scope::work_group`, and
+ `execution_scope::sub_group`.
 
 |===
 
