@@ -69,7 +69,7 @@ Joint matrix is a SYCL extension for matrix hardware programming. It
 unifies targets like Intel AMX in CPUs, Intel XMX in Intel GPUs and
 Nvidia Tensor Cores. This provides a portable and performant API for
 users who want to build their own neural networks applications,
-perform custom optimzations, or experiment with new operations in a
+perform custom optimizations, or experiment with new operations in a
 timely and performing manner.
 
 == Specification
@@ -138,9 +138,10 @@ joint_matrix<sub_group, int8_t, use::a, tM, tN, layout::row_major> tA;
 ==== Element Type
 The `T` template parameter specifies the type of each element in the
 matrix. Each device supports only certain element types, so the
-application must use the query operations (defined below) to ensure
-that the element type is supported on the device where the kernel
-using this `joint_matrix` runs.
+application must ensure that the element type is supported on the
+device where the kernel using this joint_matrix runs. The query
+functions (defined below) may be used to determine the set of element
+types that are supported on a device.
 
 ==== Matrix Use
 The main operation performed by the matrix hardware is `D=C+A*B`. The
@@ -165,7 +166,7 @@ enum class use {
 ```
 
 ==== Matrix Shape
-The `Rows` and `Cols` template parameters tell the number of rows and
+The `Rows` and `Cols` template parameters provide the number of rows and
 columns in the joint matrix. Each device supports only certain
 combinations of row and column sizes, so the application must use the
 query operations (defined below) to ensure that the matrix shape is
@@ -322,7 +323,7 @@ void joint_matrix_copy(Group g,
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 This function copies `Rows x Cols` elements of type `T` from joint
-matrix `src` to joint matrix `dest`. The two matrcies must have the
+matrix `src` to joint matrix `dest`. The two matrices must have the
 same scope, type, shape, and layout. Use can be different so this
 function converts between different `use` of matrices.
 
@@ -860,8 +861,8 @@ a device with compute capability less than `sm_xx` then an error will
 be thrown. The mapping to Minimum Compute Capability from each
 supported parameter combination is specified in the following table.
 
---
-[.center]
+
+[frame="none",options="header"]
 |======================
 | A and B type | C and D type | M | N | K | Minimum Compute Capability
 .3+| `matrix_type::fp16`  .3+| `matrix_type::fp32`
@@ -887,19 +888,6 @@ supported parameter combination is specified in the following table.
 |32 |8 |16
 | `matrix_type::fp64`  | `matrix_type::fp64` |8 |8 |4
 |======================
---
-
-The M, N, K triple from the above table defines the complete set of
-matrix shapes constructible:
---
-[.center]
-|======================
-|use |NumRows | NumCols
-|a |M |K
-|b |K |N
-|accumulator | M| N
-|======================
---
 
 IMPORTANT: The `stride` argument to `joint_matrix_load` and
 `joint_matrix_store` must be a multiple of 8 when `T` is `half`, and a
