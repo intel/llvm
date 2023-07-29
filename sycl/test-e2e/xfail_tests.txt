@@ -357,6 +357,9 @@ ESIMD/vadd_usm.cpp
 ESIMD/vadd_usm_opqptr.cpp
 ESIMD/wait.cpp
 Functor/functor_inheritance.cpp
+Graph/RecordReplay/dotp_buffer_reduction.cpp
+Graph/RecordReplay/dotp_usm_reduction.cpp
+Graph/RecordReplay/sub_graph_reduction.cpp
 GroupAlgorithm/SYCL2020/group_broadcast.cpp
 GroupAlgorithm/SYCL2020/reduce_over_group_size.cpp
 GroupAlgorithm/SYCL2020/sort.cpp
