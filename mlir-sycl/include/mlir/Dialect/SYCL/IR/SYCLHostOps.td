@@ -176,6 +176,7 @@ def SYCLHostSetCaptured : SYCL_HostOp<"set_captured"> {
 
 def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
     [DeclareOpInterfaceMethods<SymbolUserOpInterface>,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
      AttrSizedOperandSegments]> {
   let summary = "Schedules a SYCL kernel launch.";
   let description = [{
