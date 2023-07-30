@@ -7,121 +7,11 @@
 //===-----------------------------------------------------------------===//
 
 #include "platform.hpp"
+#include "adapter.hpp"
 #include "ur_level_zero.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t
-        DeviceFlags ///< [in] device initialization flags.
-                    ///< must be 0 (default) or a combination of
-                    ///< ::ur_device_init_flag_t.
-) {
-  std::ignore = DeviceFlags;
-
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urTearDown(
-    void *Params ///< [in] pointer to tear down parameters
-) {
-  std::ignore = Params;
-  // reclaim ur_platform_handle_t objects here since we don't have
-  // urPlatformRelease.
-  for (ur_platform_handle_t Platform : *URPlatformsCache) {
-    delete Platform;
-  }
-  delete URPlatformsCache;
-  delete URPlatformsCacheMutex;
-
-  bool LeakFound = false;
-
-  // Print the balance of various create/destroy native calls.
-  // The idea is to verify if the number of create(+) and destroy(-) calls are
-  // matched.
-  if (ZeCallCount && (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) != 0) {
-    // clang-format off
-    //
-    // The format of this table is such that each row accounts for a
-    // specific type of objects, and all elements in the raw except the last
-    // one are allocating objects of that type, while the last element is known
-    // to deallocate objects of that type.
-    //
-    std::vector<std::vector<std::string>> CreateDestroySet = {
-      {"zeContextCreate",      "zeContextDestroy"},
-      {"zeCommandQueueCreate", "zeCommandQueueDestroy"},
-      {"zeModuleCreate",       "zeModuleDestroy"},
-      {"zeKernelCreate",       "zeKernelDestroy"},
-      {"zeEventPoolCreate",    "zeEventPoolDestroy"},
-      {"zeCommandListCreateImmediate", "zeCommandListCreate", "zeCommandListDestroy"},
-      {"zeEventCreate",        "zeEventDestroy"},
-      {"zeFenceCreate",        "zeFenceDestroy"},
-      {"zeImageCreate",        "zeImageDestroy"},
-      {"zeSamplerCreate",      "zeSamplerDestroy"},
-      {"zeMemAllocDevice", "zeMemAllocHost", "zeMemAllocShared", "zeMemFree"},
-    };
-
-    // A sample output aimed below is this:
-    // ------------------------------------------------------------------------
-    //                zeContextCreate = 1     \--->        zeContextDestroy = 1
-    //           zeCommandQueueCreate = 1     \--->   zeCommandQueueDestroy = 1
-    //                 zeModuleCreate = 1     \--->         zeModuleDestroy = 1
-    //                 zeKernelCreate = 1     \--->         zeKernelDestroy = 1
-    //              zeEventPoolCreate = 1     \--->      zeEventPoolDestroy = 1
-    //   zeCommandListCreateImmediate = 1     |
-    //            zeCommandListCreate = 1     \--->    zeCommandListDestroy = 1  ---> LEAK = 1
-    //                  zeEventCreate = 2     \--->          zeEventDestroy = 2
-    //                  zeFenceCreate = 1     \--->          zeFenceDestroy = 1
-    //                  zeImageCreate = 0     \--->          zeImageDestroy = 0
-    //                zeSamplerCreate = 0     \--->        zeSamplerDestroy = 0
-    //               zeMemAllocDevice = 0     |
-    //                 zeMemAllocHost = 1     |
-    //               zeMemAllocShared = 0     \--->               zeMemFree = 1
-    //
-    // clang-format on
-
-    fprintf(stderr, "ZE_DEBUG=%d: check balance of create/destroy calls\n",
-            UR_L0_DEBUG_CALL_COUNT);
-    fprintf(stderr,
-            "----------------------------------------------------------\n");
-    for (const auto &Row : CreateDestroySet) {
-      int diff = 0;
-      for (auto I = Row.begin(); I != Row.end();) {
-        const char *ZeName = (*I).c_str();
-        const auto &ZeCount = (*ZeCallCount)[*I];
-
-        bool First = (I == Row.begin());
-        bool Last = (++I == Row.end());
-
-        if (Last) {
-          fprintf(stderr, " \\--->");
-          diff -= ZeCount;
-        } else {
-          diff += ZeCount;
-          if (!First) {
-            fprintf(stderr, " | \n");
-          }
-        }
-
-        fprintf(stderr, "%30s = %-5d", ZeName, ZeCount);
-      }
-
-      if (diff) {
-        LeakFound = true;
-        fprintf(stderr, " ---> LEAK = %d", diff);
-      }
-      fprintf(stderr, "\n");
-    }
-
-    ZeCallCount->clear();
-    delete ZeCallCount;
-    ZeCallCount = nullptr;
-  }
-  if (LeakFound)
-    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
+    ur_adapter_handle_t *, uint32_t,
     uint32_t NumEntries, ///< [in] the number of platforms to be added to
                          ///< phPlatforms. If phPlatforms is not NULL, then
                          ///< NumEntries should be greater than zero, otherwise
@@ -171,7 +61,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-    UR_ASSERT(NumEntries != 0, UR_RESULT_ERROR_INVALID_VALUE);
+    UR_ASSERT(NumEntries == 0, UR_RESULT_ERROR_INVALID_VALUE);
     if (NumPlatforms)
       *NumPlatforms = 0;
     return UR_RESULT_SUCCESS;
@@ -322,11 +212,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   auto ZeDriver = ur_cast<ze_driver_handle_t>(NativePlatform);
 
   uint32_t NumPlatforms = 0;
-  UR_CALL(urPlatformGet(0, nullptr, &NumPlatforms));
+  ur_adapter_handle_t AdapterHandle = &Adapter;
+  UR_CALL(urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms));
 
   if (NumPlatforms) {
     std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
-    UR_CALL(urPlatformGet(NumPlatforms, Platforms.data(), nullptr));
+    UR_CALL(urPlatformGet(&AdapterHandle, 1, NumPlatforms, Platforms.data(),
+                          nullptr));
 
     // The SYCL spec requires that the set of platforms must remain fixed for
     // the duration of the application's execution. We assume that we found all
@@ -342,20 +234,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   }
 
   return UR_RESULT_ERROR_INVALID_VALUE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t Platform, ///< [in] handle of the platform instance
-    const char **Message, ///< [out] pointer to a C string where the adapter
-                          ///< specific error message will be stored.
-    int32_t *Error ///< [out] pointer to an integer where the adapter specific
-                   ///< error code will be stored.
-) {
-  std::ignore = Platform;
-  std::ignore = Message;
-  std::ignore = Error;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t ur_platform_handle_t_::initialize() {
