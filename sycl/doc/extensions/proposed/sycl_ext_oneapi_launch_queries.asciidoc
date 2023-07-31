@@ -218,7 +218,7 @@ specific way (e.g., if the kernel requires two sub-groups for correctness).
 namespace ext::oneapi::experimental::info::kernel {
 
 struct max_sub_group_size;
-struct max_num_sub_groups;
+struct num_sub_groups;
 
 }
 ----
@@ -240,14 +240,14 @@ returned by `sub_group::get_max_local_range()` inside the kernel. If the kernel
 can be submitted to the specified queue without an error, the minimum value
 returned by this query is 1, otherwise it is 0.
 
-|`max_num_sub_groups`
+|`num_sub_groups`
 |`sycl::queue`, `sycl::range`
 |`uint32_t`
-|Returns the maximum number of sub-groups per work-group, when the kernel is
-submitted to the specified queue with the specified work-group size, accounting
-for any kernel properties or features. If the kernel can be submitted to the
-specified queue without an error, the minimum value returned by this query is
-1, otherwise it is 0.
+|Returns the number of sub-groups per work-group, when the kernel is submitted
+to the specified queue with the specified work-group size, accounting for any
+kernel properties or features. If the kernel can be submitted to the specified
+queue without an error, the minimum value returned by this query is 1,
+otherwise it is 0.
 
 |===
 
