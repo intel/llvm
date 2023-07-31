@@ -90,10 +90,12 @@ public:
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-  RTDeviceBinaryImage &
-  getDeviceImage(RTDeviceBinaryImage* ImageToVerify, const context &Context,
+  
+
+  RTDeviceBinaryImage & getDeviceImage(const std::unordered_set<RTDeviceBinaryImage*>& ImagesToVerify, const context &Context,
                                const device &Device,
                                bool JITCompilationIsRequired = false);
+
   sycl::detail::pi::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                               const context &Context,
                                               const device &Device);
@@ -292,6 +294,8 @@ public:
     // Release them explicitly.
     for (auto& Image : m_BinImg2KernelIDs)
         delete Image.first;
+    for (auto& Image : m_UniversalKernelSet)
+        delete Image;
   };
 
   bool kernelUsesAssert(const std::string &KernelName) const;
@@ -346,6 +350,11 @@ private:
   std::unordered_map<RTDeviceBinaryImage*,
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
+
+  /// Keeps images without entry info.
+  /// Such images are assumed to contain all kernel associated with the module.
+  /// Access must be guarded by the \ref m_KernelIDsMutex mutex.
+  std::unordered_set<RTDeviceBinaryImage*> m_UniversalKernelSet;
 
   /// Protects kernel ID cache.
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to

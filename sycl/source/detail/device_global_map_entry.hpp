@@ -14,6 +14,7 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <unordered_set>
 
 #include <detail/pi_utils.hpp>
 #include <sycl/detail/defines_elementary.hpp>
@@ -52,7 +53,7 @@ struct DeviceGlobalMapEntry {
   // Pointer to the device_global on host.
   const void *MDeviceGlobalPtr = nullptr;
   // Images device_global are used by.
-  std::set<RTDeviceBinaryImage*> MImages;
+  std::unordered_set<RTDeviceBinaryImage*> MImages;
   // The image identifiers for the images using the device_global used by in the
   // cache.
   std::set<std::uintptr_t> MImageIdentifiers;

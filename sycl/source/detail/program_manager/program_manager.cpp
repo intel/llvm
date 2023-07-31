@@ -1039,7 +1039,7 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
   if (m_UseSpvFile)
   {
     assert(m_SpvFileImage);
-    return getDeviceImage(m_SpvFileImage.get(), Context, Device, JITCompilationIsRequired);
+    return getDeviceImage(std::unordered_set<RTDeviceBinaryImage*>({m_SpvFileImage.get()}), Context, Device, JITCompilationIsRequired);
   }
 
   // TODO: There may be cases with sycl::program class usage in source code
@@ -1084,7 +1084,7 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
     Img = ItBegin->second;
   }
   else
-    assert(false && "No kernel id found for the given kernel name");
+    return getDeviceImage(m_UniversalKernelSet, Context, Device, JITCompilationIsRequired);
 
   CheckJITCompilationForImage(Img, JITCompilationIsRequired);
 
@@ -1096,11 +1096,13 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
 }
 
 RTDeviceBinaryImage &
-ProgramManager::getDeviceImage(RTDeviceBinaryImage* ImageToVerify, const context &Context,
+ProgramManager::getDeviceImage(const std::unordered_set<RTDeviceBinaryImage*>& ImageSet, const context &Context,
                                const device &Device,
                                bool JITCompilationIsRequired) {
+  assert(ImageSet.size() > 0);
+
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::getDeviceImage(\"" << ImageToVerify << "\", "
+    std::cerr << ">>> ProgramManager::getDeviceImage(Custom SPV file or universal kernel image set, "
               << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
               << ", " << JITCompilationIsRequired << ")\n";
 
@@ -1115,20 +1117,25 @@ ProgramManager::getDeviceImage(RTDeviceBinaryImage* ImageToVerify, const context
 
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
-  std::vector<pi_device_binary> RawImgs {const_cast<pi_device_binary>(&ImageToVerify->getRawData())};
+  std::vector<pi_device_binary> RawImgs(ImageSet.size());
+  auto ImageIterator = ImageSet.begin();
+  for (size_t i = 0; i < ImageSet.size(); i++, ImageIterator++)
+    RawImgs[i] =  const_cast<pi_device_binary>(&(*ImageIterator)->getRawData());
   pi_uint32 ImgInd = 0;
   getSyclObjImpl(Context)->getPlugin()->call<PiApiKind::piextDeviceSelectBinary>(
       getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
       (pi_uint32)RawImgs.size(), &ImgInd);
-  assert(!ImgInd);
 
-  CheckJITCompilationForImage(ImageToVerify, JITCompilationIsRequired);
+  ImageIterator = ImageSet.begin();
+  std::advance(ImageIterator, ImgInd);
+
+  CheckJITCompilationForImage(*ImageIterator, JITCompilationIsRequired);
 
   if (DbgProgMgr > 0) {
-    std::cerr << "selected device image: " << &ImageToVerify->getRawData() << "\n";
-    ImageToVerify->print();
+    std::cerr << "selected device image: " << &(*ImageIterator)->getRawData() << "\n";
+    (*ImageIterator)->print();
   }
-  return *ImageToVerify;
+  return **ImageIterator;
 }
 
 static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
@@ -1320,7 +1327,8 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
             createKernelArgMask(DeviceBinaryProperty(Info).asByteArray());
     }
 
-    assert(EntriesB != EntriesE && "Device image should contain data about entries");
+    if (EntriesB != EntriesE)
+    {
     // Fill maps for kernel bundles
       std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
@@ -1448,6 +1456,14 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           }
         }
       }
+  }
+    // Otherwise assume that the image contains all kernels associated with the
+    // module
+    cacheKernelUsesAssertInfo(*Img);
+
+    if (DumpImages)
+      dumpImage(*Img);
+    m_UniversalKernelSet.insert(Img);
   }
 }
 
