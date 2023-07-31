@@ -1611,20 +1611,19 @@ LLVMToSPIRVDbgTran::transDbgImportedEntry(const DIImportedEntity *IE) {
   auto Tag = static_cast<dwarf::Tag>(IE->getTag());
   // FIXME: 'OpenCL/bugged' version is kept because it's hard to remove it
   // It's W/A for missing 2nd index in OpenCL's implementation
-  const SPIRVWord OffsetIdx =
-      isNonSemanticDebugInfo() ? OperandCount - NonSemantic::OperandCount : 0;
-  SPIRVWordVec Ops(OperandCount - OffsetIdx);
-  Ops[NameIdx] = BM->getString(IE->getName().str())->getId();
-  Ops[TagIdx] = SPIRV::DbgImportedEntityMap::map(Tag);
-  Ops[SourceIdx - OffsetIdx] = getSource(IE->getFile())->getId();
-  Ops[EntityIdx - OffsetIdx] = transDbgEntry(IE->getEntity())->getId();
-  Ops[LineIdx - OffsetIdx] = IE->getLine();
+  const SPIRVWord OffsetIdx = static_cast<int>(isNonSemanticDebugInfo());
+  SPIRVWordVec Ops(OpenCL::OperandCount - OffsetIdx);
+  Ops[OpenCL::NameIdx] = BM->getString(IE->getName().str())->getId();
+  Ops[OpenCL::TagIdx] = SPIRV::DbgImportedEntityMap::map(Tag);
+  Ops[OpenCL::SourceIdx - OffsetIdx] = getSource(IE->getFile())->getId();
+  Ops[OpenCL::EntityIdx - OffsetIdx] = transDbgEntry(IE->getEntity())->getId();
+  Ops[OpenCL::LineIdx - OffsetIdx] = IE->getLine();
   // This version of DIImportedEntity has no column number
-  Ops[ColumnIdx - OffsetIdx] = 0;
-  Ops[ParentIdx - OffsetIdx] = getScope(IE->getScope())->getId();
+  Ops[OpenCL::ColumnIdx - OffsetIdx] = 0;
+  Ops[OpenCL::ParentIdx - OffsetIdx] = getScope(IE->getScope())->getId();
   if (isNonSemanticDebugInfo())
-    transformToConstant(Ops,
-                        {TagIdx, LineIdx - OffsetIdx, ColumnIdx - OffsetIdx});
+    transformToConstant(Ops, {OpenCL::TagIdx, OpenCL::LineIdx - OffsetIdx,
+                              OpenCL::ColumnIdx - OffsetIdx});
   return BM->addDebugInfo(SPIRVDebug::ImportedEntity, getVoidTy(), Ops);
 }
 
