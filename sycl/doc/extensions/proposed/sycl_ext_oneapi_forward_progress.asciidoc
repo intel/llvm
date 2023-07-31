@@ -333,7 +333,7 @@ other extensions from introducing new execution scopes.
 |Description
 
 |`template <execution_scope CoordinationScope>
- info::device::ext_oneapi_work_group_progress_capabilities`
+ ext::oneapi::info::device::work_group_progress_capabilities`
 |`std::vector<forward_progress_guarantee>`
 |Return the set of forward progress guarantees that can be requested by
  the `work_group_progress` kernel property, for the specified value of
@@ -342,7 +342,7 @@ other extensions from introducing new execution scopes.
  `execution_scope::root_group`.
 
 |`template <execution_scope CoordinationScope>
- info::device::ext_oneapi_sub_group_progress_capabilities`
+ ext::oneapi::info::device::sub_group_progress_capabilities`
 |`std::vector<forward_progress_guarantee>`
 |Return the set of forward progress guarantees that can be requested by
  the `sub_group_progress` kernel property, for the specified value of
@@ -351,7 +351,7 @@ other extensions from introducing new execution scopes.
  `execution_scope::root_group` and `execution_scope::work_group`.
 
 |`template <execution_scope CoordinationScope>
- info::device::ext_oneapi_work_item_progress_capabilities`
+ ext::oneapi::info::device::work_item_progress_capabilities`
 |`std::vector<forward_progress_guarantee>`
 |Return the set of forward progress guarantees that can be requested by
  the `work_item_progress` kernel property, for the specified value of
