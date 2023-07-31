@@ -58,7 +58,6 @@ gpu.module @kernels {
 // CHECK-NEXT:        %[[VAL_5:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_6:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_4]]] : memref<1x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_7:.*]] = arith.constant 0 : index
-// CHECK-NEXT:        %[[VAL_8:.*]] = sycl.global_offset : !sycl_id_1_
 // CHECK-NEXT:        %[[VAL_9:.*]] = sycl.num_work_items : !sycl_range_1_
 // CHECK-NEXT:        %[[VAL_10:.*]] = sycl.work_group_size : !sycl_range_1_
 // CHECK-NEXT:        %[[VAL_11:.*]] = sycl.num_work_groups : !sycl_range_1_
@@ -77,7 +76,6 @@ gpu.module @kernels {
 // CHECK-NEXT:        %[[VAL_19:.*]] = memref.load %[[VAL_18]]{{\[}}%[[VAL_16]]] : memref<1x!sycl_range_1_>
 // CHECK-NEXT:        %[[VAL_20:.*]] = arith.constant 0 : index
 // CHECK-NEXT:        %[[VAL_21:.*]] = sycl.global_offset : !sycl_id_1_
-// CHECK-NEXT:        %[[VAL_22:.*]] = sycl.num_work_items : !sycl_range_1_
 // CHECK-NEXT:        %[[VAL_23:.*]] = sycl.work_group_size : !sycl_range_1_
 // CHECK-NEXT:        %[[VAL_24:.*]] = sycl.num_work_groups : !sycl_range_1_
 // CHECK-NEXT:        memref.store %[[VAL_21]], %[[VAL_12]]{{\[}}%[[VAL_20]]] : memref<1x!sycl_id_1_>
@@ -116,8 +114,6 @@ gpu.module @kernels {
 // CHECK-NEXT:        %[[VAL_46:.*]] = sycl.range.constructor(%[[VAL_44]], %[[VAL_45]]) : (index, index) -> memref<1x!sycl_range_2_>
 // CHECK-NEXT:        %[[VAL_47:.*]] = memref.load %[[VAL_46]]{{\[}}%[[VAL_43]]] : memref<1x!sycl_range_2_>
 // CHECK-NEXT:        %[[VAL_48:.*]] = arith.constant 0 : index
-// CHECK-NEXT:        %[[VAL_49:.*]] = sycl.global_offset : !sycl_id_2_
-// CHECK-NEXT:        %[[VAL_50:.*]] = sycl.num_work_items : !sycl_range_2_
 // CHECK-NEXT:        %[[VAL_51:.*]] = sycl.work_group_size : !sycl_range_2_
 // CHECK-NEXT:        %[[VAL_52:.*]] = sycl.num_work_groups : !sycl_range_2_
 // CHECK-NEXT:        memref.store %[[VAL_42]], %[[VAL_34]]{{\[}}%[[VAL_48]]] : memref<1x!sycl_id_2_>
@@ -152,7 +148,6 @@ gpu.module @kernels {
 // CHECK-NEXT:        %[[VAL_70:.*]] = sycl.id.constructor(%[[VAL_67]], %[[VAL_68]], %[[VAL_69]]) : (index, index, index) -> memref<1x!sycl_id_3_>
 // CHECK-NEXT:        %[[VAL_71:.*]] = memref.load %[[VAL_70]]{{\[}}%[[VAL_66]]] : memref<1x!sycl_id_3_>
 // CHECK-NEXT:        %[[VAL_72:.*]] = arith.constant 0 : index
-// CHECK-NEXT:        %[[VAL_73:.*]] = sycl.global_offset : !sycl_id_3_
 // CHECK-NEXT:        %[[VAL_74:.*]] = sycl.num_work_items : !sycl_range_3_
 // CHECK-NEXT:        %[[VAL_75:.*]] = sycl.work_group_size : !sycl_range_3_
 // CHECK-NEXT:        %[[VAL_76:.*]] = sycl.num_work_groups : !sycl_range_3_
@@ -172,7 +167,6 @@ gpu.module @kernels {
 // CHECK-NEXT:        %[[VAL_85:.*]] = sycl.id.constructor(%[[VAL_82]], %[[VAL_83]], %[[VAL_84]]) : (index, index, index) -> memref<1x!sycl_id_3_>
 // CHECK-NEXT:        %[[VAL_86:.*]] = memref.load %[[VAL_85]]{{\[}}%[[VAL_81]]] : memref<1x!sycl_id_3_>
 // CHECK-NEXT:        %[[VAL_87:.*]] = arith.constant 0 : index
-// CHECK-NEXT:        %[[VAL_88:.*]] = sycl.global_offset : !sycl_id_3_
 // CHECK-NEXT:        %[[VAL_89:.*]] = sycl.num_work_items : !sycl_range_3_
 // CHECK-NEXT:        %[[VAL_90:.*]] = sycl.work_group_size : !sycl_range_3_
 // CHECK-NEXT:        %[[VAL_91:.*]] = sycl.num_work_groups : !sycl_range_3_
@@ -193,7 +187,6 @@ gpu.module @kernels {
 // CHECK-NEXT:        %[[VAL_101:.*]] = memref.load %[[VAL_100]]{{\[}}%[[VAL_96]]] : memref<1x!sycl_range_3_>
 // CHECK-NEXT:        %[[VAL_102:.*]] = arith.constant 0 : index
 // CHECK-NEXT:        %[[VAL_103:.*]] = sycl.global_offset : !sycl_id_3_
-// CHECK-NEXT:        %[[VAL_104:.*]] = sycl.num_work_items : !sycl_range_3_
 // CHECK-NEXT:        %[[VAL_105:.*]] = sycl.work_group_size : !sycl_range_3_
 // CHECK-NEXT:        %[[VAL_106:.*]] = sycl.num_work_groups : !sycl_range_3_
 // CHECK-NEXT:        memref.store %[[VAL_103]], %[[VAL_92]]{{\[}}%[[VAL_102]]] : memref<1x!sycl_id_3_>
@@ -214,7 +207,6 @@ gpu.module @kernels {
 // CHECK-NEXT:        %[[VAL_117:.*]] = arith.constant 0 : index
 // CHECK-NEXT:        %[[VAL_118:.*]] = sycl.global_offset : !sycl_id_3_
 // CHECK-NEXT:        %[[VAL_119:.*]] = sycl.num_work_items : !sycl_range_3_
-// CHECK-NEXT:        %[[VAL_120:.*]] = sycl.work_group_size : !sycl_range_3_
 // CHECK-NEXT:        %[[VAL_121:.*]] = sycl.num_work_groups : !sycl_range_3_
 // CHECK-NEXT:        memref.store %[[VAL_118]], %[[VAL_107]]{{\[}}%[[VAL_117]]] : memref<1x!sycl_id_3_>
 // CHECK-NEXT:        memref.store %[[VAL_119]], %[[VAL_108]]{{\[}}%[[VAL_117]]] : memref<1x!sycl_range_3_>
@@ -245,9 +237,6 @@ gpu.module @kernels {
 // CHECK-NEXT:        %[[VAL_143:.*]] = memref.load %[[VAL_142]]{{\[}}%[[VAL_138]]] : memref<1x!sycl_range_3_>
 // CHECK-NEXT:        %[[VAL_144:.*]] = arith.constant 0 : index
 // CHECK-NEXT:        %[[VAL_145:.*]] = sycl.global_offset : !sycl_id_3_
-// CHECK-NEXT:        %[[VAL_146:.*]] = sycl.num_work_items : !sycl_range_3_
-// CHECK-NEXT:        %[[VAL_147:.*]] = sycl.work_group_size : !sycl_range_3_
-// CHECK-NEXT:        %[[VAL_148:.*]] = sycl.num_work_groups : !sycl_range_3_
 // CHECK-NEXT:        memref.store %[[VAL_145]], %[[VAL_122]]{{\[}}%[[VAL_144]]] : memref<1x!sycl_id_3_>
 // CHECK-NEXT:        memref.store %[[VAL_131]], %[[VAL_123]]{{\[}}%[[VAL_144]]] : memref<1x!sycl_range_3_>
 // CHECK-NEXT:        memref.store %[[VAL_137]], %[[VAL_124]]{{\[}}%[[VAL_144]]] : memref<1x!sycl_range_3_>

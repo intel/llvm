@@ -486,6 +486,7 @@ void ConstantSYCLGridArgs::Rewriter<OpTy, K>::rewrite(
     llvm::dbgs().indent(10) << allocatedValue << "\n";
     llvm::dbgs().indent(10) << value << "\n";
   });
+  op->erase();
 }
 
 template <>
