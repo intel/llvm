@@ -4,7 +4,8 @@
 // RUN: not %{run} SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE=0 %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ZERO %s
 // RUN: not %{run} SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE=100000000 %t.out 2>&1 | FileCheck --check-prefixes=CHECK-OVERALLOCATE %s
 
-//==--- interop-cuda.cpp - SYCL test for CUDA buffer interop API ----------===//
+//==---------------------- cuda-max-local-mem-size.cpp --------------------===//
+//==--- SYCL test to test SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE env var----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
