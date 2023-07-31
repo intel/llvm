@@ -18,12 +18,7 @@
 inline constexpr auto EnableDefaultContextsName =
     "SYCL_ENABLE_DEFAULT_CONTEXTS";
 
-TEST(DefaultContextTest, DefaultContextTest) {
-  using namespace sycl::detail;
-  using namespace sycl::unittest;
-  ScopedEnvVar var(EnableDefaultContextsName, "1",
-                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
-
+void test_default_context_enabled() {
   sycl::unittest::PiMock Mock1;
   sycl::platform Plt1 = Mock1.getPlatform();
 
@@ -42,12 +37,7 @@ TEST(DefaultContextTest, DefaultContextTest) {
             Dev2.get_platform().ext_oneapi_get_default_context());
 }
 
-TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
-  using namespace sycl::detail;
-  using namespace sycl::unittest;
-  ScopedEnvVar var(EnableDefaultContextsName, "0",
-                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
-
+void test_default_context_disabled() {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
 
@@ -60,4 +50,53 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
 
   ASSERT_TRUE(catchException)
       << "ext_oneapi_get_default_context did not throw and exception";
+}
+
+TEST(DefaultContextTest, DefaultContextTest) {
+  using namespace sycl::detail;
+  using namespace sycl::unittest;
+  ScopedEnvVar var(EnableDefaultContextsName, "1",
+                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
+
+  test_default_context_enabled();
+}
+
+TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
+  using namespace sycl::detail;
+  using namespace sycl::unittest;
+  ScopedEnvVar var(EnableDefaultContextsName, "0",
+                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
+
+  test_default_context_disabled();
+}
+
+TEST(DefaultContextTest, DefaultContextCanBeDisabledEnabled) {
+  sycl::detail::enable_ext_oneapi_default_context(false);
+  test_default_context_disabled();
+
+  sycl::detail::enable_ext_oneapi_default_context(true);
+  test_default_context_enabled();
+}
+
+TEST(DefaultContextTest, DefaultContextValueChangedAfterQueueCreated) {
+  sycl::detail::enable_ext_oneapi_default_context(false);
+
+  sycl::unittest::PiMock Mock1;
+  sycl::platform Plt = Mock1.getPlatform();
+
+  const sycl::device Dev1 = Plt.get_devices()[0];
+  const sycl::device Dev2 = Plt.get_devices()[0];
+  const sycl::device Dev3 = Plt.get_devices()[0];
+
+  sycl::queue Queue1{Dev1};
+
+  sycl::detail::enable_ext_oneapi_default_context(true);
+
+  sycl::queue Queue2{Dev2};
+
+  ASSERT_NE(Queue1.get_context(), Queue2.get_context());
+
+  sycl::queue Queue3{Dev3};
+
+  ASSERT_EQ(Queue2.get_context(), Queue3.get_context());
 }
