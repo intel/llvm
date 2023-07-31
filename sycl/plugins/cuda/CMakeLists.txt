@@ -11,19 +11,19 @@ add_library(cudadrv SHARED IMPORTED GLOBAL)
 
 if (WIN32)
   set_target_properties(
-    cudadrv PROPERTIES 
+    cudadrv PROPERTIES
       IMPORTED_IMPLIB               ${CUDA_CUDA_LIBRARY}
       INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
   )
 else()
   set_target_properties(
-    cudadrv PROPERTIES 
+    cudadrv PROPERTIES
       IMPORTED_LOCATION             ${CUDA_CUDA_LIBRARY}
       INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
   )
 endif()
 
-if (SYCL_ENABLE_XPTI_TRACING)                                                   
+if (SYCL_ENABLE_XPTI_TRACING)
   # The following two if's can be removed when FindCUDA -> FindCUDAToolkit.
   # CUDA_CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
   include(FindCUDACupti)
@@ -35,7 +35,7 @@ if (SYCL_ENABLE_XPTI_TRACING)
     find_cuda_cupti_library()
   endif()
 
-  set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")          
+  set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")
   set(XPTI_INCLUDE
     "${CMAKE_SOURCE_DIR}/../xpti/include"
     "${CUDA_CUPTI_INCLUDE_DIR}"
@@ -53,8 +53,6 @@ add_sycl_plugin(cuda
     "../unified_runtime/pi2ur.cpp"
     "../unified_runtime/ur/ur.hpp"
     "../unified_runtime/ur/ur.cpp"
-    "../unified_runtime/ur/usm_allocator.cpp"
-    "../unified_runtime/ur/usm_allocator.hpp"
     "../unified_runtime/ur/adapters/cuda/adapter.cpp"
     "../unified_runtime/ur/adapters/cuda/adapter.hpp"
     "../unified_runtime/ur/adapters/cuda/command_buffer.cpp"
@@ -86,7 +84,7 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/ur_interface_loader.cpp"
     "../unified_runtime/ur/adapters/cuda/usm.cpp"
     "../unified_runtime/ur/adapters/cuda/usm_p2p.cpp"
-    # --- 
+    # ---
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_cuda.hpp"

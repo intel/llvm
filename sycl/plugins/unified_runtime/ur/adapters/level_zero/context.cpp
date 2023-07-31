@@ -182,30 +182,40 @@ ur_result_t ur_context_handle_t_::initialize() {
   // Note that the CCS devices and their respective subdevices share a
   // common ze_device_handle and therefore, also share USM allocators.
   auto createUSMAllocators = [this](ur_device_handle_t Device) {
-    SharedMemAllocContexts.emplace(
+    auto MemProvider = umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(
+                           reinterpret_cast<ur_context_handle_t>(this), Device)
+                           .second;
+    DeviceMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            std::unique_ptr<SystemMemory>(new USMSharedMemoryAlloc(
-                reinterpret_cast<ur_context_handle_t>(this),
-                reinterpret_cast<ur_device_handle_t>(Device))),
-            USMAllocatorConfigInstance.Configs[usm_settings::MemType::Shared]));
+        std::make_tuple(umf::poolMakeUnique<usm::DisjointPool, 1>(
+                            {std::move(MemProvider)},
+                            DisjointPoolConfigInstance
+                                .Configs[usm::DisjointPoolMemType::Device])
+                            .second));
 
-    SharedReadOnlyMemAllocContexts.emplace(
+    MemProvider = umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(
+                      reinterpret_cast<ur_context_handle_t>(this), Device)
+                      .second;
+    SharedMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            std::unique_ptr<SystemMemory>(new USMSharedReadOnlyMemoryAlloc(
-                reinterpret_cast<ur_context_handle_t>(this),
-                reinterpret_cast<ur_device_handle_t>(Device))),
-            USMAllocatorConfigInstance
-                .Configs[usm_settings::MemType::SharedReadOnly]));
+        std::make_tuple(umf::poolMakeUnique<usm::DisjointPool, 1>(
+                            {std::move(MemProvider)},
+                            DisjointPoolConfigInstance
+                                .Configs[usm::DisjointPoolMemType::Shared])
+                            .second));
 
-    DeviceMemAllocContexts.emplace(
+    MemProvider =
+        umf::memoryProviderMakeUnique<USMSharedReadOnlyMemoryProvider>(
+            reinterpret_cast<ur_context_handle_t>(this), Device)
+            .second;
+    SharedReadOnlyMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(
-            std::unique_ptr<SystemMemory>(new USMDeviceMemoryAlloc(
-                reinterpret_cast<ur_context_handle_t>(this),
-                reinterpret_cast<ur_device_handle_t>(Device))),
-            USMAllocatorConfigInstance.Configs[usm_settings::MemType::Device]));
+            umf::poolMakeUnique<usm::DisjointPool, 1>(
+                {std::move(MemProvider)},
+                DisjointPoolConfigInstance
+                    .Configs[usm::DisjointPoolMemType::SharedReadOnly])
+                .second));
   };
 
   // Recursive helper to call createUSMAllocators for all sub-devices
@@ -218,23 +228,26 @@ ur_result_t ur_context_handle_t_::initialize() {
       createUSMAllocatorsRecursive(SubDevice);
   };
 
-  // Create USM allocator context for each pair (device, context).
+  // Create USM pool for each pair (device, context).
   //
   for (auto &Device : Devices) {
     createUSMAllocatorsRecursive(Device);
   }
-  // Create USM allocator context for host. Device and Shared USM allocations
+  // Create USM pool for host. Device and Shared USM allocations
   // are device-specific. Host allocations are not device-dependent therefore
   // we don't need a map with device as key.
-  HostMemAllocContext = std::make_unique<USMAllocContext>(
-      std::unique_ptr<SystemMemory>(
-          new USMHostMemoryAlloc(reinterpret_cast<ur_context_handle_t>(this))),
-      USMAllocatorConfigInstance.Configs[usm_settings::MemType::Host]);
+  auto MemProvider = umf::memoryProviderMakeUnique<USMHostMemoryProvider>(
+                         reinterpret_cast<ur_context_handle_t>(this), nullptr)
+                         .second;
+  HostMemPool =
+      umf::poolMakeUnique<usm::DisjointPool, 1>(
+          {std::move(MemProvider)},
+          DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host])
+          .second;
 
   // We may allocate memory to this root device so create allocators.
   if (SingleRootDevice &&
-      DeviceMemAllocContexts.find(SingleRootDevice->ZeDevice) ==
-          DeviceMemAllocContexts.end()) {
+      DeviceMemPools.find(SingleRootDevice->ZeDevice) == DeviceMemPools.end()) {
     createUSMAllocators(SingleRootDevice);
   }
 
