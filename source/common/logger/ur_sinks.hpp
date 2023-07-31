@@ -28,7 +28,7 @@ class Sink {
 
         format(buffer, fmt, std::forward<Args &&>(args)...);
 
-        std::scoped_lock lock(output_mutex);
+        std::scoped_lock<std::mutex> lock(output_mutex);
         *ostream << buffer.str();
         if (level >= flush_level) {
             ostream->flush();
