@@ -376,10 +376,6 @@ bool SPIRVTypeScavenger::unifyType(Type *T1, Type *T2) {
 }
 
 void SPIRVTypeScavenger::typeModule(Module &M) {
-  // If typed pointers are in effect, we need to do nothing here.
-  if (M.getContext().supportsTypedPointers())
-    return;
-
   // Generate corrected function types for all functions in the module.
   for (auto &F : M.functions()) {
     deduceFunctionType(F);
@@ -1049,11 +1045,6 @@ FunctionType *SPIRVTypeScavenger::getFunctionType(Function *F) {
 
 Type *SPIRVTypeScavenger::getScavengedType(Value *V) {
   Type *Ty = V->getType();
-  // If we're called in a typed pointer context, the real type is always the
-  // correct type.
-  if (Ty->getContext().supportsTypedPointers())
-    return Ty;
-
   if (!hasPointerType(Ty))
     return Ty;
 
