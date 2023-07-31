@@ -933,7 +933,7 @@ inline pi_result piPluginGetLastError(char **Message) {
                         &ErrorCode);
   urAdapterRelease(Adapter);
 
-  return PI_SUCCESS;
+  return ur2piResult((ur_result_t)ErrorCode);
 }
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
