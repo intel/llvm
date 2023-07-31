@@ -143,6 +143,36 @@ static bool interp__builtin_copysign(InterpState &S, CodePtr OpPC,
   return true;
 }
 
+static bool interp__builtin_fmin(InterpState &S, CodePtr OpPC,
+                                 const InterpFrame *Frame, const Function *F) {
+  const Floating &LHS = getParam<Floating>(Frame, 0);
+  const Floating &RHS = getParam<Floating>(Frame, 1);
+
+  Floating Result;
+
+  // When comparing zeroes, return -0.0 if one of the zeroes is negative.
+  if (LHS.isZero() && RHS.isZero() && RHS.isNegative())
+    Result = RHS;
+  else if (LHS.isNan() || RHS < LHS)
+    Result = RHS;
+  else
+    Result = LHS;
+
+  S.Stk.push<Floating>(Result);
+  return true;
+}
+
+/// Defined as __builtin_isnan(...), to accommodate the fact that it can
+/// take a float, double, long double, etc.
+/// But for us, that's all a Floating anyway.
+static bool interp__builtin_isnan(InterpState &S, CodePtr OpPC,
+                                  const InterpFrame *Frame, const Function *F) {
+  const Floating &Arg = S.Stk.peek<Floating>();
+
+  S.Stk.push<Integral<32, true>>(Integral<32, true>::from(Arg.isNan()));
+  return true;
+}
+
 bool InterpretBuiltin(InterpState &S, CodePtr OpPC, const Function *F) {
   InterpFrame *Frame = S.Current;
   APValue Dummy;
@@ -193,6 +223,20 @@ bool InterpretBuiltin(InterpState &S, CodePtr OpPC, const Function *F) {
   case Builtin::BI__builtin_copysignf128:
     if (interp__builtin_copysign(S, OpPC, Frame, F))
       return Ret<PT_Float>(S, OpPC, Dummy);
+    break;
+
+  case Builtin::BI__builtin_fmin:
+  case Builtin::BI__builtin_fminf:
+  case Builtin::BI__builtin_fminl:
+  case Builtin::BI__builtin_fminf16:
+  case Builtin::BI__builtin_fminf128:
+    if (interp__builtin_fmin(S, OpPC, Frame, F))
+      return Ret<PT_Float>(S, OpPC, Dummy);
+    break;
+
+  case Builtin::BI__builtin_isnan:
+    if (interp__builtin_isnan(S, OpPC, Frame, F))
+      return Ret<PT_Sint32>(S, OpPC, Dummy);
     break;
 
   default:
