@@ -483,7 +483,7 @@ private:
 class ConstantAccessorArg : public ConstantExplicitArg {
 public:
   template <typename... Args>
-  ConstantAccessorArg(unsigned index, Args &&... args)
+  ConstantAccessorArg(unsigned index, Args &&...args)
       : ConstantExplicitArg(ConstantExplicitArg::Kind::ConstantAccessorArg,
                             index),
         info(std::forward<Args>(args)...) {}
@@ -499,7 +499,6 @@ private:
   RangeAndOffsetInfo info;
 };
 } // namespace
-
 
 //===----------------------------------------------------------------------===//
 // ConstantSYCLGridArgs::RewriterBase
@@ -1063,7 +1062,8 @@ void ConstantPropagationPass::runOnOperation() {
                     "point to be 'sycl.host.schedule_kernel'\n");
     }
 
-    propagateConstantArgs(getConstantArgs(launchPoint, accessorAnalysis), op, launchPoint);
+    propagateConstantArgs(getConstantArgs(launchPoint, accessorAnalysis), op,
+                          launchPoint);
     propagateImplicitConstantArgs(
         getConstantImplicitArgs(launchPoint, ndrAnalysis, idrAnalysis), op);
   });
