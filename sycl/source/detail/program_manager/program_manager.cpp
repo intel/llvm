@@ -630,9 +630,6 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
       getDeviceImage(KSId, Context, Device, JITCompilationIsRequired);
 
   // Check that device supports all aspects used by the kernel
-  const RTDeviceBinaryImage::PropertyRange &ARange =
-      Img.getDeviceRequirements();
-
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
     throw *exception;
 
