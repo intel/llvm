@@ -78,7 +78,7 @@ template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
 
 // (7.)
 template <> struct PropertyMetaInfo<bar_key::value_t> {
-  static constexpr const char *value = "sycl-bar";
+  static constexpr const char *name = "sycl-bar";
   static constexpr int value = 5;
 };
 
@@ -155,7 +155,7 @@ template <> struct IsRuntimeProperty<foo> : std::true_type {};
 #pragma once
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -195,8 +195,10 @@ enum PropKind : uint32_t {
   UsesValid = 29,
   UseRootSync = 30,
   RegisterAllocMode = 31,
+  GRFSize = 32,
+  GRFSizeAutomatic = 33,
   // PropKindSize must always be the last value.
-  PropKindSize = 32,
+  PropKindSize = 34,
 };
 
 // This trait must be specialized for all properties and must have a unique
@@ -231,5 +233,5 @@ template <typename, typename> struct is_property_key_of : std::false_type {};
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

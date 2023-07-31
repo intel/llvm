@@ -155,6 +155,8 @@ void piPrintersInit();
 void piPrintersFinish();
 void syclPrintersInit();
 void syclPrintersFinish();
+void vPrintersInit();
+void vPrintersFinish();
 
 XPTI_CALLBACK_API void piCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Parent,
@@ -164,6 +166,10 @@ XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t *Parent,
                                     xpti::trace_event_data_t *Event,
                                     uint64_t Instance, const void *UserData);
+XPTI_CALLBACK_API void vCallback(uint16_t TraceType,
+                                 xpti::trace_event_data_t *Parent,
+                                 xpti::trace_event_data_t *Event,
+                                 uint64_t Instance, const void *UserData);
 
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      unsigned int /*minor_version*/,
@@ -203,11 +209,20 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                            cudaCallback);
     }
 #endif
-  } else if (std::string_view(StreamName) == "sycl" &&
-             std::getenv("SYCL_TRACE_API_ENABLE")) {
+  }
+  if (std::string_view(StreamName) == "sycl" &&
+      std::getenv("SYCL_TRACE_API_ENABLE")) {
     syclPrintersInit();
     uint16_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_diagnostics, syclCallback);
+  }
+  if (std::getenv("SYCL_TRACE_VERIFICATION_ENABLE")) {
+    vPrintersInit();
+    uint16_t StreamID = xptiRegisterStream(StreamName);
+    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
+                         vCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
+                         vCallback);
   }
 }
 
@@ -233,4 +248,7 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
   if (std::string_view(StreamName) == "sycl" &&
       std::getenv("SYCL_TRACE_API_ENABLE"))
     syclPrintersFinish();
+  if (std::getenv("SYCL_TRACE_VERIFICATION_ENABLE")) {
+    vPrintersFinish();
+  }
 }

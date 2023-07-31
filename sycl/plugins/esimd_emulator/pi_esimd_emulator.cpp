@@ -1355,11 +1355,6 @@ pi_result piclProgramCreateWithBinary(pi_context, pi_uint32, const pi_device *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piclProgramCreateWithSource(pi_context, pi_uint32, const char **,
-                                      const size_t *, pi_program *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piProgramGetInfo(pi_program, pi_program_info, size_t, void *,
                            size_t *) {
   DIE_NO_IMPLEMENTATION;
@@ -1409,7 +1404,8 @@ pi_result piKernelSetArg(pi_kernel, pi_uint32, size_t, const void *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextKernelSetArgMemObj(pi_kernel, pi_uint32, const pi_mem *) {
+pi_result piextKernelSetArgMemObj(pi_kernel, pi_uint32,
+                                  const pi_mem_obj_property *, const pi_mem *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1830,6 +1826,12 @@ pi_result piEnqueueMemImageWrite(pi_queue, pi_mem, pi_bool, pi_image_offset,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextBindlessImageSamplerCreate(pi_context,
+                                          const pi_sampler_properties *, float,
+                                          float, float, pi_sampler *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piEnqueueMemImageCopy(pi_queue, pi_mem, pi_mem, pi_image_offset,
                                 pi_image_offset, pi_image_region, pi_uint32,
                                 const pi_event *, pi_event *) {
@@ -1918,12 +1920,6 @@ pi_result piextKernelGetNativeHandle(pi_kernel, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
-                                pi_uint32, const pi_mem *, const void **,
-                                pi_uint32, const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
 pi_result piextGetDeviceFunctionPointer(pi_device, pi_program, const char *,
                                         pi_uint64 *) {
   DIE_NO_IMPLEMENTATION;
@@ -1976,6 +1972,12 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   }
   Context->Addr2CmBufferSVM[SystemMemPtr] = Buf;
   return PI_SUCCESS;
+}
+
+pi_result piextUSMPitchedAlloc(void **, size_t *, pi_context, pi_device,
+                               pi_usm_mem_properties *, size_t, size_t,
+                               unsigned int) {
+  DIE_NO_IMPLEMENTATION;
 }
 
 pi_result piextUSMFree(pi_context Context, void *Ptr) {
@@ -2043,6 +2045,16 @@ pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextUSMImport(const void *, size_t, pi_context) {
+  return PI_SUCCESS;
+}
+
+pi_result piextUSMRelease(const void *ptr, pi_context context) {
+  (void)ptr;
+  (void)context;
+  return PI_SUCCESS;
+}
+
 /// Host Pipes
 pi_result piextEnqueueReadHostPipe(pi_queue, pi_program, const char *, pi_bool,
                                    void *, size_t, pi_uint32, const pi_event *,
@@ -2098,6 +2110,86 @@ pi_result piextEnqueueDeviceGlobalVariableRead(pi_queue, pi_program,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextCommandBufferCreate(pi_context, pi_device,
+                                   const pi_ext_command_buffer_desc *,
+                                   pi_ext_command_buffer *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferRetain(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferRelease(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferFinalize(pi_ext_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferNDRangeKernel(pi_ext_command_buffer, pi_kernel,
+                                          pi_uint32, const size_t *,
+                                          const size_t *, const size_t *,
+                                          pi_uint32, const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemcpyUSM(pi_ext_command_buffer, void *,
+                                      const void *, size_t, pi_uint32,
+                                      const pi_ext_sync_point *,
+                                      pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferCopy(pi_ext_command_buffer, pi_mem, pi_mem,
+                                          size_t, size_t, size_t, pi_uint32,
+                                          const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer, pi_mem, pi_mem, pi_buff_rect_offset,
+    pi_buff_rect_offset, pi_buff_rect_region, size_t, size_t, size_t, size_t,
+    pi_uint32, const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferRead(pi_ext_command_buffer, pi_mem, size_t,
+                                          size_t, void *, pi_uint32,
+                                          const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer, pi_mem, pi_buff_rect_offset, pi_buff_rect_offset,
+    pi_buff_rect_region, size_t, size_t, size_t, size_t, void *, pi_uint32,
+    const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferWrite(pi_ext_command_buffer, pi_mem,
+                                           size_t, size_t, const void *,
+                                           pi_uint32, const pi_ext_sync_point *,
+                                           pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer, pi_mem, pi_buff_rect_offset, pi_buff_rect_offset,
+    pi_buff_rect_region, size_t, size_t, size_t, size_t, const void *,
+    pi_uint32, const pi_ext_sync_point *, pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer, pi_queue, pi_uint32,
+                                    const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
   *OpaqueDataReturn = reinterpret_cast<void *>(PiESimdDeviceAccess);
   return PI_SUCCESS;
@@ -2134,6 +2226,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
     return PI_ERROR_INVALID_VALUE;
   }
 
+  std::cout
+      << "WARNING: The ESIMD Emulator is deprecated and will be removed in the "
+         "future.\n";
+
   // Check that the major version matches in PiVersion and SupportedVersion
   _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
 
@@ -2158,6 +2254,133 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #include <sycl/detail/pi.def>
 
   return PI_SUCCESS;
+}
+
+pi_result piextEnablePeerAccess(pi_device command_device,
+                                pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextEnablePeerAccess not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result piextDisablePeerAccess(pi_device command_device,
+                                 pi_device peer_device) {
+
+  std::ignore = command_device;
+  std::ignore = peer_device;
+
+  setErrorMessage("piextDisablePeerAccess not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+pi_result piextPeerAccessGetInfo(pi_device command_device,
+                                 pi_device peer_device, pi_peer_attr attr,
+                                 size_t ParamValueSize, void *ParamValue,
+                                 size_t *ParamValueSizeRet) {
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
+
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  // Zero return value indicates that all of the queries currently return false.
+  return ReturnValue(pi_int32{0});
+}
+
+pi_result piextMemUnsampledImageHandleDestroy(pi_context, pi_device,
+                                              pi_image_handle) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemSampledImageHandleDestroy(pi_context, pi_device,
+                                            pi_image_handle) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemImageAllocate(pi_context, pi_device, pi_image_format *,
+                                pi_image_desc *, pi_image_mem_handle *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemMipmapGetLevel(pi_context, pi_device, pi_image_mem_handle,
+                                 unsigned int, pi_image_mem_handle *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemImageFree(pi_context, pi_device, pi_image_mem_handle) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemMipmapFree(pi_context, pi_device, pi_image_mem_handle) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemUnsampledImageCreate(pi_context, pi_device,
+                                       pi_image_mem_handle, pi_image_format *,
+                                       pi_image_desc *, pi_mem *,
+                                       pi_image_handle *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemSampledImageCreate(pi_context, pi_device, pi_image_mem_handle,
+                                     pi_image_format *, pi_image_desc *,
+                                     pi_sampler, pi_mem *, pi_image_handle *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemImageCopy(pi_queue, void *, void *, const pi_image_format *,
+                            const pi_image_desc *, const pi_image_copy_flags,
+                            pi_image_offset, pi_image_offset, pi_image_region,
+                            pi_image_region, pi_uint32, const pi_event *,
+                            pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemImageGetInfo(const pi_image_mem_handle, pi_image_info, void *,
+                               size_t *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemImportOpaqueFD(pi_context, pi_device, size_t, int,
+                                 pi_interop_mem_handle *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemMapExternalArray(pi_context, pi_device, pi_image_format *,
+                                   pi_image_desc *, pi_interop_mem_handle,
+                                   pi_image_mem_handle *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemReleaseInterop(pi_context, pi_device, pi_interop_mem_handle) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextImportExternalSemaphoreOpaqueFD(pi_context, pi_device, int,
+                                               pi_interop_semaphore_handle *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextDestroyExternalSemaphore(pi_context, pi_device,
+                                        pi_interop_semaphore_handle) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextWaitExternalSemaphore(pi_queue, pi_interop_semaphore_handle,
+                                     pi_uint32, const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextSignalExternalSemaphore(pi_queue, pi_interop_semaphore_handle,
+                                       pi_uint32, const pi_event *,
+                                       pi_event *) {
+  DIE_NO_IMPLEMENTATION;
 }
 
 #ifdef _WIN32

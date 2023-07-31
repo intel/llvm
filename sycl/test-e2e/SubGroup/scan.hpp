@@ -28,7 +28,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
       auto inacc = inbuf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<SpecializationKernelName>(
           NdRange, [=](nd_item<1> NdItem) {
-            ext::oneapi::sub_group sg = NdItem.get_sub_group();
+            sycl::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
               exacc[NdItem.get_global_id(0)] =
                   exclusive_scan_over_group(sg, T(NdItem.get_global_id(0)), op);

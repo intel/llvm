@@ -30,7 +30,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 using LockGuard = std::lock_guard<SpinLock>;
@@ -322,6 +322,7 @@ void shutdown() {
   Handler->MProgramManager.Inst.reset(nullptr);
 
   // Clear the plugins and reset the instance if it was there.
+  Handler->MXPTIRegistry.Inst.reset(nullptr);
   Handler->unloadPlugins();
   if (Handler->MPlugins.Inst)
     Handler->MPlugins.Inst.reset(nullptr);
@@ -374,5 +375,5 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 __attribute__((destructor(110))) static void syclUnload() { shutdown(); }
 #endif
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -8,14 +8,14 @@
 
 #pragma once
 
+#include <sycl/detail/boost/mp11/algorithm.hpp>
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/detail/boost/mp11.hpp>
 
 #include <tuple>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 // Forward declaration
@@ -207,7 +207,7 @@ template <char... Sizes> struct CharList {};
 
 // Helper for converting characters to a constexpr string.
 template <char... Chars> struct CharsToStr {
-  static inline constexpr const char value[] = {Chars..., '\0'};
+  static constexpr const char value[] = {Chars..., '\0'};
 };
 
 // Helper for converting a list of size_t values to a comma-separated string
@@ -305,7 +305,38 @@ struct SizeListToStrHelper<SizeList<>, CharList<>> : CharsToStr<> {};
 template <size_t... Sizes>
 struct SizeListToStr : SizeListToStrHelper<SizeList<Sizes...>, CharList<>> {};
 
+//******************************************************************************
+// Property mutual exclusivity
+//******************************************************************************
+
+// Specializations of the following trait should not consider itself a
+// conflicting property.
+template <typename PropKey, typename Properties>
+struct ConflictingProperties : std::false_type {};
+
+template <typename Properties, typename T>
+struct NoConflictingPropertiesHelper {};
+
+template <typename Properties, typename... Ts>
+struct NoConflictingPropertiesHelper<Properties, std::tuple<Ts...>>
+    : std::true_type {};
+
+template <typename Properties, typename T, typename... Ts>
+struct NoConflictingPropertiesHelper<Properties, std::tuple<T, Ts...>>
+    : NoConflictingPropertiesHelper<Properties, std::tuple<Ts...>> {};
+
+template <typename Properties, typename... Rest, typename PropT,
+          typename... PropValuesTs>
+struct NoConflictingPropertiesHelper<
+    Properties, std::tuple<property_value<PropT, PropValuesTs...>, Rest...>>
+    : std::conditional_t<
+          ConflictingProperties<PropT, Properties>::value, std::false_type,
+          NoConflictingPropertiesHelper<Properties, std::tuple<Rest...>>> {};
+template <typename PropertiesT>
+struct NoConflictingProperties
+    : NoConflictingPropertiesHelper<PropertiesT, PropertiesT> {};
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

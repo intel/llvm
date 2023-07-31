@@ -14,21 +14,26 @@ on:
         type: string
         required: false
         default: "[]"
-      lts_cmake_extra_args:
-        type: string
-        required: false
-        default: ""
-      check_filters:
+      changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
+      artifact_archive_name:
+        type: string
+        default: llvm_sycl.tar.gz
+      retention-days:
+        description: 'Artifacts retention period'
+        type: string
+        default: 3
 
 jobs:
   build:
     name: Build + LIT
     runs-on: [Windows, build]
     # TODO use cached checkout
+    outputs:
+      build_conclusion: ${{ steps.build.conclusion }}
     steps:
     - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
       with:
@@ -68,30 +73,31 @@ jobs:
       run: |
         cmake --build build --target sycl-toolchain
     - name: check-llvm
-      if: always() && !cancelled() && contains(inputs.check_filters, 'llvm')
+      if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
         cmake --build build --target check-llvm
     - name: check-clang
-      if: always() && !cancelled() && contains(inputs.check_filters, 'clang')
+      if: always() && !cancelled() && contains(inputs.changes, 'clang')
       run: |
         cmake --build build --target check-clang
     - name: check-sycl
-      if: always() && !cancelled() && contains(inputs.check_filters, 'sycl')
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
         cmake --build build --target check-sycl
     - name: check-llvm-spirv
-      if: always() && !cancelled() && contains(inputs.check_filters, 'llvm_spirv')
+      if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
       run: |
         cmake --build build --target check-llvm-spirv
     - name: check-xptifw
-      if: always() && !cancelled() && contains(inputs.check_filters, 'xptifw')
+      if: always() && !cancelled() && contains(inputs.changes, 'xptifw')
       run: |
         cmake --build build --target check-xptifw
     - name: check-libdevice
-      if: always() && !cancelled() && contains(inputs.check_filters, 'libdevice')
+      if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
       run: |
         cmake --build build --target check-libdevice
     - name: Install
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       # TODO replace utility installation with a single CMake target
       run: |
@@ -106,18 +112,22 @@ jobs:
         cmake --build build --target install-llvm-profdata
         cmake --build build --target install-compiler-rt
     - name: Pack toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       run: |
-        tar -czf llvm_sycl.tar.gz -C install .
+        tar -czf ${{ inputs.artifact_archive_name }} -C install .
     - name: Upload toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v3
       with:
         name: sycl_windows_default
-        path: llvm_sycl.tar.gz
+        path: ${{ inputs.artifact_archive_name }}
+        retention-days: ${{ inputs.retention-days }}
 
   e2e-tests:
     needs: build
-    if: ${{ inputs.lts_matrix != '[]' }}
+    # Continue if build was successful.
+    if: ${{ always() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:
@@ -146,5 +156,6 @@ jobs:
       name: Run SYCL End-to-End tests
       with:
         sycl_artifact: sycl_windows_default
+        sycl_archive: ${{ inputs.artifact_archive_name }}
         targets: ${{ matrix.targets }}
-        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+        cmake_args: '${{ matrix.cmake_args }}'

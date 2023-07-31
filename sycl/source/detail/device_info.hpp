@@ -17,6 +17,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>
@@ -26,7 +27,7 @@
 #include <thread>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 inline std::vector<info::fp_config> read_fp_bitfield(pi_device_fp_config bits) {
@@ -569,6 +570,82 @@ struct get_device_info_impl<range<Dimensions>,
 
 template <>
 struct get_device_info_impl<
+    ext::oneapi::experimental::architecture,
+    ext::oneapi::experimental::info::device::architecture> {
+  static ext::oneapi::experimental::architecture get(const DeviceImplPtr &Dev) {
+    using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
+    auto ReturnHelper = [](auto MapDeviceIpToArch, auto DeviceIp) {
+      // TODO: use std::map::contains instead of try-catch when SYCL RT be moved
+      // to C++20
+      try {
+        oneapi_exp_arch Result = MapDeviceIpToArch.at(DeviceIp);
+        return Result;
+      } catch (std::out_of_range &) {
+        throw sycl::exception(
+            make_error_code(errc::runtime),
+            "The current device architecture is not supported by "
+            "sycl_ext_oneapi_device_architecture.");
+      }
+    };
+    backend CurrentBackend = Dev->getBackend();
+    if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
+                          backend::opencl == CurrentBackend)) {
+      std::map<uint32_t, oneapi_exp_arch> MapDeviceIpToArch = {
+          {0x02000000, oneapi_exp_arch::intel_gpu_bdw},
+          {0x02400009, oneapi_exp_arch::intel_gpu_skl},
+          {0x02404009, oneapi_exp_arch::intel_gpu_kbl},
+          {0x02408009, oneapi_exp_arch::intel_gpu_cfl},
+          {0x0240c000, oneapi_exp_arch::intel_gpu_apl},
+          {0x02410000, oneapi_exp_arch::intel_gpu_glk},
+          {0x02414000, oneapi_exp_arch::intel_gpu_whl},
+          {0x02418000, oneapi_exp_arch::intel_gpu_aml},
+          {0x0241c000, oneapi_exp_arch::intel_gpu_cml},
+          {0x02c00000, oneapi_exp_arch::intel_gpu_icllp},
+          {0x03000000, oneapi_exp_arch::intel_gpu_tgllp},
+          {0x03004000, oneapi_exp_arch::intel_gpu_rkl},
+          {0x03008000, oneapi_exp_arch::intel_gpu_adl_s},
+          {0x0300c000, oneapi_exp_arch::intel_gpu_adl_p},
+          {0x03010000, oneapi_exp_arch::intel_gpu_adl_n},
+          {0x03028000, oneapi_exp_arch::intel_gpu_dg1},
+          {0x030dc008, oneapi_exp_arch::intel_gpu_acm_g10},
+          {0x030e0005, oneapi_exp_arch::intel_gpu_acm_g11},
+          {0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12},
+          {0x030f0007, oneapi_exp_arch::intel_gpu_pvc},
+      };
+      uint32_t DeviceIp;
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(),
+          PiInfoCode<
+              ext::oneapi::experimental::info::device::architecture>::value,
+          sizeof(DeviceIp), &DeviceIp, nullptr);
+      return ReturnHelper(MapDeviceIpToArch, DeviceIp);
+    } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
+      // TODO: add support of different CPU architectures to
+      // sycl_ext_oneapi_device_architecture
+      return sycl::ext::oneapi::experimental::architecture::x86_64;
+    } // else is not needed
+    // TODO: add support of other arhitectures by extending with else if
+
+    // Generating a user-friendly error message
+    std::string DeviceStr;
+    if (Dev->is_gpu())
+      DeviceStr = "GPU";
+    else if (Dev->is_cpu())
+      DeviceStr = "CPU";
+    else if (Dev->is_accelerator())
+      DeviceStr = "accelerator";
+    // else if not needed
+    std::stringstream ErrorMessage;
+    ErrorMessage
+        << "sycl_ext_oneapi_device_architecture feature is not supported on "
+        << DeviceStr << " device with sycl::backend::" << CurrentBackend
+        << " backend.";
+    throw sycl::exception(make_error_code(errc::runtime), ErrorMessage.str());
+  }
+};
+
+template <>
+struct get_device_info_impl<
     size_t, ext::oneapi::experimental::info::device::max_global_work_groups> {
   static size_t get(const DeviceImplPtr) {
     return static_cast<size_t>((std::numeric_limits<int>::max)());
@@ -807,10 +884,46 @@ struct get_device_info_impl<
   }
 };
 
+// Specialization for graph extension support
+template <>
+struct get_device_info_impl<
+    ext::oneapi::experimental::info::graph_support_level,
+    ext::oneapi::experimental::info::device::graph_support> {
+  static ext::oneapi::experimental::info::graph_support_level
+  get(const DeviceImplPtr &Dev) {
+    size_t ResultSize = 0;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
+        &ResultSize);
+    if (ResultSize == 0)
+      return ext::oneapi::experimental::info::graph_support_level::unsupported;
+
+    std::unique_ptr<char[]> Result(new char[ResultSize]);
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, ResultSize,
+        Result.get(), nullptr);
+
+    std::string_view ExtensionsString(Result.get());
+    bool CmdBufferSupport =
+        ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
+    return CmdBufferSupport
+               ? ext::oneapi::experimental::info::graph_support_level::native
+               : ext::oneapi::experimental::info::graph_support_level::
+                     unsupported;
+  }
+};
+
 template <typename Param>
 typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
   static_assert(is_device_info_desc<Param>::value,
                 "Invalid device information descriptor");
+  if (std::is_same<Param,
+                   sycl::_V1::ext::intel::info::device::free_memory>::value) {
+    if (!Dev->has(aspect::ext_intel_free_memory))
+      throw invalid_object_error(
+          "The device does not have the ext_intel_free_memory aspect",
+          PI_ERROR_INVALID_DEVICE);
+  }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }
 
@@ -824,6 +937,12 @@ inline typename Param::return_type get_device_info_host() = delete;
 template <>
 inline std::vector<sycl::aspect> get_device_info_host<info::device::aspects>() {
   return std::vector<sycl::aspect>();
+}
+
+template <>
+inline ext::oneapi::experimental::architecture
+get_device_info_host<ext::oneapi::experimental::info::device::architecture>() {
+  return ext::oneapi::experimental::architecture::x86_64;
 }
 
 template <>
@@ -1695,6 +1814,52 @@ inline uint32_t get_device_info_host<
                       PI_ERROR_INVALID_DEVICE);
 }
 
+template <>
+inline ext::oneapi::experimental::info::graph_support_level
+get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
+  // No support for graphs on the host device.
+  return ext::oneapi::experimental::info::graph_support_level::unsupported;
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::image_row_pitch_align>() {
+  throw runtime_error("Obtaining image pitch alignment is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_row_pitch>() {
+  throw runtime_error("Obtaining max image linear pitch is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_width>() {
+  throw runtime_error("Obtaining max image linear width is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_height>() {
+  throw runtime_error("Obtaining max image linear height is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline float get_device_info_host<
+    ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
+  throw runtime_error("Bindless image mipaps are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

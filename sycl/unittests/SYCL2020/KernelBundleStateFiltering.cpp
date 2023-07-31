@@ -26,7 +26,7 @@ class KernelC;
 class KernelD;
 class KernelE;
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <> struct KernelInfo<KernelA> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelA"; }
@@ -44,7 +44,7 @@ template <> struct KernelInfo<KernelE> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelE"; }
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace {

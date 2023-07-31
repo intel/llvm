@@ -47,4 +47,13 @@ float __devicelib_imf_fast_log10f(float x) { return __fast_log10f(x); }
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_fast_powf(float x, float y) { return __fast_powf(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_max(int x, int y) { return x > y ? x : y; }
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_min(int x, int y) { return x < y ? x : y; }
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_hadd(int x, int y) { return __shadd(x, y); }
 #endif /*__LIBDEVICE_IMF_ENABLED__*/

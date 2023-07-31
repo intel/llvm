@@ -12,6 +12,7 @@
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
+#include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
@@ -136,7 +137,7 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
 static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
-  "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
+  "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
 #if defined(_WIN32)
       "msvc-math",
 #endif
@@ -144,7 +145,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
       "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
       "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
       "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
-      "fallback-imf-bf16"
+      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16"
 };
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
@@ -334,7 +335,7 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   assert((getToolChain().getTriple().isSPIR() ||
           getToolChain().getTriple().isNVPTX() ||
-          getToolChain().getTriple().isAMDGCN()) &&
+          getToolChain().getTriple().isAMDGCN() || isSYCLNativeCPU(Args)) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -808,7 +809,8 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
 
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
-    : ToolChain(D, Triple, Args), HostTC(HostTC) {
+    : ToolChain(D, Triple, Args), HostTC(HostTC),
+      IsSYCLNativeCPU(isSYCLNativeCPU(Args)) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
@@ -912,12 +914,15 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
-      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
-          GenDevice.empty())
-        // Provided triple does not match current tool chain.
+      bool IsGenTriple =
+          getTriple().isSPIR() &&
+          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen;
+      if (Device != GenDevice)
         continue;
-      if (Device != GenDevice && getTriple().isSPIR() &&
-          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
+          (!IsGenTriple || (IsGenTriple && GenDevice.empty())))
+        // Triples do not match, but only skip when we know we are not comparing
+        // against intel_gpu_* and non-spir64_gen
         continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
@@ -991,9 +996,12 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
     }
     // -ftarget-compile-fast AOT
-    if (Args.hasArg(options::OPT_ftarget_compile_fast)) {
+    if (Args.hasArg(options::OPT_ftarget_compile_fast))
       BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
-    }
+    // -ftarget-export-symbols
+    if (Args.hasFlag(options::OPT_ftarget_export_symbols,
+                     options::OPT_fno_target_export_symbols, false))
+      BeArgs.push_back("-library-compilation");
   } else if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
              Triple.isSPIR()) {
     // -ftarget-compile-fast JIT
@@ -1087,7 +1095,7 @@ Tool *SYCLToolChain::buildBackendCompiler() const {
 
 Tool *SYCLToolChain::buildLinker() const {
   assert(getTriple().getArch() == llvm::Triple::spir ||
-         getTriple().getArch() == llvm::Triple::spir64);
+         getTriple().getArch() == llvm::Triple::spir64 || IsSYCLNativeCPU);
   return new tools::SYCL::Linker(*this);
 }
 

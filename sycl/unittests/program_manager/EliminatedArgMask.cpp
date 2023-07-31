@@ -25,7 +25,7 @@ constexpr const char EAMTestKernel2Name[] = "EAMTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs = 4;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<EAMTestKernel> : public unittest::MockKernelInfoBase {
@@ -40,7 +40,7 @@ struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateEAMTestKernelImage() {

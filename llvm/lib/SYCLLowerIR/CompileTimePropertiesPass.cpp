@@ -29,6 +29,7 @@ namespace {
 constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 constexpr StringRef SYCL_PIPELINED_ATTR = "sycl-pipelined";
 constexpr StringRef SYCL_REGISTER_ALLOC_MODE_ATTR = "sycl-register-alloc-mode";
+constexpr StringRef SYCL_GRF_SIZE_ATTR = "sycl-grf-size";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
@@ -250,31 +251,48 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, MD));
   }
 
-  auto getIpInterface = [](const char *Name, LLVMContext &Ctx,
-                           const Attribute &Attr) {
+  if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
-    //   !N = !{!"<name>"} or
-    //   !N = !{!"<name>", !"stall_free_return"}
+    //   !N = !{!"streaming"} or
+    //   !N = !{!"streaming", !"stall_free_return"}
     SmallVector<Metadata *, 2> MD;
-    MD.push_back(MDString::get(Ctx, Name));
+    MD.push_back(MDString::get(Ctx, "streaming"));
     if (getAttributeAsInteger<uint32_t>(Attr))
       MD.push_back(MDString::get(Ctx, "stall_free_return"));
-    return MDNode::get(Ctx, MD);
-  };
-
-  if (AttrKindStr == "sycl-streaming-interface")
-    return std::pair<std::string, MDNode *>(
-        "ip_interface", getIpInterface("streaming", Ctx, Attr));
-
-  if (AttrKindStr == "sycl-register-map-interface")
     return std::pair<std::string, MDNode *>("ip_interface",
-                                            getIpInterface("csr", Ctx, Attr));
+                                            MDNode::get(Ctx, MD));
+  }
 
-  if (AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR &&
+  if (AttrKindStr == "sycl-register-map-interface") {
+    // generate either:
+    //   !N = !{!"csr"} or
+    //   !N = !{!"csr", !"wait_for_done_write"}
+    SmallVector<Metadata *, 2> MD;
+    MD.push_back(MDString::get(Ctx, "csr"));
+    if (getAttributeAsInteger<uint32_t>(Attr))
+      MD.push_back(MDString::get(Ctx, "wait_for_done_write"));
+    return std::pair<std::string, MDNode *>("ip_interface",
+                                            MDNode::get(Ctx, MD));
+  }
+
+  if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
+       AttrKindStr == SYCL_GRF_SIZE_ATTR) &&
       !llvm::esimd::isESIMD(F)) {
-    uint32_t RegAllocModeVal = getAttributeAsInteger<uint32_t>(Attr);
-    Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(Constant::getIntegerValue(
-        Type::getInt32Ty(Ctx), APInt(32, RegAllocModeVal)))};
+    // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
+    uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
+    if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
+      assert((PropVal == 0 || PropVal == 128 || PropVal == 256) &&
+             "Unsupported GRF Size");
+      // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
+      static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
+      static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
+      if (PropVal == 128)
+        PropVal = SMALL_GRF_REGALLOCMODE_VAL;
+      else if (PropVal == 256)
+        PropVal = LARGE_GRF_REGALLOCMODE_VAL;
+    }
+    Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
+        Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)))};
     return std::pair<std::string, MDNode *>("RegisterAllocMode",
                                             MDNode::get(Ctx, AttrMDArgs));
   }
@@ -318,6 +336,25 @@ parseSYCLPropertiesString(Module &M, IntrinsicInst *IntrInst) {
   return result;
 }
 
+// Collect UserList if User isa<T>. Skip BitCast and AddrSpace
+template <typename T>
+void getUserListIgnoringCast(
+    Value *V, SmallVector<std::pair<Instruction *, int>, 8> &List) {
+  for (auto *User : V->users()) {
+    if (auto *Inst = dyn_cast<T>(User)) {
+      int Op_num = -1;
+      for (unsigned i = 0; i < Inst->getNumOperands(); i++) {
+        if (V == Inst->getOperand(i)) {
+          Op_num = i;
+          break;
+        }
+      }
+      List.push_back(std::make_pair(Inst, Op_num));
+    } else if (isa<BitCastInst>(User) || isa<AddrSpaceCastInst>(User))
+      getUserListIgnoringCast<T>(User, List);
+  }
+}
+
 } // anonymous namespace
 
 PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
@@ -358,7 +395,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     if (isHostPipeVariable(GV)) {
       auto VarName = getGlobalVariableUniqueId(GV);
       MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
-                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE, 
+                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE,
                                               VarName));
     }
 
@@ -385,9 +422,19 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
         for (auto &Attribute : F.getAttributes().getParamAttrs(I)) {
           if (MDNode *SPIRVMetadata =
                   attributeToDecorateMetadata(Ctx, Attribute)) {
-            // sycl-alignment is not collected to SPIRV.ParamDecoration
-            if (Attribute.getKindAsString() == "sycl-alignment")
+            if (Attribute.getKindAsString() == "sycl-alignment") {
+              // apply alignment on kernel argument
+              uint32_t AttrVal = getAttributeAsInteger<uint32_t>(Attribute);
+              assert(llvm::isPowerOf2_64(AttrVal) &&
+                     "sycl-alignment attribute is not a power of 2");
+              // sycl-alignment is not collected to SPIRV.ParamDecoration
+              // Convert sycl-alignment to general align
+              auto Attr =
+                  Attribute::getWithAlignment(Ctx, llvm::Align(AttrVal));
+              F.addParamAttr(I, Attr);
+              F.removeParamAttr(I, Attribute.getKindAsString());
               continue;
+            }
             MDArgOps.push_back(SPIRVMetadata);
           }
         }
@@ -491,23 +538,11 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   // parse properties string to decoration-value pairs
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
 
-  SmallVector<Value *, 8> UserList;
-  SmallVector<Instruction *, 4> InstList;
-  // check if used by a load or store instructions
-  for (auto Val : IntrInst->users()) {
-    // if castInst, push successors
-    if (auto CInst = dyn_cast<CastInst>(Val)) {
-      for (auto Successor : CInst->users())
-        UserList.push_back(Successor);
-    } else {
-      UserList.push_back(Val);
-    }
-  }
-
-  for (auto &Value : UserList) {
-    if (isa<LoadInst>(Value) || isa<StoreInst>(Value))
-      InstList.push_back(cast<Instruction>(Value));
-  }
+  SmallVector<std::pair<Instruction *, int>, 8> TargetedInstList;
+  // search ptr.annotation followed by Load/Store
+  getUserListIgnoringCast<LoadInst>(IntrInst, TargetedInstList);
+  getUserListIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
+  getUserListIgnoringCast<MemTransferInst>(IntrInst, TargetedInstList);
 
   for (auto &Property : Properties) {
     auto DecorStr = Property.first->str();
@@ -525,12 +560,22 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
       assert(llvm::isPowerOf2_64(AttrVal) &&
              "sycl-alignment attribute is not a power of 2");
 
+      auto Align_val = Align(AttrVal);
       // apply alignment attributes to load/store
-      for (auto Inst : InstList) {
-        if (auto LInst = dyn_cast<LoadInst>(Inst))
-          LInst->setAlignment(Align(AttrVal));
-        else if (auto SInst = dyn_cast<StoreInst>(Inst))
-          SInst->setAlignment(Align(AttrVal));
+      for (auto Pair : TargetedInstList) {
+        auto *Inst = Pair.first;
+        auto Op_num = Pair.second;
+        if (auto *LInst = dyn_cast<LoadInst>(Inst)) {
+          LInst->setAlignment(Align_val);
+        } else if (auto *SInst = dyn_cast<StoreInst>(Inst)) {
+          if (Op_num == 1)
+            SInst->setAlignment(Align_val);
+        } else if (auto *MI = dyn_cast<MemTransferInst>(Inst)) {
+          if (Op_num == 0)
+            MI->setDestAlignment(Align_val);
+          else if (Op_num == 1)
+            MI->setSourceAlignment(Align_val);
+        }
       }
     }
   }
@@ -568,6 +613,11 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   std::string NewAnnotString = "";
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
   for (auto &Property : Properties) {
+    // sycl-alignment is converted to align on
+    // previous parseAlignmentAndApply(), dropping here
+    if (*Property.first == "sycl-alignment")
+      continue;
+
     auto DecorIt = SpirvDecorMap.find(*Property.first);
     if (DecorIt == SpirvDecorMap.end())
       continue;

@@ -8,15 +8,17 @@
 
 #pragma once
 
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/impl_utils.hpp>
+#include <sycl/property_list.hpp>
+
+#include <functional>
 #include <memory>
 #include <vector>
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/property_list.hpp>
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class handler;
 class queue;
@@ -221,8 +223,6 @@ protected:
 
   int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
-
-  friend class modifiable_command_graph;
 };
 } // namespace detail
 
@@ -248,7 +248,10 @@ private:
 template <>
 class command_graph<graph_state::executable>
     : public detail::executable_command_graph {
-private:
+
+protected:
+  friend command_graph<graph_state::executable>
+  detail::modifiable_command_graph::finalize(const sycl::property_list &) const;
   using detail::executable_command_graph::executable_command_graph;
 };
 
@@ -280,5 +283,5 @@ template <>
 struct is_property_of<ext::oneapi::experimental::property::node::depends_on,
                       ext::oneapi::experimental::node> : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

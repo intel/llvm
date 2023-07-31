@@ -20,8 +20,8 @@ def do_configure(args):
     if sys.platform != "darwin":
         llvm_external_projects += ';libdevice'
 
-    libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
-    libclc_nvidia_target_names = ';nvptx64--;nvptx64--nvidiacl'
+    libclc_amd_target_names = ';amdgcn--amdhsa'
+    libclc_nvidia_target_names = ';nvptx64--nvidiacl'
 
     sycl_enable_fusion = "OFF"
     if not args.disable_fusion:
@@ -238,7 +238,7 @@ def main():
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--host-target", default='X86',
                         help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
-    parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
+    parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support (deprecated)")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")

@@ -39,7 +39,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global (to the SYCL runtime) graph handle that all command groups are a
@@ -50,6 +50,11 @@ xpti_td *GSYCLGraphEvent = nullptr;
 xpti_td *GPICallEvent = nullptr;
 /// Event to be used by PI layer calls with arguments
 xpti_td *GPIArgCallEvent = nullptr;
+xpti_td *GPIArgCallActiveEvent = nullptr;
+
+uint8_t PiCallStreamID = 0;
+uint8_t PiDebugCallStreamID = 0;
+
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <sycl::backend BE> void *getPluginOpaqueData(void *OpaqueDataParam) {
@@ -106,12 +111,13 @@ uint64_t emitFunctionBeginTrace(const char *FName) {
   /// xptiNotifySubscribers(stream_id, pi_func_begin, parent, event, instance,
   ///                       (void *)argument_data);
   /// \endcode
-  if (xptiTraceEnabled()) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
+  constexpr uint16_t NotificationTraceType =
+      (uint16_t)xpti::trace_point_type_t::function_begin;
+  if (xptiCheckTraceEnabled(PiCallStreamID, NotificationTraceType)) {
     CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_begin,
-        GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
+    xptiNotifySubscribers(PiCallStreamID, NotificationTraceType, GPICallEvent,
+                          nullptr, CorrelationID,
+                          static_cast<const void *>(FName));
   }
 #endif // XPTI_ENABLE_INSTRUMENTATION
   return CorrelationID;
@@ -119,15 +125,16 @@ uint64_t emitFunctionBeginTrace(const char *FName) {
 
 void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+  constexpr uint16_t NotificationTraceType =
+      (uint16_t)xpti::trace_point_type_t::function_end;
+  if (xptiCheckTraceEnabled(PiCallStreamID, NotificationTraceType)) {
     // CorrelationID is the unique ID that ties together a function_begin and
     // function_end pair of trace calls. The splitting of a scoped_notify into
     // two function calls incurs an additional overhead as the StreamID must
     // be looked up twice.
-    uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_end,
-        GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
+    xptiNotifySubscribers(PiCallStreamID, NotificationTraceType, GPICallEvent,
+                          nullptr, CorrelationID,
+                          static_cast<const void *>(FName));
   }
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
@@ -137,16 +144,28 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
                                         pi_plugin Plugin) {
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
-    CorrelationID = xptiGetUniqueId();
-
+  constexpr uint16_t NotificationTraceType =
+      (uint16_t)xpti::trace_point_type_t::function_with_args_begin;
+  if (xptiCheckTraceEnabled(PiDebugCallStreamID, NotificationTraceType)) {
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, nullptr,
                                        &Plugin};
+    {
+      detail::tls_code_loc_t Tls;
+      auto CodeLoc = Tls.query();
+      xpti::payload_t PL = xpti::payload_t(
+          CodeLoc.functionName(), CodeLoc.fileName(), CodeLoc.lineNumber(),
+          CodeLoc.columnNumber(), nullptr);
+      uint64_t InstanceNumber{};
+      assert(GPIArgCallActiveEvent == nullptr);
+      GPIArgCallActiveEvent =
+          xptiMakeEvent("Plugin interface call", &PL, xpti::trace_graph_event,
+                        xpti_at::active, &InstanceNumber);
+    }
 
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
-        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+    CorrelationID = xptiGetUniqueId();
+    xptiNotifySubscribers(PiDebugCallStreamID, NotificationTraceType,
+                          GPIArgCallEvent, GPIArgCallActiveEvent, CorrelationID,
+                          &Payload);
   }
 #endif
   return CorrelationID;
@@ -156,15 +175,16 @@ void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FuncName, unsigned char *ArgsData,
                                   pi_result Result, pi_plugin Plugin) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
-
+  constexpr uint16_t NotificationTraceType =
+      (uint16_t)xpti::trace_point_type_t::function_with_args_end;
+  if (xptiCheckTraceEnabled(PiDebugCallStreamID, NotificationTraceType)) {
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
                                        &Plugin};
 
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
-        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+    xptiNotifySubscribers(PiDebugCallStreamID, NotificationTraceType,
+                          GPIArgCallEvent, GPIArgCallActiveEvent, CorrelationID,
+                          &Payload);
+    GPIArgCallActiveEvent = nullptr;
   }
 #endif
 }
@@ -287,6 +307,8 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
     PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
+    PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
+                             backend::ext_native_cpu);
   } else if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -294,6 +316,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     bool CudaFound = false;
     bool EsimdCpuFound = false;
     bool HIPFound = false;
+    bool NativeCPUFound = false;
     for (const device_filter &Filter : Filters) {
       backend Backend = Filter.Backend ? Filter.Backend.value() : backend::all;
       if (!OpenCLFound &&
@@ -324,6 +347,11 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_hip);
         HIPFound = true;
       }
+      if (!NativeCPUFound &&
+          (Backend == backend::ext_native_cpu || Backend == backend::all)) {
+        PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
+                                 backend::ext_native_cpu);
+      }
       PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
     }
   } else {
@@ -345,6 +373,10 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     }
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    }
+    if (list.backendCompatible(backend::ext_native_cpu)) {
+      PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
+                               backend::ext_native_cpu);
     }
     PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
   }
@@ -497,6 +529,9 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   GPIArgCallEvent = xptiMakeEvent("PI Layer with arguments", &PIArgPayload,
                                   xpti::trace_algorithm_event, xpti_at::active,
                                   &PiArgInstanceNo);
+
+  PiCallStreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
+  PiDebugCallStreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
 #endif
 }
 
@@ -675,5 +710,5 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
 
 } // namespace pi
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
