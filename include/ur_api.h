@@ -1226,12 +1226,6 @@ typedef enum ur_platform_backend_t {
 #endif // UR_DEVICE_BINARY_TARGET_AMDGCN
 
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_DEVICE_BINARY_TARGET_NATIVE_CPU
-/// @brief Native CPU target
-#define UR_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
-#endif // UR_DEVICE_BINARY_TARGET_NATIVE_CPU
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Device Binary Type
 typedef struct ur_device_binary_t {
     ur_structure_type_t stype;     ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_DEVICE_BINARY
