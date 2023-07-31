@@ -236,12 +236,8 @@ Value *BuiltinCallHelper::addSPIRVCall(IRBuilder<> &Builder, spv::Op Opcode,
   // Copy the types into the mangling info.
   BuiltinFuncMangleInfo BtnInfo;
   for (unsigned I = 0; I < ArgTys.size(); I++) {
-    if (Args[I]->getType()->isPointerTy()) {
-      assert(cast<PointerType>(Args[I]->getType())
-                 ->isOpaqueOrPointeeTypeMatches(
-                     cast<TypedPointerType>(ArgTys[I])->getElementType()));
+    if (Args[I]->getType()->isPointerTy())
       BtnInfo.getTypeMangleInfo(I).PointerTy = ArgTys[I];
-    }
   }
 
   // Create the function and the call.

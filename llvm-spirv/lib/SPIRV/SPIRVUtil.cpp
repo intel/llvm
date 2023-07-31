@@ -151,11 +151,8 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed, Type *PET) {
   // value of some SPIR-V instructions may be represented as pointer to a struct
   // in LLVM IR) we can mangle the type.
   BuiltinFuncMangleInfo MangleInfo;
-  if (Ty->isPointerTy()) {
-    assert(cast<PointerType>(const_cast<Type *>(Ty))
-               ->isOpaqueOrPointeeTypeMatches(PET));
+  if (Ty->isPointerTy())
     Ty = TypedPointerType::get(PET, Ty->getPointerAddressSpace());
-  }
   std::string MangledName =
       mangleBuiltin("", const_cast<Type *>(Ty), &MangleInfo);
   // Remove "_Z0"(3 characters) from the front of the name
@@ -1000,12 +997,9 @@ CallInst *addCallInstSPIRV(Module *M, StringRef FuncName, Type *RetTy,
                            Instruction *Pos, StringRef InstName) {
   BuiltinFuncMangleInfo BtnInfo;
   for (unsigned I = 0; I < PointerElementTypes.size(); I++) {
-    if (Args[I]->getType()->isPointerTy()) {
-      assert(cast<PointerType>(Args[I]->getType())
-                 ->isOpaqueOrPointeeTypeMatches(PointerElementTypes[I]));
+    if (Args[I]->getType()->isPointerTy())
       BtnInfo.getTypeMangleInfo(I).PointerTy = TypedPointerType::get(
           PointerElementTypes[I], Args[I]->getType()->getPointerAddressSpace());
-    }
   }
   return addCallInst(M, FuncName, RetTy, Args, Attrs, Pos, &BtnInfo, InstName);
 }
@@ -1495,8 +1489,6 @@ Value *getScalarOrArrayConstantInt(Instruction *Pos, Type *T, unsigned Len,
     unsigned PointerSize =
         Pos->getModule()->getDataLayout().getPointerTypeSizeInBits(T);
     auto *ET = Type::getIntNTy(T->getContext(), PointerSize);
-    assert(cast<PointerType>(T)->isOpaqueOrPointeeTypeMatches(ET) &&
-           "Pointer-to-non-size_t arguments are not valid for this call");
     auto AT = ArrayType::get(ET, Len);
     std::vector<Constant *> EV(Len, ConstantInt::get(ET, V, IsSigned));
     auto CA = ConstantArray::get(AT, EV);
