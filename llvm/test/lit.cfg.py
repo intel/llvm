@@ -226,7 +226,7 @@ tools.extend(
         "llvm-strings",
         "llvm-strip",
         "llvm-tblgen",
-        "llvm-tapi-diff",
+        "llvm-readtapi",
         "llvm-undname",
         "llvm-windres",
         "llvm-c-test",
