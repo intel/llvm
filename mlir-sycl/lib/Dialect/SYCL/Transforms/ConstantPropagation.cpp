@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/Polygeist/Analysis/SYCLAccessorAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/SYCLIDAndRangeAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/SYCLNDRangeAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -19,6 +20,8 @@
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/TypeSwitch.h>
 #include <llvm/Support/Debug.h>
+
+#include <numeric>
 
 namespace mlir {
 namespace sycl {
@@ -52,7 +55,9 @@ public:
 
 private:
   /// Return a range with all of the constant arguments of \p op.
-  static auto getConstantArgs(SYCLHostScheduleKernel op);
+  static auto
+  getConstantArgs(SYCLHostScheduleKernel op,
+                  polygeist::SYCLAccessorAnalysis &accessorAnalysis);
 
   /// Return all of the constant implicit arguments of \p op.
   ///
@@ -73,20 +78,47 @@ private:
   void propagateImplicitConstantArgs(RangeTy constants, FunctionOpInterface op);
 };
 
-/// Class representing a constant explicit argument, i.e., those kernel
-/// functions receive as a parameter.
-class ConstantExplicitArg {
+class ConstantArg {
 public:
-  enum class Kind { ConstantArithArg };
+  enum class Kind {
+    ConstantArithArg,
+    ConstantAccessorArg,
+    ConstantSYCLGridArgs,
+    ExplicitEnd = ConstantSYCLGridArgs,
+    ImplicitBegin = ExplicitEnd
+  };
 
-  unsigned getIndex() const { return index; }
   Kind getKind() const { return kind; }
 
+  size_t getNumHits() { return hits; }
+
 protected:
-  ConstantExplicitArg(Kind kind, unsigned index) : kind(kind), index(index) {}
+  explicit ConstantArg(Kind kind) : kind(kind) {}
+
+  void recordHit() { ++hits; }
 
 private:
   Kind kind;
+  size_t hits = 0;
+};
+
+/// Class representing a constant explicit argument, i.e., those kernel
+/// functions receive as a parameter.
+class ConstantExplicitArg : public ConstantArg {
+public:
+  unsigned getIndex() const { return index; }
+
+  static bool classof(const ConstantArg *arg) {
+    return arg->getKind() < ConstantArg::Kind::ExplicitEnd;
+  }
+
+protected:
+  ConstantExplicitArg(ConstantArg::Kind kind, unsigned index)
+      : ConstantArg(kind), index(index) {
+    assert(kind < ConstantArg::Kind::ExplicitEnd && "Invalid kind");
+  }
+
+private:
   unsigned index;
 };
 
@@ -94,7 +126,7 @@ private:
 class ConstantArithArg : public ConstantExplicitArg {
 public:
   ConstantArithArg(unsigned index, Operation *definingOp)
-      : ConstantExplicitArg(ConstantExplicitArg::Kind::ConstantArithArg, index),
+      : ConstantExplicitArg(ConstantArg::Kind::ConstantArithArg, index),
         definingOp(definingOp) {
     assert(definingOp && "Expecting valid operation");
     assert(definingOp->hasTrait<OpTrait::ConstantLike>() &&
@@ -102,12 +134,13 @@ public:
   }
 
   /// Propagate the constant this argument represents.
-  void propagate(OpBuilder builder, Region &region) const {
+  void propagate(OpBuilder &builder, Region &region) {
     Value toReplace = region.getArgument(getIndex());
     toReplace.replaceAllUsesWith(builder.clone(*definingOp)->getResult(0));
+    recordHit();
   }
 
-  static bool classof(const ConstantExplicitArg *c) {
+  static bool classof(const ConstantArg *c) {
     return c->getKind() == ConstantExplicitArg::Kind::ConstantArithArg;
   }
 
@@ -116,20 +149,20 @@ private:
 };
 
 /// Class representing a constant implicit argument.
-class ConstantImplicitArgBase {
+class ConstantImplicitArgBase : public ConstantArg {
 public:
-  enum class Kind {
-    ConstantSYCLGridArgs,
-  };
-
   Kind getKind() const { return kind; }
-
-  size_t getNumHits() const { return hits; }
 
   void propagate(FunctionOpInterface func);
 
+  static bool classof(const ConstantArg *arg) {
+    return arg->getKind() >= ConstantArg::Kind::ImplicitBegin;
+  }
+
 protected:
-  explicit ConstantImplicitArgBase(Kind kind) : kind(kind) {}
+  explicit ConstantImplicitArgBase(ConstantArg::Kind kind) : ConstantArg(kind) {
+    assert(kind >= ConstantArg::Kind::ImplicitBegin && "Invalid kind");
+  }
 
 private:
   static FunctionOpInterface cloneFunction(FunctionOpInterface original,
@@ -144,8 +177,6 @@ private:
 
   void printDebugMessage() const;
 
-  void recordHit() { ++hits; }
-
   bool needsChanges(FunctionOpInterface func,
                     SymbolTableCollection &symbolTable, bool recursive) const;
 
@@ -153,11 +184,14 @@ private:
   void rewrite(Operation *op, OpBuilder &builder) const;
 
   Kind kind;
-  size_t hits = 0;
 };
 
 /// The default offset, i.e., `sycl::id<Dimension>()`
 class DefaultOffset {};
+
+static Type get1DType(Type mt) {
+  return MemRefType::get(1, cast<MemRefType>(mt).getElementType());
+}
 
 /// Creates a constant id/range.
 template <typename OpTy, typename RangeTy>
@@ -167,7 +201,10 @@ static Value createIDRange(OpBuilder &builder, Location loc, Type type,
   llvm::transform(components, std::back_inserter(indices), [&](size_t i) {
     return builder.create<arith::ConstantIndexOp>(loc, i);
   });
-  return builder.create<OpTy>(loc, type, indices);
+  Value result = builder.create<OpTy>(loc, get1DType(type), indices);
+  return result.getType() == type
+             ? result
+             : builder.create<memref::CastOp>(loc, type, result);
 }
 
 class OffsetInfo {
@@ -342,8 +379,8 @@ private:
 
 class ConstantSYCLGridArgs : public ConstantImplicitArgBase {
 public:
-  static bool classof(const ConstantImplicitArgBase *c) {
-    return c->getKind() == ConstantImplicitArgBase::Kind::ConstantSYCLGridArgs;
+  static bool classof(const ConstantArg *c) {
+    return c->getKind() == ConstantArg::Kind::ConstantSYCLGridArgs;
   }
 
   static std::optional<ConstantSYCLGridArgs> get(const NDRInfo &info) {
@@ -437,6 +474,34 @@ private:
 
   NDRInfo info;
   SmallVector<std::unique_ptr<RewriterBase>, 4> rewriters;
+};
+
+/// Class representing an accessor with constant members.
+class ConstantAccessorArg : public ConstantExplicitArg {
+public:
+  static std::unique_ptr<ConstantAccessorArg>
+  get(unsigned index, polygeist::AccessorInformation &&info) {
+    return std::unique_ptr<ConstantAccessorArg>(
+        isValidInfo(info) ? new ConstantAccessorArg(index, std::move(info))
+                          : nullptr);
+  }
+
+  /// Propagate the constant this argument represents.
+  void propagate(OpBuilder &builder, Region &region);
+
+  static bool classof(const ConstantExplicitArg *c) {
+    return c->getKind() == ConstantArg::Kind::ConstantAccessorArg;
+  }
+
+private:
+  /// Return whether \p can be used to replace arguments.
+  static bool isValidInfo(const polygeist::AccessorInformation &info);
+
+  ConstantAccessorArg(unsigned index, polygeist::AccessorInformation &&info)
+      : ConstantExplicitArg(ConstantArg::Kind::ConstantAccessorArg, index),
+        info(std::move(info)) {}
+
+  polygeist::AccessorInformation info;
 };
 } // namespace
 
@@ -670,6 +735,103 @@ void ConstantSYCLGridArgs::rewrite(Operation *op, OpBuilder &builder) const {
 }
 
 //===----------------------------------------------------------------------===//
+// ConstantAccessorArg
+//===----------------------------------------------------------------------===//
+
+bool ConstantAccessorArg::isValidInfo(
+    const polygeist::AccessorInformation &info) {
+  return !info.needsRange() || info.hasConstantRange() ||
+         (info.hasBufferInformation() &&
+          info.getBufferInfo().hasConstantSize()) ||
+         !info.needsOffset() || info.hasConstantOffset();
+}
+
+/// Propagate the constant this argument represents.
+void ConstantAccessorArg::propagate(OpBuilder &builder, Region &region) {
+  // NOTE: Modifications to this function that extend this propagator
+  // capabilities may need parallel modifications to
+  // ConstantAccessorArg::isValidInfo.
+
+  constexpr unsigned accessRangeMemberOffset = 1;
+  constexpr unsigned memoryRangeMemberOffset = 2;
+  constexpr unsigned offsetMemberOffset = 3;
+
+  Location loc = region.getLoc();
+  unsigned index = getIndex();
+
+  const auto replace = [&](unsigned offset, auto createF) {
+    Value toReplace = region.getArgument(index + offset);
+    Value newValue = createF(toReplace.getType());
+    toReplace.replaceAllUsesWith(newValue);
+    recordHit();
+  };
+
+  LLVM_DEBUG(llvm::dbgs().indent(2)
+             << "Propagating accessor at position #" << index << "\n");
+
+  if (info.needsRange()) {
+    if (info.hasConstantRange()) {
+      ArrayRef<size_t> accessRange = info.getConstantRange();
+      LLVM_DEBUG({
+        llvm::dbgs().indent(4)
+            << "Constant access range provided on construction: <";
+        llvm::interleaveComma(accessRange, llvm::dbgs());
+        llvm::dbgs() << ">\n";
+      });
+      replace(accessRangeMemberOffset, [&](Type type) {
+        return createIDRange<SYCLRangeConstructorOp>(builder, loc, type,
+                                                     accessRange);
+      });
+    }
+  } else {
+    LLVM_DEBUG(
+        llvm::dbgs().indent(4)
+        << "No access range provided on construction: using memory range\n");
+    replace(accessRangeMemberOffset, [&](Type) {
+      return region.getArgument(index + memoryRangeMemberOffset);
+    });
+  }
+
+  if (info.hasBufferInformation()) {
+    const polygeist::BufferInformation &bufferInfo = info.getBufferInfo();
+    if (bufferInfo.hasConstantSize()) {
+      ArrayRef<size_t> memoryRange = bufferInfo.getConstantSize();
+      LLVM_DEBUG({
+        llvm::dbgs().indent(4)
+            << "Constant memory range provided on construction: <";
+        llvm::interleaveComma(memoryRange, llvm::dbgs());
+        llvm::dbgs() << ">\n";
+      });
+      replace(memoryRangeMemberOffset, [&](Type type) {
+        return createIDRange<SYCLRangeConstructorOp>(builder, loc, type,
+                                                     memoryRange);
+      });
+    }
+  }
+
+  if (info.needsOffset()) {
+    if (info.hasConstantOffset()) {
+      ArrayRef<size_t> offset = info.getConstantOffset();
+      LLVM_DEBUG({
+        llvm::dbgs().indent(4) << "Constant offset provided on construction: <";
+        llvm::interleaveComma(offset, llvm::dbgs());
+        llvm::dbgs() << ">\n";
+      });
+      replace(offsetMemberOffset, [&](Type type) {
+        return createIDRange<SYCLIDConstructorOp>(builder, loc, type, offset);
+      });
+    }
+  } else {
+    LLVM_DEBUG(llvm::dbgs().indent(4)
+               << "No offset provided on construction: using default offset\n");
+    replace(offsetMemberOffset, [&](Type type) {
+      return createIDRange<SYCLIDConstructorOp>(builder, loc, type,
+                                                ArrayRef<size_t>());
+    });
+  }
+}
+
+//===----------------------------------------------------------------------===//
 // ConstantPropagationPass
 //===----------------------------------------------------------------------===//
 
@@ -738,25 +900,78 @@ getSYCLGridPropagator(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
   return ConstantSYCLGridArgs::get(*ndrInfo);
 }
 
-auto ConstantPropagationPass::getConstantArgs(SYCLHostScheduleKernel op) {
-  LLVM_DEBUG(llvm::dbgs().indent(2) << "Searching for constant arguments\n");
+static std::unique_ptr<ConstantAccessorArg>
+getConstantAccessorArg(SYCLHostScheduleKernel op,
+                       polygeist::SYCLAccessorAnalysis &accessorAnalysis,
+                       unsigned index, Value value, AccessorType type) {
+  LLVM_DEBUG(llvm::dbgs().indent(2)
+             << "Handling accessor at operand #" << index << "\n");
+
+  std::optional<polygeist::AccessorInformation> accInfo =
+      accessorAnalysis.getAccessorInformationFromConstruction(op, value);
+  if (!accInfo) {
+    LLVM_DEBUG(llvm::dbgs().indent(4)
+               << "Could not get accessor analysis information\n");
+    return nullptr;
+  }
+
+  auto result = ConstantAccessorArg::get(index, std::move(*accInfo));
+
+  LLVM_DEBUG({
+    llvm::dbgs().indent(4) << "Accessor analysis information:\n" << *accInfo;
+    if (!result)
+      llvm::dbgs().indent(4)
+          << "Not enough information; not performing accessor propagation\n";
+  });
+
+  return result;
+}
+
+template <typename RangeTy>
+static unsigned getTrueIndex(const RangeTy &typeAttrs, unsigned originalIndex) {
+  auto begin = typeAttrs.begin();
+  return std::accumulate<decltype(begin), unsigned>(
+      begin, std::next(begin, originalIndex), 0,
+      [](unsigned index, TypeAttr attr) {
+        Type type = attr.getValue();
+        unsigned offset = TypeSwitch<Type, unsigned>(type)
+                              .Case<AccessorType>([](auto) { return 4; })
+                              .template Case<NoneType>([](auto) { return 1; });
+        return index + offset;
+      });
+}
+
+auto ConstantPropagationPass::getConstantArgs(
+    SYCLHostScheduleKernel op,
+    polygeist::SYCLAccessorAnalysis &accessorAnalysis) {
   auto isConstant = m_Constant();
+
   // Map each argument to a ConstantExplicitArg and filter-out nullptr
   // (non-const) ones.
-  return llvm::make_filter_range(
-      llvm::map_range(llvm::enumerate(op.getArgs()),
-                      [&](auto iter) -> std::unique_ptr<ConstantExplicitArg> {
-                        Value value = iter.value();
-                        if (matchPattern(value, isConstant)) {
-                          LLVM_DEBUG(llvm::dbgs().indent(4)
-                                     << "Arith constant: " << value
-                                     << " at pos " << iter.index() << "\n");
-                          return std::make_unique<ConstantArithArg>(
-                              iter.index(), value.getDefiningOp());
-                        }
-                        return nullptr;
-                      }),
-      llvm::identity<std::unique_ptr<ConstantExplicitArg>>());
+  auto types = op.getSyclTypes().getAsRange<TypeAttr>();
+
+  // NOTE: We cannot filter here as `llvm::make_filter_range` does not work as
+  // expected. (See comment at `llvm/ADT/STLExtras.h`).
+  return llvm::map_range(
+      llvm::enumerate(llvm::zip(op.getArgs(), types)),
+      [&](auto iter) -> std::unique_ptr<ConstantExplicitArg> {
+        auto [index, valueTypeIter] = iter;
+        auto [value, type] = valueTypeIter;
+        if (matchPattern(value, isConstant)) {
+          unsigned trueIndex = getTrueIndex(types, index);
+          auto res = std::make_unique<ConstantArithArg>(trueIndex,
+                                                        value.getDefiningOp());
+          LLVM_DEBUG(llvm::dbgs().indent(2)
+                     << "Arith constant: " << value << " at pos #" << trueIndex
+                     << "\n");
+          return res;
+        }
+        auto accType = llvm::dyn_cast_or_null<AccessorType>(type.getValue());
+        return accType ? getConstantAccessorArg(op, accessorAnalysis,
+                                                getTrueIndex(types, index),
+                                                value, accType)
+                       : nullptr;
+      });
 }
 
 SmallVector<std::unique_ptr<ConstantImplicitArgBase>>
@@ -782,12 +997,18 @@ void ConstantPropagationPass::propagateConstantArgs(
     RangeTy constants, gpu::GPUFuncOp op, SYCLHostScheduleKernel launch) {
   Region *region = op.getCallableRegion();
   OpBuilder builder(region);
-  for (const std::unique_ptr<ConstantExplicitArg> &arg : constants) {
-    TypeSwitch<ConstantExplicitArg *>(arg.get()).Case<ConstantArithArg>(
-        [&](const auto *arith) { arith->propagate(builder, *region); });
-    ++NumReplacedExplicitArguments;
+  for (std::unique_ptr<ConstantExplicitArg> arg : constants) {
+    // NOTE: Filter here to avoid `make_filter_range` issues (See comment at
+    // `llvm/ADT/STLExtras.h`).
+    if (!arg)
+      continue;
+    TypeSwitch<ConstantExplicitArg *>(arg.get())
+        .Case<ConstantAccessorArg, ConstantArithArg>(
+            [&](auto *arg) { arg->propagate(builder, *region); });
+    size_t hits = arg->getNumHits();
+    NumReplacedExplicitArguments += hits;
+    NumPropagatedConstants += hits;
   }
-  NumPropagatedConstants += NumReplacedExplicitArguments;
 }
 
 template <typename RangeTy>
@@ -806,6 +1027,9 @@ void ConstantPropagationPass::runOnOperation() {
       getAnalysis<polygeist::SYCLNDRangeAnalysis>().initialize(relaxedAliasing);
   auto &idrAnalysis =
       getAnalysis<polygeist::SYCLIDAndRangeAnalysis>().initialize(
+          relaxedAliasing);
+  auto &accessorAnalysis =
+      getAnalysis<polygeist::SYCLAccessorAnalysis>().initialize(
           relaxedAliasing);
   getOperation()->walk([&](gpu::GPUFuncOp op) {
     LLVM_DEBUG(llvm::dbgs()
@@ -839,7 +1063,8 @@ void ConstantPropagationPass::runOnOperation() {
                     "point to be 'sycl.host.schedule_kernel'\n");
     }
 
-    propagateConstantArgs(getConstantArgs(launchPoint), op, launchPoint);
+    propagateConstantArgs(getConstantArgs(launchPoint, accessorAnalysis), op,
+                          launchPoint);
     propagateImplicitConstantArgs(
         getConstantImplicitArgs(launchPoint, ndrAnalysis, idrAnalysis), op);
   });
