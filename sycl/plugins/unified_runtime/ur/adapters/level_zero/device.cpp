@@ -861,7 +861,7 @@ ur_device_handle_t_::useImmediateCommandLists() {
         UrRet ? UrRet : (PiRet ? PiRet : nullptr);
     if (!ImmediateCommandlistsSettingStr)
       return -1;
-    return std::stoi(ImmediateCommandlistsSettingStr);
+    return std::atoi(ImmediateCommandlistsSettingStr);
   }();
 
   if (ImmediateCommandlistsSetting == -1)
