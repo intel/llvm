@@ -37,7 +37,7 @@ static const bool UseMultipleCmdlistBarriers = [] {
       UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!UseMultipleCmdlistBarriersFlag)
     return true;
-  return std::stoi(UseMultipleCmdlistBarriersFlag) > 0;
+  return std::atoi(UseMultipleCmdlistBarriersFlag) > 0;
 }();
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
