@@ -75,6 +75,7 @@ public:
   };
   // TODO: Different name for each provider (Host/Shared/SharedRO/Device)
   const char *get_name() { return "USM"; };
+  virtual ~USMMemoryProvider() = default;
 };
 
 // Allocation routines for shared memory type
