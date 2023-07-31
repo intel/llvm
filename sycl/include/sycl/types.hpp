@@ -42,12 +42,6 @@
 #include <sycl/marray.hpp>
 #include <sycl/multi_ptr.hpp>
 
-// When ext_vector_type is not available, we rely on cl_* types from CL/cl.h
-// to represent vec storage.
-#if !defined(__HAS_EXT_VECTOR_TYPE__) || !defined(__SYCL_DEVICE_ONLY__)
-#include <sycl/detail/cl.h>
-#endif
-
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -579,7 +573,7 @@ template <typename Type, int NumElements> class vec {
   static constexpr bool IsUsingArray =
       (IsHostHalf || IsSizeGreaterThanMaxAlign);
 
-#if defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
+#if defined(__SYCL_DEVICE_ONLY__)
   static constexpr bool NativeVec = NumElements > 1 && !IsUsingArray;
 #else
   static constexpr bool NativeVec = false;
