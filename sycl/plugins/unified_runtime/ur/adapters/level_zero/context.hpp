@@ -22,7 +22,8 @@
 
 #include "common.hpp"
 #include "queue.hpp"
-#include <ur/usm_allocator.hpp>
+
+#include <umf_helpers.hpp>
 
 struct ur_context_handle_t_ : _ur_object {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
@@ -91,23 +92,22 @@ struct ur_context_handle_t_ : _ur_object {
                                          ZeStruct<ze_command_queue_desc_t>>>>
       ZeCopyCommandListCache;
 
-  // Store USM allocator context(internal allocator structures)
-  // for USM shared and device allocations. There is 1 allocator context
-  // per each pair of (context, device) per each memory type.
-  std::unordered_map<ze_device_handle_t, USMAllocContext>
-      DeviceMemAllocContexts;
-  std::unordered_map<ze_device_handle_t, USMAllocContext>
-      SharedMemAllocContexts;
-  std::unordered_map<ze_device_handle_t, USMAllocContext>
-      SharedReadOnlyMemAllocContexts;
+  // Store USM pool for USM shared and device allocations. There is 1 memory
+  // pool per each pair of (context, device) per each memory type.
+  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
+      DeviceMemPools;
+  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
+      SharedMemPools;
+  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
+      SharedReadOnlyMemPools;
 
   // Since L0 native runtime does not distinguisg "shared device_read_only"
   // vs regular "shared" allocations, we have keep track of it to use
-  // proper USMAllocContext when freeing allocations.
+  // proper memory pool when freeing allocations.
   std::unordered_set<void *> SharedReadOnlyAllocs;
 
-  // Store the host allocator context. It does not depend on any device.
-  std::unique_ptr<USMAllocContext> HostMemAllocContext;
+  // Store the host memory pool. It does not depend on any device.
+  umf::pool_unique_handle_t HostMemPool;
 
   // We need to store all memory allocations in the context because there could
   // be kernels with indirect access. Kernels with indirect access start to

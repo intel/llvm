@@ -21,7 +21,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include <ur/usm_allocator_config.hpp>
+#include <umf_pools/disjoint_pool_config_parser.hpp>
 
 struct _ur_platform_handle_t;
 
@@ -403,7 +403,7 @@ struct MemAllocRecord : _ur_object {
   ur_context_handle_t Context;
 };
 
-extern usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
+extern usm::DisjointPoolAllConfigs DisjointPoolConfigInstance;
 extern const bool UseUSMAllocator;
 
 // Controls support of the indirect access kernels and deferred memory release.

@@ -97,10 +97,6 @@ add_sycl_plugin(level_zero
     "../unified_runtime/pi2ur.cpp"
     "../unified_runtime/ur/ur.hpp"
     "../unified_runtime/ur/ur.cpp"
-    "../unified_runtime/ur/usm_allocator.cpp"
-    "../unified_runtime/ur/usm_allocator.hpp"
-    "../unified_runtime/ur/usm_allocator_config.cpp"
-    "../unified_runtime/ur/usm_allocator_config.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.hpp"
     "../unified_runtime/ur/adapters/level_zero/command_buffer.hpp"
     "../unified_runtime/ur/adapters/level_zero/adapter.hpp"
@@ -145,6 +141,8 @@ add_sycl_plugin(level_zero
   LIBRARIES
     LevelZeroLoader-Headers
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+    UnifiedMallocFramework
     LevelZeroLoader
     Threads::Threads
     ${XPTI_LIBS}
