@@ -36,14 +36,15 @@ struct ur_context_handle_t_ : _ur_object {
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
-  // This field is only set at _pi_context creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_context.
+  // This field is only set at ur_context_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // ur_context_handle_t.
   const ze_context_handle_t ZeContext{};
 
   // Keep the PI devices this PI context was created for.
-  // This field is only set at _pi_context creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_context.
-  // const std::vector<ur_device_handle_t> Devices;
+  // This field is only set at ur_context_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // ur_context_handle_t. const std::vector<ur_device_handle_t> Devices;
   std::vector<ur_device_handle_t> Devices;
   uint32_t NumDevices{};
 
@@ -68,8 +69,9 @@ struct ur_context_handle_t_ : _ur_object {
 
   // If context contains one device or sub-devices of the same device, we want
   // to save this device.
-  // This field is only set at _pi_context creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_context.
+  // This field is only set at ur_context_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // ur_context_handle_t.
   ur_device_handle_t SingleRootDevice = nullptr;
 
   // Cache of all currently available/completed command/copy lists.
@@ -117,9 +119,9 @@ struct ur_context_handle_t_ : _ur_object {
   // Following member variables are used to manage assignment of events
   // to event pools.
   //
-  // TODO: Create pi_event_pool class to encapsulate working with pools.
+  // TODO: Create ur_event_pool class to encapsulate working with pools.
   // This will avoid needing the use of maps below, and cleanup the
-  // pi_context overall.
+  // ur_context_handle_t overall.
   //
 
   // The cache of event pools from where new events are allocated from.
@@ -179,11 +181,11 @@ struct ur_context_handle_t_ : _ur_object {
                                              bool HostVisible,
                                              bool ProfilingEnabled);
 
-  // Get pi_event from cache.
+  // Get ur_event_handle_t from cache.
   ur_event_handle_t getEventFromContextCache(bool HostVisible,
                                              bool WithProfiling);
 
-  // Add pi_event to cache.
+  // Add ur_event_handle_t to cache.
   void addEventToContextCache(ur_event_handle_t);
 
   auto getZeEventPoolCache(bool HostVisible, bool WithProfiling) {

@@ -36,9 +36,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
 
   // Filter available devices based on input DeviceType.
   std::vector<ur_device_handle_t> MatchedDevices;
-  std::shared_lock<ur_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
-  for (auto &D : Platform->PiDevicesCache) {
-    // Only ever return root-devices from piDevicesGet, but the
+  std::shared_lock<ur_shared_mutex> Lock(Platform->URDevicesCacheMutex);
+  for (auto &D : Platform->URDevicesCache) {
+    // Only ever return root-devices from urDeviceGet, but the
     // devices cache also keeps sub-devices.
     if (D->isSubDevice())
       continue;
@@ -1274,11 +1274,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   //
   // TODO: maybe we should populate cache of platforms if it wasn't already.
   // For now assert that is was populated.
-  UR_ASSERT(PiPlatformCachePopulated, UR_RESULT_ERROR_INVALID_VALUE);
-  const std::lock_guard<SpinLock> Lock{*PiPlatformsCacheMutex};
+  UR_ASSERT(URPlatformCachePopulated, UR_RESULT_ERROR_INVALID_VALUE);
+  const std::lock_guard<SpinLock> Lock{*URPlatformsCacheMutex};
 
   ur_device_handle_t Dev = nullptr;
-  for (ur_platform_handle_t ThePlatform : *PiPlatformsCache) {
+  for (ur_platform_handle_t ThePlatform : *URPlatformsCache) {
     Dev = ThePlatform->getDeviceFromNativeHandle(ZeDevice);
     if (Dev) {
       // Check that the input Platform, if was given, matches the found one.

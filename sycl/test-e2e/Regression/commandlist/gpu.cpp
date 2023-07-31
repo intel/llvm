@@ -1,6 +1,3 @@
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-//
 // REQUIRES: gpu, linux
 
 // UNSUPPORTED: ze_debug
