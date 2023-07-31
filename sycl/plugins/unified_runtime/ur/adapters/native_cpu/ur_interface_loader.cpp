@@ -200,6 +200,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   }
   pDdiTable->pfnInit = urInit;
   pDdiTable->pfnTearDown = urTearDown;
+  pDdiTable->pfnAdapterGet = urAdapterGet;
+  pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
+  pDdiTable->pfnAdapterRelease = urAdapterRelease;
+  pDdiTable->pfnAdapterRetain = urAdapterRetain;
   return UR_RESULT_SUCCESS;
 }
 
