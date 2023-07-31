@@ -66,6 +66,7 @@ function(add_ur_target_compile_options name)
             $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
             $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
         )
+
         if (CMAKE_BUILD_TYPE STREQUAL "Release")
             target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
         endif()
@@ -81,6 +82,13 @@ function(add_ur_target_compile_options name)
             /MP
             /W3
             /MD$<$<CONFIG:Debug>:d>
+            /GS
+        )
+        add_link_options(
+            /DYNAMICBASE
+            /HIGHENTROPYVA
+            /ALLOWISOLATION
+            /NXCOMPAT
         )
 
         if(UR_DEVELOPER_MODE)
