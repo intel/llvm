@@ -4525,7 +4525,10 @@ void SPIRVToLLVM::transAuxDataInst(SPIRVExtInst *BC) {
   case NonSemanticAuxData::FunctionAttribute: {
     assert(Args.size() < 4 && "Unexpected FunctionAttribute Args");
     // If this attr was specially handled and added elsewhere, skip it.
-    if (F->hasFnAttribute(AttrOrMDName))
+    Attribute::AttrKind AsKind = Attribute::getAttrKindFromName(AttrOrMDName);
+    if (AsKind != Attribute::None && F->hasFnAttribute(AsKind))
+      return;
+    if (AsKind == Attribute::None && F->hasFnAttribute(AttrOrMDName))
       return;
     // For attributes, arg 2 is the attribute value as a string, which may not
     // exist.
@@ -4533,7 +4536,10 @@ void SPIRVToLLVM::transAuxDataInst(SPIRVExtInst *BC) {
       auto AttrValue = BC->getModule()->get<SPIRVString>(Args[2])->getStr();
       F->addFnAttr(AttrOrMDName, AttrValue);
     } else {
-      F->addFnAttr(AttrOrMDName);
+      if (AsKind != Attribute::None)
+        F->addFnAttr(AsKind);
+      else
+        F->addFnAttr(AttrOrMDName);
     }
     break;
   }
