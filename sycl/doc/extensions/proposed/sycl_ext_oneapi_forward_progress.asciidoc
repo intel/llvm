@@ -44,6 +44,8 @@ This extension also depends on the following other SYCL extensions:
 
 * link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties]
+* link:../experimental/sycl_ext_oneapi_launch_queries.asciidoc[
+  sycl_ext_oneapi_launch_queries]
 
 [NOTE]
 ====
@@ -450,138 +452,6 @@ template <> struct is_property_key<work_item_progress_key> : std::true_type {};
 
 |===
 
-
-=== Launch queries [[launch]]
-
-An implementation's ability to satisify requests for specific forward progress
-guarantees for a kernel may be dependent upon: the kernel itself, and the
-features that it uses; the queue (and underlying device) to which the kernel is
-submitted; and the kernel's launch configuration.
-
-It is a user's responsibility to ensure that a kernel requesting specific
-forward progress guarantees uses a compatible launch configuration, using the
-`ext_oneapi_get_info` function and descriptors from the `info::kernel`
-namespace.
-
-[NOTE]
-====
-The values returned by `ext_oneapi_get_info` account for _all_ properties
-attached to a kernel---not only those related to forward progress guarantees---
-as well as the usage of features like group algorithms and work-group local
-memory. Developers should assume that the values will differ across kernels.
-====
-
-[source,c++]
-----
-namespace sycl {
-
-class kernel {
- public:
-  template <typename Param, typename... T>
-  typename Param::return_type ext_oneapi_get_info(T... args) const;
-};
-
-}
-----
-
-[source,c++]
-----
-template <typename Param, typename... T>
-typename Param::return_type ext_oneapi_get_info(T... args) const;
-----
-_Constraints_: Available only when the types `+T...+` described by the parameter
-pack match the type list defined by `Param::argument_types`.
-
-_Preconditions_: `Param` must be one of the `info::kernel` descriptors defined
-in this extension, and the type alias `Param::return_type` must be defined in
-accordance with the table below.
-
-_Returns_: Information about the kernel that applies when the kernel is
-submitted with the configuration described by the parameter pack `+T...+`.
-
-This extension adds several new queries to this interface, many of which
-already have equivalents in the `kernel_device_specific` or `device`
-namespaces.
-
-NOTE: Redefining these queries is necessary to define `Param::argument_types`.
-If this extension is proposed for a future SYCL standard, such duplication
-could be avoided.
-
-[source, c++]
-----
-namespace ext::oneapi::experimental::info::kernel {
-
-template <uint32_t Dimensions>
-struct max_work_item_sizes;
-
-struct max_work_group_size;
-struct max_num_work_groups;
-
-struct max_sub_group_size;
-struct max_num_sub_groups;
-
-}
-----
-
-[%header,cols="1,5,5,5"]
-|===
-|Kernel Descriptor
-|Argument Types
-|Return Type
-|Description
-
-|`template <uint32_t Dimensions>
- max_work_item_sizes`
-|`sycl::queue`
-|`id<Dimensions>`
-|Returns the maximum number of work-items that are permitted in each dimension
- of a work-group, when the kernel is submitted to the specified queue,
- accounting for any kernel properties or features. If the kernel can be
- submitted to the specified queue without an error, the minimum value returned
- by this query is 1, otherwise it is 0.
-
-|`max_work_group_size`
-|`sycl::queue`
-|`size_t`
-|Returns the maximum number of work-items that are permitted in a work-group,
-when the kernel is submitted to the specified queue, accounting for any
-kernel properties or features. If the kernel can be submitted to the specified
-queue without an error, the minimum value returned by this query is 1,
-otherwise it is 0.
-
-|`max_num_work_groups`
-|`sycl::queue`, `sycl::range`, `size_t`
-|`size_t`
-|Returns the maximum number of work-groups, when the kernel is submitted to the
-specified queue with the specified work-group size and the specified amount of
-dynamic work-group local memory (in bytes), accounting for any kernel
-properties or features. If the kernel can be submitted to the specified queue
-without an error, the minimum value returned by this query is 1, otherwise it
-is 0.
-
-|`max_sub_group_size`
-|`sycl::queue`, `sycl::range`
-|`uint32_t`
-|Returns the maximum sub-group size, when the kernel is submitted to the
-specified queue with the specified work-group size, accounting for any kernel
-properties or features. If the kernel can be submitted to the specified queue
-without an error, the minimum value returned by this query is 1, otherwise it
-is 0.
-
-|`max_num_sub_groups`
-|`sycl::queue`, `sycl::range`
-|`uint32_t`
-|Returns the maximum number of sub-groups per work-group, when the kernel is
-submitted to the specified queue with the specified work-group size, accounting
-for any kernel properties or features. If the kernel can be submitted to the
-specified queue without an error, the minimum value returned by this query is
-1, otherwise it is 0.
-
-|===
-
-NOTE: These queries are queue- and not device-specific because it is
-anticipated that implementations will introduce finer-grained queue
-controls that impact the scheduling of kernels.
 
 == Implementation notes
 
