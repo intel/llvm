@@ -1089,6 +1089,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
       std::shared_lock<ur_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
       this->ZeEventList[0] = CurQueue->LastCommandEvent->ZeEvent;
       this->UrEventList[0] = CurQueue->LastCommandEvent;
+      this->UrEventList[0]->RefCount.increment();
       TmpListLength = 1;
     } else if (EventListLength > 0) {
       this->ZeEventList = new ze_event_handle_t[EventListLength];
@@ -1169,6 +1170,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
         this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
         this->UrEventList[TmpListLength] = EventList[I];
+        this->UrEventList[TmpListLength]->RefCount.increment();
         TmpListLength += 1;
       }
     }
@@ -1177,10 +1179,6 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  for (uint32_t I = 0; I < this->Length; I++) {
-    this->UrEventList[I]->RefCount.increment();
   }
 
   return UR_RESULT_SUCCESS;
