@@ -22,17 +22,17 @@ void llvm::getSYCLDeviceRequirements(
     const module_split::ModuleDesc &MD,
     std::map<StringRef, util::PropertyValue> &Requirements) {
   auto ExtractSignedIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                                   unsigned OpNo) -> int64_t {
+                                                   unsigned OpNo) -> auto {
     Constant *C =
         cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
-    return static_cast<int64_t>(C->getUniqueInteger().getSExtValue());
+    return C->getUniqueInteger().getSExtValue();
   };
 
-  auto ExtractUnsignedIntegerFromMDNodeOperand =
-      [=](const MDNode *N, unsigned OpNo) -> uint64_t {
+  auto ExtractUnsignedIntegerFromMDNodeOperand = [=](const MDNode *N,
+                                                     unsigned OpNo) -> auto {
     Constant *C =
         cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
-    return static_cast<uint64_t>(C->getUniqueInteger().getZExtValue());
+    return C->getUniqueInteger().getZExtValue();
   };
 
   // { LLVM-IR metadata name , [SYCL/Device requirements] property name }, see:
