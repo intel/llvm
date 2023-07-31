@@ -18,7 +18,7 @@
 inline constexpr auto EnableDefaultContextsName =
     "SYCL_ENABLE_DEFAULT_CONTEXTS";
 
-void test_contexts_are_equal() {
+void test_default_context_enabled() {
   sycl::unittest::PiMock Mock1;
   sycl::platform Plt1 = Mock1.getPlatform();
 
@@ -58,7 +58,7 @@ TEST(DefaultContextTest, DefaultContextTest) {
   ScopedEnvVar var(EnableDefaultContextsName, "1",
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  test_contexts_are_equal();
+  test_default_context_enabled();
 }
 
 TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
@@ -75,5 +75,28 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabledEnabled) {
   test_default_context_disabled();
 
   sycl::detail::enable_ext_oneapi_default_context(true);
-  test_contexts_are_equal();
+  test_default_context_enabled();
+}
+
+TEST(DefaultContextTest, DefaultContextValueChangedAfterQueueCreated) {
+  sycl::detail::enable_ext_oneapi_default_context(false);
+
+  sycl::unittest::PiMock Mock1;
+  sycl::platform Plt = Mock1.getPlatform();
+
+  const sycl::device Dev1 = Plt.get_devices()[0];
+  const sycl::device Dev2 = Plt.get_devices()[0];
+  const sycl::device Dev3 = Plt.get_devices()[0];
+
+  sycl::queue Queue1{Dev1};
+
+  sycl::detail::enable_ext_oneapi_default_context(true);
+
+  sycl::queue Queue2{Dev2};
+
+  ASSERT_NE(Queue1.get_context(), Queue2.get_context());
+
+  sycl::queue Queue3{Dev3};
+
+  ASSERT_EQ(Queue2.get_context(), Queue3.get_context());
 }
