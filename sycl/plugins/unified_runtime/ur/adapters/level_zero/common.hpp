@@ -188,7 +188,26 @@ enum UrDebugLevel {
   UR_L0_DEBUG_CALL_COUNT = 0x4,
   UR_L0_DEBUG_ALL = -1
 };
-extern int UrL0Debug;
+
+/// UR_L0_DEBUG
+/// Enables extra debug capabilities in the L0 adapter.
+/// Mask accepting following values:
+/// UR_L0_DEBUG_NONE = 0x0, default
+/// UR_L0_DEBUG_BASIC = 0x1, prints UR and ZE calls made
+/// UR_L0_DEBUG_VALIDATION = 0x2, enables validation
+///   layer in L0 loader.
+/// UR_L0_DEBUG_CALL_COUNT = 0x4, enables memory leak detection
+static const int UrL0Debug = [] {
+  const char *ZeDebugMode = std::getenv("ZE_DEBUG");
+  const char *UrL0DebugMode = std::getenv("UR_L0_DEBUG");
+  uint32_t DebugMode = 0;
+  if (UrL0DebugMode) {
+    DebugMode = std::atoi(UrL0DebugMode);
+  } else if (ZeDebugMode) {
+    DebugMode = std::atoi(ZeDebugMode);
+  }
+  return DebugMode;
+}();
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
 // ready. Recognized values (can be used as a bit mask):
@@ -295,7 +314,8 @@ void urPrint(const char *Format, ...);
 // Map Level Zero runtime error code to UR error code.
 ur_result_t ze2urResult(ze_result_t ZeResult);
 
-// Trace a call to Level-Zero RT
+// Trace a call to Level-Zero RT and
+// return if error has occurred.
 #define ZE2UR_CALL(ZeName, ZeArgs)                                             \
   {                                                                            \
     urPrint("ZE ---> %s%s\n", #ZeName, #ZeArgs);                               \
@@ -303,13 +323,20 @@ ur_result_t ze2urResult(ze_result_t ZeResult);
       return ze2urResult(Result);                                              \
   }
 
-#define ZE_CALL(ZeName, ZeArgs, ZeResult)                                      \
+// Trace a call to Level-Zero RT without
+// checking for call's result and instead
+// return it in ZeResult declared
+// in original scope
+#define ZE_CALL_NOCHECK(ZeName, ZeArgs, ZeResult)                              \
   {                                                                            \
     urPrint("ZE ---> %s%s\n", #ZeName, #ZeArgs);                               \
     ZeResult = ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs);               \
   }
 
-#define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
+// Trace a call to Level-Zero RT and
+// return without checking for call's
+// result
+#define ZE_CALL_NOCHECK_VOID(ZeName, ZeArgs)                                   \
   {                                                                            \
     urPrint("ZE ---> %s%s\n", #ZeName, #ZeArgs);                               \
     ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs);                          \

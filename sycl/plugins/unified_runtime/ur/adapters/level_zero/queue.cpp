@@ -130,7 +130,7 @@ ur_result_t resetCommandLists(ur_queue_handle_t Queue) {
     // reset. In that case the ZeFenceInUse flag will be false.
     if (it->second.ZeFenceInUse) {
       ze_result_t ZeResult{};
-      ZE_CALL(zeFenceQueryStatus, (it->second.ZeFence), ZeResult);
+      ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence), ZeResult);
       if (ZeResult == ZE_RESULT_SUCCESS)
         UR_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
     }
@@ -181,8 +181,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
       // LastCommandEvent.
       if (!Queue->LastCommandEvent->IsDiscarded) {
         ze_result_t ZeResult{};
-        ZE_CALL(zeEventQueryStatus, (Queue->LastCommandEvent->ZeEvent),
-                ZeResult);
+        ZE_CALL_NOCHECK(zeEventQueryStatus, (Queue->LastCommandEvent->ZeEvent),
+                        ZeResult);
         if (ZeResult == ZE_RESULT_NOT_READY) {
           return ReturnValue(false);
         } else if (ZeResult != ZE_RESULT_SUCCESS) {
@@ -221,7 +221,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
             auto EventList = ImmCmdList->second.EventList;
             for (auto It = EventList.crbegin(); It != EventList.crend(); It++) {
               ze_result_t ZeResult{};
-              ZE_CALL(zeEventQueryStatus, ((*It)->ZeEvent), ZeResult);
+              ZE_CALL_NOCHECK(zeEventQueryStatus, ((*It)->ZeEvent), ZeResult);
               if (ZeResult == ZE_RESULT_NOT_READY) {
                 return ReturnValue(false);
               } else if (ZeResult != ZE_RESULT_SUCCESS) {
@@ -236,8 +236,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
             // Provide 0 as the timeout parameter to immediately get the status
             // of the Level Zero queue.
             ze_result_t ZeResult{};
-            ZE_CALL(zeCommandQueueSynchronize, (ZeQueue, /* timeout */ 0),
-                    ZeResult);
+            ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
+                            (ZeQueue, /* timeout */ 0), ZeResult);
             if (ZeResult == ZE_RESULT_NOT_READY) {
               return ReturnValue(false);
             } else if (ZeResult != ZE_RESULT_SUCCESS) {
@@ -434,7 +434,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(
       // If the fence is a nullptr we are using immediate commandlists.
       if (Queue->Healthy && it->second.ZeFence != nullptr) {
         ze_result_t ZeResult{};
-        ZE_CALL(zeFenceDestroy, (it->second.ZeFence), ZeResult);
+        ZE_CALL_NOCHECK(zeFenceDestroy, (it->second.ZeFence), ZeResult);
         // Gracefully handle the case that L0 was already unloaded.
         if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
           return ze2urResult(ZeResult);
@@ -1201,9 +1201,10 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
     // Offload command list to the GPU for asynchronous execution
     auto ZeCommandList = CommandList->first;
     ze_result_t ZeResult{};
-    ZE_CALL(zeCommandQueueExecuteCommandLists,
-            (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence),
-            ZeResult);
+    ZE_CALL_NOCHECK(
+        zeCommandQueueExecuteCommandLists,
+        (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence),
+        ZeResult);
     if (ZeResult != ZE_RESULT_SUCCESS) {
       this->Healthy = false;
       if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -1297,7 +1298,7 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
         for (auto &ZeQueue : QueueGroup.second.ZeQueues)
           if (ZeQueue) {
             ze_result_t ZeResult{};
-            ZE_CALL(zeCommandQueueDestroy, (ZeQueue), ZeResult);
+            ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue), ZeResult);
             // Gracefully handle the case that L0 was already unloaded.
             if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
               return ze2urResult(ZeResult);
@@ -1637,7 +1638,7 @@ ur_result_t ur_queue_handle_t_::resetCommandList(
     auto EventCompleted = [](ur_event_handle_t Event) -> bool {
       std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
       ze_result_t Res{};
-      ZE_CALL(zeEventQueryStatus, (Event->ZeEvent), Res);
+      ZE_CALL_NOCHECK(zeEventQueryStatus, (Event->ZeEvent), Res);
       ze_result_t ZeResult = Event->Completed ? ZE_RESULT_SUCCESS : Res;
       return ZeResult == ZE_RESULT_SUCCESS;
     };
@@ -1806,10 +1807,10 @@ ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
           UpperIndex, Priority);
 
   ze_result_t ZeResult{};
-  ZE_CALL(zeCommandQueueCreate,
-          (Queue->Context->ZeContext, Queue->Device->ZeDevice,
-           &ZeCommandQueueDesc, &ZeQueue),
-          ZeResult);
+  ZE_CALL_NOCHECK(zeCommandQueueCreate,
+                  (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+                   &ZeCommandQueueDesc, &ZeQueue),
+                  ZeResult);
   if (ZeResult) {
     die("[L0] getZeQueue: failed to create queue");
   }
@@ -2003,9 +2004,9 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
             ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
             UpperIndex, Priority);
 
-    ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
-                    (Queue->Context->ZeContext, Queue->Device->ZeDevice,
-                     &ZeCommandQueueDesc, &ZeCommandList));
+    ZE_CALL_NOCHECK_VOID(zeCommandListCreateImmediate,
+                         (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+                          &ZeCommandQueueDesc, &ZeCommandList));
   }
   ImmCmdLists[Index] =
       Queue->CommandListMap

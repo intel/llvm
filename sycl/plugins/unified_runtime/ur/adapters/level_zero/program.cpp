@@ -31,7 +31,7 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
   // zeModuleDynamicLink below.
   ZeStruct<ze_module_properties_t> ZeModuleProps;
   ze_result_t ZeResult{};
-  ZE_CALL(zeModuleGetProperties, (ZeModule, &ZeModuleProps), ZeResult);
+  ZE_CALL_NOCHECK(zeModuleGetProperties, (ZeModule, &ZeModuleProps), ZeResult);
   if (ZeResult != ZE_RESULT_SUCCESS)
     return ZeResult;
 
@@ -40,7 +40,7 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
   // ZE_RESULT_ERROR_MODULE_LINK_FAILURE if there are any unresolved symbols.
   if (ZeModuleProps.flags & ZE_MODULE_PROPERTY_FLAG_IMPORTS) {
     ze_result_t ZeResult{};
-    ZE_CALL(zeModuleDynamicLink, (1, &ZeModule, ZeBuildLog), ZeResult);
+    ZE_CALL_NOCHECK(zeModuleDynamicLink, (1, &ZeModule, ZeBuildLog), ZeResult);
     return ZeResult;
   }
   return ZE_RESULT_SUCCESS;
@@ -149,16 +149,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
   ur_result_t Result = UR_RESULT_SUCCESS;
   Program->State = ur_program_handle_t_::Exe;
   ze_result_t ZeResult{};
-  ZE_CALL(zeModuleCreate,
-          (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule, &Program->ZeBuildLog),
-          ZeResult);
+  ZE_CALL_NOCHECK(
+      zeModuleCreate,
+      (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule, &Program->ZeBuildLog),
+      ZeResult);
   if (ZeResult != ZE_RESULT_SUCCESS) {
     // We adjust pi_program below to avoid attempting to release zeModule when
     // RT calls piProgramRelease().
     Program->State = ur_program_handle_t_::Invalid;
     Result = ze2urResult(ZeResult);
     if (ZeModule) {
-      ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+      ZE_CALL_NOCHECK_VOID(zeModuleDestroy, (ZeModule));
       ZeModule = nullptr;
     }
   } else {
@@ -174,7 +175,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
                    ? UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
                    : ze2urResult(ZeResult);
       if (ZeModule) {
-        ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+        ZE_CALL_NOCHECK_VOID(zeModuleDestroy, (ZeModule));
         ZeModule = nullptr;
       }
     }
@@ -343,9 +344,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     ze_module_handle_t ZeModule = nullptr;
     ze_module_build_log_handle_t ZeBuildLog = nullptr;
     ze_result_t ZeResult{};
-    ZE_CALL(zeModuleCreate,
-            (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule, &ZeBuildLog),
-            ZeResult);
+    ZE_CALL_NOCHECK(
+        zeModuleCreate,
+        (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule, &ZeBuildLog), ZeResult);
 
     // We still create a ur_program_handle_t_ object even if there is a
     // BUILD_FAILURE because we need the object to hold the ZeBuildLog.  There
@@ -453,8 +454,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   }
 
   ze_result_t ZeResult{};
-  ZE_CALL(zeModuleGetFunctionPointer,
-          (Program->ZeModule, FunctionName, FunctionPointerRet), ZeResult);
+  ZE_CALL_NOCHECK(zeModuleGetFunctionPointer,
+                  (Program->ZeModule, FunctionName, FunctionPointerRet),
+                  ZeResult);
 
   // zeModuleGetFunctionPointer currently fails for all
   // kernels regardless of if the kernel exist or not
@@ -665,7 +667,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
         // because RT does not create sycl::program when urProgramBuild() fails,
         // thus it won't call urProgramRelease() to clean up the build log.
         if (Program->State == ur_program_handle_t_::Invalid) {
-          ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
+          ZE_CALL_NOCHECK_VOID(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
           Program->ZeBuildLog = nullptr;
         }
       }
@@ -753,11 +755,11 @@ ur_program_handle_t_::~ur_program_handle_t_() {
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
   if (ZeBuildLog) {
-    ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLog));
+    ZE_CALL_NOCHECK_VOID(zeModuleBuildLogDestroy, (ZeBuildLog));
   }
 
   if (ZeModule && OwnZeModule) {
-    ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+    ZE_CALL_NOCHECK_VOID(zeModuleDestroy, (ZeModule));
   }
 }
 

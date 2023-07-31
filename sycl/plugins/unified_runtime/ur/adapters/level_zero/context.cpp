@@ -332,7 +332,7 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
   // but this makes API error handling more complex.
   if (DestroyZeContext) {
     ze_result_t ZeResult{};
-    ZE_CALL(zeContextDestroy, (DestroyZeContext), ZeResult);
+    ZE_CALL_NOCHECK(zeContextDestroy, (DestroyZeContext), ZeResult);
     // Gracefully handle the case that L0 was already unloaded.
     if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
       return ze2urResult(ZeResult);
@@ -355,7 +355,7 @@ ur_result_t ur_context_handle_t_::finalize() {
     for (auto &EventCache : EventCaches) {
       for (auto &Event : EventCache) {
         ze_result_t ZeResult{};
-        ZE_CALL(zeEventDestroy, (Event->ZeEvent), ZeResult);
+        ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent), ZeResult);
         // Gracefully handle the case that L0 was already unloaded.
         if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
           return ze2urResult(ZeResult);
@@ -369,7 +369,7 @@ ur_result_t ur_context_handle_t_::finalize() {
     for (auto &ZePoolCache : ZeEventPoolCache) {
       for (auto &ZePool : ZePoolCache) {
         ze_result_t ZeResult{};
-        ZE_CALL(zeEventPoolDestroy, (ZePool), ZeResult);
+        ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool), ZeResult);
         // Gracefully handle the case that L0 was already unloaded.
         if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
           return ze2urResult(ZeResult);
@@ -380,7 +380,7 @@ ur_result_t ur_context_handle_t_::finalize() {
 
   // Destroy the command list used for initializations
   ze_result_t ZeResult{};
-  ZE_CALL(zeCommandListDestroy, (ZeCommandListInit), ZeResult);
+  ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandListInit), ZeResult);
   // Gracefully handle the case that L0 was already unloaded.
   if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
     return ze2urResult(ZeResult);
@@ -392,7 +392,7 @@ ur_result_t ur_context_handle_t_::finalize() {
       if (ZeCommandList)
         if (ZeCommandList) {
           ze_result_t ZeResult{};
-          ZE_CALL(zeCommandListDestroy, (ZeCommandList), ZeResult);
+          ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList), ZeResult);
           // Gracefully handle the case that L0 was already unloaded.
           if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
             return ze2urResult(ZeResult);
@@ -404,7 +404,7 @@ ur_result_t ur_context_handle_t_::finalize() {
       ze_command_list_handle_t ZeCommandList = Item.first;
       if (ZeCommandList) {
         ze_result_t ZeResult{};
-        ZE_CALL(zeCommandListDestroy, (ZeCommandList), ZeResult);
+        ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList), ZeResult);
         // Gracefully handle the case that L0 was already unloaded.
         if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
           return ze2urResult(ZeResult);
@@ -709,7 +709,7 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
       continue;
 
     ze_result_t ZeResult{};
-    ZE_CALL(zeFenceQueryStatus, (it->second.ZeFence), ZeResult);
+    ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence), ZeResult);
     if (ZeResult == ZE_RESULT_SUCCESS) {
       std::vector<ur_event_handle_t> EventListToCleanup;
       Queue->resetCommandList(it, false, EventListToCleanup);

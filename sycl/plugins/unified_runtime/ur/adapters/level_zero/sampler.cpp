@@ -120,7 +120,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerRelease(
     return UR_RESULT_SUCCESS;
 
   ze_result_t ZeResult{};
-  ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler), ZeResult);
+  ZE_CALL_NOCHECK(zeSamplerDestroy, (Sampler->ZeSampler), ZeResult);
   // Gracefully handle the case that L0 was already unloaded.
   if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
     return ze2urResult(ZeResult);

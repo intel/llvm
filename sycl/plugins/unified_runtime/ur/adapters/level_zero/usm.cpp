@@ -795,7 +795,7 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
   // Query memory type of the pointer we're freeing to determine the correct
   // way to do it(directly or via an allocator)
   ze_result_t ZeResult{};
-  ZE_CALL(
+  ZE_CALL_NOCHECK(
       zeMemGetAllocProperties,
       (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties, &ZeDeviceHandle),
       ZeResult);
