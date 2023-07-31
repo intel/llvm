@@ -166,11 +166,13 @@ enum class use {
 ```
 
 ==== Matrix Shape
-The `Rows` and `Cols` template parameters provide the number of rows and
-columns in the joint matrix. Each device supports only certain
-combinations of row and column sizes, so the application must use the
-query operations (defined below) to ensure that the matrix shape is
-supported on the device where the kernel using this `joint_matrix` runs.
+The `Rows` and `Cols` template parameters provide the number of rows
+and columns in the joint matrix. Each device supports only certain
+combinations of row and column sizes, so the application must ensure
+that the combination is supported on the device where the kernel using
+this `joint_matrix` runs. The query functions (defined below) may be
+used to determine the set of combinations that are supported on a
+device.
 
 ==== Matrix Layout
 The `Layout` template parameter specifies the memory layout of the
