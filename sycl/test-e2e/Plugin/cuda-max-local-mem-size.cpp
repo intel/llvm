@@ -19,7 +19,7 @@ int main() {
   auto LocalSize =
       Q.get_device().get_info<sycl::info::device::local_mem_size>();
   Q.submit([&](sycl::handler &cgh) {
-     auto LocalAcc = sycl::local_accessor<float>(LocalSize, cgh);
+     auto LocalAcc = sycl::local_accessor<float>(LocalSize + 1, cgh);
      cgh.parallel_for(sycl::nd_range<1>{32, 32}, [=](sycl::nd_item<1> idx) {
        LocalAcc[idx.get_global_linear_id()] *= 2;
      });
