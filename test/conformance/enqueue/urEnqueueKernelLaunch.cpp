@@ -126,6 +126,15 @@ struct urEnqueueKernelLaunchWithVirtualMemory : uur::urKernelExecutionTest {
     void SetUp() override {
         program_name = "fill_usm";
         UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
+
+        ur_bool_t virtual_memory_support = false;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT, sizeof(ur_bool_t),
+            &virtual_memory_support, nullptr));
+        if (!virtual_memory_support) {
+            GTEST_SKIP() << "Virtual memory is not supported.";
+        }
+
         ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
             context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
             sizeof(granularity), &granularity, nullptr));
@@ -179,8 +188,11 @@ TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
     size_t work_dim = 1;
     size_t global_offset = 0;
     size_t global_size = alloc_size / sizeof(uint32_t);
+    uint32_t fill_val = 42;
 
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, virtual_ptr));
+    ASSERT_SUCCESS(
+        urKernelSetArgValue(kernel, 1, sizeof(fill_val), nullptr, &fill_val));
 
     ur_event_handle_t kernel_evt;
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, work_dim,
@@ -195,6 +207,6 @@ TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
 
     // verify fill worked
     for (size_t i = 0; i < data.size(); i++) {
-        ASSERT_EQ(i, data.at(i));
+        ASSERT_EQ(fill_val, data.at(i));
     }
 }
