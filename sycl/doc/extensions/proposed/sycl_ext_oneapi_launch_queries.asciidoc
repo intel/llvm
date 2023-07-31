@@ -57,7 +57,13 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-
+This extension introduces a new mechanism for querying any limitations that a
+developer must respect when launching a specific kernel on a specific queue.
+Such limitations may exist when a kernel is decorated with one or more
+properties that require an implementation to enable additional features
+(such as providing certain forward progress guarantees, or enabling
+cross-work-group synchronization routines), or when a kernel uses certain
+features (such as static work-group local memory or group algorithms).
 
 
 == Specification
