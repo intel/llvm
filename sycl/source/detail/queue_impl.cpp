@@ -121,9 +121,23 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
+void report(const code_location &CodeLoc) {
+  std::cout << "Exception caught at ";
+  if (CodeLoc.fileName())
+    std::cout << "File: " << CodeLoc.fileName();
+  if (CodeLoc.functionName())
+    std::cout << " | Function: " << CodeLoc.functionName();
+  if (CodeLoc.lineNumber())
+    std::cout << " | Line: " << CodeLoc.lineNumber();
+  if (CodeLoc.columnNumber())
+    std::cout << " | Column: " << CodeLoc.columnNumber();
+  std::cout << '\n';
+}
+
 event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
-                         const std::vector<event> &DepEvents) {
+                         const std::vector<event> &DepEvents,
+                         const code_location &CodeLoc) {
 #if XPTI_ENABLE_INSTRUMENTATION
   // We need a code pointer value and we duse the object ptr; If code location
   // is available, we use the source file information along with the object
@@ -154,6 +168,11 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
           CGH.memcpy(Dest, Src, Count);
         },
         Self, {});
+  }
+  if ((!Src || !Dest) && Count != 0) {
+    report(CodeLoc);
+    throw runtime_error("NULL pointer argument in memory copy operation.",
+                        PI_ERROR_INVALID_VALUE);
   }
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_usm(Src, Self, Count, Dest,
