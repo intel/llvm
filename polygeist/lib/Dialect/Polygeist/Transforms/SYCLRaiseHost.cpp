@@ -1691,7 +1691,7 @@ private:
             return alloca.getElemType().has_value() ? alloca : nullptr;
           })
           // Safely bail out
-          .Default(LLVM::AllocaOp());
+          .Default(LLVM::AllocaOp(nullptr));
     }
     // Check lambdaObj is a function argument
     Block *block = lambdaObj.getParentBlock();
